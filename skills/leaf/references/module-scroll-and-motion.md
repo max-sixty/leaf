@@ -7,7 +7,7 @@ module owes.
 
 ### Reading regions
 
-A pane widget declares `x-reading-role: pane` and `x-content: markup`, and holds one
+A pane widget declares `reading-role: pane` and `content: markup`, and holds one
 body element, with an optional native `header` before it and `footer` after. Whether a
 pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
 module's, and either way the module registers the body as a reading region, below.
@@ -18,9 +18,10 @@ widget keys its rules for that case on `@container style(--lf-full-height: 1)`, 
 reads its parent, and fits what it shows to the height. It declares
 `--lf-holds-height: 1` on each part that scrolls within it, and sets
 `--lf-full-height: inherit` on each box that passes the height down, as a playground
-does to its panes. An `lf-ask` passes it to its answering widget, and page tabs to a
-tab that is one block. The property doesn't inherit, so a widget nested in a section, or
-in a tab of several blocks, is not told and grows with its content.
+does to its panes. A question's group, once told, passes it to its children, its last
+block, such as the question's answer, taking the height the blocks before it leave, and
+page tabs pass it to a tab that is one block. The property doesn't inherit, so a widget
+nested deeper, or in a tab of several blocks, is not told and grows with its content.
 
 A module that builds its own panes, such as a playground's controls beside its preview,
 marks each generated box `data-lf-reading-role="pane"` and `data-lf-generated`, with a
@@ -61,16 +62,14 @@ screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where
 keeps a `scrollbar-gutter` across states.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`). `regionScrollBehavior(node)` is `"bounded"` while the region's body
-scrolls itself, and `"flow"` otherwise.
+page's (`pageScroller`).
 
 When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
 regions shown once `change`'s promise resolves. A region that shows one subject of
 several at a time, as a trace's saved tree shows one checkpoint, replaces its body's
 contents inside `showReadingSubject(id, subject, render)`, and the user returns to their
-place in each subject. `watchReadingRegionTransitions(listener)` hears these changes and
-any shift in a region's scroller or width; `runtime/reading-regions.js` describes them.
+place in each subject.
 
 ### Holding the reader's place
 
@@ -128,8 +127,9 @@ deliberate move; focusing a visible control or redrawing keeps the scroll.
 `scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
 to the page's `document.scrollingElement`. A widget that keeps something in view as
 another widget moves, as `lf-code` keeps the line a film runs, passes the first as
-`within` unless it is the page, so the page stays where the reader left it. It and
-`alreadyShown` are also available from `portable-api.js`.
+`within` unless it is the page, so the page stays where the reader left it. It,
+`alreadyShown` and `onUserInput` ([module-input.md](module-input.md)), which says when
+the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
@@ -200,14 +200,6 @@ when the header becomes local navigation. Only a header over the document belong
 here: a nested scroller uses the local sticky and landing inputs above. Packages own
 where their headers are positioned; Leaf owns the aggregate root landing inset.
 
-A header the page itself fixes at the window's top, or makes sticky ahead of the
-page's content, in `body` or a box around `main` before it or at the start of `main`,
-such as a site header, is one of the page's heads, which Leaf finds without a
-declaration. How far down the window they
-reach starts the sticky-header slot below them for everything in the page but the
-heads, so a package's header sticking at `var(--lf-top)` sticks below them, and the
-margin every box reads from the slot clears them.
-
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room
@@ -226,7 +218,7 @@ container above it.
 
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
 covering the page and opens whatever holds the element. A fragment can also name a
-part of a widget by the widget's id and a key, which `fragmentUrl` builds
+part of a widget by the widget's id and a key
 ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
 A widget that opens the part a
 fragment names reads it with `fragmentTarget(hash)`: the element, or for a key the part
@@ -274,34 +266,28 @@ A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter
 `returnDuration()`.
 
-`foldBlock(element)` animates a block from its ordinary CSS size to zero, margins,
-padding, borders and minimum size included. It returns an Animation, or `null` where it
-retires the block at once, as under reduced motion. Retire the block's state at once,
-since the effect keeps its pixels drawn until the fold finishes; keep its ordinary
-sizing rules while it leaves, and cancel the effect if retirement is reversed.
-
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
-own background. `flashDuration()` is how long Leaf's own arrival tint lasts, as on a
-newly arrived message.
+own background, and tints each box inside it that paints a background of its own too.
+`flashDuration()` is how long Leaf's own arrival tint lasts, as on a newly arrived
+message.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's panel, in the italic Leaf sets its
-own words in, and announces it to screen readers, such as a view the widget switched
-to. A recorded gesture is acknowledged by
-the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
-caused by the user passes `{background: true}` and waits behind what the user just did;
-`{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
-`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
+`announce(message)` announces words already on screen: it dispatches an `lf-announce`
+event on the window carrying `message` as its `detail`, which Leaf says in its live
+region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's
 `clear()` takes the error down once it no longer holds. Use it for failures only.
 
-A `data-lf-quiet` attribute gives an element words screen readers say after its leading
-`<strong>` title but the screen doesn't show: Leaf writes them there while the attribute
-stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
+A `data-lf-quiet` attribute gives an element words screen readers say at its start,
+but the screen doesn't show: Leaf writes them there while the attribute stands, and
+takes them away with it. Set the whole quiet word each time. Leaf writes
 quiet words for elements it marks as rewritten, changed or reported, so declare them only
 on parts the module builds or owns, such as a code line or a suggestion's slot. A page
-without Leaf, whose theme would leave them on screen, writes none.
+without Leaf, whose theme would leave them on screen, writes none. Where a control's
+quiet words are all its face leaves unsaid, its preview reads them alone, as a check's
+verdict; a widget whose quiet words the page shows another way, as a column's head
+shows each cell's run, declares the control's `lfPreview` returning `false`
+(`module-input.md`, "Previews").

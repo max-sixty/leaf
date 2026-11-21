@@ -44,9 +44,7 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
     page_dir, server
 ):
     published(page_dir)
-    message = thread_model.cmd_comment(
-        page_dir, None, None, None, "First answer.", None
-    )
+    message = thread_model.cmd_comment(page_dir, None, None, None, "First answer.")
     original = message["id"]
 
     status, answer = _post_read(server, {"message": original, "version": original})
@@ -75,12 +73,12 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
         None,
         None,
         None,
-        "Which should go first?",
-        '<lf-ask id="order-decision"><h3>Which first?</h3>'
-        '<lf-options id="order" choose>'
+        "Which should go first?\n\n"
+        '<lf-group id="order-decision" label="Which first?">\n<h3 id="order-decision-h">Which first?</h3>'
+        '<lf-options id="order">'
         '<lf-option id="mounts">Mounts</lf-option>'
         '<lf-option id="camera">Camera</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     status, answer = _post(
         server,
@@ -128,10 +126,8 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
 
 def test_read_refuses_unknown_or_wrong_message_versions(page_dir, server):
     published(page_dir)
-    first = thread_model.cmd_comment(page_dir, None, None, None, "First answer.", None)
-    second = thread_model.cmd_comment(
-        page_dir, None, None, None, "Second answer.", None
-    )
+    first = thread_model.cmd_comment(page_dir, None, None, None, "First answer.")
+    second = thread_model.cmd_comment(page_dir, None, None, None, "Second answer.")
     for pair in (
         {"message": "missing", "version": first["id"]},
         {"message": first["id"], "version": second["id"]},
@@ -146,9 +142,7 @@ def test_read_refuses_unknown_or_wrong_message_versions(page_dir, server):
 
 def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     published(page_dir)
-    message = thread_model.cmd_comment(
-        page_dir, None, None, None, "An answer to read.", None
-    )
+    message = thread_model.cmd_comment(page_dir, None, None, None, "An answer to read.")
     record_claim(
         page_dir,
         id="one-user-session",

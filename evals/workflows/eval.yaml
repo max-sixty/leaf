@@ -1,5 +1,11 @@
 # Shared instructions prepended to native instruction probes.
 skill_prefix: "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
+# The page a probe whose case declares `metadata.page` is given, initialized with the
+# packages that list names, so it can ask Leaf for their instructions as an author does.
+page_prompt: |-
+  {prompt}
+
+  Your page is `{page}` in your working directory, already initialized, and Leaf's commands run as `leaf` (in Codex, through the `leaf` tool). Put the HTML in your reply rather than writing it to the page.
 # Source probes return the requested fragment or plan. The judge needs the task
 # to distinguish that artifact from an assertion that actions were executed.
 source_grading_prompt:
@@ -25,5 +31,5 @@ source_grading_prompt:
 # what the case was written with, whenever it runs. A case whose fixtures stand at
 # another time sets its own as `vars.now`.
 now: "2026-10-08T01:30:00-07:00"
-# The windows a run opens unless `eval --viewport` names others (`leaf_dev.browser.WINDOWS`).
+# The windows a run opens unless `eval run --viewport` names others (`leaf_dev.browser.WINDOWS`).
 default_viewports: [desktop]

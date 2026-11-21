@@ -11,7 +11,7 @@ from pathlib import Path
 
 from leaf.files import file_stamp, latest_revision
 from leaf.findings import Finding
-from leaf.page_memory import Slot, memo, once
+from leaf.page_memory import Slot, Stamped, memo, once
 from leaf.schema import LAYER_FILE
 from leaf.state import Record
 
@@ -69,6 +69,19 @@ class _Candidate(Slot):
     """The page's candidate vocabulary, by its inputs' stamps and active revision."""
 
 
+class _Revisions(Stamped):
+    """The vocabularies the page's revisions are read in (`revision_vocabulary`), one
+    for each layer record, set of declarations and set of page widgets a revision
+    captured. Each is kept beside the layer vocabulary it was composed over, and
+    composed again once another replaces that.
+
+    They are kept with the page rather than with the layer's vocabulary, which many
+    pages may share (`layer._held`). Each names its page's generation under
+    `$layer`, so only the page's samples, which read its revisions under that
+    generation, could share one, and each sample composes its own instead. Kept with
+    a shared vocabulary, they would outlast every page that read them."""
+
+
 def layer_record(page_dir: Path) -> dict | None:
     """The page's layer record, or None before `page init`. A newer Leaf's record,
     at a later shape than this Leaf reads, refuses the page as `newer-layer`
@@ -104,11 +117,10 @@ def selected_vocabulary(record: dict, page_dir: Path):
 
 
 def _compose_selected(compose, record: dict, page_dir: Path):
-    from leaf.themes import theme_package
+    from leaf.themes import with_theme
 
-    theme = theme_package(record["theme"])
     try:
-        return compose(tuple(record["packages"]), theme, page_dir)
+        return compose(with_theme(tuple(record["packages"]), record["theme"]), page_dir)
     except Refused as error:
         raise RegistryError(
             [Finding("layer-unavailable", values={"error": str(error)})]
@@ -117,14 +129,10 @@ def _compose_selected(compose, record: dict, page_dir: Path):
 
 def layer_vocabulary(record: dict, page_dir: Path) -> dict:
     """The vocabulary of the layer `record` selects, with the selection and the
-    generation the browser speaks under `$layer`, held with the layer's vocabulary,
-    since an action POST asks for the whole vocabulary before it can check a press."""
-    metadata = layer_metadata_of(record)
+    generation the browser speaks under `$layer`. Each call makes a new copy of the
+    layer's registry, sharing its entries."""
     vocabulary = selected_vocabulary(record, page_dir)
-    key = ("layer", json.dumps(metadata, sort_keys=True))
-    return once(
-        vocabulary.readings, key, lambda: {**vocabulary.registry, "$layer": metadata}
-    )
+    return {**vocabulary.registry, "$layer": layer_metadata_of(record)}
 
 
 def layer_widgets(record: dict, page_dir: Path) -> list[str]:
@@ -141,8 +149,8 @@ def revision_vocabulary(
 ) -> dict:
     """The vocabulary this Leaf reads a revision of the page at `page_dir` in: the
     declarations it captured, `declarations`, over the layer its `manifest` selects,
-    with the page widgets it captured. Every revision selecting the same layer and
-    declaring the same shares one read-only reading."""
+    with the page widgets it captured. Every revision of the page selecting the same
+    layer and declaring the same shares one read-only reading (`_Revisions`)."""
     return _revision_composition(manifest, declarations, page_dir)[0]
 
 
@@ -166,10 +174,14 @@ def _revision_composition(
         if implementation["owner"] == "page"
     )
     layer = manifest["layer"]
-    readings = selected_vocabulary(layer, page_dir).readings
-    key = ("revision", json.dumps(layer, sort_keys=True), declarations, widgets)
+    held = memo(page_dir, _Revisions).of(
+        (json.dumps(layer, sort_keys=True), declarations, widgets),
+        (selected_vocabulary(layer, page_dir),),
+    )
     return once(
-        readings, key, lambda: _compose_revision(layer, declarations, widgets, page_dir)
+        held,
+        "composition",
+        lambda: _compose_revision(layer, declarations, widgets, page_dir),
     )
 
 

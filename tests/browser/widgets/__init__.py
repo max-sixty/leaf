@@ -1,15 +1,12 @@
 """Browser tests of the widgets a page declares, one module per widget family or shared
 widget mechanism, and the page sources and helpers more than one module uses."""
 
-import re
-
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
     close_panel_menu,
     leaf_page,
     open_page,
-    panel_field,
     panel_menu,
 )
 
@@ -17,11 +14,10 @@ from leaf import data as data_model
 
 
 def expect_walk_says(page, words):
-    """Wait for a walk's position, such as "Hunk 2 of 3", to be said where the panel
-    says what passes: in its empty field's place (floating-panel.js), as a notice is."""
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile(re.escape(words))
-    )
+    """Wait for a walk's position, such as "Hunk 2 of 3", to be heard: a step announces
+    it whether or not the panel's field shows it, which it does only while the list
+    runs past the window (walk-declaration.js, `beginWalk`)."""
+    expect(page.locator(".lf-live")).to_contain_text(words)
 
 
 def expect_accept_all(page, count):
@@ -58,45 +54,46 @@ PLAYGROUND_PAGE = leaf_page(
   #playground-card {
     --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);
-    border-radius: var(--playground-radius);
+    border-radius: calc(var(--playground-radius) * 1px);
     padding: 24px;
   }
   #playground-card::before { content: var(--playground-title); }
   #card-playground[data-playground-compact="true"] #playground-card { padding: 8px; }
   #card-playground[data-playground-tone="bold"] #playground-card { font-weight: 700; }
 </style>
-<lf-ask id="card-playground-ask">
-  <h2>How should the card look?</h2>
+<lf-group id="card-playground-ask" label="How should the card look?">
+  <h2 id="card-playground-ask-h">How should the card look?</h2>
   <lf-playground id="card-playground">
-    <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-      value="12" min="0" max="28" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle"
-      value="false"></lf-playground-control>
-    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
-    </lf-playground-control>
-    <lf-playground-control id="accent" name="accent" label="Accent" kind="color"
-      value="#4f766f"></lf-playground-control>
-    <lf-playground-control id="title" name="title" label="Title" kind="text"
-      value="Field note" placeholder="Card title"></lf-playground-control>
+    <aside>
+      <label id="radius">Corner radius <input type="range" name="radius"
+        min="0" max="28" value="12"></label>
+      <label id="compact"><input type="checkbox" name="compact"
+        role="switch"> Compact spacing</label>
+      <fieldset id="tone"><legend>Tone</legend>
+        <label id="tone-quiet"><input type="radio" name="tone"
+          value="quiet" checked> Quiet</label>
+        <label id="tone-bold"><input type="radio" name="tone"
+          value="bold"> Bold</label>
+      </fieldset>
+      <label id="accent">Accent <input type="color" name="accent" value="#4f766f"></label>
+      <label id="title">Title <input name="title" value="Field note"
+        placeholder="Card title"></label>
+    </aside>
     <lf-playground-preset id="preset-dense" label="Dense">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
       <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
     </lf-playground-preset>
-    <lf-playground-preview id="card-preview">
-      <article id="playground-card"><strong>Card preview</strong><p>Open until dusk.</p></article>
-    </lf-playground-preview>
+    <article id="playground-card"><strong>Card preview</strong><p>Open until dusk.</p></article>
     <lf-playground-output id="card-instruction">Use a
-      <lf-playground-value for="radius"></lf-playground-value> radius,
-      compact spacing set to <lf-playground-value for="compact"></lf-playground-value>,
-      a <lf-playground-value for="tone"></lf-playground-value> tone,
-      <lf-playground-value for="accent"></lf-playground-value> accents, and the title
-      <lf-playground-value for="title"></lf-playground-value>.
+      <output for="radius"></output>px radius,
+      compact spacing set to <output for="compact"></output>,
+      a <output for="tone"></output> tone,
+      <output for="accent"></output> accents, and the title
+      <output for="title"></output>.
     </lf-playground-output>
   </lf-playground>
-</lf-ask>
+</lf-group>
 """,
 )
 

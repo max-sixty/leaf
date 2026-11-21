@@ -6,12 +6,12 @@ Read with [packages.md](packages.md), which holds the package contract and a wid
 
 A widget shares what it has the way its element would in plain HTML, so two widgets
 whose authors never met work together on a Leaf page and on a page without Leaf. One
-names the other by id in an attribute it declares under `x-refers`, `for` by
+names the other by id in an attribute it declares under `refers`, `for` by
 convention ("References between widgets"), and then:
 
 | To                                               | Use                                                                                                                                                   | `page check` holds                                         |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                          | that the named widget declares one output of that contract |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract |
 | ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                   |
 | take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                               |
 
@@ -21,7 +21,7 @@ and changes it by asking the owner with a command the owner turns into its own v
 log then holds one answer whichever widget the user changed it in, Undo takes back
 that one action, and the same two modules work off Leaf, where the owner keeps the
 answer itself. A view whose own place on the page is that answer, as a board card
-stands in the column of a pick, declares `x-shows` instead ("Views of an answer"),
+stands in the column of a pick, declares `shows` instead ("Views of an answer"),
 since the server has to place it.
 
 Packages declare no dependency on each other, so two that share a contract each
@@ -89,23 +89,24 @@ controls.
 
 ## User state
 
-A widget records each change the user makes as an `action` event in the page's log;
-the package writes no storage or server code. It declares each kind of change as a verb
-under the element's `x-state`. Leaf validates each event, works out the current state,
-hands it to the module, and shows it to the agent under `state` in `leaf page state`.
+A widget records each change the user makes as an `action` event in the page's log; the
+package writes no storage or server code. It declares each kind of change as a verb
+under the element's `verbs`. Leaf validates each event, works out the current
+state, hands it to the module, and shows it to the agent under `state` in `leaf page
+state`.
 
 A verb declaring `decides: true` selects which of its widget's members retire. It
-folds by widget and requires a string-enum `outcome` field. `x-retired-when` and
-`x-withdrawn-as` refer to those outcomes. An `outcome` field on any other verb is
-ordinary domain data; whether an action answers an obligation is separately
-declared by `x-awaits`.
+folds by widget and requires a string-enum `outcome` field. A member's
+`retired-when` and the verb's own `withdraws` name those outcomes. An `outcome`
+field on any other verb is ordinary domain data; whether an action answers an
+obligation is separately declared by `awaits`.
 
 The default board declares `move` as a position record in
 `packages/default/registry.json`:
 
 ```json
 {
-  "x-state": {
+  "verbs": {
     "move": {
       "unit": "unit",
       "record": { "kind": "position", "within": "lf-column" }
@@ -128,7 +129,7 @@ The record kind fixes the event's payload, a closed object with every field requ
 - `attribute` sends `{value}`, an array of distinct member ids, marked by the boolean
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
-  the widget's `properties`.
+  the widget's `attributes`.
 - `position` sends `{unit, value, rank}`: the moved element, the destination container
   (of the tag `record.within` names), and its rank.
 
@@ -139,9 +140,10 @@ naming what the verb's state is about, by element id or by data key, as a playgr
 submitted settings do.
 
 For an optional command the agent should act on, such as Archive, declare
-`attention: true` on its user verb (`$state.attention` in the registry). Changes to
+`attention: true` on its user verb (`$verbs.attention` in the registry). Changes to
 that verb's state reach the agent without putting a question on the user's On Me list.
-Use `x-awaits` below when the widget instead asks the user for an answer. A verb that
+Use `awaits` below when the widget instead asks the user for an answer. A verb
+that
 records what the user is working on before they send it, as a playground's `tune` keeps
 its settings, declares `unsent: true`: it reaches every tab and the agent's page
 state but asks the agent for nothing, and a message the user writes about the widget
@@ -155,14 +157,14 @@ A verb that lets the user add a child element declares `creates`, as `lf-options
 does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail field
 holding the new child's id, which must be one no page or Thread markup holds, created
 members included, and `words` the field holding its text; its detail schema has just
-those two fields. Each added child is its own key, so undoing the add removes it. The
-child's tag lists the widget in `x-owners`, requires only an `id`, and has
-`x-content: markup`.
+those two fields. Leaf reads that text as inline Markdown the user typed, so the parent
+draws it with `inlineMarkdownFragment(text)` (`module-reading.md`, "Markdown"). Each
+added child is its own key, so undoing the add removes it. The child's tag lists the
+widget in `owners`, requires only an `id`, and has `content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
-presentation, but `package check` refuses one that declares state, obligations, work, history,
-data, visual parts, or a thread seat or surface of its own; the parent's controller
-records and presents
+presentation, but `package check` refuses one that declares state, obligations,
+history, data or visual parts of its own; the parent's controller records and presents
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions
 or services belongs in authored markup.
@@ -175,13 +177,12 @@ answers it. `text: true` requires each report to carry short news for a person i
 agent's report. A widget with such a verb also declares a boolean `overruled` attribute,
 which a version sets to keep its authored state over the report.
 
-`x-awaits` puts a widget's obligations on the user's list, On Me. Its
-`value` names the verb whose
-state is the answer: the recorded value, or a recordless verb's latest `detail`. A
-playground's unrecorded `choose` gives its submitted settings. `x-awaits.answered` separately says when the obligation
-is complete: `{}` once the verb has a state, `when` for instances with matching
-attributes, and `empty` while the named container has no members. A page-owned queue can
-declare:
+`awaits` puts a widget's obligations on the user's list, On Me. Its `value` names
+the verb whose state is the answer: the recorded value, or a recordless verb's latest
+`detail`. A playground's unrecorded `choose` gives its submitted settings.
+`awaits.answered` separately says when the obligation is complete: `{}` once the
+verb has a state, `when` for instances with matching attributes, and `empty` while the
+named container has no members. A page-owned queue can declare:
 
 ```json
 {
@@ -195,22 +196,23 @@ declare:
 The obligation is answered once the marked column is empty, and returning a card reopens it. If
 the widget's `when` stops holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
-A widget whose bound data contains independently answered records declares
-`records: {"input": "run", "label": "title"}` in `x-awaits`. The input binds to a stored
-source, which the server can read; widget outputs remain browser-local. The input's contract
-supplies `records.items` and `records.key`; each record's key identifies its obligation
-and its answering action's unit. The named label field supplies the prompt. For example,
-`value: "review"` with `answered: {"review": {"detail": {"approved": true}}}` completes
-each record's obligation while that unit's latest review approves it. Clearing or undoing
-approval reopens it. Source reordering preserves these identities; removing a record
-removes its obligation. The widget marks those same keys as its drawn data
-([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so Leaf's
-On Me navigation can reveal each record.
+A widget whose bound data contains independently answered records declares `records:
+{"input": "run", "label": "title"}` in `awaits`. The input binds to a stored
+source, which the server can read; widget outputs remain browser-local. The input's
+contract supplies `records.items` and `records.key`; each record's key identifies its
+obligation and its answering action's unit. The named label field supplies the prompt.
+For example, `value: "review"` with `answered: {"review": {"detail": {"approved":
+true}}}` completes each record's obligation while that unit's latest review approves it.
+Clearing or undoing approval reopens it. Source reordering preserves these identities;
+removing a record removes its obligation. The widget marks those same keys as its drawn
+data ([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so
+Leaf's On Me navigation can reveal each record.
 
-`x-awaits.retired` names the attribute an author sets to close an obligation but keep its
-widget on the page, such as a decided question collapsed with its options; `when` must
-require it to be absent. `x-encloses`, which `lf-ask` declares, makes a wrapper give
-the obligations inside it its heading and where the user lands; it asks nothing itself.
+`awaits.retired` names the attribute an author sets to close an obligation but
+keep its widget on the page, such as a decided question collapsed with its options;
+`when` must require it to be absent. The group the author names round a widget is its
+obligation's question, its region and its words (`authoring-on-me.md`, "On the page"),
+so a widget needs no prompt of its own.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
@@ -221,36 +223,38 @@ On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 
 ### Views of an answer
 
-An answer has one owner, the widget whose `x-awaits.value` verb records it, but the
+An answer has one owner, the widget whose `awaits.value` verb records it, but the
 user may want to see and change it from another view, as a board gathers the picks of
-proposals answered in their own sections. The view's element declares `x-shows`, as
+proposals answered in their own questions. The view's element declares `shows`, as
 `lf-card` does:
 
 ```json
 {
-  "x-refers": { "shows": {} },
-  "x-shows": { "attr": "shows", "value": "value" }
+  "refers": { "shows": {} },
+  "shows": { "reference": "shows", "value": "value" }
 }
 ```
 
-`attr` names the attribute holding the widget's id, which must be in the view's own
-page or message, and `value` the attribute on the view's compound owner (its
-`x-owners` tag, here `lf-column`) naming the answer that owner holds. The view stands
-in the owner holding the value the answer names, or in one without `value` while the
-answer names none, or one no owner holds. A `value` record's answer names its attribute's value. An
+`attr` names the attribute holding the widget's id, which must be in the view's own page
+or message, and `value` the attribute on the view's compound owner (its `owners`
+tag, here `lf-column`) naming the answer that owner holds. The view stands in the owner
+holding the value the answer names, or in one without `value` while the answer names
+none, or one no owner holds. A `value` record's answer names its attribute's value. An
 `attribute` record's answer names a value when every member it picks carries the same
-value in the attribute `x-awaits.key` names, as `lf-options` declares `"key":
-"value"` and each `lf-option` a `value` unique within its group (`x-unique`); an empty
-pick, an option the user added, or picks of different values name none.
+value in the attribute `awaits.key` names, as `lf-options` declares `"key":
+"value"` and each `lf-option` a `value` unique within its `lf-options`
+(`unique`); an empty pick, an option the user added, or picks of different
+values name none.
 
 The view keeps no state of its own about the answer. It reads and changes the answer
 through `shownAnswer` ([module-reading.md, "Reading obligations and the On
 lists"](module-reading.md#reading-obligations-and-the-on-lists)), which sends the
 widget's own command, so the log holds one answer whichever view the user changed it
-in. The append door refuses a position move of a view, and `page check` refuses
-markup that puts a view apart from its widget's authored answer, owners that all
-hold a value, leaving nowhere for an answer that names none, or an owner value the
-widget can't answer.
+in. The append door refuses a position move of a view. `page check` advises on
+three things in a view's markup: a view standing apart from its widget's authored
+answer, which the page moves to that answer when it draws; owners that all hold a
+value, which leave nowhere for an answer that names none; and an owner value the
+widget can't answer, which takes no drop.
 
 ## Instance input contracts
 
@@ -268,32 +272,27 @@ structured editor values, required names and bounds. The widget declaration stay
 with its package. Without the attribute, the base payload schema applies.
 
 Page checks refuse unknown contract names. Admission reads the attribute from the
-authored revision, or from the frozen message holding a thread widget, and resolves
+authored revision, or from the message holding a thread widget, and resolves
 it using the command’s revision registry. Changing only the selected contract keeps
 any earlier action whose value fits the new schema. The log keeps the original action
 and its schema.
 
 ## References between widgets
 
-When an attribute names another element, declare it in `x-refers`, mapping the
+When an attribute names another element, declare it in `refers`, mapping the
 attribute to `{}`, which accepts any element id. `page check` refuses an id that names
 no element.
 
-Members of one owner can name each other by a word instead of an id. A playground's
-setting names its control by `name`:
+An attribute whose value must differ among the members of one owner, such as an
+option's `value`, maps to that owner's tag in `unique`, and `page check` refuses a
+repeat inside the same owner:
 
 ```json
-{
-  "lf-playground-control": { "x-unique": { "name": "lf-playground" } },
-  "lf-playground-setting": {
-    "x-refers": { "for": { "tag": "lf-playground-control", "key": "name" } }
-  }
-}
+{ "lf-option": { "unique": { "value": "lf-options" } } }
 ```
 
-`x-unique` makes `name` unique within each `lf-playground`, and the keyed reference
-`{tag, key}` looks `for` up only inside the setting's own playground. Rules about content, such as
-a value within its range, belong to the widget and `page check --render`.
+Rules about content, such as a value within its range, belong to the widget and `page
+check --render`.
 
 ## Work roles
 
@@ -307,7 +306,7 @@ package maps its tags onto them in `$work.widgets`:
   values that mean finished and stopped. `stoppedAt` may name an attribute saying
   when it stopped.
 - `worker` is an agent doing the work, with `state`, the values that mean `running`
-  and `retired`, and optionally `on`, an `x-refers` attribute naming the goal it works
+  and `retired`, and optionally `on`, a `refers` attribute naming the goal it works
   on.
 - `evidence` marks an element that shows observed data.
 
@@ -368,39 +367,40 @@ one kind of record needs, so `data set` refuses a value the widget couldn't show
 the widget needn't check it again. A `format` must be one Leaf checks: `date-time` is a
 timezone-aware instant, `uri` an absolute URL, and `package check` lists the rest.
 
-A widget declares the inputs it can show under `x-data`, each naming its contract, the
-attribute that carries the page's source id, and the element `property` Leaf sets to the
-value. Make that attribute required when the widget can't work without the input. A
-widget with `x-content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s
-text is: where the markup binds the input whose `property` is `value` to nothing,
-Leaf sets `value` to the `<pre>`'s text, a string, so the widget reads one property
-either way, as `lf-text-document` and `lf-diff` do. Give that input a contract that
-admits a string; `page check` refuses a `<pre>` on an element binding it. Its other
-inputs leave the `<pre>` alone, as `lf-code`'s `playhead` does. Leaf leaves the
-property of any other unbound input to the widget. Tell page authors how to bind it in
-`x-instructions`, and whoever produces the data in the contract's `instructions`
-(`packages.md`, "Package contract").
+A widget declares the inputs it can show under `inputs`, each naming its contract,
+the attribute that carries the page's source id, and the element `property` Leaf sets to
+the value. Make that attribute required when the widget can't work without the input. A
+widget with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text
+is: where the markup binds the input whose `property` is `value` to nothing, Leaf sets
+`value` to the `<pre>`'s text, a string, so the widget reads one property either way,
+as `lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
+`page check` refuses a `<pre>` on an element binding it. Its other inputs leave the
+`<pre>` alone, as `lf-code`'s `playhead` does. Leaf leaves the property of any other
+unbound input to the widget. Tell page authors how to bind it in `instructions`, and
+whoever produces the data in the contract's `instructions` (`packages.md`, "Package
+contract").
 
 ```json
 {
   "lf-builds": {
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "source": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
     },
-    "required": ["id", "source"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-data": {
+    "content": "empty",
+    "inputs": {
       "builds": {
         "contract": "build-status",
         "source": "source",
         "property": "value"
       }
     },
-    "x-instructions": "Bind `source` to the build feed this page should show.",
-    "x-upgrade": true
+    "instructions": "Bind `source` to the build feed this page should show."
   }
 }
 ```
@@ -416,7 +416,7 @@ share one:
 
 A widget may also hold a typed value for other widgets to read, such as the files a
 diff lists or the step a film shows. Its registry entry declares
-`"x-output": {"files": {"contract": "file-list"}}`; the contract is an ordinary
+`"outputs": {"files": {"contract": "file-list"}}`; the contract is an ordinary
 `$data.contracts` entry, and the output's name is the element property that holds it.
 The module sets that property to the complete value, or `null` while it has none, and
 then dispatches `change` on the element, as a form control does for `value`:
@@ -426,11 +426,11 @@ this.files = { files: entries };
 this.dispatchEvent(new Event("change"));
 ```
 
-A consumer uses the same `x-data` input for an external source or another widget's
-output, declaring `source`, `reference` or both:
+A consumer reads an external source or another widget's output through the same kind
+of input, declaring `source`, `reference` or both:
 
 ```json
-"x-data": {
+"inputs": {
   "files": {
     "contract": "file-list",
     "source": "source",
@@ -438,11 +438,11 @@ output, declaring `source`, `reference` or both:
     "property": "value"
   }
 },
-"x-refers": {"for": {}}
+"refers": { "for": {} }
 ```
 
 The input's `reference` names its ordinary element relation, and the consumer
-declares both attributes in `properties`. A page binds either
+declares both attributes in `attributes`. A page binds either
 `source="project-files"` or `for="review"`, where `review` is a widget holding a
 `file-list`. The input binds by contract: it reads the one output of its contract the
 named widget declares, whatever that widget calls it, so a consumer never names a
@@ -526,6 +526,7 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key. `data set` refuses a value in which two rows share a key, or a row's key is
-missing, empty or not a string, and an `x-awaits.records` input
-([User state](#user-state)) keys each row's obligation by it. `lf-diff`'s contract, whose value has a `files` array of
-`{path, patch}` objects, declares `{ "records": { "items": "files", "key": "path" } }`.
+missing, empty or not a string, and an `awaits.records` input ([User
+state](#user-state)) keys each row's obligation by it. `lf-diff`'s contract, whose value
+has a `files` array of `{path, patch}` objects, declares `{ "records": { "items":
+"files", "key": "path" } }`.

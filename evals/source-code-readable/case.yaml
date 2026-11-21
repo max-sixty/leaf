@@ -1,8 +1,7 @@
 # The widget keyboard API playground used bare <pre><code> and packed several
 # command fields onto each line. This case exercises a revision of that code display.
-# On d1a357e06, with page-authoring.md read, the baseline passed 0 of 3 and the
-# guidance on language and illustrative-code formatting passed 3 of 3. The plain
-# diagnostic output is the guardrail against treating every preformatted block as code.
+# The plain diagnostic output is the guardrail against treating every preformatted
+# block as code.
 description: source-code-readable
 metadata:
   purpose:
@@ -13,9 +12,6 @@ metadata:
     - code
 vars:
   prompt: |
-    Use the leaf:leaf skill and read `references/page-authoring.md` inside its
-    base directory before revising this page.
-
     Revise this section in our Leaf keyboard API design playground. Explain that each
     action is declared once, and that `commands(deck, decisions)` exposes the scope
     while keeping its action identity. Keep the explanation short. Include the code
@@ -44,20 +40,16 @@ assert:
     metric: readable-source
     value: |
       The JavaScript source is displayed in a syntax-highlighted Leaf code block:
-      either a native pre/code with class="language-javascript" or a lf-code with
-      language="javascript". Object fields and closing braces are broken onto
+      a pre/code with class="language-javascript", natively or inside an lf-code.
+      Object fields and closing braces are broken onto
       consistently indented lines so each action's fields can be read individually.
       All the original command fields and behavior remain in the snippet. Fail if
       source stays uncolored or keeps several distinct object fields crammed onto
       each line. The diagnostic output remains uncolored and preserves its lines
       and exact values; it must not be mistaken for source code or rewritten.
 
-# Text-edit reconstruction: source chat 01a122c3-94c8-71a3-84df-9bf04006bc08,
-# report revision r8. Original guidance passed 1/2; clarifying its existing diff
-# paragraph in place passed 2/2. Require the binding that supplies line controls.
+# Text-edit reconstruction: require the binding that supplies line controls.
 variants:
-  # Work-update suggestion (2026-10-10): one Codex run per arm passed this case
-  # and text-edit. Head used wt step diff; base assembled a temporary index.
   current-work:
     metadata:
       purpose: A current-work update offers refreshable patch evidence without transcribing it.
@@ -125,14 +117,87 @@ variants:
           accompanies the evidence. Fail if it only displays two full paragraphs, invents a different
           edit, or adds an approval request not in the task.
 
-  # Markdown excerpt reconstruction: session dad43231-b8ff-4849-9702-a6a9cb360a93,
-  # page principles-survey, whose "Two rules before and after" section showed each
-  # rule's Markdown in <pre><code>. The user asked why it wasn't rendered Markdown.
-  # At 945fce2f8 every arm rendered the rules (reads-rendered 3/3), so showing source
-  # needs the session's own context; base converted them to HTML by hand and
-  # page-renders-markdown passed 0/3, then 3/3 once page-authoring.md asked for the
-  # preview. A variant giving the rules as Read-tool output scored the same (0/3, 3/3).
-  # Once lf-text-document took its text in its <pre>, 3/3 wrote the rules there.
+  # Tool-output reconstruction (#6323): a page whose earlier samples were plain
+  # <pre class="sample"> blocks, and a report quoting a tool's JSON rows on one line,
+  # cut down with "…". Authors copied the plain samples' class, named no language and
+  # packed several fields onto a line. The plain samples are what pulled them.
+  tool-output-json:
+    metadata:
+      purpose:
+        JSON a tool returned reads as coloured, one-field-per-line code even where the
+        page's other samples are plain text and the report quoted it packed.
+    vars:
+      prompt: |
+        You are revising a Leaf page. Its lookup section holds a placeholder,
+        `<p id="lookup-status">LOOKUP_STATUS</p>`, for work that has now reported; the
+        report is below. Replace the placeholder with the section's status for the
+        page's reader: what the change makes of a ticket in the tool's results, what the
+        checks measured, and the one real row before and after.
+
+        The page's style element and its other section, as they stand:
+
+        ```html
+        <style>
+          pre.sample {
+            font-size: 0.82em;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+          }
+        </style>
+
+        <section id="notice">
+          <h2>The notice sent when a ticket changes</h2>
+          <p id="notice-today">
+            Today the agent is sent the change as one tagged line of text. It names who made the
+            change and the new status, and says nothing of why the status changed.
+          </p>
+          <pre class="sample" id="notice-today-sample"><code>&lt;ticket-update id="T-48213" by="agent:refunds" at="2026-03-02T16:04:10Z" status="waiting-on-customer"&gt;
+        Refund issued; asked the customer to confirm the amount.
+        &lt;/ticket-update&gt;</code></pre>
+          <p id="notice-proposed">
+            The proposal adds the reason code the ticketing system already records, so the agent
+            can tell a refund from a request for more detail without reading the note.
+          </p>
+          <pre class="sample" id="notice-proposed-sample"><code>&lt;ticket-update id="T-48213" by="agent:refunds" at="2026-03-02T16:04:10Z" status="waiting-on-customer" reason="refund-issued"&gt;
+        Refund issued; asked the customer to confirm the amount.
+        &lt;/ticket-update&gt;</code></pre>
+        </section>
+        ```
+
+        The report:
+
+        ````markdown
+        Pushed: branch `lookup-whole-ticket`.
+
+        **What changed**
+        `lookup` now returns each ticket as the ticketing API returned it, plus `open_days`. It used to keep five fields of it, chosen by hand.
+
+        **One real row**
+        - Before: `{"id":"T-48213","customer":"cust_9f31…","status":"waiting-on-customer","updated":"2026-03-02T16:04:10Z","summary":"Refund for order 77120, charged twice… (212 chars)"}`
+        - After: `{"id":…,"customer":{"id":"cust_9f31…","name":"Priya Nair","email":"priya@…","tier":"plus","locale":"en-GB"},"status":…,"updated":…,"summary":…,"assignee":{"id":"agent:refunds","kind":"AGENT"},"tags":["refund","order-77120"],"links":[{"type":"ORDER",…,"order":{"id":"77120","total":{"amount":"48.90","currency":"GBP"}}}],"channel":"EMAIL","open_days":3}`
+
+        **Checks**
+        - Asked which order a ticket was about, the agent named it in 0 of 3 trials before and 3 of 3 after.
+        - A lookup of 50 tickets is 1.9 times the old size.
+        ````
+
+        The page directory is not reachable from here, so reply with the revised lookup
+        section and any change to the style element.
+    assert:
+      - type: llm-rubric
+        metric: json-reads-as-code
+        value: |
+          The before and after rows each appear in a pre/code with class="language-json"
+          (natively or inside an lf-code), with at most one field per line and nested
+          objects indented, keeping every given value and each "…" exactly. Fail if
+          either row has no language class, uses the page's plain "sample" class without
+          a language, or keeps several fields on one line. The existing notice samples
+          may stay as they are.
+  # Markdown excerpt reconstruction: a session's page principles-survey, whose "Two
+  # rules before and after" section showed each rule's Markdown in <pre><code>. The
+  # user asked why it wasn't rendered Markdown. Cold, authors can render the rules,
+  # so the failure may need the session's own context; it converts them to HTML by
+  # hand, and page-authoring.md asks for the preview.
   markdown-excerpt:
     metadata:
       purpose:
@@ -140,9 +205,6 @@ variants:
         rendering rather than a hand conversion, with its exact words kept.
     vars:
       prompt: |
-        Use the leaf:leaf skill and read `references/page-authoring.md` inside its
-        base directory before writing.
-
         You are writing a Leaf page that surveys Leaf's interface principles. Write its
         section "Two rules before and after": the two rules in `browser/AGENTS.md` that
         had been patched most, as each read before this branch rewrote the section and
@@ -194,15 +256,12 @@ variants:
           Fail if any version is HTML the author converted from the Markdown, such as a
           blockquote holding strong and code elements, or is shown as source.
   # Guardrail for markdown-excerpt: where Markdown syntax is the subject, the reader
-  # sees the characters typed. From the composer-markdown-exploration page.
+  # sees the characters typed.
   markdown-syntax:
     metadata:
       purpose: Markdown whose syntax is the subject stays visible as the characters typed.
     vars:
       prompt: |
-        Use the leaf:leaf skill and read `references/page-authoring.md` inside its
-        base directory before writing.
-
         You are writing a Leaf page about the Markdown in Leaf's message composer. A
         user typed this reply, meaning a sign-off followed by a horizontal rule:
 

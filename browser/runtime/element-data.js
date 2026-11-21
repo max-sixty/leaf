@@ -4,11 +4,11 @@
    The widget itself reads ordinary properties and reports drawn marks; this owner
    associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
-   Bound values. A module reads each x-data input through the plain property its
+   Bound values. A module reads each input (`inputs`) through the plain property its
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. A widget whose body is data (`x-content: data`) takes its `<pre>` as its
+   sets it. A widget whose body is data (`content: data`) takes its `<pre>` as its
    `value`, as a `<textarea>`'s text is: where the markup binds the input whose property
    is `value` to nothing, to a source or to another widget's output, this element sets
    `value` to the text the page wrote in its `<pre>` once, at setup, since the widget's
@@ -57,7 +57,7 @@ export class ElementData {
     this.#element = element;
     this.#stage = stage;
     const declaration = registry[element.localName];
-    this.#inputs = Object.entries(declaration?.["x-data"] ?? {}).flatMap(
+    this.#inputs = Object.entries(declaration?.inputs ?? {}).flatMap(
       ([input, declaration]) =>
         declaration.property
           ? [
@@ -82,12 +82,12 @@ export class ElementData {
     const declaration = registry[element.localName];
     // Only an authored, unbound data body supplies an initial `value`. A host
     // creating an element without a pre owns its value itself.
-    const body = Object.values(declaration?.["x-data"] ?? {}).find(
+    const body = Object.values(declaration?.inputs ?? {}).find(
       (input) => input.property === "value",
     );
     if (
       body &&
-      declaration?.["x-content"] === "data" &&
+      declaration?.content === "data" &&
       element.querySelector(":scope > pre") &&
       !bindsInput(element, body)
     )
@@ -100,9 +100,7 @@ export class ElementData {
 
   /** @param {string} region */
   connect(region) {
-    return registry[this.#element.localName]?.["x-data"]
-      ? joinDataDelivery(region)
-      : null;
+    return registry[this.#element.localName]?.inputs ? joinDataDelivery(region) : null;
   }
 
   // Read before shouldUpdate, so an unchanged-value gate still follows delivery.

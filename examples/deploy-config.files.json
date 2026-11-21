@@ -1,0 +1,8 @@
+{
+  "values-production": "deploy/receipts-worker/values-production.yaml",
+  "values": "deploy/receipts-worker/values.yaml",
+  "values-staging": "deploy/receipts-worker/values-staging.yaml",
+  "alerts": "deploy/receipts-worker/alerts.yaml",
+  "deploy-workflow": ".github/workflows/deploy-receipts-worker.yml",
+  "runbook": "docs/runbooks/receipts-worker.md"
+}

@@ -1,7 +1,7 @@
 """Initial histories for disposable samples, read from their captured parent.
 
 A template's holder is the markup it is written in: its parent page's document, or
-the frozen markup of a message in that page's log. A template imports live parent
+the markup of a message holding HTML in that page's log. A template imports live parent
 thread closures with `data-sample-threads`, or names an inert JSON script in its
 holder with `data-sample-events`. The latter is an array of ordinary event
 commands, admitted against the child's initial document and vocabulary before
@@ -26,8 +26,13 @@ from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant
 from .state import now_iso
 from .structure import SourceDocument
-from .thread_context import sample_events, thread_names, thread_structure
-from .validation.admission import message_markup_errors
+from .thread_context import (
+    logged_fragment,
+    sample_events,
+    thread_names,
+    thread_structure,
+)
+from .validation.admission import message_markup_findings
 from .validation.markup import text_media_errors
 
 
@@ -42,7 +47,7 @@ def _refused(code: str, reference: str, **values) -> Rejected:
 
 
 def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
-    """Capture an authored target in the child's current page or frozen markup.
+    """Capture an authored target in the child's current page or thread markup.
 
     Browser admission receives targets already captured in a rendered document.
     A fixture has no such observation, so the existing file-side capture proves
@@ -145,14 +150,11 @@ def initial_sample_events(
     for seq, command in enumerate(commands, 1):
         try:
             event = deepcopy(command)
-            if "publication" in event:
-                raise _refused("fixture-publication", reference, event=seq)
+            # The door refuses an unknown kind and a publication in its own words
+            # (`command_error`, `fixture-event`); the defaults below need the kind.
             kind = event.get("kind")
-            if not isinstance(kind, str) or kind not in kinds:
-                raise _refused(
-                    "fixture-kind", reference, event=seq, kinds=sorted(kinds)
-                )
-            spec = kinds[kind]["record"]
+            known = isinstance(kind, str) and kind in kinds
+            spec = kinds[kind]["record"] if known else {"properties": {}}
             event.setdefault("id", f"{seq:08x}")
             event.setdefault("ts", constructed_at)
             event.setdefault("author", "user")
@@ -172,14 +174,17 @@ def initial_sample_events(
                 raise _refused(
                     "fixture-id-repeated", reference, event=seq, id=event["id"]
                 )
-            if event["id"] in child.ids | thread_structure(events).ids:
+            if event["id"] in child.ids | thread_structure(events).holders.keys():
                 raise _refused("fixture-id-taken", reference, event=seq, id=event["id"])
             if event.get("anchor"):
                 event["anchor"] = _fixture_anchor(
                     event["anchor"], AdmissionReadings(view, events, registry)
                 )
+            fragment = logged_fragment(event)
             if "text" in event and (
-                errors := text_media_errors(event["text"], page_dir)
+                errors := text_media_errors(
+                    event["text"], page_dir, html=fragment is not None
+                )
             ):
                 raise _refused(
                     "fixture-media",
@@ -187,13 +192,12 @@ def initial_sample_events(
                     event=seq,
                     findings=[found.json(text=False) for found in errors],
                 )
-            if "markup" in event:
-                fragment = SourceDocument(event["markup"])
+            if fragment:
                 readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )
-                if errors := message_markup_errors(
+                found = message_markup_findings(
                     page_dir,
                     fragment,
                     events,
@@ -204,8 +208,12 @@ def initial_sample_events(
                     contracts,
                     event["id"]
                     if kind == "comment"
-                    else thread_names(events).get(event.get("parent")),
-                ):
+                    else thread_names(events).get(
+                        event.get("parent", event.get("message"))
+                    ),
+                    replacing=event.get("message"),
+                )
+                if errors := [f for f in found if f.refuses]:
                     raise _refused(
                         "fixture-markup",
                         reference,

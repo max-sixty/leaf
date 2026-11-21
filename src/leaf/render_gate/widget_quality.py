@@ -4,14 +4,12 @@ Presentation findings here are advice for whoever writes the widget. Output cont
 violations are errors, shared with `page check --render`: a page cannot rely on invalid
 data, and the finding names the producer whose author must fix it.
 
-The report renders the package's worked examples (`x-example`) under the layer the
+The report renders the package's worked examples (`example`) under the layer the
 package appears in (`packages.package_layer_inputs`), and reads only the tags the
 package's own `registry.json` declares. Examples share a page where their ids allow,
 so an example that points at another's element finds it, and a page costs one render
 however many examples it holds; the next page starts where an example's ids would
-repeat one already on the page, or two examples bind the same data source.
-Each example may supply `x-example-data`, source ids mapped to validated JSON values,
-which the preview serves through the ordinary page data store. Each page is read
+repeat one already on the page. Each page is read
 twice, once as a column document and once in the pane of a full-height workspace (`WRAPPERS`), since a widget meets both and
 what holds its height or its width differs between them; a finding names which one it
 was read in (`layout`). A page is rendered as authored, without `page check`:
@@ -47,30 +45,30 @@ import struct
 import tempfile
 import zlib
 from pathlib import Path
-from uuid import uuid4
 
-from leaf.data import write_data
-from leaf.data_contracts import declared_data_bindings, output_findings, resource_urls
+from leaf.data_contracts import output_findings
 from leaf.findings import Finding, element_at
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.page_snapshot import capture_page_snapshot
-from leaf.registry.contract import element_declarations, read_registry_declarations
+from leaf.registry.contract import (
+    element_declarations,
+    read_registry_declarations,
+)
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
-    SERVED_TIMEOUT_MS,
     close_render_page,
     evaluate_probe,
     install_driver,
     observe_output_documents,
+    open_render_page,
     output_values,
     wait_for_probe,
     wait_until_ready,
 )
 from leaf.revision_artifact import ArtifactError, capture_artifact
-from leaf.schema import DATA_DIR, DIR_FILES, MEDIA_DIR
-from leaf.state import now_iso
+from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.structure import SourceDocument
 from leaf.vendoring import start_throwaway_page
 
@@ -100,14 +98,14 @@ WRAPPERS = {
 def _finding(check: str, tag: str, id: str = "", **values) -> Finding:
     """One check's reading of one widget, named by its instance where the check read
     one."""
-    return Finding(
-        check, element_at(tag, id), {"tag": tag, **values}, severity="advice"
-    )
+    return Finding(check, element_at(tag, id), {"tag": tag, **values})
 
 
 class UnreadablePage(Exception):
-    """A page of worked examples that could not be drawn and brought to
-    presentation."""
+    """A page of worked examples the page itself kept from being drawn and brought to
+    presentation: errors it raised, a stage it never reached, or a capture refused.
+    A browser that fails on its own raises its own error, which says nothing of the
+    examples (`command.widget_quality`)."""
 
 
 def own_tags(package: Path) -> list[str]:
@@ -116,27 +114,20 @@ def own_tags(package: Path) -> list[str]:
     return list(element_declarations(declarations))
 
 
-def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str, dict]]:
+def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str]]:
     """The worked examples of `tags`, gathered into as few pages as their ids allow,
     each page once in every Layout of `WRAPPERS`, with the Layout's name."""
     pages = []
     ids = set()
-    sources = set()
     for tag in tags:
-        if (example := registry[tag].get("x-example")) is None:
+        if (example := registry[tag].get("example")) is None:
             continue
-        document = SourceDocument(example, fragment=True)
-        own = document.ids
-        bindings, _ = declared_data_bindings(document.lf_elements, registry)
-        if not pages or own & ids or sources & bindings.keys():
-            pages.append(([], {}))
+        own = SourceDocument(example, fragment=True).ids
+        if not pages or own & ids:
+            pages.append([])
             ids = set()
-            sources = set()
-        examples, data = pages[-1]
-        examples.append(example)
-        data.update(registry[tag].get("x-example-data", {}))
+        pages[-1].append(example)
         ids |= own
-        sources.update(bindings)
     return [
         (
             layout,
@@ -144,9 +135,8 @@ def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str, dict]
             f"</head>\n<body>\n{opening}\n"
             + "\n".join(examples)
             + f"\n{closing}\n</body>\n</html>\n",
-            data,
         )
-        for examples, data in pages
+        for examples in pages
         for layout, (opening, closing) in WRAPPERS.items()
     ]
 
@@ -183,15 +173,14 @@ def _readings(
     browser, url: str, tags: list[str]
 ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     """Changed startup boxes, unshown keys, held scrollers and published outputs."""
-    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    page = browser.new_page(viewport=RENDER_VIEWPORT)
-    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    page = open_render_page(browser, viewport=RENDER_VIEWPORT)
     install_driver(page)
     errors = []
     collect_page_errors(page, errors)
     # Runtime reports already reach the console; an example's preview writes no log.
-    answer_reports(page, lambda text: None)
+    answer_reports(page)
     try:
         observe_output_documents(page)
         held = []
@@ -221,7 +210,8 @@ def _readings(
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         held = evaluate_probe(page, "heldScrollers", tags)
         return changed, unshown, held, output_values(page)
-    except (PlaywrightError, RuntimeError, TimeoutError) as error:
+    except (PlaywrightTimeout, TimeoutError) as error:
+        # A wait the page never answered, as the render gate's `no-runtime` reads one.
         raise UnreadablePage(str(error).strip()) from error
     finally:
         close_render_page(page)
@@ -235,35 +225,8 @@ def served_examples(package: Path, pages):
         start_throwaway_page(page_dir, package)
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
-        for layout, document, data in pages:
-            # Each page owns its source values; a following example may intentionally
-            # leave the same source unset.
-            for path in (page_dir / DATA_DIR).glob("*.json"):
-                path.unlink()
-            bindings, _ = declared_data_bindings(
-                document.lf_elements, candidate.registry
-            )
-            write_data(
-                page_dir,
-                {
-                    source: {
-                        "contract": bindings[source],
-                        "run": uuid4().hex,
-                        "updated": now_iso(),
-                        "value": value,
-                    }
-                    for source, value in data.items()
-                },
-            )
-            media = set(document.authoring.media_refs)
-            for source, value in data.items():
-                contract = candidate.registry["$data"]["contracts"][bindings[source]]
-                media.update(
-                    url
-                    for url in resource_urls(value, contract)
-                    if url.startswith(f"/{MEDIA_DIR}/")
-                )
-            for reference in sorted(media):
+        for layout, document in pages:
+            for reference in sorted(document.authoring.media_refs):
                 # Only a name the server serves gets a stand-in, which also keeps
                 # every write inside the page: a name cannot hold a directory.
                 if not MEDIA_REFERENCE.fullmatch(reference):
@@ -292,7 +255,7 @@ def served_examples(package: Path, pages):
 def _page_findings(
     browser,
     package: Path,
-    pages: list[tuple[str, SourceDocument, dict]],
+    pages: list[tuple[str, SourceDocument]],
     tags: list[str],
 ) -> list[Finding]:
     """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
@@ -352,10 +315,10 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     roots = checked_layer_inputs(package_layer_inputs(package))
     composition = compose_layer(roots)
     pages = [
-        (layout, SourceDocument(html), data)
-        for layout, html, data in example_pages(composition.vocabulary.registry, tags)
+        (layout, SourceDocument(html))
+        for layout, html in example_pages(composition.vocabulary.registry, tags)
     ]
-    shown = {record["tag"] for _, page, _ in pages for record in page.lf_elements}
+    shown = {record["tag"] for _, page in pages for record in page.lf_elements}
     findings = [_finding("example", tag) for tag in tags if tag not in shown]
     if pages:
         findings += _page_findings(browser, package, pages, tags)

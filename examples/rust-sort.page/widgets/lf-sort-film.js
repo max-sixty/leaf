@@ -37,22 +37,22 @@ import {
 const SVGNS = "http://www.w3.org/2000/svg";
 
 const C = {
-  card: "var(--card)",
-  field: "var(--field)",
-  ink: "var(--ink)",
-  ink2: "var(--ink-2)",
-  muted: "var(--muted)",
-  rule: "var(--rule)",
-  faint: "color-mix(in srgb, var(--muted) 42%, var(--card))",
-  accent: "var(--accent)",
-  accentTint: "var(--accent-tint)",
-  mark: "var(--mark-ink)",
-  ok: "var(--ok)",
-  warn: "var(--warn)",
-  warnTint: "var(--warn-tint)",
-  danger: "var(--danger)",
-  sans: "var(--sans)",
-  mono: "var(--mono)",
+  card: "var(--lf-card)",
+  field: "var(--lf-field)",
+  ink: "var(--lf-ink)",
+  ink2: "var(--lf-ink-2)",
+  muted: "var(--lf-muted)",
+  rule: "var(--lf-rule)",
+  faint: "color-mix(in srgb, var(--lf-muted) 42%, var(--lf-card))",
+  accent: "var(--lf-accent)",
+  accentTint: "var(--lf-accent-tint)",
+  mark: "var(--lf-series-4)",
+  ok: "var(--lf-ok)",
+  warn: "var(--lf-warn)",
+  warnTint: "var(--lf-warn-tint)",
+  danger: "var(--lf-danger)",
+  sans: "var(--lf-sans)",
+  mono: "var(--lf-mono)",
 };
 
 const PHASE_NAME = {

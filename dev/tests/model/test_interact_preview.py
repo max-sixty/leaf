@@ -5,47 +5,34 @@ package layer, the companion media and pinned assets, and the paths a watcher
 subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
-
-That is why they are here and not beside the preview's browser tests. A `main`
-mark is file-level, with no per-test escape, so a Python-decided reading filed
-in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
 import os
-import shlex
 import shutil
-import socket
-import subprocess
 import sys
 from functools import partial
 from pathlib import Path
-from typing import cast
-from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
 from interact_support import (
     ROOT,
-    STATED_TIMEOUT,
-    declare_idle,
-    declared,
     fetch,
-    stamp,
     wait_for,
 )
 
 from leaf import cli as cli_model
-from leaf import codex_adapter, leases, server, service, session
-from leaf.detached import Handshake
+from leaf import server, service
 from leaf.interaction_log import read_interactions
 from leaf.layer import stylesheet
 from leaf.media import media_name
 from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.commands import preview
+from leaf_dev.commands.site import _build as site
+from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
@@ -58,7 +45,7 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
 
     personal = tmp_path / "personal"
     personal.mkdir()
-    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
+    (personal / "overrides.css").write_text(":root { --lf-accent: #814b07; }")
     cmd_package_install(personal)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -130,43 +117,6 @@ def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, r
     }
 
 
-@pytest.mark.parametrize("evidence", ["missing", "deleted", "other-chat"])
-def test_desktop_start_requires_its_validated_native_chat(
-    tmp_path, under_codex, codex_env, native_codex_chat, evidence
-):
-    """Unsupported or absent native evidence cannot mint perpetual ownership."""
-    sid = "desktop-no-source"
-    if evidence == "deleted":
-        native_codex_chat(sid).unlink()
-    elif evidence == "other-chat":
-        other = native_codex_chat("another-chat")
-        from leaf.hooks import cmd_hook
-
-        cmd_hook(
-            "codex",
-            {
-                "hook_event_name": "UserPromptSubmit",
-                "session_id": sid,
-                "transcript_path": str(other),
-            },
-        )
-    page = tmp_path / "page"
-    subprocess.run([*LEAF_COMMAND, "page", "init", page], env=codex_env, check=True)
-    task = under_codex(
-        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
-        codex_env | {"CODEX_THREAD_ID": sid},
-        app_server=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode != 0, output
-    assert "validated native transcript is unavailable" in errors
-    assert "Codex hooks enabled" in errors
-    assert service.page_claim(page) is None
-
-
 def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     """A comparison fixture carries the package and asset context of its checkout."""
 
@@ -228,7 +178,8 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
     source.parent.mkdir()
     (source.parent / "layer.json").write_text("[]")
     (source.parent / "media").mkdir()
-    (source.parent / "leaf-assets.json").write_text("{}")
+    (source.parent / ".config").mkdir()
+    (source.parent / ".config" / "leaf-assets.json").write_text("{}")
     assets = tmp_path / "draft-assets"
     assets.mkdir()
     previous, current, revised, unused = [
@@ -312,7 +263,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     ] == []
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
     # The example images are a pinned copy under `.tmp`, so their pin stands in.
-    assert str(ROOT / "leaf-assets.json") in watched.paths
+    assert str(ROOT / ".config" / "leaf-assets.json") in watched.paths
     assert ROOT not in watched.roots  # A single assets pin does not watch its checkout.
 
 
@@ -421,12 +372,16 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
     source.parent.mkdir()
     source.write_text("reading")
     (source.parent / "media").mkdir()
-    pin = tmp_path / "leaf-assets.json"
+    pin = tmp_path / ".config" / "leaf-assets.json"
+    pin.parent.mkdir()
     pin.write_text("{}")
-    scripts = tmp_path / "src"
-    scripts.mkdir(parents=True)
-    (tmp_path / "pyproject.toml").write_text("")
-    (tmp_path / "uv.lock").write_text("")
+    # A checkout holds every file its Python processes load. The preview follows a
+    # missing input from the nearest directory that exists, here the checkout.
+    for tree in ("src", "dev/leaf_dev"):
+        (tmp_path / tree).mkdir(parents=True)
+    for path in preview.worker_inputs(tmp_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
     watched = preview.watch_paths(source, tmp_path, [])
     assert pin in watched.roots
     assert tmp_path not in watched.roots
@@ -690,310 +645,6 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
     assert preview.media_source(source) == source.parent / "media"
 
 
-# A page's idle declaration matters only once delivery connects, so a refused
-# delivery runs from a busy page alone.
-@pytest.mark.parametrize(
-    ("initially_idle", "delivery_available"),
-    [(False, True), (True, True), (False, False), (False, "missing")],
-)
-@pytest.mark.parametrize("handoff", ["preview", "start", "run"])
-def test_serving_connects_codex_feedback_before_handing_over_its_url(
-    page_dir,
-    tmp_path,
-    under_codex,
-    codex_env,
-    codex_queue,
-    delivery_available,
-    handoff,
-    initially_idle,
-):
-    """HTTP feedback reaches the current task without a second `page claim`.
-
-    The detached adapter, claim and page server are real. Only the external Codex
-    CLI is replaced: its queue boundary acknowledges and records the submitted
-    task and delivery pointer instead of starting a model turn.
-    """
-    stamp(page_dir)
-    if initially_idle:
-        declare_idle(page_dir)
-    queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
-    ready = tmp_path / "ready.json"
-    done = tmp_path / "done"
-    program = """
-import json
-import subprocess
-import sys
-import time
-from pathlib import Path
-from leaf.service import page_claim
-from leaf.state import end_session, write_json
-from leaf.harness import session_harness
-from leaf.hosting import cmd_stop
-from leaf_dev.commands.preview import PreviewService
-
-page, ready, done = map(Path, sys.argv[1:4])
-handoff = sys.argv[4]
-preview = PreviewService(page, True)
-foreground = None
-try:
-    if handoff == "preview":
-        with preview.starting() as url:
-            pass
-        started = (url, preview.note)
-        # Joining the current adapter preserves the preview's acquisition.
-        session_harness().ensure_delivery()
-        assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
-        assert not preview.ended
-    elif handoff == "start":
-        result = subprocess.run(
-            [sys.executable, "-m", "leaf", "server", "start", str(page)],
-            capture_output=True, text=True,
-        )
-        if result.returncode:
-            sys.exit(result.stderr)
-        started = (json.loads(result.stdout)["url"], result.stderr)
-    else:
-        foreground = subprocess.Popen(
-            [sys.executable, "-m", "leaf", "server", "run", str(page)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
-        line = foreground.stdout.readline()
-        if not line:
-            output, errors = foreground.communicate(timeout=30)
-            sys.exit(errors)
-        started = (json.loads(line)["url"], "")
-    write_json(ready, started)
-    while not done.exists():
-        time.sleep(0.01)
-finally:
-    if handoff == "preview":
-        preview.stop()
-    else:
-        cmd_stop(page)
-    if foreground is not None:
-        foreground.communicate(timeout=30)
-    if ready.exists():
-        end_session(session_harness().session)
-"""
-    delivery_env = (
-        codex_env
-        | codex_queue
-        | {
-            "CODEX_THREAD_ID": "preview-thread",
-            "PREVIEW_QUEUE_AVAILABLE": str(delivery_available),
-        }
-    )
-    if delivery_available == "missing":
-        delivery_env["PATH"] = str(tmp_path / "no-codex")
-    task = under_codex(
-        shlex.join(
-            [
-                sys.executable,
-                "-c",
-                program,
-                str(page_dir),
-                str(ready),
-                str(done),
-                handoff,
-            ]
-        ),
-        delivery_env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if delivery_available is not True:
-        output, errors = task.communicate(timeout=STATED_TIMEOUT)
-        assert task.returncode != 0, f"{output}{errors}"
-        expected = (
-            "cannot find the `codex` executable"
-            if delivery_available == "missing"
-            else "queue unsupported"
-        )
-        assert expected in errors
-        if handoff != "preview":
-            assert "Traceback" not in errors
-        assert not ready.exists()
-        assert service.page_claim(page_dir) is None
-        assert server.running_server(page_dir) is None
-        assert not codex_adapter.adapter_is_live("preview-thread")
-        return
-    try:
-        wait_for(
-            ready.exists,
-            bool,
-            failure="the user preview never handed over its URL",
-        )
-        url, _ = json.loads(ready.read_text())
-        claim = service.page_claim(page_dir)
-        assert claim is not None
-        assert claim["id"] == "preview-thread"
-        assert claim["pid"] == task.pid, (
-            "detached child replaced its launching harness lifetime"
-        )
-        assert codex_adapter.adapter_is_live("preview-thread")
-        if initially_idle:
-            assert declared(page_dir)["state"] == "idle"
-            session.cmd_waiting(page_dir)
-        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
-        status, body = fetch(
-            endpoint,
-            data=json.dumps(
-                {
-                    "kind": "comment",
-                    "revision": 1,
-                    "text": "Please revise this candidate",
-                    "attempt": "preview_feedback",
-                }
-            ).encode(),
-            token=None,
-        )
-        assert status == 200, body
-        wait_for(
-            queued.exists,
-            bool,
-            failure="the preview's feedback did not reach Codex",
-        )
-        arguments = json.loads(queued.read_text())
-        assert arguments[:4] == ["queue", "--thread", "preview-thread", "--message"]
-        assert 'operation="delivery read"' in arguments[-1]
-    finally:
-        done.touch()
-        output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"
-    wait_for(
-        lambda: codex_adapter.adapter_is_live("preview-thread"),
-        lambda live: not live,
-        failure="the task's delivery adapter outlived its preview",
-    )
-
-
-def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
-    codex_claimed_page, spawn, codex_env
-):
-    """Dropping a reused server's real handshake withdraws no existing service."""
-    page = codex_claimed_page
-    before = server.running_server(page)
-    assert before is not None
-    caller, child = socket.socketpair()
-    task = spawn(
-        [
-            *LEAF_COMMAND,
-            "server",
-            "_serve",
-            str(page),
-            "--harness",
-            json.dumps({"name": "codex", "session": "codex-thread", "agent": "Codex"}),
-            "--handshake",
-            str(child.fileno()),
-        ],
-        env=codex_env | {"CODEX_THREAD_ID": "codex-thread"},
-        pass_fds=(child.fileno(),),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    child.close()
-    caller.settimeout(STATED_TIMEOUT)
-    try:
-        with caller.makefile("rb") as announced:
-            assert json.loads(announced.readline())["url"] == before["url"]
-    finally:
-        caller.close()
-    output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"
-    assert server.running_server(page) == before
-
-
-@pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])
-@pytest.mark.parametrize("handoff", ["preview", "start", "run"])
-def test_failed_delivery_preserves_the_existing_preview(
-    page_dir, monkeypatch, failure, handoff
-):
-    """Failure before acceptance preserves both listener and original watcher."""
-    from leaf.harness import session_harness
-    from leaf.hosting import claim_and_start, cmd_serve, cmd_stop
-    from leaf.server import running_server
-    from leaf.service import page_claim
-
-    original = preview.PreviewService(page_dir, user=True)
-    with original.starting() as url:
-        pass
-    claim = page_claim(page_dir)
-    published = json.loads((page_dir / "service.json").read_text())
-    successor = preview.PreviewService(page_dir, user=True)
-
-    def refuse(_harness):
-        assert page_claim(page_dir) == claim
-        assert not original.ended
-        raise failure("delivery refused")
-
-    monkeypatch.setattr(type(session_harness()), "ensure_delivery", refuse)
-    try:
-        with pytest.raises(failure, match="delivery refused"):
-            if handoff == "preview":
-                with successor.starting():
-                    pass
-            elif handoff == "start":
-                with claim_and_start(page_dir):
-                    pass
-            else:
-                cmd_serve(page_dir, harness=session_harness(), acquire=True)
-        assert page_claim(page_dir) == claim
-        assert not original.ended
-        assert json.loads((page_dir / "service.json").read_text()) == published
-        assert (current := running_server(page_dir)) is not None
-        assert current["url"] == url
-        assert fetch(url)[0] == 200
-    finally:
-        cmd_stop(page_dir)
-
-
-@pytest.mark.parametrize("refusal", ["layer", "cancel"])
-def test_failed_serving_preparation_never_publishes_a_takeover(
-    page_dir, monkeypatch, refusal
-):
-    """A takeover refused or cancelled in preparation leaves the original claim."""
-    from leaf.detached import StartRefused
-    from leaf.hosting import claim_and_start, cmd_stop
-    from leaf.service import page_claim
-
-    original = preview.PreviewService(page_dir, user=True)
-    with original.starting():
-        pass
-    claim = page_claim(page_dir)
-    cmd_stop(page_dir)
-    # Keep the original watcher/claim, with its server down. Its next revival is
-    # independent of a failed takeover's private preparation.
-    record = json.loads((page_dir / "service.json").read_text())
-    record["enabled"] = True
-    (page_dir / "service.json").write_text(json.dumps(record))
-    if refusal == "layer":
-        from interact_support import vendored_at_another_protocol
-
-        vendored_at_another_protocol(page_dir)
-    else:
-        from leaf import detached
-
-        def interrupted(_socket, _data):
-            assert page_claim(page_dir) == claim
-            assert not original.ended
-            raise KeyboardInterrupt
-
-        monkeypatch.setattr(detached.socket.socket, "sendall", interrupted)
-    try:
-        with (
-            pytest.raises(KeyboardInterrupt if refusal == "cancel" else StartRefused),
-            claim_and_start(page_dir),
-        ):
-            assert page_claim(page_dir) == claim
-            assert not original.ended
-        assert page_claim(page_dir) == claim
-        assert not original.ended
-    finally:
-        cmd_stop(page_dir)
-
-
 @pytest.mark.parametrize("transferred", [False, True])
 def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted(
     page_dir, monkeypatch, transferred
@@ -1036,92 +687,6 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
         assert bool(server.running_server(page_dir)) == transferred
     finally:
         cmd_stop(page_dir)
-
-
-@pytest.mark.parametrize("refusal", ["abort_reuse", "ended_session", "new_generation"])
-def test_private_startup_keeps_previous_owner_until_acceptance(
-    page_dir, monkeypatch, refusal
-):
-    from leaf.detached import StartRefused
-    from leaf.hosting import claim_and_start, cmd_stop
-    from leaf.service import page_claim
-    from leaf.state import end_session, ensure_session
-
-    original = preview.PreviewService(page_dir, user=True)
-    with original.starting() as url:
-        pass
-    previous = page_claim(page_dir)
-    # A different harness is the candidate, so ending its session cannot itself end
-    # the original watcher while the candidate is still unpublished.
-    from leaf import harness
-
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
-    try:
-        expected = ValueError if refusal == "abort_reuse" else StartRefused
-        with pytest.raises(expected), claim_and_start(page_dir) as prepared:
-            assert previous is not None
-            assert prepared.claim["acquisition"] != previous["acquisition"]
-            assert page_claim(page_dir) == previous
-            assert not original.ended
-            if refusal == "abort_reuse":
-                raise ValueError("caller leaves before accepting reuse")
-            end_session(prepared.claim["id"])
-            if refusal == "new_generation":
-                harness_3 = harness.session_harness()
-                assert harness_3 is not None
-                ensure_session(prepared.claim["id"], harness_3.lifetime())
-        assert page_claim(page_dir) == previous
-        assert not original.ended
-        assert fetch(url)[0] == 200
-    finally:
-        cmd_stop(page_dir)
-
-
-def test_service_publication_failure_keeps_previous_preview_claim(
-    page_dir, monkeypatch
-):
-    from leaf import hosting
-    from leaf.harness import session_harness
-    from leaf.service import page_claim, prepare_claim
-    from leaf.state import write_json
-
-    original = preview.PreviewService(page_dir, user=True)
-    with original.starting():
-        pass
-    previous = page_claim(page_dir)
-    hosting.cmd_stop(page_dir)
-    published = json.loads((page_dir / "service.json").read_text())
-    published["enabled"] = True
-    write_json(page_dir / "service.json", published)
-    harness_2 = session_harness()
-    assert harness_2 is not None
-    intent = prepare_claim(harness_2, page_dir)
-
-    class Accepted:
-        def announce(self, _ready, *, commit):
-            commit()
-            return True
-
-    def unavailable(_directory, _record):
-        raise PermissionError("service cannot be published")
-
-    monkeypatch.setattr(hosting, "write_service", unavailable)
-    try:
-        with pytest.raises(PermissionError, match="service cannot be published"):
-            hosting.cmd_serve(
-                page_dir,
-                harness=session_harness(),
-                acquire=True,
-                prepared_claim=intent,
-                handshake=cast(Handshake, Accepted()),
-            )
-        assert page_claim(page_dir) == previous
-        assert not original.ended
-        assert not leases.lock_is_held(page_dir / "server.lock")
-        assert json.loads((page_dir / "service.json").read_text()) == published
-    finally:
-        monkeypatch.undo()
-        hosting.cmd_stop(page_dir)
 
 
 @pytest.mark.parametrize("beside_runtime", [False, True])

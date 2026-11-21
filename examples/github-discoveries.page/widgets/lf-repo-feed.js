@@ -2,11 +2,9 @@
  * creates no obligation. An explicit question starts agent work. GitHub ids
  * keep comments attached across refreshes; HeldReading protects reading place.
  */
+import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   LeafElement,
-  html,
-  nothing,
-  repeat,
   offered,
   whileConnected,
   tabStore,
@@ -18,7 +16,6 @@ import {
   loadMarkdown,
   markdownReady,
   renderMarkdown,
-  unsafeHTML,
 } from "/runtime/widget-api.js";
 
 import { GitHubFeed } from "../github-feed.js";
@@ -61,7 +58,7 @@ function sourceMarkdown(item) {
 
 class RepoFeed extends LeafElement {
   // The captured feed, set by whoever hosts the widget: Leaf from the bound source (the
-  // registry's `x-data.changes.property`), or null while that source has none.
+  // registry's `inputs.changes.property`), or null while that source has none.
   static properties = { value: { attribute: false } };
 
   // The Markdown renderer's load while a draw waits for it, which `updateComplete`

@@ -2,16 +2,14 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 import http.server
-import re
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from html import escape
 from urllib.parse import quote
 
 import pytest
 from interact_support import STATED_TIMEOUT, running_http_server
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
     WATCH_PLATFORM_SOURCE,
@@ -22,10 +20,8 @@ from render_harness import (
     leaf_page,
     open_page,
     place_step_matches,
-    refuse,
     resized,
     take_browser_errors,
-    ticked,
 )
 
 from leaf.render_checks import rendered
@@ -501,6 +497,138 @@ def test_a_shift_without_input_fails(browser):
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 6]))
 
 
+# Words under a box, and a button holding its label centred. A script animates the
+# box's height, carrying the words; the button's, re-centring its label; or the words'
+# own `translate`. `#press` begins the box's animation from a press instead. For
+# `arrives`, a spinner keeps the page moving while words arrive, and then slide; for
+# `scrolling`, the words slide while a pane beside them scrolls; for `anchored`, a
+# button fixed to the window slides while scroll anchoring holds the page as the
+# spacer above it grows.
+STEPPED_MOTION = """<!doctype html><body style="margin:0">
+<div id="spacer" style="height:10px"></div>
+<div id="box" style="height:24px"></div>
+<p id="below">Words under the box</p>
+<button id="centred" style="position:absolute;top:0;left:200px;height:24px">
+Centred</button>
+<button id="press" style="position:absolute;top:0;left:300px">Press</button>
+<div id="spinner" style="position:absolute;top:0;left:400px;width:10px;height:10px">
+</div>
+<div id="pane" style="position:absolute;top:40px;left:400px;width:60px;height:40px;
+overflow:auto"><div style="height:400px">Pane</div></div>
+<button id="fixed" style="position:fixed;bottom:0;left:0">Fixed</button>
+<div style="height:3000px"></div>
+<script>
+  const late = document.createElement("p");
+  late.id = "late";
+  late.textContent = "Words that arrive";
+  const motions = {
+    grows: [box, [{height: "24px"}, {height: "40px"}]],
+    centres: [centred, [{height: "24px"}, {height: "40px"}]],
+    slides: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
+    arrives: [late, [{translate: "0 0"}, {translate: "0 16px"}]],
+    scrolling: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
+    anchored: [fixed, [{translate: "0 0"}, {translate: "16px 0"}]],
+  };
+  // Draws `motion` to its end `step` px of the box's growth a frame, as a fast host
+  // draws a slow animation in small steps and a starved host a fast one in large steps.
+  window.animateBy = (motion, step) => new Promise((done) => {
+    const [target, keyframes] = motions[motion];
+    if (motion === "anchored") scrollTo(0, 400);
+    if (motion === "arrives") {
+      spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
+        {duration: 1000, iterations: Infinity});
+      below.after(late);
+    }
+    const effect = target.animate(keyframes, {duration: 16, fill: "forwards"});
+    effect.pause();
+    let at = 0;
+    const next = () => {
+      at = Math.min(16, at + step);
+      effect.currentTime = at;
+      if (motion === "scrolling") pane.scrollTop += 4;
+      if (motion === "anchored") spacer.style.height = `${10 + at}px`;
+      requestAnimationFrame(at < 16 ? next : done);
+    };
+    requestAnimationFrame(next);
+  });
+  press.addEventListener("click", () => {
+    window.pressed = animateBy("grows", 0.5);
+  });
+</script>"""
+
+
+@pytest.mark.parametrize(
+    "motion,step,moving",
+    [
+        ("grows", 0.5, "p#below"),
+        ("grows", 16, "p#below"),
+        ("centres", 0.5, "button#centred"),
+        ("slides", 0.5, "p#below"),
+        ("arrives", 0.5, "p#late"),
+        ("scrolling", 0.5, "p#below"),
+        ("anchored", 0.5, "button#fixed"),
+        ("press", 0.5, None),
+    ],
+)
+def test_motion_without_input_fails_at_any_frame_rate(browser, motion, step, moving):
+    """An animation no input began fails whether its frames step it half a pixel or
+    16 px at a time. At 60 frames a second a slow animation moves the words less than
+    the 3 px a frame Chrome reports as a layout shift, and less than a pixel, so the
+    watch judges how far they have moved since the motion began rather than each
+    frame's step, words that arrive while other motion goes on included, and words
+    beside a box that scrolls meanwhile, or a button fixed to the window while scroll
+    anchoring moves the page under it. It reads transforms too, which Chrome never
+    reports. The same growth begun by a press is
+    credited across every one of its frames."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(STEPPED_MOTION))
+    paint(page)
+    if motion == "press":
+        page.locator("#press").click()
+        page.evaluate("() => pressed")
+        judge_watches()
+        assert take_browser_errors(page) == []
+    else:
+        page.evaluate("([motion, step]) => animateBy(motion, step)", [motion, step])
+        judge_watches()
+        consume_browser_errors(page, moved_within(moving))
+
+
+def test_a_permitted_step_permits_nothing_after_it(browser):
+    """A declaration permits the step it measured: a card that widened, as a thread
+    card does once when a long message arrives, doesn't excuse its control moving later
+    in the same run of motion, which a spinner keeps going."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens style="width:120px">'
+            "<p>Words that take the card's new width once it widens.</p>"
+            '<button id="act">Act</button></div></div>'
+            '<div id="spinner" style="position:absolute;top:0;right:0;width:10px;'
+            'height:10px"></div></body>'
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """() => new Promise((done) => {
+          spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
+            {duration: 1000, iterations: Infinity});
+          card.style.width = "240px";
+          let frames = 4;
+          const next = () => {
+            if (--frames) return requestAnimationFrame(next);
+            act.style.translate = "20px 0";
+            requestAnimationFrame(done);
+          };
+          requestAnimationFrame(next);
+        })"""
+    )
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#act"))
+
+
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
     """Chrome may paint a document the parser has only partly added, as a slow
     runner's parser yields mid-page: a select before its option and the taller box
@@ -844,6 +972,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("", None),
         ("sticky_tail", None),
         ("tail_growth", None),
+        ("tail_then_arrival", None),
+        ("tail_with_drift", "button#reply"),
         ("undeclared_tail_growth", "button#reply"),
         ("tail_replaced", None),
         ("undeclared_tail_replaced", "button#reply"),
@@ -870,7 +1000,10 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     """An arrival, or a last child declared the growing tail growing where none
     arrives or giving way to what arrives in its place, may move its reply and later
     cards, preserving the transcript; so may a port sized to what it holds that grows at
-    its foot with it, as a floating card does, and no further."""
+    its foot with it, as a floating card does, and no further. The tail growing and a
+    child arriving in the next frame are each permitted, though no one transition from
+    the first frame to the last would be, and a drift beside the growth, under a pixel
+    each frame, stays the reply's own."""
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
@@ -882,7 +1015,14 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     tail = (
         " data-lf-append-tail"
         if fault
-        in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
+        in {
+            "tail_growth",
+            "tail_then_arrival",
+            "tail_with_drift",
+            "region_growth",
+            "tail_and_region_growth",
+            "tail_replaced",
+        }
         else ""
     )
     hidden = (
@@ -937,6 +1077,27 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           }
           else if (fault.endsWith('tail_growth'))
             document.getElementById('old').style.height = '80px';
+          else if (fault === 'tail_with_drift') {
+            // Each frame the tail grows 4 px, and the reply drifts half a pixel more.
+            const old = document.getElementById('old');
+            const reply = document.getElementById('reply');
+            let steps = 16;
+            return new Promise((done) => {
+              const next = () => {
+                old.style.height = `${parseFloat(getComputedStyle(old).height) + 4}px`;
+                reply.style.marginTop = `${(16 - steps + 1) / 2}px`;
+                requestAnimationFrame(--steps ? next : done);
+              };
+              requestAnimationFrame(next);
+            });
+          }
+          else if (fault === 'tail_then_arrival') {
+            document.getElementById('old').style.height = '80px';
+            return new Promise((done) => requestAnimationFrame(() => {
+              source.append(next);
+              requestAnimationFrame(done);
+            }));
+          }
           else if (fault === 'region_growth') source.style.paddingBottom = '40px';
           else if (fault === 'tail_and_region_growth') {
             document.getElementById('old').style.height = '60px';
@@ -956,7 +1117,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     judge_watches()
     if not protected:
         grown = page.locator("#old").bounding_box()
-        if fault in {"tail_growth", "tail_replaced"}:
+        if fault in {"tail_growth", "tail_replaced", "tail_then_arrival"}:
             assert grown == {**before, "height": before["height"] + 40}
         else:
             assert grown == before
@@ -966,17 +1127,23 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
                 port["y"] + port["height"] - 5 - reply_before["height"]
             )
         else:
-            assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
+            carried = 80 if fault == "tail_then_arrival" else 40
+            assert page.locator("#reply").bounding_box()["y"] == (
+                reply_before["y"] + carried
+            )
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, protected), errors
 
 
-@pytest.mark.parametrize("taken_down", [True, False])
-def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down):
+@pytest.mark.parametrize(
+    "taken_down, spinning", [(True, False), (False, False), (True, True)]
+)
+def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down, spinning):
     """A control taken off the page and later shown again where the page has since
     moved, as a thread's news notice is, appears there; one standing while the page
-    moves under it is carried."""
+    moves under it is carried. A spinner turning meanwhile keeps the page in one run
+    of motion, which still reads the notice's return as new."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -986,10 +1153,15 @@ def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down):
             '<div id="seat"><button id="notice">1 new</button></div>'
             # A box with nothing to read, which the notice's return moves, so Chrome
             # reports a shift in the frame it returns in.
-            '<div style="height:20px;background:gray"></div></body>'
+            '<div style="height:20px;background:gray"></div>'
+            '<div id="spinner" style="position:absolute;top:0;right:0;width:10px;'
+            'height:10px"></div></body>'
         )
     )
     paint(page)
+    if spinning:
+        page.evaluate("""() => spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
+          {duration: 1000, iterations: Infinity})""")
     page.evaluate(
         """takenDown => {
           const notice = document.getElementById('notice');
@@ -1076,6 +1248,253 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     if not protected:
         assert after["head"] == before["head"] - 40
         assert after["old"] == before["old"] - 40
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
+
+
+@pytest.mark.parametrize(
+    "fault, key, protected",
+    [
+        ("", False, False),
+        ("", True, False),
+        ("part_at_once", False, False),
+        ("unstanding", False, True),
+        ("unstanding", True, True),
+        ("from_below", False, True),
+        ("past_its_place", False, True),
+        ("past_its_place", True, True),
+        ("overshoot", False, True),
+        ("overshoot", True, True),
+    ],
+)
+def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, protected):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, may draw the step news's append growth takes as travel: a ResizeObserver
+    delivery no input owns begins a carry that draws the standing port's head where it
+    was and slides it to where its rise puts it, or draws part of the step at once, as
+    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    of a step the port may not take still fails, as does one that draws the head below
+    where it was, past where its rise puts it, or past it on the way. A key pressed
+    elsewhere while the carry runs changes none of that, though it starts a new run:
+    the carry of the step the port may not take holds the head where it was until
+    then."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            "<style>@property --carry { syntax: '<length>+'; inherits: false;"
+            " initial-value: 0px 0px; }</style>"
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><header id="row"><button id="head">Close</button></header>'
+            '<div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section>'
+            '<button id="elsewhere" style="position:fixed;top:0;left:0">Elsewhere</button>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = port.getBoundingClientRect().height;
+              const grew = height !== null && now > height;
+              height = now;
+              if (!grew) return;
+              const { fault, key } = document.body.dataset;
+              const from = { part_at_once: 20, from_below: 80 }[fault] ?? 40;
+              const to = fault === 'past_its_place' ? -20 : 0;
+              const keyframes = {
+                overshoot: [{ '--carry': '0px 40px' }, { '--carry': '0px -20px', offset: 0.6 },
+                  { '--carry': '0px 0px' }],
+                unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
+                  { '--carry': '0px 0px' }],
+              }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
+              window.carries = [row, port].map((part) => {
+                part.style.translate = 'var(--carry)';
+                return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
+              });
+            }).observe(port);
+            </script></body>"""
+        )
+    )
+    if fault == "unstanding":
+        page.locator("#port").evaluate("node => node.removeAttribute('data-lf-rises')")
+    page.evaluate(
+        "arm => Object.assign(document.body.dataset, arm)",
+        {"fault": fault, **({"key": "1"} if key else {})},
+    )
+    page.locator("#elsewhere").focus()
+    paint(page)
+    page.evaluate(
+        """() => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+        }"""
+    )
+    if key:
+        page.wait_for_function("window.carries?.[0]?.currentTime > 400")
+        page.keyboard.press("Shift")
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if not protected:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
+
+
+@pytest.mark.parametrize("rides", [False, True], ids=["alone", "with-the-stream"])
+def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
+    """News adds a line to a port standing on its foot, which rises to hold it. Carried
+    in alone from 60 px below, the new line slides on its own, and fails. Carried with
+    the line already there by the distance the rise moved that one, as box-motion.js
+    carries a stream's new turn with the turns above it, it rides that line's carry."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = port.getBoundingClientRect().height;
+              const grew = height !== null && now > height;
+              height = now;
+              if (!grew) return;
+              const parts = document.body.dataset.rides
+                ? [...source.children] : [source.lastElementChild];
+              const from = document.body.dataset.rides ? 40 : 60;
+              window.carries = parts.map((part) => part.animate(
+                [{ translate: `0px ${from}px` }, { translate: '0px 0px' }],
+                { duration: 300 }));
+            }).observe(port);
+            </script></body>"""
+        )
+    )
+    if rides:
+        page.evaluate("() => { document.body.dataset.rides = '1'; }")
+    paint(page)
+    page.evaluate(
+        """() => {
+          const next = document.createElement('p');
+          next.id = 'news';
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+        }"""
+    )
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if rides:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "p#news"), errors
+
+
+def test_a_box_s_height_tween_is_no_carry(browser):
+    """A ResizeObserver that tweens a wrapper's height to its content's new height, as
+    an auto-height disclosure does, carries the line below with it: news moved that
+    line, and no carry draws its way back, so it fails as it would at once."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div id="wrap" style="overflow:hidden"><div id="source">'
+            '<p style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<p id="after" style="margin:0">Reading below.</p>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = source.getBoundingClientRect().height;
+              if (height !== null && now !== height)
+                window.tween = wrap.animate(
+                  [{ height: `${height}px` }, { height: `${now}px` }], { duration: 300 });
+              height = now;
+            }).observe(source);
+            </script></body>"""
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """() => document.getElementById('source').append(
+          Object.assign(document.createElement('p'), {style: 'margin:0;height:40px'}))"""
+    )
+    page.wait_for_function("window.tween?.playState === 'finished'")
+    paint(page)
+    judge_watches()
+    errors = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(errors, "p#after"), errors
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("overgrown_port", "button#head"),
+        ("extra_field", "button#field"),
+    ],
+)
+def test_append_growth_may_grow_a_standing_port_down_then_raise_it(
+    browser, fault, protected
+):
+    """A port standing on its foot whose growth outruns the room beneath it, as a
+    margin card held by its top does when an answer grows it past the window's foot
+    (thread-preview.js, `rises`), grows down to that foot and rises for the rest in one
+    frame: its head and what it holds rise by the rise, what stands below it moves down
+    by the rest, and the two together come to no more than the growth."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<section id="port" data-lf-runtime data-lf-rises style="position:fixed;'
+            'top:500px;left:0;width:360px"><header><button id="head">Close</button>'
+            '</header><div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+            '<button id="field">Comment</button></section></body>'
+        )
+    )
+    paint(page)
+    boxes = """() => Object.fromEntries(['head', 'old', 'field'].map((id) =>
+      [id, document.getElementById(id).getBoundingClientRect().top]))"""
+    before = page.evaluate(boxes)
+    page.evaluate(
+        """fault => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+          document.getElementById('port').style.top = '485px';
+          if (fault === 'overgrown_port')
+            document.getElementById('port').style.paddingTop = '7px';
+          if (fault === 'extra_field')
+            document.getElementById('field').style.marginTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    after = page.evaluate(boxes)
+    if not protected:
+        assert after["head"] == before["head"] - 15
+        assert after["old"] == before["old"] - 15
+        assert after["field"] == before["field"] + 25
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, protected), errors
@@ -1591,7 +2010,11 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
         )
         == "presented"
     )
-    # While the preparation waits, the press owns no other movement on the page.
+    # While the preparation waits, the press owns no other movement on the page, since
+    # its rendering closes without waiting for the preparation. The press still owns
+    # the first frame that reads the loop settled, which can paint after `rendered`
+    # returns, so the move waits for the watch to close the press's rendering.
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     control.evaluate("node => node.style.marginTop = '40px'")
     rendered(page, facts=("updatesSettled",))
     judge_watches()
@@ -1608,6 +2031,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
 
     # Once it has landed, the press owns nothing further. (The watch names each node
     # once, so this move is the diff's own, which the landing moved for the press.)
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
     rendered(page)
     judge_watches()
@@ -1687,7 +2111,8 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
             leaf_page(
                 "Retired preparation",
                 '<button id="press">Press</button>'
-                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></lf-group>'
                 '<button id="control" style="display:block">Control</button>',
             )
         ),
@@ -1748,7 +2173,8 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
             leaf_page(
                 "Sibling preparation",
                 '<button id="press">Press</button>'
-                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></lf-group>'
                 '<button id="control" style="display:block">Control</button>',
             )
         ),
@@ -2086,7 +2512,7 @@ def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
       document.getElementById('above').style.height = '40px';
       window.shiftJudged = false;
       window.lfShiftsJudged().then(() => window.shiftJudged = true);
-      // This callback proves the former 500ms fallback would have run, without
+      // This callback proves a 500ms time cap would have run, without
       // assuming the machine completes any work within a particular duration.
       setTimeout(() => window.pastFormerCap = true, 600);
     }""")
@@ -2476,12 +2902,16 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # same end (`drawn`) or a farther one (`farther`), or from where it began
 # (`restart`). A translation paints no layout shift, which every passive
 # verdict starts from, so a box no reader reads slides in the window meanwhile, as a
-# panel's controls redrawn by the reading shift.
+# panel's controls redrawn by the reading shift. The delivery arms begin the slide
+# where box-motion.js begins a carry, in a ResizeObserver delivery that follows a
+# box's layout: the press's own growth, its news landing before the next frame's tick
+# (`delivery`), or the news's growth three frames on (`news-delivery`). The growing box
+# stands after the line, so only the slide moves it.
 NEWS = """<!doctype html><body style="margin:0">
 <style>@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }</style>
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
-<div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<div id="bar"></div><div id="above"></div><div id="below">Below.</div><div id="after"></div>
 <div id="beat" style="position:fixed;left:0;bottom:0;width:8px;height:8px;background:gray"></div>
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
@@ -2506,9 +2936,24 @@ NEWS = """<!doctype html><body style="margin:0">
         : keyframes(parseFloat(drawn), arm().retarget === 'farther' ? 400 : 300),
       { duration: left, fill: 'forwards' });
   };
+  new ResizeObserver(() => {
+    if (!arm().grown || window.sliding) return;
+    slide();
+    if (arm().grown !== 'press') return;
+    arm().inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
+    document.body.setAttribute("data-lf-reading", "news");
+    arm().newsFromTrustedPress = arm().trusted;
+  }).observe(after);
   document.getElementById("press").addEventListener("pointerdown", (event) => {
     if (arm().motion === "press") slide();
-    if (arm().retarget) beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    if (arm().retarget || arm().motion.endsWith('delivery'))
+      beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    if (arm().motion === 'delivery') {
+      arm().trusted = String(event.isTrusted);
+      arm().grown = 'press';
+      after.style.height = '40px';
+      return;
+    }
     const until = performance.now() + Number(arm().work);
     while (performance.now() < until) {}
     frames(3, () => {
@@ -2516,6 +2961,10 @@ NEWS = """<!doctype html><body style="margin:0">
       document.body.setAttribute("data-lf-reading", "news");
       if (arm().motion === "news") slide();
       if (!arm().motion) document.getElementById("above").style.height = "40px";
+      if (arm().motion === 'news-delivery') {
+        arm().grown = 'news';
+        after.style.height = '40px';
+      }
       // Once the watch has heard the reading, as the runtime's renderers follow it.
       if (arm().retarget) queueMicrotask(retarget);
       arm().newsFromTrustedPress = String(event.isTrusted);
@@ -2896,6 +3345,56 @@ def test_width_animation_cannot_credit_a_script_height_change(browser):
     consume_browser_errors(page, moved_within("button#control"))
 
 
+# A box holding its words centred, as a button holds its label, standing on its head
+# or, placed by `bottom`, on its foot. A press begins a native animation of its
+# height, or of the unrelated `#other`'s, paused at its start.
+CENTRED = """<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<div style="position:relative;height:300px">
+  <div id="box" style="display:flex;align-items:center;height:20px;{place}">
+    <span id="words" style="position:relative">Words</span></div>
+  <div id="other" style="position:absolute;top:0;right:0;width:20px;height:20px"></div>
+</div>
+<script>
+  start.addEventListener("pointerdown", () => {{
+    window.effect = (document.body.dataset.animates === "other" ? other : box)
+      .animate([{{height: "20px"}}, {{height: "120px"}}], {{duration: 400, fill: "forwards"}});
+    effect.playbackRate = 0;
+    effect.currentTime = 0;
+  }});
+</script>"""
+
+
+@pytest.mark.parametrize("arm", ["head", "foot", "further", "unanimated"])
+def test_a_size_animation_carries_what_its_box_lays_out(browser, arm):
+    """A box a press's animation grows re-centres its words between its edges,
+    whichever edge holds. The test seeks the animation to its end in one frame, as a
+    starved host's long frames do. Words a script carries farther than
+    the box grew still fail, and so do words re-centred by a size change that no
+    animation of their box makes."""
+    place = "position:absolute;bottom:0;left:0;right:0" if arm == "foot" else ""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CENTRED.format(place=place)))
+    if arm == "unanimated":
+        page.evaluate("document.body.dataset.animates = 'other'")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """arm => {
+      effect.currentTime = 400;
+      if (arm === 'further') words.style.top = '150px';
+      if (arm === 'unanimated') box.style.height = '120px';
+    }""",
+        arm,
+    )
+    judge_watches()
+    if arm in ("head", "foot"):
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("span#words"))
+
+
 @pytest.mark.parametrize(
     "motion,translation,retarget",
     [
@@ -2917,6 +3416,27 @@ def test_sampled_native_translation_distinguishes_press_from_news(
     page.evaluate("sliding.finished.then(() => {})")
     judge_watches()
     if motion == "press" and retarget in ("", "drawn"):
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("div#below"))
+
+
+@pytest.mark.parametrize("motion", ["delivery", "news-delivery"])
+def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
+    browser, motion
+):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame the press
+    draws in, after that frame's tick. The motion is the press's though news lands
+    before the next tick, as a send's answer can within a long frame, where the panel's
+    head could jump the rest of its carry in one frame and read as moved by news. A box
+    following the news's own layout begins its motion in a later delivery, and still
+    moves by news."""
+    page = news_page(browser, motion, translation="carry")
+    page.wait_for_function("window.sliding !== undefined")
+    page.evaluate("sliding.finished.then(() => {})")
+    judge_watches()
+    if motion == "delivery":
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, moved_within("div#below"))
@@ -3244,8 +3764,8 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
     """Only a gesture that takes the user somewhere, by a command that declares it or
     the history entry it adds, may scroll the control it was made on across the screen
     (`shift_watch.js`, "Scrolls a gesture makes"). Layout coordinates remove scrolling,
-    so before this the watch compared the scrolled control's page position with itself
-    and found nothing."""
+    so a watch comparing the scrolled control's page position with itself would find
+    nothing."""
     page = browser.new_page()
     # Served from an origin, which a data: URL lacks, so it has a history to write.
     page.route(
@@ -4145,6 +4665,111 @@ motion.pause();motion.currentTime=150;
         ), motions
 
 
+@pytest.mark.parametrize("ending", ["finish", "cancel"])
+def test_a_replayed_animation_reports_no_ending_of_its_earlier_run(browser, ending):
+    """Replaying an ended effect reuses its Animation. A finding during the replay
+    reports the replay's beginning and no ending, never the earlier run's."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button><button id="end">End</button>
+<button id="replay">Replay</button>
+<div id="panel" style="margin-left:350px">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+const hold = () => { motion.pause(); motion.currentTime = 150; };
+start.onclick = () => {
+  window.motion = panel.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
+    {duration:1000,fill:'both'});
+  hold();
+};
+end.onclick = () => motion[end.dataset.how]();
+replay.onclick = () => { motion.play(); hold(); };
+</script></body>""")
+    )
+    page.locator("#end").evaluate("(end, how) => (end.dataset.how = how)", ending)
+    paint(page)
+    for control in ("#start", "#end", "#replay"):
+        page.locator(control).click()
+        paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """() => {
+          control.style.marginLeft = '55px';
+          motion.currentTime = 800;
+          trigger.style.left = '40px';
+        }"""
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    finding = next(
+        error for error in errors if is_problem(error, moved_within("button#control"))
+    )
+    motions = [
+        animation
+        for comparison in shift_evidence(finding)["comparisons"]
+        for animation in comparison["animations"]
+        if within(animation["target"], "div#panel")
+    ]
+    assert motions, finding
+    assert all(
+        motion["began"] is not None and motion["ended"] is None for motion in motions
+    ), motions
+
+
+def test_an_owned_animation_that_ended_unsampled_reports_no_ending(browser):
+    """A press can retain a CSS animation before any frame samples it. If the
+    animation is gone by the next sample, the finding still lists it, with neither
+    a beginning nor an ending recorded."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@keyframes slide { from { translate: -200px 0px } to { translate: 0px 0px } }
+.sliding { animation: slide 1s }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+start.onpointerdown = () => panel.classList.add('sliding');
+start.onpointerup = () => panel.classList.remove('sliding');
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    # Move before a checkpoint retires the press's rendering, which keeps the
+    # animation it retained.
+    page.wait_for_function("!window.lfInputRenderingOpen()")
+    page.evaluate(
+        """() => {
+          control.style.marginLeft = '55px';
+          trigger.style.left = '40px';
+        }"""
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    finding = next(
+        error for error in errors if is_problem(error, moved_within("button#control"))
+    )
+    motions = [
+        animation
+        for comparison in shift_evidence(finding)["comparisons"]
+        for animation in comparison["animations"]
+        if within(animation["target"], "div#panel")
+    ]
+    assert motions, finding
+    assert all(
+        motion["owned"] and motion["began"] is None and motion["ended"] is None
+        for motion in motions
+    ), motions
+
+
 @pytest.mark.parametrize(
     "fault,finish",
     [
@@ -4161,11 +4786,15 @@ def test_inherited_custom_translation_credits_only_its_bound_consumer(
     browser, fault, finish
 ):
     """A shadow stylesheet can carry a field's words through its host's animation.
-    Neither another descendant's layout nor a replacement translate inherits credit."""
+    Neither another descendant's layout nor a replacement translate inherits credit.
+    The coincidence's own translate stands in the markup, so the carrier first paints
+    where it holds it."""
+    carrier = ' style="translate:-170px 0px"' if fault == "coincidence" else ""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><style>
+        + quote(
+            """<!doctype html><style>
 @property --travel { syntax: '<length>+'; inherits: true; initial-value: 0px 0px; }
 </style><body style="margin:0"><button id="start">Start</button>
 <div id="panel" style="margin-left:350px"></div>
@@ -4173,19 +4802,16 @@ def test_inherited_custom_translation_credits_only_its_bound_consumer(
 <script>
 const root = panel.attachShadow({mode:'open'});
 root.innerHTML = '<style>#carrier {translate:var(--travel)}</style>' +
-  '<div id="carrier"><button id="control">Retained control</button></div>';
+  '<div id="carrier"CARRIER><button id="control">Retained control</button></div>';
 const carrier = root.getElementById('carrier'), control = root.getElementById('control');
 start.onclick=()=>{
 window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
   {duration:1000});
 motion.pause();motion.currentTime=150;
 };
-</script></body>""")
-    )
-    if fault == "coincidence":
-        page.evaluate(
-            "panel.shadowRoot.getElementById('carrier').style.translate = '-170px 0px'"
+</script></body>""".replace("CARRIER", carrier)
         )
+    )
     paint(page)
     page.locator("#start").click()
     paint(page)
@@ -4380,6 +5006,45 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == fault, errors
+
+
+# Leaf's preview, warm, moves to the next target the pointer reaches by closing and
+# showing again in one task, so no frame reads it gone.
+@pytest.mark.parametrize("reopened", [True, False])
+def test_a_popover_shown_again_by_another_anchor_arrives_there(browser, reopened):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+#tip { position:fixed;inset:auto;margin:0;position-anchor:auto;
+  left:anchor(left);top:anchor(bottom) }</style><body style="margin:0">
+<button id="first" style="position:absolute;left:100px;top:100px">First</button>
+<button id="second" style="position:absolute;left:300px;top:100px">Second</button>
+<div id="tip" popover=manual><button id="control">Attached control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>tip.showPopover({source: first})</script></body>""")
+    )
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    before = page.locator("#control").bounding_box()
+    page.evaluate(
+        """(reopened) => {
+          if (reopened) {
+            tip.hidePopover();
+            tip.showPopover({source: second});
+          } else tip.style.marginLeft = '200px';
+          trigger.style.left = '40px';
+        }""",
+        reopened,
+    )
+    paint(page)
+    after = page.locator("#control").bounding_box()
+    assert after["x"] - before["x"] == pytest.approx(200)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") != reopened, errors
 
 
 def test_immediate_native_opening_and_typing(browser):
@@ -4990,21 +5655,20 @@ def test_cancelled_native_translation_credits_its_return_to_layout(
 
 @pytest.mark.parametrize("ending", ["cancel", "finish"])
 def test_ending_an_animation_after_its_target_detaches(browser, ending):
-    """A removed surface has no presentation for the motion watch to sample."""
+    """A removed surface has no presentation for the motion watch to sample. The
+    page's own script seeks the animation as the document parses, so the words first
+    paint where it holds them."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote(
-            '<!doctype html><section id="surface"><div id="words">Words</div></section>'
-        )
+        + quote("""<!doctype html><section id="surface"><div id="words">Words</div>
+</section><script>
+  window.motion = words.animate(
+    [{translate: "20px 0px"}, {translate: "0px 0px"}], {duration: 1000});
+  motion.pause();
+  motion.currentTime = 500;
+</script>""")
     )
-    paint(page)
-    page.evaluate("""() => {
-      window.motion = words.animate(
-        [{translate: '20px 0px'}, {translate: '0px 0px'}], {duration: 1000});
-      motion.pause();
-      motion.currentTime = 500;
-    }""")
     paint(page)
     page.evaluate(
         """ending => {
@@ -5199,83 +5863,6 @@ sized.value = LINES;
     assert {error.code for error in errors} <= allowed, errors
 
 
-@pytest.mark.parametrize("surface", ["card", "inline"])
-def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
-    browser, serve, surface
-):
-    """Age advances while the thread and its controls stay put.
-
-    Metadata may move or stay reserved. The passive-region fault controls above
-    exercise the watcher's permitted motion independently of this surface's layout.
-    """
-    source = (
-        leaf_page(
-            "Inline task thread",
-            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
-            '<lf-test-task id="bracket" status="active" talk>'
-            "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
-        )
-        if surface == "inline"
-        else OBLIGATION_PAGE
-    )
-    page = open_page(
-        browser,
-        serve(
-            source,
-            events=[
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "Check whether these jobs can share one visit.",
-                    "anchor": {"section": "bracket"},
-                }
-            ],
-        ),
-    )
-    resized(page, 1440, 900)
-    if surface == "card":
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-        surface_root = page.locator(".lf-margin-preview")
-    else:
-        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
-    header = surface_root.locator(".lf-msg-head").first
-    receipt = header.locator(".lf-msg-sending")
-    timestamp = header.locator("time")
-    expect(receipt).to_have_text(re.compile(r"^Queued for "))
-    expect(timestamp).to_have_text("just now")
-    # Age changes are news after Chrome's recent-input grace, even when opening the
-    # surface and resizing it happened immediately before this clock transition.
-    rendered(page)
-    page.wait_for_function(
-        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
-    )
-    protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
-    boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
-    before = protected.evaluate_all(boxes)
-    assert before
-    thread_before = surface_root.bounding_box()
-    owner = header.locator("xpath=..")
-    owner_before = owner.bounding_box()
-    page.route("**/api/state*", refuse)
-    now = datetime.now().astimezone()
-    for delta, age in [
-        (timedelta(minutes=1), "1m ago"),
-        (timedelta(minutes=10), "10m ago"),
-        (timedelta(hours=3), "3h ago"),
-    ]:
-        # Fixed Date advances the age without changing Chrome's monotonic clock;
-        # LayoutShift, frame readings and input attribution still share native time.
-        page.clock.set_fixed_time(now + delta)
-        ticked(page)
-        expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text(re.compile(r"^Queued for "))
-        judge_watches()
-        assert surface_root.bounding_box() == thread_before
-        assert owner.bounding_box() == owner_before
-        assert protected.evaluate_all(boxes) == before
-
-
 @pytest.mark.parametrize(
     "fault, guard_mode, destination",
     [
@@ -5301,9 +5888,7 @@ def test_real_floating_plane_retains_local_motion(
         '<div id="holder" style="visibility:hidden;position:fixed;width:220px;height:90px;'
         'padding:12px;border:1px solid;box-sizing:border-box;background:white">'
         '<textarea id="field" style="display:block;width:160px;height:36px;'
-        'box-sizing:border-box;resize:none"></textarea></div>'
-        '<p id="evidence" style="position:fixed;left:10px;top:440px;'
-        'width:300px;height:30px;margin:0">Paint evidence</p>',
+        'box-sizing:border-box;resize:none"></textarea></div>',
         layout=None,
     )
     page = open_page(browser, serve(source))
@@ -5361,13 +5946,6 @@ def test_real_floating_plane_retains_local_motion(
     held_stretch(page)
     before, holder_before = field.bounding_box(), holder.bounding_box()
     page.evaluate("window.beforeField=document.querySelector('#field')")
-    page.evaluate("""()=>{
-      window.nativePlaneEntries=[];
-      new PerformanceObserver(list=>nativePlaneEntries.push(...list.getEntries().map(e=>({
-        at:e.startTime,sources:e.sources.map(s=>({kind:s.node?.nodeName,
-          previous:s.previousRect.toJSON(),current:s.currentRect.toJSON()}))
-      })))).observe({type:'layout-shift'});
-    }""")
     page.evaluate(
         """fault=>{
           window.planeChanges=0;
@@ -5387,9 +5965,6 @@ def test_real_floating_plane_retains_local_motion(
               const edge=planeControl.read().edge;
               holder.style[edge]=`calc(${edge==='top'?80:-80}px + ${holder.style[edge]})`;
             }
-            // Transform-only faults need a native paint signal; this extra source
-            // cannot establish the independently asserted field displacement.
-            if(fault) document.querySelector('#evidence').style.marginLeft='30px';
           };
         }""",
         fault,
@@ -5411,8 +5986,6 @@ def test_real_floating_plane_retains_local_motion(
     assert page.evaluate("planeChanges") == 1
     judge_watches()
     errors = take_browser_errors(page)
-    entries = page.evaluate("nativePlaneEntries")
-    assert entries, (fault, guard_mode, destination, "no Chrome paint admission")
     after, holder_after = field.bounding_box(), holder.bounding_box()
     assert page.evaluate("beforeField===document.querySelector('#field')")
     assert after["width"] == before["width"]

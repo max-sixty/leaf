@@ -1,4 +1,4 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 import html
 import subprocess
@@ -6,9 +6,11 @@ from typing import cast
 
 import pytest
 
+from leaf.delivery import DELIVERY
+from leaf.registry.schema import json_validator, with_leaf_resources
 from leaf.structure import SourceDocument
-from leaf_dev import docs
-from leaf_dev.commands import record_demo
+from leaf_dev import docs, prompts
+from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import catalog_sources, document_metadata, named_source
 
 
@@ -73,10 +75,7 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
             '<nav class="sitenav" aria-label="Site"></nav>',
             '<nav class="sitenav" aria-label="Site"><a href="/">leaf</a></nav>',
         ),
-        (
-            '<img\n                alt="Sandbox',
-            '<img src="/media/0000000000000000.jpg"\n                alt="Sandbox',
-        ),
+        ('alt="Sandbox', 'src="/media/0000000000000000.jpg" alt="Sandbox'),
     ],
 )
 def test_a_composed_part_refuses_an_authored_copy(slot, copy):
@@ -86,6 +85,29 @@ def test_a_composed_part_refuses_an_authored_copy(slot, copy):
     assert slot in authored
     with pytest.raises(ValueError, match="composed from its owner"):
         docs.compose(source, authored.replace(slot, copy))
+
+
+def test_how_it_works_shows_each_prompt_as_leaf_writes_it():
+    """How it works shows every prompt `prompts.PROMPTS` renders, each in its own slot,
+    with the text Leaf's function writes, escaped so it reads back exactly. The
+    deliveries the prompts are written around, the recorded journey's included, take
+    the shape a real one is stored under, so the page shows a fork what Leaf would
+    give it, and a change to that shape fails here until the journey's batches are
+    recorded again."""
+    source = named_source("how-it-works")
+    tree = SourceDocument(docs.compose(source, source.read_text())).tree
+    shown = {}
+    for slot in tree.select("lf-text-document[data-prompt]"):
+        text = slot.select_one("pre")
+        assert text is not None
+        shown[slot.attrs["data-prompt"]] = text.text
+    assert shown == {name: render() for name, render in prompts.PROMPTS.items()}
+    validator = json_validator(with_leaf_resources(DELIVERY.schema))
+    validator.validate(prompts.delivery("5efad8dcb492db29", prompts.FOLDED))
+    validator.validate(
+        prompts.delivery("f7667dd2ce39fdb3", prompts.JOURNEY["line"]["batch"])
+    )
+    validator.validate(prompts.journey_delivery())
 
 
 def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():

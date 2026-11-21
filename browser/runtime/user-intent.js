@@ -9,6 +9,7 @@
    wait. Which inputs supersede it is focus.js's count (`inputCount`), the one reading of
    the user's inputs. */
 import { carriedFrom, focused, inputCount } from "./focus.js";
+import { renderedUnder } from "./shadow-tree.js";
 
 // Focus a repaint took from the source and dropped on a container holding it, as a
 // list takes it from a card that folds, including where that container passed it on
@@ -28,10 +29,10 @@ const displaced = (source, at) => {
   const via = passed.get(at);
   const carry = carriedFrom(at);
   return (
-    at.contains(source) ||
-    (via?.intent === inputCount() && via.container.contains(source)) ||
+    renderedUnder(source, at) ||
+    (via?.intent === inputCount() && renderedUnder(source, via.container)) ||
     (carry?.inputs === inputCount() &&
-      (carry.from === source || source.contains(carry.from)))
+      (carry.from === source || renderedUnder(carry.from, source)))
   );
 };
 
@@ -63,8 +64,10 @@ export function retainUserIntent({
   const current = () => {
     const at = focused();
     const from = held?.deref();
+    // Containment reads across shadow trees, as a thread a widget draws in its own
+    // shadow root stands inside the page that holds the widget.
     const withinSource =
-      from === document.body ? at === document.body : from?.contains(at);
+      from === document.body ? at === document.body : renderedUnder(at, from);
     return Boolean(
       available() &&
       retained === inputCount() &&

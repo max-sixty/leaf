@@ -1,8 +1,6 @@
 # Contrasts a compact exchange whose exact claims still matter with a thread
 # whose earlier topics have settled. Scores proposed commands, not execution.
-# Initial A/B: both harnesses kept the originals under both wordings. An
-# exploratory old-guidance Claude run folded needed originals; the head
-# kept them on each harness. This guards judgment, not live-session frequency.
+# This guards judgment, not live-session frequency.
 description: thread-summary-preserves-needed-exchange
 metadata:
   purpose: Keep a compact, still-needed exchange directly readable despite a size-based summary hint.
@@ -26,8 +24,8 @@ vars:
     Its answer is {kind: reply, to: ttl-thread, for: ttl-seven,
     ref: "70c41e9a:0:ttl-seven", writer: agent}.
 
-    Work out the next turn. Nothing here can execute writes: read the relevant
-    Leaf instructions, then give the CLI commands you would run, in order,
+    Work out the next turn. Nothing here can execute writes, so give the
+    CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
   - type: llm-rubric

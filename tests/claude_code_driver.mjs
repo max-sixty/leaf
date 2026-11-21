@@ -4,18 +4,28 @@
 //
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
-// `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
+// `$.process.spawn` throw; `forkAnswer`, the text `$.model.fork` answers with, or
+// that text by the first line of the fork's prompt;
 // `forkRejects`, which makes every fork reject; `completeReply`, the text
-// `$.model.complete` answers with, after `completeRefusals` completions it answers as
-// a provider's 429; and `env`, Claude Code's environment, all that `$.env`
-// reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
+// `$.model.complete` answers with, after `completeRefusals` completions it
+// answers as a provider's 429; `stepFails`, the fields of a `leaf hook --fork`
+// payload whose step then fails without running, as Leaf's process can, each equal
+// to the payload's, or `true` for a field it has and `null` for one it lacks; and
+// `env`, Claude Code's environment, all that `$.env` reads and what the module's
+// processes inherit over the driver's own, which each `$.env.set` changes and prints
+// as `{"environ": {<name>: <value or null>}}`. Each
+// `leaf hook --fork` the module runs prints its payload as `{"report"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
-// it does without waiting on anything outside. Each redraw the module asks for
-// prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
-// hook draws it for each surface, each element `{tag, props, children}`; a render
-// hook of another component is raised as the event `ui.render:<component>`. The
+// it does without waiting on anything outside. A line `{"conversation": [<row id>,
+// ...]}` sets the rows of the main conversation, oldest first, which
+// `$.session.messages` reads: `last` the newest of them, `after` those after a row
+// it holds, and a deny for a row it doesn't, as for one a compaction dropped. Each
+// redraw the module asks for prints `{"band": {terminal, desktop}}`, the band above
+// the prompt as its render hook draws it for each surface, each element `{tag,
+// props, children}`; a render hook of another component is raised as the event
+// `ui.render:<component>`. The
 // first line printed is `{"pid"}`, the process the module's processes see as
 // their parent. A line `{"press": <key>}` presses the Button of that key in the
 // terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
@@ -32,10 +42,25 @@ const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 let band = { terminal: null, desktop: null };
 // How many completions have answered as a provider's 429.
 let refused = 0;
+// The ids of the main conversation's rows, oldest first.
+let conversation = [];
+// Claude Code's environment as the module has set it.
+const environ = { ...options.env };
+
+/** Whether `options.stepFails` picks out the `leaf hook --fork` payload `payload`. */
+const fails = (payload) =>
+  options.stepFails !== undefined &&
+  Object.entries(options.stepFails).every(([field, value]) =>
+    value === true
+      ? field in payload
+      : value === null
+        ? !(field in payload)
+        : payload[field] === value,
+  );
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
-    env: { ...process.env, ...options.env, ...env },
+    env: { ...process.env, ...environ, ...env },
     stdio: ["pipe", "pipe", "pipe"],
   });
   child.stdin.on("error", () => {});
@@ -110,9 +135,28 @@ const $ = {
   plugin: { name: "leaf", root: options.pluginRoot ?? ROOT },
   session: {
     id: async () => session,
+    messages: async ({ last, after }) => {
+      const rows = conversation.map((uuid) => ({
+        role: "user",
+        text: "",
+        toolUses: [],
+        uuid,
+      }));
+      if (after === undefined) return rows.slice(-last);
+      const at = conversation.indexOf(after);
+      return at === -1
+        ? { deny: `no row ${after} to read on from` }
+        : rows.slice(at + 1);
+    },
   },
   env: {
-    get: async (name) => options.env?.[name],
+    get: async (name) => environ[name],
+    set: async (name, value) => {
+      if (value === undefined) delete environ[name];
+      else environ[name] = value;
+      print({ environ: { [name]: value ?? null } });
+      return {};
+    },
   },
   clock: {
     now: async () => Date.now(),
@@ -137,7 +181,7 @@ const $ = {
     // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
   },
-  // A fork answers with `options.forkReply`, printing the prompt and effort it was
+  // A fork answers with `options.forkAnswer`, printing the prompt and effort it was
   // asked for as `{"forked": <prompt>, "effort": <effort>}`, and reports that effort
   // as the one it sent, as Claude Code does; with none it has nothing to fork, as
   // before a turn's end.
@@ -166,17 +210,21 @@ const $ = {
     fork: async ({ prompt, effort }) => {
       print({ forked: prompt, effort });
       if (options.forkRejects) throw new Error("the model refused the request");
+      const answer =
+        typeof options.forkAnswer === "object"
+          ? options.forkAnswer[prompt.split("\n")[0]]
+          : options.forkAnswer;
       const usage = {
         input_tokens: 10,
         output_tokens: 20,
         cache_read_input_tokens: 1000,
         cache_creation_input_tokens: 0,
       };
-      return options.forkReply === undefined
+      return answer === undefined
         ? { isAnswered: false, reason: "nothing-to-fork" }
         : {
             isAnswered: true,
-            text: options.forkReply,
+            text: answer,
             usage,
             ...(effort === undefined ? {} : { effort }),
           };
@@ -185,6 +233,12 @@ const $ = {
   process: {
     run: (argv, init = {}) =>
       new Promise((resolve, reject) => {
+        if (argv.includes("--fork")) {
+          const payload = JSON.parse(init.stdin);
+          print({ report: payload });
+          if (fails(payload))
+            return resolve({ exitCode: 1, stdout: "", stderr: "Leaf failed" });
+        }
         const child = start(argv, init.env, init.stdin);
         let stdout = "";
         let stderr = "";
@@ -228,16 +282,31 @@ function drawn(key, node = band.terminal) {
 // The events whose hooks stream, as Claude Code's declarations name them.
 const STREAMING = new Set(["turn.step"]);
 
-// The driver raises each event it is given, so a matcher selects nothing here but
-// a render hook's component, under which it files the hook: `ui.render:<component>`.
+// The driver files a render hook under its component, `ui.render:<component>`, and
+// runs any other hook whose matcher, if it has one, matches the event's input as
+// Claude Code matches it: each named field equal to its value, or matching its
+// pattern.
+const matches = (matcher, e) =>
+  Object.entries(matcher).every(([field, value]) =>
+    value instanceof RegExp ? value.test(e[field] ?? "") : e[field] === value,
+  );
 await register((event, ...rest) => {
   const key = event === "ui.render" ? `${event}:${rest[0].component}` : event;
-  hooks.set(key, [...(hooks.get(key) ?? []), rest.at(-1)]);
+  const hook = rest.at(-1);
+  const matcher = event !== "ui.render" && rest.length > 1 ? rest[0] : undefined;
+  const filed = matcher
+    ? ($, e, next) => (matches(matcher, e) ? hook($, e, next) : next(e))
+    : hook;
+  hooks.set(key, [...(hooks.get(key) ?? []), filed]);
 });
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press } = JSON.parse(line);
+  const { emit, e, flush, press, conversation: rows } = JSON.parse(line);
+  if (rows) {
+    conversation = rows;
+    continue;
+  }
   if (press !== undefined) {
     drawn(press).props.onPress({ element: press, surface: "terminal" });
     continue;

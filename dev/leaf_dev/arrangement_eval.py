@@ -11,7 +11,7 @@ second decision reader or repeated render/quality grader for every revision.
 Each phase retains its primary output, initialized pages and served addresses.
 The judge restores known page links in disposable copies; archived bytes stay exact.
 Reports capture those pages and retain native timing/token accounting.
-`eval --from --judge pair` compares saved samples without rerunning their authors.
+`eval run --from --judge pair` compares saved samples without rerunning their authors.
 The run centrally selects its viewports, defaulting to one fullscreen desktop for
 every case.
 """
@@ -36,7 +36,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
-from leaf.structure import source_index
+from leaf.structure import source_index, splice
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, pane_readings, plain_html
@@ -51,12 +51,14 @@ from leaf_dev.arms import (
     now,
     observed_sum,
     pages,
+    phase_traces,
     read_page_state,
     read_trace,
     resumed,
     run_agent,
     run_leaf,
     scratch,
+    stage_task_files,
     trace_result,
     trace_summary,
 )
@@ -77,7 +79,6 @@ from leaf_dev.eval_user import (
     comment_on_passage,
     decide,
 )
-from leaf_dev.leaf_assets import pinned_copy
 
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
@@ -325,9 +326,7 @@ def rebase_page_links(source: str, addresses: dict[str, str]) -> str:
                 f'href="{escape(target, quote=True)}"',
             )
         )
-    for start, end, replacement in sorted(edits, reverse=True):
-        source = source[:start] + replacement + source[end:]
-    return source
+    return splice(source, edits)
 
 
 @contextmanager
@@ -379,12 +378,17 @@ def open_as_user(run: Run, url: str) -> None:
 
     The author's `page check --render` reads the desktop at the window a browser last
     reported for the page (`render_gate.command.desktop_viewport`), so in use it
-    checks the user's window. Here the browser user first opens the page in the
-    comment phase, and until then every render check read the fixed laptop window
-    while the user's stated window was 1600×1000: authors hunted for a way to
-    change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
-    in 8 of 12 width revisions on 2026-10-24."""
+    checks the user's window. Without this view the browser user first opens the
+    page in the comment phase, and until then every render check reads the fixed
+    laptop window rather than the user's stated one: authors can hunt for a way to
+    change it, setting `LEAF_RENDER_VIEWPORT` and grepping Leaf's source. The check
+    passes over a browser a script drives (`render_gate.command._reader_view`), as
+    this one is, so the tab says it is not driven, standing in for the user's own
+    browser."""
     with headless_shell() as browser, tab(browser, run.journey_window) as view:
+        view.add_init_script(
+            "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => false})"
+        )
         load(view, url)
         deadline = time.monotonic() + 20
         while not read_user_views(run.authored_page, None)["sessions"]:
@@ -399,10 +403,7 @@ def author(run: Run, cwd: Path) -> None:
     window once the page is handed over (`open_as_user`), not the fixed one the
     harness pins for its own checks (`arms.environment`)."""
     cwd.mkdir(parents=True, exist_ok=True)
-    task = CASES[run.subject].request
-    fixtures = pinned_copy(TASKS / task)
-    if fixtures is not None and fixtures.is_dir():
-        shutil.copytree(fixtures, cwd / "evals" / task)
+    stage_task_files(CASES[run.subject].request, cwd)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -674,7 +675,7 @@ def judge_pages(
             command = [
                 "/usr/bin/env",
                 *(f"{key}={value}" for key, value in variables.items()),
-                *cli(),
+                *cli(cwd),
             ]
             addresses = {}
             restorations = {}
@@ -802,19 +803,6 @@ Task and criterion:
         return {"error": str(error), "metadata": {"evidence": str(evidence)}}
 
 
-def call_api(prompt: str, options: dict, context: dict) -> dict:
-    """Promptfoo's live judge provider for the final and predecision pages."""
-    request = context["vars"]
-    return judge_pages(
-        request["pages"],
-        request["widths"],
-        prompt,
-        request["schema"],
-        Path(request["evidence"]),
-        handovers=request.get("handovers"),
-    )
-
-
 def capture(run: Run) -> dict[int, dict]:
     """Report the final page and, when applicable, its decision controls."""
     return {
@@ -834,19 +822,6 @@ def comment_answer(run: Run, reply: str, page: Path) -> str:
     return "\n\n".join(
         f"{answer.get('title', '')}\n{answer['text']}".strip() for answer in answers
     )
-
-
-def phase_traces(trace: list[dict]) -> dict[int, list[dict]]:
-    """The session's records split at the harness's `eval_phase` marks."""
-    split: dict[int, list[dict]] = {}
-    current = None
-    for record in trace:
-        if record.get("type") == "eval_phase":
-            current = record["phase"]
-            split[current] = []
-        elif current is not None:
-            split[current].append(record)
-    return split
 
 
 def replies(trace: list[dict]) -> str:
@@ -989,7 +964,11 @@ def execute_scenario(
     except Exception as error:
         failure = "".join(traceback.format_exception(error))
     trace = read_trace(work / "stream.jsonl")
-    split = phase_traces(trace)
+    split = {
+        records[0]["phase"]: records
+        for records in phase_traces(trace)
+        if records[0].get("type") == "eval_phase"
+    }
     order = list(phases(case))
     session = dict(
         zip(

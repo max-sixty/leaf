@@ -1,7 +1,5 @@
-"""Text and widgets inside thread messages: Markdown and suggestion text, frozen
+"""Text and widgets inside thread messages: Markdown and suggestion text, thread
 widgets' initial state and replay, undo, refusals and the Done press."""
-
-import re
 
 import pytest
 from interact_support import append_carried_log_record, append_command
@@ -41,13 +39,13 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
     browser, serve, subtests
 ):
-    """A message's text is Markdown, rendered here by the page's own vendored layer —
-    the wire carries the log's words and nothing else. Every raw tag renders as the
-    characters it was written in, a block of tags as much as prose saying Vec<T>, and
-    swallowing it into an element would lose the words in front of the user with nothing saying so. What the
-    panel adds is the page's own dress: the theme's element rules are at document level
-    and reach in, a fenced block colors from the tokenizer a version's <pre><code>
-    uses, and a bare URL arrives as the link the user will want to follow.
+    """An agent's message is Markdown with HTML, rendered here by the page's own
+    vendored layer — the wire carries the log's words and nothing else. A block of
+    tags draws as the elements it names, and a tag in a code span stays the characters
+    it was written in. What the panel adds is the page's own dress: the theme's element
+    rules are at document level and reach in, a fenced block colors from the tokenizer
+    a version's <pre><code> uses, and a bare URL arrives as the link the user will want
+    to follow.
 
     A suggestion's words are bound for the page verbatim, so the panel shows them
     as typed. Rendering them would promise the user an italic where the next
@@ -93,13 +91,11 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
         expect(body.locator("strong")).to_have_text("behind")
         expect(body.locator("blockquote")).to_have_text("which one wins?")
         expect(body.locator("pre code [data-lf-syn]").first).to_have_text("def")
-        # Tags are text in this dialect, a block of them as much as one in a sentence, so
-        # markup shown without a fence keeps the lines it was written in.
-        markup = body.locator("p", has_text="<lf-callout>")
-        assert markup.inner_text() == "<lf-callout>\n<div>a tile</div>\n</lf-callout>"
+        # An agent's block of tags draws as its elements.
+        expect(body.locator("lf-callout > div")).to_have_text("a tile")
+        # A Markdown link that leaves the page opens a new tab, leaving the thread open.
         link = body.locator('a[href="https://example.com/notes"]')
         expect(link).to_have_attribute("target", "_blank")
-        expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
         expect(link).to_have_attribute("data-lf-external", "")
         expect(
             body.locator(
@@ -112,8 +108,8 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
             "and custom handler."
         )
         # The paragraph's asterisks are gone from the words, not merely hidden, and the
-        # raw tag's characters are still among them: what the user can select is what
-        # the message says.
+        # code span's tag characters are still among them: what the user can select is
+        # what the message says.
         text = body.inner_text()
         assert "**" not in text and "Vec<T>" in text
     with subtests.test("suggestion"):
@@ -126,7 +122,7 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
 def test_thread_body_initial_state_comes_from_source_before_upgrade(
     browser, serve, asynchronous
 ):
-    """Frozen widgets undo to source even when presentation rewrites its body."""
+    """Thread widgets undo to source even when presentation rewrites its body."""
     tag = "lf-delayed-body" if asynchronous else "lf-draft"
     layer = {}
     if asynchronous:
@@ -134,23 +130,24 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             "layer_registry": {
                 tag: {
                     "description": "A body normalized by an asynchronous renderer.",
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "restated": {"type": "boolean"},
+                    "attributes": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "restated": {"type": "boolean"},
+                        },
+                        "required": ["id"],
+                        "additionalProperties": False,
                     },
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "data",
-                    "x-upgrade": True,
-                    "x-verbatim": True,
-                    "x-state": {
+                    "content": "data",
+                    "verbatim": True,
+                    "verbs": {
                         "edit": {
                             "unit": "widget",
                             "record": {"kind": "body"},
                         }
                     },
-                    "x-example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
+                    "example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
                 },
             },
             "layer_widgets": {
@@ -186,8 +183,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "author": "agent",
             "revision": 1,
             "parent": "body-question",
-            "text": "Edit these words.",
-            "markup": f'<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+            "text": f'Edit these words.\n\n<{tag} id="reply-body">\n<pre>\n    First line.\n    Second line.\n</pre></{tag}>',
         },
     )
     page = open_page(browser, live_url(url))
@@ -212,7 +208,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
     assert response.ok, response.text()
     told(page)
     assert body.text_content() == "User's exact words.\n"
-    # The thread opened with the caret in its reply, where `z` is a letter.
+    # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
     page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(body).to_have_text("First line. Second line.")
@@ -225,17 +221,17 @@ customElements.define('lf-delayed-body', class extends LeafElement {
     assert original.evaluate("node => node === document.getElementById('reply-body')")
 
 
-def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve):
+def test_crossed_responses_wait_for_the_same_thread_widget_module(browser, serve):
     """A later POST must join the reply's import before mounting or capturing it."""
     host = REPLY_HOST_PAGE.replace(
         "</main>",
         """
-<lf-ask id="delivery"><h2>Which delivery?</h2>
-  <lf-options id="delivery-choice" choose>
+<lf-group id="delivery" label="Which delivery?"><h2 id="delivery-h">Which delivery?</h2>
+  <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>
-</lf-ask></main>""",
+</lf-group></main>""",
     )
     url = serve(host)
     page = open_page(browser, live_url(url))
@@ -259,16 +255,16 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "parent": "draft-question",
                 "author": "agent",
                 "revision": 1,
-                "text": "Edit this draft.",
-                "markup": '<div id="crossed-region">'
+                "text": "Edit this draft.\n\n"
+                '<div id="crossed-region">'
                 '<lf-tally id="crossed-tally" for="crossed-region" next></lf-tally>'
                 '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n'
                 "</pre></lf-draft></div>",
             },
         )
-    holding(page, held, 1, "the frozen draft module")
+    holding(page, held, 1, "the reply's draft module")
     assert len(held) == 1
-    frozen_reading = """async () => {
+    reply_reading = """async () => {
       const {readApplication} = await window.__lfCheckApi();
       const root = readApplication();
       return {
@@ -278,7 +274,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         mounted: Boolean(document.getElementById('crossed-draft')),
       };
     }"""
-    assert page.evaluate(frozen_reading) == {
+    assert page.evaluate(reply_reading) == {
         "descriptor": False,
         "authored": False,
         "body": None,
@@ -295,7 +291,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     told(page)
     # The reply's widget mounts where its thread is drawn, which is the panel's view
     # once the user opens it there.
-    reading = page.evaluate(frozen_reading)
+    reading = page.evaluate(reply_reading)
     assert {key: reading[key] for key in ("descriptor", "authored", "body")} == {
         "descriptor": True,
         "authored": True,
@@ -317,7 +313,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     draft_control(page, "save", "crossed-draft").click()
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
-    # The thread opened with the caret in its reply, where `z` is a letter.
+    # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
     page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(body).to_have_text("First line. Second line.")
@@ -327,7 +323,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     assert original.evaluate(
         "node => node === document.getElementById('crossed-draft')"
     )
-    expect(page.locator("#delivery-now")).to_have_attribute("chosen", "")
+    expect(page.locator("#delivery-now")).to_have_attribute("selected", "")
 
 
 def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
@@ -336,9 +332,9 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     a poll, after that render, and an action naming a widget it doesn't find is
     one no version will ever hold (an honored suggestion, whose id the honoring
     version dropped) rather than one to look for again on the next poll. Its authored
-    record is captured from frozen source before the reply is admitted, so withdrawing
-    the action restores that baseline without authored version markup for the chrome
-    widget."""
+    record is captured from the reply's source before the reply is admitted, so
+    withdrawing the action restores that baseline without authored version markup for
+    the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     append_carried_log_record(
@@ -358,8 +354,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP,
+            "text": SAMPLE_TEXT + "\n\n" + SAMPLE_MARKUP,
         },
     )
     decision = append_command(
@@ -375,8 +370,8 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     )
     page = open_page(browser, live_url(url))
     open_panel_thread(page, "c-decision")
-    expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
-    assert page.locator("#rp-live lf-option[chosen]").count() == 1
+    expect(page.locator("#rp-shim")).to_have_attribute("selected", "")
+    assert page.locator("#rp-live lf-option[selected]").count() == 1
 
     # Chrome belongs to the thread rather than the page version. Its action therefore
     # still stands, and is still the user's newest undoable gesture, after the page
@@ -384,9 +379,9 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
     open_panel_thread(page, "c-decision")
-    expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#rp-shim")).to_have_attribute("selected", "")
 
-    # The thread opened with the caret in its reply, where `z` is a letter.
+    # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
     page.evaluate(RELEASE_FOCUS)
     undo(page)
     assert [
@@ -394,7 +389,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         for event in events_model.read_events(d)
         if event["kind"] == "undo"
     ] == [decision["id"]]
-    expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#rp-live lf-option[selected]")).to_have_count(0)
 
 
 def _gesture_request(request):
@@ -466,7 +461,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -478,7 +473,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
                 "final": True,
             },
         )
-    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).not_to_have_attribute("selected", "")
     assert actions(serve.page_dir) == []
     consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
@@ -487,14 +482,14 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     round_trip(page)
     page.locator("#tq-set .lf-done").click()
     round_trip(page)
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
 
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     with page.expect_request(_gesture_request):
         page.locator("#tq-metrics").click()
-    expect(page.locator("#tq-metrics")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-metrics")).to_have_attribute("selected", "")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -507,8 +502,8 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
             },
         )
 
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
-    expect(page.locator("#tq-metrics")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
+    expect(page.locator("#tq-metrics")).not_to_have_attribute("selected", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert [
         (event["action"], event["detail"]) for event in actions(serve.page_dir)
@@ -553,7 +548,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
             },
         )
 
-    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).not_to_have_attribute("selected", "")
     expect(done).to_have_attribute("aria-pressed", "true")
     second_attempt = held[1].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -630,4 +625,4 @@ def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
     expect_on_me(page, 0)
     view = open_panel_thread(page, "c-which")
     expect(view.locator("#tq-one")).to_have_count(1)
-    expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-redis")).not_to_have_attribute("selected", "")

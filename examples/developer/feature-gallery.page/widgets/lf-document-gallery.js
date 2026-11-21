@@ -1,6 +1,7 @@
 // Hold a document as the `document` output and say `change`; the reader that names this
 // element owns its views.
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-document-gallery",

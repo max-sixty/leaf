@@ -82,12 +82,12 @@ export function closestAcross(node, selector) {
   return null;
 }
 
-// A different question the class also used to answer, and not a question about looks at
-// all: which document is this element in? The runtime's layer is one container, so a
-// widget inside a reply — markup frozen in the log, carried by no version — is exactly
+// Which document an element is in is not a question about looks at all, so the class
+// `.lf-ui` doesn't answer it. The runtime's layer is one container, so a
+// widget inside a reply — markup the log carries, and no version — is exactly
 // what that container holds, and the reading position is a place in the page rather than
-// in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
-// on the page besides, which is the look standing in for the place.
+// in the panel over it. `.lf-ui` reaches those elements and a widget's own controls out
+// on the page besides, which would make the look stand in for the place.
 // Across the boundary as closestAcross does: the marker lives out in
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
@@ -99,19 +99,52 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
-// The same step taken down: the elements whose `renderedParent` is `element`. A slot's
-// assigned elements, each once, slots forwarded into it included; a host's open shadow
-// tree; and the light children no slot takes. A closed tree answers no `shadowRoot` and
-// hides its slots from `assignedSlot`, so its elements are left to whoever holds the
-// tree, as the climb leaves its host's light children in place.
-/** @param {Element} element @returns {Element[]} */
-export const renderedChildElements = (element) => [
-  ...(isHTML(element, "slot")
-    ? element.assignedElements().filter((child) => child.assignedSlot === element)
-    : []),
-  ...(element.shadowRoot?.children ?? []),
-  ...[...element.children].filter((child) => !child.assignedSlot),
-];
+// The same step taken down, as the browser draws the tree: `each` is handed each node
+// drawn as `node`'s child, in order, with any comment among them for the caller to pass
+// over, and `eachRenderedElement` each element. A slot in a shadow tree draws what is
+// assigned to it, a slot forwarded into it among them, or its own children where nothing
+// is; anywhere else a slot is an ordinary element. A host draws the shadow root `rootOf`
+// names in place of its children, and a light child only through a slot there: its open
+// root by default, and its children where it names none, so a walk names the tree it
+// reads: the page reading enters only declared roots (passages.js, `readingChildren`),
+// the keyboard's walk a closed stage too, and a walk of one tree none. Each steps from
+// sibling to sibling, as a walk does (browser/AGENTS.md, "One answer for each
+// question"), since Chromium keeps a node's `children` or `childNodes` list for the
+// node's life once it is asked for. A walk of elements steps over the text between them
+// unasked: handed every node, Tab stops over a long table take Chromium longer.
+/** @typedef {(host: Element) => ShadowRoot | null} RootOf */
+/** @param {Element} host */
+const openRoot = (host) => host.shadowRoot;
+// What `node` draws its children from: the nodes a slot draws in their place, or the
+// node or root whose own children they are.
+/** @param {Node} node @param {RootOf} rootOf @returns {Node[] | Node} */
+function drawnFrom(node, rootOf) {
+  if (isHTML(node, "slot") && isShadowRoot(node.getRootNode())) {
+    const assigned = node.assignedNodes();
+    if (assigned.length) return assigned;
+  }
+  return (isElement(node) && rootOf(node)) || node;
+}
+/** @param {Node} node @param {(child: Node) => void} each @param {RootOf} [rootOf] */
+export function eachRenderedChild(node, each, rootOf = openRoot) {
+  const from = drawnFrom(node, rootOf);
+  if (Array.isArray(from)) for (const child of from) each(child);
+  else for (let child = from.firstChild; child; child = child.nextSibling) each(child);
+}
+/** @param {Node} node @param {(child: Element) => void} each @param {RootOf} [rootOf] */
+export function eachRenderedElement(node, each, rootOf = openRoot) {
+  const from = drawnFrom(node, rootOf);
+  if (Array.isArray(from)) {
+    for (const child of from) if (isElement(child)) each(child);
+    return;
+  }
+  for (
+    let child = /** @type {Partial<ParentNode>} */ (from).firstElementChild;
+    child;
+    child = child.nextElementSibling
+  )
+    each(child);
+}
 
 // The same two climbs through every node rather than every element: a root, a shadow root
 // or the document, is a step of its own, so a reading can stop at a root as well as at an
@@ -211,7 +244,7 @@ export function alongClimb(parentOf) {
 // Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
 // boundary and these readings walk through one, so the climb is the same one
 // `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding an x-shadow widget does not `contains` the words that widget renders, so
+// holding a `shadow` widget does not `contains` the words that widget renders, so
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
 export const under = alongClimb(composedParentNode).under;
@@ -242,9 +275,9 @@ export const UI_MARKS = `.lf-ui, ${SAID}`;
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.
 // The nearest element that answers wins: a declared label is the page's words inside the
-// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
-// the answer once, and it is a look — which is how a user ended up reading a heading
-// they could not point at, twice.
+// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone is
+// no answer, since it is a look: taken as one, it leaves a user reading a heading they
+// cannot point at.
 //
 // Bounded or not, by the second argument, and that is the whole difference between the
 // two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
@@ -329,13 +362,15 @@ export function excludedByInert(node) {
 // off-screen `content-visibility: auto` box holds, which a long text document's runs
 // are, and a closed disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
 // question about any box inside — its computed style, its rect, its scroll offsets —
-// makes it style and lay out that whole subtree first to answer. On the corpus, whose
-// examples each stand in a hidden tab, those forced passes were most of a revision's
-// style time. So a reading that has nothing to say about a box on no screen — where it
-// stands, whether it scrolls, what room it takes — asks this first and leaves the box
-// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
-// what holds it, which brings those passes round. A reading that marks what the user
-// will see once it is drawn (an anchor's outline) still asks, and pays.
+// makes it style and lay out that whole subtree first to answer. On a page whose parts
+// stand in hidden tabs, as the corpus's do, those forced passes can be most of a
+// revision's style time. So a reading that has nothing to say about a box on no screen
+// — where it stands, whether it scrolls, what room it takes — asks this first and
+// leaves the box out until a pass after it is drawn: revealing a panel or opening a
+// disclosure resizes what holds it, which brings those passes round. An `auto` box
+// draws what it holds at the size it already had, so a reading that follows it hears
+// the box say so (`contentvisibilityautostatechange`). A reading that marks what the
+// user will see once it is drawn (an anchor's outline) still asks, and pays.
 //
 // Answered without forcing anything: `checkVisibility({contentVisibilityAuto: true})`
 // reads the tree the browser has, and is false for a box that is not drawn for any
@@ -375,15 +410,14 @@ export const skipped = (element) => Boolean(skipper(element));
 // it holds, so once `skipper` names it for one child the rest go unasked. An `auto` box
 // on screen draws the children beside one that draws no box, and a closed disclosure
 // draws its summary wherever it stands, so under either each child is asked whether it
-// is drawn, though nothing it holds is asked. On a page of thirty 4 MB documents in
-// tabs, the walk asks about the open document's 68,000 lines of two million elements,
-// in about 10 ms. A slotted child stands in its slot rather than beside its siblings,
-// so each asks for itself, and a host draws no child that no slot takes.
+// is drawn, though nothing it holds is asked. A slotted child stands in its slot rather
+// than beside its siblings, so each asks for itself, and a host draws no child that no
+// slot takes.
 //
 // One case goes unwalked: a `display: contents` child of an `auto` box on screen.
 // `skipper` names the box for any child of it that draws no box, on screen or not, and
 // telling such a child from a skipped line would mean asking each undrawn child its
-// `display`, which makes the browser style it: 21 s in Chromium on the page above.
+// `display`, which makes the browser style it.
 /** @param {Element} root @returns {Element[]} */
 export function drawnElements(root) {
   /** @type {Element[]} */

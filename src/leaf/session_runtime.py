@@ -2,12 +2,12 @@
 
 A harness session keeps running the plugin copy it loaded: Claude Code installs an
 update into a new cache directory and leaves every running session on the old
-one until `/reload-plugins` (`layer-registry.md`, "Page protocol"). A page a
-newer Leaf initialized is then one the session's hooks and watch can't read, and
-the user's input waits until someone reloads. So the session's hooks, its watch
-and, from an installed copy, its bare `leaf` commands all hand themselves to one
-launcher (`delivering_launcher`) before they read a page or change a turn; the
-Codex delivery adapter follows the selection alone (`selected_launcher`):
+one until `/reload-plugins`. A page a newer Leaf initialized is then one the
+session's hooks and watch can't read, and the user's input waits until someone
+reloads. So the session's hooks, its watch and, from an installed copy, its bare
+`leaf` commands all hand themselves to one launcher (`delivering_launcher`) before
+they read a page or change a turn; the Codex delivery adapter follows the selection
+alone (`selected_launcher`):
 
 - the launcher the session selected, while it exists: the checkout a user preview
   serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
@@ -20,8 +20,16 @@ Codex delivery adapter follows the selection alone (`selected_launcher`):
 Each hook runs the chosen launcher's Python as it stands, so an update reaches a
 session at its next hook without a reload; Claude Code still reads `hooks.json`
 and the hooks module only as it loads the plugin, so a change to either still
-waits for one. A selection whose checkout is gone falls back to the installed
-copy, which refuses a page it can't read (`newer-layer`), so the agent learns why.
+waits for one. Nothing checks that the module a session loaded and the Python its
+hooks run agree: the module only runs the instructions the Python gives it
+(`carrier.py`), and one an older module doesn't know comes back failed, as a report
+the Python refuses does, so a thread message gets no working line; the session gets
+the thread's messages either way. The user chose this over checking that the loaded
+module is this Leaf's own, which turns
+forks off in every session that loaded the module before its latest change: most
+sessions, while the module changes often. A selection whose checkout is gone falls
+back to the installed copy, which refuses a page it can't read (`newer-layer`), so
+the agent learns why.
 A running adapter keeps the modules it loaded until it retires, which it does once
 its task owns no page. The selection lives in the session lifecycle record and
 ends with its generation. Page servers retain their own runtime, so choosing

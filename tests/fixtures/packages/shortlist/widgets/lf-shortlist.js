@@ -7,7 +7,8 @@
 // the list and its picks as its `shortlist` output and says `change`, which is all
 // another widget reads.
 
-import { LeafElement, keeps, nothing } from "/runtime/portable-api.js";
+import { nothing } from "/vendor/lit.js";
+import { LeafElement, keeps } from "/runtime/portable-api.js";
 
 customElements.define(
   "lf-shortlist",

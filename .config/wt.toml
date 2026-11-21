@@ -5,7 +5,7 @@
 # request's `test` job and in `publish-site`, but not here: together they take minutes
 # and a Docker daemon, and here they would run beside a suite that is sensitive to load.
 #
-# A hook that rewrites (prettier, ruff, the whitespace fixers) fails the merge and leaves
+# A hook that rewrites (oxfmt, ruff, the whitespace fixers) fails the merge and leaves
 # the rewrite uncommitted in the worktree. Read it, then `wt merge` again — the squash
 # sweeps it in. A stale bundle fails the merge too: run `pnpm run build:browser` first.
 #
@@ -36,9 +36,6 @@ setup = "uv run --frozen leaf-dev setup"
 # The same pipeline in the foreground, with failures propagated to the caller.
 [aliases]
 setup = "uv run --frozen leaf-dev setup"
-
-[[aliases.refresh-previews]]
-previews = "uv run --frozen leaf-dev refresh-previews"
 
 [[aliases.cloud]]
 setup = "wt setup"

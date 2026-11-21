@@ -53,7 +53,7 @@ ACTION_ON_OBLIGATION = {
         "state": {
             "origin": "lf-options",
             "unit": "widget",
-            "record": {"kind": "attribute", "attr": "chosen"},
+            "record": {"kind": "attribute", "attr": "selected"},
             "creates": None,
             "decides": False,
             "detail": {
@@ -311,6 +311,18 @@ def leave_card(page):
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def put_card_away(page):
+    """Take down a card a failed case left open, so the next case starts without one.
+
+    A card put away fades out before it hides, inert, its close button going with it
+    (thread-preview.js, `close`), so a card still open is one that isn't inert: the
+    close button of one fading out vanishes under the press that waits for it."""
+    preview = page.locator(".lf-margin-preview")
+    if page.locator(".lf-margin-preview:not([inert])").is_visible():
+        preview.locator(".lf-margin-preview-close").click()
+    expect(preview).to_be_hidden()
 
 
 def seeded_thread(page, page_dir, passage):

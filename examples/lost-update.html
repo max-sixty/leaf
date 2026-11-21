@@ -31,13 +31,13 @@
         data-width="available"
         aria-label="The race before and after the fix"
       >
-        <lf-run label="Before the fix">
-          <lf-lane label="Job A">
+        <lf-run label="Before the fix" abbr="Before">
+          <lf-lane label="Job A" abbr="A">
             <lf-event id="before-a-read" at="0" label="Reads balance: 100"></lf-event>
             <lf-event id="before-a-work" at="200" end="4200" label="Adds 50"></lf-event>
             <lf-event id="before-a-write" at="4200" label="Writes 150"></lf-event>
           </lf-lane>
-          <lf-lane label="Job B">
+          <lf-lane label="Job B" abbr="B">
             <lf-event
               id="before-b-read"
               at="1000"
@@ -61,8 +61,8 @@
             ></lf-event>
           </lf-lane>
         </lf-run>
-        <lf-run label="After the fix">
-          <lf-lane label="Job A">
+        <lf-run label="After the fix" abbr="After">
+          <lf-lane label="Job A" abbr="A">
             <lf-event id="after-a-read" at="0" label="Locks and reads: 100"></lf-event>
             <lf-event id="after-a-work" at="200" end="4200" label="Adds 50"></lf-event>
             <lf-event
@@ -71,7 +71,7 @@
               label="Writes 150, unlocks"
             ></lf-event>
           </lf-lane>
-          <lf-lane label="Job B">
+          <lf-lane label="Job B" abbr="B">
             <lf-event
               id="after-b-wait"
               at="1000"

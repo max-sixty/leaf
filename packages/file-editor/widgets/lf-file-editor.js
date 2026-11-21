@@ -1,6 +1,7 @@
-/* One explicitly bound UTF-8 file. Its authoritative bytes live on disk, outside
- * Leaf's event log; this owner keeps only the editing buffer, acknowledged file
- * revision and recoverable tab-local draft. CodeMirror owns editing mechanics.
+/* The explicitly bound UTF-8 files `binding` names, one open at a time. Their
+ * authoritative bytes live on disk, outside Leaf's event log; this owner keeps only
+ * each file's editing buffer, acknowledged file revision and recoverable tab-local
+ * draft. CodeMirror owns editing mechanics.
  *
  * The draft is tab-local because the file on disk is what tabs share: every tab
  * autosaves to it within half a second, and a copy shared across tabs would set two
@@ -8,13 +9,31 @@
  * has to survive this tab's reloads, including the forced one when Leaf's layer
  * changes, which is what lets the editor say the draft is kept.
  *
+ * The editor holds its files as its `files` output, each named by the label the
+ * page's server gives it and keyed by its binding, with the open one `current`, so a
+ * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
+ * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
+ * the files, not a change to them, so it enters no log; a reload opens the one its
+ * address names, else the first. Each file keeps its own text, selection, history and
+ * scroll while another is open, and leaving a file saves what it holds at once. A file
+ * the reader has left settles its requests as the open one does; a failure or conflict
+ * there is announced by the file's name and stands in the status when it is opened.
+ *
  * Autosave serializes snapshots, retaining later typing while each receipt adopts
  * exactly the submitted snapshot. A clean editor follows external revisions through
- * CodeMirror transactions; a dirty one retains both versions for explicit review.
- * The editor reads the file when it connects, when the tab is shown again, and when
- * the page's state stamps the binding anew (`boundFile().watch`). A read asked for
- * while another request is in flight, or while a failure or conflict holds the
- * editor, stays owed until a later read or save covers it.
+ * CodeMirror transactions. A dirty one takes in an external revision that changed only
+ * lines apart from the draft's, as a line merge would, so an agent writing one part of
+ * a file while the reader types in another meets no conflict however the two requests
+ * interleave; changes to the same or adjacent lines retain both versions for explicit
+ * review. Either way the version taken in starts the file's undo history afresh, open
+ * or kept (editor.js, `writeFromElsewhere`), and the lines it changed stay marked until
+ * the next such version or the reader's edit of them (editor.js, `written`), so a
+ * reader whose file an agent edited sees where; a file's first reading marks nothing.
+ * The editor reads the open file when it connects, when the tab is shown again, when
+ * the reader opens it and when the page's state stamps its binding anew
+ * (`boundFile().watch`). A read asked for while another request on that file is in
+ * flight, or while a failure or conflict holds it, stays owed until a later read or
+ * save covers it.
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
@@ -29,7 +48,7 @@
  * could be read at all, the status reads "Unavailable" and the empty editor shows
  * why, as its placeholder.
  * The comparison of both versions opens below the editor only on the reader's
- * Compare, and shares the editing room with it. Rejected (2026-10-14): a pane below
+ * Compare, and shares the editing room with it. Rejected: a pane below
  * the editor holding the error, the choices and the comparison, which took the
  * editor's room as each problem arrived, and room held empty for that pane, which
  * every reader would pay for the rare one who meets a conflict. Each failure and
@@ -38,6 +57,7 @@
  * lifetime pauses the file watch and listeners while retaining the editor, its
  * history and in-flight receipt.
  */
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   allButCommandReference,
   announce,
@@ -51,21 +71,34 @@ import {
   focusDestination,
   focused,
   handBack,
-  html,
   iconTemplate,
   isNativeLayer,
   LeafElement,
-  nothing,
   offered,
   offeredAction,
-  render,
+  onCurrentLocation,
   rove,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
-import { createEditor } from "./editor.js";
+import { createEditor, followKept, mergeKept } from "./editor.js";
+
+/** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
+/** @typedef {{kind: "read", message: string} | {kind: "save", message: string, replace: boolean}} FileFailure */
+/** One bound file as this tab knows it: what the server last acknowledged (`base`), a
+ * newer disk version held for the reader's choice (`latest`), and the requests on it.
+ * `kept` is what the editor held of it while another file is open, and `named` the
+ * name the editor's `files` output last listed it by.
+ * @typedef {{
+ *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
+ *   base: FileSnapshot | null, latest: FileSnapshot | null,
+ *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
+ *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
+ *   slow: boolean, generation: number, timer: number, slowTimer: number | null,
+ *   kept: import("./editor.js").KeptFile | null, named: string | null,
+ * }} OpenFile */
 
 customElements.define(
   "lf-file-editor",
@@ -77,6 +110,12 @@ customElements.define(
     #template = null;
     /** @type {(() => void) | null} */
     #drawn = null;
+    /** @type {((binding: string, line: number | null) => Promise<void> | null) | null} */
+    #open = null;
+    /** @type {(() => string | null) | null} */
+    #shown = null;
+    /** @type {((binding: string) => string | null) | null} */
+    #label = null;
 
     setup() {
       this.initialize();
@@ -105,16 +144,71 @@ customElements.define(
       this.#placeSelection?.();
     }
 
+    // A key names a file this editor can show by its binding, and a line of it as
+    // `<binding>:<line>`, as a note's link to `#<editor>:values:12` does: revealing it
+    // opens the file with the caret at the start of that line, and the promise
+    // settles once the file's first read has drawn.
+    /** @param {string} key */
+    lfRevealDatum(key) {
+      const [binding = "", line] = key.split(":");
+      return this.#open?.(binding, Number(line) || null) ?? null;
+    }
+
+    /** @param {string} key */
+    lfElementsFor(key) {
+      return this.#shown?.() === key.split(":")[0] ? [this] : [];
+    }
+
+    /** @param {string} key */
+    lfDatumLabel(key) {
+      const [binding = "", line] = key.split(":");
+      const name = this.#label?.(binding);
+      return name && line ? `${name}, line ${line}` : (name ?? null);
+    }
+
     initialize() {
-      const binding = this.getAttribute("binding");
-      if (!binding) throw new Error("file editor needs its binding");
-      const api = boundFile(binding);
-      const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
+      const bindings = (this.getAttribute("binding") ?? "")
+        .split(/\s+/)
+        .filter(Boolean);
+      if (!bindings.length) throw new Error("file editor needs its binding");
+      const element = this;
+      /** @type {Map<string, OpenFile>} */
+      const files = new Map(
+        bindings.map((binding) => [
+          binding,
+          {
+            binding,
+            api: boundFile(binding),
+            recoveryKey: `file:${this.id}:${binding}`,
+            base: null,
+            latest: null,
+            failure: null,
+            spoken: null,
+            busy: false,
+            comparing: false,
+            recovering: false,
+            owed: false,
+            slow: false,
+            generation: 0,
+            timer: 0,
+            slowTimer: null,
+            kept: null,
+            named: null,
+          },
+        ]),
+      );
+      const fileFor = (/** @type {string} */ binding) =>
+        /** @type {OpenFile} */ (files.get(binding));
+      // The file the reader has open.
+      let file = fileFor(/** @type {string} */ (bindings[0]));
+      const label = (/** @type {OpenFile} */ of) =>
+        of.api.label ?? of.base?.label ?? of.binding;
+      this.#shown = () => file.binding;
+      this.#label = (binding) => (files.has(binding) ? label(fileFor(binding)) : null);
       // The host's grid gives the comparison half the editing room while it is open.
       const internals = this.attachInternals();
       // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
       // mounts are persistent node values within the template.
-      const element = this;
       // The stage, the mounts and the comparison hold the file, which prints, so they are
       // plain elements and only the editor's controls are offers. `lf-ui` keeps the
       // file's words out of the page's passages.
@@ -123,17 +217,18 @@ customElements.define(
       const comparisonMount = el("div", "lf-file-editor-comparison");
       shadowStage(this, [view]);
       const useFile = () => {
-        if (busy || !latest) return;
-        base = latest;
-        latest = null;
-        failure = null;
-        recovering = false;
-        editor.value = base.text;
-        remember();
-        finishSaving();
+        const of = file;
+        if (of.busy || !of.latest) return;
+        of.base = of.latest;
+        of.latest = null;
+        of.failure = null;
+        of.recovering = false;
+        editor.value = of.base.text;
+        remember(of);
+        finishSaving(of);
         paint();
         returnToEditor();
-        if (owed) void refresh();
+        if (of.owed) void refresh(of);
       };
       // The status control naming the conflict, and the menu of its choices. A choice
       // and Escape put the menu away onto that control, so a save that settles the
@@ -153,10 +248,10 @@ customElements.define(
         run();
       };
       const compare = choose(() => {
-        comparing = !comparing;
+        file.comparing = !file.comparing;
         paint();
       });
-      const keepDraft = choose(() => void flush(true, conflictControl()));
+      const keepDraft = choose(() => void flush(file, true, conflictControl()));
       /** @param {ToggleEvent} event */
       const choiceOpened = (event) => {
         if (event.newState !== "open") return;
@@ -191,120 +286,165 @@ customElements.define(
       ];
       /** @param {HTMLElement | null} [returnFrom] */
       const retry = (returnFrom = null) => {
-        if (busy) return;
-        const operation = failure;
-        if (operation?.kind === "save") void flush(operation.replace, returnFrom);
-        else void refresh(returnFrom);
+        const of = file;
+        if (of.busy) return;
+        const operation = of.failure;
+        if (operation?.kind === "save") void flush(of, operation.replace, returnFrom);
+        else void refresh(of, returnFrom);
       };
-      /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
-      /** @typedef {{kind: "read", message: string} | {kind: "save", message: string, replace: boolean}} FileFailure */
-      /** @type {FileSnapshot | null} */
-      let base = null;
-      /** @type {FileSnapshot | null} */
-      let latest = null;
-      /** @type {FileFailure | null} */
-      let failure = null;
-      let busy = false,
-        comparing = false;
       /** @type {ReturnType<typeof createEditor> | null} */
       let comparison = null;
-      /** @type {FileSnapshot | FileFailure | null} */
-      let spoken = null;
-      let generation = 0;
-      let timer = 0;
-      /** @type {number | null} */
-      let slowTimer = null;
-      let recovering = false,
-        owed = false,
-        connected = false,
-        slow = false;
+      let connected = false;
       // Landing the reader back in the editor shows them where they type.
       const returnToEditor = () => {
         focusDestination(editor.contentDOM, "return");
         editor.revealCaret();
       };
-      const dirty = () => base !== null && editor.value !== base.text;
-      const unsettled = () => dirty() || latest !== null;
-      function remember() {
+      // A file's text: the editor's while it is open, else what the editor kept of it
+      // or, where it kept nothing, the version last read.
+      const text = (/** @type {OpenFile} */ of) =>
+        of === file
+          ? editor.value
+          : (of.kept?.state.doc.toString() ?? of.base?.text ?? "");
+      const dirty = (/** @type {OpenFile} */ of) =>
+        of.base !== null && text(of) !== of.base.text;
+      const unsettled = (/** @type {OpenFile} */ of) => dirty(of) || of.latest !== null;
+      // A version written elsewhere that changed other lines than the draft did joins
+      // the draft, which then stands over that version and saves on its own.
+      /** @param {OpenFile} of @param {FileSnapshot} current */
+      function settle(of, current) {
+        if (!of.base) return false;
+        if (of === file) {
+          if (!editor.merge(of.base.text, current.text)) return false;
+        } else {
+          const merged = of.kept && mergeKept(of.kept, of.base.text, current.text);
+          if (!merged) return false;
+          of.kept = merged;
+        }
+        of.base = current;
+        of.latest = null;
+        return true;
+      }
+      /** @param {OpenFile} of */
+      function remember(of) {
         tabStore.set(
-          recoveryKey,
-          base && unsettled() ? JSON.stringify({ base, text: editor.value }) : null,
+          of.recoveryKey,
+          of.base && unsettled(of)
+            ? JSON.stringify({ base: of.base, text: text(of) })
+            : null,
         );
       }
-      function finishSaving() {
-        if (slowTimer !== null) clearTimeout(slowTimer);
-        slowTimer = null;
-        if (!slow) return;
-        slow = false;
-        if (!failure && !latest && !dirty()) announce("Changes saved.");
+      /** @param {OpenFile} of */
+      function finishSaving(of) {
+        if (of.slowTimer !== null) clearTimeout(of.slowTimer);
+        of.slowTimer = null;
+        if (!of.slow) return;
+        of.slow = false;
+        if (of === file && !of.failure && !of.latest && !dirty(of))
+          announce("Changes saved.");
+      }
+      // A failure or conflict arriving on a file the reader has left is news once, as
+      // the open file's is (`#drawn`), and the file names itself.
+      /** @param {OpenFile} of */
+      function tell(of) {
+        const news = of.failure ?? of.latest;
+        if (of === file || !news || news === of.spoken) return;
+        of.spoken = news;
+        announce(
+          of.failure
+            ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
+            : `${label(of)} changed on disk. The draft is kept.`,
+        );
       }
       // A paint draws now, since what follows it reads the controls it drew.
       function paint() {
         // The comparison belongs to the conflict it opened on.
-        if (!latest) comparing = false;
+        if (!file.latest) file.comparing = false;
         element.requestUpdate();
         element.performUpdate();
       }
+      // The files a navigator lists, each by the name the page's state gives it, and the
+      // one open. It is built when a name or the open file changes, never as the reader
+      // types, so a keystroke's work doesn't grow with how many files the editor holds.
+      // Two bindings of one file list it once, since a navigator keys its rows by path.
+      const holdFiles = () => {
+        /** @type {Set<string>} */
+        const listed = new Set();
+        /** @type {{path: string, key: string}[]} */
+        const named = [];
+        for (const of of files.values()) {
+          of.named = of.api.label;
+          if (!of.named || listed.has(of.named)) continue;
+          listed.add(of.named);
+          named.push({ path: of.named, key: of.binding });
+        }
+        // The `files` output: held here, and `change` says it moved.
+        this.files = named.length
+          ? { files: named, ...(file.named ? { current: file.named } : {}) }
+          : null;
+        this.dispatchEvent(new Event("change"));
+      };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
       this.#drawn = () => {
-        const label = base?.label ?? thisBinding;
-        editor.setLabel(label);
-        editor.readOnly = base === null || !api.writable;
+        const of = file;
+        const name = label(of);
+        editor.setLabel(name);
+        editor.readOnly = of.base === null || !of.api.writable;
         // With no file to show, as on an export or an unbound page, the empty editor
         // says why, where a finger and the eye already are.
-        editor.placeholder = base === null ? (failure?.message ?? "") : "";
-        if (comparing) internals.states.add("comparing");
+        editor.placeholder = of.base === null ? (of.failure?.message ?? "") : "";
+        if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!latest && isNativeLayer(choices())) closeNativeLayer(choices());
+        if (!of.latest && isNativeLayer(choices())) closeNativeLayer(choices());
         // Each failure and conflict is news once, as it arrives; the status shows it.
-        const news = failure ?? latest;
-        if (news && news !== spoken)
+        const news = of.failure ?? of.latest;
+        if (news && news !== of.spoken)
           announce(
-            failure
-              ? `${failure.message}${base && dirty() ? " The draft is kept." : ""}`
+            of.failure
+              ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
               : "The file changed on disk. The draft is kept.",
           );
-        spoken = news;
-        if (comparing && latest) {
+        of.spoken = news;
+        if (of.comparing && of.latest) {
           if (!comparison)
             comparison = createEditor(comparisonMount, {
               text: editor.value,
-              filename: label,
-              original: latest.text,
+              filename: name,
+              original: of.latest.text,
               readOnly: true,
               label: "Compare versions",
               description:
                 "Read only. Removed text is on disk. Added text is the draft.",
             });
           comparison.value = editor.value;
-          comparison.setLabel(label);
-          comparison.setConflict(latest.text);
+          comparison.setLabel(name);
+          comparison.setConflict(of.latest.text);
         } else if (comparison) {
           comparison.disconnect();
           comparison = null;
         }
       };
       this.#template = () => {
-        const label = base?.label ?? thisBinding;
+        const of = file;
         // A conflict keeps its choices through a failed Save draft, which is its own
         // retry; the failure then describes the control rather than taking its place.
-        const conflicted = Boolean(latest);
-        const retryable = Boolean(failure) && !latest && api.writable;
+        const conflicted = Boolean(of.latest);
+        const retryable = Boolean(of.failure) && !of.latest && of.api.writable;
         return html`
           <div class="lf-file-editor-head">
-            <span class="lf-file-editor-name" data-lf-scroll>${label}</span>
+            <span class="lf-file-editor-name" data-lf-scroll>${label(of)}</span>
             <span
               ${offered("lf-file-editor-status")}
-              .lfPreview=${() => (failure ? { detail: [failure.message] } : null)}
+              .lfPreview=${() => (of.failure ? { detail: [of.failure.message] } : null)}
               >${
-                latest
+                of.latest
                   ? ""
-                  : failure
-                    ? base
+                  : of.failure
+                    ? of.base
                       ? "Not saved"
                       : "Unavailable"
-                    : slow
+                    : of.slow
                       ? "Saving changes…"
                       : ""
               }${retryable ? html`&nbsp;` : nothing}<button
@@ -312,20 +452,20 @@ customElements.define(
                   action: "retry",
                 })}
                 ?hidden=${!retryable}
-                aria-description=${failure?.message ?? nothing}
-                aria-disabled=${busy ? "true" : nothing}
+                aria-description=${of.failure?.message ?? nothing}
+                aria-disabled=${of.busy ? "true" : nothing}
                 @click=${(/** @type {MouseEvent} */ event) => retry(event.currentTarget instanceof HTMLElement ? event.currentTarget : null)}
               ></button
               ><button
                 ${offeredAction("inline", "lf-file-editor-conflict")}
                 data-lf-tone="warn"
                 ?hidden=${!conflicted}
-                aria-description=${failure?.message ?? nothing}
+                aria-description=${of.failure?.message ?? nothing}
                 popovertarget="lf-file-editor-choices"
                 aria-haspopup="menu"
                 aria-expanded="false"
               >
-                ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
+                ${of.failure ? "Not saved" : "Changed on disk"}${iconTemplate(
                   "down",
                   "lf-file-editor-icon",
                 )}
@@ -346,7 +486,7 @@ customElements.define(
             <button
               ${offeredAction("word")}
               role="menuitemcheckbox"
-              aria-checked=${String(comparing)}
+              aria-checked=${String(of.comparing)}
               aria-controls="lf-file-editor-compared"
               @click=${compare}
             >
@@ -360,7 +500,7 @@ customElements.define(
                 <button
                   ${offeredAction("word")}
                   role="menuitem"
-                  aria-disabled=${busy ? "true" : nothing}
+                  aria-disabled=${of.busy ? "true" : nothing}
                   @click=${run}
                 >
                   ${label}
@@ -372,16 +512,15 @@ customElements.define(
           <div
             class="lf-file-editor-compared"
             id="lf-file-editor-compared"
-            ?hidden=${!comparing}
+            ?hidden=${!of.comparing}
           >
             <p class="lf-file-editor-legend">
               Removed text is on disk. Added text is the draft.
             </p>
-            ${comparing ? comparisonMount : nothing}
+            ${of.comparing ? comparisonMount : nothing}
           </div>
         `;
       };
-      const thisBinding = binding;
       // CodeMirror discovers its shadow root from the connected mount.
       render(this.#template(), view, this.renderOptions);
       /** @type {HTMLButtonElement | null} */
@@ -399,133 +538,208 @@ customElements.define(
       const editor = createEditor(mount, {
         readOnly: true,
         onChange() {
-          generation++;
-          remember();
+          file.generation++;
+          remember(file);
           paint();
-          schedule();
+          schedule(file);
         },
         onSave() {
-          clearTimeout(timer);
-          if (failure) retry(editor.contentDOM);
-          else void flush();
+          clearTimeout(file.timer);
+          if (file.failure) retry(editor.contentDOM);
+          else void flush(file);
         },
       });
-      function schedule(delay = 500) {
-        clearTimeout(timer);
-        if (connected && api.writable && !latest && !failure && dirty())
-          timer = setTimeout(() => void flush(), delay);
+      /** @param {OpenFile} of */
+      function schedule(of, delay = 500) {
+        clearTimeout(of.timer);
+        if (connected && of.api.writable && !of.latest && !of.failure && dirty(of))
+          of.timer = setTimeout(() => void flush(of), delay);
       }
-      /** @param {boolean} [replace] @param {HTMLElement | null} [returnFrom] */
-      async function flush(replace = false, returnFrom = null) {
-        clearTimeout(timer);
+      // Each request settles the file it was made for, whichever file is open by then;
+      // only the open one paints.
+      /** @param {OpenFile} of @param {boolean} [replace] @param {HTMLElement | null} [returnFrom] */
+      async function flush(of, replace = false, returnFrom = null) {
+        clearTimeout(of.timer);
         if (
           !connected ||
-          !api.writable ||
-          busy ||
-          !base ||
-          (failure && !returnFrom) ||
-          (latest && !replace) ||
-          (!dirty() && !(replace && latest))
+          !of.api.writable ||
+          of.busy ||
+          !of.base ||
+          (of.failure && !returnFrom) ||
+          (of.latest && !replace) ||
+          (!dirty(of) && !(replace && of.latest))
         )
           return;
-        const against = replace && latest ? latest : base;
-        const text = editor.value;
-        busy = true;
+        const against = replace && of.latest ? of.latest : of.base;
+        const submitted = text(of);
+        of.busy = true;
         // The host compares the file before writing, so a receipt or a stale answer
         // covers any read owed before it starts; a failure read nothing.
-        const owedBefore = owed;
-        owed = false;
-        if (!slow && slowTimer === null)
-          slowTimer = setTimeout(() => {
-            slow = true;
-            slowTimer = null;
+        const owedBefore = of.owed;
+        of.owed = false;
+        if (!of.slow && of.slowTimer === null)
+          of.slowTimer = setTimeout(() => {
+            of.slow = true;
+            of.slowTimer = null;
+            if (of !== file) return;
             announce("Saving changes.");
             paint();
           }, 1000);
-        paint();
+        if (of === file) paint();
         try {
-          base = await api.save({ revision: against.revision, text });
-          latest = null;
-          failure = null;
+          of.base = await of.api.save({ revision: against.revision, text: submitted });
+          of.latest = null;
+          of.failure = null;
         } catch (fault) {
           if (fault instanceof RequestError && fault.current) {
-            latest = fault.current;
-            failure = null;
+            if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            of.failure = null;
           } else {
-            failure = { kind: "save", message: describeFailure(fault), replace };
-            owed ||= owedBefore;
+            of.failure = { kind: "save", message: describeFailure(fault), replace };
+            of.owed ||= owedBefore;
           }
         } finally {
-          busy = false;
-          if (connected) remember();
-          if (!dirty() || failure || latest || !connected) finishSaving();
-          else if (!slow) {
-            if (slowTimer !== null) clearTimeout(slowTimer);
-            slowTimer = null;
+          of.busy = false;
+          if (connected) remember(of);
+          if (!dirty(of) || of.failure || of.latest || !connected) finishSaving(of);
+          else if (!of.slow) {
+            if (of.slowTimer !== null) clearTimeout(of.slowTimer);
+            of.slowTimer = null;
           }
           const returning = connected && returnFrom && focused() === returnFrom;
-          paint();
-          if (returning && returnFrom.hidden) returnToEditor();
-          schedule(0);
-          if (owed) void refresh();
+          if (of === file) {
+            paint();
+            if (returning && returnFrom.hidden) returnToEditor();
+          } else tell(of);
+          schedule(of, 0);
+          if (of.owed) void refresh(of);
         }
       }
-      /** @param {HTMLElement | null} [returnFrom] */
-      async function refresh(returnFrom = null) {
+      /** @param {OpenFile} of @param {HTMLElement | null} [returnFrom] */
+      async function refresh(of, returnFrom = null) {
         if (!connected) return;
-        if (busy || ((failure || latest) && !returnFrom)) {
-          owed = true;
+        if (of.busy || ((of.failure || of.latest) && !returnFrom)) {
+          of.owed = true;
           return;
         }
         // An offline read refuses immediately; no file operation is in flight.
-        busy = api.writable;
-        owed = false;
-        const seenGeneration = generation;
+        of.busy = of.api.writable;
+        of.owed = false;
+        const seenGeneration = of.generation;
         try {
-          const current = await api.read();
-          if (!base || (!recovering && !unsettled() && seenGeneration === generation)) {
-            base = current;
-            latest = null;
-            editor.value = current.text;
-          } else if (current.text === editor.value) {
-            base = current;
-            latest = null;
-          } else latest = current.revision !== base.revision ? current : null;
-          recovering = false;
-          failure = null;
+          const current = await of.api.read();
+          if (
+            !of.base ||
+            (!of.recovering && !unsettled(of) && seenGeneration === of.generation)
+          ) {
+            // A first reading shows the file; a later one follows what was written
+            // elsewhere and marks where.
+            const first = !of.base;
+            of.base = current;
+            of.latest = null;
+            if (of === file) {
+              if (first) editor.value = current.text;
+              else editor.follow(current.text);
+            } else if (of.kept && text(of) !== current.text)
+              of.kept = followKept(of.kept, current.text);
+          } else if (current.text === text(of)) {
+            of.base = current;
+            of.latest = null;
+          } else if (current.revision === of.base.revision) of.latest = null;
+          else if (!settle(of, current)) of.latest = current;
+          of.recovering = false;
+          of.failure = null;
         } catch (fault) {
-          failure = { kind: "read", message: describeFailure(fault) };
+          of.failure = { kind: "read", message: describeFailure(fault) };
         } finally {
-          busy = false;
-          if (connected) remember();
-          if (failure || latest || !dirty()) finishSaving();
+          of.busy = false;
+          if (connected) remember(of);
+          if (of.failure || of.latest || !dirty(of)) finishSaving(of);
           const returning = connected && returnFrom && focused() === returnFrom;
-          paint();
-          if (returning && returnFrom.hidden) returnToEditor();
-          schedule(0);
-          if (owed) void refresh();
+          if (of === file) {
+            paint();
+            if (returning && returnFrom.hidden) returnToEditor();
+          } else tell(of);
+          schedule(of, 0);
+          if (of.owed) void refresh(of);
         }
       }
       /** @param {BeforeUnloadEvent} event */
       const beforeUnload = (event) => {
-        if (unsettled()) {
+        if ([...files.values()].some(unsettled)) {
           event.preventDefault();
           event.returnValue = "";
         }
       };
       const visibility = () => {
-        if (document.hidden) void flush();
-        else void refresh();
+        if (document.hidden) void flush(file);
+        else void refresh(file);
       };
-      const pending = tabStore.get(recoveryKey);
-      if (pending && api.writable) {
+      /** @type {(() => void) | null} */
+      let stopWatch = null;
+      // The open file's watch, and every file's name for the navigator.
+      const watch = () => {
+        stopWatch?.();
+        const stops = [...files.values()].map((of) =>
+          of.api.watch(() => {
+            if (of.api.label !== of.named) holdFiles();
+            if (of === file) void refresh(of);
+          }),
+        );
+        stopWatch = () => stops.forEach((stop) => stop());
+      };
+      // A draft this tab kept, as across a reload, stands over the file until a read
+      // settles it.
+      /** @param {OpenFile} of */
+      const recover = (of) => {
+        const pending = tabStore.get(of.recoveryKey);
+        if (!pending || !of.api.writable) return;
         /** @type {{base: FileSnapshot, text: string}} */
         const recovered = JSON.parse(pending);
-        base = recovered.base;
-        editor.value = recovered.text;
-        recovering = true;
+        of.base = recovered.base;
+        of.recovering = true;
+        return recovered.text;
+      };
+      // Every file's draft comes back, the closed ones' kept as if left in this load,
+      // so each settles against its file as the open one does.
+      for (const of of files.values()) {
+        const draft = recover(of);
+        if (draft === undefined) continue;
+        if (of === file) editor.value = draft;
+        else of.kept = editor.keep(draft);
       }
+      /** @type {Promise<void> | null} */
+      let opening = null;
+      // Opening another file saves what the one being left holds at once and keeps
+      // its place, then shows the other where the reader left it, or read afresh.
+      this.#open = (binding, line) => {
+        if (!files.has(binding)) return null;
+        const ready = binding === file.binding ? opening : show(binding);
+        if (!line) return ready;
+        return (ready ?? Promise.resolve()).then(() => {
+          if (file.binding === binding) editor.goToLine(line);
+        });
+      };
+      /** @param {string} binding */
+      const show = (binding) => {
+        const leaving = file;
+        leaving.kept = editor.suspend();
+        if (comparison) {
+          comparison.disconnect();
+          comparison = null;
+        }
+        file = fileFor(binding);
+        editor.resume(file.kept, file.base?.text ?? "", label(file));
+        file.kept = null;
+        remember(leaving);
+        void flush(leaving);
+        paint();
+        holdFiles();
+        opening = connected ? refresh(file) : null;
+        return opening;
+      };
       paint();
+      holdFiles();
       this.#placeSelection = () => {
         editor.placeSelection();
         comparison?.placeSelection();
@@ -537,19 +751,30 @@ customElements.define(
         comparison?.connect();
         window.addEventListener("beforeunload", beforeUnload, { signal });
         document.addEventListener("visibilitychange", visibility, { signal });
-        const ready = refresh();
+        opening = refresh(file);
+        for (const of of files.values())
+          if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(ready);
+          this.controller.present(opening);
           initial = false;
         }
-        const stopWatch = api.watch(() => void refresh());
+        watch();
+        // A route to a file, such as a link to `#<editor>:<binding>`, lands on the
+        // editor, and the reader goes on to type where they left that file.
+        const stopLanding = onCurrentLocation((/** @type {Element | null} */ node) => {
+          if (node === this) returnToEditor();
+        });
         return () => {
           connected = false;
-          stopWatch();
-          clearTimeout(timer);
-          finishSaving();
+          stopLanding();
+          stopWatch?.();
+          stopWatch = null;
+          for (const of of files.values()) {
+            clearTimeout(of.timer);
+            finishSaving(of);
+          }
           paint();
-          remember();
+          remember(file);
           editor.disconnect();
           comparison?.disconnect();
         };

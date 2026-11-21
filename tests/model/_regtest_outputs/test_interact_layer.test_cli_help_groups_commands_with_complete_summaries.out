@@ -70,6 +70,7 @@ Commands:
   check    Check a package as one unit.
   init     Create a package directory.
   install  Install a package for selection by name.
+  list     List the packages a page can select by name.
   run      Run one of a package's scripts.
 
 ## package-init
@@ -128,8 +129,9 @@ Usage: leaf thread [OPTIONS] COMMAND [ARGS]...
 
   Create and answer threads as the agent, and maintain them.
 
-  Every write prints the records it appended, one JSON line each, as `page
-  events` prints them. `page state PAGE MESSAGE` reads one thread.
+  Every write prints the record it appended, as `page events` prints it, and
+  `thread edit` prints those it appended in `records`. `page state PAGE MESSAGE`
+  reads one thread.
 
 Options:
   --help  Show this message and exit.

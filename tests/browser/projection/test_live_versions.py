@@ -19,7 +19,9 @@ from render_harness import (
     expect_panel_says,
     holding,
     is_problem,
+    latest_press,
     leaf_page,
+    open_latest,
     open_page,
     open_threads,
     page_comment,
@@ -40,6 +42,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import wait_until_ready
+from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -190,6 +193,10 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # had followed by then would come down to whether a state read landed between the
     # two presses. The keyboard route leaves the composer open through both.
     page.locator(".lf-fp-leaf").press("Enter")
+    # The draft the composer holds marks the leaf, which so opens Threads; the Menu tab
+    # turns the view to the menu, by key too.
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
+    panel_tab(page, "Menu").press("Enter")
     expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
     page.locator('.lf-fp-item[data-lf-row="versions"]').press("Enter")
     rows = page.locator(panel_view("versions")).locator(".lf-fp-version")
@@ -373,7 +380,7 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
     """A refusal is an answer the beat has to be able to read.
 
     A page can adopt a newer revision without installing it. The fetch for its document
-    can fail, which is reported and left for the version chip to retry, so the user
+    can fail, which is reported and left for Open latest to retry, so the user
     stands on the older revision with the newer one named in the state the page applied.
     Every beat from then on asks the same preparation whether it would activate now. When
     a later fetch answers from a layer re-vendored under the page, the preparation refuses
@@ -452,8 +459,8 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
 def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_comment(
     browser, serve
 ):
-    """Latest installs the newer revision over an unfinished comment. When that
-    revision fails to load, the chip stays lit for another press and the first one is
+    """Open latest installs the newer revision over an unfinished comment. When that
+    revision fails to load, the press stays for another and the first one is
     spent: once the revision loads, it waits for the comment as any revision does."""
     first = leaf_page(
         "Waiting first",
@@ -475,7 +482,7 @@ def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_com
         (serve.page_dir / "index.html").write_text(
             first.replace("has not started yet", "finished on Tuesday")
         )
-        latest = page.locator(".lf-fp-row-notice-press").filter(has_text="Latest")
+        latest = latest_press(page)
         expect(latest).to_be_visible()
         before = len(failed)
         latest.click()
@@ -497,7 +504,9 @@ def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_com
         expect(page.locator("#wt-line")).to_have_text(
             "The cutover has not started yet."
         )
-        latest.click()
+        # The caret in the comment leaves the field's end no press; its run is a
+        # finger's press there, which shows its word alone.
+        open_latest(page)
         wait_for_revision(page, 2)
         expect(page.locator("#wt-line")).to_have_text(
             "The cutover finished on Tuesday."

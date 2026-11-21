@@ -62,6 +62,8 @@ import { commandSteps } from "./keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
+import { loadDraft } from "./drafts.js";
+import { excerptWords } from "./words.js";
 import { threadHeading } from "./thread/messages.js";
 import { isHTML } from "./shadow-tree.js";
 import { voiced, wordsText } from "./voice.js";
@@ -360,7 +362,15 @@ export function createPageMapDialog({
         return [entry.key, passage ? says(passage) : ""];
       }),
     );
-    groups = marginMapGroups(entries, (item) => KINDS[item.kind], searchTextByKey);
+    // A draft's row reads its words as the map opens, as every view of drafts does
+    // (drafts.js, the drafts list): no keystroke renews the inventory's items.
+    groups = marginMapGroups(
+      entries,
+      (item) => KINDS[item.kind],
+      searchTextByKey,
+      (item) =>
+        item.draft ? excerptWords(loadDraft(item.draft)?.text ?? "", 60) : null,
+    );
     drawSheet();
     const liveOffers = new Set(
       groups.flatMap(({ entry }) => entry.offers.map((offer) => offer.source())),

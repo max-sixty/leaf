@@ -70,6 +70,10 @@ interface LeafRootState {
   styles(node: ElementCSSInlineStyle): Set<string>;
 }
 
+/** What the keys the bootstrap holds while the page loads say: Leaf's words, with each
+ * key as its badge (`bootstrap.js`, `holdEarlyKeys`). */
+type HeldWords = readonly (string | { readonly key: string })[];
+
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
@@ -109,6 +113,12 @@ interface Window {
     finishEarlyContent(): void;
   };
   lfKeyboard: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** The layer's constructed stylesheets, built once by whoever asks first (prepaint.js). */
+  lfSheets(): {
+    chrome: CSSStyleSheet;
+    marks: CSSStyleSheet;
+    annotations: CSSStyleSheet[];
+  };
   /** The floating panel's resting size. */
   lfChrome: {
     /** `row` or `mark`. */
@@ -116,19 +126,12 @@ interface Window {
     setRest(value: string): void;
   };
   lfRootState: LeafRootState;
-  /** Whether a highlight style on the root reaches the elements below it (prepaint.js). */
-  lfHighlightsInherit: boolean;
 }
 
 interface HTMLElement {
   /** The exception behind the first startup fault, kept before modules load. */
   lfStartupException?: { name: string; message: string; stack?: string } | null;
   lfSample?: LeafSampleBridge;
-}
-
-interface HTMLElement {
-  /** A thread seat's box: the row of its first message (`thread/box.js`). */
-  lfFirstMessage?: HTMLElement;
 }
 
 interface Element {
@@ -151,7 +154,10 @@ interface Element {
     | null
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
-  lfCopy?: () => string;
+  lfCopy?: (() => string) | undefined;
+  /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
+   * the block's Copy as the last mark (`code-copy.js`). */
+  lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
@@ -162,6 +168,7 @@ interface HTMLScriptElement {
   lfDocumentPort?: MessagePort;
   // The entry's scene readings, for render checks (`leaf.js`, `validationEntry`).
   lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
+  lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
   lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
   lfObserveQueuedWork?: typeof import("../runtime/queued-work.js").observeQueuedWork;
   lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;
@@ -199,7 +206,6 @@ interface WindowEventMap {
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
-    incomplete: boolean;
     page: boolean;
   }>;
 }
@@ -213,11 +219,8 @@ interface DocumentEventMap {
     description: string;
     travels: boolean;
   }>;
-  /** The reading column's box, once the margin has laid out against it. */
-  "lf-margin-layout": CustomEvent<{
-    column: import("../runtime/content-layout.js").ProseBox;
-    height: number;
-  }>;
+  /** The margin has laid out its rows. */
+  "lf-margin-layout": CustomEvent<null>;
   /** The keyboard owner's call for the keys the bootstrap held while the page loaded;
    * the bootstrap answers in the detail, where it held any (`bootstrap.js`). */
   "lf-held-keys": CustomEvent<
@@ -229,6 +232,13 @@ interface DocumentEventMap {
       | { keys: KeyboardEvent[]; pause(): void; release(): void }
     )
   >;
+  /** The floating panel's offer of its field to say the bootstrap's held keys in, null
+   * once none are shown, and to take the words written in the served row's field
+   * (`bootstrap.js`, `floating-panel.js`). */
+  "lf-held-keys-seat": CustomEvent<{
+    show(words: HeldWords | null): void;
+    write(box: HTMLTextAreaElement): void;
+  }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<
@@ -254,6 +264,10 @@ interface Window {
 
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
+  /** How a revision reaches the widget while it stands in the page: `"members"` has
+   * Leaf edit inside its direct authored children in place (`version.js`,
+   * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
+  lfPatch?: string;
 }
 
 interface ShadowRootEventMap {
@@ -288,7 +302,8 @@ interface ShadowRoot {
 }
 
 interface Element {
-  /** Package-provided words when the registry declares x-word: module. */
+  /** The word a widget's module names its kind by where it depends on the element
+   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
   lfWord?(): string;
   lfSays?(): string;
 }
@@ -325,6 +340,10 @@ interface Element {
   threadOutlets?(
     ...args: Parameters<import("../runtime/thread/surfaces.js").ThreadOutletSelector>
   ): ReturnType<import("../runtime/thread/surfaces.js").ThreadOutletSelector>;
+  /** On an outlet a widget returns for itself: the words of the second send the comment
+   * box offers there, whose comment holds the widget while its thread is open
+   * (`composing/surface.js`). */
+  lfHold?: string;
 }
 
 interface Element {
@@ -347,7 +366,8 @@ interface Element {
     | import("../runtime/annotation-overlay/margin-cluster-view.js").MarginEntry
     | undefined;
   lfFirstSpilledOption?:
-    import("../runtime/annotation-overlay/margin-cluster-view.js").Item | undefined;
+    | import("../runtime/annotation-overlay/margin-cluster-view.js").Item
+    | undefined;
 }
 
 interface DocumentEventMap {
@@ -374,11 +394,6 @@ interface DocumentFragment {
 interface DocumentOrShadowRoot {
   // Chromium exposes this on ShadowRoot; other engines use the owner document.
   getSelection?(): Selection | null;
-}
-
-// Safari on iPhone supplies its native video player through this optional route.
-interface HTMLVideoElement {
-  webkitEnterFullscreen?: () => void;
 }
 
 interface Element {

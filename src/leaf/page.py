@@ -48,7 +48,7 @@ def instruction_selection(
             continue
         selected_entries.add(name)
         entry = declarations[name]
-        if example := entry.get("x-example"):
+        if example := entry.get("example"):
             nodes = [
                 node
                 for node in SourceDocument(example, fragment=True).tree.find_all(True)
@@ -64,7 +64,7 @@ def instruction_selection(
         # that reads a value and the one that holds it for others.
         selected_contracts.update(
             spec["contract"]
-            for side in ("x-data", "x-output")
+            for side in ("inputs", "outputs")
             for spec in entry.get(side, {}).values()
         )
     for contract in sorted(selected_contracts):
@@ -82,7 +82,7 @@ def words(entry: dict) -> list[str]:
         f"`{attr}` takes one of: "
         + ", ".join(f"`{word}`" for word in spec["enum"])
         + "."
-        for attr, spec in entry.get("properties", {}).items()
+        for attr, spec in entry.get("attributes", {}).get("properties", {}).items()
         if "enum" in spec
     ]
 
@@ -115,7 +115,10 @@ def page_instructions(
     for name in selected_entries:
         said = [
             text.strip()
-            for text in (registry[name].get("x-instructions"), *words(registry[name]))
+            for text in (
+                registry[name].get("instructions"),
+                *words(registry[name]),
+            )
             if text
         ]
         if said:

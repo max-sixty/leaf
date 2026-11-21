@@ -28,14 +28,14 @@ const LINE = "data-lf-pre-line";
 // A box of its own in the block's flow, not a run of its lines' words.
 const BLOCK_LEVEL = /^(block|flow-root|list-item|flex|grid|table)/;
 
-// How many columns a line's leading whitespace takes, a tab reaching the next stop of
-// eight, as a <pre>'s does.
-/** @param {string} text */
-export const indentColumns = (text) => {
+// How many columns a line's leading whitespace takes, each tab reaching the next stop
+// of `tab` columns.
+/** @param {string} text @param {number} tab */
+export const indentColumns = (text, tab) => {
   let columns = 0;
   for (const char of text) {
     if (char === " ") columns++;
-    else if (char === "\t") columns += 8 - (columns % 8);
+    else if (char === "\t") columns += tab - (columns % tab);
     else break;
   }
   return columns;
@@ -71,30 +71,44 @@ const divides = (holder) => {
 const textOf = (node) =>
   node instanceof Text || node instanceof Element ? (node.textContent ?? "") : "";
 
-// The holder's children by line, and a box for each. A line ends after the node that
-// ends in its newline. A text node holding more than one line keeps its first and
-// gives each later one a node of its own; what follows the last newline is a line of
-// its own unless it is empty text.
-/** @param {Element} holder
+// A text node's lines, the node keeping its first. It is cut from its last line back,
+// so each cut copies one line, and the browser carries a selection in it across each
+// cut.
+/** @param {Text} node */
+const cut = (node) => {
+  const { data } = node;
+  const starts = [];
+  for (
+    let at = data.indexOf("\n");
+    at !== -1 && at < data.length - 1;
+    at = data.indexOf("\n", at + 1)
+  )
+    starts.push(at + 1);
+  return [
+    node,
+    ...starts
+      .reverse()
+      .map((start) => node.splitText(start))
+      .reverse(),
+  ];
+};
+
+// The holder's children by line, and a box for each, indented by its leading columns
+// at the block's tab stops. A line ends after the node that ends in its newline; what
+// follows the last newline is a line of its own unless it is empty text.
+/** @param {Element} holder @param {number} tab
  * @returns {(readonly [Element, Node[]])[]} */
-function boxed(holder) {
+function boxed(holder, tab) {
   /** @type {Node[]} */
   let line = [];
   const lines = [line];
-  for (let node = holder.firstChild; node; node = node.nextSibling) {
-    /** @type {Node[]} */
-    let pieces = [node];
-    if (node instanceof Text) {
-      const [first = "", ...rest] = node.data.split(/(?<=\n)/);
-      if (rest.length) {
-        node.data = first;
-        pieces = [node, ...rest.map((part) => document.createTextNode(part))];
-      }
-    }
+  for (let node = holder.firstChild; node;) {
+    const pieces = node instanceof Text ? cut(node) : [node];
     for (const piece of pieces) {
       line.push(piece);
       if (textOf(piece).endsWith("\n")) lines.push((line = []));
     }
+    node = /** @type {Node} */ (pieces.at(-1)).nextSibling;
   }
   const last = lines.at(-2);
   if (last && line.every((node) => node instanceof Text && !node.data)) {
@@ -104,7 +118,7 @@ function boxed(holder) {
   return lines.map((nodes) => {
     const box = document.createElement("span");
     box.setAttribute(LINE, "");
-    const indent = indentColumns(nodes.map(textOf).join(""));
+    const indent = indentColumns(nodes.map(textOf).join(""), tab);
     if (indent) box.style.setProperty("--lf-code-indent", String(indent));
     return /** @type {const} */ ([box, nodes]);
   });
@@ -123,18 +137,20 @@ export function boxLines(root) {
   const holders = blocks
     .filter((pre) => !pre.matches(DATA_BODY) && wearsReadingFace(pre))
     .map(holderOf)
-    .filter((holder) => holder !== null && divides(holder));
+    .filter((holder) => holder !== null && divides(holder))
+    .map((holder) => {
+      const element = /** @type {Element} */ (holder);
+      // A length rather than a count of spaces names no column, so it reads as eight.
+      return /** @type {const} */ ([
+        element,
+        Number(getComputedStyle(element).tabSize) || 8,
+      ]);
+    });
   if (!holders.length) return;
   setChildLists(
-    holders.flatMap((holder) => {
-      const lines = boxed(/** @type {Element} */ (holder));
-      return [
-        /** @type {const} */ ([
-          /** @type {Element} */ (holder),
-          lines.map(([box]) => box),
-        ]),
-        ...lines,
-      ];
+    holders.flatMap(([holder, tab]) => {
+      const lines = boxed(holder, tab);
+      return [/** @type {const} */ ([holder, lines.map(([box]) => box)]), ...lines];
     }),
   );
 }

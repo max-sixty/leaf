@@ -888,7 +888,7 @@ function fieldEditor(
           const kept = body[each.number - opened];
           // A code line's rows hang from its indent, as the sent block's do
           // (code-lines.js), which the line states as the block's boxes do.
-          const indent = kept === undefined ? 0 : indentColumns(kept);
+          const indent = kept === undefined ? 0 : indentColumns(kept, state.tabSize);
           out.push(
             Decoration.line({
               class: `lf-md-code-block${ends}`,

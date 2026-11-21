@@ -338,6 +338,20 @@ needs today.
 </script>
 ```
 
+### A mask smaller than an inline box in WebKit
+
+On 2026-11-20, Playwright 1.65.2's WebKit 27.2 on macOS 26.5.1 painted the whole
+background of an inline box whose only mask layer was a no-repeat image smaller than
+the box, rather than only where the image covers it; an inline-block, Chromium 159
+and Firefox 159 painted only the image. The mark after a link that leaves the page is
+such a box (`surfaces.css`), and without a correction WebKit drew it as a solid bar
+the height of the line. A second mask layer, a transparent gradient, makes WebKit
+paint only the image, as USWDS's external-link mark also does.
+
+Recheck: give an inline `<i>` 40px of inline padding, a red background and
+`mask: <a black square> center / 10px no-repeat` in a 40px font, and count the red
+pixels; 100 is right. Once WebKit draws 100, drop the gradient layer.
+
 ### Font style in syntax highlights
 
 `lf-text-document` colours its source with CSS custom highlights

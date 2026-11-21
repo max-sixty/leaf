@@ -1812,12 +1812,6 @@ _TEXT = {
         f"summary's `from` {v['from']!r} comes after its `through` {v['through']!r}"
         " in thread order"
     ),
-    "summary-gap": lambda at, v: (
-        "summary would leave messages unsummarized above a summary, and only the"
-        " thread's opening message may stay there; summarize"
-        f" --from {v['take_from']!r} --through {v['take_through']!r}, with prose that"
-        " covers the added messages too"
-    ),
     "reanchor-thread": lambda at, v: "reanchor needs an open anchored thread",
     "reanchor-section": lambda at, v: (
         "reanchor must retain the thread's surviving section or detach it"

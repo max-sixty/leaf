@@ -440,7 +440,7 @@ const lastTurn = (model) =>
 /** @typedef {Omit<import("./messages.js").MessageCommands, "reply" | "reaction" | "edit"> & {
  * authoredRank?: number,
  * reply: import("./replies.js").ReplyCommands & import("./messages.js").MessageCommands["reply"],
- * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback" | "firstUnread" | "afterPass">,
+ * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback" | "observeSummary" | "firstUnread" | "afterPass">,
  * reaction: Omit<import("./messages.js").MessageCommands["reaction"], "pressed">,
  * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding" | "reader">,
  * placedAt: Parameters<typeof quoteReading>[1]["placedAt"],

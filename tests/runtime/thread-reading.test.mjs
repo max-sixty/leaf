@@ -568,7 +568,11 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
           }),
       },
       reaction: {},
-      read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
+      read: {
+        observeMessage: () => () => {},
+        observeFeedback: () => () => {},
+        observeSummary: () => () => {},
+      },
     },
     () => Promise.resolve(),
     { answersAtOnce: true },

@@ -4,7 +4,9 @@
    published as each Thread's `unread`; replying, answering and resolving already count
    there. This owner adds the one kind of evidence only the page has, exposure: a
    visible body is marked read once its complete vertical extent has been shown
-   without gaps in one rendered surface and one content version. What the body holds
+   without gaps in one rendered surface and one content version. A summary stands
+   in the thread for the messages it folds, so the fold shown whole, its head and any
+   words, reads each of them in the version it folds (transcript.js). What the body holds
    inside that extent — a wide code block, a scroller of its own, or an interactive
    widget's hidden states — is not evidence the page can observe; unread tracks
    encounter with the message's visible surface, not exhaustive inspection.
@@ -53,7 +55,7 @@ import {
 /** @typedef {{reply_id?: string | null, input_id?: string | null,
  * attempt?: string | null, reply_kind: string, presentation_kind: string,
  * surface: string}} Feedback */
-/** @typedef {{id: string | null, version: string | null, feedback: Feedback | null}} BodyReading */
+/** @typedef {{items: readonly ContentVersion[], feedback: Feedback | null}} BodyReading */
 /** @typedef {{key: string, width: number, height: number, contentHeight: number, intervals: Interval[]}} Exposure */
 /** @param {ContentVersion} item */
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
@@ -217,7 +219,7 @@ export function createReadTracking({ markRead, openThread }) {
     const completed = new Map();
     const unseenWords = [];
     for (const [node, rendered] of renderedBodies) {
-      const { body, id, version, feedback } = rendered;
+      const { body, items, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
@@ -233,10 +235,18 @@ export function createReadTracking({ markRead, openThread }) {
           } else unseenWords.push(body);
         }
       }
-      const item = mayRead && id !== null ? candidates.get(id) : undefined;
-      if (!item || item.version !== version) continue;
-      const key = keyOf(item);
-      if (completed.has(key) || refusedThisVisit.has(key)) continue;
+      const owed = mayRead
+        ? items.flatMap(({ message, version }) => {
+            const item = candidates.get(message);
+            return item?.version === version &&
+              !completed.has(keyOf(item)) &&
+              !refusedThisVisit.has(keyOf(item))
+              ? [item]
+              : [];
+          })
+        : [];
+      if (!owed.length) continue;
+      const key = owed.map(keyOf).join("\u0001");
       const visible = visibleInterval(body, clips, band);
       if (!visible) continue;
       let tracked = coverage.get(body);
@@ -263,7 +273,7 @@ export function createReadTracking({ markRead, openThread }) {
           ([start, end]) => start <= EPSILON && end >= visible.height - EPSILON,
         )
       ) {
-        completed.set(key, item);
+        for (const item of owed) completed.set(keyOf(item), item);
       }
     }
     if (unseenWords.length) passAfterFades(unseenWords);
@@ -379,8 +389,7 @@ export function createReadTracking({ markRead, openThread }) {
   /** @param {Element} body @param {{id: string, version: string, author: string, attempt: string | null, provisional: boolean, failure: string | null}} message */
   function observeMessage(body, message) {
     return observeBody(body, {
-      id: message.id,
-      version: message.version,
+      items: [{ message: message.id, version: message.version }],
       feedback:
         message.author === "agent"
           ? {
@@ -402,7 +411,13 @@ export function createReadTracking({ markRead, openThread }) {
   // renderer supplies exact source identity, never its thread parent.
   /** @param {Element} body @param {Feedback} feedback */
   function observeFeedback(body, feedback) {
-    return observeBody(body, { id: null, version: null, feedback });
+    return observeBody(body, { items: [], feedback });
+  }
+
+  // A fold, read for the messages it folds, each in the version it folds.
+  /** @param {Element} body @param {readonly ContentVersion[]} items */
+  function observeSummary(body, items) {
+    return observeBody(body, { items, feedback: null });
   }
 
   function present() {
@@ -443,6 +458,7 @@ export function createReadTracking({ markRead, openThread }) {
     present,
     observeMessage,
     observeFeedback,
+    observeSummary,
     firstUnread,
     afterPass,
     firstUnreadCommand,

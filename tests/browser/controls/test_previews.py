@@ -38,6 +38,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -205,6 +206,72 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
         tab_onto(control)
         rendered(page)
         assert not preview.is_visible(), preview.inner_text()
+
+
+# Controls whose faces show marks: a case's check beside its title, a bare symbol, and a
+# short form inside a word its markup splits. A module names each mark in a quiet word
+# (`QUIET_WORDS`), which a page's own markup can't declare.
+QUIET_MARKS = """<h1>Cases</h1>
+<p><button id="case" type="button"><span>Optional packages get focused destinations</span>
+<span id="check">✓</span></button></p>
+<p><button id="symbol" type="button">✓</button></p>
+<p><button id="short" type="button"><b>Re</b>ads <span id="short-form"
+><span aria-hidden="true">M</span></span> 100</button></p>"""
+QUIET_WORDS = {
+    "#check": "Looks right",
+    "#symbol": "Approve",
+    "#short-form": "Main thread",
+}
+
+
+def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serve):
+    """A control's quiet words say what the screen doesn't show in words, such as a
+    check's verdict, a symbol's action or a short form's full name. A resting pointer
+    and Tab read those words alone, not the words the face shows whole."""
+    page = open_page(browser, serve(leaf_page("Cases", QUIET_MARKS)))
+    page.evaluate(
+        """(words) => { for (const [selector, word] of Object.entries(words))
+          document.querySelector(selector).dataset.lfQuiet = word; }""",
+        QUIET_WORDS,
+    )
+    named = {"#case": "Looks right", "#symbol": "Approve", "#short": "Main thread"}
+    quiet = page.locator(", ".join(f"{control} .lf-quiet" for control in named))
+    expect(quiet).to_have_count(len(named))
+    for route in ("pointer", "focus"):
+        for control, words in named.items():
+            assert preview_parts(page.locator(control), route) == [words], control
+
+
+# A visual review's Add feedback, which `c` presses, given a mark its quiet word names
+# (`dataset.lfQuiet`, as a module writes one), then the chip its face draws for `c`.
+QUIET_BESIDE_KEYS = """(button) => {
+  const mark = Object.assign(document.createElement('span'), {textContent: ' ●'});
+  mark.dataset.lfQuiet = 'Unsaved changes';
+  button.append(mark);
+}"""
+DRAWN_CHIP = """(button) => button.append(Object.assign(document.createElement('kbd'),
+  {className: 'lf-key-badge', ariaHidden: 'true', textContent: 'c'}))"""
+
+
+def test_beside_a_key_chip_a_control_previews_its_whole_name(browser, serve):
+    """An approved case's row previews its check's verdict, its quiet word, alone. A
+    control a key presses previews its whole name as the head of that key's chip, since
+    the key presses the control, not the mark its quiet word names; once its face draws
+    the chip, the quiet word alone is what the face leaves unsaid."""
+    page = open_page(browser, serve(named_source("visual-review-gallery")))
+    widget = page.locator("#visual-review-run")
+    widget.locator(".lf-vr-approval-input").first.check()
+    row = widget.locator('.lf-vr-case-button:has([data-lf-approved="true"])')
+    assert preview_parts(row) == ["Looks right"]
+    feedback = widget.locator(".lf-vr-feedback").first
+    feedback.evaluate(QUIET_BESIDE_KEYS)
+    expect(feedback.locator(".lf-quiet")).to_have_text("Unsaved changes")
+    chips = page.locator(f"{PREVIEW} .lf-preview-keys kbd")
+    assert preview_parts(feedback, "focus") == ["Add feedback Unsaved changes ●"]
+    expect(chips).to_have_text(["c"])
+    feedback.evaluate(DRAWN_CHIP)
+    assert preview_parts(feedback, "focus") == ["Unsaved changes"]
+    expect(chips).to_have_count(0)
 
 
 # Option cards whose picks Done completes.

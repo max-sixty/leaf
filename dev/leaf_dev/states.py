@@ -298,10 +298,10 @@ def page_comment_photo_hover(page: Page) -> None:
 
 
 def panel_corner_hover(page: Page) -> None:
-    """The pointer at the panel's top-right corner, which shows its fold."""
+    """The pointer at the panel's top-left corner, which shows its fold."""
     box = page.locator(".lf-fp-card").bounding_box()
     assert box is not None
-    page.mouse.move(box["x"] + box["width"] - 24, box["y"] + 8)
+    page.mouse.move(box["x"] + 24, box["y"] + 8)
     expect(page.locator(".lf-fp-minimize")).to_be_visible()
     settle(page)
 
@@ -639,6 +639,14 @@ def motion_controls(page: Page) -> None:
 def timeline_steps(page: Page) -> None:
     """A timeline's Previous and Next beside its position, above its lanes."""
     page.locator("#race .lf-timeline-controls").scroll_into_view_if_needed()
+
+
+def timeline_step_list(page: Page) -> None:
+    """The step list under a timeline that compares two runs, one step past the
+    first, so it shows the current row between a past one and the steps ahead."""
+    page.locator("#race").get_by_role("button", name="Next").click()
+    page.mouse.move(0, 0)
+    page.locator("#race .lf-timeline-steps").scroll_into_view_if_needed()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -3362,6 +3370,12 @@ STATES = (
         "lost-update",
         timeline_steps,
         region="#race .lf-timeline-controls",
+    ),
+    State(
+        "timeline-step-list",
+        "lost-update",
+        timeline_step_list,
+        region="#race .lf-timeline-steps",
     ),
     State(
         "trace-timeline-keyboard",

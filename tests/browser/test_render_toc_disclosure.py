@@ -367,7 +367,8 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     row's link, so the link's hover and preview need no further move. Mid-fade, a label
     past the track still shows."""
     body = "".join(
-        f'<section><h2 id="s{n}">Section {n}</h2><p>{"Words. " * 20}</p></section>'
+        f'<section><h2 id="s{n}">Section {n}</h2><p>{"Words. " * 20}</p>'
+        f'<h3 id="s{n}-detail">Detail {n}</h3><p>{"Words. " * 20}</p></section>'
         for n in range(1, sections + 1)
     )
     source = leaf_page(
@@ -412,13 +413,23 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     assert any(0 < f["most"] < 1 for f in frames), frames
     wrong = [f for f in frames if f["most"] > f["least"] or f["mapTakesProse"]]
     assert wrong == [], frames
-    assert toc.locator("li .lf-toc-link").first.evaluate(
-        """(link, trackEnd) => {
-          const line = link.getClientRects()[0];
-          return document.elementFromPoint(trackEnd - 4, line.top + line.height / 2) === link;
+    in_track = page.evaluate(
+        """trackEnd => {
+          const nav = document.querySelector('#contents .lf-toc-nav');
+          const shown = nav.getBoundingClientRect();
+          return [...nav.querySelectorAll('li .lf-toc-link')].flatMap(link => {
+            const box = link.getBoundingClientRect();
+            if (box.left >= trackEnd - 4 || box.top < shown.top || box.bottom > shown.bottom)
+              return [];
+            const y = box.top + Math.min(box.height, 16) / 2;
+            const hit = document.elementFromPoint(trackEnd - 4, y);
+            return [{depth: link.parentElement.dataset.lfDepth, lands: hit === link}];
+          });
         }""",
         track["x"] + track["width"],
     )
+    assert {row["depth"] for row in in_track} == {"0", "1"}, in_track
+    assert all(row["lands"] for row in in_track), in_track
 
     page.mouse.move(track["x"] + 3, y)
     expect(toc.locator(".lf-toc-link").last).to_have_css("opacity", "1")

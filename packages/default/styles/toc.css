@@ -288,7 +288,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       box-sizing: border-box;
       padding: var(--lf-sp-4) 0;
       pointer-events: none;
-      scrollbar-color: transparent transparent;
+      scrollbar-color: rgb(from var(--lf-border) r g b / 0) transparent;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
       pointer-events: auto;
@@ -424,7 +424,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       position: absolute;
       inset-block: 0;
       inset-inline-start: 0;
-      inline-size: max(0px, 100cqi - var(--lf-toc-inset, 0px) - var(--lf-toc-indent));
+      inline-size: 100cqi;
       pointer-events: auto;
     }
     lf-toc .lf-toc-start a {
@@ -441,12 +441,15 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     }
     /* The words, the paper behind them and the outline's scrollbar fade in and out
      * together, the part over the page with the part in the track. */
-    lf-toc :is(.lf-toc-nav, .lf-toc-link, .lf-toc-heading) {
+    lf-toc .lf-toc-nav {
       transition:
-        color 0.12s ease-out,
-        opacity 0.24s ease-out,
         background-color 0.24s ease-out,
         scrollbar-color 0.24s ease-out;
+    }
+    lf-toc :is(.lf-toc-link, .lf-toc-heading) {
+      transition:
+        color 0.12s ease-out,
+        opacity 0.24s ease-out;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 1;
@@ -518,6 +521,11 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     lf-toc[data-lf-outline] .lf-toc-window,
     lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
       display: none;
+    }
+    /* An outline's link starts past the nav's inset and its row's indent, so its strip
+       is that much shorter; a row indented past the track has none. */
+    lf-toc[data-lf-outline] .lf-toc-link::before {
+      inline-size: max(0px, 100cqi - var(--lf-toc-inset) - var(--lf-toc-indent));
     }
     lf-toc[data-lf-outline] .lf-toc-mark {
       display: block;

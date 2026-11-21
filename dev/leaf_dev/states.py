@@ -1398,6 +1398,14 @@ def panel_draft_kept(page: Page) -> None:
     settle(page)
 
 
+def walked_to_draft(page: Page) -> None:
+    """`t` from a page holding only a comment the user put away: the walk opens the
+    comment's box beside its paragraph, holding its words, with focus on the box."""
+    panel_draft_kept(page)
+    page.keyboard.press("t")
+    settle(page)
+
+
 def leaf_draft_kept(page: Page) -> None:
     """The panel folded to its leaf while a comment the user put away waits unsent and
     no thread has news, so the leaf wears the dot for a kept draft."""
@@ -1587,9 +1595,7 @@ def threads_drafts(page: Page) -> None:
     expect(field).to_be_focused()
     page.keyboard.type("Cite the telemetry window here.")
     page.keyboard.press("Escape")
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("t")
-    page.keyboard.press("c")
+    page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker').click()
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
     page.keyboard.type("And the support macro, before Friday.")
@@ -3125,6 +3131,7 @@ STATES = (
     State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
     State("panel-draft-kept", "lost-update", panel_draft_kept, region=".lf-fp-row"),
     State("leaf-draft-kept", "lost-update", leaf_draft_kept, region=".lf-fp-leaf"),
+    State("walked-to-draft", "lost-update", walked_to_draft),
     State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
     State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
     State(

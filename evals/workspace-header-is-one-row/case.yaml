@@ -50,9 +50,9 @@ variants:
         action that submits the review. Keep enough room to read the selected test's
         evidence and make its decision.
     assert:
-      - type: javascript
+      - type: python
         metric: shared-rule-during-review
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric: |
             At the requested 1280 by 800 laptop viewport, switch tests and read a long log. The

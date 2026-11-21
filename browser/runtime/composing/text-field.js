@@ -623,9 +623,10 @@ class LeafText extends HTMLElement {
     this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
     this.#rest.rows = 1;
-    // In `focusin`, never `focus`: Chrome and Firefox send no `focusin` for a node that
-    // passes focus on in its own `focus` handler, and the move inside the closed root
-    // reaches nothing outside it, so the page would never hear the field take focus.
+    // In `focusin`, never `focus`: Chromium, Firefox and WebKit send no `focusin` for
+    // a node that passes focus on in its own `focus` handler, and the move inside the
+    // closed root reaches nothing outside it, so the page would never hear the field
+    // take focus.
     this.#rest.addEventListener("focusin", () => this.#build());
     for (const type of ["beforeinput", "input", "compositionstart", "compositionend"])
       this.#rest.addEventListener(type, (event) => this.#typeAtRest(event));

@@ -94,17 +94,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   white-space: normal;
   --lf-block-frame: 1;
 }
-/* The box sets `white-space: normal`, so the source inside it restores preformatting,
-   and outranks the reading sheet's print wrap by specificity until it answers paper
-   itself. */
 .lf-error pre {
   margin: 8px 0 0;
-  white-space: pre;
-}
-@media print {
-  .lf-error pre {
-    white-space: pre-wrap;
-  }
 }
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all

@@ -353,16 +353,16 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content. A `<pre>` asks its
-container for no width, so a box that takes its width from its content can leave it
-too narrow to read, which `page check --render` reports. A table scrolls inside a box
-that sets its own width, such as the column, a panel or any
-other block. A box that takes its width from its content, such as a flex item or a
-grid `auto` track, widens to the table's columns instead, past a phone's window if
-they need it, so give that box `min-width: 0` to keep the table scrolling inside it.
-A page without the face keeps the browser's tables and code blocks, so it puts one
-that can outgrow a narrow window in a box of its own that scrolls sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+also wraps a `<pre>`'s long lines, and a table's columns size to their content. A
+block whose columns must line up past its container's width, such as a diagram drawn
+in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such
+a block or a table scrolls inside a box that sets its own width, such as the column, a
+panel or any other block. A box that takes its width from its content, such as a flex
+item or a grid `auto` track, widens to its lines or the table's columns instead, past
+a phone's window if they need it, so give that box `min-width: 0` to keep it scrolling
+inside. A page without the face keeps the browser's tables and code blocks, so it puts
+one that can outgrow a narrow window in a box of its own that scrolls sideways, as
+above. Text that can't break, such as a bare identifier or a cell kept on
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,

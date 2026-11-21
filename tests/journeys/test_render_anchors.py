@@ -282,8 +282,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     A numbered widget and both ordinary block shapes share the same gesture.
     The retained widget's Copy returns after a hidden widget is detached and
-    reconnected. The control stays reachable beside horizontally scrolling code,
-    and a revision updates its source or removes it without duplicating controls.
+    reconnected. The control stays reachable beside code that keeps its lines and
+    scrolls them sideways, and a revision updates its source or removes it without
+    duplicating controls.
     """
     colored = '\n  print("' + "long source " * 30 + '")\t\n'
     suffix = "VISIBLE_END"
@@ -295,7 +296,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             "copy source",
             '<h1 id="title">Copy source</h1>'
             + (
-                '<pre id="colored" style="anchor-name: --authored-colored, --authored-secondary">'
+                '<pre id="colored" style="white-space: pre; '
+                'anchor-name: --authored-colored, --authored-secondary">'
                 '<code class="language-python">'
                 + escape(colored_source)
                 + "</code></pre>"
@@ -309,7 +311,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + escape(widget)
             + "</code></pre></lf-code>"
             + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
-            head="<style>#plain { anchor-name: --authored-plain; }"
+            head="<style>#plain { anchor-name: --authored-plain; white-space: pre; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
 

@@ -72,7 +72,7 @@ import { savedReadingSettled } from "./keyboard/bindings.js";
 // The walk's stops, in the page's order (thread/placement.js, `threadPlace`): each
 // thread that stands open or holds the user's unsent words, by its id, and each comment
 // the user began and hasn't sent, by its draft's context (drafts.js, the drafts list),
-// standing where the comment is about (`savedAt`), so the walk reaches every draft
+// placed at its passage or element (`savedAt`), so the walk reaches every draft
 // Threads lists. A reply or a rewrite is its thread's, whose stop opens the thread, a
 // resolved one included. A comment whose subject this version no longer shows stands
 // after every placed stop, as a general thread does. Read from the models rather than
@@ -142,11 +142,11 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 
 // t/T walk the stops in page order, coming round from either end to the other
 // (`cycledRow`). A thread's stop opens the thread (`arriveAtThread`). A comment's
-// opens its box beside what it is about, holding its words, and stands the user on the
-// box without putting the caret in it (drafts.js, `showDraft`), so the next `t` walks
-// on and `c` puts the caret after the words, as `c` opens a thread's reply box from the
-// thread (thread/landing.js). A walk that put the caret in the box would type its next
-// `t` there.
+// opens its box beside its passage or element, holding its words, and stands the user
+// on the box without putting the caret in it (drafts.js, `showDraft`), so the next `t`
+// walks on and `c` puts the caret after the words, as `c` opens a thread's reply box
+// from the thread (thread/landing.js). A walk that put the caret in the box would type
+// its next `t` there.
 //
 // From anywhere but a stop, the walk steps by the page walks' one rule (`stepFrom`,
 // current-target.js): a place on the page against each stop's place. A thread at the

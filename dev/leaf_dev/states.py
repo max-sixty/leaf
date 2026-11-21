@@ -1399,8 +1399,8 @@ def panel_draft_kept(page: Page) -> None:
 
 
 def walked_to_draft(page: Page) -> None:
-    """`t` from a page holding only a comment the user put away: the walk stands them at
-    the paragraph it is about, where the box at rest reads its words beside `c`."""
+    """`t` from a page holding only a comment the user put away: the walk opens the
+    comment's box beside its paragraph, holding its words, with focus on the box."""
     panel_draft_kept(page)
     page.keyboard.press("t")
     settle(page)

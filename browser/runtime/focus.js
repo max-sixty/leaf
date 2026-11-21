@@ -879,12 +879,16 @@ function readFocusEvent(event) {
 // keyboard had put them on the panel before the press. The caret stays where they
 // pressed, and walks and the reading keys start from it (reading-regions.js). To comment
 // on the panel, the user steps onto it with the keyboard.
-// DOM focus stays on the panel until the press is released, since Chromium ends a drag's
-// selection when focus moves during it. Until then every reading of where the user is,
-// holds included, reads where the press will land, and no reader hears the panel. A tap
-// focuses at its click, after its release, and lands a task later, since Chromium drops
-// the tap's caret when focus moves while it focuses. A placement or a key that moves the
-// user during the press takes over from it.
+// DOM focus stays on the panel until the press is released. Moved inside the press's own
+// focus event, focus ends the drag selection the press starts in Chromium and WebKit; a
+// task later every engine keeps it, but Chromium can deliver a quick click's release
+// before that task, and the press's other ends read DOM focus at the release, as the
+// comment bar does as it stands down (composing/surface.js), so the pass runs first of
+// them. Until then every reading of where the user is, holds included, reads where the
+// press will land, and no reader hears the panel. A tap focuses at its click, after its
+// release, and lands a task later, since Chromium drops the tap's caret when focus moves
+// while it focuses. A placement or a key that moves the user during the press takes over
+// from it.
 // Rejected: keeping the panel as where the user is. A panel holds most of a page that
 // has one, so a press almost anywhere made `c` comment on the whole panel, with no ring
 // to show it. Rejected too: passing on the stop reach.js lends an overflowing box in the

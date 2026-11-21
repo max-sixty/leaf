@@ -15,9 +15,9 @@ import { sectionMarks } from "./toc-marks.js";
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
- * the document's origin to make room for type. The map ends inside main's trailing
- * padding. The labels keep their measure while faded out, so revealing them neither
- * moves the map nor refits it.
+ * the document's origin to make room for type. The map is as tall as its stuck track
+ * can be (toc.css). The labels keep their measure while faded out, so revealing them
+ * neither moves the map nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as

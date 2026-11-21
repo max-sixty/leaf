@@ -363,7 +363,9 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     page" label fades with its sections, and the part of each word over the prose fades
     with the part in the spine's track. From the first frame of the fade, the prose past
     the track takes the pointer, so a pointer that returns there reaches the page
-    rather than reopening the map. Mid-fade, a label past the track still shows."""
+    rather than reopening the map, while a pointer on the track at rest stands on its
+    row's link, so the link's hover and preview need no further move. Mid-fade, a label
+    past the track still shows."""
     body = "".join(
         f'<section><h2 id="s{n}">Section {n}</h2><p>{"Words. " * 20}</p></section>'
         for n in range(1, sections + 1)
@@ -410,6 +412,13 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     assert any(0 < f["most"] < 1 for f in frames), frames
     wrong = [f for f in frames if f["most"] > f["least"] or f["mapTakesProse"]]
     assert wrong == [], frames
+    assert toc.locator("li .lf-toc-link").first.evaluate(
+        """(link, trackEnd) => {
+          const line = link.getClientRects()[0];
+          return document.elementFromPoint(trackEnd - 4, line.top + line.height / 2) === link;
+        }""",
+        track["x"] + track["width"],
+    )
 
     page.mouse.move(track["x"] + 3, y)
     expect(toc.locator(".lf-toc-link").last).to_have_css("opacity", "1")

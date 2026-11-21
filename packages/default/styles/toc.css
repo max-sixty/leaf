@@ -414,6 +414,19 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       -webkit-line-clamp: 2;
       transform: translateY(calc(var(--lf-toc-row-shift, 0px) - 0.5lh));
     }
+    /* The resting nav takes no pointer (above), so each link takes it on a strip from
+       its start to the track's end. A pointer that comes to rest on the spine then
+       stands on that row's link, its hover and preview, as on the revealed map; on the
+       map's own box it would wait for a further move to reach the link once the nav
+       took the pointer. */
+    lf-toc .lf-toc-link::before {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: max(0px, 100cqi - var(--lf-toc-inset, 0px) - var(--lf-toc-indent));
+      pointer-events: auto;
+    }
     lf-toc .lf-toc-start a {
       font: var(--lf-font-title);
     }
@@ -496,7 +509,8 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
        * rather than as its border. */
     lf-toc[data-lf-outline] .lf-toc-nav {
       overflow-y: auto;
-      padding-inline-start: calc(var(--lf-sp-3) + 8px);
+      --lf-toc-inset: calc(var(--lf-sp-3) + 8px);
+      padding-inline-start: var(--lf-toc-inset);
     }
     lf-toc[data-lf-outline] .lf-toc-rows::before {
       inset-inline-start: calc(-1px - var(--lf-sp-3));

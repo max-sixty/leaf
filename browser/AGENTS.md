@@ -584,10 +584,10 @@ holds the measurement.
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Words share a baseline by layout alone.** A row whose words must stand on one
   baseline aligns its items by baseline or sets the words in one face. A row that
-  centres words of two sizes leaves their baselines up to a pixel apart. The user
-  chose to leave that gap rather than close it with a strut, a line box shorter than
-  its words or an offset, since each of those changes how its box clips and stays
-  right only while a check measures it.
+  centres words of two sizes leaves their baselines apart by a fraction of the
+  difference in their sizes. The user chose to leave that gap rather than close it
+  with a strut, a line box shorter than its words or an offset, since each needs rules
+  of its own around it and stays right only while a check measures baselines.
 
 ### The browser answers first
 

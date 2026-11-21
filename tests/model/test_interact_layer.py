@@ -2751,7 +2751,7 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
     holds. Only native controls and those carrying a face class receive it: a widget's
     apparatus marked `lf-ui`, such as diff line numbers, retains the component's own
-    typography.
+    typography. The default ends with the floor a typed field takes on a touch screen.
     """
     faces = [
         (sheet, selector)
@@ -2772,13 +2772,29 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
         *(f":where(:host {tag})" for tag in controls),
     ]
     control_ink = [":where(.lf-ui-face)"]
-    default = [(face_sheet, each) for each in (*control_face, *control_ink)]
+    control_floor = [
+        ':where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"]))',
+        ":where(:root body select:not(.lf-chrome *))",
+        ":where(:root body textarea:not(.lf-chrome *))",
+        ':where(:host input:not([type="checkbox"], [type="radio"]))',
+        ":where(:host select)",
+        ":where(:host textarea)",
+    ]
+    default = [
+        (face_sheet, each) for each in (*control_face, *control_ink, *control_floor)
+    ]
     assert faces[: len(default)] == default, faces[: len(default)]
     defaults = [
         face
         for face in faces
         if face[1]
-        in {".lf-ui-face", ":where(:root) .lf-ui-face", *control_face, *control_ink}
+        in {
+            ".lf-ui-face",
+            ":where(:root) .lf-ui-face",
+            *control_face,
+            *control_ink,
+            *control_floor,
+        }
     ]
     assert defaults == default, defaults
 

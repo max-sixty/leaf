@@ -41,6 +41,9 @@
   word-spacing: normal;
   text-transform: none;
 }
+:where(.lf-ui-face) {
+  color: var(--lf-ink);
+}
 /* On a touch screen, a field the user types in takes the entry floor (tokens.css,
    `--lf-entry-floor`) as its default size, since iOS Safari zooms the page onto a
    smaller field as it takes focus. It weighs nothing, as the face above does, so a size
@@ -54,7 +57,4 @@
   :where(:host textarea) {
     font-size: max(var(--lf-entry-floor), var(--lf-t-5));
   }
-}
-:where(.lf-ui-face) {
-  color: var(--lf-ink);
 }

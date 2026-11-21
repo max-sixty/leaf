@@ -56,7 +56,23 @@ _RECORDER = r"""
   }).observe({ type: "layout-shift", buffered: true });
   let last = "";
   let observed = null;
-  const tick = () => {
+  const ticks = [];
+  window.__lf6609.ticks = ticks;
+  const post = new MessageChannel();
+  post.port1.onmessage = () => {
+    const panel = document.querySelector("leaf-floating-panel");
+    const back = panel?.querySelector(".lf-fp-back");
+    const head = panel?.querySelector(".lf-fp-head");
+    const msg = panel?.querySelector(".lf-msg-head");
+    const tr = (n) => (n ? getComputedStyle(n).translate : "-");
+    ticks.at(-1)?.push(performance.now(),
+      back ? Math.round(back.getBoundingClientRect().top) : null,
+      msg ? Math.round(msg.getBoundingClientRect().top) : null, tr(head));
+  };
+  const tick = (stamp) => {
+    ticks.push([stamp, performance.now()]);
+    if (ticks.length > 20000) ticks.splice(0, 5000);
+    post.port2.postMessage(0);
     const panel = document.querySelector("leaf-floating-panel");
     if (panel) {
       if (observed !== panel) {
@@ -75,7 +91,7 @@ _RECORDER = r"""
         for (const c of n.children) {
           if (c.localName === "svg" || c.localName === "template") continue;
           rows.push("  ".repeat(depth) + box(c));
-          if (depth < 14 && !c.matches(".lf-msg-text, .lf-thread-working-words, leaf-text, .lf-fp-head")) walk(c, depth + 1);
+          if (depth < 14 && !c.matches(".lf-msg-text, .lf-thread-working-words, leaf-text")) walk(c, depth + 1);
         }
       };
       walk(panel.shadowRoot ?? panel, 1);
@@ -120,6 +136,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         with open(out / f"frames-{request.node.callspec.id}.txt", "w") as f:
             for at, *rest in record["log"]:
                 f.write(f"LOG {at:.1f} {json.dumps(rest)}\n")
+            for tick in record["ticks"]:
+                f.write(f"TICK {json.dumps(tick)}\n")
             for at, text in record["frames"]:
                 f.write(f"FRAME {at:.1f}\n{text}\n")
 

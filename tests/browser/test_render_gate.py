@@ -511,7 +511,7 @@ def test_browser_like_console_words_remain_console_diagnostics(browser):
     [problem] = reported_browser_errors(page, text)
     assert problem.code == "console-error"
     assert problem.values == {"text": text, "url": ""}
-    assert str(problem) == text
+    assert problem.said == text
     page.evaluate(
         "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
     )
@@ -520,7 +520,7 @@ def test_browser_like_console_words_remain_console_diagnostics(browser):
         "text": "ordinary failure",
         "url": "http://page/author.js",
     }
-    assert str(problem) == "ordinary failure — http://page/author.js"
+    assert problem.said == "ordinary failure — http://page/author.js"
 
 
 def test_a_module_import_a_navigation_cuts_off_is_no_problem(firefox_browser, serve):
@@ -699,7 +699,9 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     assert unready.value.stage == "arrived", unready.value
 
 
-def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
+def test_an_async_reading_probe_leaves_the_page_unread_instead_of_awaited(
+    browser, serve
+):
     """Every shipped probe publishes a synchronous reading or readiness fact."""
     facade = (render_checks_model.PROBE_ROOT / "index.js").read_text()
 
@@ -716,15 +718,17 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
             ),
         )
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=3000
-    ).failures
+    )
+    unread = [finding for finding in reading.findings if finding.unread]
 
-    assert failures
+    assert unread
+    assert reading.failures == []
     assert all(
-        "probe invalidPaints must be synchronous" in failure.values["error"]
-        for failure in failures
-    ), f"an async reading has to name itself, and this came back as {failures}"
+        "probe invalidPaints must be synchronous" in finding.values["error"]
+        for finding in unread
+    ), f"an async reading has to name itself, and this came back as {unread}"
 
 
 SAMPLE_FAULT = (
@@ -799,17 +803,18 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
             "...globalThis.__leafRenderDriver, framePresented: () => false });"
         )
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser, stop_presenting_frames),
         serve(LONG_PAGE),
         served_timeout_ms=3000,
-    ).failures
+    )
+    unread = [finding for finding in reading.findings if finding.unread]
 
-    assert failures
+    assert unread
+    assert reading.failures == []
     assert all(
-        "no rendering update arrived within 3000ms" in f.values["error"]
-        for f in failures
-    ), failures
+        "no rendering update arrived within 3000ms" in f.values["error"] for f in unread
+    ), unread
 
 
 def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(

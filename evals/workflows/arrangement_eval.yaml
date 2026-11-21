@@ -43,7 +43,7 @@ prompts:
     a pane the keyboard can't reach, or one left mostly empty while another is
     cramped, against the page where it affects the task.
     The final page incorporates the user's comment and lasting width preference, and clearly
-    preserves the final decision the user supplied. On the before_decision page, exercise the
+    preserves the final decision the user supplied. On page_before_decision, exercise the
     original browser decision task through the offered controls, including keyboard routes; judge the actual outcome, not a settings summary or a claim of success. On the final
     page, inspect the resulting record without replacing it with your own choices. The author's
     quoted comment answer should accurately describe the change. A recorded plan or approval
@@ -55,9 +55,9 @@ cases:
       decision: null
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric: |
             At every declared viewport, operate Replay all, change speed, pause,
@@ -97,9 +97,9 @@ cases:
       reveal: ""
     assert:
       - &id001
-        type: javascript
+        type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric: ""
   dashboard:
@@ -152,9 +152,9 @@ cases:
           We’re reviewing the queue-capacity issue and will share another update by 11:00 UTC, even if that review is still underway. You don’t need to retry any exports. Thank you for your patience while we work through the follow-up.
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             "At every declared width, the final record visibly preserves the complete two-paragraph
@@ -218,9 +218,9 @@ cases:
           under 30 days, opens a ticket."
       reveal: ledger-reconciliation-lag
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric: >-
             The final record lets the reader compare each alert's original threshold
@@ -239,9 +239,9 @@ cases:
       decision: null
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             At every declared width, the error-rate chart and all forty rollout entries are
@@ -271,9 +271,9 @@ cases:
         typed: Approve with the stable tenant-and-job key and a default cap of two attempts.
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             "At the declared window sizes, the substantive review evidence and navigation remain
@@ -303,12 +303,12 @@ cases:
         typed: My final choice is B · Balanced, the 260 ms panel timing.
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric: >-
-            Operate the before_decision page at every declared viewport. The actual supplied
+            Operate page_before_decision at every declared viewport. The actual supplied
             recordings play, with Baseline visibly distinguished from the three alternatives
             and each candidate's meaningful difference explained. The evidence must make
             the motion being decided inspectable: the complete moving panel, its travel,
@@ -348,9 +348,9 @@ cases:
           visible.
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             "At every declared width, the substantive information and navigation remain
@@ -390,9 +390,9 @@ cases:
           not been executed.
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             At every declared width, the substantive evidence, corrected diagram and final
@@ -426,9 +426,9 @@ cases:
           run. This is a plan, not an executed run or deployment.
       reveal: ""
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             At every declared width, the final record identifies B with 2 workers for another
@@ -457,9 +457,9 @@ cases:
         eu-west has been rolling out since 09:00 today; ap-southeast starts Thursday.
         Logout-everywhere still lags up to 90 s during failover, as expected."
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             "The final page is the review turned into the page the platform team follows
@@ -486,9 +486,9 @@ cases:
         rollout, and add the eu-west write-up the team reads tomorrow: what happened, the
         cause, what we decided and the follow-ups. Keep the comment thread where it is."
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             "The final page serves both uses. On arrival, at every declared width, the
@@ -513,9 +513,9 @@ cases:
         owns it next, and what is still waiting on someone. Keep the queue as it is, threads
         included; I'll come back to it if anything reopens."
     assert:
-      - type: javascript
+      - type: python
         metric: quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric:
             "The hand-off reads in order for a reader who did not work the queue: all eight

@@ -42,9 +42,8 @@
    their original anchor, while a later target starts clean and keeps focus.
 
    Where `c` would open the box beside a target the user can see, the box already stands
-   there with the key that opens it (`restFab`), empty or reading the words of a comment
-   the user began on that target, so where `c` goes and what it takes up show before
-   the press, as they do for a selection. The user chose this, with
+   there, empty, with the key that opens it (`restFab`), so where `c` goes shows before
+   the press, as it does for a selection. The user chose this, with
    the key in the panel's row and `c` leaving focus scrolled out of sight
    (`focusedPlace`), accepting a box in the
    margin at every stop of a walk, every Tab and every press that leaves focus on a
@@ -100,7 +99,6 @@ import {
   fabInput,
   fabOptionsTrigger,
   fabRest,
-  keptComment,
   pendingAbout,
 } from "./selection.js";
 
@@ -187,7 +185,6 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
  * scrollToPassage: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToPassage"],
  * scrollToRange: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToRange"],
- * travelToTarget: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["travelToTarget"],
  * visualActionAnchor: ReturnType<typeof import("../anchor-controls.js").createAnchorControls>["visualActionAnchor"],
  * designTarget: ReturnType<typeof import("../design.js").createDesignMode>["target"], openOnDesign: ReturnType<typeof import("../design.js").createDesignMode>["open"],
  * isReactArmed: () => boolean, reactionContextContains: (element: Element | null) => boolean,
@@ -209,7 +206,6 @@ export function createResponseSurface({
   scrollToElement,
   scrollToPassage,
   scrollToRange,
-  travelToTarget,
   visualActionAnchor,
   designModeActive,
   designTarget,
@@ -951,25 +947,6 @@ export function createResponseSurface({
   function openComment(anchor, text, options = {}) {
     return composer.openComposer(anchor, text, options);
   }
-  // Stand the user at the comment kept on `anchor`, as the thread walk does
-  // (navigation.js): at what it is about, its passage selected or its element focused
-  // (anchor-travel.js, `targetLanding`), where its box shows its words and leaves the
-  // caret to `c`. A passage's box opens beside the words the arrival selected, as for
-  // words the user selects (`updateFab`), and an element's rests beside it reading
-  // them (`restFab`).
-  /** @param {Anchor} anchor @param {ReturnType<typeof retainUserIntent>} intent */
-  async function arriveAtComment(anchor, intent) {
-    const arrived = await travelToTarget(anchor, { backward: false, intent });
-    if (arrived && anchor.quote && intent()) updateFab();
-    return arrived;
-  }
-  // Leaving such a comment lets go of the passage its arrival selected, and its box
-  // goes with the selection, as when the user clears one (`updateFab`).
-  function leaveComment() {
-    if (!pageSelection()) return;
-    getSelection()?.removeAllRanges();
-    updateFab();
-  }
   function fabHoldsCapturedPassage() {
     return (
       fabInputTakingFocus ||
@@ -1560,16 +1537,10 @@ export function createResponseSurface({
       placement?.stop({ reset: true });
     }
     keeps(fabBar, "data-lf-rest", "");
-    // A comment the user began here and put away reads its words in place of the hint,
-    // since `c` takes them up, as a passage's box does once the passage is selected.
-    const kept = keptComment(target.anchor);
     render(
       html`<span class="lf-compose-placeholder"
-        >${
-          kept
-            ? html`<span class="lf-compose-placeholder-lead">${kept}</span>`
-            : html`<span class="lf-compose-placeholder-words">${COMMENT_HINT}</span>`
-        }<kbd class="lf-key-badge">${key}</kbd></span
+        ><span class="lf-compose-placeholder-words">${COMMENT_HINT}</span
+        ><kbd class="lf-key-badge">${key}</kbd></span
       >`,
       fabRest,
     );
@@ -1696,8 +1667,6 @@ export function createResponseSurface({
     fabTargetAt,
     fabReturnPlaces,
     commentOnTarget,
-    arriveAtComment,
-    leaveComment,
     showFabOptions,
     hasPageSelectionTarget,
     updateFab,

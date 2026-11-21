@@ -4570,9 +4570,9 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
             <p id="navigation-thread-rule">
               <kbd>t</kbd> / <kbd>Shift</kbd> + <kbd>t</kbd> walk open threads in page
               order, with each comment the user began and put away standing where it is
-              about. Focus on a thread or its accompanied passage makes that thread the
-              origin. Moving elsewhere changes the origin; Leaf keeps no separate “last
-              thread” cursor.
+              about, and a resolved thread holding an unsent reply. Focus on a thread or
+              its accompanied passage makes that thread the origin. Moving elsewhere
+              changes the origin; Leaf keeps no separate “last thread” cursor.
             </p>
             <details id="navigation-thread-cases">
               <summary>Focus, scrolling, order, and filters</summary>
@@ -4596,9 +4596,10 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                   <tr>
                     <td><kbd>t</kbd> reaching an unsent comment</td>
                     <td>
-                      The walk selects the comment’s passage, or focuses its element,
-                      and its box beside it shows the words without the caret. The next
-                      t walks on; c puts the caret after the words.
+                      The walk opens the comment’s box beside what it is about, holding
+                      its words, and stands the user on the box rather than in it. The
+                      next t walks on and puts the box away; c puts the caret after the
+                      words.
                     </td>
                   </tr>
                   <tr>
@@ -4677,13 +4678,12 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               </p>
               <p id="navigation-tab-rule">
                 Page walks through open threads and unsent comments (<kbd>t</kbd>), On
-                Me (<kbd>m</kbd>) and
-                accepted page-text matches (<kbd>n</kbd>) wrap at either end; the count
-                flashes on wrapping. With nothing to walk, a press says so in the panel,
-                such as “No open threads”. Tab-strip arrows also wrap, and Tab leaves
-                the strip. Arrow-key navigation through menu rows, panel lists and
-                thread-search results stops at the ends; Home / End reach the first /
-                last row.
+                Me (<kbd>m</kbd>) and accepted page-text matches (<kbd>n</kbd>) wrap at
+                either end; the count flashes on wrapping. With nothing to walk, a press
+                says so in the panel, such as “No open threads”. Tab-strip arrows also
+                wrap, and Tab leaves the strip. Arrow-key navigation through menu rows,
+                panel lists and thread-search results stops at the ends; Home / End
+                reach the first / last row.
               </p>
             </details>
           </section>

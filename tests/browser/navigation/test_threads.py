@@ -458,30 +458,30 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
 
 def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
     """A comment the user began and put away is a stop of the thread walk, in the page's
-    order among the open threads, as Threads lists the two together. The walk stands
-    the user at what the comment is about, its element focused or its passage
-    selected, where its box reads its words without taking the caret, so the next `t`
-    walks on and `c` takes the words up."""
+    order among the open threads, as Threads lists the two together, a comment about a
+    passage of a paragraph holding a thread included. The walk opens the comment's box
+    on its words and stands the user on the box, not in it, so the next `t` walks on and
+    puts the box away, and `c` puts the caret after the words."""
     url = serve(
         leaf_page(
             "drafts in the walk",
             """
 <h1>Drafts in the walk</h1>
 <p id="first">The first paragraph takes a comment on the whole of it.</p>
-<p id="second">The second paragraph holds the open thread.</p>
-<p id="third">The third paragraph takes a comment on a passage.</p>
+<p id="second">The second paragraph holds the open thread and a comment on a passage.</p>
 """,
         ),
         anchored=[("second", "open thread")],
     )
     page = open_page(browser, url)
     field = page.locator(".lf-fab-input")
+    box = page.locator("#lf-composer")
     page.locator("#first").click(modifiers=["Alt"])
     write(field, "About the first.")
     page.keyboard.press("Escape")
     page.evaluate(
         """() => {
-          const text = document.getElementById('third').firstChild;
+          const text = document.getElementById('second').firstChild;
           const at = text.data.indexOf('a passage');
           getSelection().setBaseAndExtent(text, at, text, at + 'a passage'.length);
         }"""
@@ -493,19 +493,45 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
     page.locator("h1").click()
 
     page.keyboard.press("t")
-    expect(page.locator("#first")).to_be_focused()
-    expect(page.locator(".lf-fab-rest")).to_contain_text("About the first.")
+    expect(box).to_be_focused()
+    expect(field).to_have_js_property("value", "About the first.")
     expect_walk_position(page, "1 of 3 threads and drafts")
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
     page.keyboard.press("t")
-    expect(page.locator("#third")).to_be_focused()
-    expect(field).to_be_visible()
+    expect(box).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
-    assert page.evaluate("() => getSelection().toString()") == "a passage"
     page.keyboard.press("c")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
+
+
+def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
+    browser, serve
+):
+    """A thread resolved with a reply still unsent is a stop of the walk, which opens it
+    where the reply's words wait, so `t` reaches every draft Threads lists."""
+    url = serve(
+        leaf_page(
+            "a resolved thread with a reply",
+            '<h1>Resolved</h1><p id="said">The thread on this paragraph is resolved.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="said"] .lf-margin-marker').click()
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    write(reply, "A reply left unsent.")
+    page.locator(".lf-margin-preview .lf-resolve").click()
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(page.locator(PANEL_THREAD)).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("leaf-text:focus")).to_have_js_property(
+        "value", "A reply left unsent."
+    )
 
 
 def test_the_thread_walk_reaches_a_thread_in_view_ahead_of_the_first_paragraph(

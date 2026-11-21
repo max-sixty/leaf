@@ -263,10 +263,7 @@ async function boot() {
   const navigation = createNavigation({
     placedAt: (id) => anchorPlacement.placedAt(id),
     savedAt: (context) => anchorPlacement.savedAt(context),
-    comments: {
-      arriveAtComment: (...args) => responseSurface.arriveAtComment(...args),
-      leaveComment: () => responseSurface.leaveComment(),
-    },
+    showDraft: (context) => writingResume.showDraft(context),
     threadDestinations: {
       openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
       threadAtCurrentLocation: (node) =>
@@ -536,7 +533,7 @@ async function boot() {
   // The page's general comment box is the floating panel's field.
   const generalComment = floatingPanel.pageComment;
   const passageSelection = createPassageSelection({
-    restore: anchorTravel.travelToTarget,
+    restore: anchorTravel.restoreSelection,
   });
   responseSurface = createResponseSurface({
     rememberSelection: passageSelection.remember,
@@ -550,7 +547,6 @@ async function boot() {
     scrollToElement: anchorTravel.scrollToElement,
     scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
-    travelToTarget: anchorTravel.travelToTarget,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
     designTarget: designMode.target,

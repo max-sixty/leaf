@@ -256,15 +256,23 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * past it, toward the body, faded out and taking no pointer until it reveals them.
  * Pointing at the map, focus inside it or the go-to sequence reveals them over the
  * page. The track sticks, so the map stays beside the reading as the document
- * scrolls. It is as tall as the stuck track can be at the document's end, where the
- * sidebar's end padding stops it, so the track never pushes the map's start out of the
- * window. */
+ * scrolls, to its sidebar's end (layouts.css, `--lf-track-end-room`). The map fills
+ * the stuck track (`--lf-track-room`, layouts.css), less the track's focus room, and
+ * knows nothing of the floating panel: how far the track reaches is the Layout's to
+ * settle, as the user decided. Rejected: the map running on past the track's end
+ * wherever the panel stood clear of its columns, which made a widget read Leaf's
+ * chrome; the map hung out of flow from a track only its focus room tall, which a
+ * window too short to stick the track left over the body, and which hung over a
+ * footer below the sidebar; and a map short enough to stay whole where the document's
+ * end padding stops the track, which left it about 100px short of the track's end at
+ * every other scroll position. */
 @media screen {
   @container (width < 8rem) and style(--lf-track-spine: 1) {
+    /* A window under 480px tall doesn't stick the track or state its room, so there
+       the map fills the window. */
     lf-toc {
       --lf-toc-height: calc(
-        var(--lf-view-height) - var(--lf-sp-4) - var(--lf-page-pad-end) -
-          var(--lf-focus-region-room)
+        var(--lf-track-room, var(--lf-view-height)) - 2 * var(--lf-focus-region-room)
       );
       height: var(--lf-toc-height);
       margin: 0;

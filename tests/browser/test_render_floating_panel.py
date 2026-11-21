@@ -4,6 +4,7 @@ Each test is one journey a user takes through the panel: writing a page comment 
 threads and taking in news, answering obligations, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
 
+import base64
 import json
 import re
 
@@ -5632,7 +5633,7 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     """An image pasted into the page's field hangs just over the panel's top edge from
     its start edge, outside its box, so attaching grows the panel by nothing and leaves
     the field its width; its thumbnail is the paste's result, so no notice says it was
-    added."""
+    added. A view opening gives it a band over the box, which a search closes."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     card = page.locator(".lf-fp-card")
@@ -5646,6 +5647,107 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     assert tile["y"] + tile["height"] <= before["y"], (tile, before)
     assert tile["x"] == pytest.approx(before["x"], abs=1), (tile, before)
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
+    # With a view open the panel opens a band for the picture, and closes it while a
+    # search takes the field's place and so hides the picture.
+    open_threads(page)
+    row = page.locator(".lf-fp-row")
+    expect(shelf).to_be_visible()
+    expect(row).not_to_have_css("margin-top", "0px")
+    page.get_by_role("button", name="Find a thread or message").click()
+    expect(page.locator("input.lf-fp-search")).to_be_visible()
+    expect(shelf).to_be_hidden()
+    expect(row).to_have_css("margin-top", "0px")
+
+
+def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box(
+    browser, serve
+):
+    """With a thread open, an image pasted into its reply stands where the page's field
+    stands one, just over the box from the panel's start edge, in a band the panel opens
+    between the thread's view and the box: it covers neither, the box stays where the
+    user types, and the thread's last message stays beside the reply throughout, though
+    the panel already reached the window's top and the band takes its room from the
+    view."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
+    for step in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Step {step}. "
+                + "The cohort widens once the alarms hold. " * 4,
+            },
+        )
+    page = floating(browser, url)
+    open_threads(page)
+    page.locator(".lf-fp-thread", has_text="Walk me through the whole rollout.").click()
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(9)
+    # The user answers the last message, so the view stands at its end.
+    view.evaluate("view => { view.scrollTop = view.scrollHeight; }")
+    field(page).click()
+    settled(page)
+    last = view.locator(".lf-msg").last
+
+    def foot():
+        """How far the last message stands above the view's foot, and the view's height."""
+        shown, message = view.bounding_box(), last.bounding_box()
+        return (
+            shown["y"] + shown["height"] - message["y"] - message["height"],
+            shown["height"],
+        )
+
+    before = foot()
+    assert before[0] >= 0, before
+    words = field(page).bounding_box()
+    # The band opens on the panel's tween, as the user's change: its first frame shows
+    # the last message beside the reply already, rather than carrying it as news from
+    # where it stood, under the band, up into the view.
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    # The user's paste key hands the field the picture after the watches have heard the
+    # key, as the browser's paste comes after its listeners, so the upload and the
+    # thumbnail are that key's rendering.
+    page.evaluate(
+        """encoded => document.addEventListener('keydown', function paste(event) {
+          if (event.key !== 'v') return;
+          document.removeEventListener('keydown', paste, true);
+          event.preventDefault();
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          document.querySelector('.lf-fp-field leaf-text').dispatchEvent(
+            new ClipboardEvent('paste', {
+              bubbles: true, cancelable: true, clipboardData: transfer,
+            }));
+        }, true)""",
+        base64.b64encode(solid_png(240, 120, (255, 128, 64))).decode(),
+    )
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("ControlOrMeta+v")
+    shelf = page.locator(".lf-fp-field .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    page.wait_for_function("() => __lfHeld.length > 0")
+    one_frame(page)
+    assert foot()[0] == pytest.approx(before[0], abs=1), (before, foot())
+    page.evaluate("() => __lfHeld.forEach(motion => motion.finish())")
+    expect(shelf.locator("img")).to_have_js_property("complete", True)
+    settled(page)
+    tile, shown = shelf.bounding_box(), view.bounding_box()
+    card = page.locator(".lf-fp-card").bounding_box()
+    row = page.locator(".lf-fp-row").bounding_box()
+    assert field(page).bounding_box() == words
+    assert shown["y"] + shown["height"] <= tile["y"], (shown, tile)
+    assert tile["y"] + tile["height"] <= row["y"], (tile, row)
+    assert tile["x"] == pytest.approx(card["x"], abs=1), (tile, card)
+    after = foot()
+    assert after[1] < before[1], "the fixture must take the band from the view"
+    assert after[0] == pytest.approx(before[0], abs=1), (before, after)
 
 
 def test_a_pasted_image_s_thumbnail_arrives_at_its_picture_s_size(browser, serve):

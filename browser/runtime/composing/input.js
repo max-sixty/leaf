@@ -292,6 +292,16 @@ export const standsAtItsBox = (error) => {
 // the caret and focus where they are, and the press keeps the notice that offers it
 // (notifications.js, `keepsNotice`). The keyboard's route is the press's own command
 // and a finger's is this, so it takes no tab stop.
+/** What a box says of its press at rest: the press's word and the keys that would make
+ * it now, its word alone to a finger, which is shown no keys, or nothing where no key of
+ * it would make it now, so the press stands nowhere (`enters`).
+ * @param {BoxPress} press */
+export const pressSays = (press) =>
+  !advertisesKeys()
+    ? press.word
+    : press.keys.length
+      ? [press.word, ...press.keys].join(" ")
+      : "";
 /** @param {BoxPress} press @param {readonly string[]} keys */
 const pressAtRest = (press, keys) =>
   html`<span
@@ -614,18 +624,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey = lineKeyOf(sendKeys);
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && typeof offered === "string" ? offered : "";
-      // What a press says at rest, or nothing where it stands nowhere (`enters`).
-      /** @param {BoxPress} reading */
-      const said = (reading) =>
-        !advertisesKeys()
-          ? reading.word
-          : reading.keys.length
-            ? [reading.word, ...reading.keys].join(" ")
-            : "";
-      const pressText = press ? said(press) : "";
+      const pressText = press ? pressSays(press) : "";
       // The press as drawn, whose keys its owner reads at each ask, so the recheck
       // costs that reading alone rather than the box's words.
-      if (press) pressing.set(field, () => said(press) !== pressText);
+      if (press) pressing.set(field, () => pressSays(press) !== pressText);
       else pressing.delete(field);
       const shown = pressText ? press : null;
       // A box whose words are all at its end, as an open thread's Reply is in the

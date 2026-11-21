@@ -277,7 +277,7 @@ import {
   tellDraft,
 } from "./drafts.js";
 import { textField } from "./composing/text-field.js";
-import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
+import { draftOf, pressSays, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { holdPlace, standsAt } from "./user-place.js";
@@ -1324,19 +1324,31 @@ export function createFloatingPanel({
     if (shownOffer === "latest") return latestPress();
     return shownOffer ? noticePress(shownOffer) : null;
   }
-  // A held notice ends at the user's first input while the panel shows it
-  // (notifications.js, `endHeldNotice`): the field says it, or, folded, the leaf's
-  // peek. The caret in the field hides it, so an input there, the Escape that takes
-  // the caret out included, leaves it for the field to show once the caret has gone.
+  // A held notice ends at the user's first input while the panel shows it whole
+  // (notifications.js, `endHeldNotice`). Folded, the panel shows only the leaf's peek,
+  // which says the notice's words. Open, the field shows the words only while the caret
+  // is elsewhere and the field holds no draft, and the notice's press only while a key
+  // of the press's would make it (composing/input.js, `pressSays`). An input while any
+  // of that is hidden leaves the notice standing, so the panel shows it once the cause
+  // has gone. With the caret in a margin card's reply, `g` types a letter, so the field
+  // says "Edit discarded" without Restore edit; the Escape that leaves the reply brings
+  // Restore edit and its keys, and the input after that ends the notice.
   onUserInput((event) => {
-    if (!noticeReading().visible) return;
-    const shown =
-      host.dataset.lfRest === "mark" ||
-      (!activeSearch() &&
-        fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()).says ===
-          "notice");
-    if (shown) endHeldNotice(event);
+    if (noticeReading().visible && noticeShown()) endHeldNotice(event);
   });
+  function noticeShown() {
+    if (host.dataset.lfRest === "mark") return true;
+    // None while a search holds the field (`fieldInput`).
+    const input = fieldInput();
+    if (!input || draftOf(input) !== "") return false;
+    const key = trail.value.at(-1)?.thread ?? null;
+    const { notice } = passingFacts(key ? NO_STANDING : STANDING);
+    const { says, end } = fieldReading(key, input);
+    if (!notice || says !== "notice") return false;
+    return (
+      !notice.press || (typeof end === "object" && end !== null && !!pressSays(end))
+    );
+  }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
   // walk's position. The thread walk standing on this thread says only its place,

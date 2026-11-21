@@ -740,15 +740,17 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
         expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
 
 
-def test_a_discarded_rewrite_comes_back(browser, serve):
+@pytest.mark.parametrize("surface", ["panel", "card"])
+def test_a_discarded_rewrite_comes_back(browser, serve, surface):
     """Escape throws a rewrite's changed words away, so an accidental press could lose a
     long rewrite for good. Restore discarded edit opens the message on those exact words
     again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore.
     A listener hears that shortcut with the notice, though the caret is in the reply box
-    where it types letters, since the words are said once. The field says nothing that
-    passes under the caret, so the notice waits there, and the Escape that leaves the
-    box shows it rather than ending it."""
-    page, _, message = _rewrite_surface(browser, serve, "panel")
+    where it types letters, since the words are said once. With the caret there the
+    panel's field shows no Restore edit: in the panel's view the field is that box, and
+    beside a margin card `g` would type a letter. So the notice waits, and the Escape
+    that leaves the box shows the press rather than ending the notice."""
+    page, _, message = _rewrite_surface(browser, serve, surface)
     editor = message.locator(".lf-msg-editor leaf-text")
     rewritten = "  Fit both brackets and keep the longer explanation.  "
 

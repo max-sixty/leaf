@@ -351,8 +351,8 @@ def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding
         answer = evaluate_probe(page, "threadOpening", thread)
         if not answer["shown"]:
             error = answer.get("error", "nothing drew it")
-            failed = f"opening thread {thread} to read its widgets: {error}"
-            found[Finding("gate-failed", values={"error": failed})] = None
+            values = {"thread": thread, "error": error}
+            found[Finding("thread-not-drawn", values=values)] = None
         else:
             rendered(page)
             wait_for_probe(page, "pageSettled")

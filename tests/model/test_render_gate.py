@@ -200,6 +200,12 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     )
     assert (unread.ran, unread.status) == (["page code"], 0)
     assert BrowserCheck(["page code"], "Chrome", page_code=[crashed]).ran == []
+    # A thread the page can't open is the page's own failure, read once the browser
+    # has read the rest, so it fails the render check rather than leaving it unread.
+    undrawn = Finding("thread-not-drawn", values={"thread": "t1", "error": "no card"})
+    reading = render_gate_model.RenderReading([undrawn], [])
+    drawn = BrowserCheck(gates, "Chrome", page_code=[], render=reading)
+    assert (drawn.ran, drawn.status) == (gates, 1)
     # No browser at all reads the same way, and says what went unchecked for it.
     missing = Finding("no-browser", values={"error": "no browser launched: none"})
     assert missing.unread and missing.said.startswith("no browser launched: none; ")

@@ -727,6 +727,14 @@ _TEXT = {
             f" finished reading the page: {v['error']}"
         )
     ),
+    # A thread holding a message's HTML that the page couldn't open, read after the rest
+    # of the page: the page's defect, where `gate-failed` is the gate's own.
+    "thread-not-drawn": _fails(
+        _REACHES,
+        lambda at, v: (
+            f"thread {v['thread']} did not open to show its messages: {v['error']}"
+        ),
+    ),
     "probe-failed": _Unread(
         lambda at, v: (
             f"the browser probe module failed before it finished reading the page:"

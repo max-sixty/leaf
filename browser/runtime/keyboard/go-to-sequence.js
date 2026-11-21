@@ -120,13 +120,6 @@ export function createGoToSequence({
   placeThreadEdge,
   stepReading,
 }) {
-  // How a destination in this sequence is written where the sequence itself is not on screen —
-  // a notice naming the way back to a draft that has just gone down, say. Spelled off the
-  // row's own binding, so a rebinding cannot leave a sentence promising the old press.
-  /** @param {Command} row */
-  const formatGoToAddress = (row) =>
-    [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
-
   // ---------- the g sequence: visible page targets ----------
   // These queries declare which page actions join the generated namespace. A link belongs
   // to the authored body, including link apparatus a page widget generated: lf-toc's
@@ -745,7 +738,6 @@ export function createGoToSequence({
 
   return {
     goToStatus,
-    formatGoToAddress,
     setGoToSequence,
     paintGoToHints: hints.paint,
     goToSequenceActive,

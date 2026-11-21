@@ -85,7 +85,8 @@ function commandBound(id) {
  * the sequence its scope opens with, then its own key, a route's included. Each press is
  * a step spelled as a key chip spells it, or in `form`, as a listener hears it. A
  * presentation that draws a command as words with its keys reads it (page-controls.js,
- * a row's `shortcut`). Empty for a command no key reaches.
+ * a row's `shortcut`). A row with routes has a shortcut for each route, so ask for the
+ * route's id. Empty for a command no key reaches.
  * @param {string} id @param {(binding: string) => string} [form] */
 export function commandSteps(id, form = spell) {
   const found = commandBound(id);

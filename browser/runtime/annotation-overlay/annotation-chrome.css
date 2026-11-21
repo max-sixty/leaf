@@ -19,6 +19,63 @@
   ) {
     z-index: var(--lf-z-margin-raised);
   }
+  /* The beacon (writing-beacon.js) wears a thread entry's face at the aim floor, with an
+     arrowhead inside it on the side toward the comment box. It stands in the box's
+     column, inside the window, and in from the edge it points at by what the page shows
+     there: at the head below a page's sticky tab strip, at the foot above what the
+     chrome covers in its column, as the floating panel does on a narrow window. */
+  .lf-writing-beacon {
+    --lf-beacon-inset: 4px;
+    --lf-beacon-arrow: 4px;
+    position: fixed;
+    z-index: var(--lf-z-margin-preview);
+    left: clamp(0px, var(--lf-beacon-left), calc(100% - var(--lf-aim-floor)));
+    width: var(--lf-aim-floor);
+    min-width: var(--lf-aim-floor);
+    height: var(--lf-aim-floor);
+    min-height: var(--lf-aim-floor);
+    pointer-events: auto;
+  }
+  .lf-writing-beacon > .lf-margin-entry-icon {
+    inline-size: 12px;
+    block-size: 12px;
+  }
+  /* The arrowhead is a glyph masked into the press and painted in the ink its face
+     gives it, as a disclosure's arrow is (controls.css), so it chooses no ink of its own. */
+  .lf-writing-beacon::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    translate: -50% 0;
+    inline-size: calc(2 * var(--lf-beacon-arrow));
+    block-size: var(--lf-beacon-arrow);
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 1' preserveAspectRatio='none'%3E%3Cpath d='M0 1 1 0 2 1z'/%3E%3C/svg%3E")
+      center / 100% 100% no-repeat;
+  }
+  .lf-writing-beacon[data-lf-towards="up"] {
+    top: calc(
+      max(var(--lf-top-covered), var(--lf-beacon-head, 0px)) + var(--lf-beacon-inset)
+    );
+  }
+  .lf-writing-beacon[data-lf-towards="up"]::before {
+    top: 2px;
+  }
+  .lf-writing-beacon[data-lf-towards="up"] > .lf-margin-entry-icon {
+    translate: 0 2px;
+  }
+  .lf-writing-beacon[data-lf-towards="down"] {
+    bottom: calc(
+      max(var(--lf-safe-bottom), var(--lf-beacon-foot, 0px)) + var(--lf-beacon-inset)
+    );
+  }
+  .lf-writing-beacon[data-lf-towards="down"]::before {
+    bottom: 2px;
+    scale: 1 -1;
+  }
+  .lf-writing-beacon[data-lf-towards="down"] > .lf-margin-entry-icon {
+    translate: 0 -2px;
+  }
   /* A pane's lane and the frames a sticky header cuts are stacking contexts of their own
      (their clips make them so), so each rises with the row the pointer or the keyboard
      is on. They hold nothing but rows, so focus within one is focus on a row. */

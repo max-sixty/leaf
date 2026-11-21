@@ -311,12 +311,17 @@ BARE_IDENTIFIERS_PAGE = prose_beside_identifiers(lambda name: name)
 # The honest third case with every line an author can write and no wrap: a token split
 # around an inline <code>, which is set smaller and stands 3px lower on the same line
 # (a reading of rect tops called it a wrap and told the author to write <code>); a
-# <br>; a newline under <pre>; loose words either side of a nested table. Each is a
-# line the author drew, and none stands shorter with soft wrapping off.
+# <br>; a newline under a <pre> that keeps its lines (the reading face wraps a <pre>
+# otherwise, and the squeezed cell would wrap its longer line on fonts as wide as
+# macOS's); loose words either side of a nested table. Each is a line the author
+# drew, and none stands shorter with soft wrapping off.
 AUTHORED_LINES_PAGE = (
     WIDE_TABLE_PAGE.replace("<td>value_number_7</td>", "<td>value <code>7</code></td>")
     .replace("<td>value_number_6</td>", "<td>value<br>six</td>")
-    .replace("<td>value_number_5</td>", "<td><pre>def go():\n    return 5</pre></td>")
+    .replace(
+        "<td>value_number_5</td>",
+        '<td><pre style="white-space: pre">def go():\n    return 5</pre></td>',
+    )
     .replace(
         "<td>value_number_4</td>",
         "<td>before <table><tr><td>four</td></tr></table> after</td>",

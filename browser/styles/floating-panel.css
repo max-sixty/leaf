@@ -36,10 +36,14 @@
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
     --lf-fp-press: 28px;
-    /* How far a thread's words stand inside its view's 6px padding: the head's, the
-       quote's and each message's, so all three start on one edge. What marks them
-       off, the quote's rule and a rewrite's frame, stands at the padding. */
+    /* How far the panel's words stand inside its 6px padding: the words of a view's
+       head, a thread's quote, each message and the field, so all of them start on one
+       edge, and a draft's lines stand where the sent message's will. What marks them
+       off, the quote's rule and a rewrite's frame, stands at the padding. A thread
+       sets its own inset (surfaces.css), so the thread's view sets the panel's again
+       (`.lf-fp-messages`). */
     --lf-fp-inset: 8px;
+    --lf-thread-text-inset: var(--lf-fp-inset);
     /* The room the field's words keep at the end of every line for Send, which stands
        in the corner past its 6px end padding (`.lf-fp-field`). */
     --lf-fp-send-room: calc(max(var(--lf-line), var(--lf-aim-floor)) - 6px);
@@ -1824,8 +1828,12 @@
   .lf-fp-plan-step > .lf-fp-plan-steps {
     grid-column: 2 / -1;
   }
+  /* A step's mark centres its symbol in a grid cell. Laid out as a word on a line,
+     the symbol would sit on the line's baseline, below the mark's centre. */
   .lf-fp-plan-mark {
     align-self: center;
+    display: grid;
+    place-items: center;
     width: 16px;
     height: 16px;
     color: var(--lf-quiet);

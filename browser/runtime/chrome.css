@@ -749,6 +749,13 @@ html[data-lf-draw-mode] {
     flex: 1;
     font: var(--lf-font-title);
   }
+  /* Close's ✕, rather than its box, ends where the dialog's words end, as in the
+     floating panel's head. The box reaches past that edge by the room between its
+     edge and the glyph: half of what the face holds beside the 16px icon, plus the
+     3px margin each glyph keeps inside its icon (icon-paths.js). */
+  .lf-dialog-head > .lf-icon-action:last-child {
+    margin-inline-end: calc((16px - var(--lf-icon-action-face)) / 2 - 3px);
+  }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. A row on the user's turn
      stands on the turn's wash, as its margin entry does (controls.css). */
@@ -837,10 +844,10 @@ html[data-lf-draw-mode] {
   .lf-inspection-body h3 {
     margin-block: 10px 2px;
   }
-  /* The title starts where the report's words do, inside the room the report keeps
-     for a focus ring. */
+  /* The title starts, and Close's ✕ stands, where the report's words do, inside the
+     room the report keeps for a focus ring. */
   .lf-inspection-dialog > .lf-dialog-head {
-    padding-inline-start: var(--lf-focus-ring-room);
+    padding-inline: var(--lf-focus-ring-room);
   }
   .lf-inspection-body details {
     margin-block: 10px;

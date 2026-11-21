@@ -393,7 +393,10 @@ block suggestion and a resolved inline thread, with `calc-size()`. Where
 intrinsic-size interpolation is missing it folds from the block's measured pixel
 height, and where `display` can't be animated it keeps an already-retired slot
 drawn with an inline `display` the effect's end removes. Playwright Firefox 155
-needed both on 2026-10-25 and folded the same curve as Chromium.
+needed both on 2026-10-25 and folded the same curve as Chromium. On 2026-11-20
+Playwright Firefox 159.0 (build 1572) still lacked both `calc-size()` and
+`interpolate-size` (`CSS.supports`), while WebKit 27.2 (build 2388) reported
+both, so it takes the native path; its folds were not watched.
 lf-draft's return from its editor (`packages/default/widgets/lf-draft.js`)
 still needs `calc-size()`: its end height is known only after the close lays
 out, and reading it then would clamp a reader at the document foot. In Firefox
@@ -735,10 +738,14 @@ column's properties non-inheriting and passing them down with `inherit`.
 `browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one
 composed root. In engines without it, ordinary insertion restores focus and
 caret but still blurs the descendant and reloads an iframe. Playwright WebKit
-26.6 lacked the API on 2026-10-10. Recheck native state preservation before
-removing the fallback; `test_retained_moves_keep_native_editor_and_frame_state`
-in `tests/browser/controls/test_focus.py` exercises native and forced-fallback
-paths in Chromium. API presence alone does not prove preservation.
+26.6 lacked the API on 2026-10-10, and WebKit 27.2 (build 2388) still lacked it on
+2026-11-20. That day Playwright Firefox 159.0 (build 1572) had it: a focused input
+moved with its iframe to another parent kept focus, its caret and the frame's
+document, as in Chromium 159.0.8154.6 (build 1255). Recheck native state
+preservation before removing the fallback;
+`test_retained_moves_keep_native_editor_and_frame_state` in
+`tests/browser/controls/test_focus.py` exercises native and forced-fallback paths
+in Chromium. API presence alone does not prove preservation.
 
 Chromium 153.0.8010.12 also left a focused node unmatched by its own
 `:focus-within` after moves through a hidden parent on 2026-10-12. Leaf's focus
@@ -812,20 +819,25 @@ Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
 
-### A control's own arrows after focus leaves it in Chromium
+### A control's own arrows after focus leaves it in Chromium and WebKit
 
 A key pressed at a control the user has scrolled away from lets go of it first
-(`keyboard/controller.js`), and Chromium still applies a radio's, slider's or
-select's own arrows at the control the key was aimed at: a radio's ArrowDown checked
-the next radio and scrolled the page back to it, a slider's ArrowRight stepped its
-value, and a closed select's ArrowDown kept focus and scrolled the page back to it.
-Playwright Chromium 156.0.8078.4 did each of these, and Playwright Firefox 157.0 did
-none, scrolling the page by the arrow from where focus had gone, on 2026-11-04. The
-controller withholds those arrows in every engine (focus.js,
-`controlNavigationKeys`), so the arrow that lets go scrolls nothing. Recheck on a
-plain page holding two radios of one name, the first checked and focused, whose
-capturing `keydown` listener on the document blurs the focused element: the gap is
-closed when ArrowDown leaves the first radio checked.
+(`keyboard/controller.js`), and Chromium and WebKit still apply a radio's, slider's
+or select's own arrows at the control the key was aimed at: a radio's ArrowDown
+checked the next radio and scrolled the page back to it, a slider's ArrowRight
+stepped its value, and a closed select's ArrowDown kept focus and scrolled the page
+back to it. Playwright Chromium 156.0.8078.4 did each of these, and Playwright
+Firefox 157.0 did none, scrolling the page by the arrow from where focus had gone,
+on 2026-11-04. On 2026-11-20, on a plain page whose capturing `keydown` listener
+blurs the focused element, Playwright Chromium 159.0.8154.6 (build 1255) and WebKit
+27.2 (build 2388) each checked the next radio and left focus on it, stepped the
+slider, and left focus on the select, while Firefox 159.0 (build 1572) did none of
+these; that page didn't scroll the controls away first. The controller withholds
+those arrows in every engine (focus.js, `controlNavigationKeys`), so the arrow that
+lets go scrolls nothing. Recheck on a plain page holding two radios of one name, the
+first checked and focused, whose capturing `keydown` listener on the document blurs
+the focused element: the gap is closed in an engine when ArrowDown leaves the first
+radio checked there.
 
 ### A stuck sticky box bounces with the page
 
@@ -1062,7 +1074,7 @@ bars). Once they match in both, the attribute and its rule can go.
 `test_a_card_that_scrolls_gives_its_scrollbar_room` in
 `tests/browser/margin/test_card_reply.py` covers the card in Chromium.
 
-### A landing in a skipped `content-visibility: auto` box in Firefox
+### A landing in a skipped `content-visibility: auto` box in Firefox and WebKit
 
 Firefox 157 (Playwright's build, macOS) leaves a `content-visibility: auto` box skipped
 after script scrolls to an element inside it until the box itself intersects the view
@@ -1080,8 +1092,25 @@ sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), but long
 tokens, which Firefox also breaks after a slash, fill more lines than that: with the
 run left skipped, a jump past them stopped 104 px short and a second scroll followed.
 `test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` covers it
-in both engines. To recheck, drop `drawForLanding` and travel past long tokens in
-Firefox.
+in both engines.
+
+A row at the head of its run moves even with the run drawn, in Firefox and WebKit. On
+2026-11-20 a plain page held 200 runs of 20 wrapped rows, each run
+`content-visibility: auto; contain-intrinsic-size: auto 400px`, never drawn and
+several times taller drawn than that estimate, in a 400 by 600 px window. An instant
+scroll write put a row 150 px below the window's top, so the run above it stood
+partly in view, and the row's top was read over the next five frames. Playwright
+Chromium 159.0.8154.6 (build 1255) held every row at 150 px. In Firefox 159.0
+(build 1572) a row inside its run moved 2,000 px up at the second frame, and held
+with its run drawn for the jump, as `drawForLanding` draws it; the run's first row moved
+2,000 px down at the second frame either way. In WebKit 27.2 (build 2388) rows
+inside the run held without drawing, and the run's first row moved 1,400 px down at
+the first frame either way. A `scrollIntoView` to the window's top landed every row
+in all three engines. Whether a text document's landings, with its runs sized to
+their lines, meet the head-row case was not assessed. To recheck, drop
+`drawForLanding` and travel past long tokens in Firefox, and run that page in
+Firefox and WebKit: the first gap stands while a row inside an undrawn run moves, and
+the second while the run's first row moves with its run drawn.
 
 ### A skipped `content-visibility: auto` box keeps its drawn height
 

@@ -41,11 +41,18 @@ registration. Each Leaf a hook passes through registers the session before
 handing the hook on (`hooks.main`). Where this file differs between the copy Claude Code
 loaded, whose client a sandboxed bare `leaf` runs, and the Leaf delivering for the
 session, both bridges then serve it. The running bridge holds its lease
-(`leases.take_lease`). A hook registers its session before it
-tries the lease, and a retiring bridge releases the lease before it reads the
-registrations again, so a session that registers meanwhile either keeps this
-bridge serving or has started the next one. A client counts a bridge up only once
-it accepts the request, so one that reaches a retiring bridge tries again. A client that falls silent before its
+(`leases.take_lease`). A hook registers its session and tries the lease under the
+registrations' lock, and a retiring bridge reads the registrations a last time
+and releases the lease under that lock too (`retire`), so a session that
+registers meanwhile either keeps this bridge serving, its lease held throughout,
+or has started the next one. A hook that takes the lease removes the
+address a gone bridge left before it lets the registrations' lock go, so once
+another hook can find the lease held the address is absent or the holder's. A
+client counts a bridge up only once it accepts the request, so one that reaches a
+retiring bridge tries again, and it waits for the address for as long as a bridge
+holds the lease, since a slow start only makes that wait longer; with no
+holder it fails at once, contacting no address, since a gone bridge's port may
+now be another listener's. A client that falls silent before its
 command's exit status, as when Claude Code times the command out, ends the
 command's process group.
 """
@@ -69,9 +76,17 @@ import time
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .leases import release_lease, take_lease
+from .leases import lock_is_held, release_lease, take_lease
 from .piped_input import STDIN_PIPED, piped
-from .state import PLUGIN_ROOT, STRING, Record, described, object_schema, state_home
+from .state import (
+    PLUGIN_ROOT,
+    STRING,
+    Record,
+    described,
+    flocked,
+    object_schema,
+    state_home,
+)
 
 ADDRESS = Record(
     "bridge",
@@ -128,6 +143,12 @@ SILENCE_SECONDS = 20
 # How often the bridge looks for a registered session still alive.
 SWEEP_SECONDS = 15
 
+# How often a client looks for the bridge's address, and how many refusals from a
+# published bridge, or the proxy in front of it, it takes before it gives up: the
+# proxy may refuse 127.0.0.1 until the user approves it.
+POLL_SECONDS = 0.1
+REFUSALS = 50
+
 
 def send(stream, channel: bytes, data: bytes) -> None:
     stream.write(HEADER.pack(channel, len(data)) + data)
@@ -162,9 +183,17 @@ def ensure(session: str, lifetime: dict) -> None:
     registration = {"id": session, **lifetime}
     named = json.dumps(registration, sort_keys=True).encode()
     digest = hashlib.sha256(named).hexdigest()[:32]
-    REGISTRATION.write(sessions / f"{digest}.json", registration)
-    if (lease := take_lease(bridge_path("lock"))) is None:
-        return
+    # Under the lock a retiring bridge releases its lease under (`retire`).
+    with flocked(bridge_path("sessions.lock")):
+        REGISTRATION.write(sessions / f"{digest}.json", registration)
+        lease = take_lease(bridge_path("lock"))
+        if lease is None:
+            return
+        # An address left while no bridge held the lease is a gone bridge's, as
+        # after a crash or a reboot, so a client waits for the new one's (`run`).
+        # It goes before the lock does, so a hook that then finds the lease held
+        # hands its client no address but the new bridge's.
+        bridge_path("json").unlink(missing_ok=True)
     # Closing this copy leaves the lease held by the bridge's.
     with lease, open(bridge_path("log"), "ab") as log:
         subprocess.Popen(
@@ -294,21 +323,29 @@ def serve(lease_fd: int) -> None:
         {"port": server.server_address[1], "token": token, "pid": os.getpid()},
     )
 
-    def retire(lease) -> None:
-        while True:
-            time.sleep(SWEEP_SECONDS)
-            if running or live_sessions():
-                continue
-            release_lease(lease)
-            if not live_sessions():
-                break
-            if (lease := take_lease(bridge_path("lock"))) is None:
-                break  # a session registered and started the next bridge
+    def retiring() -> None:
+        retire(lease, running)
         server.shutdown()
 
-    threading.Thread(target=retire, args=(lease,), daemon=True).start()
+    threading.Thread(target=retiring, daemon=True).start()
     server.serve_forever()
     server.server_close()
+
+
+def retire(lease, running: set[int]) -> None:
+    """Hold the bridge's lease while a command it runs or a session registered
+    with it lives, then release it. The last read of the registrations and the
+    release share the lock a hook registers under (`ensure`), so a hook that finds
+    the lease held has registered a session this bridge goes on serving, and its
+    client never finds the lease unheld while this bridge serves it (`run`)."""
+    while True:
+        time.sleep(SWEEP_SECONDS)
+        if running or live_sessions():
+            continue
+        with flocked(bridge_path("sessions.lock")):
+            if not live_sessions():
+                release_lease(lease)
+                return
 
 
 def pour(stdin: queue.Queue, pipe) -> None:
@@ -345,6 +382,24 @@ def connect(port: int) -> socket.socket:
     return tunnel.sock
 
 
+def attempt(record: dict, request: dict):
+    """The stream to the bridge at `record` once it accepts `request`, or None
+    and why not, with whatever the attempt opened closed."""
+    stream = None
+    try:
+        with connect(record["port"]) as connection:
+            stream = connection.makefile("rwb")
+        send(stream, REQUEST, json.dumps(request | {"token": record["token"]}).encode())
+        if receive(stream) == (ACCEPTED, b""):
+            return stream, None
+        refusal = "the bridge closed the connection"
+    except OSError as error:
+        refusal = str(error)
+    if stream is not None:
+        stream.close()
+    return None, refusal
+
+
 def run(argv: list[str]) -> int:
     """Run `leaf ARGV` through the bridge and relay its output; its exit status."""
     env = {
@@ -359,33 +414,39 @@ def run(argv: list[str]) -> int:
     except OSError:
         env[STDIN_PIPED] = "0"
     request = {"argv": argv, "cwd": os.getcwd(), "env": env, "python": sys.executable}
-    # A bridge a hook has just started takes a moment to publish its address, and a
-    # retiring one closes connections it has not accepted. Its pid may be in
-    # another namespace, so only its acceptance says it is up.
-    refusal = "no bridge has published its address"
-    for _ in range(50):
+    # A bridge a hook has just started publishes its address once it has loaded,
+    # however long that takes on a loaded machine, and holds the lease meanwhile;
+    # a retiring one closes connections it has not accepted. Its pid may be in
+    # another namespace, so the lease says whether one runs, and only its
+    # acceptance says it is up.
+    refusals = 0
+    while True:
+        # An address with no lease holder is a gone bridge's, and its port may
+        # now be another listener's, which could hold the request unanswered.
+        if not lock_is_held(bridge_path("lock")):
+            print(
+                "leaf: no Leaf bridge is running to take this command out of Claude "
+                "Code's sandbox. Leaf's hook starts the bridge before a Bash command "
+                "whose own text runs `leaf`, not one inside a script or `bash -c`",
+                file=sys.stderr,
+            )
+            return 1
         if record := ADDRESS.read(bridge_path("json")):
-            try:
-                stream = connect(record["port"]).makefile("rwb")
-                body = json.dumps(request | {"token": record["token"]})
-                send(stream, REQUEST, body.encode())
-                if receive(stream) == (ACCEPTED, b""):
-                    break
-                refusal = "the bridge closed the connection"
-            except OSError as error:
-                refusal = str(error)
-        time.sleep(0.1)
-    else:
-        print(
-            "leaf: this command could not reach Leaf's bridge out of Claude Code's "
-            f"sandbox ({refusal}). Leaf's hook starts the bridge before a Bash "
-            "command whose own text runs `leaf`, not one inside a script or "
-            "`bash -c`, and the sandbox lets a command reach it once you approve "
-            "127.0.0.1 or add it to sandbox.network.allowedDomains "
-            f'("Agent sandboxes" in {PLUGIN_ROOT / "README.md"})',
-            file=sys.stderr,
-        )
-        return 1
+            stream, refusal = attempt(record, request)
+            if stream is not None:
+                break
+            refusals += 1
+        if refusals == REFUSALS:
+            print(
+                "leaf: this command could not reach Leaf's bridge out of Claude "
+                f"Code's sandbox ({refusal}). The sandbox lets a command reach it "
+                "once you approve 127.0.0.1 or add it to "
+                "sandbox.network.allowedDomains "
+                f'("Agent sandboxes" in {PLUGIN_ROOT / "README.md"})',
+                file=sys.stderr,
+            )
+            return 1
+        time.sleep(POLL_SECONDS)
     writing = threading.Lock()
 
     def write(channel: bytes, data: bytes) -> None:

@@ -92,9 +92,9 @@ const record = (kind, next_actor, changes = {}) => ({
   ...changes,
 });
 
-// The document a thread's frozen board is captured into: the reply `e2` in thread
+// The document a board sent in a thread is captured into: the reply `e2` in thread
 // `e1` holds the board `feeder-board`.
-const FROZEN_BOARD = {
+const THREAD_BOARD = {
   registry: {},
   revision: 1,
   descriptors: new Map([
@@ -108,7 +108,15 @@ const FROZEN_BOARD = {
     ],
   ]),
   messageBodies: new Map([
-    ["e2", { text: "Here is the board.", document: { thread: "e1", message: "e2" } }],
+    [
+      "e1",
+      new Map([
+        [
+          "e2",
+          { text: "Here is the board.", document: { thread: "e1", message: "e2" } },
+        ],
+      ]),
+    ],
   ]),
 };
 
@@ -222,7 +230,7 @@ test("a fork's working line is the thread's live step while its update reads On 
   const forked = workflow("root", { ...WORKING, seen: false });
   const [record] = readThreadRecords(
     [servedThread([root, line], { attention: forked.obligation })],
-    FROZEN_BOARD,
+    THREAD_BOARD,
     new Map(),
     [forked],
     [owed(forked, { state: "running" })],
@@ -254,7 +262,7 @@ test("a to-do whose start stopped keeps its last line on the thread, no longer l
     };
     const [record] = readThreadRecords(
       [servedThread([root], { attention: todo.id })],
-      FROZEN_BOARD,
+      THREAD_BOARD,
       new Map(),
       [],
       [todo],
@@ -321,13 +329,13 @@ test("a thread an open to-do holds waits on the agent in the to-do's words", () 
   });
 });
 
-test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
+test("a thread move that owes nothing leaves an owed thread on the user alone", () => {
   // The server's reading: the agent asked over a board it sent, and the user moved a
   // card without answering. The move stands in the thread but does not hold it.
-  const { threads, workflows, obligations } = servedReading("frozen move owes nothing");
+  const { threads, workflows, obligations } = servedReading("thread move owes nothing");
   const [held] = readThreadRecords(
     threads,
-    FROZEN_BOARD,
+    THREAD_BOARD,
     new Map(),
     workflows,
     obligations,
@@ -355,7 +363,7 @@ test("a send this tab has not delivered ranks below the served workflows of its 
   assert.equal(strongestWorkflow([]), null);
 });
 
-test("page widget workflows are revision-bounded independently of frozen widgets", () => {
+test("page widget workflows are revision-bounded independently of thread widgets", () => {
   const widget = workflow("widget", WORKING, {
     revision: 2,
     subject: { kind: "widget", id: "choice" },
@@ -364,8 +372,8 @@ test("page widget workflows are revision-bounded independently of frozen widgets
   });
   assert.equal(isPageWidgetWorkflow(widget, 1), false);
   assert.equal(isPageWidgetWorkflow(widget, 2), true);
-  const frozen = { ...widget, subject: { kind: "widget", id: "frozen" } };
-  assert.equal(isPageWidgetWorkflow({ ...frozen, thread: "root" }, 2), false);
+  const threadWidget = { ...widget, subject: { kind: "widget", id: "thread-widget" } };
+  assert.equal(isPageWidgetWorkflow({ ...threadWidget, thread: "root" }, 2), false);
 });
 
 test("a thread the user is still sending waits on that send", () => {
@@ -650,10 +658,10 @@ test("pending thread gestures fold in the order the user made them, as the log w
   assert.deepEqual(fold(resolved, undo).resolved, resolved.resolved);
 });
 
-test("a frozen message widget keeps its exact workflow in the message and thread", () => {
+test("a thread widget keeps its exact workflow in the message and thread", () => {
   // The server's reading of a card the user moved on a board the agent sent.
-  const { threads, workflows } = servedReading("frozen move owes nothing");
-  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  const { threads, workflows } = servedReading("thread move owes nothing");
+  const [record] = readThreadRecords(threads, THREAD_BOARD, new Map(), workflows);
   assert.deepEqual(
     record.msgs.map((message) => message.workflows.map(({ id }) => id)),
     [[], ["e3"]],

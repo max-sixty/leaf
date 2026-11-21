@@ -515,7 +515,7 @@
         line
           .trim()
           .replace(/^at /, "")
-          .replace(/https?:\/\/[^/]+\/(?:revisions\/[^/]+\/[^/]+\/)?/, ""),
+          .replace(/https?:\/\/[^/]+\/(?:revisions\/[^/]+\/)?/, ""),
       );
   // Scroll writes that move nothing on purpose, as `EXPECTED` lists DOM writes:
   // CodeMirror's measure puts back the scroll its height map anchors, which the browser

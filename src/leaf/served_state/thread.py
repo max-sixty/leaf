@@ -1,5 +1,7 @@
 """Thread-scoped browser projection."""
 
+from collections.abc import Callable
+
 from ..events import (
     active_summaries,
     bare_reaction,
@@ -7,9 +9,9 @@ from ..events import (
     owed_turns,
     progress_completions,
     seat_root,
-    turn_message,
+    spoken_turns,
 )
-from ..projection import FrozenThreadReading
+from ..projection import ThreadMarkupReading
 from ..read_state import content_version, unread_content
 from ..schema import agent_name
 from .wire import browser_projection
@@ -20,8 +22,8 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
 
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
-    address let an answer whose address had moved stand beside its own placeholder, and
-    the panel drew the draft rather than the answer the log held.
+    address would let an answer whose address has moved stand beside its own
+    placeholder, and the panel draw the draft rather than the answer the log holds.
     """
     return any(
         event.get(named) == live_reply[named] for named in ("attempt", "responds")
@@ -72,18 +74,53 @@ def thread_counts(threads: list[dict]) -> dict:
     }
 
 
+def progress_ends(
+    thread: dict, owed_since: int | None, runs: Callable[[dict], bool]
+) -> dict[str, str | None]:
+    """What ended each progress message `thread` no longer shows, by its id: the
+    agent message that superseded it (`events.progress_completions`), or None where
+    the turn that wrote it has ended (`runs`, `activity.turn_runs`) and no message of
+    the user's said before it still waits on an answer (`owed_since`, the seq of the
+    oldest one that does, or None). So a thread shows only its newest steps, and only
+    while the work they belong to goes on.
+
+    A step toward an answer still owed stands until the agent next speaks in its
+    thread (`events.progress_completions`), whichever turn or session writes that, as
+    the line a line fork writes for the session does (`forks.py`), which names no
+    turn of its own. The user chose that a
+    step otherwise goes with its turn, rather than standing as the thread's last word
+    until the agent next speaks there, and that owed work keeps the rule before, under
+    which every step stood until then, even past its session's end, when its On it
+    goes."""
+    superseded = progress_completions(thread)
+    ends: dict[str, str | None] = {}
+    for message in spoken_turns(thread):
+        if not message.get("ephemeral"):
+            continue
+        if (by := superseded.get(message["id"])) is not None:
+            ends[message["id"]] = by["id"]
+        elif (owed_since is None or owed_since > message["seq"]) and not runs(message):
+            ends[message["id"]] = None
+    return ends
+
+
 def browser_thread(
-    work, live_reply: dict | None = None
-) -> tuple[dict, FrozenThreadReading]:
-    """Serialize the shared frozen-thread work reading, adding presentation only.
+    work, live_reply: dict | None, runs: Callable[[dict], bool]
+) -> tuple[dict, ThreadMarkupReading]:
+    """Serialize the shared thread-markup work reading, adding presentation only.
     Messages and closing events carry their canonical display name; provisional
-    replies and unread/summary protection never become durable work authority.
+    replies and unread state never become durable work authority.
 
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
-    bubble with nothing in it."""
+    bubble with nothing in it. An agent's message whose current Markdown holds HTML
+    carries `html` (`thread_context.thread_structure`), which the browser draws as
+    markup. A progress message the thread no longer shows carries `completed_by`
+    (`progress_ends`), where `runs` says whether the turn that wrote an event still
+    runs."""
     events, threads = work.events, work.threads
-    reading, thread_obligations = work.thread, work.thread_obligations
+    reading = work.thread
+    fragments = reading.structure.fragments
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -93,32 +130,15 @@ def browser_thread(
     for event in events:
         if is_answer(event):
             first_answers.setdefault(event["responds"], event["id"])
+    owed_since: dict[str, int | None] = {}
     for thread_id, thread in threads.items():
-        protected = set()
-        if owed := owed_turns(thread):
-            protected.add(turn_message(owed[-1]))
-        protected.update(
-            item["message"]
-            for item in thread_obligations["unanswered"]
-            if item["thread"] == thread_id and item["source"]["kind"] == "message"
-        )
-        obligation_sources = {
-            item["source"]["id"]
-            for item in thread_obligations["unanswered"]
-            if item["thread"] == thread_id and item["source"]["kind"] == "widget"
-        }
-        for message_id, fragment in reading.structure.fragments.items():
-            if obligation_sources.intersection(fragment.by_id):
-                protected.add(message_id)
-        summaries = summaries_for[thread_id]
-        for summary in summaries:
-            summary["protected"] = [
-                identity for identity in summary["covers"] if identity in protected
-            ]
+        owed = owed_turns(thread)
+        owed_since[thread_id] = owed[0]["seq"] if owed else None
         messages = [
             {
                 **_named(message),
                 **_answer_key(message, first_answers),
+                **({"html": True} if message["id"] in fragments else {}),
                 "content_version": content_version(message),
             }
             for message in thread["msgs"]
@@ -126,11 +146,11 @@ def browser_thread(
         rendered_threads.append(
             {
                 # A thread's turn and closure histories are the server's to read
-                # (`unanswered_turns`, `provenance.saved_after`).
+                # (`unanswered_turns`, `provenance.saved_after`, `obligations`).
                 **{
                     key: value
                     for key, value in thread.items()
-                    if key not in ("turns", "closures", "answered_by")
+                    if key not in ("turns", "closures", "closings", "answered_by")
                 },
                 "msgs": messages,
                 "root": next(
@@ -141,7 +161,7 @@ def browser_thread(
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
-                "summaries": summaries,
+                "summaries": summaries_for[thread_id],
                 "unread": unread[thread_id],
             }
         )
@@ -179,13 +199,13 @@ def browser_thread(
                     "pending": live_reply["state"] == "active",
                 },
             ]
-    # Presentation keeps the raw messages so a surface can retain progress while its
-    # answer is held. The same relation includes an answer already streaming here.
+    # Presentation keeps the raw messages so a surface can retain progress while the
+    # message that ended it is held. An answer already streaming here ends it too.
     for thread in rendered_threads:
-        completed = progress_completions(thread)
+        ends = progress_ends(thread, owed_since[thread["id"]], runs)
         for message in thread["msgs"]:
-            if reply := completed.get(message["id"]):
-                message["completed_by"] = reply["id"]
+            if message["id"] in ends:
+                message["completed_by"] = ends[message["id"]]
     return (
         {
             "projection": browser_projection(

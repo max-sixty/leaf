@@ -10,7 +10,7 @@ settled, and emits two readings of them, each the one home of its facts:
   reply answered it. `obligations.response_address` derives the operation, one of:
 
   - `{"kind": "reply", "parent": <message>, "responds": <event>}` — a thread message, or an
-    action in an answered obligation in frozen thread markup. The agent answers it with
+    action in an answered obligation in thread markup. The agent answers it with
     `leaf thread reply <answer.ref>`.
   - `{"kind": "markup", "action": <action>}` — a page action that is part of its
     widget's answered obligation and the authored markup does not yet record, answered
@@ -41,8 +41,8 @@ no obligation, such as an edit to a user-owned draft or a moved card, owes nothi
 publishes none. The log goes on applying it to later readings of the document, and `page
 check` makes the next version write any part of it the markup must record. Its receipt
 shows until the document takes it in: on the page, until the markup records it or a
-later version's note takes it in (`page_action_unsettled`); in a thread's frozen markup,
-which no version rewrites, until the agent's next message in that thread or a resolution
+later version's note takes it in (`page_action_unsettled`); in thread markup, which no
+version rewrites, until the agent's next message in that thread or a resolution
 after it. A settled page action leaves the inventory: its widget's own record carries
 its ending. A turn or an owed action the user's resolve closed over keeps its record and
 its workflow, since that resolve settles nothing the agent owes; a closing that answers
@@ -378,10 +378,9 @@ def handed_over(
         obligation: str | None,
         covering: list[dict],
     ) -> dict:
-        """One update's workflow. `covering` are the starts that take it in hand for the
-        turn that wrote them, which is how the Stop hook tells an update the open turn
-        has started (`activity.started_in_turn`): the one holding it, and in a thread
-        every start on an input the thread's one reply answers."""
+        """One update's workflow. `covering` are the starts that take it in hand, from
+        which `activity.in_hand` tells whether a start holds it now: the one holding
+        it, and in a thread every start on an input the thread's one reply answers."""
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
@@ -415,6 +414,7 @@ def handed_over(
                     "session": held.get("session"),
                     "turn": held.get("turn"),
                     "seq": held["seq"],
+                    "ts": held["ts"],
                 }
                 for held in covering
             ],
@@ -508,7 +508,7 @@ def handed_over(
             )
 
     # Every widget action the user has handed over keeps its delivery receipt until
-    # it settles, whether the widget stands in the page or was frozen into thread
+    # it settles, whether the widget stands in the page or in thread
     # markup, and only an action in an answered obligation is owed an answer. An action on an
     # obligation the user is still answering has not been handed over, so it has no receipt
     # until the finishing action carries one. The two documents differ only in what
@@ -524,12 +524,12 @@ def handed_over(
             coordinate, source, spec, page_settlement, owed=owed
         )
 
-    # Each thread's agent turns that settle frozen actions: the inputs they answer,
-    # and when the newest was said.
+    # Each thread's agent turns that settle thread-widget actions: the inputs they
+    # answer, and when the newest was said.
     settling: dict[str, tuple[set, int]] = {}
 
     def thread_action(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
-        # No later authored document absorbs frozen markup, so the thread's next
+        # No later authored document absorbs thread markup, so the thread's next
         # spoken agent turn is what settles an action there: the reply addressed to an
         # owed action, and for an action that owes nothing any agent turn after it, which
         # has taken the action in as a later version takes in a page action. A reaction
@@ -580,7 +580,7 @@ def handed_over(
     actions = []
     for projection, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
-            # Work the user hasn't sent is no update (`$state.unsent`).
+            # Work the user hasn't sent is no update (`$verbs.unsent`).
             if source["author"] != "user" or spec.get("unsent"):
                 continue
             item = obligation_by_source.get(
@@ -601,10 +601,10 @@ def handed_over(
             )
 
     # One receipt per widget and unit, for the user's newest action on it. A tick and
-    # the Done press that followed are two verbs on one unit, and each minted a line:
-    # the thread showed "✓ Sent · just now" twice under one question. The later action
+    # the Done press that follows are two verbs on one unit, and each would mint a
+    # line, showing "✓ Sent · just now" twice under one question. The later action
     # supersedes the earlier for what the user is owed — that the press landed. In
-    # frozen thread markup the reply answering the newest answers them all. On the page
+    # thread markup the reply answering the newest answers them all. On the page
     # each still settles by its own record: Done hands the tick over rather than
     # replacing it, so the version that takes in the Done still writes the pick, and the
     # receipt stands until every action on the unit has settled.
@@ -622,9 +622,9 @@ def handed_over(
         if unsettled and (on_page or newest[(target["id"], coordinate[1])][0] is source)
     }
     # A harness that gave up on an owed action recorded the failure its answer takes — a
-    # failed pickup for a page action, a failure reply for a frozen one — which hands
+    # failed pickup for a page action, a failure reply for a thread one — which hands
     # the action back to the user until the action settles or a newer action replaces it.
-    # An owed action publishes its record: a frozen one stands in the thread whose
+    # An owed action publishes its record: a thread one stands in the thread whose
     # message holds its widget, a page one in none.
     for source, target, coordinate, _unsettled, owed, on_page in actions:
         key = (target["id"], coordinate[1])
@@ -691,16 +691,16 @@ def handed_over(
             continue
         source = by_id[reply["responds"]]
         thread_id = thread_of[reply["id"]]
-        frozen = source["kind"] in verb_writers()
+        on_widget = source["kind"] in verb_writers()
         publish(
             update_obligation(
                 source["id"],
                 {"kind": "widget", "id": source["widget"]}
-                if frozen
+                if on_widget
                 else {"kind": "thread", "id": thread_id},
                 thread_id,
                 holding_message.get(source["widget"])
-                if frozen
+                if on_widget
                 else turn_message(source),
                 next_actor=None,
                 answer=reply,

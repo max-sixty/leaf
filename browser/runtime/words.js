@@ -6,7 +6,7 @@
 import { COLLAPSE } from "./kernel-facts.js";
 
 // What an empty comment box says, in every box, at rest and with the caret in, in
-// Leaf's voice (voice.js). The user chose these on 5 November 2026, with the ellipsis a
+// Leaf's voice (voice.js). The user chose these, with the ellipsis a
 // box that prompts for words may carry and the italic of words the agent didn't write,
 // over Reply and Comment in the interface's own face.
 export const COMMENT_HINT = "Comment…";
@@ -22,8 +22,8 @@ export const labelWords = (value) =>
 // Words cut to at most `cap` characters, at a word boundary in the second half where
 // there is one, ending in an ellipsis. A long word or unspaced language keeps its prefix.
 // Only enough of a long value to hold more than `cap` characters once collapsed is
-// read, doubling the read until it does. Collapsing and splitting all of a 4 MB
-// document's words for its label took 23 ms in Chromium on every pass that named it.
+// read, doubling the read until it does, since collapsing and splitting all of a large
+// document's words would cost every pass that names it.
 /** @param {unknown} value @param {number} cap */
 export function excerptWords(value, cap) {
   const text = String(value ?? "");
@@ -43,6 +43,14 @@ export function excerptWords(value, cap) {
     return `${excerpt.slice(0, end).join("")}…`;
   }
 }
+
+// The last of a value's words, cut as `excerptWords` cuts the first: at most `cap`
+// characters from a word's start, after an ellipsis where it cut.
+/** @param {unknown} value @param {number} cap */
+export const lastWords = (value, cap) =>
+  [...excerptWords([...String(value ?? "")].toReversed().join(""), cap)]
+    .toReversed()
+    .join("");
 
 // Words a notice names something by, cut as `excerptWords` cuts them, in quotes:
 // “Rollout safety”.

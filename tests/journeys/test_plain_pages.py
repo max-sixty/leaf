@@ -60,7 +60,7 @@ from render_harness import ROOT
 from leaf.event_log import read_events
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.page_code import needs_browser, run_page_code
+from leaf.render_gate.page_code import needs_browser
 from leaf.render_gate.preview import preview_server
 from leaf.render_gate.version import render_version
 from leaf.validation.source import check_source
@@ -68,20 +68,8 @@ from leaf.validation.source import check_source
 SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
-OBSTACLES = {
-    "sideways-refusal": (
-        "the render gate refuses a page that scrolls sideways, so a table wider than a"
-        " narrow window, which the open web lets the page scroll to, is refused"
-    ),
-}
-KNOWN = {
-    "dashboard": {
-        "sideways-refusal": {
-            "page-scrolls ",
-            "past-column <table> in <section id=shards>",
-        },
-    },
-}
+OBSTACLES: dict[str, str] = {}
+KNOWN: dict[str, dict[str, set[str]]] = {}
 
 # A page that builds content after it loads says it has finished as a page does to
 # assistive technology: no region of it is still busy.
@@ -606,19 +594,15 @@ def checked(browser, page_dir: Path):
     )
     with preview_server(page_dir, snapshot) as url:
         assert result.artifact is not None
-        found = (
-            run_page_code(browser, url)
-            if needs_browser(result.document, result.artifact)
-            else []
+        page_code = [] if needs_browser(result.document, result.artifact) else None
+        reading = render_version(
+            browser,
+            url,
+            implementations=result.artifact.implementations,
+            declaration_sources=result.artifact.declaration_sources,
+            page_code=page_code,
         )
-        if not found:
-            assert result.artifact is not None
-            found = render_version(
-                browser,
-                url,
-                implementations=result.artifact.implementations,
-                declaration_sources=result.artifact.declaration_sources,
-            ).failures
+        found = page_code or reading.failures
         yield [(f.code, f"{f.code} {f.at}", str(f)) for f in found], url
 
 

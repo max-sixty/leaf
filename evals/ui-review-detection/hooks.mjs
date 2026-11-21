@@ -20,15 +20,20 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 
 async function stageSite(site) {
   await cp(path.join(FIXTURES, "public"), site, { recursive: true });
-  // The recorded viewer's timeline library has left the tree; history keeps its bytes.
+  // The recorded viewer's timeline library has left the tree; history keeps its
+  // bytes. A shallow clone, such as CI's checkout, fetches the one commit it lacks.
   const { dependency } = JSON.parse(
     await readFile(path.join(FIXTURES, "private/provenance.json"), "utf8"),
   );
+  const git = (...args) => execFileSync("git", args, { cwd: ROOT, stdio: "pipe" });
+  try {
+    git("cat-file", "-e", `${dependency.commit}^{commit}`);
+  } catch {
+    git("fetch", "--quiet", "--depth=1", "origin", dependency.commit);
+  }
   await writeFile(
     path.join(site, "assets/timeline.esm.js"),
-    execFileSync("git", ["show", `${dependency.commit}:${dependency.path}`], {
-      cwd: ROOT,
-    }),
+    git("show", `${dependency.commit}:${dependency.path}`),
   );
 }
 

@@ -44,9 +44,11 @@ export const DELIVERY = Object.freeze({
 });
 // The public website declares the release it serves; a local server declares none.
 export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
-// Where a delivered document's captured layer is addressed. The entry names the
-// immutable revision; the registry probe may instead name the mutable page root so
-// startup can detect a newer layer. Empty where nothing declared an entry.
+// Where a delivered document's captured layer is addressed. The entry names an
+// immutable address for what the document runs, which a page server shares among
+// revisions that differ only in their document; the registry probe may instead name
+// the mutable page root so startup can detect a newer layer. Empty where nothing
+// declared an entry.
 /** @param {Document | DocumentFragment | Element} doc */
 export const layerRoot = (doc) => {
   /** @type {HTMLScriptElement | null} */

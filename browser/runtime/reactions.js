@@ -72,7 +72,6 @@ import {
   rowArrows,
   savedReadingSettled,
 } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
@@ -508,10 +507,8 @@ export function createReactionController({
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding,
     );
+    // The bar stands whole around the ring, so the step says no position.
     focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
-    beginWalk("reaction", "Reaction", () =>
-      listWalkPosition(responseChoices(reactSurface), focused()),
-    );
   }
 
   /** @satisfies {import("./keyboard/bindings.js").Scope} */

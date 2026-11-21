@@ -102,7 +102,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert threads["question"]["resolved"]["id"] == closed["id"]
 
 
-def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation(
+def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation(
     server, page_dir
 ):
     """Reopening restores the thread while its completed choice stays answered."""
@@ -112,10 +112,10 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
         None,
         None,
         None,
-        "Choose an option.",
-        '<lf-ask id="thread-ask"><h2>Choose one</h2>'
-        '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
-        "Thread option</lf-option></lf-options></lf-ask>",
+        "Choose an option.\n\n"
+        '<lf-group id="thread-ask" label="Choose one">\n<h2 id="thread-ask-h">Choose one</h2>'
+        '<lf-options id="thread-picks"><lf-option id="thread-option">'
+        "Thread option</lf-option></lf-options></lf-group>",
     )
     status, body = fetch(
         f"{server}/api/event",
@@ -355,7 +355,7 @@ def test_another_widget_s_answer_holds_a_thread_two_widgets_answered():
 
 def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     """The two halves of a `spoken` reading come from different places. Words are
-    the vocabulary's word — fences, x-says, chrome — but where an element sits is
+    the vocabulary's word — fences, `says`, chrome — but where an element sits is
     recorded off the tag stack before anything asks the registry what it shows.
     That is the whole of what liveness asks a page, and it is why the readings
     that may not raise on the registry gate need give nothing up.
@@ -438,7 +438,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     server, page_dir
 ):
     registry = vocabulary(page_dir)
-    registry["lf-suggestion"]["x-state"]["label"] = {
+    registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {
             "type": "object",
             "properties": {"text": {"type": "string"}},
@@ -514,7 +514,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
 
     registry = registry_storage.require_registry(page_dir)
     registry = deepcopy(registry)
-    registry["lf-suggestion"]["x-state"]["label"] = {
+    registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {"type": "object"},
         "unit": "widget",
     }

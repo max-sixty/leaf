@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     PICKS_PAGE,
     STATED_TIMEOUT,
     Prose,
@@ -33,6 +34,7 @@ from interact_support import (
     delivery_through,
     end_work,
     freeze_events,
+    inlined,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
     obligations_on_user,
@@ -66,6 +68,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.json_block import read_json_block
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 
@@ -174,10 +177,10 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
-    Every debt used to carry the whole protocol with it, so a session holding
-    three pages that owed the same thing spent three copies of the same ninety
-    words saying so — most of what the blocking message weighed, and all of it
-    between one page's line and the next.
+    A debt that carried the whole protocol with it would make a session holding
+    three pages that owe the same thing spend three copies of the same words
+    saying so — most of what the blocking message weighs, and all of it between
+    one page's line and the next.
     """
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
@@ -277,7 +280,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
     assert "no watcher" not in context
@@ -460,7 +463,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert delivered_ref(claimed, follow["id"]) in continued(capsys.readouterr().out)
@@ -755,7 +758,7 @@ cli_model.cli()
 
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
-    assert "1 event nobody has picked up" in err
+    assert "1 event nobody has picked up" in out
     assert declared(page_dir)["state"] == "waiting"
 
 
@@ -818,9 +821,9 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     Working, with the start's line beside it. Work longer than a few minutes goes to
     background workers whose results wake a later turn, so the turn that started the
     move may end over it. Holding that turn made agents post a reply saying only what
-    the start already said. The start does not carry into the next turn, which
-    answers the move or starts it again, and idling still refuses over it: closing
-    the page answers nothing."""
+    the start already said. With no background work the harness reports to carry it,
+    the start does not carry into the next turn, which answers the move or starts it
+    again, and idling still refuses over it: closing the page answers nothing."""
     lease = _watched(claimed)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "sketch both?"}
@@ -847,10 +850,11 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} predates this turn" in prompt["additionalContext"]
+        f"your start on {asked['id']} lapsed when its turn ended"
+        in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} predates this turn" in reason
+    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
     assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -876,7 +880,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} predates this turn" in reason
+    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
@@ -889,7 +893,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
 
 
 def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
-    """A thread's messages share one reply, but a move on an obligation frozen in one of its
+    """A thread's messages share one reply, but a move on an obligation in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
     its answer."""
@@ -901,9 +905,8 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="thread-region" choose>'
-            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            "text": 'Which region?\n\n<lf-options id="thread-region">'
+            '<lf-option id="thread-east" label="East"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -1084,7 +1087,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert not codex_records("codex-thread")
         else:
             # The new owner is offered the update as Codex offers new input.
-            envelope = json.loads(reason)
+            envelope, _ = read_json_block(reason)
             assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")
@@ -1131,7 +1134,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     to a draft that asks nothing is carried by the log and owes nothing: it keeps a
     receipt that reports its delivery, which no count, Stop or `idle` reads, and the
     next version retires it without writing the edit in."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
         "</section>", '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>'
     )
     (claimed / "index.html").write_text(source)
@@ -1192,7 +1195,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("such as a choice group marked `settled`" in text for text in told)
+    assert any("such as an `lf-options` marked `settled`" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)
@@ -1207,7 +1210,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="backfill-first">', '<lf-option id="backfill-first" chosen>'
+            '<lf-option id="backfill-first" label="Backfill first">',
+            '<lf-option id="backfill-first" label="Backfill first" selected>',
         )
     )
     assert stamp(claimed, "Backfill leads").exit_code == 0
@@ -1221,9 +1225,10 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     """An option the user added stands in its group from the log, where the user put
     it, so no version has to place it in the markup. A pick of it is owed a stamped
     version all the same, and a version that leaves the option out settles it; a
-    version still marking an authored option `chosen` does not."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
-        '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+    version still marking an authored option `selected` does not."""
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
+        '<lf-option id="flag-first" label="Flag first">',
+        '<lf-option id="flag-first" label="Flag first" selected>',
     )
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1254,7 +1259,8 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="flag-first" chosen>', '<lf-option id="flag-first">'
+            '<lf-option id="flag-first" label="Flag first" selected>',
+            '<lf-option id="flag-first" label="Flag first">',
         )
     )
     assert stamp(claimed, "Neither yet").exit_code == 0
@@ -1263,9 +1269,9 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
 
 def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     """Done finishes a multiple-choice answer without replacing it: the version that
-    takes the answer in still marks the authored picks `chosen`, beside an added option
+    takes the answer in still marks the authored picks `selected`, beside an added option
     that stays the log's, and a version without them leaves the answer owed."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
     for action, detail in [
@@ -1293,7 +1299,8 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="flag-first" label="Flag first" selected>',
         )
     )
     assert stamp(claimed, "Flag first, staged").exit_code == 0
@@ -1313,11 +1320,11 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     if declared == "done-only":
         declare_on_page(
             claimed,
-            lambda registry: registry["lf-options"]["x-awaits"].update(
+            lambda registry: registry["lf-options"]["awaits"].update(
                 answered={"answer": {}}
             ),
         )
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
     lease = _watched(claimed)
@@ -1378,9 +1385,9 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     board = (
         '<lf-board id="triage">'
         '<lf-column id="queue" label="Queued">'
-        '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
-        '<lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>'
-        '<lf-card id="card-c"><strong>Retry budget</strong></lf-card>'
+        '<lf-card id="card-a" label="Rolling expiry"><strong>Rolling expiry</strong></lf-card>'
+        '<lf-card id="card-b" label="Bounded fallback"><strong>Bounded fallback</strong></lf-card>'
+        '<lf-card id="card-c" label="Retry budget"><strong>Retry budget</strong></lf-card>'
         "</lf-column>"
         '<lf-column id="keep" label="Kept"></lf-column>'
         '<lf-column id="pass" label="Passed"></lf-column>'
@@ -1390,8 +1397,8 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
         (page_dir / "index.html").write_text(
             PAGE.replace(
                 "</section>",
-                '<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>'
-                f"{board}</lf-ask></section>",
+                '<lf-group id="triage-decision" label="Which follow-ups should we keep?"><h3 id="triage-decision-h">Which follow-ups should we keep?</h3>'
+                f"{board}</lf-group></section>",
             )
         )
         publish(page_dir)
@@ -1404,8 +1411,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "kind": "comment",
                 "author": "agent",
                 "revision": 1,
-                "text": "Sort these follow-ups.",
-                "markup": board,
+                "text": f"Sort these follow-ups.\n\n{board}",
             },
         )
 

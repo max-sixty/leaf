@@ -4,9 +4,10 @@ The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
 opens a transaction after every tool call, so process inspection and page-event
 semantics are imported only by their callers. A transaction finishes interrupted
-publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
-module:function provider; successful completion calls it under the same append
-lease, and provider failure prevents the caller from acknowledging success.
+publications before admitting a reader. A host that keeps pages outside this machine
+declares the module that commits them there (`commit_provider`); successful
+completion calls its `publish` under the same append lease, and provider failure
+prevents the caller from acknowledging success.
 
 The agent's `waiting` or `idle` declaration is a `status` event in the log
 (`set_status`, read by `activity.declaration`). What the harness observes of the
@@ -25,13 +26,15 @@ import sys
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 from leaf.event_log import (
     _append_event_unlocked,
+    _end_last_line,
     _matching_attempt,
-    _parse_events,
     initialized,
+    read_events,
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
@@ -293,6 +296,17 @@ def claim_records(session_id: str | None = None) -> list:
     return claims
 
 
+def commit_provider() -> ModuleType | None:
+    """The module a host names in `LEAF_PAGE_COMMIT` to keep each page outside this
+    machine, as leaf.page's container keeps its pages in the session's Durable
+    Object, or None where it names none. Leaf acknowledges a page transaction only once
+    the module's `publish(transaction)` returns, and a drafts write only once its
+    `publish_drafts(page_dir, drafts, replaces)` answers with the store the host holds
+    (`drafts.py`); either raising fails what it commits."""
+    provider = os.environ.get("LEAF_PAGE_COMMIT")
+    return importlib.import_module(provider) if provider else None
+
+
 class PageTransaction:
     """One page transition serialized by its append-only log. A `deadline`
     bounds the wait for the log's lock (`flocked`)."""
@@ -309,6 +323,7 @@ class PageTransaction:
         self._lock = flocked(self.page_dir / EVENTS_FILE, deadline=self.deadline)
         self._log = self._lock.__enter__()
         try:
+            _end_last_line(self._log)
             if publications := unfinished_publications(self.page_dir, self.events):
                 from leaf.revisioning import finish_publications
 
@@ -320,9 +335,8 @@ class PageTransaction:
 
     def __exit__(self, exc_type, exc, traceback):
         try:
-            if exc_type is None and (provider := os.environ.get("LEAF_PAGE_COMMIT")):
-                module, name = provider.split(":", 1)
-                getattr(importlib.import_module(module), name)(self)
+            if exc_type is None and (provider := commit_provider()) is not None:
+                provider.publish(self)
         finally:
             assert self._lock is not None
             self._lock.__exit__(exc_type, exc, traceback)
@@ -409,10 +423,6 @@ class PageTransaction:
                     not in {"turn", "turn_opened", "turn_closed", *CLAIM_LIFETIMES}
                 },
             )
-
-    def owned_by(self, harness: Harness | None) -> bool:
-        """Whether this transaction may act for the given waiter."""
-        return claimant_matches(self.active_claim, harness)
 
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
@@ -700,9 +710,7 @@ class PageTransaction:
     @property
     def events(self) -> list:
         if self._events is None:
-            assert self._log is not None
-            self._log.seek(0)
-            self._events = _parse_events(self._log.read())
+            self._events = read_events(self.page_dir)
         return self._events
 
     def matching_attempt(self, event: dict) -> dict | None:
@@ -731,7 +739,7 @@ class PageTransaction:
         return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
-        if not self.owned_by(harness):
+        if not claimant_matches(self.active_claim, harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 

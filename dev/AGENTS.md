@@ -24,12 +24,15 @@ commands a developer reaches for together about one subject, while a command use
 across subjects, such as `probe`, stands at the top. Tooling that CI, a hook or an alias runs is a command too,
 so the repository has no directory of loose scripts. Code two tools need lives in one
 module here that the others import, never through `sys.path`, `PYTHONPATH` or a file
-path. A mechanism only one tool uses stays in that tool's file, and a command is named
-for what it examines rather than for the mechanisms inside it, so the code a new tool
-needs may sit in a command whose name doesn't suggest it. Before writing a mechanism,
+path. A command module is imported only by the CLI and its own tests; where only one
+group's commands need the code, its module is the group's own, named `_name.py` so
+`cli.py` lists it as no command (`journey/_journey.py`). A mechanism
+only one tool uses stays in that tool's file, and a command is named for what it
+examines rather than for the mechanisms inside it, so the code a new tool needs may
+sit in a command whose name doesn't suggest it. Before writing a mechanism,
 or turning a script of your own into a command, search `dev/`, `evals/` and `src/leaf/`
 for code that already does the job, by the calls it has to make (the widget whose markup it writes,
-the library it draws or measures with) rather than by name, as `/developing-leaf`'s
+the library it draws or measures with) rather than by name, as the root `AGENTS.md`'s
 **What it repeats** says. Move what you find into a module here that both tools
 import. The modules beside `cli.py` hold what several tools share already, such as
 the arms and harness sessions in `arms.py`, page directories in `page_fixtures.py`,
@@ -41,8 +44,14 @@ measured by `leaf-dev bench`, so a new page, input or reading belongs in
 ## Experiments
 
 `leaf-dev eval run` runs the catalog, the cases that score Leaf's shipped instructions on
-its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Any other
-question put to a model is an experiment. An experiment adds one folder under `evals/`,
+its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Every path an
+eval hands an author, fork or judge, whether in a prompt, a plugin, a state home or a
+command, lies in the run's stored directory or in a `scratch` one, and no directory on
+it is named after the task, case or arm; a task's files sit at the root of the agent's
+working directory (`arms.stage_task_files`). A path in the checkout carries the
+branch's name, and a task's, case's or arm's name describes the behavior under test,
+so either would prime every arm toward that behavior (`commands/eval/run.py`). Any other question put to a
+model is an experiment. An experiment adds one folder under `evals/`,
 and a `pnpm run eval:<name>` script that runs its config:
 
 - `promptfooconfig.yaml` declares the arms as `providers`, the samples as `tests` and
@@ -79,9 +88,10 @@ and picks nothing.
 
 ## Tests
 
-Developer-tool tests live in `dev/tests/` and run only when explicitly requested.
-They are outside PR CI, main-push CI, the daily suite and landing gates, even when a
-branch changes them. Keep product guarantees in `tests/`, even when a fixture uses a
+Developer-tool tests live in `dev/tests/`. CI's daily scheduled run runs all of them,
+and a failure there reaches Tend like any other on main (`tests/AGENTS.md`, "Selecting
+checks"). No pull request, push to main or landing gate runs them, even when a branch
+changes them. Keep product guarantees in `tests/`, even when a fixture uses a
 developer helper.
 
 A benchmark needs only a couple of broad smoke tests showing that a task reaches the
@@ -99,15 +109,14 @@ pnpm run test:evals
 
 ## Commands with consequences outside `.tmp/`
 
-- `leaf-dev site previews` (as `wt refresh-previews`), `site demo` and
+- `leaf-dev site previews`, `site demo` and
   `site media` publish images to `max-sixty/leaf-assets`; in the tree they change
-  only the pin
-  in `leaf-assets.json` and the README's image URLs.
-  `journey snapshots` accepts reviewed images by moving `leaf-assets.json`'s
-  `thread_snapshots_revision`.
+  only the pin in `.config/leaf-assets.json` and the README's image URLs.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.
+- `leaf-dev eval run` keeps each run in `$XDG_STATE_HOME/leaf-dev/eval/`, linked from
+  `.tmp/eval/`, and deletes a stored run once its link is gone.
 - `leaf-dev journey run` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
   a harness target it uses the host's authenticated accounts, as `leaf-dev eval run` does,
   so CI runs neither; `publish-site` runs the journey against each deployed release

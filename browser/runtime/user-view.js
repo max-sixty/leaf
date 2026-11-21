@@ -89,7 +89,7 @@ function context() {
 /** @param {ViewContext} view @param {ViewReader} reader */
 function readChecks(view, reader) {
   const open = tagsDeclaring(
-    (entry) => entry["x-content"] === "markup" || entry["x-content"] === "members",
+    (entry) => entry.content === "markup" || entry.content === "members",
   );
   return {
     sequence: view.sequence,

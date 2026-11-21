@@ -40,17 +40,17 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 // what Leaf observed of the update's way to the agent, through the harness or the
 // clock, so Leaf says it in its own voice: the update waiting for the agent whether or
 // not the server has logged it yet, a turn taking it in, and every reason it is
-// blocked. The user chose this on 30 October 2026, over words in the agent's voice
-// such as "Got it", which put Leaf's inference in the agent's mouth, and the same
-// day gave the agent the reply it is streaming; on 27 October they chose Leaf's
-// "Queued for Claude" over the agent's "Not seen yet". On 5 November they gave a
+// blocked. The user chose this over words in the agent's voice such as "Got it", which
+// put Leaf's inference in the agent's mouth, and gave the agent the reply it is
+// streaming; they chose Leaf's "Queued for Claude" over the agent's "Not seen yet".
+// They gave a
 // fork's taking an update on the agent's On it, from the moment the fork starts.
 // On leaf.page a write to a page whose agent isn't running waits seconds while its
 // container starts, a wait only that first write pays, so a send that launches it says
-// so until the server has it. The user asked for these words on 10 November 2026.
+// so until the server has it. The user asked for these words.
 // An update a harness queue holds for the agent's next turn reads Queued like any other
-// no turn has taken in: until 14 November 2026 it read "Up next", a word for a
-// difference between two queues that asks nothing different of the user.
+// no turn has taken in: "Up next" would word a difference between two queues that asks
+// nothing different of the user.
 /** @type {Record<NonNullable<Workflow["reason"]>, string>} */
 const REASON_WORDS = Object.freeze({
   stopped: "Stopped",
@@ -120,12 +120,12 @@ export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
-// the newest it holds. Before it says one, and once the work stalls, the workflow's word.
-/** @param {Workflow | null | undefined} workflow @param {string} agent */
-export const workflowStep = (workflow, agent) =>
+// the newest it holds. Before it says one, and once the work stalls, none.
+/** @param {Workflow | null | undefined} workflow */
+export const workflowStep = (workflow) =>
   progressFace(workflow) === "working" && workflow?.detail
     ? agentSays(workflow.detail)
-    : workflowWord(workflow, agent);
+    : null;
 
 /** @param {Workflow} workflow @param {number | null} revision */
 export const isPageWidgetWorkflow = (workflow, revision) =>
@@ -158,8 +158,8 @@ export function strongestWorkflow(workflows) {
 
 // An open to-do's word, wherever it stands, in the agent's voice since it opened the
 // to-do: On it while a start runs on it, else what it means for the user's request,
-// which the user chose over "To-do open" (2026-10-27). One whose start stopped or went
-// quiet says so in Leaf's voice, as an update's does.
+// which the user chose over "To-do open". One whose start stopped or went quiet says
+// so in Leaf's voice, as an update's does.
 /** @param {{readonly state: Workflow["state"], readonly reason: Workflow["reason"]}} todo */
 export const todoWord = (todo) =>
   todo.state === "blocked"

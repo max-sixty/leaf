@@ -1,7 +1,7 @@
 """Chart the latest journey samples kept on this machine, or tabulate their replies.
 
 The chart draws when each sign of the release ask came. The table (`--replies`)
-gives, for each target and case (`journey.CASES`, the harness waiting or working
+gives, for each target and case (`_journey.CASES`, the harness waiting or working
 when the release ask reaches it), the time of the whole reply and the parts it went
 to (`reply_phases.reply_breakdown`), over the kept samples of the latest version
 each target ran in each case, or with `--since` over every sample kept since then,
@@ -13,19 +13,20 @@ import json
 import re
 import statistics
 from datetime import datetime
+from html import escape
 
 import click
 
-from leaf_dev.commands.journey.run import CASES, HARNESS_TARGETS, samples_path
+from leaf_dev.commands.journey._journey import CASES, HARNESS_TARGETS, samples_path
 
-# The milestones the chart draws (`response_times.page_timings`), on the page
+# The milestones the chart draws (`leaf_dev.page_timings`), on the page
 # server's clock from the comment's admission.
 SIGNS = (
-    ("title", "titled", "var(--series-2)"),
-    ("picked up", "opened", "var(--series-5)"),
-    ("work started", "started", "var(--series-1)"),
-    ("progress", "progress", "var(--series-4)"),
-    ("reply", "answered", "var(--series-3)"),
+    ("title", "titled", "var(--lf-series-2)"),
+    ("picked up", "opened", "var(--lf-series-5)"),
+    ("work started", "started", "var(--lf-series-1)"),
+    ("progress", "progress", "var(--lf-series-4)"),
+    ("reply", "answered", "var(--lf-series-3)"),
 )
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.
@@ -39,7 +40,6 @@ def chart_target(sample: dict) -> str:
     return (
         (sample["target"] if harness is None else harness.title)
         + (" through a preview" if sample.get("preview") else "")
-        + (" with forks" if sample.get("forks") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")
     )
 
@@ -218,8 +218,7 @@ def chart_markup(rows: list[dict]) -> str:
     Plot.dot({json.dumps(rows)}, {{x: "s", y: "row", fill: "sign", symbol: "sign", r: 6}}),
   ],
 }}"""
-    escaped = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return f'<lf-chart id="journey-signs" data-height="240"><pre>\n{escaped}\n</pre></lf-chart>'
+    return f'<lf-chart id="journey-signs" data-height="240"><pre>\n{escape(body, quote=False)}\n</pre></lf-chart>'
 
 
 @click.command("chart")

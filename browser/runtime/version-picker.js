@@ -5,7 +5,6 @@
  * never fetches a document, chooses a version, or decides what a comparison means.
  */
 const LATEST_FAILED = "Latest edit couldn't be shown";
-const INITIAL_LATEST = "New page available → open v999";
 
 /** @typedef {{activate: (entry: Readonly<import("./version.js").VersionRow>) => unknown,
  * compare: (version: number | null) => unknown, latest: () => unknown}} VersionCommands */
@@ -38,10 +37,13 @@ class VersionPicker {
 }
 
 export const versionPicker = new VersionPicker();
-/** @param {{failed?: boolean, activeLabel?: string | null}} [reading] */
-export const latestVersionLabel = ({ failed = false, activeLabel = null } = {}) =>
+// The latest control's words, or null while it isn't offered: the save hasn't failed
+// and the page isn't behind.
+/** @param {{failed: boolean, activeLabel: string | null}} reading
+ * @returns {string | null} */
+export const latestVersionLabel = ({ failed, activeLabel }) =>
   failed
     ? LATEST_FAILED
     : activeLabel
       ? `New page available → open ${activeLabel}`
-      : INITIAL_LATEST;
+      : null;

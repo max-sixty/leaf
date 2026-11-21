@@ -6,11 +6,18 @@ read their current bound data through the same canonical work reading.
 A serving context holds this result once; its browser selects the same objects.
 """
 
+from datetime import datetime
 from typing import NamedTuple
 
-from ..activity import canonical_activity, canonical_stream_reply, present_holding
-from ..holding import Holding
-from ..projection import FrozenThreadReading, page_reading
+from ..activity import (
+    Turn,
+    canonical_activity,
+    canonical_stream_reply,
+    current_turn,
+    declared_at,
+)
+from ..events import owed_turns
+from ..projection import ThreadMarkupReading, page_reading
 from ..service import no_stream
 from ..standing import strength
 from ..todos import TodoReading
@@ -28,21 +35,46 @@ class WorkState(NamedTuple):
     records: list[dict]
     live_reply: dict | None
     presence: dict
-    # Who holds each thread, as the fold read it (`activity.present_holding`), which
-    # `leaf page state` names and delivery filters.
-    holding: Holding
+    # The claimant's turn as activity reads it (`activity.current_turn`), which says
+    # whether the turn that wrote a progress message still runs (`activity.turn_runs`).
+    turn: Turn
 
     @property
     def obligations(self) -> list[dict]:
         return self.activity["obligations"]
 
 
+def lined(threads: dict[str, dict]) -> frozenset[str]:
+    """The user's turns the agent owes an answer in `threads` (`events.owed_turns`)
+    that a progress message of the agent's came after, as the line a line fork posts
+    (`forks.py`): those older than the newest the agent hasn't taken back in their
+    thread, until the agent answers them. `activity` reads each as at work while its
+    delivery stands."""
+    found: set[str] = set()
+    for thread in threads.values():
+        owed = owed_turns(thread)
+        if not owed:
+            continue
+        working = max(
+            (
+                message["seq"]
+                for message in thread["msgs"]
+                if message["author"] == "agent"
+                and message.get("ephemeral")
+                and "withdrawn" not in message
+            ),
+            default=0,
+        )
+        found.update(turn["id"] for turn in owed if turn["seq"] < working)
+    return frozenset(found)
+
+
 def served_workflows(
-    workflows: list[dict], thread_reading: FrozenThreadReading, records: dict
+    workflows: list[dict], thread_reading: ThreadMarkupReading, records: dict
 ) -> list[dict]:
     """The page's workflows as the browser and `page state` read them, strongest
     first, each stamped with the thread it stands in: a thread input's own, a widget
-    frozen into a message's thread, or null for a page widget. Whose turn the thread
+    in a message's thread, or null for a page widget. Whose turn the thread
     is reads the records in it, which `records` (`workflows.handed_over`) holds.
 
     The order is the one comparator: an update handed back to the user first (its
@@ -96,7 +128,6 @@ def work_state(
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
-    holding = present_holding(present, events, now)
     activity = canonical_activity(
         present,
         durable.workflows,
@@ -107,15 +138,24 @@ def work_state(
         stream["reply_reservations"],
         todo_reading=log,
         updates=durable.updates,
-        holding=holding,
+        # With no live claimant, no progress message speaks for the page.
+        on_it=lined(durable.threads)
+        if source and present["session_alive"] is True
+        else frozenset(),
     )
     workflows = (
         served_workflows(activity["workflows"], durable.thread, durable.updates)
         if source
         else activity["workflows"]
     )
-    # An open to-do stands where `activity` read it; one frozen into a message's
-    # widget stands in that message's thread.
+    turn, _ = current_turn(
+        present,
+        declared_at(present, events),
+        stream["activity"],
+        datetime.fromisoformat(now),
+    )
+    # An open to-do stands where `activity` read it; one a widget in a message opened
+    # stands in that message's thread.
     stood = {todo["id"]: todo for todo in activity["todos"]}
     todos = [
         {
@@ -135,5 +175,5 @@ def work_state(
         activity["records"] + todos,
         reply,
         present,
-        holding,
+        turn,
     )

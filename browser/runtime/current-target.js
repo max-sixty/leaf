@@ -2,7 +2,7 @@
    Every feature reads this interpretation (glossary, Current target).
 
    An ordinary page node represents itself. So does a node inside any obligation source,
-   answered or not: an obligation frozen into a reply is the user's current target when
+   answered or not: an obligation in a reply is the user's current target when
    they work on it, rather than the page obligation the thread discusses.
 
    A presentation can represent its source target in authored flow or chrome, as its
@@ -13,10 +13,13 @@
    has no page target; a comment from there addresses the whole page.
 
    Each feature derives its answer from that target: the obligation view finds the
-   obligation source or unique enclosing widget; `c` and `e` use its semantic target;
-   walks use its position in page order. An open obligation represented by its card
-   still wears its ring and takes its digits. At an element represented by its own
+   obligation source or the group it stands at alone; `c` and `e` use its semantic
+   target; walks use its position in page order. An open obligation represented by its
+   card still wears its ring and takes its digits. At an element represented by its own
    thread, `c` continues the thread, `r` settles it, and `m` and `t` step from the target.
+   A thread's view stands at the thread's target but is in the question the thread asks
+   now, where it asks one (`questionAsked`): that question wears the ring, takes the
+   digits and is the walk's stop the user is on, from anywhere in the view.
 
    Current location does not imply arrival at the target. The floating panel shows a
    thread or obligation beside the page (`declareSide`'s `beside`). Features that follow
@@ -41,7 +44,8 @@
    the user let go of (focus.js, `onLetGo`) while they still see it, since letting go
    leaves them beside it rather than anywhere else, until they go on from there by
    standing on another page place or by pressing, wheeling or touching the page; failing
-   that, at what they read (reading-place.js, `pageReadingBlock`). Only what they saw as
+   that, at what they see, from the block they read (reading-place.js,
+   `pageReadingBlock`), or a stop on screen ahead of it (`stepFrom`). Only what they saw as
    they let go leaves them beside it: a key pressed after scrolling away lets go of focus
    they no longer see (keyboard/controller.js), and scrolling back to it doesn't put
    them there again. Neither is on a stop. Stepping into Leaf's
@@ -60,14 +64,23 @@ import {
 } from "./focus.js";
 import { seenAhead } from "./scroll-containers.js";
 import { closestAcross, inChrome } from "./passages.js";
-import { THREAD } from "./thread/selectors.js";
+import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
+import { isReaction } from "./thread/model.js";
+import { threadNamed } from "./thread/state.js";
 import { readObligations } from "./obligations/model.js";
-import { obligationPlace } from "./obligations/place.js";
+import { keptEach } from "./kept.js";
+import { obligationPlace, obligationsIn } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
-import { composedParentNode, renderedOrder, renderedUnder, under } from "./shadow.js";
-import { isElement } from "./shadow-tree.js";
+import {
+  byRenderedOrder,
+  isElement,
+  composedParentNode,
+  renderedOrder,
+  renderedUnder,
+  under,
+} from "./shadow-tree.js";
 import { eventSource } from "./pointer.js";
-import { pageReadingBlock } from "./reading-place.js";
+import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
 
 // Each side's reading, and whether it shows its target beside the page.
 /** @type {Map<(node: Element) => Element | null, boolean>} */
@@ -84,13 +97,13 @@ export function declareSide(bridge, { beside = false } = {}) {
   return () => sides.delete(bridge);
 }
 
-// The innermost obligation whose source, or whose own place, is or holds `node`: a
-// widget's enclosing widget, or the element a to-do is on. An enclosing widget shared
-// by several sources cannot identify one of them on its own, so only a source stands for
-// such an obligation (`obligationPlace`). Obligations nest, as a question
+// The innermost obligation whose source, or whose own place, is or holds `node`: the
+// group the author declares round a widget, or the element a to-do is on. A group
+// holding several sources cannot identify one of them on its own, so only a source
+// stands for such an obligation (`obligationPlace`). Obligations nest, as a question
 // inside a proposal's new text does, so the nearest place holding the node names the
-// obligation rather than the kind of place: on the inner question's enclosing widget the user
-// is on that question, not on the proposal whose source holds it. Of two standing at one
+// obligation rather than the kind of place: in the inner question's group the user is
+// on that question, not on the proposal whose source holds it. Of two standing at one
 // place, the first the inventory lists names it. `items` may be a selection, such as
 // those waiting on the user, placed as the whole `inventory` places them. Only the
 // obligations whose place names one of the node's ancestors are placed
@@ -129,36 +142,37 @@ export function obligationHolding(items, node, inventory = items) {
 // (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
 // which stands only at its datum, the widget's id with the datum's key, as the datum
 // carries them (`data-lf-projection`, `data-lf-datum`). Each name keeps the list's
-// order. Read from the records alone, once per list, so it
-// holds however the document changes; a name finds candidates, and placing each says
-// whether it stands there.
-/** @type {WeakMap<readonly import("./framework/application.js").ObligationRecord[], Map<string, [number, any][]>>} */
-const placeNames = new WeakMap();
+// order. Read from the records alone, once per list (kept.js), so it holds however the
+// document changes; a name finds candidates, and placing each says whether it stands
+// there.
+const placeNames = keptEach(
+  /** @param {readonly import("./framework/application.js").ObligationRecord[]} items */
+  (items) => {
+    /** @type {Map<string, [number, import("./framework/application.js").ObligationRecord][]>} */
+    const names = new Map();
+    /** @param {string} name @param {number} order
+     * @param {import("./framework/application.js").ObligationRecord} item */
+    const add = (name, order, item) => {
+      const listed = names.get(name);
+      if (!listed) names.set(name, [[order, item]]);
+      else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
+    };
+    items.forEach((item, order) => {
+      const { source } = item;
+      if (source.kind === "widget" && source.unit) {
+        add(`@${source.id} ${source.unit}`, order, item);
+      } else if (source.kind === "widget") {
+        add(`#${source.id}`, order, item);
+        if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
+      }
+    });
+    return names;
+  },
+);
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @returns {Map<string, [number, T][]>} */
-function namedPlaces(items) {
-  const held = placeNames.get(items);
-  if (held) return held;
-  /** @type {Map<string, [number, T][]>} */
-  const names = new Map();
-  /** @param {string} name @param {number} order @param {T} item */
-  const add = (name, order, item) => {
-    const listed = names.get(name);
-    if (!listed) names.set(name, [[order, item]]);
-    else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
-  };
-  items.forEach((item, order) => {
-    const { source } = item;
-    if (source.kind === "widget" && source.unit) {
-      add(`@${source.id} ${source.unit}`, order, item);
-    } else if (source.kind === "widget") {
-      add(`#${source.id}`, order, item);
-      if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
-    }
-  });
-  placeNames.set(items, names);
-  return names;
-}
+const namedPlaces = (items) =>
+  /** @type {Map<string, [number, T][]>} */ (placeNames(items));
 
 /** @param {Node | null | undefined} node */
 export const placeOf = (node) => placeFrom(node, new Set(), true);
@@ -173,6 +187,45 @@ export const arrivalOf = (node) => placeFrom(node, new Set(), false);
 /** @param {Node | null | undefined} node */
 export const obligationAt = (node) =>
   obligationHolding(readObligations().all, placeOf(node));
+
+// The obligation, answered or not, the user at `node` is in: the question a thread's view
+// asks them (`questionAsked`), else the one holding the place the node stands for
+// (`obligationAt`). The location ring and the digits read it.
+/** @param {Node | null | undefined} node */
+export const obligationIn = (node) => questionAsked(node) ?? obligationAt(node);
+
+// The question a thread asks the user at `node`, where `node` is in a view of the thread
+// outside any obligation drawn there: the first still open of those drawn in the agent's
+// latest message in it. A thread and the question it asks are one target, as an
+// obligation and the thread about it are, and the question comes before the obligation
+// the thread is about: it is what the thread asks of the user now, drawn where they are
+// reading, while the obligation stands on the page, where they answer it. A message
+// asking several moves the user on to the next one still open as they answer, as a form
+// does. Once none is open the thread asks nothing, and the view stands for the
+// obligation it is about again, whose ring shows the user where the next digit goes, so
+// a digit there never revises an answer given in the thread; Tab and a click reach the
+// question for that. The thread asks what its newest agent message asks: a question an
+// older message left open stays in On Me, where `m` reaches it.
+/** @param {Node | null | undefined} node */
+export function questionAsked(node) {
+  const view = closestAcross(node ?? null, THREAD);
+  if (!view) return null;
+  const whole = wholeThread(view);
+  const all = readObligations().all;
+  const held = obligationHolding(all, node ?? null);
+  if (held && under(obligationPlace(held, all).source, whole)) return null;
+  const thread = threadNamed(drawnThreadId(view) ?? "");
+  const latest = thread?.msgs.findLast(
+    (message) => message.author === "agent" && !isReaction(message),
+  );
+  const asked =
+    (latest && thread?.obligations.filter((item) => item.message === latest.id)) || [];
+  const drawn = byRenderedOrder(
+    obligationsIn(whole, asked),
+    (item) => obligationPlace(item, all).source,
+  );
+  return drawn.find((item) => item.state !== "done") ?? null;
+}
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited
  * @param {boolean} countBeside @returns {Element | null} */
@@ -210,11 +263,13 @@ export function holdPagePlace(read) {
 export const heldPagePlace = () => heldPlace()?.focus?.deref() ?? null;
 
 // A current location origin can step off its current stop. An `at` origin arrives at
-// its place; an `enter` origin starts inside its region, from either direction.
+// its place; a `view` origin, read from what the window shows, arrives at a stop the
+// user sees before it (`stepFrom`); an `enter` origin starts inside its region, from
+// either direction.
 // A selected tab enters its panel instead of being on an obligation it may hold. Each
 // names the element it was read from, `node`, which is in a thread's view where the
 // user is in that thread; `place` is null for a thread with no place on the page.
-/** @typedef {{node: Element | null, place: Element | null, kind: "at" | "enter" | "current-location"}} WalkOrigin */
+/** @typedef {{node: Element | null, place: Element | null, kind: "at" | "view" | "enter" | "current-location"}} WalkOrigin */
 /** @returns {WalkOrigin | null} */
 export function currentLocationOrigin() {
   for (const [node, place] of locations()) {
@@ -266,7 +321,8 @@ onUserInput((event) => {
 // Where a walk starts: the user's current location, else what they let go of while
 // they still see it, else what the viewport shows, each read where the glides under way
 // leave it (scroll-containers.js, `seenAhead`; reading-place.js, `readingBlock`). Only a
-// current location can be on a stop; the others are `at` one.
+// current location can be on a stop; the others are `at` one, and the viewport's is a
+// `view`.
 /** @returns {WalkOrigin} */
 export function walkOrigin() {
   const here = currentLocationOrigin();
@@ -275,7 +331,7 @@ export function walkOrigin() {
   const left = node?.isConnected ? placeOf(node) : null;
   if (node && left && seenAhead(left)) return { node, place: left, kind: "at" };
   const block = pageReadingBlock();
-  return { node: block, place: block, kind: "at" };
+  return { node: block, place: block, kind: "view" };
 }
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
@@ -287,10 +343,38 @@ export function walkOrigin() {
 // item with no place stands after every placed one, so it is ahead of any place. A
 // caller whose user is on an item steps off it with `cycledRow` instead; with no
 // `here` the walk enters at the end it faces. An `enter` origin reaches its
-// contained stops first, from the end the direction faces, before leaving it.
+// contained stops first, from the end the direction faces, before leaving it. `at` is
+// an item the caller finds the user at by a reading of its own, as a thread drawn
+// with the place they stand at is (thread/destination.js, `threadAtCurrentLocation`),
+// and the press arrives there.
+//
+// A `view` origin is the block the user reads, the first of the window's words in their
+// column, but a stop is something the user sees whatever its words: a question of
+// options alone, a figure, a widget drawing its own. So the first stop ahead of that
+// block that they see where they read it (reading-place.js, `seenWhereRead`) is where they
+// are, and either press arrives there rather than passing a question in view for the
+// paragraph below it. Only the stops ahead of the block are measured.
 /** @template T @param {readonly T[]} list @param {WalkOrigin} origin
- * @param {import("./keyboard/bindings.js").Step} dir @param {(item: T) => Element | null} placeOfItem */
-export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
+ * @param {import("./keyboard/bindings.js").Step} dir @param {(item: T) => Element | null} placeOfItem
+ * @param {T | null} [at] */
+export function stepFrom(list, { place: here, kind }, dir, placeOfItem, at = null) {
+  if (kind === "view" && here) {
+    const seen = seenWhereRead(here);
+    /** @type {[T, Element] | null} */
+    let first = null;
+    for (const item of list) {
+      const place = placeOfItem(item);
+      if (
+        place &&
+        renderedOrder(place, here) < 0 &&
+        (!first || renderedOrder(place, first[1]) < 0) &&
+        seen(place)
+      )
+        first = [item, place];
+    }
+    if (first) return first[0];
+  }
+  if (at !== null) return at;
   if (!here) return cycledRow(list, null, dir);
   if (kind === "enter") {
     const inside = list.filter((item) => {
@@ -307,8 +391,8 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   return (dir > 0 ? reach[0] : reach.at(-1)) ?? (dir > 0 ? list[0] : list.at(-1));
 }
 
-// The obligation the user is in, answered or not: where letting go lands, and the extent
-// of what `c` counts as the element they are at.
+// The obligation holding the user's place, answered or not: where letting go lands, and
+// the extent of what `c` counts as the element they are at.
 export function heldObligation(node = focused()) {
   return obligationPlace(obligationAt(node)).node;
 }

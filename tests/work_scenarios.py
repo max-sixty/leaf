@@ -81,11 +81,11 @@ class Scenario(NamedTuple):
 
 def _ask(identity: str, question: str, first: str, second: str) -> str:
     return (
-        f'<div id="{identity}-decision"><h3>{question}</h3>'
-        f'<lf-options id="{identity}" choose>'
+        f'<lf-group id="{identity}-decision" label="{question}"><h3>{question}</h3>'
+        f'<lf-options id="{identity}">'
         f'<lf-option id="{identity}-a"><strong>{first}</strong></lf-option>'
         f'<lf-option id="{identity}-b"><strong>{second}</strong></lf-option>'
-        "</lf-options></div>"
+        "</lf-options></lf-group>"
     )
 
 
@@ -100,9 +100,9 @@ def page_with(*asks: str, chosen: tuple[str, ...] = ()) -> str:
     body = "\n".join(asks)
     for option in chosen:
         body = body.replace(
-            f'<lf-option id="{option}">', f'<lf-option id="{option}" chosen>'
+            f'<lf-option id="{option}">', f'<lf-option id="{option}" selected>'
         )
-    start = PAGE.index('  <div id="plan-choice-decision">')
+    start = PAGE.index('  <lf-group id="plan-choice-decision"')
     end = PAGE.index("</section>") + len("</section>")
     return PAGE[:start] + body + "\n</section>\n" + NOTES + PAGE[end:]
 
@@ -202,6 +202,11 @@ class Stage:
         return self.leaf(
             "thread", "reply", self.page, message["id"], "--text", text, *flags
         )
+
+    def close_thread(self, thread: dict) -> dict:
+        """`leaf thread resolve`: the agent's resolve, which ends the questions it
+        asked in the thread and answers for whatever it owed there."""
+        return self.leaf("thread", "resolve", self.page, thread["id"])
 
     def ask(self, text: str, section: str | None = None) -> dict:
         where = ("--section", section) if section else ()
@@ -563,11 +568,12 @@ def s12(stage: Stage) -> Iterator[Checkpoint]:
     stage.turn_ends()
     yield Checkpoint("asked", "The agent asked in a thread.")
     stage.turn_opens()
-    stage.end(f"message:{asked['id']}", "done", "Answered in the session: go ahead.")
+    stage.say(asked, "Answered in the session: go ahead.")
+    stage.close_thread(asked)
     stage.turn_ends()
     yield Checkpoint(
         "answered-elsewhere",
-        "The user answered in the terminal; the agent recorded it.",
+        "The user answered in the terminal; the agent said so and resolved the thread.",
     )
 
 
@@ -674,8 +680,10 @@ def liveness(stage: Stage) -> Iterator[Checkpoint]:
     stage.harness_says("busy")
     stage.page_open()
     yield Checkpoint("put-down", "The agent handed the page over with the work parked.")
+    # The harness has said busy since the dialog closed, before this start: it dates
+    # the word by its last change, which is what keeps a start past its turn
+    # (`activity.start_holds`).
     stage.start(request, "cutting the lede")
-    stage.harness_says("busy")
     stage.turn_ends()
     yield Checkpoint(
         "background",

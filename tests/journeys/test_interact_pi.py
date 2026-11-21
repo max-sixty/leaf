@@ -4,11 +4,10 @@
 `pi_driver.mjs` stands in for Pi around the extension, which calls the real
 launcher, so these hold the extension and the hooks it calls together."""
 
-import json
-
 import pytest
 from interact_support import (
     append_carried_log_record,
+    inlined,
     page_state,
     wait_for,
 )
@@ -121,7 +120,7 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
         if role == "custom"
         else incoming["content"]
     )
-    delivery = json.loads(accepted["content"][-1]["text"].split("\n")[1])
+    delivery = inlined(accepted["content"][-1]["text"])
     assert pi.emit("turn_end") is None
     assert delivery["acknowledge"] is None
     [batch] = delivery["batches"]
@@ -262,7 +261,7 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     )
     assert handed["continue"] is True
     [entry] = handed["entries"]
-    [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
+    [batch] = inlined(entry["content"])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     ref = batch["events"][0]["answer"]["ref"]
     pi.emit("agent_settled", idle=True)

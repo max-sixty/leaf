@@ -132,8 +132,6 @@ def _completed_tasks(
     Removing a target leaves its to-do open on the agent's list; a page edit does not
     establish that the to-do is complete.
     """
-    if len(set(completes)) != len(completes):
-        raise Refused("--completes names each widget at most once")
     todos = [(todo, todo["source"]["subject"]) for todo in TodoReading(events).owed]
     on_widgets = [(todo, on) for todo, on in todos if on["kind"] == "widget"]
     unearned = sorted(set(completes) - {on["id"] for _todo, on in on_widgets})

@@ -3,7 +3,7 @@
  * widgets wear. One rule per package, because what counts as apparatus is a judgement,
  * and a judgement made per
  * widget is a dozen chances to answer it differently. Each label's own rule names its
- * font (tokens.css, `--font-*`), which sets it in the UI sans, so what this rule adds is
+ * font (tokens.css, `--lf-font-*`), which sets it in the UI sans, so what this rule adds is
  * the figures, and it is imported after the widgets' sheets, whose fonts would
  * otherwise set them back.
  *
@@ -13,10 +13,8 @@
  * the chip the number is set in, and moves whatever stands after it. The core's copy
  * of this rule (reading.css) carries the norm it answers. */
 .lf-shotcap,
-lf-sample::before,
-lf-sample > [data-lf-said="label"],
 lf-column::before,
-lf-column > [data-lf-said="label"],
+lf-column > .lf-column-name,
 lf-tab::before {
   font-variant-numeric: tabular-nums;
 }

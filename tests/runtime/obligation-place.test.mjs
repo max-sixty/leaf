@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  obligationsByRegion,
   obligationsIn,
   obligationPlace,
+  regionsAwaiting,
   subjectPlace,
 } from "/runtime/obligations/place.js";
 import { obligationAt, obligationHolding } from "/runtime/current-target.js";
@@ -38,8 +40,9 @@ test("shared context keeps placement and containment specific to each obligation
 });
 
 test("the innermost obligation holding a node is where the user stands", () => {
-  // A question inside a proposal's new text: the proposal's source holds the question's
-  // enclosing widget, where arrival puts the user on the question.
+  // A question inside a proposal's new text: the proposal's source holds the section
+  // framing the question, where arrival puts the user on the question. Nothing frames
+  // the proposal, so it stands at its own source.
   document.body.innerHTML =
     '<div id="change"><p id="text">Walk outside.</p><section id="ask"><h4>Which route?</h4><div id="route"><button>Garden</button></div></section></div>';
   const item = (source, target) => ({
@@ -61,6 +64,7 @@ test("the innermost obligation holding a node is where the user stands", () => {
       assert.equal(obligationHolding(items, at("ask").firstElementChild), route);
       assert.equal(obligationHolding(items, at("route").firstElementChild), route);
       assert.equal(obligationHolding(items, at("text")), change);
+      assert.equal(obligationPlace(change, items).node, at("change"));
     }
   } finally {
     document.body.replaceChildren();
@@ -150,6 +154,59 @@ test("a region holds the live widget obligations whose source is it or stands un
     assert.deepEqual(ids("item"), ["widget:first", "widget:item"]);
     assert.deepEqual(ids("first"), ["widget:first"]);
     assert.deepEqual(ids("outside"), ["widget:outside"]);
+    const regions = ["queue", "item", "first", "outside"].map((id) =>
+      document.getElementById(id),
+    );
+    const byRegion = obligationsByRegion(regions, items);
+    for (const region of regions)
+      assert.deepEqual(
+        byRegion.get(region).map((held) => held.id),
+        ids(region.id),
+      );
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
+test("placing an inventory in many regions reads each obligation's place once", () => {
+  // A side list of tabs or a deck counts every panel or card in one render, so its
+  // cost is the obligations, not the obligations times the regions. Counted in the
+  // ids the placement looks up.
+  /** @param {number} n */
+  const lookups = (n) => {
+    const ids = Array.from({ length: n }, (_, k) => `r${k}`);
+    document.body.innerHTML = ids
+      .map((id) => `<section id="${id}"><div id="${id}-ask"></div></section>`)
+      .join("");
+    const items = ids.map((id) => ({
+      id: `widget:${id}-ask`,
+      thread: null,
+      message: null,
+      state: "waiting",
+      outcome: null,
+      source: { kind: "widget", id: `${id}-ask` },
+      prompt: { target: `${id}-ask` },
+    }));
+    const regions = ids.map((id) => document.getElementById(id));
+    const lookup = document.getElementById;
+    let count = 0;
+    document.getElementById = function (id) {
+      count++;
+      return lookup.call(this, id);
+    };
+    try {
+      const held = obligationsByRegion(regions, items);
+      assert.deepEqual(
+        regions.map((region) => held.get(region).map((item) => item.id)),
+        items.map((item) => [item.id]),
+      );
+    } finally {
+      document.getElementById = lookup;
+    }
+    return count / n;
+  };
+  try {
+    assert.equal(lookups(64), lookups(8));
   } finally {
     document.body.replaceChildren();
   }
@@ -167,4 +224,66 @@ test("a subject stands at the element it names, or nowhere", () => {
   } finally {
     document.body.replaceChildren();
   }
+});
+
+test("which regions ask the user is read from the captured widgets, not the regions' elements", () => {
+  // A side list keeps room on a panel's row for the answer to what its markup asks,
+  // from before the first reading lists the obligation, in the page or in a message's
+  // markup. A panel can hold a text document of 100,000 rows, so the answer comes from
+  // the captured widgets, each climbing once, and no region is searched: rows cost
+  // nothing, and a widget that asks nothing marks no region.
+  /** @param {string} id @param {"page" | "thread"} kind @param {boolean} awaits */
+  const descriptor = (id, kind, awaits) => [
+    id,
+    {
+      id,
+      tag: "lf-probe",
+      document: kind === "page" ? { kind, revision: 1 } : { kind, thread: "t" },
+      declaration: awaits
+        ? {
+            awaits: { value: "choose" },
+          }
+        : {},
+      parent: null,
+      ancestors: [],
+      quoted: false,
+    },
+  ];
+  applicationState.identify(1);
+  const captured = {
+    ...applicationState.read().document,
+    registry: { $states: {} },
+    authored: new Map(),
+    descriptors: new Map([
+      descriptor("ask", "page", true),
+      descriptor("note", "page", false),
+      descriptor("sent", "thread", true),
+    ]),
+  };
+  assert.ok(applicationState.adopt(servedState(), captured));
+  const rows = Array.from({ length: 5000 }, (_, k) => `<div>Row ${k}</div>`).join("");
+  document.body.innerHTML =
+    '<main id="page"><section id="asks"><div><div id="ask"></div></div></section>' +
+    `<section id="notes"><div id="note"></div>${rows}</section>` +
+    '<section id="message"><div id="sent"></div></section></main>';
+  const regions = ["page", "asks", "notes", "message"].map((id) =>
+    document.getElementById(id),
+  );
+  const search = Element.prototype.querySelectorAll;
+  let searched = 0;
+  Element.prototype.querySelectorAll = function (...selector) {
+    searched++;
+    return search.apply(this, selector);
+  };
+  try {
+    assert.deepEqual([...regionsAwaiting(regions)].map((region) => region.id).sort(), [
+      "asks",
+      "message",
+      "page",
+    ]);
+  } finally {
+    Element.prototype.querySelectorAll = search;
+    document.body.replaceChildren();
+  }
+  assert.equal(searched, 0);
 });

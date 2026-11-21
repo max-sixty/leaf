@@ -35,11 +35,12 @@ Events keep their stored fields and log order, and add:
 
 - `subject`: the page, thread, or widget the event changes.
 - `says`: the words of what the user pressed, such as each picked option, as the
-  page they pressed on wrote them. A later rewording does not change them. Done on a
-  group says the options picked when the user pressed it, and nothing when none were.
-- `names`: the same elements by id, named by their declared name or leading title,
-  with their full words used when neither is present. An option's title names the
-  choice separately from its tag labels and explanation.
+  page they pressed on wrote them. A later rewording does not change them. Done on an
+  `lf-options` says the options picked when the user pressed it, and nothing when none
+  were.
+- `names`: the same elements by id, named by their declared name, such as an option's
+  `label`, or a section's heading, with their full words used when neither is present.
+  An option's label names the choice apart from its chips and explanation.
 - `threads`: every thread the event belongs to. The event appears once in the batch
   however many threads it is in.
 - `was`: on the user's rewrite of their own message, the words it replaced. An empty
@@ -78,8 +79,11 @@ as it stood at that rewrite.
 
 The batch's `threads` give each thread's title (null until named), anchor, whether
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A
-thread's history leaves out messages that are events in the batch, and a long thread
-shows only its opening and latest messages, with `elided` counting the rest; read
+thread moved off the words it quoted keeps the anchor it had, as `rewritten_from`
+where a revision rewrote them or `detached_from` where it was detached, and that
+anchor's `quote` holds the words the thread is about. A thread's history leaves out
+messages that are events in the batch, and a long thread shows only its opening and
+latest messages, with `elided` counting the rest; read
 the whole thread with `leaf page state <page> <message>`, paginated with
 `--after`. A long
 thread may also carry `summary_hint`

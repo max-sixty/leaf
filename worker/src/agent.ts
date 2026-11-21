@@ -9,8 +9,6 @@
  * whose fields `worker/README.md`, "Hosted turns", describes.
  */
 
-import { getContainer } from "@cloudflare/containers";
-
 import type { Env } from "./index";
 
 interface AgentTaskParams {
@@ -95,7 +93,7 @@ async function askContainer(
   params: AgentTaskParams,
   ask: AgentAsk,
 ): Promise<AgentResult> {
-  const response = await getContainer(env.PAGES, params.containerId).fetch(
+  const response = await env.PAGES.getByName(params.containerId).fetch(
     agentRequest(params.route, ask),
   );
   if (!response.ok) {
@@ -154,7 +152,7 @@ export async function prewarmContainer(
       leafAgentLog("container_prewarm_denied", { reference, route });
       return;
     }
-    const response = await getContainer(env.PAGES, containerId).fetch(
+    const response = await env.PAGES.getByName(containerId).fetch(
       agentRequest(route, { action: "prewarm" }),
     );
     if (!response.ok) throw new Error(`container prewarm returned ${response.status}`);

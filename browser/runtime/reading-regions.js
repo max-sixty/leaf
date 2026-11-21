@@ -10,7 +10,7 @@
    Every box Leaf makes scroll vertically is a region, so every question that names the
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
    that box rather than the page: a pane's body, the Threads list, a compound widget's
-   parts, and a block bounded with x-bound or data-bound, which `bounds.js` registers. A
+   parts, and a block bounded with `bound` or data-bound, which `bounds.js` registers. A
    box page CSS makes scroll is none of these. It stays unsupported: `page check`
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
    Containment follows the rendered tree, including assigned slots: a native message
@@ -56,10 +56,15 @@ import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shadow-tree.js";
+import {
+  isElement,
+  skipped,
+  under,
+  renderedUnder,
+  renderedParent,
+} from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { holdReach, reachReadingScroller } from "./reach.js";
-import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
@@ -90,6 +95,19 @@ const depthOf = (node) => {
 
 /** @template {ReadingRegion} T @param {T | undefined} region @returns {region is T} */
 const live = (region) => Boolean(region?.host.isConnected && region.body.isConnected);
+// The regions each host holds and each body shows, in the order they registered, so a
+// question about the regions around a node climbs from it rather than asking each one.
+/** @type {WeakMap<Element, RegionRegistration[]>} */
+const byHost = new WeakMap();
+/** @type {WeakMap<Element, RegionRegistration[]>} */
+const byBody = new WeakMap();
+/** @param {RegionRegistration} region */
+const current = (region) => regions.get(region.id) === region && live(region);
+/** @param {Node | null | undefined} node @param {WeakMap<Element, RegionRegistration[]>} index */
+function* regionsAround(node, index) {
+  for (let at = node; at; at = renderedParent(at))
+    if (isElement(at)) yield* (index.get(at) ?? []).filter(current);
+}
 
 // Three questions about a region's visibility, each asked where its cost and answer fit:
 // `concealed` reads the page's own attributes alone, so the inventory decides what to
@@ -144,9 +162,19 @@ export function registerReadingRegion({
   };
   const stopReaching = reachReadingScroller(body, paintContinuation);
   regions.set(id, region);
+  byHost.set(host, [...(byHost.get(host) ?? []), region]);
+  byBody.set(body, [...(byBody.get(body) ?? []), region]);
   sizes.observe(host);
   return () => {
     if (regions.get(id) === region) regions.delete(id);
+    byHost.set(
+      host,
+      (byHost.get(host) ?? []).filter((other) => other !== region),
+    );
+    byBody.set(
+      body,
+      (byBody.get(body) ?? []).filter((other) => other !== region),
+    );
     sizes.unobserve(host);
     stopReaching();
   };
@@ -231,13 +259,9 @@ export const unconcealedReadingRegions = () =>
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
+// The region whose host is nearest around `node`: the first its climb meets.
 /** @param {Node | null | undefined} node */
-const regionAt = (node) => {
-  const region = [...regions.values()]
-    .filter((candidate) => live(candidate) && renderedUnder(node, candidate.host))
-    .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
-  return region;
-};
+const regionAt = (node) => regionsAround(node, byHost).next().value ?? undefined;
 
 /** @param {Node | null | undefined} node */
 export const readingRegionFor = (node) => {
@@ -385,13 +409,8 @@ export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
   if (regionScrollBehavior(region) === "bounded") return region.body;
-  const containing = [...regions.values()]
-    .filter(
-      (candidate) =>
-        candidate !== region &&
-        live(candidate) &&
-        renderedUnder(region.host, candidate.body),
-    )
+  const containing = [...regionsAround(region.host, byBody)]
+    .filter((candidate) => candidate !== region)
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
 }

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds; a request naming a reading the tab holds may be answered with a `Tail` instead. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds; a request naming a reading the tab holds may be answered with a `Tail` instead. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to a verb (`verbs`), as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "layer": {
@@ -25,51 +25,8 @@
       },
       "required": ["generation", "fingerprint"]
     },
-    "others": {
-      "description": "The machine's other live pages, each its compact row (`server_rows.py`), named by `page_key` and linked by `url` (`presence.other_leaves`). A row is open: a neighbor's Leaf may publish fields this one ignores. An export holds none.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "page_key": { "type": "string" },
-          "url": { "type": "string" },
-          "title": { "type": "string" },
-          "session_cwd": { "type": ["string", "null"] },
-          "activity": {
-            "type": "object",
-            "properties": {
-              "presence": { "$ref": "#/$defs/Activity/properties/presence" },
-              "state": { "$ref": "#/$defs/Activity/properties/state" },
-              "reason": { "$ref": "#/$defs/Activity/properties/reason" },
-              "next_actor": { "$ref": "#/$defs/Activity/properties/next_actor" },
-              "detail": { "$ref": "#/$defs/Activity/properties/detail" },
-              "observed": { "$ref": "#/$defs/Activity/properties/observed" },
-              "observed_kind": { "$ref": "#/$defs/Activity/properties/observed_kind" },
-              "counts": { "$ref": "#/$defs/Activity/properties/counts" },
-              "ts": { "$ref": "#/$defs/Activity/properties/ts" },
-              "next_transition_at": {
-                "$ref": "#/$defs/Activity/properties/next_transition_at"
-              }
-            },
-            "required": [
-              "presence",
-              "state",
-              "reason",
-              "next_actor",
-              "detail",
-              "observed",
-              "observed_kind",
-              "counts",
-              "ts",
-              "next_transition_at"
-            ]
-          }
-        },
-        "required": ["page_key", "url", "title", "session_cwd", "activity"]
-      }
-    },
     "reading": {
-      "description": "The news token of the facts this answer read (`served_state.reading`), which the tab's freshness reads compare.",
+      "description": "The token of the page's own facts this answer read (`served_state.reading`), which the `reading` a news answer names is compared with. No other page moves it.",
       "type": "string"
     },
     "release": {
@@ -77,11 +34,11 @@
       "type": "string"
     }
   },
-  "required": ["layer", "others", "reading"],
+  "required": ["layer", "reading"],
   "unevaluatedProperties": false,
   "$defs": {
     "Reading": {
-      "description": "One page's state as `served_state.page.read_served_page` composes it from one transaction, before the serving route adds the layer it serves under, its neighbors and token. Before the page has an active revision, `active` and `browser` are null.",
+      "description": "One page's state as `served_state.page.read_served_page` composes it from one transaction, before the serving route adds the layer it serves under and its token. Before the page has an active revision, `active` and `browser` are null.",
       "type": "object",
       "properties": {
         "now": {
@@ -89,7 +46,7 @@
           "type": "string"
         },
         "working_grace_ms": {
-          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports asks `quietSince`, which reads this rather than a copy.",
+          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports reads `readWork`'s `quiet`, which reads this rather than a copy.",
           "type": "integer"
         },
         "taken": {
@@ -114,7 +71,10 @@
                 "description": "The immutable revision the version stamped.",
                 "type": "integer"
               },
-              "url": { "description": "The version's address.", "type": "string" }
+              "url": {
+                "description": "The version's address.",
+                "type": "string"
+              }
             },
             "required": ["version", "revision", "url"],
             "additionalProperties": false
@@ -164,9 +124,17 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file's stamp, by binding, which moves when the file may have: an editor reads its file only when this stamp does.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and its stamp, which moves when the file may have, so an editor reads its file only when this stamp does.",
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "stamp": { "type": "string" }
+            },
+            "required": ["label", "stamp"],
+            "additionalProperties": false
+          }
         },
         "status": {
           "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
@@ -211,11 +179,6 @@
           "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
           "type": "integer"
         },
-        "kept_back": {
-          "description": "The user's waiting messages Leaf keeps back from the claimant's main thread while a line fork judges them (`forks.kept_back`).",
-          "type": "array",
-          "items": { "type": "string" }
-        },
         "pending": {
           "description": "How many of the user's events past the cursor the agent hasn't taken in.",
           "type": "integer"
@@ -248,26 +211,9 @@
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
         },
-        "agent_turns": {
-          "description": "The turns of the agents the claimant's session runs beside its main thread, such as a fork that took a thread's work, by turn id: when each was last renewed, and when it closed or null while it is open (`presence.agent_turn_stamps`).",
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "renewed": { "type": "string" },
-              "closed": { "type": ["string", "null"] }
-            },
-            "required": ["renewed", "closed"],
-            "additionalProperties": false
-          }
-        },
         "input_wakes": {
           "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
-        },
-        "fork_lane": {
-          "description": "When the claimant's fork lane came up, in seconds since the epoch, or null while none runs (`forks.lane_since`).",
-          "type": ["number", "null"]
         },
         "session_cwd": {
           "description": "Where the claimant was working when it claimed the page, or null for a page nothing claimed.",
@@ -287,7 +233,7 @@
           "anyOf": [{ "$ref": "#/$defs/Browser" }, { "type": "null" }]
         },
         "events": {
-          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps. An export's reading is folded from less of it (`exporting._page_log`).",
+          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, an agent's with the HTML its writer's gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps. An export's reading is folded from less of it (`exporting._page_log`).",
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
         },
@@ -307,7 +253,10 @@
               "description": "`user` for a `--user` preview, whose presses reach the session that claimed it; `author` for a plain one.",
               "enum": ["user", "author"]
             },
-            "started": { "description": "When the preview started.", "type": "string" },
+            "started": {
+              "description": "When the preview started.",
+              "type": "string"
+            },
             "input": {
               "description": "The fixture publication the preview's watcher last applied.",
               "type": "object",
@@ -356,7 +305,6 @@
         "session_alive",
         "live_turn",
         "cursor",
-        "kept_back",
         "pending",
         "agent",
         "claim_session",
@@ -365,9 +313,7 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
-        "agent_turns",
         "input_wakes",
-        "fork_lane",
         "session_cwd",
         "activity",
         "workflows",
@@ -408,7 +354,10 @@
       "description": "One revision's live address, public stamp or draft label, and captured identity (`files.document_descriptor`).",
       "type": "object",
       "properties": {
-        "revision": { "description": "The revision's number.", "type": "integer" },
+        "revision": {
+          "description": "The revision's number.",
+          "type": "integer"
+        },
         "version": {
           "description": "The public version that stamped it, or null for a draft.",
           "type": ["integer", "null"]
@@ -422,7 +371,10 @@
           "description": "The capture's executable identity, independent of public stamps, which a client compares with its delivered document.",
           "type": "string"
         },
-        "activated_at": { "description": "When it went live.", "type": "string" }
+        "activated_at": {
+          "description": "When it went live.",
+          "type": "string"
+        }
       },
       "required": ["revision", "version", "url", "label", "executable", "activated_at"],
       "additionalProperties": false
@@ -637,7 +589,7 @@
           ]
         },
         "started_by": {
-          "description": "The starts that take the update in hand, which the Stop hook reads.",
+          "description": "The starts that take the update in hand, from which the hooks read whether one holds it now (`activity.in_hand`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -645,14 +597,15 @@
               "item": { "type": "string" },
               "session": { "type": ["string", "null"] },
               "turn": { "type": ["string", "null"] },
-              "seq": { "type": "integer" }
+              "seq": { "type": "integer" },
+              "ts": { "type": "string" }
             },
-            "required": ["item", "session", "turn", "seq"],
+            "required": ["item", "session", "turn", "seq", "ts"],
             "additionalProperties": false
           }
         },
         "thread": {
-          "description": "The thread it stands in: a thread input's own, a widget frozen into a message's thread, or null for a page widget.",
+          "description": "The thread it stands in: a thread input's own, a widget in a message's thread, or null for a page widget.",
           "type": ["string", "null"]
         }
       },
@@ -750,7 +703,9 @@
             { "type": "null" }
           ]
         },
-        "running": { "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }] },
+        "running": {
+          "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }]
+        },
         "since": { "type": ["string", "null"] },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } },
         "done": { "type": "integer" },
@@ -784,8 +739,14 @@
       },
       "required": ["form"],
       "oneOf": [
-        { "properties": { "form": { "const": "choice" } }, "required": ["chosen"] },
-        { "properties": { "form": { "const": "move" } }, "required": ["unit", "to"] },
+        {
+          "properties": { "form": { "const": "choice" } },
+          "required": ["chosen"]
+        },
+        {
+          "properties": { "form": { "const": "move" } },
+          "required": ["unit", "to"]
+        },
         { "properties": { "form": { "const": "edit" } }, "required": [] },
         { "properties": { "form": { "const": "add" } }, "required": ["words"] },
         { "properties": { "form": { "const": "verb" } }, "required": ["verb"] }
@@ -851,10 +812,22 @@
           "properties": { "kind": { "const": "comment" } },
           "required": ["anchor", "about"]
         },
-        { "properties": { "kind": { "const": "reply" } }, "required": ["thread"] },
-        { "properties": { "kind": { "const": "edit" } }, "required": ["thread"] },
-        { "properties": { "kind": { "const": "resolve" } }, "required": ["thread"] },
-        { "properties": { "kind": { "const": "unresolve" } }, "required": ["thread"] },
+        {
+          "properties": { "kind": { "const": "reply" } },
+          "required": ["thread"]
+        },
+        {
+          "properties": { "kind": { "const": "edit" } },
+          "required": ["thread"]
+        },
+        {
+          "properties": { "kind": { "const": "resolve" } },
+          "required": ["thread"]
+        },
+        {
+          "properties": { "kind": { "const": "unresolve" } },
+          "required": ["thread"]
+        },
         {
           "properties": { "kind": { "const": "action" } },
           "required": ["widget", "gesture"]
@@ -885,7 +858,7 @@
           "additionalProperties": false
         },
         "history": {
-          "description": "The newest rows, newest first, sent only to a page holding a widget that declares `x-history`.",
+          "description": "The newest rows, newest first, sent only to a page holding a widget that declares `history`.",
           "type": "array",
           "items": { "$ref": "#/$defs/HistoryRow" }
         },
@@ -904,7 +877,10 @@
                 "ts": { "type": "string" },
                 "agent": { "type": ["string", "null"] },
                 "session": { "type": ["string", "null"] },
-                "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } }
+                "steps": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/PlanStep" }
+                }
               },
               "required": ["id", "ts", "agent", "session", "steps"],
               "additionalProperties": false
@@ -915,7 +891,10 @@
         "thread_memberships": {
           "description": "Every thread whose history each logged event changes (`thread_context.thread_memberships`), which the browser reads for the gesture an unsent undo takes back or an unsent action replaces.",
           "type": "object",
-          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
         },
         "version_notes": {
           "description": "Each version's note, by version.",
@@ -927,7 +906,7 @@
       "additionalProperties": false
     },
     "View": {
-      "description": "One revision's view: its document, the frozen threads as its registry reads them, and the work and undo readings drawn on it.",
+      "description": "One revision's view: its document, the threads as its registry reads them, and the work and undo readings drawn on it.",
       "type": "object",
       "properties": {
         "basis": {
@@ -941,17 +920,20 @@
         },
         "document": { "$ref": "#/$defs/ViewDocument" },
         "thread": {
-          "description": "The frozen threads as this revision reads them: its registry classifies their widgets' decisions, and so the obligations and attention those give.",
+          "description": "The threads as this revision reads them: its registry classifies their widgets' decisions, and so the obligations and attention those give.",
           "type": "object",
           "properties": {
             "projection": { "$ref": "#/$defs/Projection" },
-            "threads": { "type": "array", "items": { "$ref": "#/$defs/Thread" } }
+            "threads": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Thread" }
+            }
           },
           "required": ["projection", "threads"],
           "additionalProperties": false
         },
         "obligations": {
-          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
+          "description": "Every obligation record of this view, its document's then its threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },
@@ -1019,8 +1001,14 @@
           "description": "On Me and On <agent> and what each has finished, newest first (`served_state.queues`).",
           "type": "object",
           "properties": {
-            "on_user": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
-            "on_agent": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
+            "on_user": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/QueueRow" }
+            },
+            "on_agent": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/QueueRow" }
+            },
             "done": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } }
           },
           "required": ["on_user", "on_agent", "done"],
@@ -1051,8 +1039,14 @@
             "properties": {
               "event": {
                 "anyOf": [
-                  { "$ref": "leaf:event/action", "unevaluatedProperties": false },
-                  { "$ref": "leaf:event/report", "unevaluatedProperties": false }
+                  {
+                    "$ref": "leaf:event/action",
+                    "unevaluatedProperties": false
+                  },
+                  {
+                    "$ref": "leaf:event/report",
+                    "unevaluatedProperties": false
+                  }
                 ]
               },
               "coordinate": {
@@ -1105,7 +1099,9 @@
       "type": "object",
       "properties": {
         "value": true,
-        "event": { "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }] }
+        "event": {
+          "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }]
+        }
       },
       "required": ["value", "event"],
       "additionalProperties": false
@@ -1137,7 +1133,10 @@
     },
     "MessageObligationSource": {
       "type": "object",
-      "properties": { "kind": { "const": "message" }, "id": { "type": "string" } },
+      "properties": {
+        "kind": { "const": "message" },
+        "id": { "type": "string" }
+      },
       "required": ["kind", "id"],
       "additionalProperties": false
     },
@@ -1157,7 +1156,7 @@
       "properties": {
         "text": { "type": ["string", "null"] },
         "target": {
-          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
+          "description": "Where the user goes to answer: the id of the group the author declares round a widget, or of the widget itself, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
           "type": ["string", "null"]
         }
       },
@@ -1184,7 +1183,7 @@
           "anyOf": [{ "$ref": "#/$defs/ObligationAnswer" }, { "type": "null" }]
         },
         "end": {
-          "description": "How the agent ended it: its `leaf task end` on a question answered elsewhere or no longer asked, or on a to-do, or the stamped version that completed a to-do; where the result is, or why there is none.",
+          "description": "On a to-do: how the agent ended it, by `leaf task end` or the stamped version that completed it; where the result is, or why there is none.",
           "anyOf": [
             {
               "type": "object",
@@ -1346,7 +1345,12 @@
           }
         },
         { "properties": { "kind": { "const": "update" } } },
-        { "properties": { "kind": { "const": "todo" }, "owner": { "const": "agent" } } }
+        {
+          "properties": {
+            "kind": { "const": "todo" },
+            "owner": { "const": "agent" }
+          }
+        }
       ],
       "description": "An obligation record's row in On Me, On <agent> or Done (`served_state.queues`). The record says where it stands, whether the agent has it in hand and how a done one ended.",
       "type": "object",
@@ -1419,10 +1423,14 @@
           "properties": {
             "agent": { "type": "string" },
             "key": { "type": "string" },
+            "html": {
+              "description": "An agent's message whose current Markdown holds HTML (`thread_context.thread_structure`), which the browser draws as markup.",
+              "const": true
+            },
             "content_version": { "type": "string" },
             "completed_by": {
-              "description": "The ordinary or provisional reply that supersedes this progress message. Hide it only while that reply is presented.",
-              "type": "string"
+              "description": "What ended this progress message (`served_state.thread.progress_ends`): the agent message that superseded it, provisional or durable, which hides it only while that message is presented, or null where the turn that wrote it ended.",
+              "type": ["string", "null"]
             },
             "edited": { "$ref": "#/$defs/MessageEdited" },
             "withdrawn": { "$ref": "#/$defs/MessageWithdrawn" }
@@ -1471,7 +1479,10 @@
       "description": "One version of an agent message's content: the message, and its latest edit's id or else its own (`read_state.content_version`).",
       "type": "object",
       "properties": {
-        "message": { "description": "The message's event id.", "type": "string" },
+        "message": {
+          "description": "The message's event id.",
+          "type": "string"
+        },
         "version": {
           "description": "The content version's id, which a `read` event names.",
           "type": "string"
@@ -1521,7 +1532,7 @@
           "type": ["string", "null"]
         },
         "summaries": {
-          "description": "The thread's current summaries (`events.active_summaries`); `protected` lists the covered messages a summary must not hide.",
+          "description": "The thread's current summaries (`events.active_summaries`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -1532,19 +1543,9 @@
               "through": { "type": "string" },
               "covers": { "type": "array", "items": { "type": "string" } },
               "text": { "type": "string" },
-              "label": { "type": "string" },
-              "protected": { "type": "array", "items": { "type": "string" } }
+              "label": { "type": "string" }
             },
-            "required": [
-              "id",
-              "seq",
-              "from",
-              "through",
-              "covers",
-              "text",
-              "label",
-              "protected"
-            ],
+            "required": ["id", "seq", "from", "through", "covers", "text"],
             "additionalProperties": false
           }
         },
@@ -1665,7 +1666,9 @@
         {
           "description": "The object holding the last key of `at` no longer holds it.",
           "type": "object",
-          "properties": { "at": { "type": "array", "items": { "type": "string" } } },
+          "properties": {
+            "at": { "type": "array", "items": { "type": "string" } }
+          },
           "required": ["at"],
           "additionalProperties": false
         },
@@ -1727,8 +1730,13 @@
             "ok": { "const": false },
             "final": { "const": true },
             "error": { "type": "string" },
-            "findings": { "type": "array", "items": { "$ref": "#/$defs/Finding" } },
-            "attempt": { "description": "The posted `attempt`, echoed as it came." },
+            "findings": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Finding" }
+            },
+            "attempt": {
+              "description": "The posted `attempt`, echoed as it came."
+            },
             "state": { "anyOf": [{ "$ref": "#" }, { "$ref": "#/$defs/Tail" }] }
           },
           "required": ["ok", "final", "error", "findings"],
@@ -1740,7 +1748,9 @@
           "properties": {
             "ok": { "const": false },
             "error": { "type": "string" },
-            "attempt": { "description": "The posted `attempt`, echoed as it came." }
+            "attempt": {
+              "description": "The posted `attempt`, echoed as it came."
+            }
           },
           "required": ["ok", "error"],
           "additionalProperties": false
@@ -1762,7 +1772,10 @@
     "SampleAnswer": {
       "description": "The answer `POST /api/samples` gives: the new live sample's address, and its interaction page (`http.PageEndpoint._create_sample`).",
       "type": "object",
-      "properties": { "url": { "type": "string" }, "page": { "type": "string" } },
+      "properties": {
+        "url": { "type": "string" },
+        "page": { "type": "string" }
+      },
       "required": ["url", "page"],
       "additionalProperties": false
     },
@@ -1793,6 +1806,111 @@
       },
       "required": ["error", "current"],
       "additionalProperties": false
+    },
+    "LivePage": {
+      "description": "One of the machine's other live pages, as its own server publishes its compact row (`server_rows.py`), named by `page_key` and linked by `url` (`presence.other_leaves`). A row is open: a neighbor's Leaf may publish fields this one ignores.",
+      "type": "object",
+      "properties": {
+        "page_key": { "type": "string" },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "session_cwd": { "type": ["string", "null"] },
+        "activity": {
+          "type": "object",
+          "properties": {
+            "presence": { "$ref": "#/$defs/Activity/properties/presence" },
+            "state": { "$ref": "#/$defs/Activity/properties/state" },
+            "reason": { "$ref": "#/$defs/Activity/properties/reason" },
+            "next_actor": { "$ref": "#/$defs/Activity/properties/next_actor" },
+            "detail": { "$ref": "#/$defs/Activity/properties/detail" },
+            "observed": { "$ref": "#/$defs/Activity/properties/observed" },
+            "observed_kind": {
+              "$ref": "#/$defs/Activity/properties/observed_kind"
+            },
+            "counts": { "$ref": "#/$defs/Activity/properties/counts" },
+            "ts": { "$ref": "#/$defs/Activity/properties/ts" },
+            "next_transition_at": {
+              "$ref": "#/$defs/Activity/properties/next_transition_at"
+            }
+          },
+          "required": [
+            "presence",
+            "state",
+            "reason",
+            "next_actor",
+            "detail",
+            "observed",
+            "observed_kind",
+            "counts",
+            "ts",
+            "next_transition_at"
+          ]
+        }
+      },
+      "required": ["page_key", "url", "title", "session_cwd", "activity"]
+    },
+    "NewsAnswer": {
+      "description": "The answer `GET /api/news` gives (`http.PageEndpoint._news`): three readings the tab follows apart. `reading` names the page's own reading, the one an `/api/state` answer carries; `pages` names the list `/api/pages` answers (`presence.pages_reading`), or is null while no other page is live, and moves on its own, so another page's change never asks the tab to read this page's state again; `drafts` names the store of the user's drafts `/api/drafts` answers and its version (`drafts.py`), which a keystroke moves without moving the page's reading.",
+      "type": "object",
+      "properties": {
+        "reading": { "type": "string" },
+        "pages": { "type": ["string", "null"] },
+        "drafts": {
+          "type": "object",
+          "properties": {
+            "store": { "type": "string" },
+            "version": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["store", "version"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["reading", "pages", "drafts"],
+      "additionalProperties": false
+    },
+    "Draft": {
+      "description": "One draft the user is writing, the generation its last write made (`drafts.py`): its attempt, words and what its send depends on beside them, with the store's version at that write.",
+      "type": "object",
+      "properties": {
+        "attempt": { "type": "string" },
+        "text": { "type": "string" },
+        "payload": { "type": "object" },
+        "held": { "type": "string" },
+        "version": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["attempt", "text", "version"],
+      "additionalProperties": false
+    },
+    "DraftsAnswer": {
+      "description": "The answer `GET /api/drafts` gives, and what a served document carries of it (`lf-drafts`): every draft the user is writing on the page, by its context, with the store's identity and version. A sent or put-away draft is absent.",
+      "type": "object",
+      "properties": {
+        "store": { "type": "string" },
+        "version": { "type": "integer", "minimum": 0 },
+        "drafts": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/Draft" }
+        }
+      },
+      "required": ["store", "version", "drafts"],
+      "additionalProperties": false
+    },
+    "DraftWriteAnswer": {
+      "description": "The answer `POST /api/draft` gives: the context's generation as the store now holds it, null where a send or Cancel settled it, and whether that is what the write asked for. A write names the generation it replaces, so another tab's or device's later words come back in place of this tab's.",
+      "type": "object",
+      "properties": {
+        "written": { "type": "boolean" },
+        "store": { "type": "string" },
+        "version": { "type": "integer", "minimum": 0 },
+        "record": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Draft" }] }
+      },
+      "required": ["written", "store", "version", "record"],
+      "additionalProperties": false
+    },
+    "PagesAnswer": {
+      "description": "The answer `GET /api/pages` gives: the machine's other live pages, in title order (`presence.neighbor_reading`). It holds no consistency with the page's own reading. A capture, such as an export or a render check's, lists none.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/LivePage" }
     },
     "Refusal": {
       "description": "Any route's refusal of a request (`http.PageEndpoint._refuse`): the words the page shows.",

@@ -1,9 +1,7 @@
-# Added with `--lf-top-start`. A box a package makes scroll restarts `--lf-top` at 0,
-# and a sticky header stops below its scroller's top padding, so in a padded scroller
-# the rows scroll past visibly in the band above the stuck header. The scroller states
-# its own start at minus that padding, as a workspace pane's body does. Three Claude
-# Code trials told the wordings apart: base 0/3 (its module-authoring.md names no
-# start), head 3/3, every head run stating `--lf-top-start`.
+# A box a package makes scroll restarts `--lf-top` at 0, and a sticky header stops
+# below its scroller's top padding, so in a padded scroller the rows scroll past
+# visibly in the band above the stuck header. The scroller states its own start
+# (`--lf-top-start`) at minus that padding, as a workspace pane's body does.
 description: package-scroller-headers-stand-on-its-edge
 metadata:
   purpose: A padded package scroller states --lf-top-start so its sticky headers stand on its top edge.
@@ -19,7 +17,7 @@ vars:
     of the list while the user scrolls through that week's incidents, with no rows
     showing above it.
 
-    Read the references you need and show the widget's shadow.css for the list
+    Show the widget's shadow.css for the list
     box, the week groups and their heading rows. Return CSS in your reply.
 assert:
   - type: llm-rubric

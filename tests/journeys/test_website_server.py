@@ -15,6 +15,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_field,
+    panel_settled,
     told,
     write,
 )
@@ -25,8 +26,8 @@ from leaf.event_log import read_events
 from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf_dev import website
 from leaf_dev.browser import PANEL_THREAD
-from leaf_dev.commands.site import verify as verify_site
 
 
 @pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])
@@ -41,7 +42,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     url = serve(LONG_PAGE)
     page_dir = serve.page_dir
     page = open_page(browser, url)
-    verify_site.observe_startup(page)
+    website.observe_startup(page)
     page.reload()
     told(page)
     box = page_comment(page)
@@ -61,15 +62,13 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher = take_wait_lease(lease_path)
     assert watcher is not None
     request.addfinalizer(watcher.close)
-    # The send opens the new thread's view in the panel, its reply standing in the
-    # field with the caret in it.
+    # The send opens the new thread's view in the panel and leaves the user on it.
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{comment["id"]}"]')
-    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
     # The user goes on writing in the reply, which the agent's resolve below must not
     # take from under them. The agent's reply joins the thread with its first words,
     # not when the turn opens its draft.
     reply = panel_field(page)
-    expect(reply).to_be_focused()
     write(reply, "While you look")
     turn.begin()
     turn.reply_stream.update({"opening": "Looking at the page."})
@@ -77,11 +76,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
     rendered(page)
-    # The turn's opening streams into the open thread at its end, where it moves none
-    # of the words above it.
-    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_contain_text(
-        "Looking at the page."
-    )
+    # The turn's opening stands in the open thread at its end as its working step,
+    # where it moves none of the words above it.
+    expect(thread.locator(".lf-thread-working")).to_contain_text("Looking at the page")
     metadata = thread.locator(".lf-msg").first.locator(":scope > .lf-msg-head")
     receipt = metadata.locator(".lf-msg-sending")
     expect(receipt).to_have_text("Replying")
@@ -97,6 +94,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     receipt_width = receipt_words()
     initial_receipt = receipt.inner_text()
     assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # The thread's view is still gliding to the height its working step gave it, so
+    # the head is read where the box comes to rest.
+    panel_settled(page, view="thread")
     head = metadata.bounding_box()
     # Losing the provider watcher changes Replying to the longer stale receipt
     # while its answer still waits. The words spend their own retained box.

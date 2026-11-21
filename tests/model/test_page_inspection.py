@@ -161,6 +161,37 @@ def test_inspection_distinguishes_working_css_from_the_observed_revision(page_di
     assert "unknown revision r20" in result.output
 
 
+def test_inspection_counts_prose_words_apart_from_collapsed_ones(page_dir):
+    def words(n, first="w"):
+        return " ".join(f"{first}{i}" for i in range(n))
+
+    plain = leaf_page("Words", f'<p id="p">{words(14)}</p>')
+    (page_dir / "index.html").write_text(plain)
+    write_revision(page_dir, 1, plain.encode())
+    (page_dir / "index.html").write_text(
+        leaf_page(
+            "Words",
+            f'<p id="p">{words(14)}</p>\n<p id="q">{words(12, "q")}</p>\n'
+            '<table id="t"><tr><th>Key</th><th>Meaning</th></tr>'
+            f"<tr><td>gap</td><td>{words(13, 'c')}</td></tr></table>\n"
+            f"<pre>{words(20, 'x')}</pre>\n"
+            f'<p id="r">{words(12, "r")}</p>\n'
+            f'<details id="source"><summary>The rule</summary>'
+            f"<blockquote>{words(15, 's')}</blockquote></details>\n"
+            f'<p id="later" hidden>{words(12, "h")}</p>',
+        )
+    )
+    report = cmd_inspect(page_dir, compare_to=1)
+    # The table's sentence-long cell counts as prose; its short cells and the closed
+    # disclosure's summary are scanned; the code counts nothing.
+    assert report["words"]["shown"] == 14 + 12 + 13 + 12
+    assert report["comparison"]["words"] == {
+        "shown": 12 + 13 + 12,
+        "collapsed": 15 + 12,
+        "scanned": len("Key Meaning gap The rule".split()),
+    }
+
+
 def test_inspection_does_not_report_missing_styles_as_zero(page_dir):
     (page_dir / "index.html").write_text(
         leaf_page(

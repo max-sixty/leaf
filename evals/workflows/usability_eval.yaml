@@ -137,7 +137,7 @@ cases:
           either keeping assessment on the agent or asking about that proposed
           boundary is valid. Do not require exactly seven obligations.
           The decisions must exist on the live page or in its threads; proposed
-          commands or markup left only in chat do not count. A bare lf-ask question
+          commands or markup left only in chat do not count. A question section with no widget
           or conversational obligation does not record a choice; a thread or reply
           needs an answering widget in its markup.
           Do not require exact wording, IDs, order, or a particular choice widget.
@@ -214,8 +214,8 @@ cases:
             initial: evidence.fixture['index.html'],
             pages: evidence.pages.map(({path, document, data}) => ({path, document, data}))
           });
-  # Seeded continuation of the diagnostics report from session
-  # 01a166a1-4914-7ee0-8926-080b8cf24446; prepared research notes, not a trace replay.
+  # Seeded continuation of a diagnostics report; prepared research notes, not a
+  # trace replay.
   next-opportunities-existing-report:
     inputs:
       fixture: diagnostics-report
@@ -341,14 +341,11 @@ cases:
             initial: evidence.fixture['index.html'],
             pages: evidence.pages.map(({path, document, data}) => ({path, document, data}))
           });
-  # Follow-up to the On Me investigation: question placement without an existing
-  # widget or user comment. Thread creation is task setup; obligation registration
+  # Question placement without an existing widget or user comment. Thread creation
+  # is task setup, since without it agents can ask in chat; obligation registration
   # remains an agent choice. Score placement separately so a usable plain-text
-  # thread cannot conceal a missing On Me obligation.
-  # Before explicit thread setup, Codex opened 0/2 threads; both asked in chat.
-  # With thread setup, Codex passed both metrics in 2/2 runs on unchanged guidance.
-  # Against 2872ba319, the message-API metric separates lf-ask from --obligation;
-  # both arms still pass placement and On Me outcome (one matched Codex run each).
+  # thread cannot conceal a missing On Me obligation. The message-API metric
+  # separates a page widget from --obligation.
   page-question:
     inputs:
       prompts:
@@ -387,7 +384,7 @@ cases:
           missing acceptance criteria.
           A question only in chat, an unexecuted command, a question inserted into
           the document, or a reply to an existing thread fails this placement check.
-          Both a plain-text question and a question using lf-ask inside the new
+          Both a plain-text question and a question using a section inside the new
           thread are valid for placement. Obligation registration is scored separately.
           The completed report retains its supplied facts and no acceptance
           criteria are invented. Canonical thread placement does not prove browser
@@ -418,14 +415,13 @@ cases:
           Judge successful executed commands and admitted messages, not promises
           or examples. The missing-information question is sent as a thread
           message using the --obligation flag, which registers that message's
-          canonical user obligation. It does not substitute an lf-ask in markup
+          canonical user obligation. It does not substitute a question section in markup
           or a document widget for this plain conversational request. The user's
           prompt does not prescribe the flag; this metric measures whether the
           agent chooses the message API from its shipped instructions.
         transform: context.metadata.texts?.['evidence'] ?? ''
   # A message can be useful without leaving anything for the user to do.
   # Contrast with page-question using the same plain-thread surface.
-  # Main 2872ba319 and --obligation guidance both pass (one matched Codex run each).
   page-update:
     inputs:
       prompts:
@@ -457,11 +453,10 @@ cases:
           an unexecuted thread command, or an empty queue without the requested
           thread fails. Equivalent wording and valid commands are allowed.
         transform: context.metadata.texts?.['evidence'] ?? ''
-  # Added for the October 2026 On Me investigation: earlier assessment cases
-  # graded proposed commands, not executed conversational requests and settlement.
-  # No prompt names On Me, obligations, lf-ask or the expected commands.
-  # The earlier case accepted document Asks and passed 2/2. This version requires
-  # an agent-initiated thread; new Codex runs passed 2/2 on unchanged guidance.
+  # Grades executed conversational requests and settlement, where assessment cases
+  # grade proposed commands. No prompt names On Me, obligations, lf-group or the
+  # expected commands. It requires an agent-initiated thread rather than accepting
+  # page widgets.
   clarification:
     inputs:
       prompts:
@@ -520,15 +515,13 @@ cases:
           Judge successful executed commands and admitted messages, not promises
           or examples. The missing-information question is sent as a thread
           message using the --obligation flag, which registers that message's
-          canonical user obligation. It does not substitute an lf-ask in markup
+          canonical user obligation. It does not substitute a question section in markup
           or a document widget for this plain conversational request. The user's
           prompt does not prescribe the flag; this metric measures whether the
           agent chooses the message API from its shipped instructions.
         transform: context.metadata.texts?.['evidence'] ?? ''
   # The same missing-fact problem arrives through a real page comment. The
   # user's next message answers it in-thread, exercising automatic settlement.
-  # At 838ad41c7, Codex passed 2/2 with unchanged instructions. Both registered
-  # reply questions and cleared them after the user's answer in the same thread.
   clarification-reply:
     inputs:
       prompts:
@@ -581,7 +574,7 @@ cases:
           Judge successful executed commands and admitted messages, not promises
           or examples. The missing-information question is sent as a thread
           message using the --obligation flag, which registers that message's
-          canonical user obligation. It does not substitute an lf-ask in markup
+          canonical user obligation. It does not substitute a question section in markup
           or a document widget for this plain conversational request. The user's
           prompt does not prescribe the flag; this metric measures whether the
           agent chooses the message API from its shipped instructions.
@@ -900,7 +893,7 @@ cases:
 
           batch_200 (the final canonical page, state and agent replies): The page states that copying uses batches of 200 documents. Judge the current plan, rather than a quoted request or rejected proposal.
 
-          next_pick (phase 1 reply): Among what needs doing next, the message includes taking in the user's pick of the tenant-by-tenant approach, such as marking it chosen on the page. Treating how traffic moves as still undecided fails.
+          next_pick (phase 1 reply): Among what needs doing next, the message includes taking in the user's pick of the tenant-by-tenant approach, such as marking it selected on the page. Treating how traffic moves as still undecided fails.
 
           The final active page uses batches of 200 and explains the replica disk-queue reason in place. It preserves the user's tenant-by-tenant rollout choice as current, incorporates that choice instead of asking again, answers the batch comment and stamps the revised page without discarding unrelated state.
         transform: context.metadata.texts?.['evidence'] ?? ''
@@ -1064,12 +1057,12 @@ cases:
 
           The author hands over the observed served URL, leaves the page waiting for the user's choice, receives and answers both posted comments, makes the dry-run change, and hands back the same usable page. Exact native injection/delivery/progress observations are supplied in driver records; distinguish an agent's claim from those observations.
         transform: context.metadata.texts?.['evidence'] ?? ''
-  # Issue #4042: a quick edit handed over without `page check --render`, then what
-  # the page's server tells the agent once the version has stood. The `render` move
-  # waits for that (`render_gate.handover_pass`); a base arm from before it runs the
-  # check itself and posts what plain check doesn't report as the page's error. A
-  # page the author already checked delivers nothing. Measures whether agents act on
-  # render findings that arrive after handover, under each arm's handling clause.
+  # A quick edit handed over without `page check --render`, then what the page's
+  # server tells the agent once the version has stood. The `render` move waits for
+  # that (`render_gate.handover_pass`); a base arm without it runs the check itself
+  # and posts what plain check doesn't report as the page's error. A page the
+  # author already checked delivers nothing. Measures whether agents act on render
+  # findings that arrive after handover, under each arm's handling clause.
   render-after-handover:
     inputs:
       prompts:
@@ -1096,8 +1089,8 @@ cases:
           findings_answered (the final canonical page, state and native trace): If the driver records show render findings were delivered, as a `render` event or as a page error carrying `page check --render` findings, and they name the consumer cards running out of narrow windows, the agent changed the page in answer to those failures and saved that change to the live page, without asking the user to do it. If no such findings were delivered, this outcome holds.
         transform: context.metadata.texts?.['evidence'] ?? ''
   # The same without the line other live cases end with, "Use headless browser
-  # tooling for your own inspection", which in the case above may be what sent
-  # every Claude Code author to `--render` before handing over a one-line edit.
+  # tooling for your own inspection", which in the case above may send an author to
+  # `--render` before handing over a one-line edit.
   render-after-handover-quick:
     inputs:
       prompts:
@@ -1110,8 +1103,9 @@ cases:
       rounds:
         - - kind: render
     assert: *render-after-handover-assert
-  # The user waiting, on a page whose one failure, a card label kept on one line, reads
-  # as fine in the source, which agents in the cases above fixed before handing over.
+  # The user waiting, on a page whose one failure, a card label kept on one line,
+  # reads as fine in the source; agents can fix the failures in the cases above before
+  # handing over.
   render-hidden-failure:
     inputs:
       prompts:
@@ -1137,8 +1131,7 @@ cases:
         transform: context.metadata.texts?.['evidence'] ?? ''
   # Advice alone wakes nobody (`render_gate.handover_pass`), so it reaches the agent
   # with the user's next message. A base arm with no render pass hears it as the page's
-  # error beside the same message. The message asks for work, since a fork of the
-  # conversation answers a question without waking the agent.
+  # error beside the same message.
   render-advice-with-comment:
     inputs:
       prompts:

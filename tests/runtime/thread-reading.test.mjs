@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const { foldThreads, lastMovedAt, moved, readThreadRecords, threadRecordReader } =
+const { foldThreads, lastMovedAt, moved, readThreadRecords } =
   await import("/runtime/thread/model.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
 const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
@@ -84,7 +84,7 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
   const workflows = threads.map(({ id }) =>
     servedWorkflow({ id: `w-${id}`, input: id, message: id, thread: id }),
   );
-  const read = threadRecordReader();
+  const read = readThreadRecords;
   const first = read(threads, NO_DOCUMENT, new Map(), workflows);
   // The same inputs, or new lists holding the same records, keep every record.
   assert.deepEqual(
@@ -107,14 +107,15 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
   );
   assert.deepEqual(next[1].workflows, [moving]);
   assert.deepEqual(next[1].root.workflows, [moving]);
-  // A record is the one a fresh reading would make.
+  // A record is the one a reading of fresh copies of its records would make.
   assert.deepEqual(
     next,
-    readThreadRecords([...threads, added], NO_DOCUMENT, new Map(), [
-      workflows[0],
-      moving,
-      workflows[2],
-    ]),
+    readThreadRecords(
+      structuredClone([...threads, added]),
+      NO_DOCUMENT,
+      new Map(),
+      structuredClone([workflows[0], moving, workflows[2]]),
+    ),
   );
 });
 
@@ -132,7 +133,7 @@ test("a reply to a thread reads its own message and the reactions it moves", () 
   };
   const second = agent("second", { seq: 4 });
   const thread = servedThread([root, first, liked, second]);
-  const read = threadRecordReader();
+  const read = readThreadRecords;
   const [before] = read([thread], reacting, new Map(), []);
   const third = agent("third", { seq: 5 });
   const [after] = read(
@@ -155,7 +156,7 @@ test("a reply to a thread reads its own message and the reactions it moves", () 
   assert.deepEqual(
     [after],
     readThreadRecords(
-      [{ ...thread, msgs: [...thread.msgs, third] }],
+      structuredClone([{ ...thread, msgs: [...thread.msgs, third] }]),
       reacting,
       new Map(),
       [],
@@ -167,7 +168,7 @@ test("marking one thread read reads that thread's record again, and no other", (
   const threads = ["a", "b", "c"].map((id) =>
     servedThread([agent(id, { kind: "comment" })], { unread: { [id]: id } }),
   );
-  const read = threadRecordReader();
+  const read = readThreadRecords;
   const before = read(threads, NO_DOCUMENT, new Map(), [], [], []);
   const after = read(
     threads,
@@ -563,7 +564,11 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
           }),
       },
       reaction: {},
-      read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
+      read: {
+        observeMessage: () => () => {},
+        observeFeedback: () => () => {},
+        observeSummary: () => () => {},
+      },
     },
     () => Promise.resolve(),
     { answersAtOnce: true },
@@ -619,22 +624,47 @@ test("news answers only a user turn that still stands", async () => {
   assert.equal(threadChange(before, reading([root], "More work")).answers, null);
 });
 
-test("Copy retains the original authored HTML after the public thread reading", async () => {
+test("a step its turn ended above the user's message is news a seat can hold", async () => {
+  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const root = { id: "question", key: "question", author: "user", body: "Question" };
+  const step = { id: "step", key: "step", author: "agent", progress: true };
+  const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
+  const later = { id: "later", key: "later", author: "agent", progress: true };
+  const working = { words: "Checking the title" };
+  const was = {
+    messages: [root, step, turn, later],
+    source: { msgs: [root, step, turn, later] },
+    summaries: [],
+    working,
+  };
+  // The step's turn ended: it leaves the presentation with nothing else changing.
+  const now = {
+    ...was,
+    messages: [root, turn, later],
+    source: { msgs: [root, { ...step, completed_by: null }, turn, later] },
+  };
+  const change = threadChange(was, now);
+  assert.deepEqual(change?.folds.messages, ["step"]);
+  assert.equal(change?.footFold, false);
+});
+
+test("Copy gives an authored message's Markdown, its HTML included, after the public thread reading", async () => {
   const { adoptRegistry } = await import("/runtime/registry.js");
+  const { loadMarkdown } = await import("/runtime/markdown.js");
   adoptRegistry({ $layer: { generation: "authored-copy" } });
-  const markup = "<p>A <strong>captured</strong> answer.</p>";
-  const source = agent("authored-copy", {
-    kind: "comment",
-    text: "Agent words",
-    markup,
-  });
+  assert.equal(await loadMarkdown(), true);
+  const text = "Agent **words**\n\n<p>A <strong>captured</strong> answer.</p>";
+  const source = agent("authored-copy", { kind: "comment", text, html: true });
   const prepared = await prepareAuthoredMessage(source, source.id);
   const [thread] = readThreadRecords(
     [servedThread([source])],
-    { ...NO_DOCUMENT, messageBodies: new Map([[source.id, prepared.body]]) },
+    {
+      ...NO_DOCUMENT,
+      messageBodies: new Map([[source.id, new Map([[source.id, prepared.body]])]]),
+    },
     new Map(),
     [],
   );
   const message = messageReading(thread.root, { workflows: [] });
-  assert.equal(message.markdown, `Agent words\n\n${markup}`);
+  assert.equal(message.markdown, text);
 });

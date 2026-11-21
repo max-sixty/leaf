@@ -66,11 +66,11 @@ import { deepFocus, drawn, focusDestination, readCaret, blurFocused } from "./fo
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
-import { upFrom } from "./shadow.js";
+import { upFrom } from "./shadow-tree.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { readingBlock } from "./reading-place.js";
-import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
+import { pageScroller, scrollGoal, stopBrowserScroll, stopGlide } from "./scrolling.js";
 import { nextRender } from "./rendering.js";
 import { aborted } from "./abort.js";
 
@@ -242,14 +242,16 @@ export function mountHistory({ followFragment, returnToFragment }) {
         focusReset: "manual",
         handler: async () => {
           if (!mayReturn()) return;
-          // Cancel the outgoing placement, including its nested reading regions.
-          // Its compositor update can outlive this task, so restore only after a
-          // complete rendering update has carried the cancellation to the browser.
+          // Cancel the outgoing placement, including its nested reading regions: a
+          // return goes back to a place, so a glide under way stops where it stands.
+          // The browser's compositor update can outlive this task, so restore only after
+          // a complete rendering update has carried the cancellation to the browser.
           const scrollers = new Set([
             pageScroller,
             ...unconcealedReadingRegions().map((region) => region.body),
           ]);
-          await stopScroll(scrollers);
+          for (const box of scrollers) stopGlide(box);
+          await stopBrowserScroll(scrollers);
           if (!mayReturn()) return;
           // The claimant reveals its view first, so travel reads the place the fragment
           // names in the page that view leaves. Either one places the viewport unless it

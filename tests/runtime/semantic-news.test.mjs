@@ -233,7 +233,7 @@ test("current content versions and admitted messages determine arrivals", () => 
 
 test("a failed answer to a move in a thread's markup is news about that thread", () => {
   const baseline = observeSemanticNews(null, reading());
-  // The server stamps the thread the widget was frozen into.
+  // The server stamps the thread whose markup holds the widget.
   const move = {
     ...responseFailure({ attempt: "attempt" }),
     subject: { kind: "widget", id: "pick" },
@@ -529,6 +529,25 @@ test("agent content is news while it is unread, including on the first reading",
   assert.deepEqual(later.news, []);
 });
 
+test("content this tab saw read is no news when an undo makes it unread again", () => {
+  const resolved = reading({
+    threads: [thread("t", [message("answer", { unread: false })])],
+  });
+  const seen = observeSemanticNews(null, resolved);
+  assert.deepEqual(seen.news, []);
+  // The undo of the resolve that had marked the answer read.
+  const reopened = reading({ threads: [thread("t", [message("answer")])] });
+  assert.deepEqual(observeSemanticNews(seen.observed, reopened).news, []);
+  // A rewrite of it is a new version, and news.
+  const rewritten = reading({
+    threads: [thread("t", [message("answer", { edited: { id: "rewrite" } })])],
+  });
+  assert.deepEqual(
+    observeSemanticNews(seen.observed, rewritten).news.map(({ version }) => version),
+    ["rewrite"],
+  );
+});
+
 test("news is ordered by when each message last moved", () => {
   const result = observeSemanticNews(
     null,
@@ -549,7 +568,7 @@ test("news is ordered by when each message last moved", () => {
 });
 
 test("held producer batches preserve interrupted news and merge later arrivals", async (t) => {
-  const { notice, noticeReading, holdStatus, liveEl } =
+  const { NOTICE_MS, answerStep, notice, noticeReading, liveEl } =
     await import("/runtime/notifications.js");
   t.mock.timers.enable({ apis: ["setTimeout"] });
   t.after(() => window.happyDOM.cancelAsync());
@@ -587,7 +606,8 @@ test("held producer batches preserve interrupted news and merge later arrivals",
   await announce(news.slice(0, 2));
   assert.equal(words(noticeReading().message), "2 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
-  holdStatus(10000);
+  // A walk's step takes the seat for its moment, holding news back meanwhile.
+  answerStep();
   assert.equal(noticeReading().visible, false);
   for (const item of news.slice(2)) await announce([item]);
   assert.equal(noticeReading().visible, false);
@@ -597,8 +617,7 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     "Words of queued-3.",
   ]);
   const before = [...announcements];
-  holdStatus(1);
-  t.mock.timers.tick(1);
+  t.mock.timers.tick(NOTICE_MS);
   assert.equal(words(noticeReading().message), "4 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
   t.mock.timers.tick(30);

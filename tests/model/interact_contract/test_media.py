@@ -64,9 +64,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
 
     A widget carrying pictures is exactly the shape an agent sends in a reply — here
     is how it looks now, and after — and `/media/…` is how markup names one. A version
-    naming a file the directory cannot answer is refused, and the same markup in a
-    reply was accepted and frozen: the log is append-only, so it is two broken images
-    for as long as the page exists, and no check afterwards would ever mention them.
+    naming a file the directory cannot answer is refused, and so is the same markup
+    in a reply: the log is append-only, so the reply would keep two broken images in
+    it, and no check afterwards would ever mention them.
 
     The version door is the control. It is the same reading, so a difference between
     them can only be one of the two having stopped asking."""
@@ -94,13 +94,11 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             str(page_dir),
             json.loads(opened.output)["id"],
             "--text",
-            "here:",
-            "--markup",
-            shot,
+            f"here:\n\n{shot}",
         ],
     )
     assert posted.exit_code == 1, (
-        f"the reply door froze a picture the page has not got into the log:\n"
+        f"the reply door let a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
     assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (
@@ -126,9 +124,7 @@ def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
     opened = comment(
         page_dir,
         "--text",
-        "Look:",
-        "--markup",
-        f'<p style="background-image: url({ref})">Shown</p>',
+        f'Look:\n\n<p style="background-image: url({ref})">Shown</p>',
     )
     assert opened.exit_code == 1, opened.output
     assert code in opened.output, opened.output
@@ -138,10 +134,10 @@ def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
 def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
     """A message names its picture in Markdown, where the markup reading cannot see it.
 
-    `check_markup` runs only when `--markup` is given, and the reference it asks about
+    `check_markup` runs only on a message holding HTML, and the reference it asks about
     lives in an attribute. An agent sending a screenshot writes it in the words instead,
-    so the shape `media_errors` was written for — here is what it looks like now — came
-    through the one door that never asked, and the log is append-only: a picture the
+    so the shape `media_errors` was written for would come through a door that never
+    asked, and the log is append-only: a picture the
     directory hasn't got is broken for as long as the page exists.
 
     The reading is the link or image destination the runtime resolves rather than a scan

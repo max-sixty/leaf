@@ -1,6 +1,6 @@
 /* Stable DOM relations shared by thread views and focus recovery. */
 import { closestAcross } from "../passages.js";
-import { upFrom } from "../shadow.js";
+import { upFrom } from "../shadow-tree.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 // A drawn thread: a thread on the page, in the margin or on a seat, or a chrome's view
 // of one thread (`data-lf-thread-view`, as the floating panel's thread view and its head
@@ -15,12 +15,9 @@ export const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? n
 /** @param {ParentNode} root @param {string} id */
 export const drawnThreadsWithId = (root, id) =>
   root.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`);
-// Where a box the user writes in belongs: a drawn thread, or a seat holding none yet.
-export const SAYS_IN = `${THREAD}, .lf-thread-seat`;
-export const SAY_ROW = ".lf-thread-reply, .lf-say";
-export const SAY_BOX = SAY_ROW.split(", ")
-  .map((row) => `:scope > ${row} ${TEXT_FIELD}`)
-  .join(", ");
+// The row a drawn thread's reply is written in, and the box in it.
+export const SAY_ROW = ".lf-thread-reply";
+export const SAY_BOX = `:scope > ${SAY_ROW} ${TEXT_FIELD}`;
 
 // A drawn thread's own parts: the box its reply is written in, and the control that
 // settles it, whose `lf-resolve` or `lf-reopen` says which way. A card draws both inside

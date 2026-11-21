@@ -64,12 +64,7 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
                 "through": "e3",
                 "text": "Extended exchange.",
             },
-            {
-                "kind": "edit",
-                **identity,
-                "message": "e3",
-                "text": "three, revised",
-            },
+            {"kind": "edit", "author": "user", "message": "e2", "text": "two, revised"},
         ),
     )
 
@@ -77,8 +72,8 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     assert thread["summaries"] == []
     assert [message["text"] for message in thread["msgs"]] == [
         "one",
-        "two",
-        "three, revised",
+        "two, revised",
+        "three",
         "four",
     ]
 
@@ -356,11 +351,13 @@ def test_summary_leaves_messages_after_its_range_visible():
 
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
-    assert thread["summaries"][0]["label"] == "Earlier discussion"
     assert thread["msgs"][-1]["text"] == "new message"
 
 
-def test_folds_without_summary_prose_keep_corrected_originals():
+def test_the_users_rewrite_retires_any_fold_and_the_agents_leaves_it():
+    """A summary the agent wrote can't account for the user's rewrite, whether it
+    reports the range in words or names it with a label, so the rewrite retires it;
+    the agent's own edit leaves its summary standing."""
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
@@ -386,30 +383,51 @@ def test_folds_without_summary_prose_keep_corrected_originals():
                 "through": "e4",
                 "text": "The later exchange.",
             },
-            {"kind": "edit", **identity, "message": "e2", "text": "two, revised"},
+            {"kind": "edit", "author": "user", "message": "e1", "text": "one, revised"},
             {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
         ),
     )
 
     thread = model.threads(state)["e1"]
-    [fold] = thread["summaries"]
-    assert (fold["covers"], fold["label"], fold["text"]) == (
-        ["e1", "e2"],
-        "Previous progress messages",
-        "",
-    )
+    [summary] = thread["summaries"]
+    assert (summary["covers"], summary["text"]) == (["e3", "e4"], "The later exchange.")
     assert [message["text"] for message in thread["msgs"]] == [
-        "one",
-        "two, revised",
+        "one, revised",
+        "two",
         "three",
         "four, revised",
     ]
 
 
-def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
-    """An answer hides every preceding progress run, including across a user reply.
-    User messages and newer progress remain, and progress is never unread."""
-    identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
+def progress_ends(thread: dict) -> dict:
+    """What ended each progress message of a served thread, by its id."""
+    return {
+        message["id"]: message["completed_by"]
+        for message in thread["msgs"]
+        if "completed_by" in message
+    }
+
+
+# A live session's claim, its turn `turn-1` open.
+CLAIMED = {
+    **model.UNCLAIMED,
+    "session_alive": True,
+    "claim_session": "session-1",
+    "turn": "turn-1",
+    "turn_opened": model.NOW,
+}
+
+
+def test_a_step_the_user_wrote_after_waits_for_the_agent_s_reply():
+    """The agent's next message, another step included, ends the step before it, but a
+    step the user wrote after stands above their message until the agent says more
+    than a step. The user's messages stay, and progress is never unread."""
+    identity = {
+        "author": "agent",
+        "agent": "Codex",
+        "session": "session-1",
+        "turn": "turn-1",
+    }
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
         {
@@ -428,39 +446,29 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
             "ephemeral": True,
         },
     )
-    pending = model.threads(model.reading(HUB, messages))["e1"]
-    assert pending["summaries"] == []
+
+    def thread(events):
+        state = model.served_reading(HUB, events, presence=CLAIMED)["browser"]
+        return model.threads(state)["e1"]
+
+    pending = thread(messages)
+    assert progress_ends(pending) == {}
     assert pending["unread"] == {}
 
     answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
-    later_progress = {
-        "kind": "reply",
-        **identity,
-        "parent": "e1",
-        "text": "Checking the next week.",
-        "ephemeral": True,
-    }
-    completed = model.threads(model.reading(HUB, (*messages, answer, later_progress)))[
-        "e1"
-    ]
-    assert completed["summaries"] == []
-    assert {
-        message["id"]: message["completed_by"]
-        for message in completed["msgs"]
-        if "completed_by" in message
-    } == {"e2": "e5", "e4": "e5"}
+    completed = thread((*messages, answer))
+    assert progress_ends(completed) == {"e2": "e5", "e4": "e5"}
     assert [message["text"] for message in completed["msgs"]] == [
         "Check the schedule.",
         "Checking mounts.",
         "And the camera?",
         "Checking the camera.",
         "Both fit.",
-        "Checking the next week.",
     ]
     assert completed["unread"] == {"e5": "e5"}
 
 
-def test_progress_completion_survives_edits_and_explicit_summaries():
+def test_progress_ends_survive_edits_and_explicit_summaries():
     identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
@@ -495,8 +503,7 @@ def test_progress_completion_survives_edits_and_explicit_summaries():
         )
     )["e1"]
     assert corrected["summaries"] == []
-    assert corrected["msgs"][1]["completed_by"] == "e4"
-    assert corrected["msgs"][2]["completed_by"] == "e4"
+    assert progress_ends(corrected) == {"e2": "e3", "e3": "e4"}
     assert corrected["msgs"][1]["text"] == "Mounts checked."
     assert corrected["unread"] == {"e4": "e4"}
 
@@ -519,12 +526,64 @@ def test_progress_completion_survives_edits_and_explicit_summaries():
     assert [(fold["covers"], fold["text"]) for fold in explicit["summaries"]] == [
         (["e1", "e2"], "The mounts were checked."),
     ]
-    assert explicit["msgs"][1]["completed_by"] == "e4"
-    assert explicit["msgs"][2]["completed_by"] == "e4"
+    assert progress_ends(explicit) == {"e2": "e3", "e3": "e4"}
     assert explicit["unread"] == {"e4": "e4"}
 
 
-def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
+def test_a_step_toward_no_owed_answer_ends_with_the_turn_that_wrote_it():
+    """A step the thread owes no answer before, as one after a pick the agent
+    answers on the page, stands while the turn that wrote it runs and ends with it.
+    A step after a message still owed stands past its turn, as the line a line
+    fork writes for the session does, even once the session ends, until the agent
+    next speaks there."""
+    agent = {"author": "agent", "agent": "Claude", "session": "session-1"}
+    answered = (
+        {"kind": "comment", "text": "Which fork writes the summary?"},
+        {
+            **agent,
+            "kind": "reply",
+            "parent": "e1",
+            "responds": "e1",
+            "text": "Its own.",
+        },
+        {
+            **agent,
+            "kind": "reply",
+            "parent": "e1",
+            "text": "Recording your pick on the page.",
+            "ephemeral": True,
+            "turn": "turn-1",
+        },
+    )
+
+    def ends(events, presence):
+        state = model.served_reading(HUB, events, presence=presence)["browser"]
+        return progress_ends(model.threads(state)["e1"])
+
+    assert ends(answered, CLAIMED) == {}
+    assert ends(answered, {**CLAIMED, "turn_closed": model.NOW}) == {"e3": None}
+    # A later turn of the main thread never brings it back.
+    assert ends(answered, {**CLAIMED, "turn": "turn-2"}) == {"e3": None}
+    owed = (*answered, {"kind": "reply", "parent": "e1", "text": "And the title?"})
+    assert ends(owed, {**CLAIMED, "turn_closed": model.NOW}) == {"e3": None}
+
+    line = (
+        *owed,
+        {
+            **agent,
+            "kind": "reply",
+            "parent": "e4",
+            "text": "Checking where titles come from.",
+            "ephemeral": True,
+            "turn": "turn-1",
+        },
+    )
+    assert ends(line, {**CLAIMED, "turn_closed": model.NOW}) == {"e3": None}
+    ended = {**CLAIMED, "turn_closed": model.NOW, "session_alive": False}
+    assert ends(line, ended) == {"e3": None}
+
+
+def test_a_reaction_or_another_thread_s_message_ends_no_step():
     agent = {"author": "agent", "agent": "Codex", "session": "session-1"}
     reply = {"kind": "reply", **agent, "parent": "e1"}
     messages = (
@@ -542,18 +601,14 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
         {**reply, "parent": "e6", "text": "A separate answer."},
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
-    assert pending["summaries"] == []
+    # The failure hands the update back to the user, so no turn holds the retry up.
+    assert progress_ends(pending) == {"e2": "e4", "e5": None}
     assert pending["unread"] == {"e4": "e4"}
 
     completed = (*messages, {**reply, "text": "Both mounts fit."})
     thread = model.threads(model.reading(HUB, completed))["e1"]
     assert thread["unread"] == {"e4": "e4", "e8": "e8"}
-    assert thread["summaries"] == []
-    assert {
-        message["id"]: message["completed_by"]
-        for message in thread["msgs"]
-        if "completed_by" in message
-    } == {"e2": "e8", "e5": "e8"}
+    assert progress_ends(thread) == {"e2": "e4", "e5": "e8"}
 
     revised = model.threads(
         model.reading(
@@ -634,13 +689,13 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
     ]
 
 
-def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
+def test_a_thread_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
     """A card moved on a board the agent sent in a reply is served in that reply's
     thread, so every surface of the thread shows its receipt; but the move owes
     nothing and publishes no obligation, so it leaves the thread the user's to answer,
     and no card reads it as work the agent is holding. The thread's own unanswered
     input is the contrast: it publishes the obligation that holds its thread."""
-    board = model.model_layer()["lf-board"]["x-example"]
+    board = model.model_layer()["lf-board"]["example"]
     state = model.reading(
         HUB,
         (
@@ -650,8 +705,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "text": "Here is the board. Which card goes first?",
-                "markup": board,
+                "text": "Here is the board. Which card goes first?\n\n" + board,
                 "obligation": True,
             },
             {
@@ -715,10 +769,10 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
+def test_questions_settle_one_by_one():
     """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it; the thread's head marks the latest. A reply after
-    the agent ended a question does not change that end."""
+    reaction after it answers it, or a resolve after it ends it; the thread's head
+    marks the latest."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
@@ -739,24 +793,21 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         "message:first"
     ]
     assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
-    state = add(
-        "todo_end",
-        "end",
-        todo="message:first",
-        outcome="dropped",
-        detail="Asked elsewhere",
-    )
-    assert served_obligations(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
     first, second = served_obligations(state)["all"]
-    assert (first["outcome"], first["answer"]) == ("dropped", None)
+    assert standing_model.answered(first)
+    assert first["answer"]["value"] == {"text": "Route A"}
     assert standing_model.answered(second)
     assert second["answer"]["event"]["id"] == "reaction"
+    # A resolve ends the questions asked before it, and a reopening brings back
+    # none of them; taking the resolve back does.
     state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
     assert served_todos(state) == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
+    assert served_obligations(state)["user"] == []
+    state = add("undo", "back", "user", undoes="close")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:third"
     ]
@@ -769,15 +820,15 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     ]
 
 
-def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task():
-    """Frozen widgets have no independent thread seat: their user and unanswered
+def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_prose_task():
+    """Thread widgets have no independent thread seat: their user and unanswered
     lists agree, and later prose or reactions cannot retire the widget obligation."""
     events = [
         {
             "kind": "comment",
             "author": "agent",
-            "text": "Choose a route.",
-            "markup": '<lf-options id="routes" choose><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
+            "text": "Choose a route.\n\n"
+            + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
         {"kind": "reply", "parent": "e1", "token": "keep"},
@@ -804,9 +855,9 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
     assert item["answer"]["value"] == ["route-a"]
 
 
-def test_summary_protects_the_unanswered_obligation_after_later_agent_messages():
-    """A summary cannot hide the question the user owes merely because a newer
-    agent message is the last turn. Protection selects the canonical prompt."""
+def test_a_summary_leaves_the_question_it_folds_on_the_users_list():
+    """A summary over a question the user owes answers nothing, so the question stays
+    on the user's list under the message that asked it."""
     state = model.reading(
         HUB,
         (
@@ -840,39 +891,6 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     assert owed["message"] == "e1"
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
-    assert summary["protected"] == ["e1"]
-
-
-def test_summary_protects_a_request_the_user_resolved_unanswered():
-    """A summary cannot hide the request the agent still owes an answer, in a thread
-    the user resolved as in an open one."""
-    state = model.reading(
-        HUB,
-        (
-            {"kind": "comment", "author": "user", "text": "Check the east route."},
-            {
-                "kind": "reply",
-                "author": "user",
-                "parent": "e1",
-                "text": "And the fare.",
-            },
-            {
-                "kind": "summary",
-                "author": "agent",
-                "agent": "Codex",
-                "session": "summary-session",
-                "thread": "e1",
-                "from": "e1",
-                "through": "e2",
-                "text": "Asked for the east route and its fare.",
-            },
-            {"kind": "resolve", "author": "user", "parent": "e1"},
-        ),
-    )
-    thread = model.threads(state)["e1"]
-    assert thread["resolved"]
-    [summary] = thread["summaries"]
-    assert summary["protected"] == ["e2"]
 
 
 def test_an_answer_sends_a_held_reading_only_what_changed():
@@ -882,9 +900,9 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     for the whole answer it completes to)."""
     page = model.leaf_page(
         "Tail",
-        '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
-        '<lf-options id="pick" choose><lf-option id="one">One</lf-option>'
-        '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
+        '<p id="p">One.</p><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+        '<lf-options id="pick"><lf-option id="one">One</lf-option>'
+        '<lf-option id="two">Two</lf-option></lf-options></lf-group>',
     )
     pick = {
         "kind": "action",
@@ -1005,20 +1023,34 @@ def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
         assert [event["id"] for event in whole["events"]] == ["e1"], key
 
 
-def test_one_pages_answers_leave_another_readings_remembered(monkeypatch):
-    """A process serving several pages, or a page and its live samples, remembers each
-    page's readings apart, so one page's answers never push out the reading another
-    page's tab holds (`served_state.tail.PAGES`)."""
+def test_a_pages_memory_keeps_the_readings_its_tabs_hold(tmp_path, monkeypatch):
+    """Each page's readings are remembered in its memory (`page_memory`), so one page's
+    answers, such as a live sample's or another page's on a multiplexed server, never
+    push out the reading another page's tab holds. A page whose memory the process
+    dropped answers whole, and patches again from that answer."""
+    from leaf import page_memory
     from leaf.served_state import tail
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
-    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+    html = model.leaf_page("Tail", '<p id="p">One.</p>')
     log = [{"kind": "comment", "text": "Why?"}]
-    first = model.served_reading(page, log)
-    later = model.served_reading(page, [*log, {"kind": "comment", "text": "And?"}])
-    held = tail.answer(deepcopy(first), None, "page")["browser"]["basis"]["key"]
-    tail.answer(deepcopy(later), None, "sample")
-    assert "since" in tail.answer(deepcopy(later), held, "page")
+    first = model.served_reading(html, log)
+    later = model.served_reading(html, [*log, {"kind": "comment", "text": "And?"}])
+    page, sample = tmp_path / "page", tmp_path / "sample"
+
+    def key(answer: dict) -> str:
+        return answer["browser"]["basis"]["key"]
+
+    held = key(tail.answer(deepcopy(first), None, page))
+    tail.answer(deepcopy(later), None, sample)
+    assert "since" in tail.answer(deepcopy(later), held, page)
+
+    held = key(tail.answer(deepcopy(first), None, page))
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    whole = tail.answer(deepcopy(later), held, page)
+    assert "since" not in whole
+    assert "since" in tail.answer(deepcopy(first), key(whole), page)
 
 
 def test_revision_labels_name_each_draft_after_the_newest_earlier_stamp():

@@ -17,9 +17,12 @@ const adopted = (name) => {
   // captured; this stands in its words.
   const view = served.browser.views[String(served.active.revision)];
   const messageBodies = new Map(
-    view.thread.threads.flatMap(({ msgs }) =>
-      msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
-    ),
+    view.thread.threads.map(({ id: thread, msgs }) => [
+      thread,
+      new Map(
+        msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
+      ),
+    ]),
   );
   assert.equal(app.adopt(served, { ...app.read().document, messageBodies }), true);
   return { app, served: view.queues, obligations: view.obligations };
@@ -97,7 +100,10 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
   const answers = published(app).on_agent.filter((item) => item.kind === "update");
   assert.deepEqual(kinds(answers), [["update", "update:pending:a5"]]);
   app.refuse("a5");
-  assert.equal(answers[0].thread, owed.thread);
+  // The answer falls back to the follow-up still sending, in the same thread.
+  const left = published(app).on_agent.filter((item) => item.kind === "update");
+  assert.deepEqual(kinds(left), [["update", "update:pending:a3"]]);
+  assert.equal(left[0].thread, owed.thread);
   assert.equal(published(app).on_agent.at(-1).kind, "todo");
   app.refuse("a3");
   // A refused follow-up leaves the thread the user's to send again, and the answer

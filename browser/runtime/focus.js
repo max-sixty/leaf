@@ -75,6 +75,7 @@ import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
+  eachRenderedElement,
   excludedByInert,
   hostIn,
   isElement,
@@ -95,21 +96,21 @@ import {
  * @typedef {StandInResult | (() => StandInResult)} StandIn
  * @typedef {(...standIns: StandIn[]) => boolean | PromiseLike<boolean>} FocusRestore
  */
-// The elements under `node` in the tree as rendered: a host's shadow tree in place of
-// its children, and a slot's assigned elements, or its fallback, in its place. A host
-// its author took out of the order (a negative `tabindex`) takes its whole tree out
-// with it, so Tab skips what it renders.
-/** @param {Element | Document | ShadowRoot} node @returns {Generator<Element>} */
-function* renderedElements(node) {
-  const children = isHTML(node, "slot")
-    ? node.assignedElements({ flatten: true })
-    : ((isElement(node) && node.shadowRoot) || node).children;
-  for (const child of children) {
-    yield child;
+// The elements under `node` in the tree as rendered (`eachRenderedElement`). A host its
+// author took out of the order (a negative `tabindex`) takes its whole tree out with it,
+// so Tab skips what it renders.
+//
+// It collects into one array, as its caller wants: walked through a generator for each
+// element, Tab stops over a long listing take Firefox longer than with the array.
+/** @param {Element | Document | ShadowRoot} node @param {Element[]} [into] */
+function renderedElements(node, into = []) {
+  eachRenderedElement(node, (child) => {
+    into.push(child);
     const tabIndex = child.getAttribute("tabindex");
-    if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
-    yield* renderedElements(child);
-  }
+    if (!(child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0))
+      renderedElements(child, into);
+  });
+  return into;
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // The controls inside `root` that take a Tab stop right now, through open shadow trees as
@@ -119,7 +120,7 @@ const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // browser's; nothing here predicts its walk.
 /** @param {Element | Document | ShadowRoot} root */
 export const tabStops = (root) =>
-  [...renderedElements(root)].filter(
+  renderedElements(root).filter(
     (node) =>
       node.matches(SEQUENTIAL) &&
       "tabIndex" in node &&
@@ -174,10 +175,23 @@ export const tabStops = (root) =>
 //
 // Placements never ask the browser to reveal their target: native focus scrolling
 // crosses browsing contexts. A caller needing reveal uses document-local scrolling.
+//
+// A destination may be an element its owner settles as the user lands on it,
+// `{element, settle}`, as a chart moves its reading to the point Leaf puts the user on
+// (visual-parts.js, `focus`). `settle` runs here, as focus is placed on an element that
+// can take it, and nowhere else, so a route that names a destination it never lands
+// on, a hand-back that passes it by, or a placement on an inert or hidden element,
+// changes nothing the owner shows. A destination is told from an element by its node
+// type rather than `instanceof`, since an element of a same-origin frame, as a
+// playground's preview holds, belongs to another window's `Element`.
 export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 /** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
- * @param {Element} destination @param {"move" | "step" | "return" | "press"} cause
+ * @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
+/** The element a destination puts the user on. @param {FocusDestination} destination */
+export const focusElement = (destination) =>
+  isElement(destination) ? destination : destination.element;
+/** @param {FocusDestination} destination @param {"move" | "step" | "return" | "press"} cause
  * @param {{caret?: Caret | null}} [options] */
 export function focusDestination(
   destination,
@@ -189,6 +203,7 @@ export function focusDestination(
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
+  const element = focusElement(destination);
   // Firefox otherwise inherits a pointer arrival's invisible focus through a
   // keyboard route, including a composer return. Ask the platform to show that
   // destination; pointer routes keep its own visibility heuristic.
@@ -197,10 +212,11 @@ export function focusDestination(
     ...(!pressLed() && { focusVisible: true }),
   };
   placed(cause, () => {
-    nativeFocusTarget(destination).focus(options);
-    if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
+    if (!isElement(destination) && drawn(element)) destination.settle();
+    nativeFocusTarget(element).focus(options);
+    if (!landedOn(element) && lendable(element)) lendStop(element, options);
   });
-  if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
+  if (caret && holdsCaret(element)) element.setSelectionRange(...caret);
 }
 // The cause of the placement running now, null outside one. The outermost placement
 // names it, since whatever focus runs inside it is part of the same act.
@@ -379,8 +395,9 @@ function landLabelPress() {
   });
 }
 
-// Where the user is: the element holding focus, inside any open shadow tree, or the
-// element a press on a label holds them on. Asked in `tree`, a document or shadow root,
+// Where the user is: the element holding focus, inside any open shadow tree, the
+// element a press on a label holds them on, or where a press on what a tab panel holds
+// will land (`standingFor`). Asked in `tree`, a document or shadow root,
 // it is the node standing for that place there, as `tree.activeElement` retargets focus:
 // the host of the shadow tree the user is in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
@@ -404,29 +421,15 @@ export function followingFocus(read) {
 /** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
   if (following) focusRevision();
-  const at = heldByLabel() ?? deepFocus();
+  const at = heldByLabel() ?? standingFor(deepFocus());
   return tree ? hostIn(at, tree) : at;
-};
-
-// The selection the user drew in the tree containing `node`, where the browser keeps it.
-/** @param {Node} node */
-const selectionOf = (node) => {
-  const root = node.getRootNode();
-  // Only Chromium's shadow roots answer their own selection; Firefox and WebKit
-  // keep it on the document.
-  return (
-    (focusRoot(root) &&
-      root.nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
-      root.getSelection?.()) ||
-    getSelection()
-  );
 };
 
 // Where the user is, nearest first: the focused node, unless focus rests on the
 // body, then the ends of a selection they drew, its focus before its anchor, a caret a
 // click left included, since a selection names where a reader is as surely as focus
-// does. Each reader takes these by its own rule: the first that is a place on the page
-// (`currentLocationOrigin`, current-target.js), or any that lies in a node (`currentLocationTouches`).
+// does. Each reader takes these by its own rule, as the first that is a place on the
+// page (`currentLocationOrigin`, current-target.js).
 export function currentLocationNodes() {
   const at = focused();
   const selection = getSelection();
@@ -435,18 +438,6 @@ export function currentLocationNodes() {
     selection?.focusNode ?? null,
     selection?.anchorNode ?? null,
   ].filter((node) => node !== null);
-}
-
-// Whether the user is on `node` or on something in it: where they are
-// (`currentLocationNodes`) is inside it, or a selection they drew reaches into it. A change
-// that puts `node` away would take that place from them.
-/** @param {Node | null} node */
-export function currentLocationTouches(node) {
-  if (!node) return false;
-  if (currentLocationNodes().some((at) => at === node || node.contains(at)))
-    return true;
-  const selection = selectionOf(node);
-  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
 }
 
 // Holding the user's place across a change to the tree they are in. Moving a node
@@ -766,6 +757,17 @@ function watchFocusPaintIn(root) {
 }
 /** @param {Element | null} node @param {CurrentLocationCause} cause */
 function publish(node, cause) {
+  if (press && cause === "press" && !takenOver && node?.matches(TAB_PANEL)) {
+    // The focus marks leave the element the press took the user off.
+    paintDestination = null;
+    queueFocusPaint();
+    if (press.released) {
+      passing = node;
+      setTimeout(() => passPanel(node));
+    }
+    return;
+  }
+  if (node && press && !press.released) takenOver = true;
   watchCurrentLocationAround(node);
   paintDestination = node && new WeakRef(node);
   // A command-reference return may precede the command's own focus move in this
@@ -868,6 +870,78 @@ function readFocusEvent(event) {
   lastLocation = at && new WeakRef(at);
   publish(at, cause(at, event.relatedTarget));
 }
+// A tab panel has a Tab stop so the keyboard can reach and scroll what it holds. The
+// browser focuses the nearest focusable box around whatever a press lands on, so a
+// press on the panel's words, or on anything in it that takes no focus, focuses the
+// panel. The user pressed what the panel holds, not the panel, so the press lands where
+// it would without the panel's stop: on the nearest other box around the panel that a
+// press focuses, or nowhere, as a press on a plain page's words does. That holds when the
+// keyboard had put them on the panel before the press. The caret stays where they
+// pressed, and walks and the reading keys start from it (reading-regions.js). To comment
+// on the panel, the user steps onto it with the keyboard.
+// DOM focus stays on the panel until the press is released. Moved inside the press's own
+// focus event, focus ends the drag selection the press starts in Chromium and WebKit; a
+// task later every engine keeps it, but Chromium can deliver a quick click's release
+// before that task, and the press's other ends read DOM focus at the release, as the
+// comment bar does as it stands down (composing/surface.js), so the pass runs first of
+// them. Until then every reading of where the user is, holds included, reads where the
+// press will land, and no reader hears the panel. A tap focuses at its click, after its
+// release, and lands a task later, since Chromium drops the tap's caret when focus moves
+// while it focuses. A placement or a key that moves the user during the press takes over
+// from it.
+// Rejected: keeping the panel as where the user is. A panel holds most of a page that
+// has one, so a press almost anywhere made `c` comment on the whole panel, with no ring
+// to show it. Rejected too: passing on the stop reach.js lends an overflowing box in the
+// same way. A widget's scrollport wears that stop, as a diff's code does, and a press on
+// a widget's contents is what puts the user in its keys (keyboard/scopes.js).
+const TAB_PANEL = "[role='tabpanel']";
+// Whether a placement or a key moved the user during the press under way.
+let takenOver = false;
+// The panel a tap focused, until it lands a task later.
+/** @type {Element | null} */
+let passing = null;
+const PRESS_FOCUSES = `${TAB_STOP}, [tabindex], iframe`;
+// Where a press on what `panel` holds lands: the nearest box around it that a press
+// focuses and that is no tab panel, or nowhere.
+/** @param {Element} panel */
+function landing(panel) {
+  for (
+    let up = renderedParent(panel);
+    isElement(up) && up !== document.body;
+    up = renderedParent(up)
+  )
+    if (up.matches(PRESS_FOCUSES) && !up.matches(TAB_PANEL) && drawn(up)) return up;
+  return null;
+}
+// Whether `at` is a tab panel around what press `by` pressed, with nothing since moving
+// the user.
+/** @param {Element | null} at @param {Press | null} by @returns {at is Element} */
+const pressedPanel = (at, by) =>
+  at !== null &&
+  by !== null &&
+  !takenOver &&
+  at.matches(TAB_PANEL) &&
+  by.path.includes(at);
+/** @param {Element} panel */
+function passPanel(panel) {
+  if (passing === panel) passing = null;
+  if (labelPress || deepFocus() !== panel) return;
+  // WebKit drops the caret with the focus of the box around it.
+  const selection = getSelection();
+  const caret = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const up = landing(panel);
+  if (up) focusDestination(up, "press");
+  else blurFocused();
+  if (caret && !selection?.rangeCount) selection?.addRange(caret);
+}
+// The node standing for focus on `at`: where a press on a tab panel's contents will land.
+/** @param {Element | null} at */
+const standingFor = (at) =>
+  at === null
+    ? null
+    : at === passing || (!press?.released && pressedPanel(at, press))
+      ? (landing(at) ?? document.body)
+      : at;
 // Entering a component subscribes this owner to its subsequent internal moves.
 // Those moves do not reach the document; guessing them at the next input would
 // make their cause depend on the old node's later ancestry and lifetime.
@@ -1225,6 +1299,11 @@ addEventListener(
       clickClaimed: false,
     };
     press = begun;
+    takenOver = false;
+    begun.ends.push(() => {
+      const at = deepFocus();
+      if (pressedPanel(at, begun)) passPanel(at);
+    });
     for (const read of pressReaders) {
       const end = read(event, path);
       if (end) begun.ends.push(end);
@@ -1430,17 +1509,21 @@ export function holdFocus(scope, { key = null } = {}) {
     // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
     // several nodes of one place, as a diff line's text and its gutter's Comment: the one
     // like the control the user was on, or holding one, comes first.
+    // Read in the item's own tree, as `like` was (`eachRenderedElement`, entering no
+    // host's root).
     /** @param {Element} root @returns {Element | null} */
     const matching = (root) => {
       if (root.matches(like) && drawn(root)) return root;
-      const assigned = isHTML(root, "slot")
-        ? root.assignedElements({ flatten: true })
-        : [];
-      for (const child of assigned.length ? assigned : root.children) {
-        const found = matching(child);
-        if (found) return found;
-      }
-      return null;
+      /** @type {Element | null} */
+      let found = null;
+      eachRenderedElement(
+        root,
+        (child) => {
+          found ??= matching(child);
+        },
+        () => null,
+      );
+      return found;
     };
     /** @param {string | null | undefined} value */
     const find = (value) => {
@@ -1468,8 +1551,8 @@ export function holdFocus(scope, { key = null } = {}) {
 const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return renderedUnder(held, scope) ? held : null;
-  const currentLocation = deepFocus(
-    activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement,
+  const currentLocation = standingFor(
+    deepFocus(activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement),
   );
   if (
     currentLocation &&
@@ -1796,24 +1879,25 @@ export function letGo(from = focused()) {
 // that frame keeps its place: a user who moved on, or a caller that landed them itself,
 // said the newer word. That is the placement count every hold reads, so a move between
 // two nodes of one shadow tree counts as well.
-/** @param {(Element | null | undefined)[]} destinations */
+/** @param {(FocusDestination | null | undefined)[]} destinations */
 export function handBack(...destinations) {
-  const places = destinations.flatMap((node) =>
-    node && node !== document.body ? [node] : [],
+  const places = destinations.flatMap((place) =>
+    place && focusElement(place) !== document.body ? [place] : [],
   );
   // A reader of a landing that moved the user elsewhere said a newer word, and no
   // later destination lands over it.
   const landed = () => {
     const at = placements;
-    return places.some((node) => {
+    return places.some((place) => {
       if (placements !== at) return true;
+      const node = focusElement(place);
       if (!drawn(node)) return false;
-      focusDestination(node, "return");
+      focusDestination(place, "return");
       return landedOn(node);
     });
   };
   if (landed()) return;
-  if (!places.some((node) => node.isConnected)) {
+  if (!places.some((place) => focusElement(place).isConnected)) {
     letGo();
     return;
   }

@@ -7,14 +7,14 @@ the session's own files in the state home (`session_file`). The page server writ
 the record, reads it again every `POLL_S` until the module's reply is in it or its
 deadline passes, and then removes it (`ask`). It polls because a page server holds
 no native filesystem subscription (`file_changes`), and a request lasts only as long
-as the model takes, a median 1.5 s for a title.
+as the model takes.
 
 The session's pages follower (`hooks.cmd_pages`) waits on the session's records
-(`watch`), and lists each request as soon as it is written (`pending`), apart from
-the pages it lists: a page the agent closed is left off that list, yet its claim
-still names the session, whose model titles the page's new threads. The module
-makes the completion and hands the reply to Leaf
-with `leaf hook --fork`, which writes it into the record (`cmd_reply`). Python
+(`watch`), and lists each request as soon as it is written, as an instruction to the
+module (`listed`, `carrier.py`), apart from the pages it lists: a page the agent closed
+is left off that list, yet its claim still names the session, whose model titles the
+page's new threads. The module makes the completion and reports the reply to Leaf
+with `leaf hook --fork`, which writes it into the record (`replied`). Python
 writes the whole request, its model, system prompt and limits included, and reads
 the reply; the module only carries both.
 
@@ -118,7 +118,7 @@ def ask(session_id: str, request: dict, *, timeout: float) -> dict:
 def watch(session_id: str) -> "FileChanges":
     """A subscription that hears each of `session_id`'s requests written, answered
     or removed."""
-    # Here, so the step that hands a reply over (`cmd_reply`) never imports it.
+    # Here, so the step that hands a reply over (`replied`) never imports it.
     from .file_changes import FileChanges
 
     pattern = _path(session_id, "*")
@@ -133,8 +133,8 @@ def watch(session_id: str) -> "FileChanges":
 
 
 def pending(session_id: str) -> list[dict]:
-    """`session_id`'s requests still waiting for a reply, each as the module takes
-    it: its `id` and `request`."""
+    """`session_id`'s requests still waiting for a reply, each its `id` and
+    `request`."""
     now = time.time()
     found = []
     pattern = _path(session_id, "*")
@@ -147,11 +147,26 @@ def pending(session_id: str) -> list[dict]:
     return found
 
 
-def cmd_reply(session_id: str, payload: dict) -> None:
-    """Write the module's reply to the request `payload["completion"]` names, as
-    `leaf hook --fork` hands it over, unless its page server has stopped waiting."""
-    path = _path(session_id, payload["completion"])
-    reply = {
+def listed(session_id: str) -> list[dict]:
+    """An instruction to the module for each of `session_id`'s requests still waiting
+    (`pending`): the completion to make, whose report comes back to `replied`."""
+    return [
+        {
+            "id": f"complete:{asked['id']}",
+            "do": "complete",
+            "request": asked["request"],
+            "basis": {"kind": "completion", "completion": asked["id"]},
+        }
+        for asked in pending(session_id)
+    ]
+
+
+def replied(session_id: str, payload: dict) -> None:
+    """Write what the completion came to, as the module reports it (`carrier.step`),
+    as the reply to the request its basis names, unless its page server has stopped
+    waiting."""
+    path = _path(session_id, payload["basis"]["completion"])
+    answered = {
         name: value
         for name, value in payload.items()
         if name in {"text", "failed", "status", "error", "usage", "elapsed_ms"}
@@ -159,4 +174,4 @@ def cmd_reply(session_id: str, payload: dict) -> None:
     with flocked(_lock_path(session_id)):
         asked = COMPLETION.read(path)
         if asked is not None and "reply" not in asked:
-            COMPLETION.write(path, {**asked, "reply": reply})
+            COMPLETION.write(path, {**asked, "reply": answered})

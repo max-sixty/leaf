@@ -17,7 +17,7 @@ from .document_reading import read_document
 from .events import build_threads
 from .obligations import collection, thread_obligation_readings
 from .plans import plan_reading
-from .projection import frozen_thread_reading
+from .projection import thread_markup_reading
 from .todos import TodoReading
 
 
@@ -47,7 +47,7 @@ class WorkReading:
 
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
-        revision shows it. That revision captured its frozen thread widgets under its
+        revision shows it. That revision captured its thread widgets under its
         own registry, so their decisions, the obligations they answer and the attention those
         obligations give a thread are classified under it, as the page's own are. The threads
         themselves fold as every reading of them does, under the published page's
@@ -72,7 +72,7 @@ class WorkReading:
         return (
             self._thread
             if self._thread is not None
-            else frozen_thread_reading(
+            else thread_markup_reading(
                 self.events, self.registry, withdrawn=self.log.withdrawn
             )
         )

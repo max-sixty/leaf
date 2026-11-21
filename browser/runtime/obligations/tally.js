@@ -8,10 +8,10 @@
    (`obligations.discussed`), are counted under the agent's name, as its On list names
    it (`agentName`): "7 left to answer", "2 left to answer · 1 on Claude", "1 on Claude".
    So the words say something is the user's to answer exactly when Next On Me is
-   enabled. A frozen obligation in a resolved thread is open with no next actor, so it
-   counts on neither side, and a set of only such ones reads "1 open". An earlier tally
-   counted every open obligation as to answer and read "1 of 8 to answer" beside a
-   disabled Next On Me once the last one went to the agent. The words name no total:
+   enabled. A thread widget's obligation in a resolved thread is open with no next
+   actor, so it counts on neither side, and a set of only such ones reads "1 open". An
+   earlier tally counted every open obligation as to answer and read "1 of 8 to answer"
+   beside a disabled Next On Me once the last one went to the agent. The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
 /** @param {readonly import("../framework/application.js").ObligationRecord[]} held */

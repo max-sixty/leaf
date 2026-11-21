@@ -2,13 +2,14 @@
 
 from typing import NamedTuple
 
+from ..activity import turn_runs
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import (
-    FrozenThreadReading,
+    ThreadMarkupReading,
     canonical_reports,
     page_reading,
 )
@@ -25,12 +26,12 @@ class BrowserReading(NamedTuple):
     """The semantic readings one browser state serializes.
 
     A Python reader of the same snapshot selects from these rather than folding the
-    log again: the page's threads, the frozen thread document as the active revision
+    log again: the page's threads, the thread markup document as the active revision
     reads it, and each projected view's document reading, keyed by revision.
     """
 
     threads: dict
-    thread: FrozenThreadReading
+    thread: ThreadMarkupReading
     documents: dict[int, DocumentReading]
 
 
@@ -116,12 +117,16 @@ def browser_state(
                 revision_reader=revisions or readings.__getitem__,
             )
         )
-        # The view's own reading of the log: its document, and the frozen thread
+        # The view's own reading of the log: its document, and the thread
         # widgets with the obligations and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
-        thread, thread_reading = browser_thread(viewed, work.live_reply)
-        # The view's obligations are its own document's beside its frozen thread's, and
+        thread, thread_reading = browser_thread(
+            viewed,
+            work.live_reply,
+            lambda event: turn_runs(event, work.presence, work.turn),
+        )
+        # The view's obligations are its own document's beside its threads', and
         # the page's updates' and to-dos', served once: a list row names a
         # record by its id.
         # Each says whether its source's own answer stands on it, so no reader

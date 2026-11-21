@@ -54,7 +54,7 @@ import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-upgrade.js";
-import { under } from "../../shadow.js";
+import { under } from "../../shadow-tree.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";
@@ -247,6 +247,7 @@ export function createFloatingResponsePlacement({
     windowPosture = false;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
+    fabBar.removeAttribute("data-lf-card-width");
     for (const property of ["--lf-float-w", "--lf-float-h"])
       fabBar.style.removeProperty(property);
   }
@@ -542,8 +543,11 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, room, scale }) {
+          fit({ width, room, scale, fromSubject }) {
             if (!stillCurrent()) return;
+            // A box whose start stands away from its text takes its card's width
+            // (annotation-chrome.css).
+            keeps(fabBar, "data-lf-card-width", fromSubject ? null : "");
             setWidth(width, scale.x);
             setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();

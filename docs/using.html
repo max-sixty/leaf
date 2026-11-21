@@ -25,12 +25,12 @@
         margin: 0;
       }
       .panels figcaption {
-        font: 14px/1.45 var(--sans);
-        color: var(--muted);
+        font: 14px/1.45 var(--lf-sans);
+        color: var(--lf-muted);
         margin-top: 10px;
       }
       .panels figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
@@ -38,12 +38,12 @@
       /* Marks particular to these drawings, on the same tokens as the theme's
          svg.drawing idiom: the rail and a surface drawn over the page. */
       svg.drawing .rail {
-        fill: var(--accent-tint);
+        fill: var(--lf-accent-tint);
       }
       svg.drawing .over {
-        fill: var(--paper);
+        fill: var(--lf-paper);
         fill-opacity: 0.92;
-        stroke: var(--accent);
+        stroke: var(--lf-accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
@@ -63,8 +63,10 @@
     <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
-        <p class="eyebrow">Using a page</p>
-        <h1>Using a Leaf page</h1>
+        <hgroup>
+          <p>Using a page</p>
+          <h1>Using a Leaf page</h1>
+        </hgroup>
         <p class="lede" id="intro">
           An agent hands the user a page about its work. The user reads it, comments on
           exact passages, makes the choices it asks for, and follows what the agent is
@@ -83,8 +85,8 @@
           mobile versions.
         </p>
       </header>
-      <lf-tabs id="using" class="layout-flow"
-        ><lf-tab id="panel" label="The panel" class="layout-flow"
+      <lf-tabs id="using" flow="page"
+        ><lf-tab id="panel" label="The panel"
           ><details class="topic-outline" id="panel-outline">
             <summary>In this topic</summary>
             <nav aria-label="The panel sections">
@@ -96,19 +98,21 @@
               </ul>
             </nav>
           </details>
-          <section id="chrome" class="layout-flow">
+          <section id="chrome">
             <h2>Panel, rail and thread cards</h2>
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
               <em>chrome</em>: the Leaf panel floating at the window's foot, comment and
               decision markers, and thread cards. At rest the panel is one row: the
-              leaf, coloured by the agent's state; the comment field, which shows the
-              agent's status while it is empty; and the On Me mark, counting what waits
-              on the user, with a dot while a thread holds a reply they haven't read.
-              The leaf opens a small menu of the page's other controls. Pressing the On
-              Me mark opens its view above the row. A ✕ replaces the mark while the view
-              is open and closes it when pressed. A folded panel shows only the leaf in
-              the window's corner.
+              comment field, which shows the agent's status while it is empty; and at
+              its end the leaf, coloured by the agent's state, counting what waits on
+              the user, with a dot while a thread holds a reply they haven't read. The
+              leaf opens the On view above the row, whose tabs are a menu of the page's
+              other controls, On Me and Threads: on the menu while it holds an error the
+              user hasn't seen, else on On Me while anything waits on the user, else on
+              Threads while a thread has news, and otherwise on the menu. Pressing the
+              leaf again closes the view. A folded panel shows only the leaf in the
+              window's corner.
             </p>
             <p id="chrome-lists">
               The On view shows one list at a time, under a tab named for its actor,
@@ -324,7 +328,7 @@
               </figure>
             </div>
           </section>
-          <section id="panel-line" class="layout-flow">
+          <section id="panel-line">
             <h2>What the panel's line says</h2>
             <p id="panel-line-lede">
               The panel's comment field, while empty, is Leaf's one line of words about
@@ -342,9 +346,13 @@
                   <td>An error about no particular box, until the user next types</td>
                   <td><em>Couldn't load v3</em></td>
                 </tr>
+                <tr id="panel-line-held">
+                  <td>Keys pressed while the page loads, until it is ready</td>
+                  <td><kbd>g</kbd> <kbd>t</kbd> <em>run when the page is ready</em></td>
+                </tr>
                 <tr id="panel-line-destination">
                   <td>Where words go, while the caret is in the field</td>
-                  <td><em>Comment on the page</em>, <em>Reply in this thread</em></td>
+                  <td><em>Comment…</em>, <em>Reply…</em></td>
                 </tr>
                 <tr id="panel-line-selection">
                   <td>
@@ -355,50 +363,77 @@
                 </tr>
                 <tr id="panel-line-notice">
                   <td>
-                    A <a href="#updates-notices">notice</a>, or a walk's position while
-                    the user stays on its stop
+                    A <a href="#updates-notices">notice</a> for four seconds, or until
+                    the next input for an undo's or one offering a press; Go-to finding
+                    nothing, while its filter waits for a key; a walk's position for
+                    four seconds after each step
                   </td>
-                  <td><em>Updated to v4</em>, <em>Thread 2 of 5</em></td>
-                </tr>
-                <tr id="panel-line-stance">
-                  <td>The mode the user is in, which the ✕ at the row's end leaves</td>
-                  <td><em>In Draw mode</em></td>
+                  <td>
+                    <em>Updated to v4</em>, <em>No visible threads</em>,
+                    <em>Thread 2 of 5</em>
+                  </td>
                 </tr>
                 <tr id="panel-line-status">
                   <td>
-                    The page's <a href="/how-it-works/#updates-silence">status</a>
+                    The page's <a href="/how-it-works/#updates-silence">status</a>,
+                    after where the user stands, such as an older version
                   </td>
-                  <td><em>running the browser suite</em></td>
+                  <td>
+                    <em>running the browser suite</em>,
+                    <em>v1 of 2 · running the browser suite</em>
+                  </td>
                 </tr>
               </tbody>
             </table>
             <p id="panel-line-thread">
               With a thread open, the field is that thread's reply box. It says whose
-              turn it is beside the leaf, such as <em>Your turn</em>, and <em>Reply</em>
-              with the key that enters it at the line's end; a notice takes their place
-              for its four seconds, and a walk's position follows whose turn it is.
+              turn it is beside the leaf, such as <em>Your turn</em>, and
+              <em>Reply</em> with the key that enters it at the line's end while that
+              key enters it; a notice takes the turn's place while it stands, and a
+              walk's position follows whose turn it is.
+            </p>
+            <p id="panel-line-mode">
+              In a mode, such as Draw mode, the row is the mode's: its name in a word,
+              <em>Draw</em>, stands beside the ✕ at the row's end, which leaves it, as a
+              search's does, and the field takes no words until it ends, offering
+              neither <em>Reply</em> nor the microphone. <kbd>esc</kbd> ends a mode
+              entered from an open thread before it closes the thread, and closes a
+              thread opened in a mode first.
+            </p>
+            <p id="panel-line-end">
+              At its end the line offers the one press that matters now, with its key:
+              in a mode <em>Close</em> <kbd>esc</kbd>, else <em>Open latest</em> on an
+              older version, otherwise <em>Next On Me</em> <kbd>m</kbd> while something
+              waits on the user, and <em>Comment…</em> <kbd>c</kbd> once nothing does.
+              After a Resolve it offers <em>Next thread</em> <kbd>t</kbd>. A press
+              stands there only while its key would make it, so with the caret in a
+              reply, where <kbd>m</kbd> types a letter, the end is empty until the caret
+              leaves, and <em>Close</em> leaves it while <kbd>esc</kbd> would first
+              close a thread opened in the mode. On a touchscreen the end shows the
+              press's word alone, but for <em>Close</em>, whose place the mode's ✕ takes
+              there.
             </p>
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
-              <em>In Draw mode · Thread 2 of 5</em>, and a dash attaches a detail to the
-              fact before it. Only words the agent wrote, such as the line it gave its
-              work, read in its voice; what Leaf says itself, such as
-              <em>Stopped 3m ago</em>, is set in italic. Words the user is writing hide
-              the line, while screen readers still hear notices and changes of status. A
-              press the line offers, <em>Reply</em> or the selected words, reads in full
-              ink with the key that makes it, and everything else reads dimmer. The leaf
-              and the tab's icon keep the status's colour throughout, and the leaf's
-              menu holds the status's full sentence. A folded panel shows notices beside
-              the leaf.
+              <em>v1 of 2 · Thread 2 of 5</em>, and a dash attaches a detail to the fact
+              before it. Only words the agent wrote, such as the line it gave its work,
+              read in its voice; what Leaf says itself, such as <em>Stopped 3m ago</em>,
+              is set in italic. Words the user is writing hide the line, while screen
+              readers still hear notices and changes of status. The line's words read
+              dimmer than words written in it, and a passing notice a step brighter. The
+              leaf and the tab's icon keep the status's colour throughout. Where the
+              field cuts its words short, pointing at it or holding a finger on it shows
+              them whole, and the leaf's menu holds the status's full sentence. A folded
+              panel shows notices beside the leaf.
             </p>
           </section>
-          <section id="on-me" class="layout-flow">
+          <section id="on-me">
             <h2>On Me</h2>
             <p id="on-me-what">
-              The On Me mark at the end of the panel's row counts what waits on the
-              user: each choice a widget asks them to make, each question the agent asks
-              them in a thread, and each update of theirs that failed to send. Pressing
-              the mark opens the list;
+              The leaf at the end of the panel's row counts what waits on the user: each
+              choice a widget asks them to make, each question the agent asks them in a
+              thread, and each update of theirs that failed to send. Pressing the leaf
+              opens the list;
               <kbd>m</kbd> walks the items in the order the list shows them, landing on
               each where it is answered.
             </p>
@@ -412,18 +447,19 @@
               works says exactly what belongs on each.
             </p>
           </section>
-          <section id="updates-notices" class="layout-flow">
+          <section id="updates-notices">
             <h2>Notices</h2>
             <p id="updates-notices-lede">
-              A notice stands in the panel's line for four seconds and is announced to
-              screen readers. Simultaneous news shares one notice, such as
+              A notice stands in the panel's line for four seconds, an undo's until the
+              next input, and is announced to screen readers. Simultaneous news shares
+              one notice, such as
               <em>Not answered · New On Me</em>. Some news is only announced, since
               something on the page already shows it: an agent message the user hasn't
-              read, which the On Me mark's dot and its margin marker show, and the
-              user's own gesture, which the widget draws where it was made. Opening a
-              page announces only unread agent messages, not its existing activity. The
-              agent starting or stopping work is no notice: the status in the same line
-              says it.
+              read, which the leaf's dot and its margin marker show, and the user's own
+              gesture, which the widget draws where it was made. Opening a page
+              announces only unread agent messages, not its existing activity. The agent
+              starting or stopping work is no notice: the status in the same line says
+              it.
             </p>
             <table id="updates-notice-kinds">
               <thead>
@@ -459,7 +495,7 @@
                   <td>A new revision replaces the page in place.</td>
                 </tr>
                 <tr id="updates-notice-gesture">
-                  <td>Moved to Done, Undid: Moved to Done</td>
+                  <td>Moved to Done, Undone: Moved to Done</td>
                   <td>
                     The log accepted the user's gesture, which is announced only, or its
                     undo.
@@ -468,7 +504,7 @@
               </tbody>
             </table>
           </section></lf-tab
-        ><lf-tab id="threads" label="Threads" class="layout-flow"
+        ><lf-tab id="threads" label="Threads"
           ><details class="topic-outline" id="threads-outline">
             <summary>In this topic</summary>
             <nav aria-label="Threads sections">
@@ -480,7 +516,7 @@
               </ul>
             </nav>
           </details>
-          <section id="comments" class="layout-flow">
+          <section id="comments">
             <h2>Comments and replies</h2>
             <p id="comment-route">
               Select a passage, then use the comment control or press <kbd>c</kbd> to
@@ -502,7 +538,7 @@
               clarifying, shortening, supporting, or prioritizing content.
             </p>
           </section>
-          <section id="practice" class="layout-flow">
+          <section id="practice">
             <h2>Try a thread</h2>
             <p id="sample-introduction">
               This fictional exchange shows an agent's reply after revising the importer
@@ -547,7 +583,7 @@
               </template>
             </lf-sample>
           </section>
-          <section id="thread-readings" class="layout-flow">
+          <section id="thread-readings">
             <h2>What a thread shows</h2>
             <p id="thread-readings-lede">
               A thread appears in several places at once: its card in Threads, its entry
@@ -599,15 +635,17 @@
               </tbody>
             </table>
           </section>
-          <section id="ending" class="layout-flow">
+          <section id="ending">
             <h2>How a thread ends</h2>
             <p id="resolving-user">
               The user usually closes a thread with <strong>Resolve thread</strong>, or
               <kbd>r</kbd> on the focused thread, once they have read the answer. Its
               marker and ink leave the page, and it moves from Threads'
               <strong>Open</strong> list to <strong>Resolved</strong>.
-              <strong>Reopen</strong> brings it back, as does <kbd>z</kbd> when
-              resolving was the user's latest action.
+              <strong>Reopen</strong> brings it back, as does <kbd>⌘Z</kbd> (<kbd
+                >Ctrl+Z</kbd
+              >
+              off a Mac) when resolving was the user's latest action.
             </p>
             <p id="resolving-agent">
               The agent resolves a thread only when the user asks, or when no review
@@ -616,21 +654,29 @@
               reaction, a progress message or a failure notice does not.
             </p>
             <p id="withdrawing">
-              <kbd>z</kbd> takes back the user's latest action, a message they just sent
-              included: a comment, reply or reaction. A reaction's mark also has an undo
-              control of its own. An undone message leaves the page, with any thread it
-              started. Where something has already answered it, it stays in its place
-              instead and reads Deleted. To delete an older message, the user rewrites
-              it to no words.
+              Outside a text box, <kbd>⌘Z</kbd> takes back the user's latest action, a
+              message they just sent included: a comment, reply or reaction. A
+              reaction's mark also has an undo control of its own. An undone message
+              leaves the page, with any thread it started. Where something has already
+              answered it, it stays in its place instead and reads Deleted. To delete an
+              older message, the user rewrites it to no words.
             </p>
             <p id="unsent-words">
-              Words typed but not sent are kept after their box closes. If a new version
-              removes the content they were about, Resume writing (<kbd>g</kbd>
+              Words typed but not sent stay with what they are about after their box
+              closes: a comment with its passage or element, a reply with its thread.
+              Commenting somewhere else starts that place's own draft. Each draft stands
+              in the margin as a grey entry beside its passage or its thread, and
+              Threads lists them all under <strong>Drafts</strong>; a press on either
+              opens the draft in its box. While any wait and no thread has news, the On
+              Me mark wears a faint grey dot, and a press on it opens Threads. If a new
+              version removes the content they were about, Resume writing (<kbd>g</kbd>
               <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
-              already there.
+              already there. The page's server keeps drafts, so they reach every tab and
+              device showing the page; words typed while it is out of reach stay in
+              their tab until it answers again.
             </p>
           </section></lf-tab
-        ><lf-tab id="keys" label="Keys and touch" class="layout-flow"
+        ><lf-tab id="keys" label="Keys and touch"
           ><details class="topic-outline" id="keys-outline">
             <summary>In this topic</summary>
             <nav aria-label="Keys and touch sections">
@@ -642,7 +688,7 @@
               </ul>
             </nav>
           </details>
-          <section id="navigation-basics" class="layout-flow">
+          <section id="navigation-basics">
             <h2>Navigation</h2>
             <p id="navigation-lede">
               Leaf's shortcuts act where focus is. A thread, its passage and its margin
@@ -667,10 +713,12 @@
                   </td>
                 </tr>
                 <tr>
-                  <td>Move through threads</td>
+                  <td>Move through threads and drafts</td>
                   <td>
                     <kbd>t</kbd> advances; <kbd>Shift</kbd> + <kbd>t</kbd> goes back.
-                    Past either end, the walk comes round to the other.
+                    Past either end, the walk comes round to the other. At a comment you
+                    put away, its box opens with your words; <kbd>c</kbd> puts the caret
+                    in them.
                   </td>
                 </tr>
                 <tr>
@@ -720,8 +768,8 @@
                   <td>Leave or return</td>
                   <td>
                     <kbd>Escape</kbd> leaves one interaction. Browser Back / Forward
-                    traverses reading history. <kbd>z</kbd>, or Undo in the leaf's menu,
-                    takes back a recorded action.
+                    traverses reading history. <kbd>⌘Z</kbd>, or Undo in the leaf's
+                    menu, takes back a recorded action.
                   </td>
                 </tr>
               </tbody>
@@ -734,8 +782,8 @@
               distinguish walks that wrap from lists that stop.
             </p>
           </section>
-          <section id="phone" class="layout-flow">
-            <section id="phone-scope" class="layout-flow">
+          <section id="phone">
+            <section id="phone-scope">
               <h2>Phones and touch screens</h2>
               <p id="phone-scope-what">
                 Touch users can read, comment and operate widgets. Leaf’s page commands
@@ -745,23 +793,25 @@
                 regions stack.
               </p>
             </section>
-            <section id="phone-panel" class="layout-flow">
+            <section id="phone-panel">
               <h2>The panel and its menu</h2>
               <p id="phone-panel-row">
-                The panel fits a narrow window with space at its edges. Its row holds
-                the leaf, a comment field showing agent status, and the On Me count
-                beside its icon. A temporary notice replaces the status words.
+                The panel fits a narrow window with space at its edges. Its row holds a
+                comment field showing agent status, and the leaf with the On Me count
+                beside it. A temporary notice replaces the status words, and holding a
+                finger on the field shows status words it cuts short whole.
               </p>
               <p id="phone-panel-menu">
-                The leaf opens its menu, the first tab beside On Me and Threads. It
-                includes Search page and Page Map under Navigate, Undo, and Select mode,
-                Draw mode, Design mode and Hide annotations under Annotations. Decisions
-                appear in On Me and in their widgets. An active mode or search names
-                itself in the panel and provides a ✕ exit. Search arrows appear beside
-                the match count; tapping the marked match selects it.
+                The leaf opens the On view, whose first tab, the menu, stands beside On
+                Me and Threads. The menu includes Search page and Page Map under
+                Navigate, Undo, and Select mode, Draw mode, Design mode and Hide
+                annotations under Annotations. Decisions appear in On Me and in their
+                widgets. An active mode or search names itself in the panel and provides
+                a ✕ exit. Search arrows appear beside the match count; tapping the
+                marked match selects it.
               </p>
             </section>
-            <section id="phone-comments" class="layout-flow">
+            <section id="phone-comments">
               <h2>Comments, threads and widgets</h2>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a

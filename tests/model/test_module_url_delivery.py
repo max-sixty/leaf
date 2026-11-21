@@ -232,7 +232,10 @@ def test_native_package_import_urls_survive_delivery_and_export(
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source)
     document = SourceDocument("<main><lf-risk-note></lf-risk-note></main>")
-    vocabulary = {"lf-risk-note": {"x-upgrade": True}}
+    vocabulary = {
+        "lf-risk-note": {},
+        "$modules": {"lf-risk-note": "widgets/lf-risk-note.js"},
+    }
     artifact = capture_artifact(
         tmp_path,
         document,
@@ -325,7 +328,6 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
                 "/runtime/prepaint.js",
                 "/runtime/annotation-overlay/annotation-theme.css",
                 "/runtime/annotation-overlay/annotation-chrome.css",
-                "/runtime/annotation-overlay/annotation-marks.css",
                 "/runtime/chrome.css",
                 "/runtime/marks.css",
                 "/theme.css",
@@ -378,7 +380,7 @@ def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
     }
     layer = {"/widgets/lf-later.js": 'import { render } from "/vendor/lit.js";'}
     document = SourceDocument("<main><lf-later></lf-later></main>")
-    vocabulary = {"lf-later": {"x-upgrade": True}}
+    vocabulary = {"lf-later": {}, "$modules": {"lf-later": "widgets/lf-later.js"}}
     artifact = running(
         capture_artifact(tmp_path, document, vocabulary), runtime, layer, vocabulary
     )

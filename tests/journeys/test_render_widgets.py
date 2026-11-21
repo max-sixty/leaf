@@ -21,11 +21,11 @@ from render_harness import (
     AVAILABLE_COMMANDS,
     RELEASE_FOCUS,
     CutOff,
+    held_frames,
     holding,
     leaf_page,
     open_page,
     opened_tab,
-    panel_menu,
     resized,
     round_trip,
     scroll_settled,
@@ -37,7 +37,7 @@ from render_harness import (
     write,
 )
 
-from browser.widgets import PLAYGROUND_PAGE
+from browser.widgets import PLAYGROUND_PAGE, expect_accept_all
 from journeys import first_thread_head
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -50,28 +50,19 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def expect_accept_all(page, words):
-    """The leaf's menu offers accepting every remaining suggestion, by its count; read
-    the row enabled and put the menu away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]')
-    expect(row).to_have_text(words)
-    expect(row).to_be_enabled()
-    page.locator(".lf-fp-leaf").click()
-
-
 MOTION_SAMPLE_CONTENT = """
-<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-code id="card-code"><pre><code class="language-python">print("retained")</code></pre></lf-code>
 <pre id="card-tree">root/
 └── retained.txt</pre>
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
-    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
-      <lf-options id="sample-choice" choose>
-        <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
-        <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
+    <lf-group id="sample-choice-ask" label="Choose a sample"><h3 id="sample-choice-ask-h">Choose a sample</h3>
+      <lf-options id="sample-choice">
+        <lf-option id="sample-alpha" label="Alpha"><strong>Alpha</strong></lf-option>
+        <lf-option id="sample-beta" label="Beta"><strong>Beta</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-group>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
   </template>
 </lf-sample>
@@ -83,18 +74,19 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and beside the name its obligation's state: an open
-    mark while the obligation is unanswered, then a check and the picked option's title, said
-    in the tab's description too. Answered is the log's reading, so an undo puts the
-    open mark back once its answer is adopted, and the agent settling the question
-    keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    panel's summary under its name, and its obligation's state: On Me's symbol at the end
+    of the name's line while the obligation waits on the user, then a check and the
+    picked option's title under the summary, said in the tab's description too. Answered
+    is the log's reading, so an undo puts On Me's symbol back once its answer is
+    adopted, and the agent settling the question keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
     holds."""
 
     BOARD = (
         '<lf-board id="board">'
         + "".join(
-            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
-            f"<strong>Card {i}</strong> text</lf-card></lf-column>"
+            f'<lf-column id="col-{i}" label="Column {i}">'
+            f'<lf-card id="card-{i}" label="Card {i}"><strong>Card {i}</strong> text</lf-card>'
+            "</lf-column>"
             for i in range(6)
         )
         + "</lf-board>"
@@ -104,12 +96,12 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
-  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
-    <lf-options id="o-{key}" choose>
-      <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
-      <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
+  <lf-group id="ask-{key}" label="What happens to {key}?"><h3 id="q-{key}">What happens to {key}?</h3>
+    <lf-options id="o-{key}">
+      <lf-option id="o-{key}-fix" label="Fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close" label="Close"><strong>Close</strong> Explain and close.</lf-option>
     </lf-options>
-  </lf-ask>
+  </lf-group>
 </lf-tab>"""
 
     source = leaf_page(
@@ -156,12 +148,14 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
-    expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    on_me = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-on-me")
+    expect(on_me).to_be_visible()
+    expect(answer).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
+    expect(on_me).to_be_hidden()
     expect(tabs.first).to_have_accessible_name("Ticket a")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. Answered: Fix"
@@ -205,18 +199,18 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     holding(page, held, 1, "the undo")
     expect(answer).to_have_attribute("data-lf-obligations", "answered")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    expect(on_me).to_be_visible()
+    expect(answer).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -225,9 +219,12 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     round_trip(page)
     expect(answer).to_have_text("Fix")
     settled = source.replace(
-        '<lf-options id="o-a" choose>', '<lf-options id="o-a" choose settled>'
-    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" chosen>')
-    assert settled.count("settled") == 1 and settled.count("chosen") == 1
+        '<lf-options id="o-a">', '<lf-options id="o-a" settled>'
+    ).replace(
+        '<lf-option id="o-a-fix" label="Fix">',
+        '<lf-option id="o-a-fix" label="Fix" selected>',
+    )
+    assert settled.count("settled") == 1 and settled.count(" selected>") == 1
     wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
     expect(page.locator("#o-a .lf-settled")).to_be_visible()
     expect(answer).to_be_visible()
@@ -291,13 +288,13 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     source = leaf_page(
         "Session-store follow-ups",
         """<h1>Session-store follow-ups</h1>
-<lf-ask id="session-triage-decision">
-  <h2>Which follow-ups should we keep?</h2>
-  <lf-options id="session-triage" choose multiple>
+<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">
+  <h2 id="session-triage-decision-h">Which follow-ups should we keep?</h2>
+  <lf-options id="session-triage" multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
   </lf-options>
-</lf-ask>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))
@@ -311,7 +308,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     )
     assert item.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.scrollingElement;
         }"""
@@ -329,9 +326,9 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # The workspace's full height reaches every obligation in it; an obligation held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
-    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+        '<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
+    ).replace("</lf-group>\n", "</lf-group>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
@@ -404,15 +401,15 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     outline.
 
     Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
-    spine rather than keeping a column's width (#5619), and the prose stands where a
+    spine rather than keeping a column's width, and the prose stands where a
     column page's would. Section rows divide the available height according to the content they
     lead, a moving lens shows the visible band, and late content growth redraws both.
     Labels reveal over the body without moving the map or changing the item under the
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still above the room
-    the floating panel keeps at the window's foot, through the document's end."""
+    The track sticks, so once the reader scrolls the map stands still, filling its
+    track, until its sidebar ends or a footer below the sidebar comes in."""
     source = leaf_page(
         "contents map",
         """
@@ -447,8 +444,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
-    # Every row says its own word as text, the start row included. Its word used to be an
-    # attribute the map drew with `content: attr()`, which left the link that names
+    # Every row says its own word as text, the start row included. Its word is not an
+    # attribute the map draws with `content: attr()`, which leaves the link that names
     # the whole document saying nothing at all to any reading that asks a link what it
     # says — the accessible name it falls back to, a text dump, the widget's own outline.
     said = nav.locator("a").evaluate_all(
@@ -460,16 +457,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     expect(start).to_have_attribute("aria-current", "location")
     expect(nav.locator(".lf-toc-rows")).to_have_css("display", "flex")
     expect(prepare).to_have_css("opacity", "0")
-    motion = prepare.evaluate(
+    fade = prepare.evaluate(
         "node => { const s = getComputedStyle(node); "
-        "return {property: s.transitionProperty, duration: s.transitionDuration, "
-        "timing: s.transitionTimingFunction}; }"
+        "const at = s.transitionProperty.split(', ').indexOf('opacity'); "
+        "return at < 0 ? null : s.transitionDuration.split(', ')[at]; }"
     )
-    assert motion == {
-        "property": "color, opacity",
-        "duration": "0.12s, 0.24s",
-        "timing": "ease-out, ease-out",
-    }
+    assert fade not in (None, "0s"), f"the labels show without a fade: {fade}"
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
@@ -487,7 +480,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    # The map stands in the narrowed sidebar, which keeps no column's width (#5619),
+    # The map stands in the narrowed sidebar, which keeps no column's width,
     # and the prose stands centred in the Layout, as a column page's does.
     placed = page.locator("#route").evaluate("""aside => {
       const layout = aside.parentElement.getBoundingClientRect();
@@ -556,12 +549,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     assert markers[0]["content"] == '""'
     assert [marker["width"] for marker in markers] == [
         "9px",
-        "6px",
+        "7px",
         "3px",
         "3px",
-        "6px",
-        "6px",
-        "6px",
+        "7px",
+        "7px",
+        "7px",
     ]
     assert all(marker["height"] == marker["width"] for marker in markers)
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
@@ -771,9 +764,11 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
     # Once its track sticks, the map stays put through the rest of its sidebar, its
-    # start in view where the sidebar ends and its foot above the panel's room.
+    # start in view where the sidebar ends, and fills its track less the track's focus
+    # room, above the panel's room.
     panel_box = page.locator(".lf-fp-card").bounding_box()
     assert panel_box is not None
+    track = page.locator("#route > .layout-track")
     sidebar_end = page.locator("#route").evaluate(
         "node => node.parentElement.getBoundingClientRect().bottom "
         "+ document.scrollingElement.scrollTop - innerHeight"
@@ -788,9 +783,30 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         box = nav.bounding_box()
         assert box is not None
         assert box["y"] >= 0, box
-        assert box["y"] + box["height"] <= panel_box["y"] + 1, (box, panel_box)
+        foot = box["y"] + box["height"]
+        assert foot <= panel_box["y"] + 1, (box, panel_box)
+        track_box = track.bounding_box()
+        assert track_box is not None
+        assert foot == pytest.approx(track_box["y"] + track_box["height"] - 8, abs=1)
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
+
+    # A footer below the sidebar ends the room its track sticks in, so at the page's end
+    # the map stands above the footer rather than over it.
+    page.locator(".layout-sidebar").evaluate(
+        "sidebar => sidebar.insertAdjacentHTML('beforeend', "
+        "'<footer id=\"route-end\"><p>Last revised in March.</p></footer>')"
+    )
+    page.evaluate(
+        "document.scrollingElement.scrollTo({"
+        "top: document.scrollingElement.scrollHeight, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    footer_box = page.locator("#route-end").bounding_box()
+    box = nav.bounding_box()
+    assert footer_box is not None and box is not None
+    assert box["y"] + box["height"] <= footer_box["y"], (box, footer_box)
+    page.locator("#route-end").evaluate("node => node.remove()")
 
     # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
@@ -804,34 +820,39 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         page.locator("#route > .layout-track").evaluate("node => node.scrollTop") == 0
     )
 
-    # Map travel keeps the user oriented rather than teleporting. Start recording
-    # on the click so preparing the gesture cannot exhaust the frame sequence.
-    verify.evaluate("""link => {
-      document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
-      window.lfTocFrames = [];
-      link.addEventListener('click', () => {
-        const sample = () => {
-          window.lfTocFrames.push(document.scrollingElement.scrollTop);
-          if (window.lfTocFrames.length < 90) requestAnimationFrame(sample);
-        };
-        sample();
-      }, {once: true});
-    }""")
+    # Map travel keeps the user oriented rather than teleporting. The glide runs for a
+    # fixed time (scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
+    # after it ends shows a jump; holding the frame clock steps it a frame's length per
+    # frame, so the frames sampled show the same glide on any host.
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)
     expect(verify).to_have_css("opacity", "1")
-    page.mouse.click(verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2)
-    expect(page).to_have_url(re.compile(r"#verify$"))
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+    top = "() => document.scrollingElement.scrollTop"
+    frames = [page.evaluate(top)]
+    with held_frames(page) as step:
+        page.mouse.click(
+            verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2
+        )
+        expect(page).to_have_url(re.compile(r"#verify$"))
+        for _ in range(300):
+            step()
+            frames.append(page.evaluate(top))
+            if frames[-1] > 0:
+                break
+        else:
+            raise AssertionError(f"the glide never set off: {frames}")
+        # Twenty frames of the held clock run well past SCROLL_MS.
+        for _ in range(20):
+            step()
+            frames.append(page.evaluate(top))
     scroll_settled(page)
-    frames = page.evaluate("window.lfTocFrames")
-    travelled = [position for position in frames if position > 0]
-    # The glide runs for a fixed time (scrolling.js, `SCROLL_MS`), so how many frames
-    # show it depends on the machine's frame rate; one frame between the start and the
-    # destination is what tells a glide from a jump.
-    assert len({round(position) for position in travelled}) >= 2, frames
-    assert all(left <= right for left, right in pairwise(travelled)), frames
+    destination = page.evaluate(top)
+    assert frames[-1] == destination, (frames, destination)
+    assert any(0 < position < destination for position in frames), frames
+    assert all(left <= right for left, right in pairwise(frames)), frames
 
     start_href = start.get_attribute("href")
     assert start_href is not None
@@ -1062,9 +1083,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     before_b = candidate_b.locator(".code-measurement").inner_text()
     assert before_a != before_b
 
-    width = playground.locator('lf-playground-control[name="width"]').get_by_role(
-        "slider"
-    )
+    width = playground.locator('input[name="width"]')
     for _ in range(5):
         width.press("ArrowLeft")
     expect(candidate_a).to_have_attribute("style", re.compile(r"width: 320px"))
@@ -1131,7 +1150,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
 
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
-    expect(page.locator("#code-treatment > .lf-playground-choices")).to_have_css(
+    expect(page.locator("#code-treatment")).to_have_css(
         "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
     )
     resized(page, 1100, 320)
@@ -1171,7 +1190,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
         "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
     )
     expect(rejected).to_be_hidden()
-    expect_accept_all(second, "Accept all (2)")
+    expect_accept_all(second, 2)
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -1185,7 +1204,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
-    expect_accept_all(second, "Accept all (1)")
+    expect_accept_all(second, 1)
     unfolded_button(
         third.locator(
             "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=reject]"
@@ -1291,10 +1310,6 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
     page.keyboard.press("Escape")
 
 
-import pytest
-
-
-@pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize("destination", ["call", "patch"])
 def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
     """Light-DOM data and its shadow-DOM destination keep exact identity."""
@@ -1352,7 +1367,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
     playground = page.locator("#card-playground")
     expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
-    expect(playground.get_by_role("group", name="Controls")).to_be_visible()
+    expect(playground.get_by_role("region", name="Controls")).to_be_visible()
 
     playground.get_by_role("button", name="Dense").click()
     expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
@@ -1414,9 +1429,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
 
     playground.get_by_role("button", name="Needs attention").click()
     playground.get_by_role("radio", name="Status strip", exact=True).click()
-    page.locator('lf-playground-control[name="title"] input').fill(
-        "Checkout needs attention"
-    )
+    page.locator('input[name="title"]').fill("Checkout needs attention")
     expect(playground).to_have_attribute("data-playground-tone", "urgent")
     expect(playground).to_have_attribute("data-playground-compact", "true")
     expect(playground).to_have_attribute("data-playground-format", "status strip")
@@ -1505,11 +1518,16 @@ body { font-family: system-ui, sans-serif; }
     # the page leaves the workspace Layout. Select the authored identities rather
     # than copying their class lists and source whitespace into this revision writer.
     result = turbohtml.parse(source)
-    for control in result.select("#notification-playground lf-playground-control"):
+    for control in result.select("#notification-playground [name]"):
         value = action["detail"]["values"][control.attrs["name"]]
-        control.attrs["value"] = (
-            str(value).lower() if isinstance(value, bool) else str(value)
-        )
+        kind = control.attrs.get("type")
+        if kind in ("radio", "checkbox"):
+            if value is True or value == control.attrs.get("value"):
+                control.attrs["checked"] = ""
+            else:
+                control.attrs.pop("checked", None)
+        else:
+            control.attrs["value"] = str(value)
     workspace = result.select_one("#notification-workspace")
     assert workspace is not None
     workspace.attrs["class"] = "layout-column"
@@ -1547,9 +1565,7 @@ body { font-family: system-ui, sans-serif; }
 
     source_widget = page.locator("#notification-artifact-source")
     expect(source_widget).to_be_visible()
-    assert source_widget.evaluate(
-        "source => source.closest('lf-playground-preview') === null"
-    )
+    assert source_widget.evaluate("source => source.closest('lf-playground') === null")
     expect(source_widget.locator("code")).to_contain_text(
         "<title>Checkout needs attention</title>"
     )
@@ -1559,9 +1575,9 @@ body { font-family: system-ui, sans-serif; }
 
     configuration = page.locator("#notification-configuration")
     expect(configuration).to_have_attribute("open", "")
-    expect(
-        configuration.locator('lf-playground-control[name="title"] input')
-    ).to_have_value("Checkout needs attention")
+    expect(configuration.locator('input[name="title"]')).to_have_value(
+        "Checkout needs attention"
+    )
     configuration.locator(":scope > summary").click()
     expect(configuration).not_to_have_attribute("open", "")
     configuration.locator(":scope > summary").click()
@@ -1716,13 +1732,9 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows).to_have_count(2)
 
     playground.get_by_role("button", name="Up to 6 results").click()
-    expect(
-        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_value("6")
+    expect(playground.locator('input[name="limit"]')).to_have_value("6")
     playground.get_by_role("button", name="Up to 4 results").click()
-    expect(
-        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_value("4")
+    expect(playground.locator('input[name="limit"]')).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Show instruction").click()
@@ -1781,3 +1793,237 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     assert page.evaluate("document.documentElement.scrollWidth") == 480
     resized(page, 1100, 320)
     expect(page.locator("#release-query-ask")).to_be_visible()
+
+
+def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, serve):
+    """A candidate that restyles a whole page lives in a sample's template and keys on
+    that child's root. Each child the sample presents, the first and one a reset makes,
+    wears the playground's values from its first paint, and the page around the
+    playground keeps its own styling."""
+    source = leaf_page(
+        "sample playground",
+        """
+<h1>Tone playground</h1>
+<p id="host-note">The page around the playground.</p>
+<lf-group id="tone-ask" label="Which tone?">
+  <h2 id="tone-ask-h">Which tone?</h2>
+  <lf-playground id="tone-playground">
+    <aside><fieldset id="tone"><legend>Tone</legend>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-loud"><input type="radio" name="tone" value="loud"> Loud</label>
+    </fieldset></aside>
+      <lf-sample id="tone-sample" label="tone sample">
+        <template id="tone-page" data-sample>
+          <style>:root[data-playground-tone="loud"] p { color: rgb(200, 0, 0); }</style>
+          <h1 id="child-title">Child page</h1>
+          <p id="child-note">The page the candidate restyles.</p>
+          <lf-draft id="child-draft"><pre>A draft the candidate restyles too.</pre></lf-draft>
+        </template>
+      </lf-sample>
+    <lf-playground-output id="tone-instruction">Use the
+      <output for="tone"></output> tone.</lf-playground-output>
+  </lf-playground>
+</lf-group>
+""",
+    )
+    page = open_page(browser, serve(source))
+    child = page.frame_locator("#tone-sample iframe")
+    expect(child.locator(":root")).to_have_attribute("data-playground-tone", "quiet")
+
+    page.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
+    expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
+    expect(child.locator("#child-note")).to_have_css("color", "rgb(200, 0, 0)")
+    assert (
+        page.locator("#host-note").evaluate("note => getComputedStyle(note).color")
+        != "rgb(200, 0, 0)"
+    )
+
+    # The reset child has an opaque origin. Collect its paints there, then request
+    # the whole sequence after Reset completes across the browsing-context boundary.
+    # The parent's answer to the child's connection is held for a few frames, as a
+    # busy machine holds it: no frame the child shows meanwhile may be undressed,
+    # including the draft's prepainted markdown, which makes itself visible.
+    page.add_init_script("""(() => {
+      if (window === top) return;
+      const paints = [];
+      let sampling = true;
+      const tick = () => {
+        for (const words of document.querySelectorAll('#child-note, #child-draft p'))
+          if (words.checkVisibility({visibilityProperty: true, opacityProperty: true}))
+            paints.push(getComputedStyle(words).color);
+        if (sampling) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || !event.ports.length || event.lfHeld) return;
+        event.stopImmediatePropagation();
+        setTimeout(() => {
+          const held = new MessageEvent('message', {
+            data: event.data, source: event.source, ports: [...event.ports],
+          });
+          held.lfHeld = true;
+          window.dispatchEvent(held);
+        }, 200);
+      }, true);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
+          return;
+        requestAnimationFrame(() => {
+          sampling = false;
+          parent.postMessage({type: 'lf-test-tone-paints', paints}, '*');
+        });
+      });
+    })()""")
+    page.locator("#tone-sample").evaluate("sample => sample.reset()")
+    page.locator("#tone-sample").evaluate("""sample => {
+      window.lfTonePaints = null;
+      const frame = sample.querySelector('iframe');
+      const receive = event => {
+        if (event.source !== frame.contentWindow
+            || event.data?.type !== 'lf-test-tone-paints') return;
+        window.lfTonePaints = event.data.paints;
+        window.removeEventListener('message', receive);
+      };
+      window.addEventListener('message', receive);
+      frame.contentWindow.postMessage({type: 'lf-test-tone-read'}, '*');
+    }""")
+    page.wait_for_function("window.lfTonePaints !== null")
+    painted = page.evaluate("window.lfTonePaints")
+    assert painted and set(painted) == {"rgb(200, 0, 0)"}
+    expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
+
+
+def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
+    browser, serve
+):
+    """A candidate can draw only on what the user is located at in the preview, such as a
+    focus treatment inside a sample child, so clicking a choice, a toggle, a preset or
+    Reset, or dragging a slider, changes the candidate without taking the user out of
+    the preview. A text control takes focus to be typed in, and from anywhere else a
+    click takes the user to the control, where the next key acts."""
+    source = leaf_page(
+        "focus playground",
+        """
+<h1>Ring playground</h1>
+<lf-group id="ring-ask" label="Which ring?">
+  <h2 id="ring-ask-h">Which ring?</h2>
+  <lf-playground id="ring-playground">
+    <lf-playground-preset id="preset-wide" label="Wide">
+      <lf-playground-setting for="width" value="4"></lf-playground-setting>
+    </lf-playground-preset>
+    <aside>
+      <fieldset id="ring"><legend>Ring</legend>
+        <label id="ring-thin"><input type="radio" name="ring" value="thin" checked> Thin</label>
+        <label id="ring-thick"><input type="radio" name="ring" value="thick"> Thick</label>
+      </fieldset>
+      <label id="width">Width <input type="range" name="width" min="1" max="4" value="2"></label>
+      <label id="dim"><input type="checkbox" name="dim" role="switch"> Dim</label>
+      <label id="note">Note <input name="note" value="hi"></label>
+    </aside>
+      <button id="preview-button" type="button">A candidate button</button>
+      <lf-sample id="ring-sample" label="ring sample">
+        <template id="ring-page" data-sample>
+          <p>The page the candidate restyles.</p>
+          <button id="child-button" type="button">The current location</button>
+        </template>
+      </lf-sample>
+    <lf-playground-output>Use the
+      <output for="ring"></output> ring.</lf-playground-output>
+  </lf-playground>
+</lf-group>
+""",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#ring-playground")
+    child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
+    focused = "button => button.matches(':focus') && document.hasFocus()"
+
+    def values():
+        return playground.evaluate("root => root.values")
+
+    child_button.focus()
+    assert child_button.evaluate(focused)
+    page.get_by_role("radio", name="Thick", exact=True).click()
+    assert values()["ring"] == "thick"
+    assert child_button.evaluate(focused)
+
+    playground.get_by_role("switch", name="Dim").click()
+    assert values()["dim"] is True
+    assert child_button.evaluate(focused), "switch"
+    page.get_by_role("button", name="Wide", exact=True).click()
+    assert values()["width"] == 4
+    assert child_button.evaluate(focused), "preset"
+    # A range takes native focus to be dragged, and the sample's location comes back
+    # through its port after the press, so the user is back once that answer lands.
+    child = page.locator("#ring-sample iframe").element_handle().content_frame()
+    back_in_sample = (
+        "() => document.querySelector('#child-button').matches(':focus')"
+        " && document.hasFocus()"
+    )
+    slider = playground.get_by_role("slider", name="Width").bounding_box()
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    assert values()["width"] == 1
+    child.wait_for_function(back_in_sample)
+    page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        slider["x"] + slider["width"] - 2,
+        slider["y"] + slider["height"] / 2,
+        steps=4,
+    )
+    page.mouse.up()
+    assert values()["width"] == 4
+    child.wait_for_function(back_in_sample)
+    sample = page.locator("#ring-sample")
+    sample.evaluate(
+        """sample => {
+          const restore = sample.restoreCurrentLocation;
+          sample.restoreCurrentLocation = () => {
+            window.releaseRestore = () => {
+              window.restoreDone = restore.call(sample);
+            };
+            return Promise.resolve(false);
+          };
+        }"""
+    )
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    note = page.get_by_role("textbox", name="Note")
+    note.focus()
+    expect(note).to_be_focused()
+    page.evaluate("window.releaseRestore()")
+    assert page.evaluate("() => window.restoreDone") is False
+    expect(note).to_be_focused()
+    sample.evaluate("sample => delete sample.restoreCurrentLocation")
+    child_button.focus()
+    playground.locator(".lf-playground-reset").click()
+    assert values()["ring"] == "thin"
+    assert child_button.evaluate(focused)
+
+    # The same holds in the preview's own light DOM.
+    preview_button = page.locator("#preview-button")
+    preview_button.focus()
+    page.get_by_role("radio", name="Thick", exact=True).click()
+    expect(preview_button).to_be_focused()
+
+    # A text control is operated from focus, so a press there takes it.
+    note = page.get_by_role("textbox", name="Note")
+    note.click()
+    expect(note).to_be_focused()
+
+    # From outside the preview, a click takes the user to the control, and the next
+    # key acts there.
+    thin = page.get_by_role("radio", name="Thin", exact=True)
+    thin.click()
+    expect(thin).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert values()["ring"] == "thick"
+    playground.get_by_role("switch", name="Dim").click()
+    page.keyboard.press("Space")
+    assert values()["dim"] is False
+
+    # A sample whose page stands on nothing holds no one there.
+    page.frame_locator("#ring-sample iframe").get_by_text(
+        "The page the candidate"
+    ).click()
+    thin.click()
+    expect(thin).to_be_focused()

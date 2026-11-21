@@ -19,6 +19,7 @@ from interact_support import (
     declared,
     delivered,
     end_work,
+    inlined,
     owed,
     page_state,
     read_record,
@@ -242,10 +243,11 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert json.loads(context.split("\n")[1])["acknowledge"] is None
+    assert inlined(context)["acknowledge"] is None
 
-    # The stamps answer, and nothing renews this turn past the grace; `busy`, and
-    # a record whose process is gone, change nothing.
+    # The stamps answer, and nothing renews this turn past the grace; `busy` keeps
+    # the page working but holds no move in the turn, and a record whose process
+    # is gone changes nothing.
     harness_says("busy")
     harness_says("waiting", pid=dead_pid)
     assert _activity_at(claimed)["state"] == "running"
@@ -309,7 +311,8 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     subagents it left run. Until the record leaves `busy`, the page reads working,
     in the agent's last line, with the background observed beside it. A background
     shell leaves the record `shell`, which is idle, and the page reads the turn
-    ended at once."""
+    ended at once. The record dates its `busy`, so work that starts after that
+    break doesn't bring the start back."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
@@ -371,6 +374,63 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             ended["reason"],
             ended["observed"],
         ) == ("away", "blocked", "stopped", "")
+
+    # Background work the session starts after that break carries no start the
+    # break dropped.
+    harness_says("busy")
+    [owed] = _activity_at(claimed, 10)["obligations"]
+    assert (owed["state"], owed["reason"]) == ("blocked", "stopped")
+
+
+def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):
+    """Claude Code's record says `busy` of every turn it runs, so the page reads
+    working while one runs, in Leaf's word until the agent starts an item: a to-do
+    the agent opened and hasn't started doesn't make the page say the agent awaits
+    the user, though the watch takes input all the while. The working grace ages
+    only the stamps, so a long turn reads working past it. Once the turn ends, the
+    page awaits the user."""
+    serving(claimed, 1)
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+
+    def harness_says(status):
+        cleanup_model.write_json(
+            registry / f"{os.getpid()}.json",
+            {
+                "pid": os.getpid(),
+                "sessionId": "s1",
+                "status": status,
+                "statusUpdatedAt": int(time.time() * 1000),
+            },
+        )
+
+    session_model.cmd_waiting(claimed)
+    cleanup_model.open_session_turn("s1")
+    harness_says("busy")
+    opened = CliRunner().invoke(
+        cli_model.cli, ["task", "create", str(claimed), "page", "--title", "Fit S"]
+    )
+    assert opened.exit_code == 0, opened.output
+    lease_path = leases_model.waiter_lease_path(claimed, "s1")
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
+    assert lease
+    try:
+        for minutes in (0, 20):
+            running = _activity_at(claimed, minutes)
+            assert (
+                running["state"],
+                running["detail"],
+                running["observed_kind"],
+                [todo["line"] for todo in running["todos"]],
+            ) == ("running", "", "working", [None])
+
+        cleanup_model.close_session_turn("s1")
+        harness_says("idle")
+        awaiting = _activity_at(claimed)
+        assert (awaiting["presence"], awaiting["state"]) == ("here", "waiting")
+    finally:
+        leases_model.release_lease(lease)
 
 
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
@@ -455,8 +515,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_opened": old,
         "turn_closed": None,
         "turn_takes_input": False,
-        "agent_turns": {},
-        "kept_back": [],
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
@@ -489,7 +547,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
-        holding=activity_model.present_holding(present, events, now.isoformat()),
     )
     assert (waiting["state"], waiting["reason"], waiting["observed_kind"]) == (
         "blocked",
@@ -503,7 +560,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
-        holding=activity_model.present_holding(present, events, now.isoformat()),
     )
     assert (
         thinking["presence"],
@@ -549,7 +605,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
-        holding=activity_model.present_holding(present, events, now.isoformat()),
     )["workflows"]
     assert (ended["state"], ended["reason"]) == ("blocked", "stopped")
 
@@ -995,7 +1050,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
     assert json.loads(early.stdout)["state"] == "waiting"
-    [owed] = said(early.stderr)
+    [owed] = said(early.stdout)["findings"]
     assert owed["code"] == "page-open-owes"
     assert owed["text"] == (
         "1 user update with no answer (`leaf thread reply <answer.ref>` with "
@@ -1026,13 +1081,13 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
                 {
                     moment: {
                         "exit": result.exit_code,
-                        # The status as written, less the instant it was written at.
+                        # The status as written, less the instant it was written at,
+                        # with what the command noted beside it.
                         "status": {
                             key: value
-                            for key, value in json.loads(result.stdout).items()
+                            for key, value in said(result.stdout).items()
                             if key != "ts"
                         },
-                        "note": said(result.stderr),
                     }
                     for moment, result in (
                         ("before reply", early),
@@ -1494,7 +1549,6 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "delivery_seq": 1,
         "delivery_session": "s1",
         "delivery_turn": None,
-        "holder": {"kind": "main"},
         "started_by": [],
     }
     state = {
@@ -1504,6 +1558,5 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "session_alive": True,
         "turn": None,
         "turn_closed": "2026-10-28T12:00:00+00:00",
-        "agent_turns": {},
     }
     assert activity_model.left_owed(state, lambda _: False) == [obligation]

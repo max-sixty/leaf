@@ -4,17 +4,28 @@ each card stands and how it is shaped.
     uv run leaf-dev placement cards [--case NAME]... [--base [REF]] [--browser ENGINE]
 
 A case is one configuration a reader meets: the subject the thread is on (words quoted
-in a block, or a whole block), the messages the thread holds, the route that opens its
-card (`m` from the page's top or with the subject in view, a press on its margin
-marker or its words, by a finger in a touch window, or a comment the reader sends),
-what follows the opening,
-such as the agent's answer arriving or a scroll, and the windows it opens in, the
-1728×999, 1440×900 and 1000×700 ones unless it names others. Every case opens on one page,
-`fixture()`, whose blocks span the subjects pages hold: a one-line, a three-line and a
-sixteen-line paragraph, a heading, a list, a choice widget, and a section holding a
-table wider than the column. Add a case for a shape someone meets: a line in `CASES`,
-and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote is
-the first run of its words in its block's text (`browser.QUOTE_RANGE`).
+in a block, a whole block, or one part of a picture, such as a chart's point), the
+messages the thread holds, the route that opens its card (`m` from the page's top or
+with the subject in view, a press on its margin marker or its words, by a finger in a
+touch window, or a comment the reader sends), what follows the opening, such as the
+agent's answer arriving or a scroll, the windows it opens in, the 1728×999, 1440×900
+and 1000×700 ones unless it names others, and the Layout its page uses, the reading
+column unless it names another. Every case opens on `fixture(layout)`, whose blocks
+span the subjects pages hold: a one-line, a three-line and a sixteen-line paragraph, a
+heading, a list, a choice widget, a chart of dots, and a section holding a table wider
+than the column. Add a case for a shape someone meets: a line in `CASES`, and a block
+in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote is the first run
+of its words in its block's text (`browser.QUOTE_RANGE`).
+
+A page matters to placement only through its Layout, which sets the room around the
+words, so the page's content is the same on every layout and `LAYOUTS` holds each
+wrapper. `bare` is a `main` with no Layout, whose words run the window's width and
+leave no room beside them. `sidebar` and `workspace` are the
+other two page Layouts (`skills/leaf/references/page-layout.md`): a body beside an
+`aside`, and a screen filling the window whose body is an `lf-pane` that scrolls on its
+own. `layout-tiles` arranges one block's children, not the page, and is left out. Each
+non-column layout repeats the `LAYOUT_SHAPES`, the shapes whose placement depends most
+on room, in the wide and narrow windows.
 
 Each case is visited in each window on each arm through `leaf_dev.visits`, the loop
 `leaf-dev probe` runs, so a case reads what Leaf draws on its own: it sets only the
@@ -26,16 +37,18 @@ the gallery, with its captures in `media/` under the names a page's media take
 (`leaf page media` adds them to another page under the same names); `gallery.html`,
 its sections alone, for a page that shows them among its own with `STYLE`;
 `readings.jsonl`, one line per case, window and arm; and each failure's traceback.
-Each capture outlines in orange the block Leaf resolves the thread to, which its card
-keeps clear of, and fills the quoted words, drawn after the capture so the outline
-shows where a card covers them. What the gallery reports beside each capture is
+Each capture outlines in orange what Leaf resolves the thread to and its card keeps
+clear of, the block or the picture's part, and fills the quoted words, drawn after the
+capture so the outline shows where a card covers them. What the gallery reports beside each capture is
 measured in the tab:
 
 - the card's side and size, or the floating panel where the thread opens there;
 - how much narrower the card stands than it could, and which limit that is: the width
-  its contents take unwrapped, the measure (`cardMeasure`), or its room, which runs
+  its contents take unwrapped, the measure (`cardMeasure`), its room, which runs
   from the card's inner edge to the far edge of the placement boundary
-  (`commentBoundary`) beside its subject, and is the boundary's width above or below;
+  (`commentBoundary`) beside its subject, and is the boundary's width above or below,
+  or, for a card that declares it stands slim (`data-lf-widens`), the least width
+  (`cardMinimum`);
 - how much wider the card stands than its contents take unwrapped;
 - the part of its subject's block it covers, and whether it covers the quoted words,
   a fault where card and block would fit in the boundary together, side by side for a
@@ -49,7 +62,7 @@ measured in the tab:
 import html
 import json
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import click
@@ -115,6 +128,7 @@ SUBJECTS = {
     "h-steps": "a heading",
     "step-1": "a list item",
     "choice": "a choice widget",
+    "moved": "a chart of dots",
     "wide": "a section holding a table wider than the column",
     "wide-table": "a table wider than the column",
 }
@@ -134,29 +148,49 @@ ROUTE_WORDS = {
 }
 
 
+# The Layouts a case's page can use, as the gallery names them.
+LAYOUTS = {
+    "column": "the reading column",
+    "bare": "no Layout",
+    "sidebar": "a sidebar beside the body",
+    "workspace": "a workspace pane",
+}
+# The cases each non-column layout repeats.
+LAYOUT_SHAPES = ("words", "words-long", "heading")
+
+
 @dataclass(frozen=True)
 class Case:
     """One configuration: `subject` is the id of the block the thread is on, `quote`
-    the words it quotes there, or None for the whole block. `thread` holds its
-    messages before the page opens, the agent's question first and then the reader's
+    the words it quotes there, or `visual` the part of the picture it is on, as an
+    anchor names it, or neither for the whole block. `thread` holds its messages
+    before the page opens, the agent's question first and then the reader's
     and the agent's in turn, ending with the agent's; a thread the reader starts by
     `route` "comment" holds none, and opens with `typed`, which `arrives` answers once
-    the card is open. `scroll` is the pixels a wheel then scrolls the page."""
+    the card is open. `scroll` is the pixels a wheel then scrolls the page, and
+    `layout` the key in `LAYOUTS` of the Layout its page uses."""
 
     name: str
     title: str
     subject: str
     quote: str | None = None
     thread: tuple[str, ...] = (QUESTION,)
+    visual: str | None = None
     route: str = "m"
     typed: str = "Why a week?"
     arrives: str | None = None
     scroll: int = 0
     windows: tuple[Window, ...] = (WIDE, MIDDLE, NARROW)
+    layout: str = "column"
 
     def __post_init__(self):
         assert self.subject in SUBJECTS, f"{self.name}: add {self.subject} to SUBJECTS"
         assert self.route in ROUTE_WORDS, f"{self.name}: no route {self.route}"
+        assert self.layout in LAYOUTS, f"{self.name}: no layout {self.layout}"
+        assert not (self.quote and self.visual), f"{self.name}: words or a part"
+        assert not self.visual or self.route not in ("tap", "comment"), (
+            f"{self.name}: {self.route} aims at words or a block, not a part"
+        )
         commented = self.route == "comment"
         assert commented == (not self.thread), (
             f"{self.name}: a thread holds messages unless the reader starts it"
@@ -207,6 +241,13 @@ CASES = (
     Case("list-item", "A question on words in a list item", "step-1", STEP, (MEDIUM,)),
     Case("widget", "A question on a choice widget", "choice", None, (MEDIUM,)),
     Case(
+        "chart-point",
+        "A question on one point of a chart",
+        "moved",
+        thread=(MEDIUM,),
+        visual="point:0;x=3;y=30",
+    ),
+    Case(
         "words-long-near",
         "A long question on a few words already in view",
         "p-medium",
@@ -235,6 +276,45 @@ CASES = (
     ),
 )
 
+CASES += tuple(
+    replace(
+        case,
+        name=f"{case.name}-{layout}",
+        title=f"{case.title}, on {LAYOUTS[layout]}",
+        windows=(WIDE, NARROW),
+        layout=layout,
+    )
+    for layout in LAYOUTS
+    if layout != "column"
+    for case in CASES
+    if case.name in LAYOUT_SHAPES
+)
+
+
+def wrapped(layout: str, title: str, blocks: str) -> tuple[str, str]:
+    """The classes of the page's `main`, and its body, holding `title` and `blocks`
+    as `layout` arranges them."""
+    match layout:
+        case "column":
+            return "layout-column", title + blocks
+        case "bare":
+            return "", title + blocks
+        case "sidebar":
+            return (
+                "layout-sidebar",
+                '<aside id="route"><div class="layout-track">'
+                '<lf-toc id="contents"></lf-toc></div></aside>\n'
+                f'<article id="document" class="layout-column">{title}{blocks}</article>',
+            )
+        case "workspace":
+            return (
+                "layout-workspace",
+                f'<header>{title}</header>\n<lf-pane id="notes" label="Notes">'
+                f"<div>{blocks}</div></lf-pane>",
+            )
+    raise ValueError(layout)
+
+
 NOTE = (
     "The migration plan below is illustrative.",
     "Each region moves on its own schedule.",
@@ -250,9 +330,9 @@ def filler(label: str, sentences: int) -> str:
     return " ".join([f"{label}:", *(NOTE[i % len(NOTE)] for i in range(sentences))])
 
 
-def fixture() -> str:
-    """The page every case opens: a reading column holding the blocks the cases'
-    threads are on, with enough paragraphs around them for any of them to stand
+def fixture(layout: str = "column") -> str:
+    """The page every case opens, in `layout` (a key of `LAYOUTS`): the blocks the
+    cases' threads are on, with enough paragraphs around them for any of them to stand
     anywhere in the window."""
     before = "".join(
         f'<p id="before-{n}">{filler(f"Background {n}", 6)}</p>\n' for n in range(1, 7)
@@ -272,11 +352,10 @@ def fixture() -> str:
         f"<td>{n * 3}% of traffic, with an error budget of {n % 5 + 1} minutes a week.</td></tr>\n"
         for n in range(1, 41)
     )
-    return gallery.page(
-        "Placement fixture",
-        "The page leaf-dev placement cards opens thread cards on.",
-        f"""<h1 id="title">Moving to the new cluster</h1>
-{before}<p id="p-short">The rollout starts on Monday.</p>
+    classes, body = wrapped(
+        layout,
+        '<h1 id="title">Moving to the new cluster</h1>\n',
+        f"""{before}<p id="p-short">The rollout starts on Monday.</p>
 <p id="p-medium">The migration moves each region's traffic to the new cluster in three
 steps. First we mirror reads and compare the answers; then we send a tenth of writes and
 watch the error budget; finally we switch the rest over and {WARM}, in case a rollback is
@@ -288,13 +367,15 @@ needed.</p>
 <li id="step-2">Send a tenth of writes and watch the error budget.</li>
 <li id="step-3">Switch the remaining traffic and keep the old cluster warm.</li>
 </ul>
+<lf-group id="choice-q" label="How long should the old cluster stay warm?">
 <lf-options id="choice">
-<lf-option id="choice-week"><strong>Keep the old cluster for a week</strong> Covers the
+<lf-option id="choice-week" label="Keep the old cluster for a week" selected><strong>Keep the old cluster for a week</strong> Covers the
 Sunday batch jobs.</lf-option>
-<lf-option id="choice-days"><strong>Keep it for three days</strong> Saves most of the
+<lf-option id="choice-days" label="Keep it for three days"><strong>Keep it for three days</strong> Saves most of the
 cost.</lf-option>
 </lf-options>
-<section id="wide" class="layout-flow">
+</lf-group>
+<section id="wide">
 <h2>Where each region stands</h2>
 <p id="wide-lede">Every region's state, its traffic and its error budget.</p>
 <table id="wide-table" data-width="available">
@@ -303,7 +384,26 @@ cost.</lf-option>
 {rows}</tbody>
 </table>
 </section>
+<lf-chart id="moved" data-height="220"><pre>
+{{
+  ariaLabel: "Share of traffic on the new cluster by week, rising from 3% to 80%",
+  x: {{label: "week"}},
+  y: {{label: "% of traffic"}},
+  marks: [
+    Plot.dot(
+      [3, 12, 30, 55, 80].map((share, i) => ({{week: i + 1, share}})),
+      {{x: "week", y: "share"}},
+    ),
+  ],
+}}
+</pre></lf-chart>
 {after}""",
+    )
+    return gallery.page(
+        "Placement fixture",
+        "The page leaf-dev placement cards opens thread cards on.",
+        body,
+        layout=classes,
     )
 
 
@@ -312,7 +412,11 @@ def log_lines(case: Case) -> list[dict]:
     it; `converse` adds the turns after it."""
     if not case.thread:
         return []
-    anchor = {"section": case.subject, **({"quote": case.quote} if case.quote else {})}
+    anchor = {
+        "section": case.subject,
+        **({"quote": case.quote} if case.quote else {}),
+        **({"visual": case.visual} if case.visual else {}),
+    }
     return [
         {
             "kind": "comment",
@@ -334,9 +438,10 @@ AIM = f"""([subject, quote]) => {{
   return {{block, range}};
 }}"""
 
-# What the tab shows once the card has opened, read with Leaf's own modules: the block
-# Leaf resolves the thread to and the rectangles of its quoted words, the card, and
-# the placement boundary and measure the card stands by.
+# What the tab shows once the card has opened, read with Leaf's own modules: what Leaf
+# resolves the thread to, the element where it names one and else the block, and the
+# rectangles of its quoted words, the card, and the placement boundary and measure the
+# card stands by.
 READ = """async () => {
   const box = (r) => r && {left: Math.round(r.left), top: Math.round(r.top),
     right: Math.round(r.right), bottom: Math.round(r.bottom)};
@@ -373,9 +478,12 @@ READ = """async () => {
     boundary: box(placement.commentBoundary()),
     card: box(shown(card)?.getBoundingClientRect()),
     natural: shown(card) && natural(card),
+    // A card at the least width declares it (`data-lf-widens`) until a message it shows
+    // stands tall enough to widen it.
+    least: shown(card)?.hasAttribute('data-lf-widens') ? placement.cardMinimum() : null,
     side: shown(card)?.getAttribute('data-lf-thread-placement') ?? null,
     panel: box(shown(panel)?.getBoundingClientRect()),
-    block: box(target.place.getBoundingClientRect()),
+    block: box((target.element ?? target.place).getBoundingClientRect()),
     quote,
   };
 }"""
@@ -596,6 +704,8 @@ def findings(reading: dict) -> dict:
             "left": card["right"] - boundary["left"],
         }.get(side, boundary["right"] - boundary["left"]),
     }
+    if reading["least"]:
+        limits["the least width, until a message stands tall"] = reading["least"]
     limit = min(limits, key=lambda name: limits[name])
     window = {
         "left": 0,
@@ -662,8 +772,11 @@ def described(case: Case, window: Window) -> str:
         thread = f"the reader's comment, {words(case.typed)}"
     steps = [
         f"{width}×{height}{', touch' if window.touch else ''}",
+        *([LAYOUTS[case.layout]] if case.layout != "column" else []),
         f"on “{case.quote}” in {SUBJECTS[case.subject]}"
         if case.quote
+        else f"on {case.visual} of {SUBJECTS[case.subject]}"
+        if case.visual
         else f"on {SUBJECTS[case.subject]}",
         thread,
         ROUTE_WORDS[case.route],
@@ -753,7 +866,7 @@ STYLE = """<style>
 def window_sections(tiles: dict[Window, list[str]]) -> str:
     """The tiles, a section for each window, which a page holding `STYLE` shows."""
     return "\n".join(
-        f'<section id="window-{window.size[0]}x{window.size[1]}" class="layout-flow">\n'
+        f'<section id="window-{window.size[0]}x{window.size[1]}">\n'
         f"<h2>{window.size[0]}×{window.size[1]} window"
         f"{', under a finger' if window.touch else ''}</h2>\n"
         f'<div class="layout-tiles placements" data-width="available">\n'
@@ -803,7 +916,8 @@ def placements(names, engine, base) -> None:
     media.mkdir()
     scratch = out / "scratch"
     scratch.mkdir()
-    (out / "fixture.html").write_text(fixture())
+    for layout in {case.layout for case, _ in runs}:
+        (out / f"fixture-{layout}.html").write_text(fixture(layout))
     tiles: dict[Window, list[str]] = {}
     failed = False
     with launch(engine) as browser:
@@ -827,8 +941,8 @@ def placements(names, engine, base) -> None:
                 with visits(
                     browser,
                     arms,
-                    State(key, str(out / "fixture.html"), window=window),
-                    out / "fixture.html",
+                    State(key, str(out / f"fixture-{case.layout}.html"), window=window),
+                    out / f"fixture-{case.layout}.html",
                     scratch / key,
                     window=window,
                     scheme="light",

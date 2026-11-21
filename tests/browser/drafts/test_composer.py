@@ -6,7 +6,12 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE, live_url
+from render_cases_interaction import (
+    OBLIGATION_PAGE,
+    SEATED_OBLIGATION_PAGE,
+    live_url,
+    open_seat_box,
+)
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
@@ -17,6 +22,7 @@ from render_harness import (
     example_media,
     expect_error_waits_in_menu,
     expect_panel_says,
+    field_press,
     holding,
     leaf_page,
     open_page,
@@ -26,6 +32,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     primed,
+    refuse,
     resized,
     scroll_settled,
     select_words,
@@ -33,6 +40,7 @@ from render_harness import (
     stamp_page,
     stored_draft_text,
     write,
+    write_draft_elsewhere,
 )
 
 from browser.margin import MARGIN_EDITOR_ROOTS
@@ -79,12 +87,12 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
         else:
             face = glyph_action_face(send)
             assert face["press"] == "rgba(0, 0, 0, 0)", face
-            assert face["glyph"] == token_colour(page, "--accent"), face
+            assert face["glyph"] == token_colour(page, "--lf-accent"), face
             assert face["disc"] == "rgba(0, 0, 0, 0)", face
             send.hover()
             hovered = glyph_action_face(send)
             assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
-            assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
+            assert hovered["disc"] == token_colour(page, "--lf-accent-tint"), hovered
             with sending(page, f"the {box} message"):
                 send.click()
 
@@ -130,9 +138,10 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     reselecting that exact passage. Words a user cannot find again are words they have
     lost, whatever localStorage still holds.
 
-    So the moment says what became of them and names the address that answers — and the
-    address is offered only while there is a draft still there to go to, which is the half
-    that keeps the sentence honest."""
+    So the moment says what became of them, and the panel field's end offers the press
+    that brings them back, Resume writing, with its keys — and only while there is a
+    draft still there to go to, which is the half that keeps the notice honest. The
+    press and its keys each bring the box back."""
     page = open_page(browser, serve(LONG_PAGE))
     kept = "Half a sentence, and then the panel."
 
@@ -142,18 +151,29 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    open_threads(page)
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    assert pending_text(page) == "", "a box off screen left its passage marked"
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    def put_away(gesture):
+        gesture()
+        expect(page.locator(".lf-composer")).to_be_hidden()
+        assert pending_text(page) == "", "a box off screen left its passage marked"
+        expect_panel_says(page, "Draft kept")
+        press = field_press(page)
+        expect(press.locator(".lf-compose-press-word")).to_have_text("Resume writing")
+        expect(press.locator("kbd")).to_have_text(["g", "i"])
+        assert "writing.resume" in available_commands(page)
+        return press
 
-    assert "writing.resume" in available_commands(page)
+    def came_back():
+        expect(page.locator(".lf-composer")).to_be_visible()
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
+        assert pending_text(page), "the box came back on nothing"
+
+    put_away(lambda: open_threads(page)).click()
+    came_back()
+    put_away(lambda: page.keyboard.press("Escape"))
     page.keyboard.press("g")
     page.keyboard.press("i")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
-    assert pending_text(page), "the box came back on nothing"
+    came_back()
 
 
 def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
@@ -290,6 +310,20 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     assert page.evaluate("document.activeElement === window.uploadFocus")
 
 
+def test_a_box_takes_no_words_while_its_picture_uploads(browser, serve):
+    """The box holds its words still while a pasted picture uploads, so the draft the
+    picture joins is the one the user pasted it into, and takes words again once the
+    picture has arrived."""
+    page, box, held = _a_picture_uploading(browser, serve)
+    expect(box).to_be_focused()
+    page.keyboard.type("Early")
+    expect(box).to_have_js_property("value", "")
+    held.pop().continue_()
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    page.keyboard.type("Later")
+    expect(box).to_have_js_property("value", "Later")
+
+
 def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser, serve):
     """The comment box moves to another passage while a pasted picture uploads. The
     picture was the first passage's, so it does not land in the second one's draft, and
@@ -339,7 +373,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     # Put away: the picture is words enough to keep, and to be told about.
     open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     assert "writing.resume" in available_commands(page)
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -549,6 +583,45 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
     assert stored_draft_text(page, "general") == joined
 
 
+def test_words_whose_box_is_gone_join_what_another_device_wrote_on_the_page(
+    browser, serve
+):
+    """Moving words into Comment on the page settles the draft they came from only once
+    the server holds them there. Where another device wrote the page's draft
+    meanwhile, the words, with those the draft held as they moved, join that device's
+    there before they leave where they were."""
+    edited = (
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
+        "<p>The rest of the page.</p>"
+    )
+    source = leaf_page("Removed box", '<h1 id="top">Removed box</h1>' + edited)
+    url = live_url(serve(source))
+    context = browser.new_context()
+    page = open_page(browser, url, context=context)
+    write(page_comment(page), "A page-wide thought.")
+    page.keyboard.press("Escape")
+    page.locator("#editable .lf-draft-body").click()
+    write(page.locator("#editable .lf-draft-edit"), "An unsent edit.")
+    stamp_page(
+        serve.page_dir, source.replace(edited, "<p>The rest of the page.</p>"), "cut"
+    )
+    page = open_page(browser, url, context=context)
+    expect(page.locator("#editable")).to_have_count(0)
+    # Another device writes the page's draft, which this tab doesn't hear of.
+    page.route("**/api/drafts", refuse)
+    elsewhere = "Words another device wrote here."
+    write_draft_elsewhere(page, "general", elsewhere)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    box = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    joined = f"{elsewhere}\n\nA page-wide thought.\n\nAn unsent edit."
+    expect(box).to_have_js_property("value", joined)
+    assert stored_draft_text(page, "general") == joined
+    assert stored_draft_text(page, "edit:editable") is None
+
+
 def test_resume_writing_returns_to_an_option_being_added(browser, serve):
     """The field adding an option the author did not list is a writing place like any
     other: Resume writing comes back to it with its words, which stay its own."""
@@ -677,8 +750,8 @@ def test_a_narrow_box_keeps_its_label_whole_and_drops_its_new_line_key(browser, 
     """Where a box is narrow, its label stands whole and the new-line key goes whole,
     since a label cut to keep a key names nothing, and nothing the placeholder shows
     stands on the field's actions: the panel's page comment, whose Comment… leaves room
-    for both keys at a phone's width, and a seat's box, whose actions stand in its
-    corner and leave room there for the label and the send key alone."""
+    for both keys at a phone's width, and the comment box a widget seats, whose actions
+    stand in its corner and leave room there for the label and the send key alone."""
     context = browser.new_context(viewport={"width": 430, "height": 700})
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE), context=context)
     page_comment(page)
@@ -687,10 +760,8 @@ def test_a_narrow_box_keeps_its_label_whole_and_drops_its_new_line_key(browser, 
     assert NEW_LINE.fullmatch(shown["parts"][-1]), shown
     assert not shown["covers"], shown
 
-    seat = page.locator('.lf-thread-seat[data-lf-thread-seat="jobs"] leaf-text')
-    seat.click()
-    expect(seat).to_be_focused()
-    shown = seat.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
+    _seat, box = open_seat_box(page, "#jobs")
+    shown = box.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
     assert not shown["shortened"] and shown["parts"][-1] == "⏎", shown
     assert not shown["covers"], shown
 

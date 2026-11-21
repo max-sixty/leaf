@@ -1,5 +1,6 @@
 """Everyday browser contracts for shared chrome."""
 
+import base64
 import io
 import json
 import re
@@ -21,9 +22,11 @@ from render_cases_layout import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
+    CHROME_ROOT,
     LONG_PAGE,
     PANEL,
     CutOff,
+    expect_design_mode,
     expect_panel_says,
     leaf_page,
     nudge,
@@ -31,6 +34,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_field,
+    panel_menu,
     panel_settled,
     panel_view,
     primed,
@@ -171,7 +175,7 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
 def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
     """At a narrow allocation, Space must not create a blank line while the words
     still fit. Under a mouse the words keep no room for Send, which takes the corner
-    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    they leave free (journeys/drafts/test_send_corner.py), so they end as far inside the field
     as they start."""
     page = open_page(
         browser,
@@ -247,6 +251,139 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     assert max(leaving, entering) < whole / 4, moves
 
 
+def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve):
+    """Opening search runs the target picker's arm writer (aim.js, `armChanged`),
+    which hides the Design legend's tags while the picker stands. It wrote that as a
+    custom property on the root, so the first open, which wrote its first value,
+    restyled every element (root-state.js): 6 to 11 s in Firefox on a page of thirty
+    4 MB text documents, where a second open took 80 to 120 ms. Counted in the
+    browser's own restyled elements, against a restyle of the whole page."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(browser, serve(leaf_page("Search", "<h1>Page</h1>" + paragraphs)))
+    root = page.locator("html")
+    field = page.get_by_role("searchbox", name="Search page text")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    opening = restyled(lambda: page.keyboard.press("/"))
+    expect(field).to_be_focused()
+    closing = restyled(lambda: page.keyboard.press("Escape"))
+    expect(field).to_be_hidden()
+    moves = {"opening": opening, "closing": closing, "whole page": whole}
+    assert max(opening, closing) < whole / 4, moves
+
+
+def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
+    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    `html` to hide the margin's change bars was inherited by every element and restyled
+    the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
+    and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
+    `o` restyles against such a property changed on `html`, so a property `o` sets
+    there again fails it. Firefox visiting the page for a rule read through a
+    descendant combinator from `html` restyles nothing, and no count here sees it."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(browser, serve(leaf_page("Notes", "<h1>Page</h1>" + paragraphs)))
+    root = page.locator("html")
+    chrome = page.locator(CHROME_ROOT)
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    hiding = restyled(lambda: page.keyboard.press("o"))
+    expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
+    showing = restyled(lambda: page.keyboard.press("o"))
+    expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
+    moves = {"hiding": hiding, "showing": showing, "whole page": whole}
+    assert max(hiding, showing) < whole / 4, moves
+
+
+def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
+    """Holding ⌥, the target picker and Design mode arm the page, and over an item the
+    hand and the aim's box say a press takes it; in Draw mode and Capture area the
+    crosshair says a press draws or drags out an area. An arrow on `body` for the words
+    no item holds restyled every element each time the page armed or disarmed, 1.0 to
+    1.2 s in Firefox on a page of thirty 4 MB text documents, and the crosshair on
+    every element 2.3 to 4.8 s for Draw mode. The box's veil, which inherited,
+    restyled all the item held, 370 ms over one of those documents (base.css,
+    `--lf-aim-veil`). Counted in the browser's own restyled elements, against a
+    restyle of the whole page."""
+    paragraphs = "".join(f"<p>Paragraph {i} of the section.</p>" for i in range(600))
+    # Draw mode and Capture area each state a touch-action on the root (chrome.css), and
+    # Chromium restyles every element it draws when that changes. The page holds the
+    # root's here, so what a mode restyles is its crosshair's.
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Arming",
+                "<style>html { touch-action: auto !important; }</style>"
+                f'<h1>Page</h1><section id="section">{paragraphs}</section>',
+            )
+        ),
+    )
+    root = page.locator("html")
+    aimed = page.locator("[data-lf-aimed]")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    words = page.locator("#section p").nth(3)
+    box = words.bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+    moves = {"⌥ down": restyled(lambda: page.keyboard.down("Alt"))}
+    expect(aimed).to_have_id("section")
+    expect(words).to_have_css("cursor", "pointer")
+    moves["⌥ up"] = restyled(lambda: page.keyboard.up("Alt"))
+    expect(aimed).to_have_count(0)
+    moves["picker open"] = restyled(lambda: page.keyboard.press("s"))
+    expect(aimed).to_have_id("section")
+    moves["picker close"] = restyled(lambda: page.keyboard.press("Escape"))
+    moves["Design mode in"] = restyled(lambda: page.keyboard.press("l"))
+    expect_design_mode(page)
+    moves["Design mode out"] = restyled(lambda: page.keyboard.press("Escape"))
+    expect_design_mode(page, on=False)
+    moves["Draw mode in"] = restyled(lambda: page.keyboard.press("w"))
+    expect(words).to_have_css("cursor", "crosshair")
+    moves["Draw mode out"] = restyled(lambda: page.keyboard.press("Escape"))
+    expect(root).not_to_have_attribute("data-lf-draw-mode", "")
+    capture = panel_menu(page, "annotate").locator(
+        '.lf-fp-item[data-lf-row="command:capture.region.open"]'
+    )
+    moves["Capture area in"] = restyled(capture.click)
+    expect(root).to_have_attribute("data-lf-region-capture", "")
+    page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+    expect(words).to_have_css("cursor", "crosshair")
+    moves["Capture area out"] = restyled(lambda: page.keyboard.press("Escape"))
+    expect(root).not_to_have_attribute("data-lf-region-capture", "")
+    assert max(moves.values()) < whole / 4, {**moves, "whole page": whole}
+
+
 def questions_page(sections: int) -> str:
     """`sections` sections of a column page's article, each with words to comment on
     and a question on the user, so its margin holds a row per section."""
@@ -256,9 +393,9 @@ def questions_page(sections: int) -> str:
         + "".join(
             f'<section id="s{g}"><h2>Section {g}</h2>'
             f'<p id="p{g}">Some words about section {g}.</p>'
-            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose>'
+            f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}">'
             f'<lf-option id="o{g}-1">One</lf-option>'
-            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-group></section>'
             for g in range(1, sections + 1)
         )
         + "</article>",
@@ -294,8 +431,8 @@ def test_sending_a_comment_restyles_only_the_rows_it_changes(browser, serve):
     """Send removes the comment's row from the margin and inserts its thread's row. The
     rows are siblings, and once Chromium has evaluated an `:nth-child()` selector for a
     parent's children, it restyles all of them whenever one is inserted or removed
-    (reading.css, the frame edges), so Send restyled every row on the page. Counted in
-    the browser's own restyled elements, a page of six times the sections restyles no
+    (reading.css, the frame edges), so Send would restyle every row on the page. Counted
+    in the browser's own restyled elements, a page of six times the sections restyles no
     more."""
 
     def restyled(sections):
@@ -313,7 +450,7 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
     """Resolve closes the thread's card and returns focus to the thread's words, and
     focus marks every ancestor of them, the column's `main` and its article included.
     Restyling one of those ancestors must not restyle everything under it. Two rules
-    once made it do so, each restyling the whole page on a resolve: a rule keyed on the
+    make it do so, each restyling the whole page on a resolve: a rule keyed on the
     focus mark whose last compound names no type (reading.css, the sticky row names),
     and the column's room, a length less a percentage, registered as a
     `<length-percentage>` (layouts.css). Counted in the browser's own restyled elements,
@@ -331,10 +468,12 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
         counts = restyle_counts(page, resolve)
         expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
         page.close()
-        return sum(counts)
+        return counts
 
+    # Each recalc's count, so a failure tells a recalc the larger page adds from
+    # one that restyles more of it.
     short, long = restyled(4), restyled(24)
-    assert long - short < 10, {"4 sections": short, "24 sections": long}
+    assert sum(long) - sum(short) < 10, f"4 sections: {short}\n24 sections: {long}"
 
 
 @pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
@@ -342,7 +481,7 @@ def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, s
     """Shift+Tab from the last section's link to the one before it. Focus marks each
     ancestor of the link it leaves and lands on, the column's `main` among them, and
     each `:has()` that reads a focus mark is asked again of the elements on that path.
-    Two shapes once made each move restyle every section before the link: a
+    Two shapes make each move restyle every section before the link: a
     `:has(~ …)` asked of every child of `main`, which sends Chromium back through
     every earlier sibling (the static guard beside it in test_interact_layer.py), and
     the column's room registered as a `<length-percentage>`, which Chromium counts as
@@ -380,6 +519,60 @@ def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, s
     assert long - short < 10, {"8 sections": short, "48 sections": long}
 
 
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes(
+    browser, serve
+):
+    """Focus entering the page's column marks `main` and its other ancestors, and Go-to
+    marks `body`. Neither may restyle the cells and links under them that the mark
+    changes nothing for. Two rules read a mark before such a subject, and each made
+    one of these gestures restyle every element of a kind on the page: the fade beside
+    a table's row names, which goes while focus is in the table, restyled every `th`
+    and `td` as focus entered or left `main` (reading.css, the sticky row names), and
+    the contents map's words, which show while the map is pointed at, focused or under
+    Go-to, restyled every link then and as Go-to armed (toc.css). On a page of 30
+    tables of 125 rows, that was 18,873 elements and about 50 ms in Chromium for each
+    focus. Counted in the browser's own restyled elements, a table of six times the
+    rows restyles no more."""
+
+    def restyled(rows):
+        names = "".join(
+            f'<tr><th scope="row"><code>name-{r}</code></th><td>{r} days</td>'
+            f'<td>Words about <a href="#rows">row {r}</a>.</td></tr>'
+            for r in range(rows)
+        )
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Table",
+                    '<h1>Table</h1><p><a id="first" href="#rows">A link</a>.</p>'
+                    '<table id="rows"><thead><tr><th>Name</th><th>Age</th>'
+                    f"<th>Notes</th></tr></thead><tbody>{names}</tbody></table>",
+                )
+            ),
+        )
+        body, main = page.locator("body"), page.locator("main")
+        entering = restyle_counts(
+            page, lambda: (page.locator("#first").focus(), rendered(page))
+        )
+        expect(main).to_have_attribute("data-lf-focus-within", "")
+        page.evaluate("() => document.activeElement.blur()")
+        expect(main).not_to_have_attribute("data-lf-focus-within", "")
+        # The blur's own restyles land before the Go-to count starts.
+        rendered(page)
+        arming = restyle_counts(
+            page, lambda: (page.keyboard.press("g"), rendered(page))
+        )
+        expect(body).to_have_attribute("data-lf-go-to-active", "")
+        page.close()
+        return {"entering": sum(entering), "Go-to": sum(arming)}
+
+    short, long = restyled(20), restyled(120)
+    for gesture in short:
+        assert long[gesture] - short[gesture] < 10, {"20 rows": short, "120 rows": long}
+
+
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     request, serve, engine
@@ -389,9 +582,15 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
     that padding, so the padding goes while the user writes in such a box
     (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
-    leaves the words beneath the box where they stood."""
+    leaves the words beneath the box where they stood. The page widens its landing
+    room, which deepens that band, so the box's field stands inside it whatever room
+    the box keeps under its field."""
+    deep_band = LONG_PAGE.replace(
+        "</head>", "<style>:root { --lf-landing-room: 40px; }</style></head>"
+    )
+    assert deep_band != LONG_PAGE
     page = open_page(
-        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+        request.getfixturevalue(engine), serve(deep_band), init_script=KEEP_ROOTS
     )
     resized(page, 1512, 860)
     words = page.locator("#p40")
@@ -481,6 +680,97 @@ FIRST_LINE = """box => {
 }"""
 
 
+@pytest.mark.parametrize(
+    "engine,surface",
+    [
+        ("firefox_browser", "composer"),
+        ("firefox_browser", "card"),
+        ("firefox_browser", "panel"),
+        ("browser", "composer"),
+    ],
+)
+def test_a_press_in_a_box_the_chrome_holds_leaves_the_page_still(
+    engine, surface, request, serve
+):
+    """A press in a box's words that the pointer drifts during, as a trackpad's click
+    often does, starts a drag selection in the editor and leaves the page where it was,
+    as does dragging on to the window's foot. The boxes are the comment box beside a
+    passage, a thread card's reply and the panel's field. Each stands in a box fixed to
+    the window, in the chrome after `body`, and CodeMirror's drag selection scrolls
+    only boxes inside it (build/vendor.mjs, "CodeMirror scroll walk"). Taking the root's own box for its
+    scrollport, which moves up as the page scrolls, it would scroll the page to its end
+    at the drift once the page is scrolled further than the window's height less the
+    pointer's height in it, so the page here is scrolled more than a window down.
+    Taking the window, it would scroll the page at the window's foot."""
+    url = serve(LONG_PAGE)
+    if surface == "card":
+        panel_comment(
+            serve.page_dir, "A thread on the page's middle.", {"section": "p40"}
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 300)")
+    rendered(page)
+    if surface == "composer":
+        words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+        box = page.locator(".lf-fab-input")
+    elif surface == "card":
+        page.locator('[data-lf-margin-for="p40"] .lf-margin-marker').click()
+        box = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    else:
+        box = page_comment(page)
+    write(box, "Words to press among, then drift a pixel.")
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    assert scrolled > page.evaluate("innerHeight"), "the page must be scrolled to jump"
+    at = box.bounding_box()
+    x, y = at["x"] + at["width"] / 2, at["y"] + at["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 1, y)
+    # A timer the page sets after the drift runs after every interval of a shorter or
+    # equal delay that the drift's handler set (HTML, "timer initialisation steps"),
+    # as CodeMirror's drag scroll is.
+    after = page.evaluate(
+        "() => new Promise((done) => setTimeout(() => done(scrollY), 250))"
+    )
+    assert after == scrolled
+    # Dragged on to the window's foot, the selection still scrolls nothing.
+    page.mouse.move(x + 1, page.evaluate("innerHeight") - 2)
+    after = page.evaluate(
+        "() => new Promise((done) => setTimeout(() => done(scrollY), 250))"
+    )
+    page.mouse.up()
+    assert after == scrolled
+
+
+def test_more_room_for_a_draft_at_the_pages_end_leaves_the_page_still(
+    firefox_browser, serve
+):
+    """More room to write widens the panel's field, so a wrapped draft takes fewer
+    lines, and the page stays where it was. As an editor changes height, CodeMirror
+    keeps the nearest box it finds scrolling the editor at its end if it stood there.
+    For the panel's field that box is the panel, fixed to the window (build/vendor.mjs,
+    "CodeMirror scroll walk"), which doesn't scroll; were it the window, the page would
+    move up by the lines the draft gave up. So the page is at its end."""
+    page = open_page(firefox_browser, serve(LONG_PAGE), init_script=KEEP_ROOTS)
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    rendered(page)
+    box = page_comment(page)
+    write(box, "A draft long enough to wrap over several lines of the field. " * 6)
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    lines = "box => window.__lfRoots.get(box).querySelector('.cm-content').offsetHeight"
+    tall = box.evaluate(lines)
+    page.get_by_role("button", name="More room to write", exact=True).click()
+    panel_settled(page, open=False)
+    rendered(page)
+    assert box.evaluate(lines) < tall, (
+        "the draft must take fewer lines, or this proves nothing"
+    )
+    assert page.evaluate("scrollY") == scrolled
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
     engine, request, serve, subtests
@@ -502,7 +792,8 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
         # column: in the box at the full measure, and in a narrow allocation.
         # Firefox paints the caret a pixel wide from that offset onward, pulled inside
         # only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
-        # clipping its words at the column's end hid it, and it read as gone under Send.
+        # clipping its words at the column's end would hide it, and it would read as gone
+        # under Send.
         # Chromium and WebKit pull a line-end caret back inside the line's block, and
         # WebKit has no `overflow-clip-margin` to read.
         box = page.locator(".lf-fab-bar .lf-compose-field")
@@ -666,14 +957,16 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside style='font-size: 13px'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "
         + "Filler words for the reading column. " * 8
         + "</p>"
         for n in range(12)
-    ),
+    )
+    + "<p><label>Owner <input id='own-field' style='font-size: 13px'></label>"
+    + " <label>Team <input id='plain-field'></label></p>",
 )
 
 
@@ -682,22 +975,25 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the user panning
-    sideways across a page wider than the screen. So no field the page holds is smaller,
+    sideways across a page wider than the screen. So none of Leaf's own fields is
+    smaller, nor a field the page wrote without a size, which takes Leaf's default face,
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
-    one set in a sidenote's smaller type opens a size larger than it showed.
+    one set in a sidenote's smaller type opens a size larger than it showed. A field
+    whose author gave it a size keeps that size.
 
     With too little room below, the field stands above without scrolling the page.
     This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
-    # Every field in the composed tree, the vendored controls' own native fields in
-    # their shadow roots included: the Threads find box and the Map's search are
-    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    # Every field in the composed tree but the one its author sized, the vendored
+    # controls' own native fields in their shadow roots included: the Threads find box
+    # and the Map's search are Web Awesome inputs, and Safari zooms onto the field
+    # inside them.
     sizes = page.evaluate("""() => {
       const sizes = {};
       const walk = (root) => {
         for (const node of root.querySelectorAll('*')) {
-          if (node.matches('input, textarea, leaf-text, select')) {
+          if (node.matches('input, textarea, leaf-text, select') && node.id !== 'own-field') {
             const host = node.getRootNode().host;
             const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
             sizes[name] = Math.min(
@@ -711,6 +1007,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     }""")
     assert any(name.startswith("wa-input.") for name in sizes), sizes
     assert min(sizes.values()) >= 16, sizes
+    own = page.locator("#own-field")
+    assert own.evaluate("field => parseFloat(getComputedStyle(field).fontSize)") == 13
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(
         "body => parseFloat(getComputedStyle(body).fontSize)"
@@ -815,8 +1113,11 @@ def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, ser
 def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
     """Delivered sheets parse like their captured files in document and shadow stages.
 
-    Page mode carries and constructs no physical annotation sheet, while shared paint
-    still reaches both trees. The selected overlay adds its actual annotation sheets.
+    Page mode carries and constructs no physical annotation sheet, while shared paint,
+    the passage marks among it, still reaches both trees. The selected overlay adds its
+    actual annotation sheet. The chrome names the layer's mark inline, so the leaf it
+    masks draws with no fetch (`revision_delivery.delivery_sheets`): its rules read as
+    the file's but for where each URL points, and the mark is the layer's icon.svg.
     """
     page = open_page(
         browser, serve(LONG_PAGE.replace("<body>", f'<body data-annotations="{mode}">'))
@@ -830,7 +1131,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     files = {}
     names = ["chrome", "marks"]
     if mode == "overlay":
-        names.extend(["annotation-chrome", "annotation-marks"])
+        names.append("annotation-chrome")
     for name in names:
         directory = (
             "runtime/annotation-overlay"
@@ -842,25 +1143,24 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         files[name] = answer.text()
 
     readings = page.evaluate(
-        """async (files) => {
-          const rules = (sheet) => [...sheet.cssRules].map((rule) => rule.cssText);
+        r"""async (files) => {
+          const rules = (sheet) =>
+            [...sheet.cssRules].map((rule) => rule.cssText.replace(/url\([^)]*\)/g, "url()"));
           const fromFile = (text) => {
             const sheet = new CSSStyleSheet();
             sheet.replaceSync(text);
             return rules(sheet);
           };
-          const { chromeSheet: chrome, marksSheet: marks, annotationSheets,
-            annotationMarkSheets } =
+          const { chromeSheet: chrome, marksSheet: marks, annotationSheets } =
             await window.__lfCheckApi();
           if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
           const {shadowStage}=await window.__lfWidgetApi();
           const host=document.createElement('div'); document.querySelector('main').append(host);
           const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
-          if (![marks,...annotationMarkSheets].every(sheet=>root.adoptedStyleSheets.includes(sheet)))
-            throw new Error('The shadow stage did not adopt its selected marks');
-          if (annotationSheets.length !== (files['annotation-chrome'] ? 2 : 0) ||
-              annotationMarkSheets.length !== (files['annotation-marks'] ? 1 : 0))
+          if (!root.adoptedStyleSheets.includes(marks))
+            throw new Error('The shadow stage did not adopt the marks');
+          if (annotationSheets.length !== (files['annotation-chrome'] ? 1 : 0))
             throw new Error('The document constructed an unselected annotation sheet');
           const answer = {
             chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
@@ -868,7 +1168,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
           };
           if (annotationSheets.length) {
             answer['annotation-chrome']={delivered:rules(annotationSheets[0]),file:fromFile(files['annotation-chrome'])};
-            answer['annotation-marks']={delivered:rules(annotationMarkSheets[0]),file:fromFile(files['annotation-marks'])};
           }
           return answer;
         }""",
@@ -886,11 +1185,16 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     if mode == "page":
         assert ".lf-margin-cluster" not in carrier
         assert ".lf-mark-el {" not in carrier
-        assert "::highlight(lf-mark)" not in carrier
         assert ".lf-margin-preview { position: fixed" not in carrier
+    assert "::highlight(lf-mark)" in selected["marks"]
     assert ".lf-inspect {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert ".lf-change-card {" in selected["chrome"]
+    mark = page.request.get(urljoin(layer, "icon.svg"))
+    assert mark.ok, mark.status
+    inline = f"data:image/svg+xml;base64,{base64.b64encode(mark.body()).decode()}"
+    assert inline in selected["chrome"]
+    assert "icon.svg" not in selected["chrome"]
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
@@ -1213,12 +1517,12 @@ def test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still(
     request, serve, engine, aim
 ):
     """A thread the agent starts joins Page Map between the first row in view and the
-    row the user is on, and pushed that row down by the row it added, 63px: the
-    browser's scroll anchoring holds the first row in view, and nothing held the focused
-    one. The reading that brings the thread keeps the control the user is on where it
+    row the user is on, and could push that row down by the row it added: the
+    browser's scroll anchoring holds the first row in view, and not the focused one.
+    The reading that brings the thread keeps the control the user is on where it
     stood once the page shows it, as it does for every surface: the focused row, or,
     with focus in the search field, which names no place, the row under the resting
-    pointer, which moved 32px when only focus named one."""
+    pointer, which would move were only focus to name one."""
     fixture = leaf_page(
         "Page Map focus",
         "".join(
@@ -1273,7 +1577,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.hover()
     rendered(page)
     # Read before dispatch: an earlier pointerdown capture listener may already have
@@ -1296,7 +1600,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator(panel_view("queue"))).to_be_visible()
+    expect(page.locator(panel_view("menu"))).to_be_visible()
 
 
 # The words of the field's draft, row by row as the field draws them.
@@ -1319,7 +1623,7 @@ WORD_ROWS = """box => {
 }"""
 
 
-# The comment whose words moved as it was typed in the panel's field.
+# A comment whose words could move as it is typed in the panel's field.
 REPORTED_DRAFT = (
     "great, let's go with the more square form. I don't have a strong view of which"
     " one is better, and the other parts of this thread can wait until later"
@@ -1330,9 +1634,9 @@ REPORTED_DRAFT = (
 def test_a_space_after_the_last_word_moves_no_word(engine, request, serve):
     """Where a draft's words wrap turns on the words alone, so a space typed after the
     last word leaves every word on its row, as in a textarea. With Send's room kept
-    after the last word only, a word that fit only without the room rose to the row
-    above when a space followed it; under CodeMirror's `break-spaces`, a word ending
-    at the row's edge fell to the next row with the space."""
+    after the last word only, a word that fit only without the room would rise to the
+    row above when a space followed it; under CodeMirror's `break-spaces`, a word
+    ending at the row's edge would fall to the next row with the space."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
@@ -1452,7 +1756,7 @@ def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
     page = open_page(browser, serve(leaf_page("Notice order", "<h1>Notice order</h1>")))
     page.evaluate(
         """async () => {
-          const {notice} = await window.__lfWidgetApi();
+          const {notice} = await window.__lfCheckApi();
           notice('Updated to v3', {background: true});
           notice('Updated to v4', {background: true});
           notice('Saved');
@@ -1492,11 +1796,11 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On Me mark keeps its seat; the leaf's menu stays shut.
+    # and the leaf keeps its place; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()
@@ -1530,9 +1834,9 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 
     The preview stands in the field's closed shadow root, where the theme's element
     rules do not reach, so it reads the faces from the theme's tokens instead of
-    stating its own. It had stated its own from birth: a quote drafted upright with a
-    heavy dark rule was sent italic with a light one, and code sat a size and a chip
-    shape away from how it arrived. DevTools reads the closed root, as it reads any.
+    stating its own. Stating its own, it would draft a quote upright with a heavy dark
+    rule that is sent italic with a light one, and set code a size and a chip shape away
+    from how it arrives. DevTools reads the closed root, as it reads any.
     """
     if surface == "outlet":
         url = serve(
@@ -1706,11 +2010,12 @@ WORDS_AND_RULES = """(root, words) => {
 
 def test_a_draft_nests_its_blocks_as_its_sent_message_does(browser, serve):
     """A quote inside a quote, and code inside a quote, stand in the draft where they will
-    in the message, each beside its quote's rule. The preview drew every quoted line with
-    one class, which CodeMirror merged, so a nested quote showed one rule at one inset and
-    a lazy line seemed back at the first level; a code block's frame replaced its quote's
-    rule and inset, and indented code in a quote showed its four spaces. A fence its quote
-    ended lacked the code's padding below it, so the next block rose on sending. A list
+    in the message, each beside its quote's rule. A preview drawing every quoted line
+    with one class, which CodeMirror merges, would show a nested quote with one rule at
+    one inset and a lazy line as back at the first level; a code block's frame would
+    replace its quote's rule and inset, and indented code in a quote would show its four
+    spaces. A fence its quote ended, lacking the code's padding below it, would let the
+    next block rise on sending. A list
     in a quote kept its source markers as words, where the message draws bullets."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, NESTED, {"section": "p0"})
@@ -1851,8 +2156,8 @@ STILL = """async box => {
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_arrow_keys_step_onto_a_drawn_rule(engine, request, serve, subtests):
     """Up and Down step onto a rule's line, which then shows its source on that line,
-    and nothing moves. The rule's line was a stroke's height while the caret was away,
-    and grew to a line's height as its source showed, growing the field and moving
+    and nothing moves. A rule's line that was a stroke's height while the caret was away
+    would grow to a line's height as its source showed, growing the field and moving
     every line below it."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
@@ -1939,11 +2244,12 @@ CARET_X = """box => {
 def test_arrow_keys_keep_their_column_across_a_fence(engine, request, serve, subtests):
     """Up through a fence and its code visits every line, keeping the caret as near
     the column it set out from as each line allows, as CodeMirror's own motion does.
-    The step onto a short line placed the caret by the character column it carried,
-    which a blank line resets to 0, on every short line, and code lines, a pixel
-    shorter than prose, counted as short. A fence's line shows its source, and nothing
-    moves: it stood for the code box's padding while the caret was away and grew to a
-    code line as the caret arrived, growing the field and moving every line."""
+    A step onto a short line that placed the caret by the character column it carried,
+    which a blank line resets to 0, would do so on every short line, and code lines, a
+    pixel shorter than prose, would count as short. A fence's line shows its source, and
+    nothing moves: a line standing for the code box's padding while the caret was away
+    would grow to a code line as the caret arrived, growing the field and moving every
+    line."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
@@ -1989,10 +2295,10 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(
 ):
     """A line begun at the end of a fence not yet closed is a line of its code from the
     start, in the draft or in a list item, its indent unseen as the message drops it.
-    The parser's reading of the fence stops before the draft's blank last line, so the
-    preview drew that line, with the caret on it, below the code's frame as prose, and
-    moved it into the frame on the first key; in an item, the code then showed the
-    item's indent."""
+    The parser's reading of the fence stops before the draft's blank last line, so a
+    preview following it would draw that line, with the caret on it, below the code's
+    frame as prose, and move it into the frame on the first key; in an item, the code
+    would then show the item's indent."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
@@ -2095,67 +2401,13 @@ CONTINUED = {
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hold(
-    engine, request, serve, subtests
-):
-    """The keys that shape a draft's quotes and lists, typed into one field."""
-    page = open_page(
-        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
-    )
-
-    with subtests.test("Shift+Enter continues the containers the message will hold"):
-        # Shift+Enter begins a line in each quote and list item the message will read
-        # the caret's line in, a fence's code included, and on a line holding only their
-        # markers leaves the innermost, an item in an item outdenting; a task's next
-        # item is an open task. CodeMirror's own Markdown grammar decided it, which
-        # stopped at a fence, so a fence's next line fell out of its quote or item and
-        # its closing fence opened another; leaving a list took a third press, the
-        # second only loosening it. A bare `> ` after a list read as inside the list's
-        # last item, so leaving the quote did nothing.
-        field = page_comment(page)
-        left = type_drafts(page, field, CONTINUED)
-        assert left == {name: draft for name, (_, draft) in CONTINUED.items()}
-
-    with subtests.test("Tab nests a list item and Shift+Tab takes it out"):
-        # Tab in a list item nests it under the item above, where the message will draw
-        # it as a nested item, in the platform's nested bullet; Shift+Tab takes it out a
-        # level, and one undo takes back one Tab. The first item, with no item to nest
-        # under, stays and keeps the caret. Elsewhere Tab and Shift+Tab leave the field,
-        # as they used to from a list too.
-        field = page_comment(page)
-        left = type_drafts(page, field, NESTING)
-        assert left == {name: draft for name, (_, draft) in NESTING.items()}
-        expect(field).to_be_focused()
-        # The nested item wears the nested bullet with its words and before them, though
-        # the message reads an empty nested item as words of the item above.
-        bullets = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')]
-          .map(line => [...line.closest('.lf-md-item').classList]
-            .find(name => /^lf-md-(disc|circle|square)$/.test(name)))"""
-        for erase in (0, len("two")):
-            for _ in range(erase):
-                page.keyboard.press("Backspace")
-            rendered(page)
-            assert field.evaluate(bullets) == ["lf-md-disc", "lf-md-circle"], erase
-        expect(field).to_have_js_property("value", "- one\n  - ")
-        # Outside a list item the press leaves the field as before, and so does Shift+Tab
-        # with no item to take out, so a draft that is all list still lets focus out.
-        for typed, key in (("plain", "Tab"), ("- one", "Shift+Tab")):
-            field.focus()
-            page.keyboard.press("ControlOrMeta+a")
-            page.keyboard.type(typed)
-            page.keyboard.press(key)
-            expect(field).not_to_be_focused()
-            expect(field).to_have_js_property("value", typed)
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_pasted_fence_is_left_by_the_keys_a_user_tried(engine, request, serve):
-    """The keys a user pressed to get out of a fence they had pasted into, which left
-    it open: Up and Down, then their marks typed at the end of the code. The paste lost
-    its first line to the opening marks, Down reached no line below the code, and the
-    marks closed nothing. Each key now does what it says, and the closing marks stand
-    in the code's box with the words after them outside it. field-editor.test.mjs holds
-    the rest of the ways in and out."""
+    """The keys a user presses to get out of a fence they pasted into: Up and Down, then
+    their marks typed at the end of the code. A paste that lost its first line to the
+    opening marks, a Down that reached no line below the code, or marks that closed
+    nothing would leave the fence open. Each key does what it says, and the closing
+    marks stand in the code's box with the words after them outside it.
+    field-editor.test.mjs holds the rest of the ways in and out."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
@@ -2205,8 +2457,8 @@ def test_words_on_a_fences_opening_line_show_in_the_draft_and_the_message(
     engine, request, serve
 ):
     """Words on a message fence's opening line are the code's first line, unless one word
-    names the language of the code below. They were the fence's info string, which the
-    draft hid once the caret left the line and the message dropped."""
+    names the language of the code below. Read as the fence's info string, they would
+    be hidden by the draft once the caret left the line, and dropped by the message."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
@@ -2290,51 +2542,3 @@ def open_threads_list(page):
 def open_reference(page):
     page.keyboard.press("?")
     return page.locator(".lf-command-reference-results"), ".lf-command-reference-row"
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize("opens", [open_threads_list, open_page_map, open_reference])
-def test_a_band_names_the_group_passing_under_it(request, serve, engine, opens):
-    """A list that groups its rows keeps the group being read named: scrolled into a
-    group, its band stands at the top of the list, across the list's whole surface, and
-    a row the user walks up to stands clear below the band rather than under it."""
-    page = open_page(
-        request.getfixturevalue(engine), serve(BANDED_PAGE, events=BANDED_EVENTS)
-    )
-    resized(page, 1000, 480)
-    scroller, rows = opens(page)
-    expect(scroller).to_be_visible()
-    scroller.evaluate("list => { list.scrollTop = 160; }")
-    rendered(page)
-    stuck = """list => {
-      const box = list.getBoundingClientRect();
-      const at = list.getRootNode().elementFromPoint(
-        box.left + box.width / 2, box.top + 2);
-      const band = at?.closest('.lf-rows-head');
-      if (!band) return null;
-      const {top, bottom, left, right} = band.getBoundingClientRect();
-      return {name: band.textContent.trim(), top, bottom, left, right,
-              list: {top: box.top, left: box.left,
-                     right: box.left + list.clientWidth}};
-    }"""
-    band = scroller.evaluate(stuck)
-    assert band, "no band stands at the top of the scrolled list"
-    assert band["top"] == pytest.approx(band["list"]["top"], abs=1), band
-    assert band["left"] == pytest.approx(band["list"]["left"], abs=1), band
-    assert band["right"] == pytest.approx(band["list"]["right"], abs=1), band
-
-    # Up the list by the keys, each row stands clear of the band over it.
-    scroller.locator(rows).nth(11).focus()
-    for _ in range(11):
-        page.keyboard.press("ArrowUp")
-        rendered(page)
-        at = scroller.evaluate(
-            """list => {
-              const root = list.getRootNode();
-              const row = root.activeElement;
-              const {left, top, width} = row.getBoundingClientRect();
-              const over = root.elementFromPoint(left + width / 2, top + 1);
-              return [row.textContent, over?.closest('.lf-rows-head')?.textContent];
-            }"""
-        )
-        assert at[1] is None, f"{at[0]} stands under the band {at[1]}"

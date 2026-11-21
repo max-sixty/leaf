@@ -10,15 +10,15 @@
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
- * which selects the member before its first paint (`x-views`).
+ * which selects the member before its first paint (`views`).
  * The first tab set placed directly in main is the page's navigation over sections of
  * that page, whatever else main holds: its panel id is the URL fragment, and history
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * The authored layout-flow declares document flow (`--lf-views-flow`, layouts.css);
- * the package styles its unframed face. This module reads that declaration for
- * scrolling, separately from primary URL/history ownership above. In document flow
+ * The authored `flow="page"` puts the set in the document's flow (`flow`), and
+ * the package styles its unframed face. This module reads that attribute for scrolling,
+ * separately from primary URL/history ownership above. In document flow
  * ("page"), the strip sticks at the
  * window's top as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
@@ -31,11 +31,13 @@
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (base.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward restores the
- * entry's viewport after showing its view. Where a side list fills a height it is
- * given, as a full-height workspace's body (base.css), its list and its open item each
- * scroll on their own. Its panels are reading regions, and so is its list while it
- * scrolls on its own, so reading keys and the user's place follow the list or the item
- * rather than the set.
+ * entry's viewport after showing its view. Its column sticks in the window beside the
+ * item the page scrolls, and scrolls on its own past the window's height, so its list
+ * is pinned as a box's strip is, and a switch made while it is opens the new item at
+ * its start. Where a side list fills a height it is given, as a full-height
+ * workspace's body (base.css), its list and its open item each scroll on their own.
+ * Its panels are reading regions, and so is its list while it scrolls on its own, so
+ * reading keys and the user's place follow the list or the item rather than the set.
  *
  * A page's parts (`lf-parts`, lf-parts.js) are this module's set under their own tag,
  * with `lf-part` members. They stand directly in a `main` that carries no Layout
@@ -44,11 +46,12 @@
  * has a place of its own,
  * and its id is the URL fragment, as a page tab's is. Their list runs down the window's
  * left edge, under the page's title, walked up and down as well as across, each row
- * with its part's `summary` as a side list's has; the parts beside it start at the
- * window's top, so the list is no header over them. Where the window is too narrow for
- * the column, as on a phone, the list is a row sticking over the open part, a header
- * as the page tabs' row is. Parts placed anywhere else, as when the corpus embeds a
- * page, are no page's navigation, and list their names in a row.
+ * drawn as a side list's is (below), with its part's `summary` and its obligations'
+ * state under the name; the parts beside it start at the window's top, so the list is
+ * no header over them. Where the window is too narrow for the column, as on a phone,
+ * the list is a row of names sticking over the open part, a header as the page tabs'
+ * row is. Parts placed anywhere else, as when the corpus embeds a page, are no page's
+ * navigation, and list their names in a row.
  *
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
@@ -61,29 +64,39 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
- * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, the reading an `lf-tally` and its Next On Me use: the mark alone while one
- * waits on the user, since the mark and the tally already say so (its description says "To
- * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
- * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
- * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
- * and how far the user has worked through it, and an undo that reopens an obligation puts the
- * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
- * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
- * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
- * version diff is on, each tab counts the marked passages its panel holds, including
- * inactive panels. Unupgraded,
+ * the panel's `summary` under the name, then its obligations' state on a reserved line. Counted
+ * as an `lf-tally` counts them (`tally`), by the server's next actor: while one waits on the
+ * user, the row ends its name's line with On Me's symbol (`on-me`), the panel's mark for what
+ * waits on them, and the reserved line stays empty (its description says "To answer"). The
+ * symbol's room is kept in every state, as the line's is, so a long name wraps the same
+ * whatever its answer. A lone
+ * open mark on that line read as an empty list bullet; Leaf's dot already means an unread
+ * reply, and a mark before the name read as a bullet too. While one is open and none waits on
+ * the user, the line shows an open mark and whose turn it is: "On Claude" (`agentName`) while
+ * one is the agent's, as after the user comments on it, else "Open", as in a resolved thread.
+ * Once every one is answered it shows a check, with the answer's own words where the panel
+ * holds one obligation. So a queue shows each obligation's state and how far the user has
+ * worked through it, and an undo that reopens an obligation puts On Me's symbol back. Which
+ * obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
+ * admitted obligation inventory, so a tally of the queue counts the same obligations. A row
+ * whose panel's markup asks the user something keeps the line's room either way
+ * (`regionsAwaiting`), so an answer moves no row. While the version diff is on, each tab
+ * counts the marked passages its panel holds, including inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
+import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
+  afterScript,
+  authoredTitle,
   setScroll,
   actionTemplate,
   agentName,
   PRESS,
-  obligationsIn,
+  obligationsByRegion,
+  regionsAwaiting,
   answerWords,
+  tally,
   under,
   backgroundFlash,
   flashDuration,
@@ -93,7 +106,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   cycledRow,
-  elementsDeclaring,
   keepView,
   keeps,
   layoutChanged,
@@ -125,11 +137,6 @@ import {
   pressIsKeyboardActivation,
   signal,
   LeafElement,
-  html,
-  nothing,
-  render,
-  repeat,
-  ref,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -146,8 +153,29 @@ const soleSubstantiveElement = (owner) => {
   const children = substantiveChildren(owner);
   return children.length === 1 && children[0] instanceof Element ? children[0] : null;
 };
+// A member's face: markup its list shows in place of its `label` and `summary`, where
+// text can't say it, such as a file's name in code type over a coloured diffstat. It
+// opens the member as a <template>, which the page doesn't show, and the list shows one
+// copy of it per template. `label` stays the member's name: the tab's accessible name,
+// and every place that takes only text.
+/** @type {WeakMap<HTMLTemplateElement, HTMLElement>} */
+const faces = new WeakMap();
+/** @param {Element} panel @returns {HTMLElement | null} */
+const face = (panel) => {
+  const template = panel.firstElementChild;
+  if (!(template instanceof HTMLTemplateElement)) return null;
+  let shown = faces.get(template);
+  if (!shown) {
+    shown = document.createElement("span");
+    shown.className = "lf-tab-face";
+    shown.append(template.content.cloneNode(true));
+    faces.set(template, shown);
+  }
+  return shown;
+};
 
 export class TabSet extends LeafElement {
+  static lfPatch = "members";
   // Whether the set is a page's parts (lf-parts.js).
   get parts() {
     return false;
@@ -190,9 +218,12 @@ export class TabSet extends LeafElement {
     this.#watchRootContext();
     this.#syncRootContext();
     // A side list and a page's list of parts both run down beside their panels; parts
-    // placed anywhere else list their names in a row (the package theme).
+    // placed anywhere else list their names in a row (the package theme). The set wears
+    // `data-lf-down` while its list runs down, and the theme draws a row's summary and
+    // state lines from that mark alone (tabs.css).
     const down = side || (this.#parts && this.#root);
     this.#down = down;
+    this.toggleAttribute("data-lf-down", down);
     // The strip is a thing to work, and its tabs ride inside it, so paper drops the
     // whole row and puts each panel's label back on the panel. What a tab says is not
     // the strip's word though — it is the panel's name, and once the strip exists it
@@ -207,7 +238,6 @@ export class TabSet extends LeafElement {
     const strip = this.#strip;
     strip.setAttribute("role", "tablist");
     strip.toggleAttribute("data-lf-scroll", true);
-    if (down) strip.setAttribute("aria-orientation", "vertical");
     // Group runs are fixed by authored panels. Lit owns every generated child;
     // panel nodes stay outside its render root, with native reading and focus state.
     /** @type {{panel: Element, group: string | null, panels: Element[]} | undefined} */
@@ -239,11 +269,17 @@ export class TabSet extends LeafElement {
     /** @param {HTMLElement | undefined} next */
     const walk = (next) => {
       if (!next) return;
-      // The strip is always on screen; focus scrolling a stuck tab back to its place
-      // in flow would move the view being left before the switch records it.
+      // Native focus scrolling would carry a stuck tab back to its place in flow and
+      // move the view being left before the switch records it. So the tab comes into
+      // the window after the switch (`#showTab`), once the focus paint marks its ring,
+      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
+      // sight, the tab would lose focus to the next key (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
-      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
+      afterScript(() => this.#showTab(next, null));
+      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()), {
+        list: () => [tabs()[0], tabs().at(-1)],
+      });
     };
     // Across the row, back is the way the names run from.
     const arrows = rowArrows(this);
@@ -349,19 +385,21 @@ export class TabSet extends LeafElement {
 
   // A side list's panels are reading regions whatever their posture, as panes are, so
   // the user's place in an item survives the workspace flowing and filling the window
-  // again. Its list is one only while it is a column scrolling on its own, while the
-  // set is told it has a definite height to fill (`--lf-full-height`, base.css):
-  // elsewhere the strip keeps its open tab in view itself (`#showTab`), and observed
-  // as a region there, its own scrolling as it turned into a row ended the size
-  // observers' pass with notifications undelivered. Whether the set is told follows
-  // the window, so the strip's size observer asks again.
+  // again. Its list is one only while it scrolls on its own, which the theme declares
+  // on it (`--lf-holds-height`): a column, sticking beside the item or filling the
+  // height a full-height workspace gives it, or that workspace's stacked row. A row
+  // over the item elsewhere keeps its open tab in view itself (`#showTab`), and
+  // observed as a region there, its own scrolling as it turned into a row ended the
+  // size observers' pass with notifications undelivered. Which it is follows the
+  // window, so the strip's size observer asks again.
   #syncRegions() {
     if (!this.#side || !this.isConnected) return;
-    const told =
-      getComputedStyle(this).getPropertyValue("--lf-full-height").trim() === "1";
-    if (told === Boolean(this.#stopList)) return;
+    const holds =
+      getComputedStyle(this.#strip).getPropertyValue("--lf-holds-height").trim() ===
+      "1";
+    if (holds === Boolean(this.#stopList)) return;
     this.#stopList?.();
-    this.#stopList = told
+    this.#stopList = holds
       ? registerReadingRegion({
           id: compoundReadingRegionId(this, "list"),
           host: this.#strip,
@@ -371,10 +409,17 @@ export class TabSet extends LeafElement {
   }
 
   // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a side list its obligations' state, with the answer
-  // once they are all answered.
+  // version diff's marked passages, and in a list down beside the panels its obligations'
+  // state, with the answer once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
+    // Every panel's obligations in one pass, read once the first panel asks for them.
+    /** @type {ReturnType<typeof obligationsByRegion> | undefined} */
+    let byPanel;
+    const held = (/** @type {Element} */ panel) =>
+      (byPanel ??= obligationsByRegion(this.#panels)).get(panel) ?? [];
+    // The panels whose markup asks the user something, whose rows keep the answer's room.
+    const asking = this.#down ? regionsAwaiting(this.#panels) : new Set();
     return html`${this.#edge("start")}${
         this.#side
           ? repeat(
@@ -395,14 +440,14 @@ export class TabSet extends LeafElement {
                   ${repeat(
                     run.panels,
                     (panel) => panel,
-                    (panel) => this.#tab(panel),
+                    (panel) => this.#tab(panel, held, asking),
                   )}
                 </div>`,
             )
           : repeat(
               this.#panels,
               (panel) => panel,
-              (panel) => this.#tab(panel),
+              (panel) => this.#tab(panel, held, asking),
             )
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
@@ -412,27 +457,22 @@ export class TabSet extends LeafElement {
     return active ? this.#buttons.get(active) : undefined;
   }
 
-  /** @param {Element} panel */
-  #tab(panel) {
+  /** @param {Element} panel @param {(panel: Element) => NonNullable<ReturnType<ReturnType<typeof obligationsByRegion>["get"]>>} held @param {ReadonlySet<Node>} asking */
+  #tab(panel, held, asking) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
-    const items = hasAnswer ? obligationsIn(panel) : [];
-    // Withdrawn items are already left out; an answer given elsewhere ends one too.
-    const done = items.filter((item) => item.state === "done");
-    const answered = items.length > 0 && done.length === items.length;
-    const only = items.length === 1 ? items[0] : null;
-    const open = items.filter((item) => item.state !== "done");
-    const onUser = open.some((item) => item.next_actor === "user");
-    const turn = onUser
-      ? "To answer"
-      : open.some((item) => item.next_actor === "agent")
-        ? `On ${agentName()}`
-        : "Open";
+    const hasAnswer = asking.has(panel);
+    const items = hasAnswer ? held(panel) : [];
+    // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn items
+    // are already left out, so every item that isn't open is answered.
+    const { onUser, onAgent, open, total } = tally(items);
+    const answered = total > 0 && open === 0;
+    const only = total === 1 ? items[0] : null;
+    const turn = onUser ? "To answer" : onAgent ? `On ${agentName()}` : "Open";
     const answer = answered
       ? only
         ? answerWords(only)
         : ""
-      : items.length && !onUser
+      : total && !onUser
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");
@@ -440,17 +480,17 @@ export class TabSet extends LeafElement {
       group && `${group} group`,
       panel.getAttribute("summary"),
       changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-      !items.length
+      !total
         ? ""
         : !answered
           ? only
             ? turn
-            : `${turn}, ${done.length} of ${items.length} answered`
+            : `${turn}, ${total - open} of ${total} answered`
           : only
             ? answer
               ? `Answered: ${answer}`
               : "Answered"
-            : `All ${items.length} answered`,
+            : `All ${total} answered`,
     ]
       .filter(Boolean)
       .join(". ");
@@ -468,9 +508,9 @@ export class TabSet extends LeafElement {
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
       ><span class="lf-tab-name" ${generated({ says: true })}
-        >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
+        >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
-        this.#down && panel.hasAttribute("summary")
+        this.#down && !face(panel) && panel.hasAttribute("summary")
           ? html`<span class="lf-tab-summary" ${generated({ says: true })}
               >${panel.getAttribute("summary")}</span
             >`
@@ -480,15 +520,22 @@ export class TabSet extends LeafElement {
           ? html`<span
               class="lf-tab-answer"
               aria-hidden="true"
-              data-lf-obligations=${
-                answered ? "answered" : items.length ? "open" : nothing
-              }
+              data-lf-obligations=${answered ? "answered" : answer ? "open" : nothing}
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
       }<span class="lf-tabdiff lf-chip lf-change-count" aria-hidden="true"
         >${changed ? `Δ${changed}` : ""}</span
-      >${this.#down ? mark : nothing}</span
+      >${
+        hasAnswer
+          ? html`<span
+              class="lf-tab-on-me"
+              aria-hidden="true"
+              ?data-lf-waiting=${onUser > 0}
+              >${actionTemplate("on-me")}</span
+            >`
+          : nothing
+      }${this.#down ? mark : nothing}</span
     >`;
   }
 
@@ -518,7 +565,6 @@ export class TabSet extends LeafElement {
     const pinnedBox =
       previous &&
       !this.#pageFlow &&
-      !this.#side &&
       reason === "ordinary" &&
       this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
     const change = () => {
@@ -592,16 +638,16 @@ export class TabSet extends LeafElement {
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
-    this.#pageFlow = this.#parts
-      ? this.#root
-      : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
+    this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
     // The strip is named as the chrome names the set (`addressableLabel`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
-    // section. The page's navigation stands in no section, and the page's title names it.
+    // section. The page's navigation stands in no section, and the page's `<title>`
+    // names it: `main` has no name of its own, so its label would be its words run
+    // together.
     keeps(
       this.#strip,
       "aria-label",
-      addressableLabel(this) || (this.#root ? addressableLabel(main) : "") || null,
+      addressableLabel(this) || (this.#root ? authoredTitle() : "") || null,
     );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
@@ -674,9 +720,12 @@ export class TabSet extends LeafElement {
   // strip sticks, and scrolling the page to it would move the view being read. It
   // stops clear of the edge's press, which the strip states as its inline
   // `scroll-padding` (the package theme). A row runs past where it holds more names
-  // than it shows. A side list's column runs past only where it scrolls on its own,
-  // in a workspace that fills the window (base.css), and the tab comes into it the
-  // same way, down the column.
+  // than it shows. A side list's column runs past where it scrolls on its own, as it
+  // does wherever it is a column (the package theme), and the tab comes into it the
+  // same way, down the column. Until the column sticks it stands where the page put
+  // it, and can reach past the window's foot, so the walk, which puts focus on the
+  // tab, shows it in the window too (`within` null). A stuck strip's tab already
+  // shows there.
   // Where the strip has room for it, the tab comes in with its run's label, so the
   // name of the group the user opened stays beside it. Down a column that room is
   // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
@@ -688,8 +737,8 @@ export class TabSet extends LeafElement {
   // the run's first tab brings the label in with it, standing in its own place, and
   // a later tab comes in beside the stuck label. Where they cannot share the row,
   // the tab lands whole and the label gives way (`data-lf-group-apart`).
-  /** @param {HTMLElement | undefined} btn */
-  #showTab(btn) {
+  /** @param {HTMLElement | undefined} btn @param {Element | null} [within] */
+  #showTab(btn, within = this.#strip) {
     const strip = this.#strip;
     if (!btn) return;
     const run = btn.parentElement;
@@ -703,7 +752,7 @@ export class TabSet extends LeafElement {
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
       run.style.setProperty("--lf-tab-group-size", layoutPx(size));
-      scrollIntoView(btn, { block: "nearest", within: strip });
+      scrollIntoView(btn, { block: "nearest", within });
       return;
     }
     const range = label && document.createRange();
@@ -713,7 +762,7 @@ export class TabSet extends LeafElement {
     }
     scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
-      within: strip,
+      within,
     });
   }
 
@@ -727,7 +776,15 @@ export class TabSet extends LeafElement {
     return stripSize;
   }
 
+  // The tablist says which way its names run, the way the theme lays them
+  // (`--lf-tabstrip-flow`): down a column, and across the row a narrow window stacks a
+  // side list or a page's parts into, as every other strip runs (the tablist default).
   #positionStrip = () => {
+    keeps(
+      this.#strip,
+      "aria-orientation",
+      getComputedStyle(this.#strip).flexDirection === "column" ? "vertical" : null,
+    );
     this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();

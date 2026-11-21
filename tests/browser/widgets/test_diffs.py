@@ -28,7 +28,7 @@ from render_harness import (
     leaf_page,
     long_press,
     open_page,
-    page_registry,
+    page_declarations,
     resized,
     said,
     scroll_settled,
@@ -208,7 +208,7 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="file-view" view="file" collapsed><pre>'
     + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
     + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
-    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--lf-code-size:1em" overflow="wrap"><pre>'
     + _patch_file(
         "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
     )
@@ -446,18 +446,19 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
-                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
-                f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
-                '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
-                "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
+                '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2><lf-options id="opts">'
+                f'<lf-option id="opt-a" label="A"><strong>A</strong> {long_diff("in-option")}'
+                '</lf-option><lf-option id="opt-b" label="B"><strong>B</strong></lf-option>'
+                "</lf-options></lf-group>" + "<p>Filler.</p>" * 60,
                 head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
             )
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
+    # The page's own face: a set in its flow draws no frame.
+    expect(page.locator("lf-tabs")).to_have_css("border-left-width", "0px")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )
@@ -716,13 +717,15 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
-    page.locator("lf-diff summary").first.click()
-    page.keyboard.press("Tab")
     page.locator("lf-diff summary").first.focus()
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
+    # Each step walks from the row the last one landed on, so each waits for its landing.
+    for line in (1, 40, 80):
+        page.keyboard.press("]")
+        expect(
+            page.locator(
+                f'lf-diff [data-lf-datum=\'["app/handlers.py","both",{line},{line}]\']'
+            )
+        ).to_be_focused()
     reading = """() => {
       const diff = document.querySelector('lf-diff');
       const row = diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]');
@@ -1024,7 +1027,7 @@ def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, en
     """A revision that redraws a thread's own line, and puts another file before its
     file, leaves the thread's outlet where it stands, so a frame in a reply keeps the
     document it loaded. Clearing the host's light DOM with `replaceChildren()` on each
-    revision unloaded it in WebKit, which lacks `moveBefore` too."""
+    revision would unload it in WebKit, which lacks `moveBefore` too."""
 
     def patch(path, body):
         return f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n{body}"
@@ -1089,10 +1092,10 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
         serve.page_dir,
         root,
         "Which should it be?",
-        '<lf-options id="mount" choose><lf-option id="mount-steel">'
-        '<small class="tag ok">recommended</small> <strong>Keep steel</strong>'
-        '</lf-option><lf-option id="mount-plastic"><strong>Go back to plastic'
-        "</strong> Lighter.</lf-option></lf-options>",
+        '<lf-options id="mount"><lf-option id="mount-steel" label="Keep steel" '
+        "recommended><strong>Keep steel</strong></lf-option>"
+        '<lf-option id="mount-plastic" label="Go back to plastic">'
+        "<strong>Go back to plastic</strong> Lighter.</lf-option></lf-options>",
     )
     page = open_page(browser, url)
     rendered(page)
@@ -1100,7 +1103,9 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
     expect(group).to_have_css("display", "grid")
     expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     )
 
@@ -1250,9 +1255,9 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     """A changed row says it changed by the colour behind it, and that colour is the row's
     own background, so it stops where the row's box stops. The renderer sizes the code
     column to the box that scrolls, which is the width the user could already see: on
-    this patch the fill ran out 2,563px short of the line's end, so scrolling right left
-    every addition and deletion sitting on the file's plain paper with nothing to say
-    which it was.
+    this patch the fill would run out far short of the line's end, so scrolling right
+    would leave every addition and deletion sitting on the file's plain paper with
+    nothing to say which it was.
 
     Every direction in one reading, because they are one track. The floor that carries the
     fill past the scrollport would, left alone, shrink a short file's rows to its own
@@ -1274,7 +1279,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     # wider than any of them, so the floor would take it for a line and size the file by
     # the longest remark. `app/routes.py` is what makes that reading sharp: its rows fit
     # their box, so a comment that reached the measure starts a file the user could see
-    # whole scrolling sideways — 671px of rows in a 718px box became 796px in 843px.
+    # whole scrolling sideways.
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
@@ -1314,7 +1319,7 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
     assert cut["cut"] > 0 and cut["worst"] > 300, (
         f"no line runs past its box, so a wrapped result would prove nothing: {cut}"
     )
-    # Which line, not just how many. The rows are all one width now — each is sized to the
+    # Which line, not just how many. The rows are all one width — each is sized to the
     # longest line in its file so its fill reaches the end of it — so a reading taken off
     # the row's box rather than its text reports the file's overhang for every row alike
     # and still satisfies the count above. Naming the line is what tells the two apart.
@@ -1356,9 +1361,9 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     browser, serve
 ):
     """Two halves of one question — which file am I reading, and where did that press put
-    me. The shipped review is 46 files and 32,000px: opening one and reading down it left
-    nothing on screen saying whose lines these were, because the file's header stood in
-    flow and scrolled away with its own first rows.
+    me. In the shipped review, a long one, a file's header that stood in flow and
+    scrolled away with its own first rows would leave nothing on screen saying whose
+    lines these were, as soon as the user read down a file.
 
     Pinned, the header stands exactly at the root's sticky slot (`--lf-top`), the
     window's head where no chrome stands over it. A press then has to land past it:
@@ -1404,9 +1409,9 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
         f"a pointer on the press reaches something else: {press}"
     )
     # And it leaves with the file. A sticky box is held inside its containing block by
-    # its margin box, so a negative margin on the press lent it that much travel past
-    # the file's end: with the header unpinned and gone, the press stood on for 32px of
-    # scroll over the next file's header and that file's own press. Scrolled to where
+    # its margin box, so a negative margin on the press would lend it that much travel
+    # past the file's end: with the header unpinned and gone, the press would stand on
+    # over the next file's header and that file's own press. Scrolled to where
     # the file's foot is 15px under the slot, the press's foot is no lower than
     # the file's.
     page.evaluate(
@@ -1456,7 +1461,7 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     the sticky-header slot again for whatever sticks inside it but lands nothing down,
     so the browser's own focus scroll still reads the file name pinned over the seat.
     Tab from the seat's reply field onto the control beside it, both under the pinned
-    name, brings the control out from under it, where it had stayed hidden."""
+    name, brings the control out from under it, where it would otherwise stay hidden."""
     datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
     page = open_page(
         browser,
@@ -1578,10 +1583,10 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):
     """The same two halves inside a full-height workspace pane, whose body is the box that
-    scrolls the rows. The header used to stop the window's slot below the pane's top,
-    because the offset it pinned at was the window's: rows scrolled past in the 42px
-    above the name that headed them, and a `]` landing, which aligns to the pane's own
-    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolls the rows. A header pinned at the window's offset would stop the window's
+    slot below the pane's top: rows would scroll past in the room above the name that
+    headed them, and a `]` landing, which aligns to the pane's own top, would put the
+    row above its header. Where a sticking box stops is `--lf-top`, and a
     scrolling pane body declares it as its own top edge.
 
     Short enough a window that the patch overflows the pane, and still tall enough that
@@ -1624,8 +1629,9 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
     # The landed row wears the band where it can be seen: inside the code box that clips
-    # it and below the header pinned over the row above. Drawn outset, its sides fell
-    # outside that box and its upper run under the header, and the row showed no ring.
+    # it and below the header pinned over the row above. Drawn outset, its sides would
+    # fall outside that box and its upper run under the header, and the row would show
+    # no ring.
     row_ring = page.evaluate(f"""() => {{
         const at = document.querySelector('lf-diff').shadowRoot.activeElement;
         return ({_RING_WITHIN})(at, at.closest('code'));
@@ -1635,7 +1641,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     inside = row_ring["inside"]
     assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
     # And the code box has not moved sideways. The row runs past the box, so a landing
-    # that let the browser bring it "nearest" scrolled the box to the row's start, the
+    # that let the browser bring it "nearest" would scroll the box to the row's start, the
     # width of the line numbers over it, hiding every line's marker and first characters.
     assert row_ring["sideways"] == 0 and inside["left"], (
         f"the landing scrolled the file's lines sideways under their numbers: {row_ring}"
@@ -1777,9 +1783,10 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     `focusDestination` focuses the host, and the diff's keys answer there because the
     scope climb starts at the focused node itself.
 
-    Going forward, nothing-focused meant every hunk lay ahead and the walk stopped at the
-    first. Going back it meant every hunk lay ahead too, so none lay behind: the walk ran
-    through the whole list, opened each file and landed nowhere. A collapsed manifest
+    Going forward, nothing-focused means every hunk lies ahead and the walk stops at the
+    first. Read the same way going back, every hunk would lie ahead too, so none behind:
+    the walk would run through the whole list, open each file and land nowhere. A
+    collapsed manifest
     already holds each parsed file's evidence, so this step must open only the last
     file."""
     url = serve(MANIFEST_DIFF_PAGE)

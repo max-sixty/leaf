@@ -110,14 +110,22 @@ test("authored activity detail retains its exact source only in the words that s
   );
 });
 
-test("working with no sentence of the agent's leaves the row's words to it", () => {
+test("working with no sentence of the agent's says Working in Leaf's voice until one comes", () => {
   const picked = (waiting) =>
     said({ ...WORKING, detail: "", ts: minutesAgo(0), counts: { waiting } });
-  // The leaf's tone says it works; only the disclosure says so in words, Leaf's.
   for (const waiting of [1, 3, 0])
-    assert.deepEqual(picked(waiting), ["", "Working (just now)"]);
+    assert.deepEqual(picked(waiting), ["Working", "Working (just now)"]);
   const status = pageStatus(state({ ...WORKING, detail: "" }));
-  assert.ok(status.explanationParts.every((part) => part.voice === "leaf"));
+  assert.ok(
+    [...status.summaryParts, ...status.explanationParts].every(
+      (part) => part.voice === "leaf",
+    ),
+  );
+  assert.equal(status.adds, "");
+  // A step the harness observed changes under the row's one word; the disclosure names it.
+  const step = pageStatus(state({ ...WORKING, detail: "", observed_kind: "tool" }));
+  assert.equal(step.summary, "Working");
+  assert.equal(step.adds, "Using a tool");
 });
 
 test("a step the transport watched names the work and stands beside the agent's sentence", () => {
@@ -164,12 +172,15 @@ test("work waiting in the agent's own session says where it is answered, and is 
   );
 });
 
-test("listening says where a comment starts, with input on its way counted after", () => {
-  assert.equal(said({ ...LISTENING, detail: "" })[0], "Ready — select text to comment");
+test("listening says the agent awaits, with input on its way counted after", () => {
+  assert.equal(said({ ...LISTENING, detail: "" })[0], "Claude awaits");
   assert.deepEqual(said({ ...LISTENING, detail: "", counts: { unseen: 1 } }), [
-    "Ready — select text to comment",
-    "Ready — select text to comment. 1 response owed on updates awaiting delivery.",
+    "Claude awaits",
+    "Claude awaits. 1 response owed on updates awaiting delivery.",
   ]);
+  // Before the server names its agent, the line names none.
+  const unnamed = pageStatus({ activity: servedActivity(LISTENING) });
+  assert.equal(unnamed.summary, "The agent awaits");
 });
 
 test("a quiet claim is dated by its last word, and a dropped one by the turn's ending", () => {
@@ -375,7 +386,7 @@ test("the explanation names what waits on each side", () => {
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
-    "Ready — select text to comment. Waiting on me: 2 to answer, 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
+    "Agent awaits. Waiting on me: 2 to answer, 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
   // A to-do's title is the agent's words; the count around it is Leaf's.
   assert.deepEqual(
@@ -419,7 +430,7 @@ test("what the disclosure adds to the row says only what the row does not", () =
       ts: minutesAgo(0),
       counts: { waiting: 1 },
     }),
-    "Working",
+    "",
   );
   assert.equal(
     adds({ ...LISTENING, detail: "", counts: { unseen: 1 } }),
@@ -491,7 +502,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
       observed_kind: "tool",
       counts: { unseen: 3 },
     }),
-    "3 responses owed on updates awaiting delivery",
+    "Working · 3 responses owed on updates awaiting delivery",
   );
   assert.equal(
     row({

@@ -204,8 +204,9 @@ send the answers in the message in a widget that asks, such as an `<lf-options i
 holding an `<lf-option id="…">` for each. Picking an option is generally quicker and
 easier for the user than typing a reply, so a choice usually serves them better than
 answers listed in words. The user answers with a press in the thread, and the choice
-waits on them until they do, so the message takes no `--obligation`, which the command
-refuses beside it. The text holds the question, what is true of every option and your
+waits on them until they do, so the message takes no `--obligation`: beside the choice
+it would keep the message on their On Me list after they pick, as the command notes.
+The text holds the question, what is true of every option and your
 reason; each card holds what is true of its option alone, such as what choosing it
 does and costs. The choice needs no heading or group round it. Title each option by
 what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a

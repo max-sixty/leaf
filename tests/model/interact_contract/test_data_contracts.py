@@ -28,6 +28,7 @@ from leaf.findings import Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
+from leaf.validation import composition as composition_model
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -116,13 +117,6 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
             ),
             "data-contract",
         ),
-        (lambda entry: entry["attributes"]["properties"].pop("source"), "data-source"),
-        (
-            lambda entry: entry["attributes"]["properties"].update(
-                {"source": {"type": "number"}}
-            ),
-            "data-source",
-        ),
         (
             lambda entry: entry.update(
                 {
@@ -142,6 +136,32 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
         lambda: registry_validation.validate_registry(registry, "test registry")
     )
     assert (finding.code, finding.at) == (code, "<lf-test-data>")
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda entry: entry["attributes"]["properties"].pop("source"),
+        lambda entry: entry["attributes"]["properties"].update(
+            {"source": {"type": "number"}}
+        ),
+    ],
+)
+def test_a_data_source_attribute_not_declared_a_string_is_advice(page_dir, change):
+    """A source attribute declared as anything but a string still works, since each
+    element's source passes `leaf data`'s own grammar, so the registry advises
+    declaring it a string rather than refusing the declaration."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = vocabulary(page_dir)
+    change(registry["lf-test-data"])
+
+    registry_validation.validate_registry(registry, "test registry")
+    said = composition_model.declaration_advice(
+        {"lf-test-data": registry["lf-test-data"]}, registry, "test registry"
+    )
+    assert [(f.code, f.at, f.severity) for f in said] == [
+        ("data-source", "<lf-test-data>", "advice")
+    ]
 
 
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
@@ -182,15 +202,17 @@ def test_a_measured_input_joins_its_source_to_one_run_receipt(
     page_dir, change, code, values
 ):
     """The generic check cannot infer a widget's source or write receipt. Its measured
-    input names both, and the registry door refuses a half-readable join before an
-    authored value can silently miss the freshness advisory."""
+    input names both, and the registry door advises on a half-readable join, since an
+    instance missing either is only never compared with its source's latest run."""
     registry = vocabulary(page_dir)
     change(registry["lf-num"])
 
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
+    registry_validation.validate_registry(registry, "test registry")
+    said = composition_model.declaration_advice(
+        {"lf-num": registry["lf-num"]}, registry, "test registry"
     )
-    assert found([finding], code, "<lf-num>", **values)
+    [advice] = found(said, code, "<lf-num>", **values)
+    assert advice.severity == "advice"
 
 
 def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):

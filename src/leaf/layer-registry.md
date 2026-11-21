@@ -127,5 +127,7 @@ The kernel registry, `browser/runtime/kernel-registry.json`, declares the other 
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
 header, and the classifications on each `$events.kinds` entry). It is part of the
 runtime, so both read the serving Leaf's copy, the browser through
-`runtime/kernel-facts.js`. Composition lays each layer over it, none is stamped for
-the browser to read, and a layer that changes one is refused.
+`runtime/kernel-facts.js`. Composition lays each layer over it and keeps the
+kernel's value of each, none is stamped for the browser to read, and the commands that
+check a layer's own declarations name a change to one to its author
+(`registry.layer.kernel_fact_advice`).

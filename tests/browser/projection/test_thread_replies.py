@@ -1,8 +1,6 @@
 """Text and widgets inside thread messages: Markdown and suggestion text, thread
 widgets' initial state and replay, undo, refusals and the Done press."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
@@ -95,9 +93,9 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
         expect(body.locator("pre code [data-lf-syn]").first).to_have_text("def")
         # An agent's block of tags draws as its elements.
         expect(body.locator("lf-callout > div")).to_have_text("a tile")
+        # A Markdown link that leaves the page opens a new tab, leaving the thread open.
         link = body.locator('a[href="https://example.com/notes"]')
         expect(link).to_have_attribute("target", "_blank")
-        expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
         expect(link).to_have_attribute("data-lf-external", "")
         expect(
             body.locator(

@@ -2231,6 +2231,39 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
     assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
 
 
+def test_a_reply_that_lands_mid_carry_continues_it(browser, serve):
+    """A reply that lands while the thread view still carries the work before it
+    re-times that carry from where it is drawn; the watch credits the one trajectory
+    from the step that began it, so the view's head and messages hold no motion of
+    their own. The carry runs long, so the reply lands in it on any machine."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    page = floating(browser, url)
+    page.add_style_tag(content=".lf-floating-panel { --lf-motion-box-resize: 1500ms }")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+    press = view.locator(".lf-new-reply")
+    for text, kwargs, says in [
+        (
+            "Reading the jobs, the mounts and the frost dates. " * 80,
+            {"ephemeral": True},
+            "New message",
+        ),
+        (
+            "The mounts come first. " + "They need the frost to lift. " * 120,
+            {},
+            "New reply",
+        ),
+    ]:
+        thread_model.post_reply(serve.page_dir, {"responds": root}, text, **kwargs)
+        told(page)
+        expect(press).to_have_text(says)
+    settled(page)
+
+
 def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     browser, serve, request
 ):

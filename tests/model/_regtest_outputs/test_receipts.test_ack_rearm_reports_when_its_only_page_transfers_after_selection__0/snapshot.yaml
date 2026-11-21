@@ -5,7 +5,7 @@ exit: 2
 stdout:
   findings:
     - code: not-owned
-      severity: error
+      severity: advice
       values:
         pages: [<page>]
       text: >-

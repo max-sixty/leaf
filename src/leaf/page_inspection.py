@@ -158,8 +158,10 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 "owner": owner,
                 "documents": documents,
                 **_css_counts(css, inline=kind == "inline"),
+                # The person reading About this page reads what the sheet holds,
+                # not the guarantee a refusal tells the agent it keeps.
                 "syntax_errors": [
-                    finding.json()
+                    finding.json() | {"text": finding.said}
                     for finding in css_syntax_errors(
                         css, f"{path}:{line}", kind == "inline"
                     )

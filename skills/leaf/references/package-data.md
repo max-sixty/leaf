@@ -78,7 +78,7 @@ added child is its own key, so undoing the add removes it. The child's tag lists
 widget in `owners`, requires only an `id`, and has `content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
-presentation, but `package check` refuses one that declares state, obligations, work,
+presentation, but `package check` refuses one that declares state, obligations,
 history, data or visual parts of its own; the parent's controller records and presents
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions
@@ -165,10 +165,11 @@ The view keeps no state of its own about the answer. It reads and changes the an
 through `shownAnswer` ([module-reading.md, "Reading obligations and the On
 lists"](module-reading.md#reading-obligations-and-the-on-lists)), which sends the
 widget's own command, so the log holds one answer whichever view the user changed it
-in. The append door refuses a position move of a view, and `page check` refuses
-markup that puts a view apart from its widget's authored answer, owners that all
-hold a value, leaving nowhere for an answer that names none, or an owner value the
-widget can't answer.
+in. The append door refuses a position move of a view. `page check` advises on
+three things in a view's markup: a view standing apart from its widget's authored
+answer, which the page moves to that answer when it draws; owners that all hold a
+value, which leave nowhere for an answer that names none; and an owner value the
+widget can't answer, which takes no drop.
 
 ## Instance input contracts
 

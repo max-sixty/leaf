@@ -1063,8 +1063,8 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
     """An undone reaction is a mark taken back: no thread fold shows it, so a reply
-    naming it would open a thread with no root. Neither detaching nor moving it
-    lands."""
+    naming it would open a thread with no root. The append door refuses both
+    detaching and moving it."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     root = append_carried_log_record(
@@ -1095,7 +1095,7 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stdout).code == "no-anchor"
+    assert refused_on(detached.stdout).code == "withdrawn-parent"
 
     moved = CliRunner().invoke(
         cli_model.cli,

@@ -1,6 +1,5 @@
 /* A control the runtime stands over one of the page's blocks: Copy at a code block's
-   corner (code-copy.js), a heading's link (heading-links.js) and a recording's play bar
-   (video-controls.js).
+   corner (code-copy.js) and a heading's link (heading-links.js).
 
    A document block's control stands in chrome, so the page's own sibling and child
    selectors keep matching what the page wrote. CSS anchors keep it on the block without

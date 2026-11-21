@@ -58,8 +58,9 @@ user's On Me list.
 
 If you can't see the rendered page, review the words, evidence and choices from the
 active HTML and `leaf page state <page>`, and report the visual and keyboard review as
-not done. When the check's `browser` field is `unavailable`, report the render check as
-unfinished, along with the run of the page's code if it needed one.
+not done. When the check's `browser.ran` leaves out a gate its `asked` names, as where
+no browser could launch or the browser failed, report that gate as unfinished; a
+finding says why.
 
 ## Page diagnostics
 

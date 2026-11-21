@@ -195,7 +195,7 @@ export function nameAnchor({ el, name, write, part }) {
 // Whether the document can name `el` (`anchorReading`): it stands in the document, or in
 // the first shadow tree in, where nothing names it already.
 /** @param {Element} el */
-export function nameable(el) {
+function nameable(el) {
   const root = el.getRootNode();
   if (root === document) return true;
   if (shadowHost(root)?.getRootNode() !== document) return false;

@@ -58,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -261,7 +261,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     on_body = "() => document.activeElement === document.body"
     preview = page.locator(".lf-margin-preview")
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
         page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
@@ -277,7 +277,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         assert page.evaluate(on_body)
 
     # On Me by pointer: out with the panel's view.
-    toggle.click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -768,12 +768,23 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 
 
 def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
-    """A page's own menu that answers Escape or Enter on its item, preventing the key's
-    default and handing focus back to its trigger, keeps the user there: Leaf takes no
-    step of its own for that key. Were Leaf's dispatcher to read the key again at the
-    document, at the trigger the menu had just focused, Escape would step the user off
-    it to the document and Enter would press the trigger again, reopening the menu.
-    UI SDK's menu and select behave this way, as most popup libraries do."""
+    """A key a page's own code answers, preventing its default, keeps the user where
+    that code left them, and Leaf takes no step of its own for it. Were Leaf to read the
+    key again at the trigger a menu hands focus back to after answering Escape or Enter
+    on its item, Escape would step the user off it to the document and Enter would
+    press it again, reopening the menu. A tooltip that hears Escape on the window from
+    the moment it shows, as Headless UI's dialog does, or on the document, as UI SDK's
+    and Web Awesome's popups do, puts itself away, and focus stays on its trigger:
+    letting go of a control is what Leaf does with an Escape nothing else took, read
+    after every listener the page has.
+
+    Every other key Leaf reads on the root element, after a listener on any element and
+    before the page's on the document and the window. So a command declared on a
+    focused element runs before a page-wide shortcut for the same key, which hears only
+    what Leaf leaves; Escape leaves Design mode before a page listener that prevents
+    every Escape hears it, from a focused page control too, and that listener hears the
+    next Escape. Go-to owns the keyboard while it is armed, so its Escape closes it before
+    that listener hears the key."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -804,10 +815,34 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
         event.preventDefault();
         close();
       });
-      document.querySelector('main').append(trigger, menu);
+      const info = document.createElement('button');
+      info.id = 'info';
+      info.textContent = 'Why';
+      info.setAttribute('aria-describedby', 'tip');
+      const tip = document.createElement('div');
+      tip.id = 'tip';
+      tip.popover = 'manual';
+      tip.setAttribute('role', 'tooltip');
+      tip.textContent = 'Because the gutters drain first.';
+      const dismiss = (event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        event.preventDefault();
+        hide();
+      };
+      const hide = () => {
+        window.removeEventListener('keydown', dismiss);
+        tip.hidePopover();
+      };
+      info.addEventListener('focus', () => {
+        tip.showPopover();
+        window.addEventListener('keydown', dismiss);
+      });
+      info.addEventListener('blur', () => { if (tip.matches(':popover-open')) hide(); });
+      document.querySelector('main').append(trigger, menu, info, tip);
     }""")
     trigger = page.locator("#menu-trigger")
     menu = page.locator("#menu")
+    body = page.locator("body")
 
     for key in ("Escape", "Enter"):
         trigger.click()
@@ -817,6 +852,69 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
         expect(trigger).to_be_focused()
         expect(trigger).to_have_attribute("aria-expanded", "false")
     assert page.evaluate("() => window.chosen") == ["rename"]
+
+    page.locator("#info").click()
+    expect(page.locator("#tip")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#tip")).to_be_hidden()
+    expect(page.locator("#info")).to_be_focused()
+
+    page.evaluate("""() => {
+      window.escapes = 0;
+      window.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        window.escapes += 1;
+      });
+      document.activeElement.blur();
+    }""")
+    for focus in (None, trigger):
+        page.keyboard.press("l")
+        expect_design_mode(page)
+        if focus:
+            focus.focus()
+        page.evaluate("() => { window.escapes = 0; }")
+        page.keyboard.press("Escape")
+        expect_design_mode(page, on=False)
+        assert page.evaluate("() => window.escapes") == 0
+        page.keyboard.press("Escape")
+        assert page.evaluate("() => window.escapes") == 1
+
+    trigger.focus()
+    page.keyboard.press("g")
+    expect(body).to_have_attribute("data-lf-go-to-active", "")
+    page.evaluate("() => { window.escapes = 0; }")
+    page.keyboard.press("Escape")
+    expect(body).not_to_have_attribute("data-lf-go-to-active", "")
+    assert page.evaluate("() => window.escapes") == 0
+
+    # A command declared on an element, as a Leaf widget's are, and a page-wide
+    # listener for the same key that prevents it.
+    page.evaluate("""async () => {
+      const { commandsChanged } = await window.__lfWidgetApi();
+      const stepper = document.createElement('section');
+      stepper.id = 'stepper';
+      stepper.tabIndex = 0;
+      stepper.textContent = 'A stepper';
+      stepper.lfCommands = { title: 'A stepper', rows: [
+        {id: 'test.step', keys: ['ArrowRight'], title: 'Step',
+         run: () => stepper.dataset.steps = String(Number(stepper.dataset.steps ?? 0) + 1)},
+      ] };
+      document.querySelector('main').append(stepper);
+      commandsChanged(stepper);
+      window.arrows = 0;
+      document.addEventListener('keydown', (event) => {
+        if (!event.key.startsWith('Arrow')) return;
+        event.preventDefault();
+        window.arrows += 1;
+      });
+      stepper.focus();
+    }""")
+    page.keyboard.press("ArrowRight")
+    expect(page.locator("#stepper")).to_have_attribute("data-steps", "1")
+    assert page.evaluate("() => window.arrows") == 0
+    page.keyboard.press("ArrowLeft")
+    assert page.evaluate("() => window.arrows") == 1
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
@@ -1749,11 +1847,21 @@ def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
     expect(page.locator("#right-next")).to_be_focused()
 
 
-# The browser's own back: a close watcher standing before any of the page's, which
-# hears a close request only where the page holds none of its own.
+# The browser's own back: a close watcher standing before any of the page's, counting a
+# close request in which Leaf took no step. Chromium puts a watcher made with no user
+# interaction since the last close request into the group before it, as Leaf's can be
+# after a back gesture, and closes a whole group at once, so this one can close in the
+# same request as Leaf's, which goes nowhere in the browser.
 BROWSER_BACK = """() => {
   window.browserBack = 0;
-  new CloseWatcher().onclose = () => (window.browserBack += 1);
+  let stepped = false;
+  document.addEventListener('lf-command-invoked', () => {
+    stepped = true;
+    setTimeout(() => (stepped = false));
+  });
+  new CloseWatcher().onclose = () => {
+    if (!stepped) window.browserBack += 1;
+  };
 }"""
 
 
@@ -1769,7 +1877,7 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     page.evaluate(BROWSER_BACK)
 
     page.locator(".lf-fp-leaf").tap()
-    panel_settled(page, view="menu")
+    panel_settled(page)
     back_gesture(page)
     panel_settled(page, open=False)
 
@@ -1967,7 +2075,8 @@ def test_a_control_takes_only_the_keys_it_uses_and_leaves_the_page_the_rest(
 
     The claim has to hold in both directions or it has bought nothing, so the control's
     own key is asserted beside the page's: a page whose keyboard stands over a radio must
-    not be taking Space off it, and a select keeps its native typeahead letters.
+    not be taking Space off it, and a select or a page's own menu keeps the letters it
+    types ahead with.
 
     Escape backs out from a control nothing is typed into. A slider and a select answer
     for the two sides: the slider types nothing, so the typing scope never stands over it;
@@ -1994,6 +2103,34 @@ def test_a_control_takes_only_the_keys_it_uses_and_leaves_the_page_the_rest(
         expect(page.locator(".lf-composer")).to_be_hidden()
     # A letter that fell through to the page opened a box the next case must not meet.
     page.keyboard.press("Escape")
+
+    with subtests.test(case="a page menu's letters"):
+        # A menu types ahead as a select does, so d moves to Duplicate rather than
+        # paging the document, while ? is no name's first character and stays Leaf's.
+        page.evaluate("""() => {
+          const menu = document.createElement('div');
+          menu.setAttribute('role', 'menu');
+          menu.setAttribute('aria-label', 'Actions');
+          menu.innerHTML = ['Rename', 'Duplicate']
+            .map((name) => `<div role="menuitem" tabindex="-1" id="${name}">${name}</div>`)
+            .join('');
+          menu.addEventListener('keydown', (event) => {
+            const items = [...menu.querySelectorAll('[role="menuitem"]')];
+            items.find((item) => item.id.toLowerCase().startsWith(event.key))?.focus();
+          });
+          document.querySelector('main').append(menu);
+          window.ran = [];
+          document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+        }""")
+        page.locator("#Rename").focus()
+        routes = offered_routes(page)
+        assert "page.down" not in routes, routes
+        page.keyboard.press("d")
+        expect(page.locator("#Duplicate")).to_be_focused()
+        assert page.evaluate("window.ran") == []
+        page.keyboard.press("?")
+        expect(page.locator(".lf-command-reference")).to_be_visible()
+        page.keyboard.press("Escape")
 
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.

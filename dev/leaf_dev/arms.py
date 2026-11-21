@@ -27,6 +27,7 @@ their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbo
 """
 
 import base64
+import filecmp
 import http.cookiejar
 import json
 import os
@@ -67,6 +68,7 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
 from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
+from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.page_fixtures import (
     admit_events,
     fixture_environment,
@@ -145,10 +147,14 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
+    Nor does a child inherit a variable or PATH entry naming this checkout, such as
+    `uv run`'s VIRTUAL_ENV or the shell's PWD: its path names the branch, and an
+    eval's agent reads its environment (`commands/eval/run.py`).
     An isolated HOME keeps agent settings and state private, while uv shares the
-    host's dependency cache and the interpreter running this harness. Otherwise
-    hiding the host's managed Python can select a different system interpreter
-    and compile dependencies again for every sample.
+    host's dependency cache and the interpreter running this harness, by the path
+    its environment's link resolves to. Otherwise hiding the host's managed Python
+    can select a different system interpreter and compile dependencies again for
+    every sample.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -169,18 +175,23 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
             "LEAF_HOST_LAUNCHER",
             "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         )
-        and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
+        # The session's own, and its Codex companion plugin's.
+        and not (
+            key.startswith(("CLAUDE", "CODEX_COMPANION")) and key != "CLAUDE_CONFIG_DIR"
+        )
+        and (key == "PATH" or str(ROOT) not in value)
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
-    env.setdefault("UV_PYTHON", sys.executable)
+    env.setdefault("UV_PYTHON", os.path.realpath(sys.executable))
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
         for entry in env["PATH"].split(os.pathsep)
         if not (venv and entry == str(Path(venv) / "bin"))
+        and not Path(entry).is_relative_to(ROOT)
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
     if payload is not None:
@@ -297,10 +308,19 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None
+        self, *args: str, timeout: float | None = None, **extra: str
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home, refusing a failed command."""
-        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
+        """Run the arm's launcher under the state home with `extra` in its
+        environment, such as a session for a command only an agent's voice may run,
+        refusing a failed command."""
+        return run_leaf(
+            self.arm,
+            self.state,
+            *args,
+            env=environment(**extra),
+            check=True,
+            timeout=timeout,
+        )
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
@@ -352,6 +372,29 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
             )
             copies.append(ServedPage(copy, address, arm, state))
         yield copies
+
+
+def preview_lease(page: Path) -> Path:
+    """The lock a running `leaf-dev preview` holds on its slot `page`: beside the
+    page, not in it, since a discard removes the page and a lock on a removed inode
+    excludes nobody."""
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
+
+
+# The signals that stop a process serving Leaf in the foreground, such as a preview.
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+def terminated(signum, _frame) -> None:
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
+
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
+    """
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
 
 
 def merge_base() -> str:
@@ -501,17 +544,20 @@ def choose_arms(
     With `payload`, as for a command that installs each arm for child agents, both
     arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
     taken from the working tree now: a child can't read its way to the other arm,
-    and a later edit changes neither."""
-    paths = PAYLOAD if payload else (".",)
+    and a later edit changes neither. A built arm's directory is named at random, so
+    a child reading its plugin's path can't tell which arm it is."""
+
+    def built(ref: str | None, paths: Iterable[str]) -> Arm:
+        (scratch / "arms").mkdir(parents=True, exist_ok=True)
+        directory = Path(tempfile.mkdtemp(prefix="arm-", dir=scratch / "arms"))
+        return Arm(directory, build_arm(ref, directory, paths=paths))
+
     arms = {}
     if base is not None:
-        directory = scratch / "arms" / "base"
-        commit = build_arm(base or merge_base(), directory, paths=paths)
-        arms["base"] = Arm(directory, commit)
+        arms["base"] = built(base or merge_base(), PAYLOAD if payload else (".",))
     if not payload:
         return {**arms, "head": Arm(ROOT, arm_commit(None))}
-    directory = scratch / "arms" / "head"
-    return {**arms, "head": Arm(directory, build_arm(None, directory))}
+    return {**arms, "head": built(None, PAYLOAD)}
 
 
 def describe(arms: dict[str, Arm]) -> str:
@@ -670,13 +716,18 @@ def instruction_context(payload: Path, source: str) -> str:
 
 
 def retire_sessions(payload: Path, state: Path) -> None:
-    """End this sample's generations and join detached delivery retirement.
+    """End this sample's generations, join detached delivery retirement and stop
+    the page servers it started.
 
     The arm owns its records and leases, so its interpreter applies its canonical
     lifecycle transition. A private App Server ending does not end persisted-chat
     ownership. Take each adapter's lease, then its startup lock: the former joins
     the watch, and the latter joins the final writes its retirement makes after
-    releasing that lease. No native session may still use this state home.
+    releasing that lease. Then stop each server this state home's rows name and
+    wait for its lease: a session's server would otherwise outlive the session by
+    its orphan grace, and a persistent one until it noticed its page gone, writing
+    into the state home while `scratch` removes it. No native session or server
+    may still use this state home.
     """
     # Startup can fail before anything uses this isolated state home.
     if not state.exists() or not any(state.iterdir()):
@@ -690,6 +741,8 @@ import json
 from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home
 from leaf.leases import adapter_lease_path
 from leaf.codex_adapter import adapter_start_lock_path
+from leaf.hosting import cmd_stop
+from leaf.presence import live_servers
 
 sessions = state_home() / "sessions"
 for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
@@ -697,6 +750,8 @@ for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
     end_session(session)
     with flocked(adapter_lease_path(session)), flocked(adapter_start_lock_path(session)):
         pass
+for page, _row, _service in list(live_servers()):
+    cmd_stop(page)
 """,
         ],
         env=environment(XDG_STATE_HOME=str(state)),
@@ -723,6 +778,28 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
         finally:
             if payload is not None:
                 retire_sessions(payload, state if state is not None else work / "state")
+
+
+def stage_task_files(task: str, cwd: Path) -> Path | None:
+    """Copy an eval task's pinned files, where it has any, into an agent's `cwd`,
+    each at its path in the task's asset directory, and return that directory. A
+    task's prompt names them by those paths, which leave out `evals/<task>/`, since a
+    task's name describes the behavior it measures. Probes sharing a working
+    directory take several tasks' files there, so a path two tasks fill with
+    different bytes is refused."""
+    files = pinned_copy(ROOT / "evals" / task)
+    if files is None or not files.is_dir():
+        return None
+
+    def copy(source: str, target: str) -> None:
+        if Path(target).exists() and not filecmp.cmp(source, target, shallow=False):
+            raise click.ClickException(
+                f"two eval tasks have different files at {target}"
+            )
+        shutil.copy2(source, target)
+
+    shutil.copytree(files, cwd, dirs_exist_ok=True, copy_function=copy)
+    return files
 
 
 def authoring_sandbox(*owned: Path) -> str:

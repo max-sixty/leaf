@@ -752,8 +752,10 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
+    # The gallery waits on the user, so the leaf opens On Me, and its name ends in the
+    # status.
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile(r"^Page menu · \S")
+        "aria-label", re.compile(r"^On Me · .+ · \S")
     )
     panel_control(page, "queue").click()
     map_obligation = page.locator(".lf-fp-on-item").filter(
@@ -1103,7 +1105,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     )
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
-    expect(child.get_by_role("button", name="On Me", exact=True)).to_be_visible()
+    expect(child.locator(".lf-fp-leaf")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()
@@ -1383,12 +1385,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {
             "command": "navigation.target.filter.margin-entries",
             "keys": ["g", "m"],
-            "action": "Show only visible margin targets",
+            "action": "Show only visible margin entries",
         },
         {
             "command": "navigation.target.filter.threads",
             "keys": ["g", "t"],
-            "action": "Show only visible Thread controls",
+            "action": "Show only visible threads",
         },
         {
             "command": "navigation.target.filter.hyperlinks",
@@ -1499,8 +1501,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("g")
     page.keyboard.press("h")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
-    expect_panel_says(page, "No visible hyperlinks.")
+    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks")
+    expect_panel_says(page, "No visible hyperlinks")
     page.evaluate(
         """async () => {
           window.__liveChanges = [];
@@ -1517,7 +1519,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
     # The empty filter's word stands in the panel while Go-to does; the news waits.
-    assert "No visible hyperlinks." in panel_says(page)
+    assert "No visible hyperlinks" in panel_says(page)
     assert "Agent replied" not in panel_says(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
@@ -1527,7 +1529,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
-    expect_panel_says(page, "No visible hyperlinks.")
+    expect_panel_says(page, "No visible hyperlinks")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
@@ -2083,10 +2085,12 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.wait_for_function(shown)
     # A card the page has carried half past the window's top, Reply with it, is as
     # unseen there as one scrolled off: a landing in it brings it back all the same.
+    # The box goes more than the pixel of slack past the top that reads a card held
+    # flush at the edge as shown (off-flow.js, `unseen`).
     reply.evaluate(
         """async (box) => {
           const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          while (box.getBoundingClientRect().top >= 0) {
+          while (box.getBoundingClientRect().top >= -1) {
             scrollBy(0, 10);
             await frame();
           }
@@ -2138,8 +2142,9 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     """A generated link hint completes the navigation step it names.
 
     A fragment lands focus on its target, so the user does not remain at the place they
-    left. An external link keeps its new-tab behavior and names that context change even
-    though the sequence activates the link without first moving focus through it."""
+    left. A link its author sends to a new tab opens there and names that context change
+    even though the sequence activates the link without first moving focus through
+    it."""
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={server_model.host_key()}"
     page = open_page(
@@ -2150,7 +2155,8 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
                 f"""
 <h1>Addressed links</h1>
 <p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
-<p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<p><a id="external" href="{destination}" target="_blank" aria-label="Leaf guide"
+  >Open the guide</a>.</p>
 <div style="height: 1600px"></div>
 <h2 id="arrival">Conclusion</h2>
 <p>The internal navigation step ends here.</p>
@@ -2175,9 +2181,11 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
 
 
-def test_an_external_link_says_and_opens_where_it_goes(
+def test_an_external_link_wears_its_mark_and_opens_where_its_author_says(
     browser, serve, other_leaf, one_user
 ):
+    """A link that leaves the page wears the mark after it and keeps the attributes its
+    author wrote, so with no `target` it opens in the page's own tab."""
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={server_model.host_key()}"
     url = serve(
@@ -2198,25 +2206,23 @@ def test_an_external_link_says_and_opens_where_it_goes(
     page = open_page(browser, url, context=one_user)
     external = page.locator("#external")
 
-    expect(external).to_have_attribute("target", "_blank")
-    expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+    expect(external).not_to_have_attribute("target", re.compile(".*"))
     expect(external).to_have_accessible_name("other leaf documentation")
-    expect(external).to_have_accessible_description("curated source opens in a new tab")
-    # The treatment stands inside the link, so the paragraph ends where it was written.
+    expect(external).to_have_accessible_description("curated source")
+    # The mark stands inside the link, so the paragraph ends where it was written: an
+    # empty inline box whose padding the icon fills (surfaces.css).
     expect(page.locator("#external ~ *")).to_have_count(0)
     expect(external).to_have_attribute("data-lf-external", "")
     mark = external.evaluate("""link => {
       const style = getComputedStyle(link, '::after');
-      return {display: style.display, width: parseFloat(style.width), mask: style.maskImage};
+      return {display: style.display, room: parseFloat(style.paddingInlineStart),
+        mask: style.maskImage};
     }""")
-    assert mark["display"] == "inline-block"
-    assert mark["width"] > 0
+    assert mark["display"] == "inline"
+    assert mark["room"] > 0
     assert "data:image/svg+xml" in mark["mask"]
     expect(page.locator("#fragment")).not_to_have_attribute("data-lf-external", "")
-    expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
     expect(page.locator("#svg-external")).not_to_have_attribute("data-lf-external", "")
-    expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
-    tab = opened_tab(page, destination, external.click)
-    expect(tab).to_have_url(f"{other_url}/")
-    expect(page).to_have_url(url.split("?", 1)[0])
+    external.click()
+    expect(page).to_have_url(f"{other_url}/")

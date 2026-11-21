@@ -155,7 +155,7 @@ export function drawToc(host, headingReading) {
           </p>
           <details class="lf-toc-disclosure" ?open=${open}>
             <summary
-              class="lf-toc-toggle lf-label"
+              class="lf-toc-toggle lf-label lf-disclosure-marker"
               ${generated(true)}
               ?data-lf-toc-changed=${Boolean(first?.changes)}
               data-lf-toc-mark=${markKind(first)}

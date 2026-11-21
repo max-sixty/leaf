@@ -37,7 +37,8 @@ def test_demo_publication_adopts_what_other_publishers_published(tmp_path, monke
     source = tmp_path / "source"
     source.mkdir()
     repository = "max-sixty/leaf-assets"
-    (source / "leaf-assets.json").write_text(
+    (source / ".config").mkdir()
+    (source / leaf_assets.LOCK).write_text(
         json.dumps({"repository": repository, "revision": old_revision})
     )
     readme = source / "README.md"
@@ -68,7 +69,7 @@ def test_demo_publication_adopts_what_other_publishers_published(tmp_path, monke
     assert leaf_assets.run(
         "git", "show", f"{revision}:examples/example-decision.jpg", cwd=remote
     ) == ("another publisher's changed decision preview")
-    assert json.loads((source / "leaf-assets.json").read_text()) == {
+    assert json.loads((source / leaf_assets.LOCK).read_text()) == {
         "repository": repository,
         "revision": revision,
     }
@@ -79,9 +80,7 @@ def test_demo_publication_adopts_what_other_publishers_published(tmp_path, monke
 
     draft_dir = tmp_path / "draft"
     draft_dir.mkdir()
-    ordinary = {
-        page: page.read_bytes() for page in [source / "leaf-assets.json", readme]
-    }
+    ordinary = {page: page.read_bytes() for page in [source / leaf_assets.LOCK, readme]}
     draft = leaf_assets.stage(
         "examples",
         {
@@ -94,7 +93,7 @@ def test_demo_publication_adopts_what_other_publishers_published(tmp_path, monke
         draft / "examples/media/retained.png"
     ).read_bytes() == b"authored example media"
     assert {page: page.read_bytes() for page in ordinary} == ordinary
-    assert json.loads((source / "leaf-assets.json").read_text())["revision"] == revision
+    assert json.loads((source / leaf_assets.LOCK).read_text())["revision"] == revision
     assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
 
     # A genuine bare-remote rejection exercises publish's failure boundary.

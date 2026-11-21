@@ -29,9 +29,10 @@ import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
-from leaf_dev.commands.site import build as site_build
+from leaf_dev.commands.site import _build as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
+from leaf_dev.website import SITE
 
 WINDOW = Window((1120, 700))
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
@@ -73,11 +74,15 @@ def require_capture_fonts(page: Page) -> None:
         document = session.send("DOM.getDocument")["root"]["nodeId"]
         missing = {}
         for selector, required in REQUIRED_FONTS.items():
-            node = session.send(
-                "DOM.querySelector", {"nodeId": document, "selector": selector}
-            )["nodeId"]
+            # Chrome reports the fonts of a node's own text, and the words may stand
+            # in an element inside the one the selector names.
+            nodes = session.send(
+                "DOM.querySelectorAll",
+                {"nodeId": document, "selector": f"{selector}, {selector} *"},
+            )["nodeIds"]
             actual = {
                 font["familyName"]
+                for node in nodes
                 for font in session.send(
                     "CSS.getPlatformFontsForNode", {"nodeId": node}
                 )["fonts"]
@@ -143,11 +148,7 @@ def refresh_previews() -> None:
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
-        site_build.build(
-            site_build.OUT,
-            site_build.prepared_leaf(site_build.OUT),
-            assets=checkout,
-        )
+        site_build.build_site(SITE, assets=checkout)
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")
     click.echo(f"✓ {len(catalog_sources())} previews")

@@ -65,7 +65,6 @@ from render_harness import (
     assert_follows_in_every_frame,
     expect_comment_notes,
     expect_design_mode,
-    field_press,
     gesture_writes,
     judge_watches,
     leaf_page,
@@ -84,6 +83,7 @@ from render_harness import (
     selection_field,
     sending,
     stamp_page,
+    stance_exit,
     stored_draft,
     stored_draft_text,
     told,
@@ -251,7 +251,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
-    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
+    page.locator(".lf-fp-leaf").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(
@@ -2015,12 +2015,12 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # nothing there to aim at anyway, since an anchor names an element of the page. Last,
     # since it leaves the panel open.
     with subtests.test(case="the chrome keeps its presses"):
-        on_me = page.locator(".lf-fp-on-user")
-        on_me.hover()
+        leaf = page.locator(".lf-fp-leaf")
+        leaf.hover()
         page.keyboard.down("Alt")
-        on_me.click()
+        leaf.click()
         page.keyboard.up("Alt")
-        panel_settled(page, view="queue")
+        panel_settled(page)
         expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -2973,7 +2973,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
-    exit_mode = field_press(page).filter(has_text="Close")
+    exit_mode = stance_exit(page)
     exit_mode.hover()
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")
@@ -3699,7 +3699,9 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-quote-label")).to_have_text("§ diagram · Start request")
+    expect(page.locator(PANEL_THREAD).locator(".lf-quote-label")).to_have_text(
+        "§ diagram · Start request"
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)
@@ -5223,7 +5225,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
     markup = leaf_page(
         "Code reachability",
         '<h1>Review code</h1><section id="snippets">'
-        f'<pre id="code"{attrs} style="width:260px"><code>'
+        f'<pre id="code"{attrs} style="width:260px; white-space: pre"><code>'
         "alpha_function_name = compute_the_overly_long_value(first_argument, second_argument, third_argument)"
         "</code></pre></section>",
     )

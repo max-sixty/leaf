@@ -564,6 +564,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir
             "title": "Workshop venue",
             "anchor": None,
             "detached_from": None,
+            "rewritten_from": None,
             "resolved": None,
             "elided": {"messages": 0, "actions": 0},
             "messages": [],
@@ -656,6 +657,52 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
     _, closed_batch, _ = delivered(capsys)
     [closed] = closed_batch["threads"]
     assert (closed["id"], closed["resolved"]) == (opened["id"], "user")
+
+
+def test_a_delivered_message_carries_the_words_a_revision_rewrote_under_its_thread(
+    page_dir, capsys
+):
+    """A revision that rewrites the words a thread quotes moves the thread onto their
+    section, and the page no longer shows them. The user's next message there reaches
+    the agent with the anchor the thread was moved off, whose quote says what the
+    thread is about, as `page state` tells a later session."""
+    original = PAGE.replace("<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>')
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    opened = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this word.",
+            "anchor": {"section": "wording", "quote": "Alpha"},
+        },
+    )
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
+    revised = stamp(page_dir, "Reworded the plan")
+    assert revised.exit_code == 0, revised.output
+    serving(page_dir, 1)
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    followed = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": opened["id"],
+            "text": "Why did this change?",
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    _, header, shown = delivered(capsys)
+    assert [e["id"] for e in shown] == [followed["id"]]
+    [thread] = header["threads"]
+    assert thread["anchor"] == {"section": "wording"}
+    assert thread["rewritten_from"]["quote"] == "Alpha"
+    assert thread["detached_from"] is None
+    [later] = [t for t in state_json(page_dir)["threads"] if t["id"] == opened["id"]]
+    assert later["rewritten_from"] == thread["rewritten_from"]
 
 
 def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsys):
@@ -1245,11 +1292,13 @@ def test_the_reference_names_each_field_a_delivered_event_adds():
 
 
 def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
-    """An eval case that pastes a delivery scores the shipped instructions against
-    that envelope, so a change to `DELIVERY` fails here until the case is frozen
-    again with `freeze_delivery`."""
+    """An eval case that pastes a delivery, on one line or as the block a hook
+    writes (`json_block`), scores the shipped instructions against that envelope, so
+    a change to `DELIVERY` fails here until the case is frozen again with
+    `freeze_delivery`."""
     import yaml
 
+    from leaf.json_block import read_json_block
     from leaf.registry.schema import schema_error, with_leaf_resources
 
     def strings(value):
@@ -1259,15 +1308,26 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
             for item in value.values() if isinstance(value, dict) else value:
                 yield from strings(item)
 
+    def envelopes(text):
+        lines = text.splitlines(keepends=True)
+        for at, line in enumerate(lines):
+            if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line:
+                yield "line", json.loads(line)
+            elif line == "```json\n":
+                value, _ = read_json_block("".join(lines[at:]))
+                if isinstance(value, dict) and str(value.get("format")).startswith(
+                    "leaf-delivery/"
+                ):
+                    yield "block", value
+
     pasted = [
-        (case.parent.name, json.loads(line))
+        (case.parent.name, form, envelope)
         for case in sorted((ROOT / "evals").glob("*/case.yaml"))
         for text in strings(yaml.safe_load(case.read_text()))
-        for line in text.splitlines()
-        if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line
+        for form, envelope in envelopes(text)
     ]
-    assert pasted
-    for case, envelope in pasted:
+    assert {form for _, form, _ in pasted} == {"line", "block"}
+    for case, _, envelope in pasted:
         assert envelope.pop("format") == delivery_model.DELIVERY.format, case
         error = schema_error(
             with_leaf_resources(delivery_model.DELIVERY.schema), envelope

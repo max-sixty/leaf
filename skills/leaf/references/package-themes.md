@@ -14,10 +14,10 @@ beside Leaf's controls as one set. Leaf bundles one theme, `reading`: the readin
 which styles the body's type and colour and the idioms such as `.callout`, and turns on
 the reading face markup wears in Leaf's own surfaces (headings, prose, lists, tables,
 code, quotes, figures, disclosures, definitions, rules and pictures, with a wide table
-or code block scrolling inside itself and a `language-…` code block coloured by its
-tokens) by setting `--lf-reading-face: 1` on the root. The face also gives the page's
-own buttons, fields and labelled choices the faces of Leaf's own controls (the
-vocabulary's `button` and `input, select` entries), while a control Leaf
+scrolling inside itself, a code block's long lines wrapping, and a `language-…` code
+block coloured by its tokens) by setting `--lf-reading-face: 1` on the root. The face
+also gives the page's own buttons, fields and labelled choices the faces of Leaf's own
+controls (the vocabulary's `button` and `input, select` entries), while a control Leaf
 builds keeps its own. The face's rules rank below every other rule of `lf-base`, so a
 theme's or package's rule for one of those elements outranks them whatever its weight,
 and a personal theme restyles the page's controls through the tokens they read or with
@@ -245,7 +245,9 @@ package the page keeps: `leaf page init <page> --package diff --package ./chrome
 These are the custom properties a page, a theme or a package sets or reads to share
 Leaf's look. Leaf declares each on the root (`browser/styles/tokens.css`). Set one
 there to change it for the page and everything Leaf draws on it, or on a subtree to
-change it for that subtree. Any other `--lf-` property is Leaf's own.
+change it for that subtree. Any other `--lf-` property is Leaf's own. `leaf package check`
+advises on each property a package's sheet reads with `var()` and no fallback that
+nothing in Leaf, the package or the layer it composes sets, as a renamed token leaves.
 
 A theme sets these colours. Where the foreground and background need a deliberate
 contrast choice, they are independent tokens:

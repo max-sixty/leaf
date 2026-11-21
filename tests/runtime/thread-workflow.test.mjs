@@ -63,7 +63,15 @@ const THREAD_BOARD = {
     ],
   ]),
   messageBodies: new Map([
-    ["e2", { text: "Here is the board.", document: { thread: "e1", message: "e2" } }],
+    [
+      "e1",
+      new Map([
+        [
+          "e2",
+          { text: "Here is the board.", document: { thread: "e1", message: "e2" } },
+        ],
+      ]),
+    ],
   ]),
 };
 

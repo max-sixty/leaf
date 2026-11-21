@@ -56,17 +56,14 @@ waited on (`pickup`, `reply_phases.pickup_wait`), and the `response-times` summa
 sort those waits by cause, each over its own inputs, with the seconds they add up
 to.
 
-Each input also carries the line fork that decided it (`fork`: its outcome and
-seconds), the last whose inputs name its message, and where a working fork took it,
-how that fork's turn ended (`work`: `leaf.forks.Ending`, its seconds and the to-dos
-it opened). A fork's working line, posted as it handed the thread over, is the
-progress and first reply of the thread's newest waiting message. The `response-times`
-summary's `delivered` row is how long an update read Delivered, from its opened pickup to the
-session starting or answering it; `fork_hand_over` times the first reply over the
-inputs a fork handed to the session, so a survey shows whether forks bring the
-agent's first words sooner, and `fork_take` the answer over the inputs a line fork
-gave a working fork. A line under the table counts the line forks' decisions and the
-working forks' endings.
+Each input also carries the last line fork whose inputs name its message (`fork`: its
+outcome, seconds, and why it posted no line where it didn't). A line fork's posted
+line is the progress and first reply of its round's newest message. The
+`response-times` summary's `delivered` row is how long an update read Delivered, from
+its opened pickup to the session starting or answering it; `forked` times the first
+reply over the inputs whose line fork posted its line, so a survey shows how soon
+forks bring the agent's first words. A line under the table counts the line forks'
+outcomes.
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
@@ -232,9 +229,9 @@ def page_timings(
     input_attempts = {}
     reply_inputs = {}
     unlinked = []
-    # The working line each fork posted as it handed its thread over, by the line's
-    # id: progress on the thread's newest waiting message, which takes nothing in
-    # hand and so names no input of its own (`leaf.forks`).
+    # The working line each line fork posted, by the line's id: progress on its
+    # round's newest message, which takes nothing in hand and so names no input of
+    # its own (`leaf.forks`).
     fork_lines = {
         row["line"]: row["inputs"][-1]
         for row in observations
@@ -417,21 +414,10 @@ def page_timings(
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
     forks = [row for row in observations if row["type"] == "fork_outcome"]
-    # The last line fork made for a message decided it: another message in its kept
-    # back thread forks again for them all, dropping the earlier fork's line. A
-    # working fork's turn notes its start and end as steps of its own.
-    decided = {
-        message: fork
-        for fork in forks
-        if "step" not in fork
-        for message in fork["inputs"]
-    }
-    ended = {
-        message: fork
-        for fork in forks
-        if fork.get("step") == "end"
-        for message in fork["inputs"]
-    }
+    # The last line fork made for a message is its own: a message that joins its
+    # round before the line goes in forks again for them all, and the earlier fork's
+    # line drops.
+    decided = {message: fork for fork in forks for message in fork["inputs"]}
     for row in rows.values():
         fork = decided.get(row["message_id"])
         row["fork"] = (
@@ -440,19 +426,8 @@ def page_timings(
             else {
                 "outcome": fork["outcome"],
                 "elapsed_s": fork["elapsedMs"] / 1000 if "elapsedMs" in fork else None,
-                # Leaf's reason, where Leaf handed the thread over without a line.
-                "why": None if "line" in fork else fork.get("why"),
-            }
-        )
-        work = ended.get(row["message_id"])
-        row["work"] = (
-            None
-            if work is None
-            else {
-                "outcome": work["outcome"],
-                "elapsed_s": work["elapsedMs"] / 1000 if "elapsedMs" in work else None,
-                "todos": len(work.get("todos", [])),
-                "why": work.get("why"),
+                # Why no line went in, where none did.
+                "why": fork.get("why"),
             }
         )
         answered = row["milestones"].get("answered")

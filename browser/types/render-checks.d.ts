@@ -27,5 +27,6 @@ declare global {
     value: unknown;
   }) => Promise<void>;
   var __leafWindowError:
-    ((reading: { text: string; resizeLoop: boolean }) => void) | undefined;
+    | ((reading: { text: string; resizeLoop: boolean }) => void)
+    | undefined;
 }

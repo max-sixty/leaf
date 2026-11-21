@@ -9,7 +9,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 import pytest
@@ -23,12 +25,14 @@ from interact_support import (
     append_carried_log_record,
     codex_records,
     declare_idle,
+    declared,
     owed_answers,
     page_state,
     publish,
     release_codex_command,
     release_held,
     spawn_probe,
+    stamp,
     wait_for,
 )
 from model.test_codex_adapter import (
@@ -47,6 +51,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -642,7 +647,6 @@ from websockets.exceptions import WebSocketException
 
 from leaf import cli as cli_model
 from leaf import hosting as hosting_model
-from leaf import server as server_model
 from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
 
@@ -1339,8 +1343,8 @@ def test_a_later_claim_preserves_the_running_transport(
     # All three tool calls belong to one persistent harness process. Three separate
     # under_codex calls would introduce three genuine task lifetimes, rather than
     # asking whether another command in this task joins its existing adapter.
-    # This transport test uses CLI lifetime; desktop persisted-chat ownership is
-    # exercised independently by the detached preview journey.
+    # This transport test uses CLI lifetime; desktop persisted-chat ownership has
+    # its own tests (`model/test_session_lifecycle.py`, `model/test_claims.py`).
     command = claim_command(page, program)
     results = tmp_path / "start-results.json"
     calls = [
@@ -1760,3 +1764,321 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         for batch in files_model.read_json(second_path)["batches"]
         for event in batch["events"]
     ] == ["second"]
+
+
+def test_serving_preserves_a_direct_codex_wait(
+    codex_claimed_page, under_codex, codex_env, codex_queue
+):
+    """An active direct watcher keeps its lease instead of being replaced.
+
+    The queue is deliberately unavailable: a successful handoff must use the
+    real wait already watching this task. Stop still keeps that turn open.
+    """
+    page = codex_claimed_page
+    stamp(page)
+    program = """
+import json, subprocess, sys, time
+from pathlib import Path
+from leaf.leases import wait_is_live, adapter_is_live
+from leaf.service import PageTransaction, claim_page
+from leaf.session import cmd_waiting
+page = Path(sys.argv[1])
+claim_page(page)
+cmd_waiting(page)
+watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+try:
+    deadline = time.monotonic() + 30
+    while not wait_is_live(page, "codex-thread"):
+        assert watch.poll() is None, watch.communicate()
+        assert time.monotonic() < deadline, "the direct wait never took its lease"
+        time.sleep(0.01)
+    for command in ("start", "run"):
+        served = subprocess.run([sys.executable, "-m", "leaf", "server", command, str(page)],
+                                capture_output=True, text=True)
+        assert served.returncode == 0, served.stderr
+        assert json.loads(served.stdout)["url"]
+        assert watch.poll() is None
+        assert not adapter_is_live("codex-thread")
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
+                             input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
+                             capture_output=True, text=True)
+    assert stopped.returncode == 0, stopped.stderr
+    reason = json.loads(stopped.stdout)["reason"]
+    assert "leaf wait" in reason and "no delivery adapter" not in reason
+finally:
+    with PageTransaction(page) as held:
+        held.set_status("idle")
+    output, errors = watch.communicate(timeout=30)
+    assert watch.returncode == 2, (output, errors)
+"""
+    task = under_codex(
+        shlex.join([sys.executable, "-c", program, str(page)]),
+        codex_env
+        | codex_queue
+        | {"CODEX_THREAD_ID": "codex-thread", "PREVIEW_QUEUE_AVAILABLE": "False"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+
+
+def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
+    codex_claimed_page, tmp_path, under_codex, codex_env, codex_queue
+):
+    """A revived handoff connects once, including a reused foreground server.
+
+    The first server already exists with no adapter. Two public starts and a
+    foreground reuse must retain one adapter and leave Stop nothing to repair.
+    """
+    first = codex_claimed_page
+    second = tmp_path / "sibling"
+    shutil.copytree(first, second)
+    (second / "service.json").unlink()
+    ready, done = tmp_path / "ready.json", tmp_path / "done"
+    program = """
+import json, subprocess, sys, time
+from pathlib import Path
+from leaf.hosting import cmd_stop
+from leaf.leases import adapter_lease_path
+from leaf.state import end_session, write_json
+pages = list(map(Path, sys.argv[1:3]))
+ready, done = map(Path, sys.argv[3:])
+lease = adapter_lease_path("codex-thread")
+try:
+    identities = []
+    for command, page in (("start", pages[0]), ("start", pages[1]), ("run", pages[0])):
+        result = subprocess.run(
+            [sys.executable, "-m", "leaf", "server", command, str(page)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["url"]
+        identities.append(lease.stat().st_ino)
+    stopped = subprocess.run(
+        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
+        input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
+        capture_output=True, text=True,
+    )
+    assert stopped.returncode == 0, stopped.stderr
+    assert not stopped.stdout, stopped.stdout
+    write_json(ready, identities)
+    while not done.exists():
+        time.sleep(0.01)
+finally:
+    for page in pages:
+        cmd_stop(page)
+    end_session("codex-thread")
+"""
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                program,
+                str(first),
+                str(second),
+                str(ready),
+                str(done),
+            ]
+        ),
+        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        wait_for(
+            ready.exists,
+            bool,
+            failure="the shared delivery handoff did not finish",
+        )
+        assert len(set(json.loads(ready.read_text()))) == 1
+        assert leases_model.wait_is_live(first, "codex-thread")
+        assert leases_model.wait_is_live(second, "codex-thread")
+        assert codex_adapter_model.adapter_is_live("codex-thread")
+    finally:
+        done.touch()
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+
+
+# A page's idle declaration matters only once delivery connects, so a refused
+# delivery runs from a busy page alone.
+@pytest.mark.parametrize(
+    ("initially_idle", "delivery_available"),
+    [(False, True), (True, True), (False, False), (False, "missing")],
+)
+@pytest.mark.parametrize("handoff", ["preview", "start", "run"])
+def test_serving_connects_codex_feedback_before_handing_over_its_url(
+    page_dir,
+    tmp_path,
+    under_codex,
+    codex_env,
+    codex_queue,
+    delivery_available,
+    handoff,
+    initially_idle,
+):
+    """HTTP feedback reaches the current task without a second `page claim`.
+
+    The detached adapter, claim and page server are real. Only the external Codex
+    CLI is replaced: its queue boundary acknowledges and records the submitted
+    task and delivery pointer instead of starting a model turn.
+    """
+    stamp(page_dir)
+    if initially_idle:
+        declare_idle(page_dir)
+    queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
+    ready = tmp_path / "ready.json"
+    done = tmp_path / "done"
+    program = """
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+from leaf.service import page_claim
+from leaf.state import end_session, write_json
+from leaf.harness import session_harness
+from leaf.hosting import cmd_stop
+from leaf_dev.commands.preview import PreviewService
+
+page, ready, done = map(Path, sys.argv[1:4])
+handoff = sys.argv[4]
+preview = PreviewService(page, True)
+foreground = None
+try:
+    if handoff == "preview":
+        with preview.starting() as url:
+            pass
+        started = (url, preview.note)
+        # Joining the current adapter preserves the preview's acquisition.
+        session_harness().ensure_delivery()
+        assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
+        assert not preview.ended
+    elif handoff == "start":
+        result = subprocess.run(
+            [sys.executable, "-m", "leaf", "server", "start", str(page)],
+            capture_output=True, text=True,
+        )
+        if result.returncode:
+            sys.exit(result.stdout + result.stderr)
+        started = (json.loads(result.stdout)["url"], result.stderr)
+    else:
+        foreground = subprocess.Popen(
+            [sys.executable, "-m", "leaf", "server", "run", str(page)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        line = foreground.stdout.readline()
+        announced = json.loads(line) if line else {}
+        if "url" not in announced:
+            output, errors = foreground.communicate(timeout=30)
+            sys.exit(line + output + errors)
+        started = (announced["url"], "")
+    write_json(ready, started)
+    while not done.exists():
+        time.sleep(0.01)
+finally:
+    if handoff == "preview":
+        preview.stop()
+    else:
+        cmd_stop(page)
+    if foreground is not None:
+        foreground.communicate(timeout=30)
+    if ready.exists():
+        end_session(session_harness().session)
+"""
+    delivery_env = (
+        codex_env
+        | codex_queue
+        | {
+            "CODEX_THREAD_ID": "preview-thread",
+            "PREVIEW_QUEUE_AVAILABLE": str(delivery_available),
+        }
+    )
+    if delivery_available == "missing":
+        delivery_env["PATH"] = str(tmp_path / "no-codex")
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                program,
+                str(page_dir),
+                str(ready),
+                str(done),
+                handoff,
+            ]
+        ),
+        delivery_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if delivery_available is not True:
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+        assert task.returncode != 0, f"{output}{errors}"
+        expected = (
+            "cannot find the `codex` executable"
+            if delivery_available == "missing"
+            else "queue unsupported"
+        )
+        assert expected in errors
+        if handoff != "preview":
+            assert "Traceback" not in errors
+        assert not ready.exists()
+        assert service_model.page_claim(page_dir) is None
+        assert server_model.running_server(page_dir) is None
+        assert not codex_adapter_model.adapter_is_live("preview-thread")
+        return
+    try:
+        wait_for(
+            ready.exists,
+            bool,
+            failure="the user preview never handed over its URL",
+        )
+        url, _ = json.loads(ready.read_text())
+        claim = service_model.page_claim(page_dir)
+        assert claim is not None
+        assert claim["id"] == "preview-thread"
+        assert claim["pid"] == task.pid, (
+            "detached child replaced its launching harness lifetime"
+        )
+        assert codex_adapter_model.adapter_is_live("preview-thread")
+        if initially_idle:
+            assert declared(page_dir)["state"] == "idle"
+            session_model.cmd_waiting(page_dir)
+        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
+        status, body = fetch(
+            endpoint,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Please revise this candidate",
+                    "attempt": "preview_feedback",
+                }
+            ).encode(),
+            token=None,
+        )
+        assert status == 200, body
+        wait_for(
+            queued.exists,
+            bool,
+            failure="the preview's feedback did not reach Codex",
+        )
+        arguments = json.loads(queued.read_text())
+        assert arguments[:4] == ["queue", "--thread", "preview-thread", "--message"]
+        assert 'operation="delivery read"' in arguments[-1]
+    finally:
+        done.touch()
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("preview-thread"),
+        lambda live: not live,
+        failure="the task's delivery adapter outlived its preview",
+    )

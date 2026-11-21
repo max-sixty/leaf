@@ -74,11 +74,12 @@ import { raiseError } from "./errors.js";
  * anchorTravel: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>,
  * wireInput: ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"],
  * landInThread: typeof import("./thread/landing.js").landInThread,
- * landSent: typeof import("./thread/landing.js").returnToThread,
+ * landSent: typeof import("./thread/landing.js").landSent,
  * sendReaction: Parameters<typeof createThreadActions>[0]["sendReaction"],
  * registerReactSurface: ReturnType<typeof import("./reactions.js").createReactionController>["registerReactSurface"],
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
+ * showTodo: import("./thread/messages.js").MessageCommands["showTodo"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
@@ -296,6 +297,8 @@ function createApplication(dependencies) {
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
+    // Where a promise's word in a message's head leads: its to-do's row in On <agent>.
+    showTodo: dependencies.showTodo,
   };
   const surfaceView = {
     ...inlineView,
@@ -305,6 +308,7 @@ function createApplication(dependencies) {
   const annotations = createAnnotationInventory({
     readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
+    savedAt: dependencies.anchorPlacement.savedAt,
     openThread: openPageThread,
     goToObligation: dependencies.goToObligation,
     resumeDraft: dependencies.annotationCommands.resumeDraft,

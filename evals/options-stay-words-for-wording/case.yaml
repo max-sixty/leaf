@@ -12,7 +12,7 @@
 # would appear" asks, and fails only a drawing.
 # reason-beside-options: registry examples that write the reason into the recommended
 # card (`<em>My take: …</em>`) can lead agents to put it in the cards; the examples
-# put the reason in the lf-ask's prose.
+# put the reason in the question's prose.
 # The case is a probe given a page with its packages.
 description: options-stay-words-for-wording
 metadata:

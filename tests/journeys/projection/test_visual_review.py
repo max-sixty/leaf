@@ -13,7 +13,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
-    count = page.locator(".lf-fp-on-user")
+    count = page.locator(".lf-fp-leaf")
     expect_on_me(page, 3)
     first = "open-mobile-package-catalog"
     second = "keep-mobile-destinations"

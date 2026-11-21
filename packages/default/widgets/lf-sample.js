@@ -23,18 +23,10 @@
  * Reset starts the child. The browser's Find searches only the children that have
  * started. A frame the reader sees as it mounts starts at once, and the containing
  * page presents before it unless the frame's resize on arrival would move what the
- * reader sees then, and stops waiting for it once the host says its load waits on the
- * server (`waiting`). The sample's arrival is its child's: the child's presentation
- * and then whatever that document deferred, the samples it started included. The page
- * reads as arriving until every started child has arrived, and until the browser's
- * first reading of each waiting frame has said whether it starts. Each document the
- * frame loads, on mount, Reset or a reload, is counted from when it begins
- * (`deferredArrival`) until it arrives, fails, departs or the sample leaves. A
- * reload's document is counted once it connects; the parent cannot tell its departure
- * from one to a page outside Leaf, whose load can land before the departure's notice,
- * so nothing is counted between. Work a child starts after it has arrived, such as
- * one of its own samples' Reset, is the child's to count. A resize of a child the
- * reader did not ask to load, one that started near the window but out of their
+ * reader sees then. The sample's arrival is its child's, which the host counts
+ * (sample.js); a frame waiting to start counts until the browser's first reading of
+ * it has said whether it starts (`whenNear`). A resize of a child the reader did not
+ * ask to load, one that started near the window but out of their
  * sight, waits while it would move what they see, the frame keeping its current
  * height (`heldGrowth`), until they look away, or until they click, type or press a
  * key inside the child, which makes every later resize of that document theirs,
@@ -43,10 +35,8 @@
  * tab, a link or a jump brings it into view, is theirs and applies at once. The user
  * chose to fit a frame they bring into view to its page as soon
  * as the page draws, over keeping its placeholder height until they look away or
- * click into it, which left a short page standing in a blank frame. A load that
- * waited on its server arrives as news, held the same way, whoever asked for it:
- * after minutes of waiting the reader may have moved on. The status line keeps its
- * room through loading, ready and failure, so the frame below it stays put; a
+ * click into it, which left a short page standing in a blank frame. The status line
+ * keeps its room through loading, ready and failure, so the frame below it stays put; a
  * failure's words that run past it stand in a disclosure the reader opens over the
  * frame.
  * Reset stays focusable
@@ -57,7 +47,6 @@
 import {
   aborted,
   describeFailure,
-  deferredArrival,
   frameFor,
   growthIsSeen,
   whileConnected,
@@ -131,10 +120,8 @@ export class Sample extends HTMLElement {
   // Drops a resize `heldGrowth` holds.
   /** @type {(() => void) | null} */
   #heldFit = null;
-  // The current document's arrival (`#track`); whether its resizes wait while seen
-  // until the reader claims it; and whether the reader asked for the load.
-  /** @type {{land: () => void, reported: (() => void) | null} | null} */
-  #arrival = null;
+  // Whether the current document's resizes wait while seen until the reader claims
+  // it, and whether the reader asked for the load.
   #unclaimed = false;
   #asked = false;
   /** @type {{source: Promise<SampleReady>, ready: Promise<SampleReady>} | null} */
@@ -180,7 +167,6 @@ export class Sample extends HTMLElement {
         this.#nearing?.();
         this.#nearing = null;
         this.#viewOperation?.abort();
-        this.#arrival?.land();
         const host = this.#host;
         this.#host = null;
         host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
@@ -228,13 +214,10 @@ export class Sample extends HTMLElement {
 
   // Start the child. Its resize on arrival applies at once where the reader `asked`
   // for it, and otherwise waits while they see it (`#height`). Returns the frame's
-  // first fit to its child, or its readiness settling where it fits nothing then, or
-  // the server's wait.
+  // first fit to its child, or its readiness settling where it fits nothing then.
   /** @param {boolean} asked @returns {Promise<unknown>} */
   #start(asked, { present = false } = {}) {
     this.#mounting = true;
-    /** @type {PromiseWithResolvers<void>} */
-    const { promise: waiting, resolve: waited } = Promise.withResolvers();
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
       window: this.hasAttribute("window") || isNativeLayer(this.#view),
@@ -249,7 +232,6 @@ export class Sample extends HTMLElement {
         }
         this.#host = host;
         host.on("height", ({ height }) => this.#height(height));
-        host.on("arrived", () => this.#arrival?.reported?.());
         // A click, a key or text entered in the child claims the frame. A wheel, or a
         // touch that scrolls, moves the containing page past it and claims nothing.
         host.on("input", ({ type }) => {
@@ -259,14 +241,6 @@ export class Sample extends HTMLElement {
         host.on("loading", () => {
           this.#focusedContent = false;
           this.#track(host.ready);
-        });
-        // A child whose server can't take it yet, or that waits for a load slot behind
-        // one, may take minutes, as during a leaf.page deploy: the page presents
-        // without it, and it arrives as one below the window does, its growth held
-        // while seen.
-        host.on("waiting", () => {
-          this.#unclaimed = true;
-          waited();
         });
         host.on("current-location", ({ focused }) => {
           this.#focusedContent = focused;
@@ -278,7 +252,6 @@ export class Sample extends HTMLElement {
           this.#follow(host.ready);
           this.#say("");
           keeps(this.#reset, "aria-disabled", null);
-          this.#arrival?.land();
         });
         return host.ready;
       },
@@ -301,13 +274,11 @@ export class Sample extends HTMLElement {
     const following = this.#track(ready);
     this.#starting.resolve(following);
     const shown = following.catch(() => {});
-    if (present) widgetController(this).present(Promise.race([shown, waiting]));
+    if (present) widgetController(this).present(shown);
     /** @type {PromiseWithResolvers<void>} */
     const { promise: fitted, resolve: fit } = Promise.withResolvers();
     this.#fitted = fit;
-    // A load its server makes wait arrives as news (`waiting`), so the fit is no
-    // longer the landing of what brought the frame near.
-    return Promise.race([fitted, shown, waiting]);
+    return Promise.race([fitted, shown]);
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded
@@ -359,7 +330,7 @@ export class Sample extends HTMLElement {
       else {
         // The frame never moves in the DOM: reparenting it destroys its browsing
         // context. Native modality supplies focus containment and parent isolation.
-        // The label stays in flow; reserve only the controls and frame leaving it.
+        // Reserve the height of the controls and frame leaving the flow.
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;
@@ -469,41 +440,19 @@ export class Sample extends HTMLElement {
   #sayFailure(message) {
     if (this.#disclosure?.textContent === message) return;
     const disclosure = offer("details", "lf-sample-failure");
-    disclosure.append(offer("summary", "", message));
+    disclosure.append(offer("summary", "lf-disclosure-marker", message));
     this.#status.replaceChildren(disclosure);
     this.#disclosure = disclosure;
   }
 
-  // Count the frame's next document as arriving, landing the one before: the page
-  // reads as arriving until `land` is called, or `reported` once its child is drawn.
+  // Draw the frame's next document loading; the host counts its arrival (sample.js).
   /** @param {Promise<SampleReady>} promise */
   #track(promise) {
     keeps(this.#reset, "aria-disabled", "true");
     this.#say("Loading sample…");
-    this.#arrival?.land();
-    const { promise: landed, resolve: settle } = Promise.withResolvers();
-    const land = () => settle(undefined);
-    /** @type {{land: () => void, reported: (() => void) | null}} */
-    const arrival = { land, reported: null };
-    this.#arrival = arrival;
-    deferredArrival(landed).then(() => {
-      if (this.#arrival !== arrival) return;
-      this.#arrival = null;
-    });
     this.#unclaimed = !this.#asked;
     this.#asked = false;
-    const ready = this.#follow(promise);
-    // The child reports its arrival after its presentation, which this widget draws
-    // a turn later. A failed or cancelled child has nothing more to bring.
-    const { promise: reported, resolve } = Promise.withResolvers();
-    arrival.reported = () => resolve(undefined);
-    ready
-      .then(
-        () => reported,
-        () => {},
-      )
-      .then(arrival.land);
-    return ready;
+    return this.#follow(promise);
   }
 
   // One `ready` per usable document the host promises, so a departure and the reload

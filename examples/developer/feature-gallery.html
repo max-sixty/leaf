@@ -392,8 +392,8 @@
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at Leaf's panel at the window's foot: the <strong>On Me</strong>
-                mark beside Threads counts what is on you.
+                Look at Leaf's panel at the window's foot: the leaf at the end of its
+                row counts what is on you.
               </li>
               <li>
                 Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
@@ -617,7 +617,7 @@
               opens the exact source; the check saves it, and the cross or
               <kbd>Escape</kbd> discards the unsaved edit. The box keeps its size while
               editing, and these controls stay when annotations are hidden. Copy, beside
-              them, copies its Markdown. Press <kbd>z</kbd> to undo a saved edit.
+              them, copies its Markdown. Press <kbd>⌘Z</kbd> to undo a saved edit.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -764,9 +764,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   field.
                 </li>
                 <li>
-                  Write a sentence and send it: the new thread is in Threads, whose
-                  count goes up by one, and the caret stays in the field for the next
-                  comment.
+                  Write a sentence and send it: the new thread opens over the field and
+                  you stand on it, ringed, and Threads' count goes up by one. Press
+                  <kbd>c</kbd> to reply, or <kbd>Escape</kbd> to put the thread away.
                 </li>
                 <li>
                   Press <kbd>Escape</kbd> or click elsewhere: the field keeps what you
@@ -1180,8 +1180,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   keeps its earlier decisions in a summary.
                 </p>
                 <p id="bg-thread-progress">
-                  <strong>Progress messages.</strong> Show the folded checks from the
-                  answer’s header, then hide them again.
+                  <strong>Progress messages.</strong> The answered checks leave nothing
+                  above the answer.
                 </p>
               </template>
             </lf-sample>
@@ -1643,13 +1643,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the disclosure.
               </p>
               <p id="bg-thread-progress">
-                <strong>Progress messages.</strong> The ephemeral schedule checks
-                disappear when their answer arrives, including while it streams. Choose
-                “Progress messages” in the practice page: the completed checks leave no
-                disclosure or gap above the answer. The later room check has no answer
-                yet, so it stands as a dim working message above the reply box rather
-                than as a reply, and counts nothing unread. Its header keeps its author
-                and posting time visible.
+                <strong>Progress messages.</strong> Each ephemeral schedule check
+                disappears when the agent next writes in the thread, the next check or
+                the answer, including while it streams, or when the turn that wrote it
+                ends with nothing before it waiting on an answer. Choose “Progress
+                messages” in the practice page: the answered checks leave no disclosure
+                or gap above the answer.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -1937,12 +1936,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 Press Next On Me in the tally: it opens the first obligation, whose row
-                carries an open mark.
+                ends its name's line with On Me's symbol.
               </li>
               <li>
                 Choose Fix, then Escalate to engineering: the row keeps its name and
                 summary while the outcome changes on its own line. Undo restores Fix
-                without moving the rows; undo again restores the open mark and tally.
+                without moving the rows; undo again restores On Me's symbol and the
+                tally.
               </li>
               <li>
                 Narrow the window below the set's 36rem: the list becomes a row above
@@ -2238,10 +2238,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </figure>
           </section>
 
-          <lf-group
-            id="bg-default-presentation"
-            label="Evidence widgets: charts and structured views"
-          >
+          <section id="bg-default-presentation">
             <h2>
               <strong>Evidence widgets</strong
               ><span class="bg-feature-detail">: charts and structured views</span>
@@ -3206,7 +3203,7 @@ gallery/
                 </tbody>
               </table>
             </section>
-          </lf-group>
+          </section>
 
           <section id="bg-frame-edges">
             <h2>Framed rows</h2>
@@ -3664,7 +3661,7 @@ flag or command it touches, such as `--config`.
           </section>
         </lf-tab>
       </lf-tabs>
-      <lf-group id="bg-inline-sample-section" label="Interactive sample on this page">
+      <section id="bg-inline-sample-section">
         <h2>Interactive sample on this page</h2>
         <p>These choices use this page's state and Undo.</p>
         <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
@@ -3673,7 +3670,7 @@ flag or command it touches, such as `--config`.
             <lf-option id="bg-delivery-express">Express delivery</lf-option>
           </lf-options>
         </lf-sample>
-      </lf-group>
+      </section>
       <section id="bg-generated-sample-section">
         <h2>A sample created by a page module</h2>
         <p>

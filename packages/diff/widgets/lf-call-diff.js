@@ -2,7 +2,9 @@
  * This widget draws trees[].tree as commentable evidence, retaining unchanged nodes
  * and deriving only the visible tree rails. Its optional locations are used directly,
  * including paths with whitespace; terminal output is never read back as data.
- * Each root keeps its disclosure separate from its source link.
+ * Each root keeps its disclosure separate from its source link. Every root opens as it
+ * arrives, the maintainer's choice, so the whole capture reads at once; the toolbar's
+ * Collapse all folds a long one.
  * Ordinary activation travels to the exact line; modified activation keeps the
  * native link's separate-tab, separate-window and context-menu routes. CallDiff
  * locations name the after tree for added and unchanged rows, and the before tree
@@ -147,10 +149,10 @@ function buildToolbar(owner) {
   return { element: toolbar, summary };
 }
 
-/** @param {HTMLElement} owner @param {string} key @param {boolean} open */
-function buildGroup(owner, key, open) {
+/** @param {HTMLElement} owner @param {string} key */
+function buildGroup(owner, key) {
   const group = el("details", "lf-call-group");
-  group.open = open;
+  group.open = true;
   // Source navigation and disclosure are separate controls: a link nested in summary
   // disappears from some accessibility readings. Keep the summary as the tight root
   // datum, and its source control beside it rather than around the whole call tree.
@@ -320,9 +322,8 @@ customElements.define(
         return node;
       };
       const meta = draw(records.meta, () => buildLine());
-      const placements = records.groups.map(({ root, children }, index) => {
-        const owned =
-          this.groups.get(root.key) ?? buildGroup(this, root.key, index === 0);
+      const placements = records.groups.map(({ root, children }) => {
+        const owned = this.groups.get(root.key) ?? buildGroup(this, root.key);
         const summary = draw(
           root,
           () => owned.summary,

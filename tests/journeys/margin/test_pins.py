@@ -86,10 +86,10 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     )
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("w")
-    expect(field).to_have_attribute("data-lf-says", "stance")
     expect(field).to_have_attribute(
-        "placeholder", re.compile("^In Draw mode · Annotations hidden")
+        "placeholder", re.compile(r"^Annotations hidden · \S")
     )
+    expect(page.locator(".lf-fp-mode")).to_have_text("Draw")
     page.keyboard.press("Escape")
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 

@@ -28,7 +28,7 @@ on:
       - "bin/leaf"
       - "pyproject.toml"
       - "uv.lock"
-      - "leaf-assets.json"
+      - ".config/leaf-assets.json"
       # The site build and the deploy gate that verifies it are leaf_dev code.
       - "dev/**"
       - "worker/**"
@@ -38,8 +38,6 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - "Dockerfile.website"
-      - "Dockerfile.website.dockerignore"
       - ".github/workflows/publish-site.yaml"
   workflow_dispatch:
 
@@ -52,14 +50,16 @@ jobs:
   deploy-site:
     if: github.repository_owner == 'max-sixty'
     runs-on: ubuntu-24.04
-    # The verification step at the end owns most of this budget: `site verify`'s
-    # `--wait` spends up to 900 seconds, and the agent journey after it adds a page
-    # verification, `agent_session`'s 180 seconds, the turn's `TURN_LIMIT`, and the
-    # reload and its `TURN_PRESENTATION` wait — roughly 34 minutes, behind the
-    # three the build, image push and deploy take. The job has to clear that, because
-    # a cancelled job prints `exceeded the maximum execution time` in place of the
-    # gate's own account of what the deployed page was doing.
-    timeout-minutes: 45
+    # Two steps own most of this budget. The deploy retries Cloudflare's `100146`
+    # for up to 30 minutes after the first one. The verification step at the end
+    # follows: `site verify`'s `--wait` spends up to 900 seconds, and the agent
+    # journey after it adds a page verification, `agent_session`'s 180 seconds, the
+    # turn's `TURN_LIMIT`, and the reload and its `TURN_PRESENTATION` wait — roughly
+    # 34 minutes. With the build and image push before the deploy, the worst case
+    # nears 75 minutes. The job has to clear that, because a cancelled job prints
+    # `exceeded the maximum execution time` in place of the gate's own account of
+    # what the deployed page was doing.
+    timeout-minutes: 75
     environment: release
     permissions:
       contents: read
@@ -67,6 +67,8 @@ jobs:
     steps:
       - name: 📂 Checkout code
         uses: actions/checkout@v7
+
+      - uses: ./.github/actions/ubuntu-archive
 
       - uses: astral-sh/setup-uv@v7
 
@@ -97,37 +99,17 @@ jobs:
       - name: Verify the bundled release locally in a browser
         run: uv run leaf-dev site verify website-worker
 
-      - name: Build and push the exact container image
-        working-directory: worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          local_image="leaf-website:${LEAF_SITE_RELEASE}"
-          repository="registry.cloudflare.com/ece2539b9b32ab59dd74aa6b6285e5db/leaf-website"
-          remote_image="${repository}:${LEAF_SITE_RELEASE}"
-          docker build --file ../Dockerfile.website --tag "$local_image" ..
-          pnpm --dir .. exec wrangler --cwd worker containers push "$local_image"
-          image=$(docker image inspect "$remote_image" --format '{{index .RepoDigests 0}}')
-          case "$image" in
-            "$repository"@sha256:*) ;;
-            *) echo "Wrangler did not leave an immutable image digest: $image" >&2; exit 1 ;;
-          esac
-          sed -i 's|image = "../Dockerfile.website"|image = "'"$image"'"|' wrangler.toml
-          grep --fixed-strings "image = \"$image\"" wrangler.toml
-
       - name: Deploy public Leaf pages
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: pnpm --dir .. exec wrangler --cwd worker deploy --containers-rollout=immediate
+        run: ./wrangler-deploy.sh
 
-      # Worker activation and container rollout are separate Cloudflare operations. A
-      # real browser must see the requested build in the document, module graph, edge
-      # projection, and a newly allocated container before this deployment is green.
-      # `site verify`'s `--wait` owns that wait — rollout drains one container allocation
-      # at a time, so a coherent sample is what ends it — and the agent journey that
-      # follows runs the deployed turn alone rather than re-sampling readings the wait
-      # settled.
+      # A real browser must see the requested build in the document, module graph, edge
+      # projection, and a newly started container before this deployment is green.
+      # `site verify`'s `--wait` owns the wait for the edge to serve it, and the agent
+      # journey that follows runs the deployed turn alone rather than re-sampling
+      # readings the wait settled.
       - name: Verify the exact public release in a browser
         # Capture APIRequestContext's Node sockets, including failures before a
         # Worker invocation exists. The preload emits only allowlisted metadata.

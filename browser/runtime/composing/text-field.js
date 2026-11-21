@@ -169,6 +169,7 @@ import { moveScrollerBy } from "../scrolling.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
+import { inputs } from "../inputs.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
 import { contentsRects } from "../shown-box.js";
 import { keepFieldKeys } from "../field-keys.js";
@@ -192,8 +193,11 @@ sheet.replaceSync(`
      holds the empty line's place, as tall as the editor's line, and takes the focus
      that builds the editor; while the editor loads, it holds the words, wrapped as
      the editor wraps them. */
-  .lf-field-rest { min-height: 1lh; outline: none; white-space: pre-wrap;
-    overflow-wrap: break-word; }
+  .lf-field-rest { box-sizing: border-box; width: 100%;
+    min-height: 1lh; margin: 0; padding: 0; border: 0; outline: none;
+    background: transparent; color: inherit; font: inherit; line-height: inherit;
+    letter-spacing: inherit; white-space: pre-wrap; overflow-wrap: break-word;
+    resize: none; overflow: hidden; field-sizing: content; }
   .cm-line { padding: 0; }
   /* A space after a line's last word hangs past its end, as in a textarea and in the
      sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
@@ -228,6 +232,13 @@ sheet.replaceSync(`
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
   }
+  /* The words after a change (data-lf-after, field-editor.js) keep their place from the
+     field's end edge, as layout keeps them, so an owner carrying the words by the start
+     edge draws these farther by --lf-field-after. */
+  .cm-content > [data-lf-after],
+  .cm-content > [data-lf-after] ~ * {
+    translate: var(--lf-field-after);
+  }
   /* The placeholder is one line that never widens the box — a response bar sizes to the
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
@@ -251,11 +262,13 @@ sheet.replaceSync(`
      here as it does in the message; the rest read the theme's tokens, since its element
      rules stop at this root. A heading is bold, as the platform draws one, at the size
      of the words around it. A block is drawn line by line, so a code block's frame is
-     each line's sides, closed above its first line and below its last. Syntax that holds
-     its room while the caret is away, as a rule's or a code fence's line does, is there
-     unseen and unspoken. Its glyphs go unfilled while its colour stays the words',
-     because the caret can stand at the end of unseen text, as just past a new item's
-     marker, and the browser draws it in that text's colour. */
+     each line's sides, closed above its first line and below its last, and each code
+     line hangs the rows it wraps onto from its indent behind the mark, as the sent
+     block's lines do (reading.css, \`pre\`).
+     Syntax that holds its room while the caret is away, as a rule's or a code fence's
+     line does, is there unseen and unspoken. Its glyphs go unfilled while its colour
+     stays the words', because the caret can stand at the end of unseen text, as just
+     past a new item's marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--lf-muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
@@ -292,7 +305,13 @@ sheet.replaceSync(`
     font-size: var(--lf-code-size);
     line-height: var(--lf-code-line); color: var(--lf-code-ink); background: var(--lf-pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
-    padding-inline: var(--lf-pre-inset); }
+    padding-inline: var(--lf-pre-inset); position: relative;
+    --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+    text-indent: var(--lf-code-hang) hanging; }
+  .lf-md-code-block::before { content: ""; position: absolute; inset-block: 1lh 0;
+    inset-inline-start: calc(var(--lf-pre-inset) + var(--lf-code-hang) - 2ch);
+    inline-size: 1ch; background: var(--lf-code-muted);
+    mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y; }
   .lf-md-code-first { border-block-start: 1px solid var(--lf-code-border);
     border-start-start-radius: var(--lf-r); border-start-end-radius: var(--lf-r); }
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--lf-code-border);
@@ -311,11 +330,9 @@ sheet.replaceSync(`
      press on any drawn source does; Chromium's disabled box would take it and do
      nothing. */
   .task-list-item-checkbox { pointer-events: none; }
-  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
-    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--lf-accent);
-    background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
-    user-select: none;
-    -webkit-user-select: none; }
+  /* The mark after a link stands beside the link's words, not in them, so it takes
+     their colour here. */
+  .lf-external-mark { color: var(--lf-accent); }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
      (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
      where a fence's container or the draft ends it, where code shares its opening line
@@ -351,15 +368,16 @@ class Draft {
   }
 }
 
-// The words a node of the empty line's place holds: its text, with a line for each
-// break.
-/** @param {Node} node @returns {string} */
-const placeWords = (node) =>
-  node instanceof Text
-    ? node.data
-    : node.nodeName === "BR"
-      ? "\n"
-      : [...node.childNodes].map(placeWords).join("");
+// The last Return and whether it held Shift, which a field without its editor reads: a
+// textarea's Return and Shift+Return are both a line break to `beforeinput`
+// (`#typeAtRest`). Seen from the window as it goes down, a key typed in a field is the
+// field's host's; once dispatched, an event from a shadow tree names no target.
+/** @type {{field: EventTarget | null, shifted: boolean} | null} */
+let lastReturn = null;
+inputs.observe((event) => {
+  if (event instanceof KeyboardEvent && event.key === "Enter")
+    lastReturn = { field: event.target, shifted: event.shiftKey };
+});
 
 /** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
@@ -375,8 +393,11 @@ class LeafText extends HTMLElement {
   }
   // The empty line's place while the field has no editor, and the node focus lands on
   // there, whichever route brought it. While the editor loads, it holds the words, plain,
-  // and takes what the user types (`#typeAtRest`).
-  #rest = document.createElement("div");
+  // and takes what the user types (`#typeAtRest`). It is a textarea: Firefox types into
+  // a `contenteditable` that stands after `body`, as the chrome does, but deletes
+  // nothing from it, so Backspace did nothing until the editor built
+  // (notes/browser-support.md).
+  #rest = document.createElement("textarea");
   // The rendering hold of a field waiting for its editor to load (`#build`).
   /** @type {(() => void) | null} */
   #waiting = null;
@@ -386,7 +407,10 @@ class LeafText extends HTMLElement {
   #composing = false;
   #nativeInput = false;
   #root;
-  #internals = this.attachInternals();
+  // The field's custom states, held: WebKit lets the set go, and `states` then reads as
+  // a new, empty set while the host still matches the old one's states
+  // (notes/browser-support.md, "A custom state set's own contents in WebKit").
+  #states = this.attachInternals().states;
   /** The element whose blocks a field editing words where they are shown shows them
    * as, such as a draft's prose; unset, the field draws a sent message's faces.
    * @type {HTMLElement | null} */
@@ -464,7 +488,7 @@ class LeafText extends HTMLElement {
     return travel < 0 ? Math.floor(travel) : Math.ceil(travel);
   }
 
-  // Whether the host's words overflow it (`data-lf-overflows`), and which edges they run
+  // Whether the host's words overflow it (`overflows`), and which edges they run
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
   // show there is more without a scrollbar. The host stops at the page's height limit
   // while words grow inside it, so the reading watches the editor's content too, in the
@@ -491,21 +515,18 @@ class LeafText extends HTMLElement {
         };
       },
       write: (reading) => {
-        // WebKit can retain style from a removed custom state after the words shrink.
-        // An attribute invalidates the field's CSS at the same layout boundary.
-        if (this.hasAttribute("data-lf-overflows") !== reading.scrolls)
-          this.toggleAttribute("data-lf-overflows", reading.scrolls);
         /** @type {readonly (readonly [string, boolean])[]} */
         const states = [
+          ["overflows", reading.scrolls],
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
           ["corner-taken", reading.corner],
         ];
         for (const [state, on] of states) {
           // Adding a state already set restyles all the same, on every scrolled frame.
-          if (this.#internals.states.has(state) === on) continue;
-          if (on) this.#internals.states.add(state);
-          else this.#internals.states.delete(state);
+          if (this.#states.has(state) === on) continue;
+          if (on) this.#states.add(state);
+          else this.#states.delete(state);
         }
       },
     });
@@ -551,11 +572,26 @@ class LeafText extends HTMLElement {
       rect.top - leading <= middle &&
       rect.bottom + leading > middle;
     for (const line of view.contentDOM.children) {
-      const block = line.getBoundingClientRect();
+      // A line after the change carries farther than the words' carry
+      // (`--lf-field-after`), so it is read back by that much.
+      const lineStyle = getComputedStyle(line);
+      const [ox = 0, oy = 0] =
+        lineStyle.translate === "none"
+          ? []
+          : lineStyle.translate.split(/\s+/).map(Number.parseFloat);
+      /** @param {import("../rect.js").Box} rect */
+      const back = (rect) => ({
+        left: rect.left - ox * scaleX,
+        right: rect.right - ox * scaleX,
+        top: rect.top - oy * scaleY,
+        bottom: rect.bottom - oy * scaleY,
+      });
+      const block = back(line.getBoundingClientRect());
       if (block.bottom <= top || block.top >= box.bottom) continue;
-      const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
+      const height = Number.parseFloat(lineStyle.lineHeight) * scaleY;
       for (const rect of contentsRects(line))
-        if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
+        if (reaches(back(rect), Math.max(0, (height - rect.height) / 2) || 0))
+          return true;
     }
     if (!view.hasFocus) return false;
     const { rectangle: caret } = module.LeafEditorView.caretAt(
@@ -566,7 +602,12 @@ class LeafText extends HTMLElement {
     return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
   }
 
-  static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
+  static observedAttributes = [
+    "aria-label",
+    "aria-describedby",
+    "aria-multiline",
+    "placeholder",
+  ];
 
   constructor() {
     super();
@@ -584,17 +625,16 @@ class LeafText extends HTMLElement {
     this.#end.name = "end";
     this.#end.className = "lf-field-end";
     this.#end.addEventListener("slotchange", () => {
-      if (this.#end.assignedElements().length) this.#internals.states.add("end-held");
-      else this.#internals.states.delete("end-held");
+      if (this.#end.assignedElements().length) this.#states.add("end-held");
+      else this.#states.delete("end-held");
     });
     this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
-    // The break an empty editable line holds, as the editor's own empty line does, so
-    // the place reads the same value to assistive technology.
-    this.#rest.append(document.createElement("br"));
-    // In `focusin`, never `focus`: Chrome and Firefox send no `focusin` for a node that
-    // passes focus on in its own `focus` handler, and the move inside the closed root
-    // reaches nothing outside it, so the page would never hear the field take focus.
+    this.#rest.rows = 1;
+    // In `focusin`, never `focus`: Chromium, Firefox and WebKit send no `focusin` for
+    // a node that passes focus on in its own `focus` handler, and the move inside the
+    // closed root reaches nothing outside it, so the page would never hear the field
+    // take focus.
     this.#rest.addEventListener("focusin", () => this.#build());
     for (const type of ["beforeinput", "input", "compositionstart", "compositionend"])
       this.#rest.addEventListener(type, (event) => this.#typeAtRest(event));
@@ -631,12 +671,9 @@ class LeafText extends HTMLElement {
       return;
     }
     if (event instanceof InputEvent && event.type === "beforeinput") {
-      if (
-        this.#readOnly ||
-        (event.inputType === "insertParagraph" && !this.#returned()) ||
-        (event.inputType === "insertLineBreak" && this.#oneLine)
-      )
-        event.preventDefault();
+      if (event.inputType !== "insertLineBreak") return;
+      const shifted = lastReturn?.field === this && lastReturn.shifted;
+      if ((!shifted && !this.#returned()) || this.#oneLine) event.preventDefault();
       return;
     }
     if (event.type === "compositionend") this.#composing = false;
@@ -648,39 +685,19 @@ class LeafText extends HTMLElement {
     if (event.type === "compositionend" && editor) this.#build();
   }
 
-  // Takes the words and caret of the empty line's place into the draft. The last
-  // break only holds an empty last line open, and a one-line field takes a pasted
-  // line break as a space, as its editor does.
+  // Takes the words and caret of the empty line's place into the draft. A one-line
+  // field takes a pasted line break as a space, as its editor does.
   /** @param {Draft} draft */
   #readRest(draft) {
-    const words = placeWords(this.#rest);
-    const kept = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
-    const text = this.#oneLine ? kept.replaceAll("\n", " ") : kept;
-    const selection = this.#selection();
-    if (!selection) return;
-    const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
-    /** @param {Node} node @param {number} offset */
-    const at = (node, offset) => {
-      if (!this.#rest.contains(node)) return text.length;
-      const before = document.createRange();
-      before.setStart(this.#rest, 0);
-      before.setEnd(node, offset);
-      return Math.min(placeWords(before.cloneContents()).length, text.length);
-    };
-    const from = range ? at(range.startContainer, range.startOffset) : text.length;
-    const to = range ? at(range.endContainer, range.endOffset) : text.length;
-    const backward = selection.direction === "backward";
+    const { value, selectionStart, selectionEnd, selectionDirection } = this.#rest;
+    const text = this.#oneLine ? value.replaceAll("\n", " ") : value;
+    const backward = selectionDirection === "backward";
     Object.assign(draft, {
       text,
-      anchor: backward ? to : from,
-      head: backward ? from : to,
+      anchor: backward ? selectionEnd : selectionStart,
+      head: backward ? selectionStart : selectionEnd,
     });
-    if (text !== kept) this.#paintRest();
-  }
-
-  // Firefox and WebKit lack ShadowRoot.getSelection; the document holds theirs.
-  #selection() {
-    return this.#root.getSelection?.() ?? document.getSelection();
+    if (text !== value) this.#paintRest();
   }
 
   // The words a field without an editor shows, plain, in the empty line's place, and,
@@ -688,33 +705,18 @@ class LeafText extends HTMLElement {
   #paintRest() {
     if (this.#composing) return;
     const text = this.#view ? "" : this.#text;
-    const here = !this.#view && this.#root.activeElement === this.#rest;
-    const last = this.#rest.lastChild?.nodeName === "BR";
-    const shown = placeWords(this.#rest).slice(0, last ? -1 : undefined) === text;
-    // Placing the caret needs the words as one text node, a break after them where
-    // the last line is empty, as this writes them.
-    /** @param {Node | null} node */
-    const plain = (node) => node?.nodeType === Node.TEXT_NODE;
-    const one =
-      this.#rest.childNodes.length === (text ? 1 : 0) + Number(last) &&
-      (!text || plain(this.#rest.firstChild));
-    if (shown && (!here || one)) return this.#placeRestCaret(here);
-    this.#rest.replaceChildren(
-      ...(text ? [text] : []),
-      ...(!text || text.endsWith("\n") ? [document.createElement("br")] : []),
-    );
-    this.#placeRestCaret(here);
-  }
-
-  /** @param {boolean} here */
-  #placeRestCaret(here) {
-    if (!here) return;
+    if (this.#rest.value !== text) this.#rest.value = text;
+    if (this.#view || this.#root.activeElement !== this.#rest) return;
     const { anchor, head } = this.#range;
-    const words = this.#rest.firstChild;
-    const selection = this.#selection();
-    if (!selection) return;
-    if (words instanceof Text) selection.setBaseAndExtent(words, anchor, words, head);
-    else selection.setBaseAndExtent(this.#rest, 0, this.#rest, 0);
+    const [start, end] = anchor <= head ? [anchor, head] : [head, anchor];
+    const direction = anchor <= head ? "forward" : "backward";
+    const rest = this.#rest;
+    if (
+      rest.selectionStart !== start ||
+      rest.selectionEnd !== end ||
+      rest.selectionDirection !== direction
+    )
+      rest.setSelectionRange(start, end, direction);
   }
 
   #returned() {
@@ -814,26 +816,21 @@ class LeafText extends HTMLElement {
     if (this.#length) this.#build();
     else this.#describe();
     this.#paintEmpty();
-    this.#internals.states.add("ready");
+    this.#states.add("ready");
   }
 
   // Until the field has an editor, its empty line's place stands in for the editor's
   // content node to assistive technology, so the tree reads the same before and after
-  // the editor builds. CodeMirror's node is a multiline textbox, `contenteditable` (its
-  // theme makes it plain text only) and `aria-readonly` while the field is read-only,
-  // and it wears the field's name, hint and description (`#describe`). This place
-  // declares the same, and being editable it is a tab stop where the editor's node is.
+  // the editor builds. CodeMirror's node is a multiline textbox, read-only while the
+  // field is, and it wears the field's name, hint and description (`#describe`). This
+  // place, a textarea, is the same, and a tab stop where the editor's node is.
   #dressRest() {
-    const wanted = {
-      ...this.#contentAttributes(),
-      role: "textbox",
-      contenteditable: "plaintext-only",
-      ...(this.#readOnly && { "aria-readonly": "true" }),
-    };
-    for (const name of ["aria-label", "aria-placeholder", "aria-readonly"])
+    const wanted = this.#contentAttributes();
+    for (const name of ["aria-label", "aria-placeholder"])
       if (!(name in wanted)) this.#rest.removeAttribute(name);
     for (const [name, value] of Object.entries(wanted))
       if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
+    if (this.#rest.readOnly !== this.#readOnly) this.#rest.readOnly = this.#readOnly;
   }
 
   // A connected field draws its words in an editor, and an empty one builds its editor
@@ -929,8 +926,8 @@ class LeafText extends HTMLElement {
   disconnectedCallback() {
     queueMicrotask(() => {
       if (this.isConnected) return;
-      this.#internals.states.delete("ready");
-      this.#internals.states.delete("corner-taken");
+      this.#states.delete("ready");
+      this.#states.delete("corner-taken");
       const content = this.#content;
       if (content.kind !== "view") return;
       this.#content = {
@@ -1026,8 +1023,8 @@ class LeafText extends HTMLElement {
   }
 
   #paintEmpty() {
-    if (this.#length) this.#internals.states.delete("placeholder-shown");
-    else this.#internals.states.add("placeholder-shown");
+    if (this.#length) this.#states.delete("placeholder-shown");
+    else this.#states.add("placeholder-shown");
   }
 
   get value() {

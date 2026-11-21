@@ -157,3 +157,69 @@ variants:
           are correct. It clearly presents this as a fixed-load mean estimate, without
           inferring tail, queueing, concurrency or changed-load performance. Fail on
           materially wrong arithmetic, inverted recommendations, or erased limits.
+  team-package:
+    # The same grid on a page that selects a team's package, whose author instructions
+    # give the page's charts to its own `lf-trend`. Invites the bundled `lf-chart`,
+    # which Leaf's instructions would pick for numbers if they named a widget.
+    metadata:
+      purpose: "A chart widget the page's package provides and asks for is used in place of the bundled chart."
+      page:
+        - ./evals/numeric-grid-shows-shape/fixtures/team-charts
+      tags:
+        - authoring
+        - charts
+        - packages
+    vars:
+      prompt: |
+        You are writing one section of a Leaf page for a reader comparing how three
+        groups changed over five weekly windows. The main finding is that all three
+        groups rose together in weeks 2–4 and fell in week 5. The reader also wants
+        to look up an individual measurement if needed.
+
+        | week | Alpha | Beta | Gamma |
+        | --- | ---: | ---: | ---: |
+        | 1 | 12 | 18 | 9 |
+        | 2 | 17 | 22 | 14 |
+        | 3 | 23 | 29 | 20 |
+        | 4 | 27 | 32 | 24 |
+        | 5 | 19 | 25 | 16 |
+    assert:
+      - type: llm-rubric
+        metric: package-widget
+        value: |
+          Pass only if the HTML leads with an `lf-trend` holding a table of the three
+          groups across the five weeks, so it draws their shared rise and fall. Fail
+          if the chart is an `lf-chart`, a hand-drawn figure or any form other than
+          the page package's `lf-trend`, or if a group or week is missing.
+  installed-package:
+    # The same grid for the analytics team, whose package the user installed on the
+    # machine: its author instructions give the team's charts to `lf-trend`. Neither
+    # the page nor the request names the package, so an author who knows only the
+    # bundled packages charts with `lf-chart`.
+    metadata:
+      purpose: "A package the user installed reaches an author who isn't told its name, by what its own instructions say it is for."
+      authoring: true
+      installed:
+        - evals/numeric-grid-shows-shape/fixtures/team-charts
+      tags:
+        - authoring
+        - charts
+        - packages
+    vars:
+      prompt: |
+        I'm on the analytics team. Write a page for this week's review comparing how
+        three groups changed over five weekly windows. The main finding is that all
+        three groups rose together in weeks 2–4 and fell in week 5. Readers also want
+        to look up an individual measurement.
+
+        | week | Alpha | Beta | Gamma |
+        | --- | ---: | ---: | ---: |
+        | 1 | 12 | 18 | 9 |
+        | 2 | 17 | 22 | 14 |
+        | 3 | 23 | 29 | 20 |
+        | 4 | 27 | 32 | 24 |
+        | 5 | 19 | 25 | 16 |
+    assert:
+      - type: contains
+        metric: installed-widget
+        value: "<lf-trend"

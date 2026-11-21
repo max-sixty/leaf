@@ -69,6 +69,7 @@ from leaf import schema as schema_model
 from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.registry.kernel import kernel_protocol
 from leaf.registry.storage import layer_packages, layer_record, selected
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -76,7 +77,7 @@ from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
-from leaf_dev.commands.site import build as site_build
+from leaf_dev.commands.site import _build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
@@ -89,6 +90,7 @@ from leaf_dev.example_data import (
 )
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
+from leaf_dev.website import asset_site
 
 ROOT = Path(__file__).parents[2]
 
@@ -261,7 +263,7 @@ def hosted(site, tmp_path_factory):
     shutil.copytree(site, session_site)
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
-        released_site_endpoint(session_site, site_build.asset_site(site)),
+        released_site_endpoint(session_site, asset_site(site)),
     )
     with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -278,7 +280,7 @@ def served_example(site, tmp_path):
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
-        released_site_endpoint(session_site, site_build.asset_site(site)),
+        released_site_endpoint(session_site, asset_site(site)),
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -339,7 +341,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
     """The data-structures reference's tables, generated from the schemas, read at a
     phone's width: on a narrow column each field's description takes the row's whole
     width under its name, type and flag, so no table scrolls sideways or squeezes a
-    cell to a word a line (`squeezedBoxes`), as 31 of them did with four columns side
+    cell to a word a line (`squeezedTables`), as 31 of them did with four columns side
     by side. At 640px the column is just wide enough for the four-column table, which
     has to fit there too."""
     page = browser.new_page(viewport={"width": 640, "height": PHONE["height"]})
@@ -353,7 +355,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
                 ".filter((table) => table.scrollWidth - table.clientWidth > 1)"
                 ".map((table) => table.closest('section').id)"
             )
-            squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
+            squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
             assert (scrolling, squeezed) == ([], [])
 
 
@@ -437,7 +439,7 @@ def test_page_layers_stay_inside_their_page_directories(site):
 
 def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
-    assets = site_build.asset_site(site)
+    assets = asset_site(site)
     pinned = pinned_assets()
     root_media = SourceDocument(
         authored_markup(named_source("index"))
@@ -503,6 +505,15 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     gallery = manifest["pages"]["/examples/feature-gallery"]
     revisions = files_model.list_revisions(gallery_page)
     assert set(gallery["states"]) == {str(revision) for revision in revisions}
+    # The revision files the release publishes, beside which a visitor's record saved
+    # under an earlier release may hold others (`leaf_website.storage`), and the
+    # protocol that keys the record (`worker/src/index.ts`).
+    assert gallery["revisions"] == [
+        files_model.revision_path(gallery_page, revision).stem for revision in revisions
+    ]
+    for name in gallery["revisions"]:
+        assert (assets / "examples" / "feature-gallery" / "revisions" / name).is_dir()
+    assert manifest["protocol"] == kernel_protocol()
     assert (
         gallery["state"]
         == gallery["states"][str(files_model.latest_revision(gallery_page))]
@@ -520,7 +531,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
     revision. Only the first is a page a user should be sent to, so every
     document a page publishes names that route as its canonical.
     """
-    assets = site_build.asset_site(site)
+    assets = asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     sitemap = (assets / "sitemap.xml").read_text(encoding="utf-8")
     robots = (assets / "robots.txt").read_text(encoding="utf-8")
@@ -579,7 +590,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     server compose the same transforms, and a route either of them composes
     differently is one where a user's page and a crawler's page part company.
     """
-    assets = site_build.asset_site(site)
+    assets = asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
     board = assets / "examples" / "triage-board"
@@ -915,7 +926,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
         "data-lf-startup-error", re.compile("planted fault")
     )
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     # The supervisor sets the timer for its next round only once the last round's
@@ -1167,7 +1178,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         expected_title = SourceDocument(source).authoring.title.strip()
         assert expected_title
         assert page.title() == expected_title, name
-        expect(page.locator("h1")).to_have_text(heading(source))
+        # The page's own heading, in its header: a Markdown preview on the page draws
+        # its file's headings at the levels the file wrote, as GitHub draws a file.
+        expect(page.locator("#top h1")).to_have_text(heading(source))
         expect(page.locator(CHROME_ROOT)).to_have_count(1)
         expect(page.locator("script[data-lf-server]")).to_have_count(1)
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
@@ -1396,7 +1409,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Ready — comment to revise this copy"
+            "aria-label", re.compile(r" · Ready — comment to revise this copy$")
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1623,7 +1636,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     ).to_have_text("running")
     # The inventory includes request Decisions beside state obligations.
     expect_obligations_answered(page, "0/5")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -1677,7 +1690,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-fp-on-user")
+    decisions = page.locator(".lf-fp-leaf")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
     chosen = (

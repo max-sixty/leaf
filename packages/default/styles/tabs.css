@@ -410,7 +410,9 @@ lf-tabs[data-lf-views] > lf-tab {
         }
       }
     }
-    /* A row is its name, then its diff count, with the summary on a line under them.
+    /* A list that runs down beside its panels (`data-lf-down`, lf-tabs.js), a side
+     * list's or a page's parts', draws each row as below. A row is its name, then its
+     * diff count, with the summary on a line under them.
      * A tab with no count ends at its words. Such a tab's rule stands at its foot, a
      * line of its own under its last line, so along a row it underlines the whole tab
      * as a lone name's rule underlines the name, and takes the 2px the name gives up.
@@ -418,9 +420,9 @@ lf-tabs[data-lf-views] > lf-tab {
      * the last of them. The keyboard rings the whole row, inside its edge, as a list's
      * row is (base.css, "Where it stands"): round the name alone, the ring ran over
      * the summary under it. */
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-btn {
+    [data-lf-down] > .lf-tabstrip .lf-tab-btn {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-content: start;
       align-items: baseline;
       justify-items: start;
@@ -444,11 +446,28 @@ lf-tabs[data-lf-views] > lf-tab {
         margin-left: 6px;
       }
     }
+    /* A row whose panel waits on the user ends its name's line in On Me's symbol, quiet
+     * as the summary is, after any change count (lf-tabs.js). */
+    [data-lf-down] > .lf-tabstrip .lf-tab-on-me {
+      grid-row: 1;
+      grid-column: 3;
+      align-self: center;
+      display: flex;
+      margin-inline: 6px 5px;
+      color: var(--lf-muted);
+      &:not([data-lf-waiting]) {
+        visibility: hidden;
+      }
+      & > svg {
+        inline-size: 14px;
+        block-size: 14px;
+      }
+    }
     /* The outcome has its own reserved line below the authored summary. Neither
      * choosing nor undoing borrows room from the name or its context. The answer
      * contains its inline size; exceptional long values ellipsize and remain whole
      * in the tab's accessible description. */
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-answer {
+    [data-lf-down] > .lf-tabstrip .lf-tab-answer {
       container-type: inline-size;
       grid-column: 1 / -1;
       grid-row: 3;
@@ -459,14 +478,12 @@ lf-tabs[data-lf-views] > lf-tab {
       font: var(--lf-font-heading);
       color: var(--lf-ink-2);
     }
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-answer::before {
+    [data-lf-down] > .lf-tabstrip .lf-tab-answer::before {
       content: "✓" / "";
       flex: none;
       color: var(--lf-settled-ink);
     }
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views]
-      > .lf-tabstrip
-      .lf-tab-answer[data-lf-obligations="open"] {
+    [data-lf-down] > .lf-tabstrip .lf-tab-answer[data-lf-obligations="open"] {
       font: var(--lf-font-small);
       color: var(--lf-muted);
       &::before {
@@ -474,12 +491,10 @@ lf-tabs[data-lf-views] > lf-tab {
         color: inherit;
       }
     }
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views]
-      > .lf-tabstrip
-      .lf-tab-answer:not([data-lf-obligations]) {
+    [data-lf-down] > .lf-tabstrip .lf-tab-answer:not([data-lf-obligations]) {
       visibility: hidden;
     }
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-answer-words {
+    [data-lf-down] > .lf-tabstrip .lf-tab-answer-words {
       min-inline-size: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -487,7 +502,7 @@ lf-tabs[data-lf-views] > lf-tab {
     }
     /* A summary is what the reader chooses an item by, read down the list, so it is set
    * on the rung between the name's size and the label size of "To answer" beside it. */
-    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-summary {
+    [data-lf-down] > .lf-tabstrip .lf-tab-summary {
       grid-column: 1 / -1;
       grid-row: 2;
       padding: 0 5px;
@@ -838,7 +853,8 @@ lf-tabs[data-lf-views] > lf-tab {
       /* On a phone the list is a row that sticks over the open part as the page tabs'
      * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
      * reaches another part from anywhere in this one, and what sticks inside the part
-     * stacks under it. */
+     * stacks under it. Its tabs are names alone, as theirs are, so it stays one line
+     * high over the part. */
       @container lf-shell (width < 640px) {
         :scope:is(lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
           content: "";
@@ -866,7 +882,9 @@ lf-tabs[data-lf-views] > lf-tab {
           overflow-y: hidden;
           border-bottom: 1px solid var(--lf-border);
         }
-        :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-summary {
+        :scope:is(lf-parts)[data-lf-views]
+          > .lf-tabstrip
+          :is(.lf-tab-summary, .lf-tab-answer, .lf-tab-on-me) {
           display: none;
         }
         :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
@@ -974,8 +992,8 @@ lf-tabs[data-lf-views] > lf-tab {
         :scope:is(lf-tabs)
           > lf-tab:not([hidden]):has(
             > :nth-child(1 of :not(script, style, template)):nth-last-child(
-                1 of :not(script, style, template)
-              )
+              1 of :not(script, style, template)
+            )
           ) {
           flex: 1 1 0;
           display: flex;

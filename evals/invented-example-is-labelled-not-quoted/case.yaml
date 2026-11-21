@@ -23,12 +23,10 @@ vars:
     The facts, all checked against the code:
 
     - An agent runs `leaf thread summarize <page> --from <first> --through <last>
-      --file summary.md`. The thread then shows one collapsed "Earlier discussion"
-      block in place of those messages; the originals stay available to unfold.
+      --file summary.md`. The thread then shows the summary in place of those
+      messages; the originals stay available to unfold.
     - Replacement: a new summary replaces, whole, every summary in force that it
       overlaps by even one message.
-    - No gap: no message except the thread's first may stay unsummarized above a
-      summary. Leaf refuses such a range and names a wider one it accepts.
     - So summaries that touch but don't overlap both stand, and the only way a thread
       keeps one summary of its earlier discussion is for the new summary to overlap
       the old ones.

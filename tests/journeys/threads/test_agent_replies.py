@@ -21,8 +21,8 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     user's message as the agent goes on. The agent's progress line was said before the
     user's next message, so that message stands below it, both as the send draws it
     and once the log holds it; the agent's next step stands below the message, the
-    earlier one staying where it was, still. The answer then hides all earlier
-    progress, including steps separated by the user's message."""
+    earlier one staying where it was, still. The answer then ends both steps,
+    including the one above the user's message."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -70,7 +70,7 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     expect(faces.last).to_have_attribute("data-lf-live", "")
     expect(faces.last).to_have_text(re.compile("Reading the changelog"))
 
-    # The answer hides both runs, including progress before the user's interruption.
+    # The answer ends both steps, including the one above the user's message.
     answer = thread_model.post_reply(
         serve.page_dir,
         {"responds": asked["id"]},
@@ -78,7 +78,7 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     told(page)
-    # Removing progress above the user's message waits for their reveal, so the
+    # Ending the step above the user's message waits for their reveal, so the
     # existing words do not move while they read.
     page.locator(PANEL_NEWS).click()
     expect(view.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
@@ -87,6 +87,3 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
         "And the changelog?",
     ]
     expect(view.locator(".lf-thread-working")).to_have_count(0)
-    expect(
-        view.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)

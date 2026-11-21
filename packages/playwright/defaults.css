@@ -361,7 +361,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-bar[data-lf-active] {
   outline: 1px solid var(--lf-accent);
-  outline-offset: 0;
+  outline-offset: 0px;
 }
 .lf-trace-moment-pin[data-lf-current] {
   border-inline-start-color: var(--lf-accent);

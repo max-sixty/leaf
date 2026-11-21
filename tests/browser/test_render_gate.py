@@ -50,7 +50,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
-    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -512,7 +511,7 @@ def test_browser_like_console_words_remain_console_diagnostics(browser):
     [problem] = reported_browser_errors(page, text)
     assert problem.code == "console-error"
     assert problem.values == {"text": text, "url": ""}
-    assert str(problem) == text
+    assert problem.said == text
     page.evaluate(
         "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
     )
@@ -521,7 +520,28 @@ def test_browser_like_console_words_remain_console_diagnostics(browser):
         "text": "ordinary failure",
         "url": "http://page/author.js",
     }
-    assert str(problem) == "ordinary failure — http://page/author.js"
+    assert problem.said == "ordinary failure — http://page/author.js"
+
+
+def test_a_module_import_a_navigation_cuts_off_is_no_problem(firefox_browser, serve):
+    """Firefox says a module import failed to load where a reload cut it off, which
+    fails no reader, so the page's watch drops that report; an import the browser could
+    not complete is still one."""
+    page = open_page(firefox_browser, serve(leaf_page("Cut off", "<p>Words.</p>")))
+    load = """path => {
+      const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+      import(new URL(path, new URL(boot, location.href)).href).catch(() => {});
+    }"""
+    # A module the page hasn't loaded, held unanswered, so the reload cuts it off.
+    held = "runtime/validation.js?cut-off"
+    page.route(lambda url: url.endswith(held), lambda route: None, times=1)
+    with page.expect_request(lambda request: request.url.endswith(held)):
+        page.evaluate(load, held)
+    page.reload()
+    page.route("**/runtime/not-served.js", lambda route: route.abort(), times=1)
+    page.evaluate(load, "runtime/not-served.js")
+    [problem] = reported_browser_errors(page, "Loading failed for the module")
+    assert "not-served.js" in problem.values["text"], problem
 
 
 def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, serve):
@@ -644,7 +664,44 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) != "presented"
 
 
-def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
+def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
+    """A page whose deferred work lands a piece at a time is waited for however long
+    the whole takes, as a gallery's samples load on a starved machine, while a page
+    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
+    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
+    step_ms = EXPECTED_STALL_MS // 10
+    # Fifteen arrivals a step apart: one and a half bounds in all.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          for (let i = 1; i <= 15; i++)
+            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+        }""",
+        step_ms,
+    )
+    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+
+    # One arrival never lands, and above it each new one lands a step after the next
+    # has taken its place, so the arrivals left swing between two and three.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          deferredArrival(new Promise(() => {}));
+          window.churn = setInterval(() => {
+            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+          }, step);
+        }""",
+        step_ms,
+    )
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    page.evaluate("() => clearInterval(window.churn)")
+    assert unready.value.stage == "arrived", unready.value
+
+
+def test_an_async_reading_probe_leaves_the_page_unread_instead_of_awaited(
+    browser, serve
+):
     """Every shipped probe publishes a synchronous reading or readiness fact."""
     facade = (render_checks_model.PROBE_ROOT / "index.js").read_text()
 
@@ -661,15 +718,17 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
             ),
         )
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=3000
-    ).failures
+    )
+    unread = [finding for finding in reading.findings if finding.unread]
 
-    assert failures
+    assert unread
+    assert reading.failures == []
     assert all(
-        "probe invalidPaints must be synchronous" in failure.values["error"]
-        for failure in failures
-    ), f"an async reading has to name itself, and this came back as {failures}"
+        "probe invalidPaints must be synchronous" in finding.values["error"]
+        for finding in unread
+    ), f"an async reading has to name itself, and this came back as {unread}"
 
 
 SAMPLE_FAULT = (
@@ -744,17 +803,18 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
             "...globalThis.__leafRenderDriver, framePresented: () => false });"
         )
 
-    failures = render_gate_model.render_version(
+    reading = render_gate_model.render_version(
         primed(browser, stop_presenting_frames),
         serve(LONG_PAGE),
         served_timeout_ms=3000,
-    ).failures
+    )
+    unread = [finding for finding in reading.findings if finding.unread]
 
-    assert failures
+    assert unread
+    assert reading.failures == []
     assert all(
-        "no rendering update arrived within 3000ms" in f.values["error"]
-        for f in failures
-    ), failures
+        "no rendering update arrived within 3000ms" in f.values["error"] for f in unread
+    ), unread
 
 
 def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(
@@ -2086,15 +2146,18 @@ SCROLL_ALL_BACK = """() => {
 
 
 def into_the_page(page):
-    """Tab to a page control where `c` names its item rather than edits its text."""
+    """Tab to a page control where `c` reaches Leaf's comment, by the dispatcher's own
+    reading, rather than the control's text or typeahead."""
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
             const {focused} = await window.__lfWidgetApi();
-            const {takesLetters} = await window.__lfCheckApi();
-            const {closestAcross} = await window.__lfCheckApi();
+            const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
             const at = focused();
-            return Boolean(at && closestAcross(at, 'main') && !takesLetters(at));
+            if (!at || !closestAcross(at, 'main')) return false;
+            for (const [row, keys] of availableCommandRoutes())
+              if (row.id === 'comment.create' && keys.has('c')) return true;
+            return false;
         }"""):
             return True
     return False
@@ -2966,7 +3029,8 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     """macOS draws an overlay scrollbar over a scroller's own block end and widens it to
     a 15px track under the pointer, so a thread's code block, 8px of padding under its
     last line, would lose half that line to the bar the moment the user reached for it.
-    A code block or table that scrolls sideways keeps 15px clear under its last line,
+    A table, or a code block that keeps its lines (`white-space: pre`) where the theme
+    would wrap them, scrolls sideways and keeps 15px clear under its last line,
     and the room costs it none of its width: a block child would drop the code block's
     inline-end padding from what it scrolls, enough to stop a block that overflowed by
     less than that and loop. One that fits keeps the same clearance, so becoming
@@ -2975,8 +3039,9 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     wide = "word " * 60
     root = panel_comment(
         serve.page_dir,
-        f"A wide block:\n\n```\n{wide}\n{wide}\n```\n\nAnd one that fits:\n\n"
-        "```\nshort\n```",
+        "A wide block that keeps its lines:\n\n"
+        f'<pre style="white-space: pre"><code>{wide}\n{wide}</code></pre>'
+        "\n\nAnd one that fits:\n\n```\nshort\n```",
         {"section": "p"},
         author="agent",
     )
@@ -3021,7 +3086,7 @@ def test_horizontal_scrollbar_clearance_does_not_change_after_layout(
     """
     words = "0123456789" * 6
     boxes = {
-        "code": f"<pre>{words}</pre>",
+        "code": f'<pre style="white-space: pre">{words}</pre>',
         "table": f"<table><tr><td>{words}</td></tr></table>",
         "widget": f'<div style="overflow:auto hidden;white-space:pre">{words}</div>',
     }
@@ -3425,67 +3490,30 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     table = page.locator("#held")
     assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
 
-    squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
+    squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
 
     assert any(
         f["code"] == "squeezed-table" and f["at"] == "<table id=held>" for f in squeezed
     ), squeezed
 
 
-def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
+def test_a_table_held_open_by_a_cell_s_kept_spaces_is_reported_squeezed(
     browser, serve, subtests
 ):
-    """The theme contains a code block, so it asks what holds it for no width, and a box
-    sized to its content sizes without it: two short commands in a flex row would
-    show none of their lines, and `page check --render` would say nothing. The
-    gate's reading names each block left a few characters, at a phone's widths: in a
-    flex row, in an `auto` track beside an `fr` track, beside a heading that sets its
-    flex item's width, in a box sized to fit, in one of four `1fr` tracks, and in a
-    table cell, which the finding marks, since the table's own remedy applies there. A
-    width for the block can't help the tracks, so the words also offer letting them wrap
-    or stack, and cite the `page-layout.md` sections that give `layout-tiles` and a grid
-    that stacks below a width. A heading or a cell's label gives its holder the width
-    its font draws, so those holders' labels are three letters, which leaves their
-    blocks inside the floor in every font tried, where "Before" can leave more than the
-    floor under a Linux runner's serif.
-
-    The controls scroll long lines and read well, so the reading leaves them alone: a
-    block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
-    headings, whose bases grow with their lines, a `flex-grow` column beside a nav, a
-    block in a flex row given a fixed width, and a short line whose trailing spaces are
-    all that runs past the edge. The remedies hold: the four tracks stacked on a phone
-    show their whole lines, and the cell's command written as inline <code> breaks
-    inside its cell, so its table neither scrolls nor draws a finding.
-
-    A table still counts the spaces a cell keeps, which only a code block's lines leave
-    out: an Exit column whose `white-space: pre` cell ends in spaces holds the column
-    open, and the prose beside it wraps, which is a squeezed table."""
-    long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
-    longer = long.replace("5000 }", "5000, signal: controller.signal }")
+    """A table counts every character a cell keeps: an Exit column whose
+    `white-space: pre` cell ends in spaces holds the column open, and the prose beside
+    it wraps, which is a squeezed table. A command written as inline <code> breaks
+    inside its cell, so its table neither scrolls nor draws a finding. A code block
+    wraps its lines (reading.css, `pre`), so the reading names no code block, even one
+    four tracks narrow at a phone's width."""
     tracks = "".join(
         f'<pre id="four-{n}"><code>const {n} = await fetchAll();</code></pre>'
         for n in "abcd"
     )
     source = leaf_page(
-        "Code blocks and their holders",
-        f"""<h1>Code blocks and their holders</h1>
-<div class="row"><pre id="start"><code>npm start</code></pre><pre id="serve"><code>uv run serve</code></pre></div>
-<div class="tracks"><pre id="tracked"><code>make release</code></pre><p>From the root.</p></div>
-<div class="row"><div><h2>Run</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
-<div class="fitted"><h2>Run</h2><pre id="fitted"><code>uv run leaf-dev probe --state reading</code></pre></div>
+        "Tables and their spaces",
+        f"""<h1>Tables and their spaces</h1>
 <div class="four">{tracks}</div>
-<table><thead><tr><th>Run</th><th>What it does</th></tr></thead><tbody>
-<tr><td><pre id="celled"><code>uv run pytest -k squeeze</code></pre></td><td>Runs the squeeze tests.</td></tr>
-</tbody></table>
-<pre id="column"><code>{long}</code></pre>
-<div class="row"><div class="half"><pre><code>{long}</code></pre></div><div class="half"><pre><code>{long}</code></pre></div></div>
-<div class="halves"><pre><code>{long}</code></pre><pre><code>{long}</code></pre></div>
-<div class="row"><div class="version"><h2>Before</h2><pre><code>{long}</code></pre></div><div class="version"><h2>After</h2><pre><code>{longer}</code></pre></div></div>
-<div class="row"><nav><ul><li>Setup</li><li>Install</li></ul></nav><div class="main"><pre><code>{longer}</code></pre></div></div>
-<div class="row"><pre style="width: 20ch"><code>{long}</code></pre><p>Beside it.</p></div>
-<div class="four stacks">{tracks.replace('id="four-', 'id="stacked-')}</div>
-<pre style="box-sizing: content-box; inline-size: 6ch"><code>ls
-cd ..         </code></pre>
 <table id="spaced"><thead><tr><th>Step</th><th>What happened</th><th>Exit</th></tr>
 </thead><tbody><tr><td>test</td>
 <td>Ran the suite; three tests in the render gate failed on a fresh checkout.</td>
@@ -3493,50 +3521,21 @@ cd ..         </code></pre>
 <table id="inline"><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
 <tr><td><code>uv run pytest -k squeeze</code></td><td>Runs the squeeze tests.</td></tr>
 </tbody></table>""",
-        head="<style>.row { display: flex; gap: 16px; } .half { flex: 1; }"
-        " .version { flex: auto; } .main { flex-grow: 1; }"
-        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
-        " .halves { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }"
-        " .four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));"
-        " gap: 16px; }"
-        " @media (width < 720px) { .four.stacks { grid-template-columns: 1fr; } }"
-        " .fitted { width: fit-content; }</style>",
+        head="<style>.four { display: grid; grid-template-columns: repeat(4,"
+        " minmax(0, 1fr)); gap: 16px; }</style>",
     )
     page = open_page(browser, serve(source))
-    layout = (ROOT / "skills/leaf/references/page-layout.md").read_text()
     for width in (390, 360):
         with subtests.test(width=width):
             resized(page, width, 844)
-            assert page.locator(":not(.stacks) > pre").evaluate_all(
-                "(blocks) => blocks.every((b) => b.scrollWidth - b.clientWidth > 1)"
-            ), "a block that fits is never read, so it says nothing of the reading"
-            # The two remedies leave nothing to scroll.
-            for remedy in (".stacks > pre", "#inline"):
-                assert page.locator(remedy).evaluate_all(
-                    "(boxes) => boxes.every((b) => b.scrollWidth - b.clientWidth <= 1)"
-                ), remedy
-
+            assert page.locator("#inline").evaluate(
+                "(table) => table.scrollWidth - table.clientWidth <= 1"
+            )
             reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
-
-            squeezed = {
-                f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
-            }
-            blocks = ["start", "serve", "tracked", "labelled", "fitted", "celled"]
+            squeezed = {f["at"]: Finding.read(f) for f in reading["squeezed"]}
             assert {at: f.code for at, f in squeezed.items()} == {
-                **{f"<pre id={b}>": "squeezed-code" for b in blocks},
-                **{f"<pre id=four-{n}>": "squeezed-code" for n in "abcd"},
                 "<table id=spaced>": "squeezed-table",
             }, reading["squeezed"]
-            assert [at for at, f in squeezed.items() if f.values.get("cell")] == [
-                "<pre id=celled>"
-            ]
-            [cites] = re.findall(
-                r"\(page-layout\.md, ([^)]+)\)", str(squeezed["<pre id=four-a>"])
-            )
-            sections = re.findall(r'"([^"]+)"', cites)
-            assert sections, cites
-            for section in sections:
-                assert f"\n## {section}\n" in layout, section
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subtests):

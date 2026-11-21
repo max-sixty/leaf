@@ -5,7 +5,7 @@ A page records the packages and theme it selects in `layer.json`
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
 `../../skills/leaf/references/packages.md`, "Package contract"; `registry/layer.py`
-is the merge and `layer.selected_layer` holds the result for the process. The browser
+is the merge and `layer.selected_layer` holds the result. The browser
 runtime comes from the same Leaf (`runtime_selection.py`), so a page's widgets,
 theme, vocabulary and runtime always ship together. Each revision captures its
 authored content, its own declarations and modules, and names the selection, so an
@@ -127,5 +127,7 @@ The kernel registry, `browser/runtime/kernel-registry.json`, declares the other 
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
 header, and the classifications on each `$events.kinds` entry). It is part of the
 runtime, so both read the serving Leaf's copy, the browser through
-`runtime/kernel-facts.js`. Composition lays each layer over it, none is stamped for
-the browser to read, and a layer that changes one is refused.
+`runtime/kernel-facts.js`. Composition lays each layer over it and keeps the
+kernel's value of each, none is stamped for the browser to read, and the commands that
+check a layer's own declarations name a change to one to its author
+(`registry.layer.kernel_fact_advice`).

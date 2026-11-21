@@ -27,6 +27,7 @@ import {
   clippedPlace,
   fixedInWindow,
   inFront,
+  placeBox,
   placeHolder,
   seenRect,
   shownWindow,
@@ -232,31 +233,34 @@ export function glideGap(node) {
 // boxes around it (geometry.js, `seenRect`), or null where none of it is seen there.
 // The cuts of the boxes inside that one are read as they stand now, which holds unless
 // one of them glides too. A box Leaf anchors stands in no box the anchor's glide moves,
-// so the window alone cuts it there (`inFront`).
-/** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, outer: Element}} travel */
-export function seenGlided(node, box, travel) {
+// so the window alone cuts it there (`inFront`). `rest` reads the covers where they come
+// to rest too (geometry.js, `seenRect`).
+/** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, outer: Element}} travel @param {boolean} [rest] */
+export function seenGlided(node, box, travel, rest = false) {
   const holder = placeHolder(node);
   if (!holder) return null;
   const moved = shifted(box, travel.x, travel.y);
-  if (!renderedUnder(holder, travel.outer)) return inFront(moved, holder);
+  if (!renderedUnder(holder, travel.outer)) return inFront(moved, holder, rest);
   const inside = document.createRange();
   inside.selectNodeContents(travel.outer);
-  return seenRect(inside, new Map(), moved);
+  return seenRect(inside, new Map(), moved, rest);
 }
 
-// Whether any of `node` is in front of the user (geometry.js, `seenRect`) where the
-// glides under way leave it (`seenGlided`), since a key pressed while one runs acts as
-// though it had landed (user-place.js, `focusPlace`); with none, whether it is in front
-// now. This is where the reading of the page finds the block the user reads
+// Whether any of `node`, or of `box` measured through it, is in front of the user
+// (geometry.js, `seenRect`) where the glides under way leave it (`seenGlided`), since a
+// key pressed while one runs acts as though it had landed (user-place.js, `focusPlace`);
+// with none, whether it is in front now. `rest` reads the covers where they come to rest
+// too. This is where the reading of the page finds the block the user reads
 // (reading-place.js, `blocksOnScreen`), so a stop judged beside that block is judged
 // here too (`seenWhereRead`).
-/** @param {Element} node */
-export const seenLanded = (node) => landed(node, glideTravel(node));
-/** @param {Element} node @param {ReturnType<typeof glideTravel>} travel */
-function landed(node, travel) {
-  if (!travel) return Boolean(seenRect(node, new Map()));
-  const inner = clippedPlace(node, new Map(), undefined, travel.outer);
-  return Boolean(inner && seenGlided(node, inner, travel));
+/** @param {Element} node @param {Box} [box] @param {boolean} [rest] */
+export const seenLanded = (node, box = placeBox(node), rest = false) =>
+  landed(node, glideTravel(node), box, rest);
+/** @param {Element} node @param {ReturnType<typeof glideTravel>} travel @param {Box} [box] @param {boolean} [rest] */
+function landed(node, travel, box = placeBox(node), rest = false) {
+  if (!travel) return Boolean(seenRect(node, new Map(), box, rest));
+  const inner = clippedPlace(node, new Map(), box, travel.outer);
+  return Boolean(inner && seenGlided(node, inner, travel, rest));
 }
 // Whether `node` is seen where the glides under way leave it (`seenLanded`), or they
 // carry it toward the window (`glideGap`). Toward as well: the box of a card the walk is

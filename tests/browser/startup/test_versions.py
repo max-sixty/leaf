@@ -488,7 +488,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     rejected. Both readings come off the same log; here is where they have to
     agree in front of the user.
 
-    Then the same rule read the other way: `z` takes the reject back, the accept it
+    Then the same rule read the other way: ⌘Z takes the reject back, the accept it
     superseded is the widget's answer once more, and the thread closes under it. The
     two ways an answer stops being in force compose, and nothing is written down to say so:
     an `unresolve` posted where the thread reopened would be a second record of the

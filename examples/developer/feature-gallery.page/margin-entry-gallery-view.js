@@ -149,6 +149,14 @@ const GROUPS = [
         count: 3,
       },
       {
+        name: "News",
+        detail: "one reading, unread",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        unread: true,
+      },
+      {
         name: "Count and news",
         detail: "3 readings, one unread",
         icon: "comment",

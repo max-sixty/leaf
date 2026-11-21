@@ -143,8 +143,8 @@ and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for 
 tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
-the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
-shows, as its `::before`, turning with its state; the widget's own rules place it.
+the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
+its `::before`, turning with its state; the widget's own rules place it.
 
 ### Decisions and forwarded keys
 
@@ -172,19 +172,22 @@ absolutely, and writes the key into it while the key works. `leaf package check
 
 A list of focusable rows gets its arrow keys from `rowWalk({id, noun, plural, rows})`,
 whose two returned rows go into the list's scope: ArrowUp and ArrowDown step, Home and
-End reach the ends, and each step announces a position such as `Option 3 of 7`. `rows()`
-returns the list at each press, `landed(row)` runs after a move, and `scroll: false`
-keeps the page still.
+End reach the ends, and a step shows its position in Leaf's panel, such as `Entry 3 of
+7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
+runs after a move, and `scroll: false` keeps the page still.
 
 A row whose press carries the user along a list of its own, as a timeline's arrows
 carry a user on its step list to the new step's row, declares `lands(from)` ("Command
 rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
-`beginWalk(key, noun, read)` at each step and announces what it returns, such as
-`Hunk 3 of 7`. `read()` returns the position, usually from
-`listWalkPosition(items, current, {identity})`. A walk that comes round at its ends
-steps with `cycledRow(items, current, direction)`, which returns the item it lands on.
+`beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
+as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usually
+from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
+such as a chart's points or a tab strip, gives `list()`, its first and last stops;
+Leaf's panel then says nothing while both stand in view, since the focus ring shows
+where the step landed. A walk that comes round at its ends steps with
+`cycledRow(items, current, direction)`, which returns the item it lands on.
 
 ### Go-to targets
 
@@ -325,7 +328,7 @@ once each time the preview shows, with the route that asked: `"pointer"`, `"focu
 stands, so what it says follows the page without tracking its own inputs; words that
 come back the same leave the preview as it is. It returns:
 
-- `{name, keys, detail, list, at, about, excerpt}`, every field optional. `name`
+- `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
   lists presses the register can't see, each as the steps its chips draw, as a control's
@@ -335,7 +338,8 @@ come back the same leave the preview as it is. It returns:
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
-  beneath it. `about` is the element the preview is about, which Leaf leaves
+  beneath it. Readings standing by one element redraw in place as the aim moves among
+  them. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view, and the preview shows only while some
   of that box does, so a point scrolled out of view takes its preview with it, though
@@ -346,7 +350,9 @@ come back the same leave the preview as it is. It returns:
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
-  are hidden from sight and from a screen reader alike.
+  are hidden from sight and from a screen reader alike. `unseen: true` keeps the face
+  from sight where the element draws its own; its words still describe what has
+  focus.
 - `null` where the element adds nothing now, including where the words it would say
   already show on it or beside it: a control keeps its own preview, and the search goes
   on to what holds the element.

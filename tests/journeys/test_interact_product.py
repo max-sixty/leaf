@@ -12,7 +12,7 @@ from interact_support import (
     check,
     comment,
     found,
-    fragment_errors,
+    markup_findings,
     page_packages,
     page_state,
     publish,
@@ -34,7 +34,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     but the whole unreferenced group may leave a later revision."""
     registry = registry_storage.load_registry(page_dir)
     assert found(
-        fragment_errors(
+        markup_findings(
             '<lf-options settled><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
             registry,
         ),

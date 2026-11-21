@@ -5,16 +5,21 @@ import json
 import shlex
 import subprocess
 import time
+from typing import cast
 
+import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import STATED_TIMEOUT, neighbour_page, record_claim
+from interact_support import STATED_TIMEOUT, fetch, neighbour_page, record_claim
 
 from leaf import cli as cli_model
 from leaf import harness as harness_model
+from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf.detached import Handshake
+from leaf_dev.commands import preview
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
@@ -236,3 +241,174 @@ def test_page_list_names_each_page_and_the_session_holding_it(dead_pid):
             "session_alive": None,
         },
     ]
+
+
+@pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])
+@pytest.mark.parametrize("handoff", ["start", "run"])
+def test_failed_delivery_preserves_the_existing_preview(
+    page_dir, monkeypatch, failure, handoff
+):
+    """Failure before acceptance preserves both listener and original watcher."""
+    from leaf.harness import session_harness
+    from leaf.hosting import claim_and_start, cmd_serve, cmd_stop
+    from leaf.server import running_server
+    from leaf.service import page_claim
+
+    original = preview.PreviewService(page_dir, user=True)
+    with original.starting() as url:
+        pass
+    claim = page_claim(page_dir)
+    published = json.loads((page_dir / "service.json").read_text())
+
+    def refuse(_harness):
+        assert page_claim(page_dir) == claim
+        assert not original.ended
+        raise failure("delivery refused")
+
+    monkeypatch.setattr(type(session_harness()), "ensure_delivery", refuse)
+    try:
+        with pytest.raises(failure, match="delivery refused"):
+            if handoff == "start":
+                with claim_and_start(page_dir):
+                    pass
+            else:
+                cmd_serve(page_dir, harness=session_harness(), acquire=True)
+        assert page_claim(page_dir) == claim
+        assert not original.ended
+        assert json.loads((page_dir / "service.json").read_text()) == published
+        assert (current := running_server(page_dir)) is not None
+        assert current["url"] == url
+        assert fetch(url)[0] == 200
+    finally:
+        cmd_stop(page_dir)
+
+
+@pytest.mark.parametrize("refusal", ["layer", "cancel"])
+def test_failed_serving_preparation_never_publishes_a_takeover(
+    page_dir, monkeypatch, refusal
+):
+    """A takeover refused or cancelled in preparation leaves the original claim."""
+    from leaf.detached import StartRefused
+    from leaf.hosting import claim_and_start, cmd_stop
+    from leaf.service import page_claim
+
+    original = preview.PreviewService(page_dir, user=True)
+    with original.starting():
+        pass
+    claim = page_claim(page_dir)
+    cmd_stop(page_dir)
+    # Keep the original watcher/claim, with its server down. Its next revival is
+    # independent of a failed takeover's private preparation.
+    record = json.loads((page_dir / "service.json").read_text())
+    record["enabled"] = True
+    (page_dir / "service.json").write_text(json.dumps(record))
+    if refusal == "layer":
+        from interact_support import vendored_at_another_protocol
+
+        vendored_at_another_protocol(page_dir)
+    else:
+        from leaf import detached
+
+        def interrupted(_socket, _data):
+            assert page_claim(page_dir) == claim
+            assert not original.ended
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(detached.socket.socket, "sendall", interrupted)
+    try:
+        with (
+            pytest.raises(KeyboardInterrupt if refusal == "cancel" else StartRefused),
+            claim_and_start(page_dir),
+        ):
+            assert page_claim(page_dir) == claim
+            assert not original.ended
+        assert page_claim(page_dir) == claim
+        assert not original.ended
+    finally:
+        cmd_stop(page_dir)
+
+
+@pytest.mark.parametrize("refusal", ["abort_reuse", "ended_session", "new_generation"])
+def test_private_startup_keeps_previous_owner_until_acceptance(
+    page_dir, monkeypatch, refusal
+):
+    from leaf.detached import StartRefused
+    from leaf.hosting import claim_and_start, cmd_stop
+    from leaf.service import page_claim
+    from leaf.state import end_session, ensure_session
+
+    original = preview.PreviewService(page_dir, user=True)
+    with original.starting() as url:
+        pass
+    previous = page_claim(page_dir)
+    # A different harness is the candidate, so ending its session cannot itself end
+    # the original watcher while the candidate is still unpublished.
+    from leaf import harness
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
+    try:
+        expected = ValueError if refusal == "abort_reuse" else StartRefused
+        with pytest.raises(expected), claim_and_start(page_dir) as prepared:
+            assert previous is not None
+            assert prepared.claim["acquisition"] != previous["acquisition"]
+            assert page_claim(page_dir) == previous
+            assert not original.ended
+            if refusal == "abort_reuse":
+                raise ValueError("caller leaves before accepting reuse")
+            end_session(prepared.claim["id"])
+            if refusal == "new_generation":
+                harness_3 = harness.session_harness()
+                assert harness_3 is not None
+                ensure_session(prepared.claim["id"], harness_3.lifetime())
+        assert page_claim(page_dir) == previous
+        assert not original.ended
+        assert fetch(url)[0] == 200
+    finally:
+        cmd_stop(page_dir)
+
+
+def test_service_publication_failure_keeps_previous_preview_claim(
+    page_dir, monkeypatch
+):
+    from leaf import hosting
+    from leaf.harness import session_harness
+    from leaf.service import page_claim, prepare_claim
+    from leaf.state import write_json
+
+    original = preview.PreviewService(page_dir, user=True)
+    with original.starting():
+        pass
+    previous = page_claim(page_dir)
+    hosting.cmd_stop(page_dir)
+    published = json.loads((page_dir / "service.json").read_text())
+    published["enabled"] = True
+    write_json(page_dir / "service.json", published)
+    harness_2 = session_harness()
+    assert harness_2 is not None
+    intent = prepare_claim(harness_2, page_dir)
+
+    class Accepted:
+        def announce(self, _ready, *, commit):
+            commit()
+            return True
+
+    def unavailable(_directory, _record):
+        raise PermissionError("service cannot be published")
+
+    monkeypatch.setattr(hosting, "write_service", unavailable)
+    try:
+        with pytest.raises(PermissionError, match="service cannot be published"):
+            hosting.cmd_serve(
+                page_dir,
+                harness=session_harness(),
+                acquire=True,
+                prepared_claim=intent,
+                handshake=cast(Handshake, Accepted()),
+            )
+        assert page_claim(page_dir) == previous
+        assert not original.ended
+        assert not leases_model.lock_is_held(page_dir / "server.lock")
+        assert json.loads((page_dir / "service.json").read_text()) == published
+    finally:
+        monkeypatch.undo()
+        hosting.cmd_stop(page_dir)

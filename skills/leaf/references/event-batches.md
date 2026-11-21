@@ -79,8 +79,11 @@ as it stood at that rewrite.
 
 The batch's `threads` give each thread's title (null until named), anchor, whether
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A
-thread's history leaves out messages that are events in the batch, and a long thread
-shows only its opening and latest messages, with `elided` counting the rest; read
+thread moved off the words it quoted keeps the anchor it had, as `rewritten_from`
+where a revision rewrote them or `detached_from` where it was detached, and that
+anchor's `quote` holds the words the thread is about. A thread's history leaves out
+messages that are events in the batch, and a long thread shows only its opening and
+latest messages, with `elided` counting the rest; read
 the whole thread with `leaf page state <page> <message>`, paginated with
 `--after`. A long
 thread may also carry `summary_hint`

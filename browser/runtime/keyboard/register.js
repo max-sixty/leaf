@@ -30,7 +30,7 @@ watchCommandScopes(() => [
   ...[...scopes.values()].flat(),
   { rows: [...commands.values()] },
 ]);
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow-tree.js";
 import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
@@ -68,7 +68,8 @@ const STACK = [
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
   // holds is opened inside it: a view the floating panel opens in Design mode comes off
-  // first.
+  // first. A mode entered over a view comes off before it: the panel's rung yields to it
+  // (floating-panel.js, `openedIn`).
   "draw mode",
   "design mode",
   PAGE,
@@ -133,7 +134,7 @@ const PAGE_COMMANDS = [
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").Scope} Scope
- * @typedef {{title: string, description?: string, out: () => unknown, root?: Element | Document | null}} Rung
+ * @typedef {{title: string, description?: string, out: () => unknown, root?: Element | Document | null, waits?: boolean}} Rung
  */
 /** @type {Map<string, Scope[]>} */
 const scopes = new Map();
@@ -240,6 +241,8 @@ const BACK_OUT = {
     return step ? descriptionOf(step) : undefined;
   },
   when: () => Boolean(rung()),
+  // A step may wait for the page's listeners, as letting go of a control does (page.js).
+  waits: () => Boolean(rung()?.waits),
   run: () => rung()?.out(),
 };
 

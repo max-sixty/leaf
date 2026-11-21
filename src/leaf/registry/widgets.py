@@ -2,6 +2,7 @@
 
 from jsonschema.exceptions import SchemaError
 
+from leaf.findings import Finding
 from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
 
 from .contract import (
@@ -11,6 +12,7 @@ from .contract import (
     gathering,
     reference_relation_problem,
     registry_error,
+    registry_finding,
     require_module,
     state_specs,
 )
@@ -115,6 +117,57 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
     return isinstance(schema, dict) and schema.get("type") == kind
 
 
+def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Finding]:
+    """What the element declaration of `tag` in `registry`, read with its defaults
+    written in, advises its author, each finding naming the file `path`: a data
+    input's source attribute not declared a string, which `leaf data`'s own grammar
+    still checks; a measured input whose source or run receipt an instance may leave
+    out, so that instance is never compared with its source's latest run; a widget
+    that asks with no string `id` declared, which each instance's own check still
+    requires; and a `refers` relation no element in `declarations` can meet, which
+    each reference an instance makes still meets or is refused
+    (`reference-contract`)."""
+    entry = registry[tag]
+    properties = entry["attributes"].get("properties", {})
+    required = set(entry["attributes"].get("required", []))
+    found = []
+    for input_name, spec in entry.get("inputs", {}).items():
+        source_attr = spec.get("source")
+        if source_attr and not _typed(properties, source_attr, "string"):
+            found.append(
+                registry_finding(
+                    "data-source", path, tag, input=input_name, attr=source_attr
+                )
+            )
+        if (run_attr := spec.get("measured")) is None:
+            continue
+        if source_attr not in required:
+            found.append(
+                registry_finding(
+                    "measured-source", path, tag, input=input_name, attr=source_attr
+                )
+            )
+        run_schema = properties.get(run_attr)
+        if not (
+            run_attr in required
+            and isinstance(run_schema, dict)
+            and run_schema.get("type") == "string"
+            and run_schema.get("minLength", 0) >= 1
+        ):
+            found.append(
+                registry_finding(
+                    "measured-run", path, tag, input=input_name, attr=run_attr
+                )
+            )
+    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
+        found.append(registry_finding("addressable-id", path, tag, key="awaits"))
+    for attribute, reference in entry.get("refers", {}).items():
+        if problem := reference_relation_problem(reference, registry, declarations):
+            code, values = problem
+            found.append(registry_finding(code, path, tag, attr=attribute, **values))
+    return found
+
+
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> dict:
@@ -148,14 +201,9 @@ def _validate_widget_structure(
             )
     for input_name, spec in entry.get("inputs", {}).items():
         contract = spec["contract"]
-        source_attr = spec.get("source")
         if contract not in data["contracts"]:
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
-            )
-        if source_attr and not _typed(properties, source_attr, "string"):
-            raise registry_error(
-                "data-source", path, tag, input=input_name, attr=source_attr
             )
     for output_name, spec in entry.get("outputs", {}).items():
         if spec["contract"] not in data["contracts"]:
@@ -174,29 +222,6 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
             )
-    # A measured input joins the source's current run to the receipt the authored
-    # value was written with, so every element names both.
-    for input_name, spec in entry.get("inputs", {}).items():
-        run_attr = spec.get("measured")
-        if run_attr is None:
-            continue
-        source_attr = spec.get("source")
-        if source_attr not in required:
-            raise registry_error(
-                "measured-source", path, tag, input=input_name, attr=source_attr
-            )
-        run_schema = properties.get(run_attr)
-        if not (
-            run_attr in required
-            and isinstance(run_schema, dict)
-            and run_schema.get("type") == "string"
-            and run_schema.get("minLength", 0) >= 1
-        ):
-            raise registry_error(
-                "measured-run", path, tag, input=input_name, attr=run_attr
-            )
-    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
-        raise registry_error("addressable-id", path, tag, key="awaits")
     for key in ATTRIBUTE_FACTS:
         declared = entry.get(key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)
@@ -204,10 +229,6 @@ def _validate_widget_structure(
             raise registry_error(
                 "undeclared-attributes", path, tag, key=key, names=unknown
             )
-    for attribute, reference in entry.get("refers", {}).items():
-        if problem := reference_relation_problem(reference, registry, declarations):
-            code, values = problem
-            raise registry_error(code, path, tag, attr=attribute, **values)
     if isinstance(entry.get("visual"), dict):
         if not ("id" in required and _typed(properties, "id", "string")):
             raise registry_error("visual-id", path, tag)
@@ -321,16 +342,7 @@ def _validate_widget_interactions(
     awaits: dict,
     path,
 ) -> None:
-    if entry.get("work"):
-        if entry.get("inline"):
-            raise registry_error("work-inline", path, tag)
-        if entry.get("content") != "markup":
-            raise registry_error(
-                "work-content", path, tag, content=entry.get("content")
-            )
     answered = awaits.get("answered", {})
-    if entry.get("awaits") is not None and not answered:
-        raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):

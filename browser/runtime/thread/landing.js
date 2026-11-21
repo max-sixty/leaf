@@ -1,15 +1,25 @@
 /* Landing the user in a thread: which box a reply lands in, and where focus goes
    coming back out of one.
 
-   `backFromBox` and `currentLocationThread` climb the same thread relation, so
+   `backFrom` and `currentLocationThread` climb the same thread relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
    out is the thread it belongs to whichever of them put the user in it. A box standing
    in no drawn thread has none to hand back to; a widget control that explicitly enters
    it supplies the caller-owned return target through `landInThread`.
-   A reply's box keeps the caret through its send (replies.js); a first message, or a
-   rewrite, whose box goes with the send leaves focus on its thread's card or title
-   (`landSent`). Returning to the page is a separate navigation gesture. */
+
+   Send leaves the box by that same way out, onto its thread (`landSent`), whichever
+   box sent and whichever control sent it: a reply's box in a margin card, a seat or
+   the floating panel's field, a first comment's box, the panel's, a seat's or a
+   passage's, which the send gives up for the thread it starts, and a rewrite's, by
+   Save (message-edit.js). The user stands on the thread's card or seat, which wears
+   the focus ring, or the panel's view, which wears none (floating-panel.css), never in
+   the box and never on the page, so their next key acts there: Escape closes a card,
+   `t`, `m`, `j` and `d` walk, `r` resolves, and `c` or Enter opens the box again for a
+   follow-up. The user chose this over keeping the caret in the box for a quick
+   follow-up: a walk key pressed just after Send is far more common than words typed
+   on, and in the box it types a letter instead. Returning to the page is a separate
+   navigation gesture. */
 import { fitsWhole, scrollIntoView } from "../landing-scroll.js";
 import { seenRect } from "../geometry.js";
 import {
@@ -58,11 +68,23 @@ const backFromThread = (box) => (box ? (threadReturns.get(box) ?? null) : null);
 // standing outside any drawn thread hands back along the route the control that sent
 // the user into it supplied (`landInThread`); a visit reached by Tab still falls
 // through to the page's "let go".
-function backFromBox() {
-  const held = heldThread();
+/** @param {Element | null} box @returns {ReturnRoute | null} */
+function backFrom(box) {
+  const held = threadIn(box);
   if (held) return { target: wholeThread(held), line: "back to thread" };
-  const route = backFromThread(focused());
+  const route = backFromThread(box);
   return route?.target?.isConnected ? route : null;
+}
+const backFromBox = () => backFrom(focused());
+// Put the user where a box hands them back: its thread, or the route's target.
+/** @param {ReturnRoute} back */
+function goBack({ target }) {
+  if (!target.matches(THREAD)) {
+    focusDestination(target, "return");
+    scrollIntoView(target, { block: "nearest" });
+    return;
+  }
+  returnToThread(target);
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
 // thread it belongs to.
@@ -104,14 +126,7 @@ pageScope("text entry", {
         const back = backFromBox();
         dismissReplyAt(focused());
         blurFocused();
-        const target = back?.target;
-        if (!target) return;
-        if (!target.matches?.(THREAD)) {
-          focusDestination(target, "return");
-          scrollIntoView(target, { block: "nearest" });
-          return;
-        }
-        returnToThread(target);
+        if (back) goBack(back);
       },
     },
   ],
@@ -127,15 +142,22 @@ pageScope("text entry", {
 // would carry it, by the room the thread's focus ring asks at its foot or by bringing
 // back a head they scrolled above the window. A box the send gave up, as a seat's does
 // to the thread it starts, leaves nothing there to carry.
-// A send whose box goes, a first message's or a rewrite's, lands here too: it ends text
-// entry while keeping the user in the conversation, on its thread's focus stop; leaving
-// the card belongs to navigation, not Send.
 /** @param {Element} thread */
-export function returnToThread(thread) {
+function returnToThread(thread) {
   focusThread(thread, "return");
   if (!fitsWhole(thread) && seenRect(thread, new Map())) return;
   const box = threadReplyInput(thread);
   if (!(box && seenRect(box, new Map()))) scrollIntoView(thread, { block: "nearest" });
+}
+
+// Send ends text entry and keeps the user in the conversation (the header): from `node`,
+// the box sent from or the thread a send started, it hands them back as Escape from the
+// box does, keeping the draft's session, which the send's acceptance ends
+// (replies.js). Leaving the card belongs to navigation, not Send.
+/** @param {Element} node */
+export function landSent(node) {
+  const back = backFrom(node);
+  if (back) goBack(back);
 }
 
 // The thread whose card the user is on.

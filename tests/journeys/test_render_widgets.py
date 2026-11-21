@@ -21,11 +21,11 @@ from render_harness import (
     AVAILABLE_COMMANDS,
     RELEASE_FOCUS,
     CutOff,
+    held_frames,
     holding,
     leaf_page,
     open_page,
     opened_tab,
-    panel_menu,
     resized,
     round_trip,
     scroll_settled,
@@ -37,7 +37,7 @@ from render_harness import (
     write,
 )
 
-from browser.widgets import PLAYGROUND_PAGE
+from browser.widgets import PLAYGROUND_PAGE, expect_accept_all
 from journeys import first_thread_head
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -48,15 +48,6 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def expect_accept_all(page, words):
-    """The leaf's menu offers accepting every remaining suggestion, by its count; read
-    the row enabled and put the menu away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]')
-    expect(row).to_have_text(words)
-    expect(row).to_be_enabled()
-    page.locator(".lf-fp-leaf").click()
 
 
 MOTION_SAMPLE_CONTENT = """
@@ -83,11 +74,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and beside the name its obligation's state: an open
-    mark while the obligation is unanswered, then a check and the picked option's title, said
-    in the tab's description too. Answered is the log's reading, so an undo puts the
-    open mark back once its answer is adopted, and the agent settling the question
-    keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    panel's summary under its name, and its obligation's state: On Me's symbol at the end
+    of the name's line while the obligation waits on the user, then a check and the
+    picked option's title under the summary, said in the tab's description too. Answered
+    is the log's reading, so an undo puts On Me's symbol back once its answer is
+    adopted, and the agent settling the question keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
     holds."""
 
     BOARD = (
@@ -157,12 +148,14 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
-    expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    on_me = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-on-me")
+    expect(on_me).to_be_visible()
+    expect(answer).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
+    expect(on_me).to_be_hidden()
     expect(tabs.first).to_have_accessible_name("Ticket a")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. Answered: Fix"
@@ -206,18 +199,18 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     holding(page, held, 1, "the undo")
     expect(answer).to_have_attribute("data-lf-obligations", "answered")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    expect(on_me).to_be_visible()
+    expect(answer).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -415,8 +408,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still above the room
-    the floating panel keeps at the window's foot, through the document's end."""
+    The track sticks, so once the reader scrolls the map stands still, filling its
+    track, until its sidebar ends or a footer below the sidebar comes in."""
     source = leaf_page(
         "contents map",
         """
@@ -464,16 +457,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     expect(start).to_have_attribute("aria-current", "location")
     expect(nav.locator(".lf-toc-rows")).to_have_css("display", "flex")
     expect(prepare).to_have_css("opacity", "0")
-    motion = prepare.evaluate(
+    fade = prepare.evaluate(
         "node => { const s = getComputedStyle(node); "
-        "return {property: s.transitionProperty, duration: s.transitionDuration, "
-        "timing: s.transitionTimingFunction}; }"
+        "const at = s.transitionProperty.split(', ').indexOf('opacity'); "
+        "return at < 0 ? null : s.transitionDuration.split(', ')[at]; }"
     )
-    assert motion == {
-        "property": "color, opacity",
-        "duration": "0.12s, 0.24s",
-        "timing": "ease-out, ease-out",
-    }
+    assert fade not in (None, "0s"), f"the labels show without a fade: {fade}"
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
@@ -775,9 +764,11 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
     # Once its track sticks, the map stays put through the rest of its sidebar, its
-    # start in view where the sidebar ends and its foot above the panel's room.
+    # start in view where the sidebar ends, and fills its track less the track's focus
+    # room, above the panel's room.
     panel_box = page.locator(".lf-fp-card").bounding_box()
     assert panel_box is not None
+    track = page.locator("#route > .layout-track")
     sidebar_end = page.locator("#route").evaluate(
         "node => node.parentElement.getBoundingClientRect().bottom "
         "+ document.scrollingElement.scrollTop - innerHeight"
@@ -792,9 +783,30 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         box = nav.bounding_box()
         assert box is not None
         assert box["y"] >= 0, box
-        assert box["y"] + box["height"] <= panel_box["y"] + 1, (box, panel_box)
+        foot = box["y"] + box["height"]
+        assert foot <= panel_box["y"] + 1, (box, panel_box)
+        track_box = track.bounding_box()
+        assert track_box is not None
+        assert foot == pytest.approx(track_box["y"] + track_box["height"] - 8, abs=1)
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
+
+    # A footer below the sidebar ends the room its track sticks in, so at the page's end
+    # the map stands above the footer rather than over it.
+    page.locator(".layout-sidebar").evaluate(
+        "sidebar => sidebar.insertAdjacentHTML('beforeend', "
+        "'<footer id=\"route-end\"><p>Last revised in March.</p></footer>')"
+    )
+    page.evaluate(
+        "document.scrollingElement.scrollTo({"
+        "top: document.scrollingElement.scrollHeight, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    footer_box = page.locator("#route-end").bounding_box()
+    box = nav.bounding_box()
+    assert footer_box is not None and box is not None
+    assert box["y"] + box["height"] <= footer_box["y"], (box, footer_box)
+    page.locator("#route-end").evaluate("node => node.remove()")
 
     # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
@@ -808,34 +820,39 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         page.locator("#route > .layout-track").evaluate("node => node.scrollTop") == 0
     )
 
-    # Map travel keeps the user oriented rather than teleporting. Start recording
-    # on the click so preparing the gesture cannot exhaust the frame sequence.
-    verify.evaluate("""link => {
-      document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
-      window.lfTocFrames = [];
-      link.addEventListener('click', () => {
-        const sample = () => {
-          window.lfTocFrames.push(document.scrollingElement.scrollTop);
-          if (window.lfTocFrames.length < 90) requestAnimationFrame(sample);
-        };
-        sample();
-      }, {once: true});
-    }""")
+    # Map travel keeps the user oriented rather than teleporting. The glide runs for a
+    # fixed time (scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
+    # after it ends shows a jump; holding the frame clock steps it a frame's length per
+    # frame, so the frames sampled show the same glide on any host.
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)
     expect(verify).to_have_css("opacity", "1")
-    page.mouse.click(verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2)
-    expect(page).to_have_url(re.compile(r"#verify$"))
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+    top = "() => document.scrollingElement.scrollTop"
+    frames = [page.evaluate(top)]
+    with held_frames(page) as step:
+        page.mouse.click(
+            verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2
+        )
+        expect(page).to_have_url(re.compile(r"#verify$"))
+        for _ in range(300):
+            step()
+            frames.append(page.evaluate(top))
+            if frames[-1] > 0:
+                break
+        else:
+            raise AssertionError(f"the glide never set off: {frames}")
+        # Twenty frames of the held clock run well past SCROLL_MS.
+        for _ in range(20):
+            step()
+            frames.append(page.evaluate(top))
     scroll_settled(page)
-    frames = page.evaluate("window.lfTocFrames")
-    travelled = [position for position in frames if position > 0]
-    # The glide runs for a fixed time (scrolling.js, `SCROLL_MS`), so how many frames
-    # show it depends on the machine's frame rate; one frame between the start and the
-    # destination is what tells a glide from a jump.
-    assert len({round(position) for position in travelled}) >= 2, frames
-    assert all(left <= right for left, right in pairwise(travelled)), frames
+    destination = page.evaluate(top)
+    assert frames[-1] == destination, (frames, destination)
+    assert any(0 < position < destination for position in frames), frames
+    assert all(left <= right for left, right in pairwise(frames)), frames
 
     start_href = start.get_attribute("href")
     assert start_href is not None
@@ -1173,7 +1190,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
         "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
     )
     expect(rejected).to_be_hidden()
-    expect_accept_all(second, "Accept all (2)")
+    expect_accept_all(second, 2)
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -1187,7 +1204,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
-    expect_accept_all(second, "Accept all (1)")
+    expect_accept_all(second, 1)
     unfolded_button(
         third.locator(
             "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=reject]"
@@ -1293,10 +1310,6 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
     page.keyboard.press("Escape")
 
 
-import pytest
-
-
-@pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize("destination", ["call", "patch"])
 def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
     """Light-DOM data and its shadow-DOM destination keep exact identity."""

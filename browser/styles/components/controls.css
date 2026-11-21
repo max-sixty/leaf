@@ -67,7 +67,7 @@
   border: 1px solid transparent;
   border-radius: var(--lf-chip-r);
   font: var(--lf-font-chip);
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
 }
 
 .lf-react {
@@ -193,9 +193,7 @@
 }
 /* The room stays whole where something stands before it that the words would
    otherwise run under, a notice of news (surfaces.css), and under a finger, where the
-   controls always show. A progress disclosure comes before the completed answer's
-   reaction trigger, so the room holds the trigger's width from the disclosure's first
-   paint and its arrival moves no label. */
+   controls always show. */
 .lf-msg-head:has(> .lf-primary-news) > .lf-msg-control-room,
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -208,11 +206,6 @@
   .lf-msg-control-room {
     min-inline-size: auto;
   }
-}
-.lf-msg-head:has(> .lf-progress-expand)
-  > .lf-msg-control-room:has(> .lf-msg-controls:empty) {
-  display: flex;
-  inline-size: var(--lf-msg-control-width);
 }
 /* Under a finger, with no hover to hide it, Copy would stand on every message for
    good, and a head is too narrow for two controls at the aim floor, so it is left out
@@ -273,7 +266,9 @@ svg[data-lf-icon] {
    whole thread. An open rewrite's Discard and Save take the thread's place past the
    gap (response.css), so the rule leaves with it. It stands past the head's end rather
    than its controls', since a card short of room for a held notice of news lets them
-   run past the head into that gap (thread-card.js, `#fitLineNews`). */
+   run past the head into that gap (thread-card.js, `#fitLineNews`). A margin card
+   ends both sets of controls its symbol end further in (`--lf-margin-symbol-end`,
+   annotation-chrome.css), so the rule moves in with them. */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )
@@ -285,7 +280,9 @@ svg[data-lf-icon] {
   &::after {
     content: "";
     position: absolute;
-    inset-inline-start: calc(100% + var(--lf-sp-2) / 2);
+    inset-inline-start: calc(
+      100% + var(--lf-sp-2) / 2 - var(--lf-margin-symbol-end, 0px)
+    );
     inset-block-start: 50%;
     translate: -50% -50%;
     inline-size: 1px;
@@ -412,25 +409,27 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   color: var(--lf-muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
-   the On Me mark, the folded leaf and a margin entry. */
+   the leaf and a margin entry. */
 .lf-unread-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--lf-news);
 }
-/* Where nothing has news, the On Me mark and the folded leaf wear it grey for a draft
-   the user put away (floating-panel.js, `keptDrafts`). */
+/* Where nothing has news, the leaf wears it in a faint grey for
+   a draft the user put away (floating-panel.js, `keptDrafts`; tokens.css,
+   `--lf-draft`). */
 .lf-unread-dot[data-lf-drafts] {
-  background: var(--lf-muted);
+  background: var(--lf-draft);
 }
 /* A control's badges: a count, and dots for news and for an error, on the top edge of
    the folded leaf and of a margin entry. They stand in one row, so no badge covers
-   another whichever show. The count holds a corner, the dots stand side by side at the
-   other corner, and where no count shows the dots take the count's corner. The user
-   chose that arrangement for the folded leaf. Rejected: a rule per badge seating it on
-   a corner of its own, which let one badge cover another wherever two rules chose the
-   same corner, as the unread dot covered a margin entry's count.
+   another whichever show. The count holds one corner and the dots stand side by side
+   at the other, with room between them (`::after`), so a dot stays where it is as a
+   count comes and goes. The user chose that over dots that took the count's corner
+   where no count showed. Rejected: a rule per badge seating it on a corner of its own,
+   which let one badge cover another wherever two rules chose the same corner, as the
+   unread dot covered a margin entry's count.
 
    The row runs left to right whatever the page's direction, since its carriers stand
    at the window's right and a pin keeps its count off the window's edge. A carrier
@@ -453,13 +452,19 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   align-items: start;
   gap: 2px;
 }
+.lf-badges::after {
+  content: "";
+  flex: 1 0 0;
+  order: 1;
+}
 .lf-badges > * {
   flex: none;
   box-shadow: 0 0 0 2px var(--lf-paper);
 }
 .lf-badges > .lf-badge-count {
+  order: 2;
   margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0
-    auto;
+    0;
   min-width: 17px;
   height: 17px;
   padding: 0 5px;
@@ -602,38 +607,35 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   /* Paper has no press to open what a page puts behind a gesture, so it prints open:
      a shut <details>, and whatever a widget folds with `hidden="until-found"`,
      such as an inactive tab or a settled group's cards. Each is hidden by content-visibility, so that is what says otherwise; the
-     marker goes because paper has nothing to turn. A page that means a disclosure to
+     marker goes, the browser's and Leaf's arrow alike, because paper has nothing to
+     turn. A page that means a disclosure to
      stay shut on paper says so in its own stylesheet, at a weight this does not
      contest. */
   details:not([open])::details-content,
   [hidden="until-found"] {
     content-visibility: visible;
   }
-  :where(summary):is(summary, .lf-disclosure-marker)::before,
+  summary {
+    list-style: none;
+  }
   .lf-disclosure-marker::before {
     visibility: hidden;
   }
 }
-/* Leaf's one disclosure arrow, on every summary and on every aria-expanded button that
-   opens what follows it (`.lf-disclosure-marker`, for a row whose layout draws no
-   marker): Leaf's chevron (icon-paths.js, `next`), drawn as its icons are, pointing
-   along the text when closed and turned down when open. It replaces the browser's
-   marker, which each engine draws its own way: Firefox draws a triangle a few pixels
-   wide that the user read as a dot beside a 12px label. It floats
+/* Leaf's disclosure arrow, on each summary Leaf draws and each aria-expanded button
+   that opens what follows it (`.lf-disclosure-marker`): Leaf's chevron (icon-paths.js,
+   `next`), drawn as its icons are, pointing along the text when closed and turned down
+   when open. It replaces the browser's marker, which each engine draws its own way:
+   Firefox draws a triangle a few pixels wide that the user read as a dot beside a 12px
+   label. A summary the page's author wrote keeps the browser's marker. The arrow floats
    before the words, centred on their first line with a space's room after it, so a
    summary's leading white space still collapses as it did beside the native marker;
    a flex or grid row's own rules place it and colour it. Paper draws it no more than
    the native marker (above), but keeps its room, since a grid row may place its cells
    after it. */
-summary,
 .lf-disclosure-marker {
   list-style: none;
 }
-:where(summary):is(summary, .lf-disclosure-marker)::-webkit-details-marker,
-.lf-disclosure-marker::-webkit-details-marker {
-  display: none;
-}
-:where(summary):is(summary, .lf-disclosure-marker)::before,
 .lf-disclosure-marker::before {
   content: "";
   float: inline-start;
@@ -646,37 +648,23 @@ summary,
     center / contain no-repeat;
   forced-color-adjust: none;
 }
-:where(summary):is(summary, .lf-disclosure-marker):dir(rtl)::before,
 .lf-disclosure-marker:dir(rtl)::before {
   scale: -1 1;
 }
-:where(summary):is(
-    details[open] > summary,
-    details[open] > .lf-disclosure-marker,
-    .lf-disclosure-marker[aria-expanded="true"]
-  )::before,
 :where(.lf-disclosure-marker):is(
-    details[open] > summary,
     details[open] > .lf-disclosure-marker,
     .lf-disclosure-marker[aria-expanded="true"]
   )::before {
   rotate: 90deg;
 }
 /* Turned after its mirror, so it turns the other way to point down. */
-:where(summary):is(
-    details[open] > summary,
-    details[open] > .lf-disclosure-marker,
-    .lf-disclosure-marker[aria-expanded="true"]
-  ):dir(rtl)::before,
 :where(.lf-disclosure-marker):is(
-    details[open] > summary,
     details[open] > .lf-disclosure-marker,
     .lf-disclosure-marker[aria-expanded="true"]
   ):dir(rtl)::before {
   rotate: -90deg;
 }
 @media (prefers-reduced-motion: no-preference) {
-  :where(summary):is(summary, .lf-disclosure-marker)::before,
   .lf-disclosure-marker::before {
     transition: rotate var(--lf-motion-disclosure) ease-out;
   }
@@ -892,6 +880,19 @@ summary,
  * state in its own ink, such as Send or Resolve (response.css), states that ink after
  * this rule, at least as heavily. Its grid lays out what it holds, such as the On Me
  * mark's symbol and count, which the library's centring would pack together. */
+/* How far a symbol's glyph stands in from its face's edge: half of what the face holds
+   beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
+   (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
+   this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
+   for a word, and a scroller holding such a seat keeps this much room at its sides,
+   and a focus ring's beyond it.
+   Under a finger the box is wider than the face, so the glyph stands inside the edge
+   by the difference. The symbol states it again, so a surface that sets its own face
+   gets its own inset. */
+:root,
+.lf-icon-action {
+  --lf-symbol-inset: calc((var(--lf-icon-action-face) - 16px) / 2 + 3px);
+}
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
@@ -910,10 +911,18 @@ summary,
   color: var(--lf-accent);
 }
 /* A symbol whose menu, picker or popover is open (`aria-expanded`), such as a
-   message's reaction picker or the panel's leaf menu, keeps the chip while it shows. */
+   message's reaction picker, keeps the chip while it shows. */
 .lf-icon-action[aria-expanded="true"] {
   background: var(--lf-chip);
   color: var(--lf-ink);
+}
+/* A symbol that carries badges (`.lf-badges`, above), as the panel's leaf does, draws
+   no ground: neither the library's fill under a hovering or pressing pointer nor the
+   chip while what it opens shows. Its badges stand over its top edge, where a
+   ground's edge would meet them, and the view it opens shows what it opened. The user
+   chose the bare leaf over its tile. */
+.lf-icon-action:has(> .lf-badges) {
+  background: none;
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
    of words of its own; the button inside fills the face and takes the press. The host
@@ -945,6 +954,12 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-accent);
   color: var(--lf-accent);
   background: var(--lf-chip);
+}
+/* A selection the page shows only in part (`data-lf-partial`), as Skim once the reader
+   opens a gap it folded: the border steps back while the words keep the accent, since
+   fainter words read as a disabled control. */
+.lf-btn:is([aria-pressed="true"], [aria-checked="true"])[data-lf-partial] {
+  border-color: rgb(from var(--lf-accent) r g b / 40%);
 }
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked settled, as a chosen answer is (below). */
@@ -1267,7 +1282,7 @@ wa-copy-button.lf-icon-action {
   scroll-margin-block: var(--lf-focus-ring-landing);
   /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
      (`--lf-margin-gap`), closer than a control's ring reaches. */
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   /* The raised face a pressable entry wears, beneath any pulse that rings it. */
   --lf-entry-lift: 0 1px 0 var(--lf-border), var(--lf-raise-1);
 }
@@ -1484,10 +1499,11 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-border);
 }
 /* A draft's entry, words the user wrote here and hasn't sent (the `draft` kind,
-   contribution-model.js), wears the muted grey the On Me mark's dot wears for a draft
-   (`.lf-unread-dot[data-lf-drafts]`), in the rail and as a pin, so it reads apart from
-   a thread's entry in the thread's colour. The user chose the grey over a dashed
-   contour. */
+   contribution-model.js), draws its symbol in the muted grey, in the rail and as a
+   pin, so it reads apart from a thread's entry in the thread's colour. The user chose
+   the grey over a dashed contour. It stands a step further from the ground than the On
+   Me mark's dot for a draft (`--lf-draft`), since a press's symbol needs the muted ink
+   to read as one. */
 .lf-margin-face[data-lf-kinds="draft"] {
   --lf-entry-ink: var(--lf-muted);
 }
@@ -1516,7 +1532,7 @@ wa-copy-button.lf-icon-action {
 .lf-response-control[data-lf-focus-visible],
 .lf-response-face[data-lf-focus-visible] {
   outline: var(--lf-focus-ring);
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   border-color: transparent;
   --lf-wears-ring: 1;
 }
@@ -1599,7 +1615,7 @@ wa-copy-button.lf-icon-action {
   color: var(--lf-muted);
   box-shadow: none;
   cursor: pointer;
-  outline-offset: 0;
+  outline-offset: 0px;
 }
 :where(button).lf-mark-action:hover,
 .lf-mark-action.lf-ui::part(button):hover {
@@ -1697,7 +1713,7 @@ wa-copy-button.lf-icon-action {
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
   width: auto;
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -1726,7 +1742,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -1734,7 +1750,7 @@ wa-copy-button.lf-icon-action {
 
 /* The inline face, for a press read as part of the line of words it stands in, such
    as a thread's held news, the activity feed's notice, the floating panel's Next
-   unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
+   unread. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
    pointer. One announcing news waiting (`data-lf-news`) keeps the accent the
    unread dot wears, as the user chose over the danger ink, which read
@@ -1762,14 +1778,25 @@ wa-copy-button.lf-icon-action {
 :where(button).lf-inline-action[data-lf-tone="warn"] {
   color: var(--lf-warn-ink);
 }
-/* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
-   does at the floating panel field's end, wears their face, as the word and key that
-   enter the box do, and says by its pointer alone that it takes a press: the user chose
-   that the right side of a box holds its shortcut in one format. */
+/* One standing among quieter words (`data-lf-hint`) wears their face: a passing
+   notice's Undo among a box's empty words at the floating panel field's end, as the
+   word and key that enter the box do, saying by its pointer alone that it takes a
+   press, since the user chose that the right side of a box holds its shortcut in one
+   format; a summary's count at its head; and a quote's label where it opens the
+   whole quote (surfaces.css), which a hovering pointer underlines as it does any
+   inline press. */
 .lf-inline-action[data-lf-hint] {
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+/* One that opens the item its words name elsewhere (`data-lf-link`), as a promise's
+   Still to do opens its row in On Claude, is underlined at rest as a link is, at the
+   offset a hovering pointer gives the rest. The user chose that over a chevron after
+   the word and over a symbol in its place. */
+.lf-inline-action[data-lf-link] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
    which a finger's tap leaves behind too, and so does one among a box's empty words,

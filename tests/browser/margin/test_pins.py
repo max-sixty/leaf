@@ -28,7 +28,7 @@ from browser.margin import (
 )
 from leaf.render_checks import rendered
 from leaf_dev.browser import WINDOWS
-from leaf_dev.commands.placement import pins as pin_cases
+from leaf_dev.commands.placement import _pin_cases as pin_cases
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1070,7 +1070,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     rendered(page)
     compare("a scroll and a sent comment")
 
-    resolve.click()
+    press_visible(page, resolve)
     rendered(page)
     compare("a resolve")
 

@@ -127,12 +127,12 @@ export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
-// the newest it holds. Before it says one, and once the work stalls, the workflow's word.
-/** @param {Workflow | null | undefined} workflow @param {string} agent */
-export const workflowStep = (workflow, agent) =>
+// the newest it holds. Before it says one, and once the work stalls, none.
+/** @param {Workflow | null | undefined} workflow */
+export const workflowStep = (workflow) =>
   progressFace(workflow) === "working" && workflow?.detail
     ? agentSays(workflow.detail)
-    : workflowWord(workflow, agent);
+    : null;
 
 /** @param {Workflow} workflow @param {number | null} revision */
 export const isPageWidgetWorkflow = (workflow, revision) =>

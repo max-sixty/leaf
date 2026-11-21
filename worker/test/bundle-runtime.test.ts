@@ -42,7 +42,6 @@ describe("published runtime bundle", () => {
       for (const entry of [
         "layer-client",
         "media",
-        "panel-stand-in",
         "widget-api",
         "portable-api",
         "check-api",
@@ -164,12 +163,7 @@ describe("published runtime bundle", () => {
         await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       const verifier = await readFile(
-        fileURLToPath(
-          new URL(
-            "../../dev/leaf_dev/commands/site/verify_browser.js",
-            import.meta.url,
-          ),
-        ),
+        fileURLToPath(new URL("../../dev/leaf_dev/website.js", import.meta.url)),
         "utf8",
       );
       for (const [, name] of verifier.matchAll(/runtimeModule\("([^"]+)"\)/g)) {

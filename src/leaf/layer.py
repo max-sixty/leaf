@@ -1,8 +1,9 @@
 """Layer input resolution, composition, and content identity.
 
-A selection has two compositions, each held for the process by the inputs it
-resolves to. Its vocabulary (`selected_vocabulary`, `LayerVocabulary`) is all a
-reader of the page needs, merged and stamped but not validated. The full composition
+A selection has two compositions, held together by the inputs it resolves to, for
+the process or in the page's memory (`_held`). Its vocabulary (`selected_vocabulary`,
+`LayerVocabulary`) is all a reader of the page needs, merged and stamped but not
+validated. The full composition
 (`selected_layer`, `LayerComposition`) is built over that vocabulary, validates its
 registry, and reads and validates every sheet and module the layer serves;
 `validation.command.cmd_check` and
@@ -13,8 +14,8 @@ import hashlib
 import json
 import re
 import subprocess
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache
 from pathlib import Path
@@ -23,7 +24,7 @@ from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
-from .page_memory import once
+from .page_memory import Stamped, memo, once
 from .refusals import Refused
 from .registry.contract import MODULES, is_element_name
 from .registry.kernel import kernel_protocol
@@ -61,6 +62,21 @@ def named_package(name: str) -> Path | None:
     return bundled if bundled.is_dir() else None
 
 
+def selectable_packages() -> dict[str, Path]:
+    """Each package a bare name selects, in name order, resolved as
+    `named_package` resolves it: an installed package in place of a bundled one of
+    its name."""
+    names = {path.name for path in BUNDLED_PACKAGES.iterdir() if path.is_dir()}
+    installed = package_store() / "names"
+    if installed.is_dir():
+        names |= {path.name for path in installed.iterdir()}
+    return {
+        name: root
+        for name in sorted(names)
+        if (root := named_package(name)) is not None
+    }
+
+
 def resolve_packages(selected: tuple[str, ...], base: Path) -> list[Path]:
     """Resolve package selections without changing their order.
 
@@ -76,8 +92,9 @@ def resolve_packages(selected: tuple[str, ...], base: Path) -> list[Path]:
             named = named_package(value)
             if named is None:
                 raise Refused(
-                    f"unknown package {value!r}; run `leaf package install` to add "
-                    f"it, or use './{value}' for a project-relative package path"
+                    f"unknown package {value!r}; `leaf package list` prints the names "
+                    f"this machine can select, or use './{value}' for a "
+                    "project-relative package path"
                 )
             if named != DEFAULT_PACKAGE:
                 packages.append(named)
@@ -145,55 +162,45 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
 
 
 def input_paths(inputs: list[Path]) -> list[Path]:
-    """Every path a layer input reads, including nested symlink targets."""
-    paths = []
-    for root in inputs:
-        paths.append(root.resolve())
-        paths.extend(
-            path.resolve()
-            for name in (KERNEL_FILES if root == ASSETS else PACKAGE_FILES)
-            if ((path := root / name).exists() or path.is_symlink())
-        )
-        paths.extend(
-            imported
-            for sheet in sorted(root.glob("*.css"))
-            for imported in imported_sheets(sheet, root)
-        )
-        for sub in PACKAGE_DIRS:
-            directory = root / sub
-            if not (directory.exists() or directory.is_symlink()):
-                continue
-            paths.append(directory.resolve())
-            if directory.is_dir():
-                entries = (
-                    directory.iterdir()
-                    if sub == INSTRUCTIONS_DIR
-                    else directory.rglob("*")
-                )
-                paths.extend(path.resolve() for path in entries)
-    return paths
+    """Every path the layer inputs read, each symlink resolved to its target:
+    each input's root and its `_input_entries`."""
+    return [path.resolve() for root in inputs for path in (root, *_input_entries(root))]
 
 
 def package_files(root: Path) -> dict[str, bytes]:
-    """The files of package `root` a layer composes (`checked_inputs`), by their path
-    in the package: its top files, every sheet one of its sheets imports, wherever in
-    the package that stands (`stylesheet`), and its directories. A copy of a package
-    is these files, so a page's copy and an installed one compose as the source does."""
+    """The files of package `root` a layer composes (`_input_entries`), by their path
+    in the package. A copy of a package is these files, so a page's copy and an
+    installed one compose as the source does."""
     root = root.resolve()
-    files = {}
-    for name in PACKAGE_FILES:
-        if not (root / name).is_file():
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in _input_entries(root)
+        if path.is_file()
+    }
+
+
+def _input_entries(root: Path) -> Iterator[Path]:
+    """What layer input `root` holds that a layer reads (`checked_inputs`): its top
+    files, every sheet one of its sheets imports, wherever in the input that stands
+    (`stylesheet`), and each of its directories with what it holds. Each path is
+    listed whatever its kind, a dangling symlink included; `package_files` keeps the
+    files."""
+    for name in KERNEL_FILES if root == ASSETS else PACKAGE_FILES:
+        path = root / name
+        if not (path.exists() or path.is_symlink()):
             continue
-        files[name] = (root / name).read_bytes()
-        if name.endswith(".css"):
-            for imported in imported_sheets(root / name, root):
-                files[imported.relative_to(root).as_posix()] = imported.read_bytes()
+        yield path
+        if name.endswith(".css") and path.is_file():
+            yield from imported_sheets(path, root)
     for sub in PACKAGE_DIRS:
-        if (root / sub).is_dir():
-            for path in sorted((root / sub).rglob("*")):
-                if path.is_file():
-                    files[path.relative_to(root).as_posix()] = path.read_bytes()
-    return files
+        directory = root / sub
+        if not (directory.exists() or directory.is_symlink()):
+            continue
+        yield directory
+        if directory.is_dir():
+            yield from sorted(
+                directory.iterdir() if sub == INSTRUCTIONS_DIR else directory.rglob("*")
+            )
 
 
 def overlapping_inputs(inputs: list[Path]):
@@ -648,10 +655,6 @@ class LayerVocabulary:
     registry: dict
     widgets: frozenset[str]
     instructions: dict[str, bytes]
-    # What readers derive from this vocabulary, such as a revision's
-    # (`registry.storage.revision_vocabulary`), held for as long as it is, each
-    # made once (`page_memory.once`).
-    readings: dict = field(default_factory=dict, repr=False)
 
 
 @dataclass(frozen=True, eq=False)
@@ -691,51 +694,67 @@ def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerCompositio
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
-    its own runtime (`runtime_selection`). Held for the process, since a plugin
-    update may replace the tree under a running server, which keeps answering with
-    the bytes it started with. Held by the package roots the selection resolves to
-    rather than its spelling, since a page's own copy is another directory in another
-    page, and an installed name another snapshot after `package install`; and a
-    page's copy by its stamp too, since its next `page init` replaces it in place."""
-    return _composed(*_selection(packages, page_dir))
+    its own runtime (`runtime_selection`). The layer is held by the package roots
+    the selection resolves to rather than its spelling, since an installed name
+    resolves to another snapshot after `package install`; `_held` says for how
+    long."""
+    inputs, held = _held(packages, page_dir)
+    return once(
+        held,
+        "layer",
+        lambda: _composition(
+            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, held)
+        ),
+    )
 
 
 def selected_vocabulary(packages: tuple[str, ...], page_dir: Path) -> LayerVocabulary:
     """The vocabulary of the layer `selected_layer` composes for the same selection,
-    without reading the layer's files. Held for the process, as the layer is."""
-    return _vocabulary(*_selection(packages, page_dir))
+    without reading the layer's files, held with that layer."""
+    return _vocabulary(*_held(packages, page_dir))
 
 
-def _selection(
-    packages: tuple[str, ...], page_dir: Path
-) -> tuple[tuple[Path, ...], tuple]:
-    """The inputs a selection resolves to, and the stamps of the page's own copies
-    among them: what `selected_layer` and `selected_vocabulary` hold a layer by."""
+def _vocabulary(inputs: tuple[Path, ...], held: dict) -> LayerVocabulary:
+    return once(
+        held, "vocabulary", lambda: compose_vocabulary(checked_inputs(list(inputs)))
+    )
+
+
+class _Layers(Stamped):
+    """Layers by the inputs they compose (`_held`)."""
+
+
+_shared = _Layers()
+
+
+def _held(packages: tuple[str, ...], page_dir: Path) -> tuple[tuple[Path, ...], dict]:
+    """The inputs a selection resolves to, and what is kept of the layer they compose.
+
+    A selection of shared package roots alone, the kernel's and the bundled and
+    installed packages', is held for the process, since a plugin update may replace
+    the tree under a running server, which keeps answering with the bytes it started
+    with. A selection that includes a copy the page holds of a package it selects by
+    path is a reading of that page, held in the page's memory (`page_memory`) beside
+    the copy's stamp, since the page's next `page init` replaces the copy in place, and
+    beside the shared layers, since `forget_layers` replaces those. The layer read
+    under either's new stamp replaces the one before it, and goes when the page's
+    memory does; a page's server holds that memory for its life
+    (`server_rows.RowPublisher`)."""
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
-    return inputs, copies
+    if not copies:
+        return inputs, _shared.of(inputs, ())
+    return inputs, memo(page_dir, _Layers).of(inputs, (_shared, copies))
 
 
-_vocabularies: dict = {}
-_compositions: dict = {}
-
-
-def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
-    return once(
-        _vocabularies,
-        (inputs, copies),
-        lambda: compose_vocabulary(checked_inputs(list(inputs))),
-    )
-
-
-def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return once(
-        _compositions,
-        (inputs, copies),
-        lambda: _composition(
-            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
-        ),
-    )
+def forget_layers() -> None:
+    """Drop every layer and vocabulary this process holds (`selected_layer`), and the
+    Leaf it read itself to be (`running_leaf`), which a layer names as its producer
+    (`runtime_selection.forget_tree`). A layer kept in a page's memory was kept beside
+    the shared layers this drops (`_held`), so the page's next read composes it again."""
+    global _shared
+    _shared = _Layers()
+    running_leaf.cache_clear()
 
 
 def files_identity(files: dict[str, bytes]) -> str:

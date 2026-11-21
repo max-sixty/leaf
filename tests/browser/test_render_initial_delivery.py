@@ -8,8 +8,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
-    latest_press,
     leaf_page,
+    open_latest,
     open_page,
     stamp_page,
     told,
@@ -259,9 +259,7 @@ def test_native_input_survives_progressive_render_revision_and_export(
         )
         stamp_page(serve.page_dir, revised, "Revise widget inputs and defaults")
         told(page)
-        latest = latest_press(page)
-        expect(latest).to_contain_text("Open latest")
-        latest.click()
+        open_latest(page)
         expect(page.locator("#proof .proof-control")).to_have_text("revised")
         expect(page.locator("#early-details")).to_have_attribute("open", "")
         expect(page.locator("#authored-default")).to_have_attribute("open", "")
@@ -281,8 +279,7 @@ def test_native_input_survives_progressive_render_revision_and_export(
         revised = revised.replace("Authored evidence.", "Revised evidence.")
         stamp_page(serve.page_dir, revised, "Revise the slotted evidence")
         told(page)
-        expect(latest).to_contain_text("Open latest")
-        latest.click()
+        open_latest(page)
         expect(page.locator("#prose")).to_have_text("Revised evidence.")
         assert page.evaluate(
             "proofButton===document.getElementById('proof').shadowRoot.querySelector('button')"

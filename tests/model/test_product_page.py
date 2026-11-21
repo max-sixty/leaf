@@ -4,7 +4,6 @@ import json
 import re
 import shlex
 from pathlib import Path
-from typing import get_args
 
 import click
 from click.testing import CliRunner
@@ -13,7 +12,6 @@ from unidiff import PatchSet
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import forks as forks_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
@@ -28,7 +26,6 @@ from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
 
 
@@ -134,7 +131,9 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     registry = complete_declarations(load_registry(page_dir) | entry)
 
     registry_validation.validate_registry(registry, "package tutorial")
-    validation_model.validate_registry_examples(registry, "package tutorial")
+    assert (
+        validation_model.declaration_advice(entry, registry, "package tutorial") == []
+    )
 
 
 # The event log is How it works' "Event log" tab.
@@ -360,19 +359,6 @@ def test_the_event_log_page_quotes_the_registry():
     }
 
 
-def test_how_it_works_lists_the_judgments_and_endings_forks_keeps():
-    """How it works' Forks tab names each judgment the line fork can answer
-    (`forks.ANSWER`) in its sorting table, and each outcome `forks.ended` gives a
-    thread in its endings table, so a judgment or outcome added to the code fails
-    here until the tab says what it means."""
-    tree = SourceDocument(named_source("how-it-works").read_text()).tree
-    answer: dict = forks_model.ANSWER
-    judgments = {code.text for code in tree.select("table#sorting-table td code")}
-    assert judgments == set(answer["properties"]["work"]["enum"])
-    endings = [code.text for code in tree.select("table#endings tbody th code")]
-    assert sorted(endings) == sorted(get_args(forks_model.Ending))
-
-
 def test_every_command_the_docs_show_is_one_leaf_has():
     """A shown command is a promise the user will type it.
 
@@ -403,25 +389,11 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk from the root Click group, past a
-        group's own options, as `leaf --turn <turn> thread reply` passes `--turn`."""
+        """The subcommand path these tokens walk from the root Click group."""
         command, path = cli_model.cli, []
-        tokens = iter(tokens)
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
-            option = next(
-                (
-                    p
-                    for p in command.params
-                    if isinstance(p, click.Option) and token in p.opts
-                ),
-                None,
-            )
-            if option is not None:
-                if not option.is_flag:
-                    next(tokens, None)
-                continue
             sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break

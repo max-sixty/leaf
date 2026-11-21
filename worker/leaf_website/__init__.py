@@ -109,7 +109,7 @@ if TYPE_CHECKING:
 
 PORT = 8080
 # The model every hosted task runs on. Its threads are titled on Codex's title
-# model (`thread_titles.CODEX_TITLE_MODEL`).
+# model (`inference.CODEX_MODEL`).
 HOSTED_MODEL = "gpt-6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
@@ -900,8 +900,7 @@ class WebsiteCodexHarness:
                         log_agent(
                             "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
-                            error=type(error).__name__,
-                            detail=str(error),
+                            **fault_fields(error),
                         )
                 if not restarted:
                     if turn.correction is not None:
@@ -1407,6 +1406,9 @@ def released_path(pages: dict, path: str) -> str | None:
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
 
+    # Every website endpoint serves its site's release.
+    release: str
+
     def __init__(
         self,
         request,
@@ -1450,8 +1452,14 @@ class WebsitePageEndpoint(PageEndpoint):
     def _delivery_headers(self) -> dict[str, str]:
         # Every response this adapter sends is already inside this user's private
         # container. Say so at the canonical HTTP boundary as the outer Worker does;
-        # the local adapter has no Worker in front of it to add the same reading.
-        return {"Leaf-Session": "active", **super()._delivery_headers()}
+        # the local adapter has no Worker in front of it to add the same reading. Each
+        # also names the release this image runs, which the tab holds to its
+        # document's (`layer-client.js`).
+        return {
+            "Leaf-Session": "active",
+            "Leaf-Release": self.release,
+            **super()._delivery_headers(),
+        }
 
     def _delivery(self, artifact, revision: int) -> Delivery:
         return replace(
@@ -1461,13 +1469,14 @@ class WebsitePageEndpoint(PageEndpoint):
 
     def _published_root(self, revision: int) -> str | None:
         """Where the release publishes a revision's resources beside the runtime it
-        runs (`live_shell`), for a revision the release published; None for one a
-        user's session created in this container, which serves its own."""
+        runs (`live_shell`), for a revision file the release published; None for any
+        other, such as one the user's session created or one an earlier release
+        published, which this container serves itself."""
         page = self.pages[self.page_root or "/"]
-        if str(revision) not in page["states"]:
-            return None
         name = self._revision_name(revision).removesuffix(".html")
-        return f"{page['assets']}/revisions/{name}"
+        return (
+            f"{page['assets']}/revisions/{name}" if name in page["revisions"] else None
+        )
 
     # A published revision's documents and samples load its graph from the release, so
     # a page the container saved while asleep needs no container to load it.
@@ -1637,21 +1646,17 @@ def close_on_signal(httpd: LeafHTTPServer, agent_harness: WebsiteCodexHarness) -
     that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
-    signal it was sent rather than turning it into an ordinary return. First it saves
-    the drafts the page store lacks (`storage.save_drafts`), since a stop is how a
-    sleeping or replaced container ends, and the next restores only what was saved. It
-    closes the listening socket before that, so a request arriving meanwhile is
+    signal it was sent rather than turning it into an ordinary return. It closes the
+    listening socket first, so a request arriving while the App Server closes is
     refused at once, as after the process ends, rather than waiting on a listener
     nothing serves.
     """
-    from leaf_website.storage import save_drafts
 
     def stop(signum, _frame):
         httpd.server_close()
         try:
-            save_drafts()
-        finally:
             agent_harness.close()
+        finally:
             signal.signal(signum, signal.SIG_DFL)
             signal.raise_signal(signum)
 
@@ -1670,6 +1675,7 @@ def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
+    from leaf_website.stalls import watch_stalls
     from leaf_website.storage import PUBLISHER, restore
 
     if restore(site_root):
@@ -1678,6 +1684,7 @@ def main(port: int) -> None:
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(httpd, agent_harness)
+    watch_stalls(httpd.server_address[1], log_agent)
     agent_harness.prewarm()
     try:
         httpd.serve_forever()

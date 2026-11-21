@@ -21,13 +21,13 @@ from render_harness import (
     cursor_over,
     delivered,
     expect_design_mode,
-    field_press,
     leaf_page,
     open_page,
     open_threads,
     panel_settled,
     resized,
     sending,
+    stance_exit,
     told,
     write,
 )
@@ -865,7 +865,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
-    exit_mode = field_press(page).filter(has_text="Close")
+    exit_mode = stance_exit(page)
     expect(exit_mode).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1151,8 +1151,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    # Out of Draw mode, by the Close at the panel field's end, to reach Threads.
-    field_press(page).filter(has_text="Close").click()
+    # Out of Draw mode, by the ✕ at the panel row's end, to reach Threads.
+    stance_exit(page).click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}

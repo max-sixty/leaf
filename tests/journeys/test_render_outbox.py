@@ -56,7 +56,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         pass
     leaf = page.locator(".lf-fp-leaf")
     expect(leaf).to_have_attribute(
-        "aria-label", "Page menu · This tab lost access — open the link again"
+        "aria-label", re.compile(r" · This tab lost access — open the link again$")
     )
     expect(page.locator(PANEL_THREAD)).to_contain_text("Words the server never read")
     # The leaf's menu says what the user can do about it, and that the tab stays open.
@@ -93,7 +93,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     """An undo names a gesture, and what the page owes afterwards is the unit's state
     *now* — the fold minus that gesture — not the state that stood before it at the
     time. The two differ whenever the withdrawn action is no longer the unit's last
-    word, which two tabs reach without trying: one presses `z` on the move it knows
+    word, which two tabs reach without trying: one presses ⌘Z on the move it knows
     about while the other has already moved the same card past it, and the door takes
     it, recency not being a thing an event can be checked for.
 
@@ -115,7 +115,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     round_trip(stale)
     expect(mover.locator("#col-done #card-baffle")).to_have_count(1)
 
-    # Hold the first tab's reading of the log where it is, so its `z` names the move
+    # Hold the first tab's reading of the log where it is, so its ⌘Z names the move
     # it knows about while the second tab moves the same card on past it.
     cut = CutOff().hold(stale)
     # Back to the list it came from and up past its neighbour, which is neither where
@@ -136,13 +136,13 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
 
     # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
     # what it sends can never come back to it. The offer the helper waits on first is
-    # the part that still applies — a press made before the dispatcher takes `z` is one
+    # the part that still applies — a press made before the dispatcher takes ⌘Z is one
     # it refuses.
     stale.evaluate(AVAILABLE_COMMANDS)
     stale.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
-    stale.keyboard.press("z")
+    stale.keyboard.press("ControlOrMeta+z")
     # The server answering the post is the fact this wait consumes.
     _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
     cut.restore()

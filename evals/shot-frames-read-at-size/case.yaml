@@ -26,8 +26,8 @@ vars:
     and scrolled to the collapsed rows. The gaps sit between the rows at y 622 to 800,
     across the diff's full width. The captures are:
 
-        evals/shot-frames-read-at-size/captures/before.png  (main)
-        evals/shot-frames-read-at-size/captures/after.png   (the branch)
+        captures/before.png  (main)
+        captures/after.png   (the branch)
 
     Write the Leaf page's section on the gaps, with its before/after pair.
 assert:

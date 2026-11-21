@@ -43,7 +43,7 @@ import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor } from "../reading-regions.js";
 import { edgeAt, returnTo } from "../scroll-containers.js";
-import { under } from "../shadow.js";
+import { under } from "../shadow-tree.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { standsAt } from "../user-place.js";
@@ -209,21 +209,21 @@ export function scrollThreadIntoView(
 }
 
 // Taken as the user sends, before the send draws anything; the step it returns is taken
-// once the send has left the user `currentLocation`: in a reply's box, which keeps the
-// caret (replies.js), or on the seat holding a persistent box. The box the user sent from is
-// under their aim, and Send and the caret stand at its foot. In flow, its new turn
-// grows the thread just above it, so the box goes down by what the turn adds, less what
-// the emptied box gives back, as an append region lets it (`browser/
-// AGENTS.md`, "The page holds still under the user's aim"), until its foot meets the band's foot, the line typing keeps
-// it within (`revealWritingArea`); a foot already past that line stays where it stood.
+// once the send has left the user on the thread (landing.js, `landSent`). The box the
+// user sent from was under their aim, and Send and the caret stood at its foot. In flow,
+// its new turn grows the thread just above it, so the box goes down by what the turn
+// adds, less what the emptied box gives back, as an append region lets it
+// (`browser/AGENTS.md`, "The page holds still under the user's aim"), until its foot
+// meets the band's foot, the line typing keeps it within (`revealWritingArea`); a foot
+// already past that line stays where it stood.
 // Rejected: landing the thread around the box, which aimed at the thread's foot and its
 // focus ring's room while the thread fitted and at the row's foot once it did not, so
 // the box stepped by the line between them; and holding the box where it stood, which
 // carried every turn above it up by the new one even with room below. A row pinned to
 // its scroller's foot, or below a separate transcript, stands still by itself and its
 // turn lands at the transcript's end; a box out of view lands the thread around it.
-// Nothing lands once a newer gesture has taken the user away from `currentLocation`, and a box
-// the send removed has handed the user on already.
+// Nothing lands once a newer gesture has taken the user away from where the send left
+// them, and a box the send removed has handed the user on already.
 // The sent turn lands without animation: fitting can change the transcript's room in
 // the next update, and an in-flight pixel destination would outlive the room it named.
 // The geometry owner then preserves the landed end while it fits that room. A floating
@@ -244,11 +244,8 @@ export function sendLanding(input) {
     reply && !pinnedReply(reply) && !separateTranscript(held) && alreadyShown(reply)
       ? { row: reply, ...read(reply) }
       : null;
-  return (currentLocation = held) => {
-    const mayLand = retainUserIntent({
-      source: currentLocation,
-      available: () => held.isConnected,
-    });
+  return () => {
+    const mayLand = retainUserIntent({ available: () => held.isConnected });
     void whenDocumentPresented()
       .then(() => {
         if (!mayLand() || !input.isConnected) return;

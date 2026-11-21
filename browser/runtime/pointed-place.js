@@ -36,11 +36,10 @@ import { resolveAnchor } from "./anchor-resolution.js";
 import { inChrome, pageReadingVersion } from "./passages.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
-import { isElement, isText } from "./shadow-tree.js";
-import { upFrom, under } from "./shadow.js";
+import { isElement, isText, upFrom, under } from "./shadow-tree.js";
 
 // A sent comment's point by its thread's key: `{ element, passage, row, readFor }`.
-/** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: object | null}} HeldPoint */
+/** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: number | null}} HeldPoint */
 /** @type {Map<string, HeldPoint>} */
 const points = new Map();
 // Points a send has handed over (`commitPoint`), until the pass takes them in.
@@ -132,7 +131,7 @@ export function commitPoint(key, element, passage) {
 /** @param {Iterable<{key: string, target: Element | null}>} threads @param {ReadonlySet<string>} known */
 export function placePoints(threads, known) {
   // Which page reading stands is asked only for a point to find again.
-  /** @type {object | undefined} */
+  /** @type {number | undefined} */
   let text;
   for (const [key, { element, passage }] of handed) {
     if (!known.has(key)) continue;

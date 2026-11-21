@@ -182,12 +182,13 @@ def test_inspection_counts_prose_words_apart_from_collapsed_ones(page_dir):
         )
     )
     report = cmd_inspect(page_dir, compare_to=1)
-    # The table's short cells and the code count nothing; its sentence-long cell
-    # counts.
+    # The table's sentence-long cell counts as prose; its short cells and the closed
+    # disclosure's summary are scanned; the code counts nothing.
     assert report["words"]["shown"] == 14 + 12 + 13 + 12
     assert report["comparison"]["words"] == {
         "shown": 12 + 13 + 12,
         "collapsed": 15 + 12,
+        "scanned": len("Key Meaning gap The rule".split()),
     }
 
 

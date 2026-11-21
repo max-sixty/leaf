@@ -1,0 +1,14 @@
+name: Use Ubuntu's own archive
+description: Point apt at archive.ubuntu.com and security.ubuntu.com instead of the runner cloud's regional mirror.
+runs:
+  using: composite
+  steps:
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # The image lists its cloud's regional mirror first (Azure's or AWS's,
+        # configure-apt-sources.sh in actions/runner-images), and either can keep
+        # transferring too slowly to trigger apt's inactivity timeout. Keep only
+        # archive.ubuntu.com and security.ubuntu.com, which it lists after it.
+        # https://github.com/actions/runner-images/issues/12949
+        sudo sed -i -E '\#://[^/]+\.archive\.ubuntu\.com/#d' /etc/apt/apt-mirrors.txt

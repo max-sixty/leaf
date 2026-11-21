@@ -520,10 +520,13 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
         expect(focused).to_be_focused()
         assert focused.evaluate(face)["outline"] == "solid"
         assert focused.evaluate(face)["ring"] != resting_face["ring"]
-    expect_panel_says(page, "Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
-    expect_panel_says(page, "Response 1 of 7")
+    # The options stand whole around the ring, so a step says no position.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
+    )
     assert (
         surface.locator(".lf-fab-input:visible, .lf-react:visible").evaluate_all(
             """els => new Set(els.map(el => {
@@ -558,7 +561,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
         page.locator('.lf-command-reference-command[data-lf-command="history.undo"]')
     )
     assert any(
-        re.match("^Undo: shorten reaction on “The store is capped.* · ", line)
+        re.match("^Undo: shorten reaction on “The store is capped.*” \\S", line)
         for line in said
     ), said
     page.keyboard.press("Escape")
@@ -615,7 +618,6 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     choices.first.focus()
     page.keyboard.press("ArrowRight")
     expect(reaction).to_be_focused()
-    expect_panel_says(page, "Reaction 2 of 6")
     if opener == "click":
         with sending(page, "the direct reaction"):
             reaction.click()
@@ -2539,7 +2541,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 
-def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
+def test_undo_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
     """A reaction someone has answered is the user's to take back, as one nobody has
     answered is. Taking it back
     draws its place in the thread Deleted in the press, before the log answers, above
@@ -2569,7 +2571,7 @@ def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serv
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
     expect(root.locator(".lf-react-said")).to_have_count(0)
     expect(thread).to_contain_text("Which part — the case, or the answer?")

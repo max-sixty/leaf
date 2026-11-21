@@ -46,9 +46,15 @@
    and keeps the old quote in the thread, where the quote was all of the datum's words;
    a passage within a datum, captured with words of it around the quote, stands nowhere
    on the page once its words are gone. A different source makes the placement
-   outdated; a duplicate key detaches rather than guessing. A selection crossing a datum's
-   edge is kept as a detached quote (`{section, quote, detached: true}`): each datum is
-   fenced in the page's reading, so no search could find those words together.
+   outdated; a duplicate key detaches rather than guessing. A selection running from one
+   datum into a later one the widget drew from the same value, as a drag across lines of a
+   diff does, names the datum it ends in as `datum`, beside which a widget that seats
+   threads by its data seats the thread, and the one it starts in as `from`. Its
+   `prefix` is read from the first datum's words and its `suffix` from the last's, and it
+   is found again in the words from the one to the other. Any other selection
+   crossing a datum's edge is kept as a detached quote (`{section, quote, detached:
+   true}`): each datum is fenced in the page's reading, so no search could find those
+   words together.
 
    `data-lf-projection`, `data-lf-origin`, `data-lf-source`, `data-lf-source-revision`
    and `data-lf-gen` are written here alone, never authored in a version, and a datum is
@@ -67,7 +73,8 @@
 
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
-import { composedParentNode, queryAllUnder } from "../shadow.js";
+import { queryAllUnder } from "../shadow.js";
+import { composedParentNode } from "../shadow-tree.js";
 import { keeps } from "../keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
@@ -169,8 +176,8 @@ export function createDataProjection({ invalidateDom }) {
     const who = `<${root.localName} id=${root.id}>`;
     /** @param {Element} node */
     const stampBasis = (node) => {
-      keeps(node, "data-lf-source", snapshot?.source ?? null);
-      keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
+      keeps(node, PAGE_PAINT_ATTRIBUTE.source, snapshot?.source ?? null);
+      keeps(node, PAGE_PAINT_ATTRIBUTE.sourceRevision, snapshot?.revision ?? null);
     };
     stampBasis(root);
     keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
@@ -221,8 +228,8 @@ export function createDataProjection({ invalidateDom }) {
       if (!nodes.has(node)) {
         node.removeAttribute("data-lf-gen");
         node.removeAttribute("data-lf-projection");
-        node.removeAttribute("data-lf-source");
-        node.removeAttribute("data-lf-source-revision");
+        node.removeAttribute(PAGE_PAINT_ATTRIBUTE.source);
+        node.removeAttribute(PAGE_PAINT_ATTRIBUTE.sourceRevision);
         node.removeAttribute("data-lf-origin");
         unmirror(node);
       }

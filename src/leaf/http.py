@@ -14,7 +14,8 @@ A document runs this process's browser runtime (`runtime_selection`), whose iden
 is part of the address of the resources a document loads (`assets_path`) and is named
 on every answer (`Leaf-Runtime`) and on every write a tab sends, so a tab running
 another runtime reads and writes nothing here. A website release already names its
-runtime, so a release answers by its release alone.
+runtime, so its answers name none, and the edge in front of it names the release
+(`worker/src/index.ts`).
 """
 
 import hashlib
@@ -222,22 +223,30 @@ def page_delivery(
 
     The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
     and starts under the import map its layer modules resolve through and the runtime
-    bootstrap with its server incarnation probe, so historical
+    bootstrap with its server incarnation probe, beside the floating panel's row the
+    bootstrap stands from the first paint, so historical
     sources inherit the current delivery boundary without carrying delivery markup
     themselves. A keyed top-level page declares its share address here, including
     on a bare-URL reload. Disposable samples and public website documents have no
     such address. `write_live_shell` delivers published documents the same way.
 
     `probe` is where a tab asks whether its source has moved on to another layer or
-    release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
-    recovery), so its answer must name the layer or release a fresh document would
-    start under. It defaults to the page's `/registry.json`, whose answer names its
-    release. `runtime_identity` is the runtime a host without a release serves the
+    release (`bootstrap.js`'s startup recovery, and for a layer `layer-client.js`'s
+    `sourceMovedOn`), so its answer must name the layer or release a fresh document
+    would start under. It defaults to the page's `/registry.json`, whose answer names
+    its release. `runtime_identity` is the runtime a host without a release serves the
     document with (`runtime_selection`), which the tab holds every answer to.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
-    runtime = runtime_settings(
+    # The floating panel's row, which the bootstrap stands after `body` from the first
+    # paint until the panel takes it over (build/panel-row.mjs), inert in a template.
+    row = runtime_element(
+        "template",
+        {"data-lf-panel-row": True},
+        resources["/runtime/panel-row.html"].data.decode(),
+    )
+    runtime = row + runtime_settings(
         resources["/runtime/bootstrap.js"].data.decode(),
         layer=layer_id,
         page_root=page_root,
@@ -573,9 +582,7 @@ class PageEndpoint:
         answer = (
             scoped
             if self.page_snapshot is not None
-            else tail_answer(
-                scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
-            )
+            else tail_answer(scoped, self.headers.get("Leaf-Held-Basis"), self.page_dir)
         )
         if "since" not in answer and (
             self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
@@ -632,11 +639,12 @@ class PageEndpoint:
         explains.
         """
         self.housekeeping = True
+        drafts = self.source.drafts()
         return self._json_body(
             {
                 "reading": self.source.news(),
                 "pages": pages_reading(self.source.other_pages()),
-                "drafts": self.source.drafts()["version"],
+                "drafts": {"store": drafts["store"], "version": drafts["version"]},
             }
         )
 
@@ -708,9 +716,7 @@ class PageEndpoint:
         ) or self.path in {"/registry.json", "/"}:
             headers["Leaf-Layer"] = self.response_layer
             headers["Leaf-Server"] = self.server.server_id
-            if self.release is not None:
-                headers["Leaf-Release"] = self.release
-            else:
+            if self.release is None:
                 headers["Leaf-Runtime"] = serving_runtime().identity
         if self.set_cookie:
             headers["Set-Cookie"] = (

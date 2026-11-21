@@ -1,6 +1,7 @@
 // One safe Markdown reading for every runtime and package surface. The parser stays
 // lazy because most pages contain no Markdown supplied at runtime; callers can paint
 // escaped source immediately and await this only when their own rendering needs it.
+import { opensElsewhere } from "./declared-words.js";
 import { describeFailure } from "./exception.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { declarationFor, declaredElements } from "./registry.js";
@@ -791,11 +792,15 @@ export function makeMarkdown(module, message, html = false) {
   // pass. Entities and escapes are text there, just as they are in document prose.
   markdown.renderer.rules.text_special = (tokens, at, options, env, renderer) =>
     markdown.utils.escapeHtml(parserItem(tokens, at).content);
+  // Markdown can't say where a link opens, so this renderer, which writes the link's
+  // HTML, sends a link that leaves the page to a new tab. The page, and the thread the
+  // reader followed the link from, stay open where they were.
   markdown.renderer.rules.link_open = (tokens, at, options, env, renderer) => {
     const token = parserItem(tokens, at);
     const href = token.lfSource?.url;
     if (href === null || href === undefined) return "";
     if (isCanonicalMediaUrl(href)) token.attrSet("href", scopedMediaUrl(href));
+    else if (opensElsewhere(href)) token.attrSet("target", "_blank");
     return renderer.renderToken(tokens, at, options);
   };
   markdown.renderer.rules.link_close = (tokens, at, options, env, renderer) => {

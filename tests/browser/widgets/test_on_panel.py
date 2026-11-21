@@ -37,6 +37,7 @@ from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import open_on_me as open_on_me_by_pointer
 from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -45,14 +46,13 @@ ON_ME = panel_view("queue")
 
 
 def open_on_me(page):
-    """Open On Me by its mark, unless it stands open, and return its view; another
-    view standing open is put away first, by the ✕ in the mark's seat."""
+    """Open On Me by pointer, unless it stands open, and return its view; another view
+    standing open is put away first, by its ✕."""
     shown = page.locator(PANEL).get_attribute("data-lf-open")
-    if shown not in (None, "queue"):
+    if shown not in (None, "menu", "queue", "threads"):
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
-    if shown != "queue":
-        page.locator(".lf-fp-on-user").click()
+    open_on_me_by_pointer(page)
     panel_settled(page, view="queue")
     return page.locator(ON_ME)
 
@@ -63,7 +63,7 @@ def on_card(page, at):
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
-    """The panel's On Me mark lists every open obligation under On Me, in document order, and
+    """The panel's On Me lists every open obligation, in document order, and
     every answered one folded under Done with its current answer, so the user can review
     and revise. A twelfth widget joins by declaring `awaits`.
 
@@ -75,7 +75,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="queue")
     show_done(page)
@@ -376,19 +376,26 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On Me's tabs name its view, so the first starts its controls, where another
-    view's way back stands, rather than standing among the presses at their end; no
-    name bar stands over the view, the heading naming it to assistive tech alone. The
-    strip holding the tabs reaches past them for their focus ring, so the tab is read."""
+    """On Me's tabs name its view, so the first starts its controls' line, its words on
+    the panel's text line and its frame on the field's edge, rather than standing among
+    the presses at their end; no name bar stands over the view, the heading naming it to
+    assistive tech alone. The strip holding the tabs reaches past them for their focus
+    ring, so the tab is read."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     resized(page, 1440, 900)
     open_on_me(page)
-    start, tabs = page.locator(".lf-fp-controls").evaluate(
-        """c => [c.getBoundingClientRect().left
-            + parseFloat(getComputedStyle(c).paddingLeft),
-          c.querySelector('.lf-fp-filters > .lf-fp-tab').getBoundingClientRect().left]"""
+    start, words, frame, field = page.locator(".lf-floating-panel").evaluate(
+        """p => {
+          const c = p.querySelector('.lf-fp-controls');
+          const tab = c.querySelector('.lf-fp-filters > .lf-fp-tab');
+          return [c.getBoundingClientRect().left + parseFloat(getComputedStyle(c).paddingLeft),
+            tab.querySelector('.lf-fp-tab-words').getBoundingClientRect().left,
+            tab.getBoundingClientRect().left,
+            p.querySelector('.lf-fp-field').getBoundingClientRect().left];
+        }"""
     )
-    assert tabs == start, (tabs, start)
+    assert words == start, (words, start)
+    assert frame == field, (frame, field)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
@@ -422,7 +429,7 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     page.locator("#title").click()
     for _ in range(4):
         page.keyboard.press("m")
-    expect_walk_position(page, "4 of 4 waiting on me · Options")
+    expect_walk_position(page, "4 of 4 waiting on me")
     landed = page.evaluate("() => document.activeElement.id")
     page.locator("#title").click()
 
@@ -473,7 +480,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     last = on_card(page, "widget:pick-8")
     assert not shown(last)
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "8 of 8 waiting on me · Options")
+    expect_walk_position(page, "8 of 8 waiting on me")
     expect(page.locator("#ask-8")).to_be_focused()
     expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
     expect(last).to_have_attribute("data-lf-walked", "")
@@ -482,7 +489,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
 
     first = on_card(page, "widget:pick-1")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 8 waiting on me · Options")
+    expect_walk_position(page, "1 of 8 waiting on me")
     expect(first).to_have_attribute("data-lf-walked", "")
     expect(last).not_to_have_attribute("data-lf-walked", "")
     assert shown(first)
@@ -761,9 +768,9 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
         if runners.get_attribute("data-lf-walked") is not None:
             break
     expect(runners).to_have_attribute("data-lf-walked", "")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 2 waiting on me")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Reply")
+    expect_walk_position(page, "2 of 2 waiting on me")
 
 
 def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
@@ -1121,7 +1128,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     page = open_page(browser, url)
     for decision, at in [("timeline-ask", 1), ("ship-ask", 2), ("timeline-ask", 1)]:
         page.keyboard.press("m")
-        expect_walk_position(page, f"{at} of 2 waiting on me · Options")
+        expect_walk_position(page, f"{at} of 2 waiting on me")
         expect(page.locator(f"#{decision}")).to_be_focused()
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")
@@ -1156,7 +1163,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
@@ -1167,7 +1174,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
         ["widget:ship", []],
         ["widget:timeline", [f"message:{reply}"]],
     ]
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held[0].continue_()
     page.unroute("**/api/event")
 

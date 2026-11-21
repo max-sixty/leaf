@@ -63,6 +63,7 @@ class ClaudeCode:
         self.forks = queue.Queue()
         self.steps = queue.Queue()
         self.completions = queue.Queue()
+        self.environ = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -81,6 +82,8 @@ class ClaudeCode:
                 self.steps.put(record["report"])
             elif "completed" in record:
                 self.completions.put(record["completed"])
+            elif "environ" in record:
+                self.environ.put(record["environ"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -772,6 +775,48 @@ def test_a_line_fork_whose_step_leaf_could_not_take_posts_nothing(
             asked["id"]
         ]
     driven.quit()
+
+
+LIMIT = "CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS"
+
+
+def test_a_session_holding_a_page_has_its_long_commands_moved_to_the_background(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """While the session holds a page, the module sets Claude Code's own limit on how
+    long a main-agent foreground command holds the turn to 90 s, after which Claude
+    Code moves it to the background and the page's input reaches the session. A
+    `leaf` command may take a page on, however its launcher is spelled, so the limit
+    is set before that command's result returns, ahead of the session's next call,
+    and taken back once the follower finds the session holds no page. A limit the
+    user set stays as it was, Leaf's own value included."""
+    quoted = '"/opt/leaf/bin/leaf" server start p'
+
+    pageless = ClaudeCode(spawn, "cc-pageless", {})
+    pageless.emit("tool.call", {"tool": "Bash", "command": quoted, "tool_use_id": "u1"})
+    assert pageless.environ.get_nowait() == {LIMIT: "90000"}
+    assert pageless.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: None}
+    pageless.quit()
+
+    driven = ClaudeCode(spawn, "cc-limited", {})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    # The follower's listing of the live page sets it, as in a session resumed
+    # holding one.
+    assert driven.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: "90000"}
+    driven.quit()
+
+    own = ClaudeCode(spawn, "cc-own-limit", {"env": {LIMIT: "90000"}})
+    own.emit(
+        "tool.call",
+        {"tool": "Bash", "command": "leaf page state p", "tool_use_id": "u2"},
+    )
+    # The follower finds no page and ends, and the band is drawn empty.
+    own.bands.get(timeout=STATED_TIMEOUT)
+    own.settle()
+    assert own.environ.empty()
+    own.quit()
 
 
 def test_leaf_hears_nothing_from_a_subagent_and_hands_it_nothing(

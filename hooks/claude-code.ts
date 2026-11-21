@@ -1,7 +1,9 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages, the drawing of Leaf's own rows in the conversation, and the
- * carrier of the model calls Leaf asks of the session (`carry`): forks of the
+ * session's pages, the drawing of Leaf's own rows in the conversation, the limit
+ * on how long a foreground command holds the turn while the session holds a page
+ * (`limitSteps`), and the carrier of the model calls Leaf asks of the session
+ * (`carry`): forks of the
  * conversation, such as the turn-end check's and the one that writes the agent's
  * working line on a thread's waiting messages, and completions on the session's
  * model, such as a thread's title. Leaf's Python decides each one and what its
@@ -18,6 +20,24 @@
  * Claude Code drops from an Escape until the user next types, so every wake after
  * an Escape would become a cross-session nudge (measured at 2.1.307 with the
  * claude-code journey).
+ *
+ * Page input reaches the session only between its steps, so a message sent during a
+ * long foreground command waits for it to end. The maintainer chose that a session
+ * holding a page keeps each step it waits on to about a minute, and that Leaf back
+ * the instruction where agents still wait longer, as they do on foreground test
+ * runs. So while the session holds a page the module sets Claude Code's own limit,
+ * `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS`, to 90 s. Claude Code reads it at each of
+ * the main agent's foreground commands, moves one still running then to the
+ * background, says so in the result and wakes the session when it exits; it leaves
+ * out what it can't move, such as a command that starts with `sleep`, and keeps a
+ * subagent's commands to its own limit (read in 2.1.329's source). A hook that flags
+ * a long timeout instead fires mostly on commands that finish in time, and one that
+ * rewrites the timeout kills the commands Claude Code can't move. The limit holds
+ * from the return of any `leaf` command, since the session takes a page only through
+ * one, until a listing the follower takes after it shows none; a value the user set
+ * stays. Every process the session starts meanwhile inherits the variable, so a
+ * nested Claude Code session limits its own commands the same way; Leaf's eval and
+ * journey runners give their sessions no Claude Code variable (`arms.environment`).
  *
  * Starting an idle turn always draws a row, and no hook or exit code wakes the
  * session without one (read in 2.1.307's source). The watch's wake is a task
@@ -222,9 +242,66 @@ async function openPage(
   }
 }
 
-function show($: EngineInterface, listed: Leaf[]) {
+// How many `leaf` commands have returned, which dates each follower's listings.
+let leafCommands = 0;
+
+function show($: EngineInterface, listed: Leaf[], since = leafCommands) {
   leaves = listed;
   $.ui.invalidate("ui.render");
+  // A listing the follower took before the latest `leaf` command may predate a page
+  // that command took on, so it can't take the limit back.
+  void limitSteps($, listed.length > 0 || since < leafCommands);
+}
+
+// The limit Leaf gives Claude Code's auto-background timeout while the session
+// holds a page, in ms: about the minute a step should take, with room for one that
+// runs a little over it.
+const STEP_LIMIT = "90000";
+
+// Whether the session holds a page, as last heard; whether this load of the module
+// set the variable; and the run that brings the variable in line, while one runs.
+let holding = false;
+let owned = false;
+let limiting: Promise<void> | undefined;
+
+/** Have `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` hold `STEP_LIMIT` while the session
+ * holds a page, and nothing once it holds none, settled once the variable matches
+ * the latest `held` heard. One run at a time reads and writes the variable, and runs
+ * again where `held` changed meanwhile. A value this load didn't set stays as it
+ * is: the user's, or one an earlier load set, which then holds until the session
+ * ends, since nothing records it across a reload. */
+function limitSteps($: EngineInterface, held: boolean): Promise<void> {
+  holding = held;
+  limiting ??= settleLimit($);
+  return limiting;
+}
+
+/** Bring the variable in line with `holding` until it stays put, clearing
+ * `limiting` in the same step as the last look at `holding`, so a change heard
+ * after that starts a run of its own. */
+async function settleLimit($: EngineInterface) {
+  try {
+    let target: boolean;
+    do {
+      target = holding;
+      const current = await $.env.get("CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS");
+      if (current !== undefined && !owned) return;
+      if (target === owned) continue;
+      const set = await $.env.set(
+        "CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS",
+        target ? STEP_LIMIT : undefined,
+      );
+      if (set.deny) {
+        $.ui.log(`Leaf: the step limit was not set: ${set.deny}`, { to: "debug" });
+        return;
+      }
+      owned = target;
+    } while (target !== holding);
+  } catch (error) {
+    $.ui.log(`Leaf: the step limit was not set: ${error}`, { to: "debug" });
+  } finally {
+    limiting = undefined;
+  }
 }
 
 /** Start the follower of the session's pages, or once the running one exits. */
@@ -234,6 +311,7 @@ function follow($: EngineInterface, session: string) {
     return;
   }
   followAgain = false;
+  const since = leafCommands;
   let stream: ReturnType<EngineInterface["process"]["spawn"]>;
   try {
     stream = $.process.spawn({
@@ -271,7 +349,7 @@ function follow($: EngineInterface, session: string) {
         const last = lines.at(-1);
         if (last === undefined || following !== current) continue;
         const listed: Listing = JSON.parse(last);
-        show($, listed.pages);
+        show($, listed.pages, since);
         void carry($, session, listed.do);
       }
       const result = await stream.result;
@@ -290,7 +368,7 @@ function follow($: EngineInterface, session: string) {
       if (following === current) {
         following = undefined;
         if (followAgain || renewed) follow($, session);
-        else show($, []);
+        else show($, [], since);
       }
     }
   })();
@@ -566,9 +644,13 @@ export const register: Register = (on) => {
   // A call that runs `leaf`, as `hooks.json`'s PreToolUse registrations match one.
   on(
     "tool.call",
-    { tool: "Bash", command: /(^|[\s;&|(/])leaf(\s|$)/ },
+    { tool: "Bash", command: /(^|[\s;&|(/"'])leaf["']?(\s|$)/ },
     async ($, e, next) => {
       const result = await next(e);
+      // The command may have taken a page on, so the limit holds from the next call,
+      // until a listing the follower takes after it shows none.
+      leafCommands += 1;
+      await limitSteps($, true);
       // A gate on the tool's own call: nothing after its result may fail it.
       void sessionOf($).then((session) => follow($, session));
       return result;

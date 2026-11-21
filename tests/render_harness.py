@@ -3066,6 +3066,50 @@ SHELL_BOX = """(() => {
 })()"""
 
 
+# A Range over `words` in an element's text, which may stand in several text nodes, as a
+# code block's boxed lines and colour tokens hold it: the first run, or the last where
+# `last` is true. A function, so a larger evaluate can embed it as `(WORDS_RANGE)(el, w)`.
+WORDS_RANGE = """(root, words, last = false) => {
+  const nodes = [];
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) nodes.push(node);
+  const text = nodes.map((node) => node.data).join('');
+  const start = last ? text.lastIndexOf(words) : text.indexOf(words);
+  if (start < 0) throw new Error(`no ${JSON.stringify(words)} in the element's text`);
+  const end = start + words.length;
+  const range = document.createRange();
+  let at = 0;
+  for (const node of nodes) {
+    const after = at + node.data.length;
+    if (start >= at && start < after) range.setStart(node, start - at);
+    if (end > at && end <= after) {
+      range.setEnd(node, end - at);
+      break;
+    }
+    at = after;
+  }
+  return range;
+}"""
+# The boxes of the words' lines, as a Range over one text node reads them: each text
+# node's own fragments, without the boxes of the elements the words run through.
+WORDS_RECTS = (
+    """(root, words, last = false) => {
+  const range = ("""
+    + WORDS_RANGE
+    + """)(root, words, last);
+  const rects = [];
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    if (!range.intersectsNode(node)) continue;
+    const part = document.createRange();
+    part.setStart(node, node === range.startContainer ? range.startOffset : 0);
+    part.setEnd(node, node === range.endContainer ? range.endOffset : node.length);
+    rects.push(...[...part.getClientRects()].filter((box) => box.width));
+  }
+  return rects;
+}"""
+)
+
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.

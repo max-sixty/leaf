@@ -337,7 +337,7 @@ import {
   shownWindow,
   visualViewport,
 } from "./geometry.js";
-import { hasArea } from "./rect.js";
+import { hasArea, holds } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
@@ -1215,10 +1215,6 @@ const standsBy = ({ target, holder, reading }) =>
 const EDGE = 8;
 const GAP = { line: 6, box: 11, hold: 27 };
 const REACH = 23;
-
-/** @param {Box} box @param {number} x @param {number} y */
-const holds = (box, x, y) =>
-  x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
 
 // The nearest HTML element with a box of its own at or around `el`: a `display:
 // contents` element's first shown part, and a shape in a drawing's HTML host.

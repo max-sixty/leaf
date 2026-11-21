@@ -408,8 +408,9 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still, reaching down to
-    the room the floating panel keeps at the window's foot, until its sidebar ends."""
+    The track sticks, so once the reader scrolls the map stands still to the page's end,
+    reaching down to the window's foot, short of the floating panel's row only where the
+    panel stands across the map."""
     source = leaf_page(
         "contents map",
         """
@@ -767,29 +768,39 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         for item, resting in zip(marker_alignment, resting_marker_centers, strict=True)
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
-    # Once its track sticks, the map stays put through the rest of its sidebar, its
-    # start in view where the sidebar ends and its foot just above the panel's room:
-    # the track's own gap, its focus room and the panel's gap above its row.
+    # Once its track sticks, the map stays put to the page's end, its start in view and
+    # its foot above the window's foot by the track's gap and focus room, past the
+    # panel's row, which stands clear of the map's columns at this width.
     panel_box = page.locator(".lf-fp-card").bounding_box()
     assert panel_box is not None
-    sidebar_end = page.locator("#route").evaluate(
-        "node => node.parentElement.getBoundingClientRect().bottom "
-        "+ document.scrollingElement.scrollTop - innerHeight"
-    )
+    window_height = page.evaluate("innerHeight")
     stuck = []
-    for position in (750, sidebar_end):
+    for position in (750, None):
         page.evaluate(
-            "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})",
+            "top => document.scrollingElement.scrollTo({"
+            "top: top ?? document.scrollingElement.scrollHeight, behavior: 'instant'})",
             position,
         )
         scroll_settled(page)
         box = nav.bounding_box()
         assert box is not None
         assert box["y"] >= 0, box
-        assert box["y"] + box["height"] <= panel_box["y"] + 1, (box, panel_box)
-        assert box["y"] + box["height"] >= panel_box["y"] - 48, (box, panel_box)
+        foot = box["y"] + box["height"]
+        assert panel_box["y"] < foot <= window_height - 24, (box, panel_box)
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
+
+    # Where the panel stands across the map's labels, the map's foot stops just above
+    # the panel's row: the track's gap, its focus room and the panel's gap above it.
+    resized(page, 1100, 900)
+    expect(toc).not_to_have_attribute("data-lf-panel-clear", re.compile(".*"))
+    narrow_panel = page.locator(".lf-fp-card").bounding_box()
+    box = nav.bounding_box()
+    assert narrow_panel is not None and box is not None
+    foot = box["y"] + box["height"]
+    assert narrow_panel["y"] - 48 <= foot <= narrow_panel["y"] + 1, (box, narrow_panel)
+    resized(page, 1400, 900)
+    expect(toc).to_have_attribute("data-lf-panel-clear", "")
 
     # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")

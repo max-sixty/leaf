@@ -1340,7 +1340,8 @@ html[data-lf-draw-mode] {
   }
   /* Its items in block flow, each a line, which a line clamp counts and holds back, as
      it can't in a flex box. */
-  .lf-place-list {
+  .lf-place-list,
+  .lf-place-item {
     display: block;
   }
   .lf-place-item,

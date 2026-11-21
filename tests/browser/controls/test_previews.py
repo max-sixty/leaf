@@ -2782,7 +2782,7 @@ def test_a_line_that_ends_in_an_ellipsis_keeps_to_its_room(engine, request, serv
                 "Cut line",
                 '<span id="aim" tabindex="0" style="position: fixed; left: 8px;'
                 ' top: 40px; width: 300px; height: 24px">Aim</span>'
-                '<button id="bar" style="position: fixed; left: 0; top: 115px;'
+                '<button id="bar" style="position: fixed; left: 0; top: 125px;'
                 ' width: 100%; height: 24px">Bar</button>',
             )
         ),

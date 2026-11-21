@@ -36,7 +36,7 @@
  * Composition defers a reload or a patch that would discard an active native editor
  * or change a selected passage/comment's complete authored anchor scope. Runtime
  * chrome stays outside the authored patch and follows its own editor continuation.
- * Unresolved delivery and an open version menu defer either install.
+ * Unresolved delivery defers either install.
  * Ending composition releases its hold on the next heartbeat; Open latest, which the
  * floating panel's field offers at its end while it says the page is an older version,
  * and the leaf's menu's row for the latest, explicitly release that hold.
@@ -2190,8 +2190,8 @@ export function createVersionController({
   // `_named_layer`); only one this Leaf can no longer admit input against is refused
   // instead, and the refusal's probe of the document source reloads it at once
   // (layer-client.js, `sourceMovedOn`).
-  // Whether the move happens now is asked at the commit: an unresolved delivery,
-  // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
+  // Whether the move happens now is asked at the commit: an unresolved delivery or
+  // `midComposition` defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced or by a load that failed, after
   // which the lit chip asks for a new press.
   /** @param {import("../types/contract.js").ServedReading} state */

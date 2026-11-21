@@ -488,8 +488,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
     in every engine. The checkpoint groups its messages for assistive technology by
     `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
-    words stay selected. Standing on that toggle, the user is in the thread, so the
-    edit that retracts the summary draws at once."""
+    words stay selected. Standing on that toggle, the user is in the thread, so their
+    rewrite of a folded message, which retracts the summary, draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -499,7 +499,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
     )
     worded = append_agent_reply(serve.page_dir, root, "The mounts take an hour.")
-    edited = append_agent_reply(serve.page_dir, root, "The camera takes two.")
+    edited = append_user_reply(serve.page_dir, root, "The camera takes two.")
     append_user_reply(serve.page_dir, root, "Keep the latest visible.")
 
     page = open_page(request.getfixturevalue(engine), url)
@@ -569,9 +569,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": edited["id"],
             "text": "The camera takes three.",
         },
@@ -720,13 +718,14 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     expect(card).to_be_hidden()
 
 
-def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
+def test_a_later_summary_replaces_its_overlap_and_a_rewrite_restores_originals(
     browser, serve
 ):
     """The browser follows the canonical summary fold as the transcript changes.
 
     Each change to the fold of a card the user is reading waits behind its notice, with
-    the words it would change; shown, a summary opens around the messages being read."""
+    the words it would change; shown, a summary opens around the messages being read.
+    The user's rewrite of a folded message retires the summary, so the originals show."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -734,7 +733,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     first = thread_model.post_reply(
         serve.page_dir, {"responds": root}, "The first constraint."
     )
-    second = append_agent_reply(serve.page_dir, root, "The second constraint.")
+    second = append_user_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
     old = summarize_thread(
         serve.page_dir,
@@ -778,9 +777,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": second["id"],
             "text": "The corrected second constraint.",
         },

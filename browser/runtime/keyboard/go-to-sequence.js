@@ -68,7 +68,6 @@ import {
   progressSteps,
 } from "./key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
-import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { actionClass } from "../control-faces.js";
@@ -167,8 +166,9 @@ export function createGoToSequence({
   const pageControls = () => pageParts(`${PRESSABLE}:not(.${actionClass("gutter")})`);
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
-  // arrival for every activation route; the sequence only names an external new tab.
-  // A cancelled click has replaced that navigation step with one of its own.
+  // arrival for every activation route; the sequence only names the new tab a link's
+  // `target` opens. A cancelled click has replaced that navigation step with one of its
+  // own.
   /** @param {HTMLAnchorElement} link */
   function followLink(link) {
     const activation = { prevented: false };
@@ -182,7 +182,7 @@ export function createGoToSequence({
     );
     link.click();
     if (activation.prevented) return;
-    if (isExternalPageLink(link) && link.target === "_blank") {
+    if (link.target === "_blank") {
       const name =
         link.getAttribute("aria-label")?.trim() || addressableSays(link) || "Link";
       announce(`Opened ${name} in a new tab`);

@@ -163,7 +163,7 @@ export const returnDuration = () => motionTime("--lf-motion-return");
 // the effect. `display` keeps an already-retired slot drawn until its pixels finish;
 // semantic retirement is still true from the first frame.
 // Clip without creating a scroller, so a folding thread's title stays sticky to its list.
-// Where intrinsic interpolation is missing (Firefox, WebKit), `auto` would jump
+// Where intrinsic interpolation is missing (Firefox), `auto` would jump
 // discretely half way. There the effect first holds the block at `auto`, reads that
 // height and restarts from it in pixels, all before the next frame. The pixels live
 // only in the effect's keyframes, so content that changes mid-fold keeps the starting

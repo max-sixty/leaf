@@ -440,7 +440,7 @@ export class Sample extends HTMLElement {
   #sayFailure(message) {
     if (this.#disclosure?.textContent === message) return;
     const disclosure = offer("details", "lf-sample-failure");
-    disclosure.append(offer("summary", "", message));
+    disclosure.append(offer("summary", "lf-disclosure-marker", message));
     this.#status.replaceChildren(disclosure);
     this.#disclosure = disclosure;
   }

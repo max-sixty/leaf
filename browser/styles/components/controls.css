@@ -603,38 +603,35 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   /* Paper has no press to open what a page puts behind a gesture, so it prints open:
      a shut <details>, and whatever a widget folds with `hidden="until-found"`,
      such as an inactive tab or a settled group's cards. Each is hidden by content-visibility, so that is what says otherwise; the
-     marker goes because paper has nothing to turn. A page that means a disclosure to
+     marker goes, the browser's and Leaf's arrow alike, because paper has nothing to
+     turn. A page that means a disclosure to
      stay shut on paper says so in its own stylesheet, at a weight this does not
      contest. */
   details:not([open])::details-content,
   [hidden="until-found"] {
     content-visibility: visible;
   }
-  :where(summary):is(summary, .lf-disclosure-marker)::before,
+  summary {
+    list-style: none;
+  }
   .lf-disclosure-marker::before {
     visibility: hidden;
   }
 }
-/* Leaf's one disclosure arrow, on every summary and on every aria-expanded button that
-   opens what follows it (`.lf-disclosure-marker`, for a row whose layout draws no
-   marker): Leaf's chevron (icon-paths.js, `next`), drawn as its icons are, pointing
-   along the text when closed and turned down when open. It replaces the browser's
-   marker, which each engine draws its own way: Firefox draws a triangle a few pixels
-   wide that the user read as a dot beside a 12px label. It floats
+/* Leaf's disclosure arrow, on each summary Leaf draws and each aria-expanded button
+   that opens what follows it (`.lf-disclosure-marker`): Leaf's chevron (icon-paths.js,
+   `next`), drawn as its icons are, pointing along the text when closed and turned down
+   when open. It replaces the browser's marker, which each engine draws its own way:
+   Firefox draws a triangle a few pixels wide that the user read as a dot beside a 12px
+   label. A summary the page's author wrote keeps the browser's marker. The arrow floats
    before the words, centred on their first line with a space's room after it, so a
    summary's leading white space still collapses as it did beside the native marker;
    a flex or grid row's own rules place it and colour it. Paper draws it no more than
    the native marker (above), but keeps its room, since a grid row may place its cells
    after it. */
-summary,
 .lf-disclosure-marker {
   list-style: none;
 }
-:where(summary):is(summary, .lf-disclosure-marker)::-webkit-details-marker,
-.lf-disclosure-marker::-webkit-details-marker {
-  display: none;
-}
-:where(summary):is(summary, .lf-disclosure-marker)::before,
 .lf-disclosure-marker::before {
   content: "";
   float: inline-start;
@@ -647,37 +644,23 @@ summary,
     center / contain no-repeat;
   forced-color-adjust: none;
 }
-:where(summary):is(summary, .lf-disclosure-marker):dir(rtl)::before,
 .lf-disclosure-marker:dir(rtl)::before {
   scale: -1 1;
 }
-:where(summary):is(
-    details[open] > summary,
-    details[open] > .lf-disclosure-marker,
-    .lf-disclosure-marker[aria-expanded="true"]
-  )::before,
 :where(.lf-disclosure-marker):is(
-    details[open] > summary,
     details[open] > .lf-disclosure-marker,
     .lf-disclosure-marker[aria-expanded="true"]
   )::before {
   rotate: 90deg;
 }
 /* Turned after its mirror, so it turns the other way to point down. */
-:where(summary):is(
-    details[open] > summary,
-    details[open] > .lf-disclosure-marker,
-    .lf-disclosure-marker[aria-expanded="true"]
-  ):dir(rtl)::before,
 :where(.lf-disclosure-marker):is(
-    details[open] > summary,
     details[open] > .lf-disclosure-marker,
     .lf-disclosure-marker[aria-expanded="true"]
   ):dir(rtl)::before {
   rotate: -90deg;
 }
 @media (prefers-reduced-motion: no-preference) {
-  :where(summary):is(summary, .lf-disclosure-marker)::before,
   .lf-disclosure-marker::before {
     transition: rotate var(--lf-motion-disclosure) ease-out;
   }

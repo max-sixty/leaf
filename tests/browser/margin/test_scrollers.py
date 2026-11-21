@@ -1509,7 +1509,7 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_constrained_target_carries_its_row_through_scroll(
     request, serve, subtests, engine
 ):
@@ -1519,11 +1519,9 @@ def test_a_constrained_target_carries_its_row_through_scroll(
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
     stays put through the document's scroll. A fixed scroller, such as a page of parts'
-    title column, stays put too, and its row rides what its own scroll carries. Firefox
-    draws a stuck target's row where the target would stand unstuck
-    (notes/browser-support.md, "A stuck sticky anchor in Firefox"). Chromium also reads
-    the compositor's frames, which only it traces; WebKit checks the rectangles after
-    each scroll.
+    title column, stays put too, and its row rides what its own scroll carries. Chromium
+    also reads the compositor's frames, which only it traces; Firefox and WebKit check
+    the rectangles after each scroll.
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)

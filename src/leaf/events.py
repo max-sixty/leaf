@@ -503,12 +503,15 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. Editing a covered message, or
-    undoing an edit of it, invalidates a summary containing prose, and so does
-    taking back a message its thread held when the summary was written, which the
-    prose may report wherever the message stood. A fold without prose keeps showing
-    the revised originals. A summary folds no progress: the thread shows only the
-    steps nothing has superseded, as working messages (`progress_completions`).
+    Summaries replace overlapping summaries whole. The user rewriting a covered
+    message, or undoing such a rewrite, retires every summary covering it, and so
+    does the user taking back a message its thread held when the summary was
+    written, which its words or label may report wherever the message stood: a
+    summary the agent wrote cannot account for the user's change. The agent's own
+    edit leaves the summary standing, since the agent knows what it changed and
+    says whether the summary still holds (`thread.cmd_edit`). A summary folds no
+    progress: the thread shows only the steps nothing has superseded, as working
+    messages (`progress_completions`).
     """
     edits = {}
     edited = {}
@@ -520,7 +523,7 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
             # The thread a message was said in, and when, whatever became of it since.
             thread = said[event["parent"]][0] if "parent" in event else event["id"]
             said[event["id"]] = (thread, event["seq"])
-        elif event["kind"] == "edit":
+        elif event["kind"] == "edit" and event["author"] != "agent":
             edited[event["id"]] = event["message"]
             edits[event["message"]] = event["seq"]
         elif event["kind"] == "undo" and event["undoes"] in edited:
@@ -585,9 +588,8 @@ def _thread_summaries(
         for replaced in {holder[identity] for identity in covers if identity in holder}:
             for identity in active.pop(replaced)["covers"]:
                 del holder[identity]
-        if event["text"] and (
-            any(edits.get(identity, 0) > event["seq"] for identity in covers)
-            or any(made < event["seq"] < undone for made, undone in taken)
+        if any(edits.get(identity, 0) > event["seq"] for identity in covers) or any(
+            made < event["seq"] < undone for made, undone in taken
         ):
             continue
         active[event["id"]] = {

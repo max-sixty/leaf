@@ -396,11 +396,6 @@ interface DocumentOrShadowRoot {
   getSelection?(): Selection | null;
 }
 
-// Safari on iPhone supplies its native video player through this optional route.
-interface HTMLVideoElement {
-  webkitEnterFullscreen?: () => void;
-}
-
 interface Element {
   lfTarget?: Element | null | undefined;
   lfChoice?: import("../runtime/margin-model.js").ReadingChoice | undefined;

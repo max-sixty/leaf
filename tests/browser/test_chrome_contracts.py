@@ -468,10 +468,12 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
         counts = restyle_counts(page, resolve)
         expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
         page.close()
-        return sum(counts)
+        return counts
 
+    # Each recalc's count, so a failure tells a recalc the larger page adds from
+    # one that restyles more of it.
     short, long = restyled(4), restyled(24)
-    assert long - short < 10, {"4 sections": short, "24 sections": long}
+    assert sum(long) - sum(short) < 10, f"4 sections: {short}\n24 sections: {long}"
 
 
 @pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
@@ -962,7 +964,9 @@ PHONE_READING_PAGE = leaf_page(
         + "Filler words for the reading column. " * 8
         + "</p>"
         for n in range(12)
-    ),
+    )
+    + "<p><label>Owner <input id='own-field' style='font-size: 13px'></label>"
+    + " <label>Team <input id='plain-field'></label></p>",
 )
 
 
@@ -971,22 +975,25 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the user panning
-    sideways across a page wider than the screen. So no field the page holds is smaller,
+    sideways across a page wider than the screen. So none of Leaf's own fields is
+    smaller, nor a field the page wrote without a size, which takes Leaf's default face,
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
-    one set in a sidenote's smaller type opens a size larger than it showed.
+    one set in a sidenote's smaller type opens a size larger than it showed. A field
+    whose author gave it a size keeps that size.
 
     With too little room below, the field stands above without scrolling the page.
     This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
-    # Every field in the composed tree, the vendored controls' own native fields in
-    # their shadow roots included: the Threads find box and the Map's search are
-    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    # Every field in the composed tree but the one its author sized, the vendored
+    # controls' own native fields in their shadow roots included: the Threads find box
+    # and the Map's search are Web Awesome inputs, and Safari zooms onto the field
+    # inside them.
     sizes = page.evaluate("""() => {
       const sizes = {};
       const walk = (root) => {
         for (const node of root.querySelectorAll('*')) {
-          if (node.matches('input, textarea, leaf-text, select')) {
+          if (node.matches('input, textarea, leaf-text, select') && node.id !== 'own-field') {
             const host = node.getRootNode().host;
             const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
             sizes[name] = Math.min(
@@ -1000,6 +1007,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     }""")
     assert any(name.startswith("wa-input.") for name in sizes), sizes
     assert min(sizes.values()) >= 16, sizes
+    own = page.locator("#own-field")
+    assert own.evaluate("field => parseFloat(getComputedStyle(field).fontSize)") == 13
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(
         "body => parseFloat(getComputedStyle(body).fontSize)"

@@ -352,6 +352,45 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     assert state_json(page_dir)["plan"] is None
 
 
+def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
+    """A long title breaks nothing, so a to-do's or a plan step's is fitted as a
+    thread's is, and the command says what it was cut to, rather than refusing the
+    reply or plan it rides on."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Hm."},
+    )
+    words = "Check the snapshot diffs " * 5
+    fitted = thread_model.fit_title(words)
+    assert len(" ".join(words.split())) > len(fitted)
+
+    def cut(result) -> dict:
+        record = written(result)
+        assert "title-fitted" in {finding["code"] for finding in record.pop("findings")}
+        return record
+
+    created = cut(leaf("task", "create", page_dir, "page", "--title", words))
+    assert created["title"] == fitted
+    answered = cut(
+        leaf(
+            "thread",
+            "reply",
+            page_dir,
+            comment["id"],
+            "--text",
+            "On it.",
+            "--todo",
+            words,
+        )
+    )
+    assert answered["todo"] == fitted
+    outline = page_dir.parent / "plan.json"
+    outline.write_text(json.dumps([{"depth": 0, "title": words, "state": "open"}]))
+    planned = cut(leaf("task", "plan", page_dir, "--file", outline))
+    assert [step["title"] for step in planned["steps"]] == [fitted]
+
+
 def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
     publish(page_dir)
     comment = append_carried_log_record(

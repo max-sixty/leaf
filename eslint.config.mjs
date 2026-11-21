@@ -1517,11 +1517,7 @@ export default [
     languageOptions: { globals: browserGlobals },
   },
   {
-    files: [
-      "dev/leaf_dev/startup.js",
-      "dev/leaf_dev/painted.js",
-      "dev/leaf_dev/commands/stills_baselines.js",
-    ],
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {

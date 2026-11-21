@@ -245,29 +245,6 @@ def _broken_names(at: str, v: dict) -> str:
     )
 
 
-def _squeezed_code(at: str, v: dict) -> str:
-    # The reading knows the block is too narrow, not what narrowed it, so the words
-    # offer both remedies. In a table cell the table's own advice holds: a column sizes
-    # to what its cells can't break, so the fix is what the cell holds.
-    shown = (
-        f"{at} has {v['inside']}px for its lines and scrolls {v['scrolls']}px of them"
-        " sideways"
-    )
-    if v["cell"]:
-        return (
-            f"{shown}, since a code block asks its table cell for no width; move a long"
-            " command out of the table, or write a short one as inline <code>, which"
-            " breaks inside the cell"
-        )
-    return (
-        f"{shown}, so it shows a few characters at most; give the block or what holds"
-        " it more room (a box that takes its width from its content gives a code"
-        " block none), or let what stands beside it wrap or stack where the window is"
-        " that narrow, with layout-tiles or a grid that stacks below a width"
-        ' (page-layout.md, "Layouts" and "A workspace")'
-    )
-
-
 def _drawn_height(at: str, v: dict) -> str:
     # `box` is the height the element holds now: past `before`, what follows it moved
     # as it drew; past `drawn`, a stated height larger than the drawing left room.
@@ -759,7 +736,6 @@ _TEXT = {
         " the page's room"
     ),
     "squeezed-table": _squeezed,
-    "squeezed-code": _squeezed_code,
     "broken-name": _broken_names,
     "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
@@ -2109,6 +2085,15 @@ _TEXT = {
             else ", and this edit removes what it chose, so the thread no longer shows"
             " that answer"
         )
+    ),
+    "edit-under-summary": lambda at, v: (
+        f"message {v['message']!r} is folded under summary {v['summary']!r}, which"
+        " stands as you wrote it; if this edit changes what it reports, summarize"
+        f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
+    ),
+    "title-kept": lambda at, v: (
+        f"the thread is already titled {v['title']!r}, so the reply's title went"
+        " unused; `leaf thread edit` with --title renames the thread"
     ),
 }
 

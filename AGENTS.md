@@ -486,8 +486,8 @@ two-line selector can reach every page.
   agents already write HTML well, and each such addition is one more thing every
   author must learn and every later change must keep working. Add one only for what
   HTML can't say.
-- **What it buys**: a behavior a user sees, a request the maintainer made, or a cost
-  it measurably removes. A green test buys only what the test protects, so name that.
+- **What it buys**: a behavior a user sees, an outcome the maintainer asked for, or a
+  cost it measurably removes. A green test buys only what the test protects, so name that.
 - **Where its cost lands**: judge what the change reaches, not what it claims. Compare
   a selector's or guard's scope with the condition it names, find what else inherits
   from or sits inside the box it changes, and count how often a guard fires on a
@@ -524,6 +524,12 @@ makes Leaf harder to develop than it is worth:
   users would notice losing, including Leaf's interface guarantees. Taking a feature
   away is the maintainer's call, so propose the removal with what users lose and what
   it deletes, measured as `/developing-leaf`'s "Measure a removal" says.
+- **Code that chooses for the agent.** Code can settle a choice the agent could make
+  by refusing it, by overriding what the agent wrote, by reading a meaning off the
+  form of the agent's act rather than its declaration, or by binding the agent to a
+  cutoff. Each stays or goes by "Leaf's role", whoever asked for it. Only a refusal
+  prints a finding the agent reads, so find the others by comparing what the page
+  draws with what the agent's write declared.
 - **Several implementations of one capability.** Consolidate them into one, and move
   every caller to it ("Fix the underlying issue"). The other copies seldom sit beside
   the file you're reading, so search for them as **What it repeats** says.

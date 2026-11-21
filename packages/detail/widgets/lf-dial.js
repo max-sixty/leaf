@@ -24,8 +24,17 @@
  *
  * Skim folds the rest with `hidden="until-found"`, so find-in-page, a fragment, the On
  * walk and travel to a comment still reach folded text and open the run holding it
- * (`beforematch`). Folding walks the dial's document (the view or `main` holding it, as
- * `lf-toc`'s outline does) and descends only into plain structure that holds the lede,
+ * (`beforematch`). Folding walks the element the dial stands in, which is also the box
+ * it sticks within, such as a column page's `main`, a sidebar page's body, a tab or a
+ * message, so where the author writes the dial says what it governs. An `aside` there
+ * folds like any block (the maintainer's request). Rejected: walking the view or
+ * `main` holding the dial. On a sidebar page that walk takes the Layout's regions for
+ * blocks, folding the sidebar's contents and setting a ⋯ in the Layout's row, and
+ * sparing the sidebar takes a rule that never folds an `aside`, which keeps every
+ * aside in the flow at Skim, gist or not. Rejected too: finding the dial's region from
+ * the Layout's declarations, which couples the dial to the Layout's internals, and
+ * which can't say what a dial in a header spanning both regions governs. The walk
+ * descends only into plain structure that holds the lede,
  * a gist or a heading that stands. Everything else is folded or kept whole: a line of
  * text, one with words of its own or only inline children, which keeps a gist in its
  * line whole; a table, whose cells stand in its grid; a figure, whose caption labels
@@ -101,7 +110,6 @@
 import {
   actionClass,
   addressableLabel,
-  authoredScope,
   focusDestination,
   foldDuration,
   holdPlace,
@@ -123,7 +131,6 @@ import {
   registerRootHeader,
   shownWindow,
   tabStore,
-  viewDocument,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { html, render } from "/vendor/lit.js";
@@ -142,8 +149,8 @@ const SUMMARY = ".lede, .gist";
 // grid, a figure, whose caption labels all it holds, and a disclosure, whose summary is
 // its control.
 const WHOLE = "table, figure, details";
-// Never folded: what the reader steers by or what isn't the page's flow.
-const STANDS = "script, style, template, [data-lf-gen], aside";
+// Never folded: what draws nothing, and words no author wrote, such as Leaf's labels.
+const STANDS = "script, style, template, [data-lf-gen]";
 const FOLDED = "data-lf-dial-folded";
 // On the standing depth's button while the page shows a gap it folded: the word
 // face's variant for a selection the page shows only in part (control-faces.js).
@@ -380,16 +387,9 @@ customElements.define(
       return `lf-dial:${this.id}`;
     }
 
-    // The document the dial governs: the view or `main` holding it, the page's `main`
-    // for a dial standing beside it, and in an agent's message that message's markup.
+    // What the dial governs: the element it stands in.
     get #scope() {
-      const scope = authoredScope(this);
-      return (
-        viewDocument(this) ??
-        (scope === this.ownerDocument.body
-          ? scope.querySelector(":scope > main")
-          : scope)
-      );
+      return this.parentElement;
     }
 
     setup() {

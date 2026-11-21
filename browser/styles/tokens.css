@@ -242,10 +242,11 @@
   /* How far a line-tall control's reach stands past its face on each side: the room a
      place keeps around such a control where something else takes presses. */
   --lf-reach-room: max(0px, (var(--lf-aim-floor) - var(--lf-line)) / 2);
-  /* The smallest face a user types in. Only a finger's platform asks for one: iOS
-     Safari zooms the page onto a text field set smaller as the field takes focus. The
-     field rule that holds it is in shadow.css, and a surface that shows words before
-     opening a field on them holds the same floor so the two sizes agree. */
+  /* The smallest face a user types in, in one of Leaf's own fields. Only a finger's
+     platform asks for one: iOS Safari zooms the page onto a text field set smaller as
+     the field takes focus. The rule that holds Leaf's fields to it is in surfaces.css,
+     and a surface that shows words before opening a field on them holds the same floor
+     so the two sizes agree. */
   --lf-entry-floor: 0px;
   /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
      rail below is sized from the same length, so it is named rather than written into

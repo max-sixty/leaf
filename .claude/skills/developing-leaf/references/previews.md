@@ -31,3 +31,17 @@ page to this chat before printing the URL. Open the printed URL with the section
 fragment through `mcp__codex_app__open_in_codex` as a browser target with
 `placement: "right"`, and tell the user to comment on the page to steer this chat.
 Comments inside a live sample stay in that sample.
+
+## Compare checkout versions
+
+`uv run leaf-dev preview <example> --base` serves the merge base's runtime beside this
+checkout's; `--help` lists the flags. For
+a runtime change, keep the default, in which both versions read this checkout's
+authored source. Pass `--authored` when the authored content changed, so the base reads
+its own, and pass `--user` only when the URLs go to the user.
+
+For a change that can alter browser startup, compare served previews for a runtime
+change, and `leaf-dev site verify website-worker` for site delivery, Worker routing or
+containers. Read the comparison by phase (the document arriving, widgets upgrading,
+the page first showing the server's state), and compare the requests and bytes loaded
+before that last phase directly; elapsed time is only diagnostic.

@@ -156,7 +156,8 @@ def native_code_copy_hover(page: Page) -> None:
 
 
 def recorded_video(page: Page) -> None:
-    """The gallery's recording at rest under its play bar, beside the audio player."""
+    """The gallery's recording at rest under the browser's controls, beside the audio
+    player."""
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Page & layout", exact=True
     ).click()
@@ -164,7 +165,8 @@ def recorded_video(page: Page) -> None:
 
 
 def recorded_video_by_keyboard(page: Page) -> None:
-    """The recording the keyboard stands on, where Space and the arrows reach it."""
+    """The recording the keyboard stands on, where the browser's controls take its
+    keys."""
     recorded_video(page)
     page.keyboard.press("Tab")
     page.locator("#bg-recording").focus()
@@ -1784,6 +1786,11 @@ def screenshot_views_keyboard(page: Page) -> None:
     page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
 
 
+def page_disclosure(page: Page) -> None:
+    """A disclosure the page's author wrote, shut, under the browser's own marker."""
+    page.locator("#incident-cause-key").scroll_into_view_if_needed()
+
+
 def dial_keyboard(page: Page) -> None:
     """The detail dial's chosen depth holding keyboard focus."""
     page.locator("lf-dial").get_by_text("Read", exact=True).evaluate(
@@ -3277,6 +3284,12 @@ STATES = (
         screenshot_startup,
         activated=False,
         region="#rn-console-section",
+    ),
+    State(
+        "page-disclosure",
+        "incident-report",
+        page_disclosure,
+        region="#incident-cause-key",
     ),
     State("dial-keyboard", "incident-report", dial_keyboard, region="lf-dial"),
     State("dial-press", "incident-report", dial_press, region="lf-dial"),

@@ -229,10 +229,11 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     video, a canvas, a picture in a tab, a picture marked inside a figure, with the
     figure's caption, and a paragraph or list item holding a gist, whole, words and
     links beside it included. A picture the author didn't mark folds with the words
-    around it, headings inside it included. A section or list item of blocks is laid
-    out in place, a button among its blocks included, so a gist in one keeps its
-    support folded. A gist or heading inside a closed disclosure stays closed, since
-    Skim shows nothing Read doesn't, so a section holding only those folds whole."""
+    around it, headings inside it included, and so does an `aside`. A section, list
+    item or aside of blocks is laid out in place, a button among its blocks included,
+    so a gist in one keeps its support folded. A gist or heading inside a closed
+    disclosure stays closed, since Skim shows nothing Read doesn't, so a section
+    holding only those folds whole."""
     chart = (
         '<lf-chart class="gist" id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
         "marks: [Plot.lineY([1, 3, 2])] }"
@@ -263,6 +264,9 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
                 '<li><img class="gist" alt="Run 3" width="40" height="30"> '
                 '<a id="run-link" href="#key-figure">Run 3</a> '
                 '<em id="run-rate">hit rate 3%</em></li></ul>'
+                '<aside id="cause-note"><p>The canary missed it.</p></aside>'
+                '<aside><p class="gist" id="aside-gist">No flag guarded the key.</p>'
+                '<p id="aside-support">Cache keys ship unflagged.</p></aside>'
                 '<details id="cause-raw" open><summary id="cause-raw-summary">Raw'
                 f'</summary><figure class="gist" id="cause-raw-figure">{SQUARE}'
                 "</figure></details></section>"
@@ -298,6 +302,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#key-caption",
         "#shot-line",
         "#finding-gist",
+        "#aside-gist",
         "#run-link",
         "#run-rate",
         "#cause-raw-summary",
@@ -320,6 +325,8 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#cause-copy",
         "#unmarked-line",
         "#finding-support",
+        "#cause-note",
+        "#aside-support",
         "#latency-figure",
         "#latency-0",
         "#demo-0",
@@ -334,6 +341,37 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     expect(page.locator("#raw-figure")).to_be_visible()
     depth(page, "Read")
     expect(page.locator("main [hidden]")).to_have_count(0)
+
+
+def test_a_dial_in_a_sidebar_page_s_body_governs_the_body_alone(browser, serve):
+    """A dial in a sidebar page's body governs the body: Skim folds the body's blocks,
+    leaves the sidebar's contents shown, sets no ⋯ among the Layout's regions, and
+    leaves the sidebar and the body where they stood."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<aside id="route"><div class="layout-track">'
+                '<lf-toc id="contents"></lf-toc></div></aside>'
+                '<div class="layout-column" id="body"><h1>Report</h1>'
+                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                + "".join(section(name, 3) for name in SECTIONS)
+                + "</div>",
+                layout="sidebar",
+            )
+        ),
+    )
+    resized(page, 1400, 900)
+    regions = page.locator("main > *")
+    across = "nodes => nodes.map(n => [n.getBoundingClientRect().x, n.offsetWidth])"
+    before = regions.evaluate_all(across)
+    depth(page, "Skim")
+    expect(page.locator("#impact-0")).to_be_hidden()
+    expect(page.locator("#contents")).to_be_visible()
+    expect(page.locator("#route [data-lf-dial-folded]")).to_have_count(0)
+    expect(regions).to_have_count(2)
+    assert regions.evaluate_all(across) == before
 
 
 def test_a_section_without_a_gist_folds_whole(browser, serve):

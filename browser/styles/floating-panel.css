@@ -36,10 +36,14 @@
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
     --lf-fp-press: 28px;
-    /* How far a thread's words stand inside its view's 6px padding: the head's, the
-       quote's and each message's, so all three start on one edge. What marks them
-       off, the quote's rule and a rewrite's frame, stands at the padding. */
+    /* How far the panel's words stand inside its 6px padding: the words of a view's
+       head, a thread's quote, each message and the field, so all of them start on one
+       edge, and a draft's lines stand where the sent message's will. What marks them
+       off, the quote's rule and a rewrite's frame, stands at the padding. A thread
+       sets its own inset (surfaces.css), so the thread's view sets the panel's again
+       (`.lf-fp-messages`). */
     --lf-fp-inset: 8px;
+    --lf-thread-text-inset: var(--lf-fp-inset);
     /* The room the field's words keep at the end of every line for Send, which stands
        in the corner past its 6px end padding (`.lf-fp-field`). */
     --lf-fp-send-room: calc(max(var(--lf-line), var(--lf-aim-floor)) - 6px);
@@ -478,31 +482,53 @@
   .lf-floating-panel[data-lf-open] .lf-fp-row[data-lf-control-focus-visible] {
     background: none;
   }
-  /* What the field's draft carries, its attached images, hangs off the box rather
-     than standing in it: the shelf stands just over the box's top edge, from the
-     panel's start edge, where the field's box starts while it wears the ring, so
-     attaching neither grows the box nor moves a word, in the page's field, an open
-     thread's reply and the comment box seated in the field's place (`.lf-fp-response`)
-     alike, one of which shows at a time. With a view open it hangs over the view's
-     head. The user chose this over the shelf taking a line of its own over the words,
-     which grew the box by a line the one thumbnail left mostly empty, and over
-     thumbnails shrunk into the row beside the words, which kept the box whole but made
-     each picture a chip. The shelf takes its start from the panel and its measure from
-     the editors, which stay put as focus comes and goes. Rejected: following the
-     field's slot, which reaches out to the panel's edge only while it wears the ring,
-     so a press on a picture, taking focus from the editor, moved the picture from
-     under the pointer. */
+  /* What the field's draft carries, its attached images, stands just over the box
+     rather than in it: the shelf stands its gap over the row's top edge, which is the
+     box's top edge while it wears the ring, from the panel's start edge, where the box
+     starts. So attaching neither grows the box nor moves a word, in the page's field,
+     an open thread's reply and the comment box seated in the field's place
+     (`.lf-fp-response`) alike, one of which shows at a time. With no view open the
+     row's top is the panel's, so the shelf hangs over the panel. With a view open, and
+     the editors holding the shelf showing, which a search hides, the row stands a band
+     below the view, the shelf's tallest picture and its gap on either side, and the
+     shelf stands in it, covering neither the view nor the box. The panel grows by the
+     band; where it already reaches the window's top, the view gives the band up at its
+     top and keeps its foot (scrolling.js, `keepFoot`), so the message being answered
+     stays in view. A shorter picture stands at the band's foot, by the box.
+
+     The user chose the band, which matches the page's field, over four others: the
+     shelf hanging over the view's head, which kept the thread still but stood the
+     pictures far from the box, over the message being answered; a line in the box,
+     which stood the pictures inside the box's frame with a view open and outside it
+     without one; the shelf beside the panel, which needs room past the panel's side
+     that a narrow window lacks; and the pictures drawn as the thread's next message, a
+     kind of message no transcript has. For the page's field they chose the shelf above
+     the box in preference to a line of its own over the words, which grew the box by a
+     line the one thumbnail left mostly empty, and to thumbnails shrunk into the row
+     beside the words, which made each picture a chip.
+
+     The shelf takes its start from the panel and its measure from the editors, which
+     stay put as focus comes and goes. Rejected: following the field's slot, which
+     reaches out to the panel's edge only while it wears the ring, so a press on a
+     picture, taking focus from the editor, moved the picture from under the pointer. */
+  .lf-fp-row {
+    anchor-name: --lf-fp-row;
+  }
   .lf-fp-editors,
   .lf-fp-response {
     anchor-name: --lf-fp-field;
+  }
+  .lf-floating-panel[data-lf-open]
+    .lf-fp-row:has(
+      > .lf-fp-field > .lf-fp-editors:not([hidden]) .lf-composer-media:not([hidden])
+    ) {
+    margin-block-start: calc(var(--lf-media-h) + 2 * var(--lf-media-gap));
   }
   /* The shelf's padding holds its pictures' shadows and removal reach (response.css),
      so the offsets take that padding back. */
   :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
-    bottom: calc(
-      anchor(--lf-fp-panel top) + var(--lf-media-gap) - var(--lf-media-room)
-    );
+    bottom: calc(anchor(--lf-fp-row top) + var(--lf-media-gap) - var(--lf-media-room));
     left: calc(anchor(--lf-fp-panel left) - var(--lf-media-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
@@ -1068,7 +1094,15 @@
      width: the crumb keeps the strip's narrowest form (`min-content`), so a tab too
      long for the line, such as On <agent> naming a long agent, would otherwise widen
      the strip past the panel, which clips it, and leave the tabs after it out of
-     reach. */
+     reach.
+
+     A tab's words stand as far inside its frame as the field's words stand inside
+     the field (`--lf-fp-inset`), and the strip hangs into the panel's padding by that
+     much, so the first tab's words start on the panel's text line and a selected
+     tab's frame on the field's edge under it. Between two tabs stands an empty gap
+     (floating-panel.js, `tabs`) in a gutter track an inset wide, so a selected tab's
+     frame stands an inset from the next tab's. The gutter gives way with the tabs'
+     insets (below); a `column-gap` would keep its width and break the phone's line. */
   .lf-fp-filters {
     --lf-fp-tab: 26px;
     --lf-line: var(--lf-fp-tab);
@@ -1078,25 +1112,29 @@
     );
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(min-content, max-content);
+    grid-auto-columns: minmax(min-content, max-content) minmax(0, var(--lf-fp-inset));
     justify-content: start;
     min-width: 0;
-    max-width: calc(100cqi + 2 * var(--lf-focus-ring-room));
+    max-width: calc(100cqi + 2 * var(--lf-focus-ring-room) + var(--lf-fp-inset));
     overflow-x: auto;
     padding: var(--lf-fp-filter-reach) var(--lf-focus-ring-room);
     margin: calc(-1 * var(--lf-fp-filter-reach)) calc(-1 * var(--lf-focus-ring-room));
+    margin-inline-start: calc(-1 * (var(--lf-focus-ring-room) + var(--lf-fp-inset)));
   }
-  /* A tab's inset, and the room between tabs, give way before the line does: its
-     words stand between two rooms that shrink to nothing as the strip narrows, each
-     tab giving up the same, so the tabs take only their words' width (and a
-     finger's, `--lf-aim-floor`) before the presses beside them go to a line of their
-     own, and the line breaks on the tabs' narrowest form (`.lf-fp-crumb`, below),
-     whatever faces the words are set in. On a phone, where the user chose the tabs to
-     share one line with a press and Close at 390px, that is how they fit, in the
-     wider faces Linux ships too. */
+  /* A tab's inset gives way before the line does: its words stand between two rooms
+     that shrink to nothing as the strip narrows, each tab and gutter giving up the
+     same, so the tabs take only their words' width (and a finger's, `--lf-aim-floor`)
+     before the presses beside them go to a line of their own, and the line breaks on
+     the tabs' narrowest form (`.lf-fp-crumb`, below), whatever faces the words are set
+     in. On a phone, where the user chose the tabs to share one line with a press and
+     Close at 390px, that is how they fit, in the wider faces Linux ships too; there a
+     selected tab's frame still stands on the field's edge, and its words start as far
+     left of the text line as its inset has given way. */
   .lf-fp-filters > .lf-fp-tab {
     display: grid;
-    grid-template-columns: minmax(0, 11px) max-content minmax(0, 11px);
+    grid-template-columns:
+      minmax(0, calc(var(--lf-fp-inset) - 1px)) max-content
+      minmax(0, calc(var(--lf-fp-inset) - 1px));
     min-width: auto;
     padding-inline: 0;
     font: var(--lf-font-small);
@@ -1758,14 +1796,19 @@
      onto the thread's edge. The transcript keeps the room around it a card's box gives
      its own, but on the side the quote's rule stands, its first author 16px under the
      quote, the quote head's 12px included, and at its foot, its last words a message's
-     gap over the field (`--lf-fp-transcript-end`, above). */
+     gap over the field (`--lf-fp-transcript-end`, above). Each message's controls
+     stand in that room at its end, so react and copy end under the head's ✕. */
   .lf-fp-messages > .lf-page-thread {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding: 0;
   }
   .lf-fp-messages .lf-thread-transcript {
+    --lf-fp-transcript-room: calc(8px + var(--lf-sp-1));
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
-    padding-inline-end: calc(8px + var(--lf-sp-1));
+    padding-inline-end: var(--lf-fp-transcript-room);
+  }
+  .lf-fp-messages .lf-msg-control-room {
+    margin-inline-end: calc(-1 * var(--lf-fp-transcript-room));
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame
@@ -1816,10 +1859,16 @@
   .lf-fp-plan-step > .lf-fp-plan-steps {
     grid-column: 2 / -1;
   }
+  /* A step's mark is a line of its title tall and centres its symbol in a grid cell,
+     so the symbol centres on the title's first line, as the time at the step's end
+     stands on it, however many lines the title wraps to. Laid out as a word on a
+     line, the symbol would sit on the line's baseline, below the line's centre. */
   .lf-fp-plan-mark {
-    align-self: center;
+    align-self: start;
+    display: grid;
+    place-items: center;
     width: 16px;
-    height: 16px;
+    height: 1lh;
     color: var(--lf-quiet);
   }
   .lf-fp-plan-step[data-lf-state="open"] > .lf-fp-plan-mark::before {

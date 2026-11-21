@@ -266,7 +266,9 @@ svg[data-lf-icon] {
    whole thread. An open rewrite's Discard and Save take the thread's place past the
    gap (response.css), so the rule leaves with it. It stands past the head's end rather
    than its controls', since a card short of room for a held notice of news lets them
-   run past the head into that gap (thread-card.js, `#fitLineNews`). */
+   run past the head into that gap (thread-card.js, `#fitLineNews`). A margin card
+   ends both sets of controls its symbol end further in (`--lf-margin-symbol-end`,
+   annotation-chrome.css), so the rule moves in with them. */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )
@@ -278,7 +280,9 @@ svg[data-lf-icon] {
   &::after {
     content: "";
     position: absolute;
-    inset-inline-start: calc(100% + var(--lf-sp-2) / 2);
+    inset-inline-start: calc(
+      100% + var(--lf-sp-2) / 2 - var(--lf-margin-symbol-end, 0px)
+    );
     inset-block-start: 50%;
     translate: -50% -50%;
     inline-size: 1px;
@@ -876,6 +880,19 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * state in its own ink, such as Send or Resolve (response.css), states that ink after
  * this rule, at least as heavily. Its grid lays out what it holds, such as the On Me
  * mark's symbol and count, which the library's centring would pack together. */
+/* How far a symbol's glyph stands in from its face's edge: half of what the face holds
+   beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
+   (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
+   this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
+   for a word, and a scroller holding such a seat keeps this much room at its sides,
+   and a focus ring's beyond it.
+   Under a finger the box is wider than the face, so the glyph stands inside the edge
+   by the difference. The symbol states it again, so a surface that sets its own face
+   gets its own inset. */
+:root,
+.lf-icon-action {
+  --lf-symbol-inset: calc((var(--lf-icon-action-face) - 16px) / 2 + 3px);
+}
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);

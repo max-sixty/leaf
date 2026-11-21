@@ -9,12 +9,6 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-## Take a backlog item
-
-Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
-(`notes/TODO.md` has the query), and open its pull request early, as a draft if need be,
-with `Closes #N` in the body, so the next session sees the item taken.
-
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
@@ -30,10 +24,6 @@ jq 'select(has("lf-shot"))."lf-shot"' \
 
 ## Review a UI change
 
-Record browser API and rendering support gaps in
-[`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
-assessing a gap" section says.
-
 Whoever reviews a UI change, you or an independent reviewer, first uses the
 live candidate cold for the user's task, before reading its code or the author's
 account, reaching each result by every route Leaf gives to it and capturing each state
@@ -43,19 +33,12 @@ change sees the screen through that work and misses flaws a first look catches; 
 fresh agent given only the captures and the user's request, and asked what looks
 wrong, is one way to get that look. The `/ui-sweep` pass (`../ui-sweep/SKILL.md`) a
 theme or shared-control change gets follows its "Review a design system" section, and
-its "External review" section says when to use the skills below.
-
-### External UI skills
-
-Optional reviews from outside Leaf, installed separately, cover visual critique,
-interface conventions, motion, worst-case content, and each composite control's
-keyboard and ARIA structure. `references/external-ui-skills.md` names them and says
-how to run each.
+its "External review" section says when to use the optional review skills from outside
+Leaf that `references/external-ui-skills.md` names.
 
 ## Checks and guidance for the authoring agent
 
-Code enforces only what Leaf needs to work, and taste goes in the shipped
-instructions as a goal with its reason. Read `references/checks-and-guidance.md`
+Read `references/checks-and-guidance.md`
 before adding or changing a rule, check, refusal or message that constrains or answers
 an authoring agent.
 
@@ -123,19 +106,13 @@ declarations behind them (its module header covers `--base`, `--authored` and
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states
 reached by interaction, including focus states where layout can cover a focus ring.
-Where no state reaches a surface the change touches, add one to `STATES`
-(`dev/leaf_dev/states.py`) rather than driving it by hand: one state per surface,
-never one per scheme, size or pointer, which a run chooses with `--scheme`,
-`--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
+Where no state reaches a surface the change touches, add one to `STATES` as the
+`dev/leaf_dev/states.py` header says, rather than driving the surface by hand.
 
-For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
-a gallery of cards across subjects, messages, routes, windows and page Layouts, and add
-a case to its `CASES` for each new shape a reader meets.
-
-For a change to what the panel says in passing, a notice, a walk's position or the
-words standing in its field, run `uv run leaf-dev words --base`, a table of what the
-seat says and a listener hears after each press on a set of pages, and read each
-changed row beside its capture.
+Some `leaf-dev` commands capture one surface in each case of a list they keep, such as
+`placement cards` for thread-card placement and `words` for what the panel says after
+each press; `leaf-dev --help` names each command's subject. For a change to a surface
+one of them covers, read that command's module header and run it with `--base` too.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
@@ -148,10 +125,8 @@ is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and
-browser-runtime edits at one URL; `--source <file>` serves any HTML file. Read
-`references/previews.md` before you start, restart, drive or hand over a preview,
-or serve a scratch page.
+Read `references/previews.md` before you start, restart, drive or hand over a
+`uv run leaf-dev preview` of an example or an HTML file, or serve a scratch page.
 
 ## Run the agent journey
 

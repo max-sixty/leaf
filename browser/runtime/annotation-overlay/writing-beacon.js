@@ -9,7 +9,11 @@
    the one place out of sight that a key acts on. The user asked for a mark there, so
    they see where their keys go before pressing one, and only there: they rejected a
    mark for every thread with news scrolled out of the window, which no key reaches. A
-   box holds the caret whether or not it holds words, so an empty one has the mark too.
+   box holds the caret whether or not it holds words, so an empty one keeps the keys
+   and has the mark too. The user chose that over letting an empty box go at the next
+   key like any other control: a stray letter in the box costs a backspace, while a
+   sentence typed into a box that let go runs as page commands, `t` walking to another
+   thread and `r` resolving it.
    The floating panel's comment field never leaves the window and needs none.
 
    The beacon stands while the user sees none of the box (geometry.js, `seenRect`), at

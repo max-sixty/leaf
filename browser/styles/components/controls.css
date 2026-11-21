@@ -877,6 +877,13 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * this rule, at least as heavily. Its grid lays out what it holds, such as the On Me
  * mark's symbol and count, which the library's centring would pack together. */
 .lf-icon-action {
+  /* How far its glyph stands in from its face's edge: half of what the face holds
+     beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
+     (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
+     this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
+     for a word. Under a finger the box is wider than the face, so the glyph stands
+     inside the edge by the difference. */
+  --lf-symbol-inset: calc((var(--lf-icon-action-face) - 16px) / 2 + 3px);
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
   height: var(--lf-icon-action-face);

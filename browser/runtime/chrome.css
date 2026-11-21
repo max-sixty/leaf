@@ -750,11 +750,9 @@ html[data-lf-draw-mode] {
     font: var(--lf-font-title);
   }
   /* Close's ✕, rather than its box, ends where the dialog's words end, as in the
-     floating panel's head. The box reaches past that edge by the room between its
-     edge and the glyph: half of what the face holds beside the 16px icon, plus the
-     3px margin each glyph keeps inside its icon (icon-paths.js). */
+     floating panel's head (controls.css, `--lf-symbol-inset`). */
   .lf-dialog-head > .lf-icon-action:last-child {
-    margin-inline-end: calc((16px - var(--lf-icon-action-face)) / 2 - 3px);
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
   }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. A row on the user's turn
@@ -861,8 +859,7 @@ html[data-lf-draw-mode] {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-  }
-  /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
+  } /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
      wraps rather than scrolling sideways, so it keeps no room under its last line for a
      scrollbar's track, as a code block does (reading.css). A value too long for the
      rest of its line, such as a fingerprint, moves whole to the next, so the reader can

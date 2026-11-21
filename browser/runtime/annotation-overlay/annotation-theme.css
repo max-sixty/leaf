@@ -53,6 +53,38 @@
   z-index: 2;
   position-visibility: always;
 }
+/* The beacons' lane (margin-beacons.js) is as tall as the body, which the runtime
+   writes, and stands beneath every row in the chrome's stacking order and above the page,
+   so a beacon lies under its entry until a scroll carries the entry away. Each track
+   stands its spacer and beacon in a column as tall as the lane, which is the sticky
+   beacon's containing block, so the beacon can rise to the window's foot from below as
+   far as it can fall to the window's head from above. */
+.lf-margin-beacons {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  z-index: -1;
+  display: grid;
+  grid-template: 100% / 0px;
+  pointer-events: none;
+}
+.lf-margin-beacon-track {
+  grid-area: 1 / 1;
+  justify-self: left;
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  height: 100%;
+}
+.lf-margin-beacon-at {
+  flex: none;
+}
+/* With the annotation layer hidden, a pin's beacons go with the pin, and a rail row's
+   stay with the rail (below). */
+.lf-chrome[data-lf-annotations-hidden] .lf-margin-beacon-track[data-lf-place="pin"] {
+  visibility: hidden;
+}
 .lf-margin-cluster {
   grid-area: 1 / 1;
   justify-self: left;
@@ -84,11 +116,14 @@
 /* A pin is smaller than a rail entry, its glyph 2px nearer each corner, so its badges
  * (`.lf-badges`, controls.css) stand 2px further out and leave the glyph whole. Its
  * count stands on its left, over the block it is about: at the window's edge one on
- * the right would stand past the window. Its dot keeps the right corner. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges {
+ * the right would stand past the window. Its dot keeps the right corner, on a pin's
+ * beacon (margin-beacons.js) too. */
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges,
+.lf-margin-beacon-track[data-lf-place="pin"] .lf-margin-face > .lf-badges {
   margin: -2px -2px 0;
 }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges::after,
+.lf-margin-beacon-track[data-lf-place="pin"] .lf-margin-face > .lf-badges::after,
 .lf-margin-cluster[data-lf-place="pin"] .lf-badges > .lf-badge-count {
   order: -1;
 }

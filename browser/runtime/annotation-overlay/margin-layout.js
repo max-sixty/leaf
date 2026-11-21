@@ -153,7 +153,7 @@ import {
  * shownWords: Box[], preformatted: Box | null, anchor: Element,
  * scroller: Element, lane: HTMLElement | null, shown: boolean,
  * place: "pin" | "rail", box: DOMRect, subject: DOMRect, extent: Box | null, view: Box | null, top: number | undefined,
- * carrier: Anchor | null, cuts: HeaderLevel[], cutKey: string,
+ * carrier: Anchor | null, cuts: HeaderLevel[], cutKey: string, documentCarried: boolean,
  * carrierStand: {box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * carrierPaint: {node: Element, box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * home?: Element, container?: Element, axes?: "xy" | "y"}} TargetRead
@@ -429,9 +429,10 @@ let laidOutScrollX = 0;
 // carrier's anchor, as the pass measured it (`anchorBox`), on the axes the carrier
 // follows it (`across` where both, the window's left edge otherwise), or, for a row in
 // the root lane, the document's origin, and whether the pass kept it `level` with its
-// passage's lines (`targetShown`); and where the box it stands by stood (`subject`),
-// from the same origin on both axes (`subjectMoved`).
-/** @type {WeakMap<HTMLElement, {anchor: Anchor | null, across: boolean, top: number, bottom: number, right: number, level: boolean, subject: {top: number, left: number}}>} */
+// passage's lines (`targetShown`); where the box it stands by stood (`subject`), from
+// the same origin on both axes (`subjectMoved`); and, for a row only the document's
+// scroll moves, its seat from the document's origin (`documentSeat`).
+/** @type {WeakMap<HTMLElement, {anchor: Anchor | null, across: boolean, top: number, bottom: number, right: number, level: boolean, subject: {top: number, left: number}, inDocument: {left: number, top: number} | null}>} */
 const standsBy = new WeakMap();
 // Where `row` stands now, by those offsets from where what carries it stands now: the
 // place the browser moved it to in the frame that scrolled it, which reading the row's own
@@ -449,6 +450,25 @@ function standsNow(row) {
     bottom: top + by.bottom,
     right: left + by.right,
     level: by.level,
+  };
+}
+
+// How far down the document the body reaches, as the last pass read it.
+let bodyBottom = 0;
+// Where `row` stands in the document as the last pass stood it, for a box that keeps it
+// company there as the document scrolls (margin-beacons.js): its seat from the
+// document's origin, its posture and how far down the body reaches. Null for a row
+// another scroll or a sticky or fixed box may move, such as one in a pane, and for a
+// row withheld or placed nowhere. A row the headers over its target cut still counts:
+// they hide it as it passes under them, and the document's scroll alone moves it.
+/** @param {HTMLElement} row */
+export function documentSeat(row) {
+  const seat = standsBy.get(row)?.inDocument;
+  if (!seat || withheldRows.has(row)) return null;
+  return {
+    ...seat,
+    place: /** @type {"rail" | "pin"} */ (row.dataset.lfPlace),
+    extent: bodyBottom,
   };
 }
 
@@ -1943,6 +1963,7 @@ function layoutMountedRows(layer) {
   );
   const present = [];
   const main = marginColumn();
+  bodyBottom = document.body.getBoundingClientRect().bottom + windowY;
   const columnRect = proseRect(main);
   const shell = shellRight();
   const stands = railStands(main);
@@ -2119,6 +2140,7 @@ function layoutMountedRows(layer) {
       carrier: null,
       cuts: [],
       cutKey: "",
+      documentCarried: false,
       carrierStand: null,
       carrierPaint: null,
     });
@@ -2219,6 +2241,9 @@ function layoutMountedRows(layer) {
     if (!read.target || keeping.has(read.row)) continue;
     const subject = read.point ?? read.target;
     read.carrier = carrierAnchor(read.passageNode ?? subject, read.scroller);
+    // Only the document's scroll moves a row that needs no carrier of its own, though
+    // the headers over its target may cut it (below).
+    read.documentCarried = read.scroller === pageScroller && !read.carrier;
     // The headers over the target cut its row, in frames the document's own scroll
     // does not carry, so a row they cut stands in a carrier the document's scroll does.
     read.cuts = headerLevels(subject, cutClips);
@@ -2574,6 +2599,9 @@ function layoutMountedRows(layer) {
         top: subject.top - fromTop,
         left: subject.left - (at ? at.left : -windowX),
       },
+      inDocument: read.documentCarried
+        ? { left: left + windowX, top: top + windowY }
+        : null,
     });
     recordSeating(entry, withheld);
     if (read.carrierPaint) {

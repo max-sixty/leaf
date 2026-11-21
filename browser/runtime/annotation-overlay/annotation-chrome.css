@@ -19,6 +19,68 @@
   ) {
     z-index: var(--lf-z-margin-raised);
   }
+  /* A beacon (margin-beacons.js) wears a thread entry's face at the aim floor, with an
+     arrowhead inside it on the side toward the thread, centred on its entry while the
+     entry shows. Nothing of it stands outside its box, so the entry covers all of it,
+     a pin's face being no smaller. It sticks at the one edge of the window it points
+     toward, inside the box its entry fills at that edge as the entry starts to leave:
+     so the entry covers it until then and uncovers it as it slides away, and the two
+     are never seen apart at once. A pin's beacon fills the pin's box, so it stands in
+     from the edge by the half of its unread dot (controls.css, 8px) that stands past
+     its corner, which the edge would cut. At the head it stands below the room a page's
+     sticky tab strip takes, and at the foot above what the chrome covers in its column
+     (`--lf-beacon-cover`, margin-beacons.js), as the floating panel covers a pin's
+     column on a narrow window. */
+  .lf-margin-beacon {
+    --lf-beacon-room: calc(var(--lf-margin-entry) - var(--lf-aim-floor));
+    --lf-beacon-inset: max(var(--lf-beacon-room), 4px);
+    --lf-beacon-head: 4px;
+    position: sticky;
+    width: var(--lf-aim-floor);
+    min-width: var(--lf-aim-floor);
+    height: var(--lf-aim-floor);
+    min-height: var(--lf-aim-floor);
+    margin: calc(var(--lf-beacon-room) / 2);
+    pointer-events: auto;
+  }
+  [data-lf-place="pin"] > .lf-margin-beacon {
+    --lf-beacon-room: 0px;
+  }
+  .lf-margin-beacon > .lf-margin-entry-icon {
+    inline-size: 12px;
+    block-size: 12px;
+  }
+  .lf-margin-beacon::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    translate: -50% 0;
+    border: var(--lf-beacon-head) solid transparent;
+  }
+  .lf-margin-beacon[data-lf-towards="up"] {
+    top: calc(var(--lf-top-covered) + var(--lf-beacon-inset));
+  }
+  .lf-margin-beacon[data-lf-towards="up"]::before {
+    top: 2px;
+    border-top-width: 0;
+    border-bottom-color: currentColor;
+  }
+  .lf-margin-beacon[data-lf-towards="up"] > .lf-margin-entry-icon {
+    translate: 0 2px;
+  }
+  .lf-margin-beacon[data-lf-towards="down"] {
+    bottom: calc(
+      max(var(--lf-safe-bottom), var(--lf-beacon-cover, 0px)) + var(--lf-beacon-inset)
+    );
+  }
+  .lf-margin-beacon[data-lf-towards="down"]::before {
+    bottom: 2px;
+    border-bottom-width: 0;
+    border-top-color: currentColor;
+  }
+  .lf-margin-beacon[data-lf-towards="down"] > .lf-margin-entry-icon {
+    translate: 0 -2px;
+  }
   /* A pane's lane and the frames a sticky header cuts are stacking contexts of their own
      (their clips make them so), so each rises with the row the pointer or the keyboard
      is on. They hold nothing but rows, so focus within one is focus on a row. */

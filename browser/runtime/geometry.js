@@ -571,33 +571,27 @@ function displaced(sticky, style, axis) {
   return { by: own - box[start], scroller };
 }
 // A scroller's landing band: its shown band less the room its landings keep at each
-// edge (`landingInsets`). The chrome at the window's foot takes no room from the page,
-// so a landing names the columns its destination stands in (`across`), and the band
-// keeps clear of the chrome only where a surface stands across them, as `shownWindow`
-// reads it. The root's band then ends at the foot band the panel states
-// (`stateFootBand`), and elsewhere a landing's room short of the window's foot, so a
-// destination beside the panel lands where it is. A scroller inside the page ends where
-// the root's does only where nothing outside it can carry it clear: the page doesn't
-// scroll, as in a workspace that fills the window, or the scroller stands stuck or fixed
-// in the window. Where the page carries it, the root's own band brings the destination
-// clear as it moves the scroller.
+// edge (`landingInsets`); the root's ends at the foot band the panel states
+// (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
+// scroller inside the page can reach under it. Where nothing outside such a scroller
+// can carry it clear of the chrome, as where the page doesn't scroll, in a workspace
+// that fills the window, or where the scroller stands stuck or fixed in the window, a
+// landing names the columns its destination stands in (`across`), and where a surface
+// stands across them the band ends where the root's does: a landing in a pane brings
+// its destination clear of the panel as one in the page does. Where the page carries
+// the scroller, the root's band brings the destination clear as it moves the scroller.
 /** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
 export const landingBand = (scroller, across = null) => {
-  const inset = landingInsets(scroller);
+  const band = insetBand(scroller, landingInsets(scroller));
   const root = document.documentElement;
-  const crossed =
-    !across || footBand === null
-      ? null
-      : coverBoxes(scroller).some((box) => overlapsAcross(box, across));
-  if (scroller === root && crossed === false)
-    inset.bottom =
-      Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) ||
-      0;
-  const band = insetBand(scroller, inset);
-  if (!band || !crossed || scroller === root || footBand === null) return band;
+  if (!band || !across || footBand === null || scroller === root) return band;
   if (root.scrollHeight - root.clientHeight > 1 && !stuckBox(scroller)) return band;
   const foot = layoutWindow().bottom - footBand;
-  if (band.bottom > foot) band.bottom = Math.max(band.top, foot);
+  if (
+    band.bottom > foot &&
+    coverBoxes(scroller).some((box) => overlapsAcross(box, across))
+  )
+    band.bottom = Math.max(band.top, foot);
   return band;
 };
 /** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */

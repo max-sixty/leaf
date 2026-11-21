@@ -157,10 +157,15 @@
     font: var(--lf-font-message);
     cursor: text;
   }
-  /* Its words in the empty field's ink and Leaf's italic. */
+  /* Its words in the empty field's ink and Leaf's italic, and a kept comment's words
+     in the ink the field draws them in. */
   .lf-fab-rest > .lf-compose-placeholder {
+    min-width: 0;
     color: var(--lf-muted);
     font-style: italic;
+  }
+  .lf-fab-rest .lf-compose-placeholder-lead {
+    color: var(--lf-ink);
   }
   .lf-fab-bar[data-lf-rest] > .lf-surface-grip {
     display: none;

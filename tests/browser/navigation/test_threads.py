@@ -32,7 +32,7 @@ from render_harness import (
     write,
 )
 
-from browser.navigation import READING_REGIONS_PAGE
+from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -454,6 +454,58 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
                 )
             ).to_be_focused()
         page.keyboard.press("Escape")
+
+
+def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
+    """A comment the user began and put away is a stop of the thread walk, in the page's
+    order among the open threads, as Threads lists the two together. The walk stands
+    the user at what the comment is about, its element focused or its passage
+    selected, where its box reads its words without taking the caret, so the next `t`
+    walks on and `c` takes the words up."""
+    url = serve(
+        leaf_page(
+            "drafts in the walk",
+            """
+<h1>Drafts in the walk</h1>
+<p id="first">The first paragraph takes a comment on the whole of it.</p>
+<p id="second">The second paragraph holds the open thread.</p>
+<p id="third">The third paragraph takes a comment on a passage.</p>
+""",
+        ),
+        anchored=[("second", "open thread")],
+    )
+    page = open_page(browser, url)
+    field = page.locator(".lf-fab-input")
+    page.locator("#first").click(modifiers=["Alt"])
+    write(field, "About the first.")
+    page.keyboard.press("Escape")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('third').firstChild;
+          const at = text.data.indexOf('a passage');
+          getSelection().setBaseAndExtent(text, at, text, at + 'a passage'.length);
+        }"""
+    )
+    page.keyboard.press("c")
+    write(field, "About the passage.")
+    page.keyboard.press("Escape")
+    # A press on the page starts the walk from what the window shows.
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(page.locator("#first")).to_be_focused()
+    expect(page.locator(".lf-fab-rest")).to_contain_text("About the first.")
+    expect_walk_position(page, "1 of 3 threads and drafts")
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("t")
+    expect(page.locator("#third")).to_be_focused()
+    expect(field).to_be_visible()
+    expect(field).to_have_js_property("value", "About the passage.")
+    assert page.evaluate("() => getSelection().toString()") == "a passage"
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "About the passage.")
 
 
 def test_the_thread_walk_reaches_a_thread_in_view_ahead_of_the_first_paragraph(

@@ -99,7 +99,8 @@ export const fragmentShown = (address) =>
  * @typedef {import("./focus.js").Caret} Caret
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
  * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: Caret | null,
- * selection?: {range: Range, backward: boolean}, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
+ * selection?: {range: Range, backward: boolean} | null, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
+ * @typedef {import("./anchor-resolution.js").CapturedAnchor | import("../types/domain.js").Anchor} AnchorLike
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
  * @typedef {{anchors: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "placedAt">,
@@ -107,6 +108,63 @@ export const fragmentShown = (address) =>
  * threadFocusTarget: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["threadFocusTarget"],
  * clearFor: (destination: Arrival, landed: DOMRect | null) => unknown, announce: (message: string) => unknown}} TravelOptions
  */
+// The target an anchor names, where this version shows it as the anchor names it: a
+// passage's words, or the element an anchor naming no passage names; else null, as for
+// a passage whose words this version no longer holds.
+/** @param {AnchorLike} anchor */
+const landingTarget = (anchor) => {
+  const target = resolveAnchor(anchor);
+  return targetSegments(target).length || (!anchor.quote && targetElement(target))
+    ? target
+    : null;
+};
+// Whether a landing can stand the user at the target an anchor names.
+/** @param {AnchorLike} anchor */
+export const landsAt = (anchor) => landingTarget(anchor) !== null;
+
+// Where the user stands at the target an anchor names, as selecting or focusing it
+// themselves would leave them: its passage selected, with focus on the place the passage
+// stands in, or its element focused with nothing selected. An arrival's `selection`
+// is the page's selection once it lands, where `null` clears it and leaving it out
+// keeps whatever is selected.
+/** @param {AnchorLike} anchor @param {boolean} [backward] @returns {Arrival | null} */
+function targetLanding(anchor, backward = false) {
+  const target = landingTarget(anchor);
+  if (!target) return null;
+  const segments = targetSegments(target);
+  const element = targetElement(target);
+  if (!segments.length && element)
+    return {
+      where: element,
+      focus: targetPlace(target),
+      selection: null,
+      scroll: [{ at: element }],
+    };
+  const range = rangeOf(segments);
+  return {
+    where: range,
+    focus: targetPlace(target),
+    selection: { range, backward },
+    scroll: [{ at: range }],
+  };
+}
+
+// Whether the user stands where `targetLanding` leaves them, given the element they are
+// on and the passage they have selected: on its place, with its passage selected, or
+// with nothing selected where it names none.
+/** @param {AnchorLike} anchor @param {Element | null} at @param {Range | null} selected */
+export function standsAtTarget(anchor, at, selected) {
+  const target = landingTarget(anchor);
+  if (!target || !at || at !== targetPlace(target)) return false;
+  const segments = targetSegments(target);
+  if (!segments.length || !selected) return !segments.length && !selected;
+  const range = rangeOf(segments);
+  return (
+    selected.compareBoundaryPoints(Range.START_TO_START, range) === 0 &&
+    selected.compareBoundaryPoints(Range.END_TO_END, range) === 0
+  );
+}
+
 /** @param {TravelOptions} travel */
 export function createAnchorTravel({
   anchors,
@@ -178,7 +236,8 @@ export function createAnchorTravel({
         const current = resolve();
         if (!current?.where) return;
         if (complete) departure?.commit();
-        if (current.selection) {
+        if (current.selection === null) getSelection()?.removeAllRanges();
+        else if (current.selection) {
           const { range, backward } = current.selection;
           /** @type {[Node, number]} */
           const head = [range.startContainer, range.startOffset];
@@ -199,25 +258,16 @@ export function createAnchorTravel({
     return place(true);
   }
 
-  // A remembered passage carries semantic words, never retained DOM endpoints.
-  // Resolve on each side of reveal/focus so a revision cannot leave stale nodes in
-  // the native selection. Ordinary arrival owns clearance, history and reading band.
-  /** @param {import("./anchor-resolution.js").CapturedAnchor | import("../types/domain.js").Anchor} anchor @param {{backward: boolean, intent: UserIntent}} options */
-  async function restoreSelection(anchor, { backward, intent }) {
+  // Travel to the target an anchor names, standing the user there (`targetLanding`):
+  // Restore selection's passage, and a comment draft's subject for the thread walk
+  // (navigation.js). A remembered passage carries semantic words, never retained DOM
+  // endpoints. Resolve on each side of reveal/focus so a revision cannot leave stale
+  // nodes in the native selection. Ordinary arrival owns clearance, history and
+  // reading band.
+  /** @param {AnchorLike} anchor @param {{backward: boolean, intent: UserIntent}} options */
+  async function travelToTarget(anchor, { backward, intent }) {
     const mayArrive = retainTravel(intent);
-    /** @returns {Arrival | null} */
-    const resolve = () => {
-      const target = resolveAnchor(anchor);
-      const segments = targetSegments(target);
-      if (!segments.length) return null;
-      const range = rangeOf(segments);
-      return {
-        where: range,
-        focus: targetPlace(target),
-        selection: { range, backward },
-        scroll: [{ at: range }],
-      };
-    };
+    const resolve = () => targetLanding(anchor, backward);
     const destination = resolve();
     const datum = anchor.datum;
     const source = datum ? sectionOf(anchor) : null;
@@ -655,7 +705,7 @@ export function createAnchorTravel({
     prepareNavigationStep,
     arrive,
     arriveEditor,
-    restoreSelection,
+    travelToTarget,
     followFragment,
     returnToFragment,
     navigateToDatum,

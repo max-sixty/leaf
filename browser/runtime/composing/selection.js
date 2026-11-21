@@ -222,6 +222,11 @@ export function isComposerDraft(payload) {
 // record it holds beside the words, touched now.
 /** @param {Anchor | null} anchor */
 const composerCtx = (anchor) => commentContext(anchorKey(anchor));
+// The words a comment kept on `anchor` holds, which opening its box takes up
+// (`openComposer`), or null where it holds none.
+/** @param {Anchor | null} anchor */
+export const keptComment = (anchor) =>
+  loadDraft(composerCtx(anchor))?.text.trim() || null;
 /** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
 const composerPayload = (fields) => ({
   format: DRAFT_FORMAT,

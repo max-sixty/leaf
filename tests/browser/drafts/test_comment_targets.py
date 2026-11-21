@@ -381,8 +381,10 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     expect(field).to_have_attribute("aria-label", re.compile("Paragraph 3"))
     expect_panel_says(page, "Draft kept — g i resumes writing")
     write(field, "About the third.")
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("t")
+    # On the anchored thread, which a press on its marker opens with the caret in its
+    # reply, and Escape leaves the reply for.
+    page.locator('[data-lf-margin-for="p41"] .lf-margin-marker').click()
+    page.keyboard.press("Escape")
     page.keyboard.press("c")
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
@@ -453,9 +455,7 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     page.keyboard.press("Escape")
     expect(drafts).to_have_count(1)
     expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("t")
-    page.keyboard.press("c")
+    page.locator('[data-lf-margin-for="p41"] .lf-margin-marker').click()
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
     write(reply, "A reply to the anchored thread.")

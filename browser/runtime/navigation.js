@@ -40,6 +40,8 @@ import {
   stepFrom,
 } from "./current-target.js";
 import { focused } from "./focus.js";
+import { landsAt, standsAtTarget } from "./anchor-travel.js";
+import { draftAnchor, draftsReading } from "./drafts.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, inPage, layoutBox } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
@@ -53,43 +55,75 @@ import {
   readThreads,
   threadList,
 } from "./thread/state.js";
-import { inPageOrder } from "./thread/placement.js";
-import { renderedOrder, under } from "./shadow-tree.js";
+import { threadPlace } from "./thread/placement.js";
+import { byRenderedOrder, renderedOrder, under } from "./shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 
 /** @typedef {import("./thread/placement.js").PlacedAt} PlacedAt
- * @typedef {Pick<ReturnType<typeof import("./thread/destination.js").createThreadDestinations>, "openPageThread" | "threadAtCurrentLocation" | "threadPlace">} ThreadDestinations
+ * @typedef {Pick<ReturnType<typeof import("./thread/destination.js").createThreadDestinations>, "openPageThread" | "threadAtCurrentLocation">} ThreadDestinations
+ * @typedef {Pick<ReturnType<typeof import("./composing/surface.js").createResponseSurface>, "arriveAtComment" | "leaveComment">} Comments
  * @typedef {import("./keyboard/bindings.js").Step} Step
+ * @typedef {{keys: string[], placeOf: (key: string) => Element | null, drafts: Map<string, import("../types/domain.js").Anchor>}} Stops
  */
 
-// The walk's threads: the open ones, in the page's order (thread/placement.js), read
-// from the thread model rather than from any surface that draws them, so every route
-// into the walk steps through the same list. Each is named by its id.
-/** @param {PlacedAt} placedAt */
-const openThreads = (placedAt) =>
-  inPageOrder(
-    threadList().filter((thread) => !thread.resolved),
-    placedAt,
-  ).map((thread) => thread.id);
+// The walk's stops, in the page's order (thread/placement.js, `threadPlace`): each open
+// thread, by its id, and each comment the user began and hasn't sent, by its draft's
+// context (drafts.js, the drafts list), standing where the comment is about
+// (`savedAt`), as Threads lists the two together. A reply or a rewrite is its thread's,
+// whose own stop shows it. A comment is a stop only where this version shows what it
+// is about (anchor-travel.js, `landsAt`), since the walk stands the user there;
+// Resume writing still reaches the rest. Read from the models rather than from any
+// surface that draws them, so every route into the walk steps through the same list.
+/** @param {PlacedAt} placedAt @param {PlacedAt} savedAt @returns {Stops} */
+function walkStops(placedAt, savedAt) {
+  /** @type {Map<string, Element | null>} */
+  const places = new Map();
+  /** @type {Stops["drafts"]} */
+  const drafts = new Map();
+  for (const thread of threadList())
+    if (!thread.resolved) places.set(thread.id, threadPlace(thread, placedAt));
+  for (const draft of draftsReading()) {
+    const anchor = draftAnchor(draft);
+    if (!anchor || !landsAt(anchor)) continue;
+    drafts.set(draft.context, anchor);
+    places.set(draft.context, threadPlace({ id: draft.context, anchor }, savedAt));
+  }
+  /** @param {string} key */
+  const placeOf = (key) => places.get(key) ?? null;
+  return { keys: byRenderedOrder([...places.keys()], placeOf), placeOf, drafts };
+}
 
-// The thread the walk stands on: the one the origin's current location is in,
-// wherever it is drawn. Its target, with the thread's card beside it, is at the thread,
-// not on it (current-target.js, `walkOrigin`).
-/** @param {readonly string[]} threads @param {import("./current-target.js").WalkOrigin | null} origin */
-const currentThread = (threads, origin) => {
-  const id =
-    origin?.kind === "current-location" ? drawnThreadId(threadIn(origin.node)) : null;
-  return id !== null && threads.includes(id) ? id : null;
-};
+// The stop the walk stands on. A thread's is the one the origin's current location is
+// in, wherever it is drawn; its target, with the thread's card beside it, is at the
+// thread, not on it (current-target.js, `walkOrigin`). A comment's is the one whose
+// subject the user stands at as the walk's landing leaves them, where its box shows
+// its words (anchor-travel.js, `standsAtTarget`).
+/** @param {Stops} stops @param {import("./current-target.js").WalkOrigin | null} origin */
+function currentStop({ keys, drafts }, origin) {
+  if (origin?.kind !== "current-location") return null;
+  const id = drawnThreadId(threadIn(origin.node));
+  if (id !== null && keys.includes(id)) return id;
+  const selection = pageSelection();
+  const selected = selection && pageRange(selection);
+  const at = focused();
+  for (const [context, anchor] of drafts)
+    if (standsAtTarget(anchor, at, selected)) return context;
+  return null;
+}
 
-/** @param {PlacedAt} placedAt */
-const threadPosition = (placedAt) => {
-  const threads = openThreads(placedAt);
-  return listWalkPosition(threads, currentThread(threads, currentLocationOrigin()));
-};
+// What a position names its list: by its stops' noun where they are all of one kind,
+// "Thread 2 of 5" or "Draft 1 of 2", and by both kinds where it holds threads and
+// drafts, "2 of 5 threads and drafts" (walk-declaration.js, `beginWalk`).
+/** @param {Stops} stops */
+const listNames = ({ keys, drafts }) =>
+  !drafts.size
+    ? { noun: "Thread", qualifier: "" }
+    : drafts.size === keys.length
+      ? { noun: "Draft", qualifier: "" }
+      : { noun: null, qualifier: "threads and drafts" };
 
 // Arrive at one thread a walk chose, by its id: the one arrival both the t/T walk and
 // the queue walk (queue-walk.js) make. It opens the thread at its destination: a
@@ -105,39 +139,66 @@ async function arriveAtThread(id, { openPageThread }, intent) {
   return Boolean(await openPageThread(id, { part: "thread", intent }));
 }
 
-// t/T walk the open threads in page order, coming round from either end to the other
-// (`cycledRow`).
+// t/T walk the stops in page order, coming round from either end to the other
+// (`cycledRow`). A thread's stop opens the thread (`arriveAtThread`). A comment's
+// stands the user at what it is about, as selecting the passage or focusing the
+// element would (composing/surface.js, `arriveAtComment`), where its box shows its
+// words without taking the caret, so the next `t` walks on and `c` takes the words up,
+// as `c` or Enter opens a thread's reply box from the thread (thread/landing.js). A
+// walk that put the caret in the box would type its next `t` there.
 //
-// From anywhere but a thread, the walk steps by the page walks' one rule (`stepFrom`,
-// current-target.js): a place on the page against each thread's place (`threadPlace`).
-// A thread at the user's current location, or whose place holds where they are, is
-// where they are without being in it, so the press opens it, unless what the window
-// shows puts them at a thread ahead of it. A general thread has no place and stands
-// after every placed one.
-/** @param {Step} dir @param {ThreadDestinations} destinations @param {PlacedAt} placedAt */
-function stepThread(dir, destinations, placedAt) {
-  const { threadAtCurrentLocation, threadPlace } = destinations;
-  const threads = openThreads(placedAt);
+// From anywhere but a stop, the walk steps by the page walks' one rule (`stepFrom`,
+// current-target.js): a place on the page against each stop's place. A thread at the
+// user's current location, or a stop whose place holds where they are, is where they
+// are without being on it, so the press arrives there, unless what the window shows
+// puts them at a stop ahead of it. A general thread has no place and stands after
+// every placed stop. With no stop at all, the press says so, or that the threads can't
+// be had while the server is offline (keyboard/AGENTS.md, "Page grammar").
+/** @param {Step} dir @param {{destinations: ThreadDestinations, placedAt: PlacedAt, savedAt: PlacedAt, comments: Comments}} dependencies */
+function stepThread(dir, { destinations, placedAt, savedAt, comments }) {
+  const stops = walkStops(placedAt, savedAt);
+  const { keys, placeOf, drafts } = stops;
+  if (!keys.length) {
+    notice(readThreads().phase === "offline" ? THREADS_OFFLINE : NO_OPEN_THREADS);
+    return;
+  }
   const origin = walkOrigin();
-  const current = currentThread(threads, origin);
+  const current = currentStop(stops, origin);
   const targetId =
-    !current && origin.kind !== "enter" && threadAtCurrentLocation(origin.node);
-  const atTarget = targetId && threads.includes(targetId) ? targetId : null;
+    !current &&
+    origin.kind !== "enter" &&
+    destinations.threadAtCurrentLocation(origin.node);
+  const atTarget = targetId && keys.includes(targetId) ? targetId : null;
   const next = current
-    ? cycledRow(threads, current, dir)
-    : stepFrom(threads, origin, dir, threadPlace, atTarget);
+    ? cycledRow(keys, current, dir)
+    : stepFrom(keys, origin, dir, placeOf, atTarget);
   if (!next) return;
+  const intent = retainUserIntent();
+  // Leaving a comment's stop takes down what its landing put up, as the walk's next
+  // arrival at a thread closes the last thread's view (thread/destination.js).
+  if (current !== null && current !== next && drafts.has(current))
+    comments.leaveComment();
+  const anchor = drafts.get(next);
+  const arrival = anchor
+    ? comments.arriveAtComment(anchor, intent)
+    : arriveAtThread(next, destinations, intent);
   // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
-  const ready = arriveAtThread(next, destinations, retainUserIntent()).then(
-    (arrived) => {
-      if (!arrived) return;
-      announce(
-        beginWalk("thread", "Thread", () => threadPosition(placedAt)) ??
-          walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
-      );
-    },
-  );
+  const { noun, qualifier } = listNames(stops);
+  /** @returns {import("./walk-declaration.js").WalkPosition | null} */
+  const position = () => {
+    const now = walkStops(placedAt, savedAt);
+    return listWalkPosition(now.keys, currentStop(now, currentLocationOrigin()), {
+      qualifier,
+    });
+  };
+  const ready = arrival.then((arrived) => {
+    if (!arrived) return;
+    announce(
+      beginWalk("thread", noun, position) ??
+        walkPositionLabel(noun, keys.indexOf(next) + 1, keys.length, qualifier),
+    );
+  });
   void ready.catch(() => {});
   return ready;
 }
@@ -320,8 +381,8 @@ function stepAlong(from, amount, unit) {
   sampleNotice({ type: "step", detail: { amount, unit } });
 }
 
-/** @param {{threadDestinations: ThreadDestinations, placedAt: PlacedAt}} dependencies */
-export function createNavigation({ threadDestinations, placedAt }) {
+/** @param {{threadDestinations: ThreadDestinations, placedAt: PlacedAt, savedAt: PlacedAt, comments: Comments}} dependencies */
+export function createNavigation({ threadDestinations, placedAt, savedAt, comments }) {
   const currentItem = () => {
     // The place the floating panel holds while the user is in it is the same current location,
     // read without moving focus merely to paint whether its row is available.
@@ -371,15 +432,17 @@ export function createNavigation({ threadDestinations, placedAt }) {
     },
   };
   const move = stepReading;
-  /** @param {Step} dir */
-  const walkThreads = (dir) => stepThread(dir, threadDestinations, placedAt);
 
   // Travel's own page keys.
   pageCommand({
     id: "thread.walk",
     // A walk needs a visible destination, not the complete saved inventory: local
-    // sends are usable destinations while the first reading is still loading.
-    ready: () => savedReadingSettled() || anyOpenThread(),
+    // sends, and the drafts the document was served with, are usable destinations while
+    // the first reading is still loading.
+    ready: () =>
+      savedReadingSettled() ||
+      anyOpenThread() ||
+      draftsReading().some((draft) => draftAnchor(draft) !== null),
     touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.
@@ -388,28 +451,29 @@ export function createNavigation({ threadDestinations, placedAt }) {
       {
         id: "thread.next",
         binding: "t",
-        title: "Next open thread",
+        title: "Next thread or draft",
       },
       {
         id: "thread.previous",
         binding: "Shift+t",
-        title: "Previous open thread",
+        title: "Previous thread or draft",
       },
     ],
-    title: "threads",
+    title: "threads and drafts",
     repeat: true,
     travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. It stands them on a thread a widget seats on
     // the page, or opens the margin's thread view, or the floating panel's, for a thread
-    // with no seat, and that view's own step dismisses it. With no open thread, the press
-    // says so in the panel, or that the threads can't be had while the server is
-    // offline, as every page walk with nothing to step through does
-    // (keyboard/AGENTS.md, "Page grammar").
+    // with no seat, and that view's own step dismisses it; at a comment's subject, the
+    // selection or the target the subject's own step lets go of.
     runKey: (binding) =>
-      anyOpenThread()
-        ? walkThreads(binding === "t" ? 1 : -1)
-        : notice(readThreads().phase === "offline" ? THREADS_OFFLINE : NO_OPEN_THREADS),
+      stepThread(binding === "t" ? 1 : -1, {
+        destinations: threadDestinations,
+        placedAt,
+        savedAt,
+        comments,
+      }),
   });
   // A sample's spent step arrives at its frame (sample.js). It goes on only while the
   // user is still in that frame: one that lands after they have left was not theirs to
@@ -477,6 +541,5 @@ export function createNavigation({ threadDestinations, placedAt }) {
     alignTop,
     arriveAtThread: arriveAtThreadById,
     stepReading: move,
-    stepThread: walkThreads,
   };
 }

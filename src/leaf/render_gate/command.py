@@ -173,13 +173,16 @@ class BrowserCheck:
 
     @property
     def ran(self) -> list[str]:
+        """The gates that read the page: each that ran, less one whose browser could
+        not read it (`findings.Finding.unread`), which is as unread as a gate no
+        browser ran."""
         return [
             gate
-            for gate, reading in (
+            for gate, found in (
                 ("page code", self.page_code),
-                ("render check", self.render),
+                ("render check", self.render.findings if self.render else None),
             )
-            if reading is not None
+            if found is not None and not any(f.unread for f in found)
         ]
 
     def json(self) -> dict:
@@ -272,11 +275,11 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import ArtifactError, capture_artifact
     from leaf.structure import SourceDocument
-    from leaf.validation.markup import structure_errors
+    from leaf.validation.markup import repair_errors
 
     from .page_code import message_page, places_judged_widget
 
-    if any(f.refuses for f in structure_errors(SourceDocument(markup, fragment=True))):
+    if repair_errors(SourceDocument(markup, fragment=True)):
         # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
         # with the paragraph Markdown drew around it, is the markup gate's to
         # refuse, showing the HTML Markdown drew, where a run would report only

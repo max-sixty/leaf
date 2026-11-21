@@ -159,8 +159,10 @@ def render_version(
 
     Chrome can emit the notice once under load, while a layout feedback loop emits it
     on every rendering. The unit here is the whole gate, including its replay probes: a
-    notice is ignored only when a later complete attempt is clean. Ordinary failures from both attempts are retained, and
-    an incomplete confirmation cannot pardon the notice that prompted it.
+    notice fails the check only when a later complete attempt repeats it, and is
+    ignored when that attempt is clean. Ordinary failures from both attempts are
+    retained. A notice no complete attempt confirms or pardons leaves the page unread
+    (`resize-unconfirmed`), as a browser that crashed does.
     """
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
@@ -196,19 +198,21 @@ def render_version(
         # Advice and the other readings are the first attempt's; failures accumulate.
         return replace(first, findings=[*failures, *first.advice])
 
+    def unconfirmed(found):
+        retain(Finding("resize-unconfirmed", values=notice.values) for notice in found)
+
     if not complete:
-        retain(notices)
+        unconfirmed(notices)
         return reading()
     if not notices:
         return reading()
 
     confirming, confirming_notices, complete = attempt()
-    retain(confirming.failures)
+    # What stopped the confirming attempt, as a crashed browser, says why the notice
+    # stands unconfirmed.
+    retain(f for f in confirming.findings if f.refuses or f.unread)
     if not complete:
-        retain(
-            notice.but(values={"confirmation": "incomplete"})
-            for notice in [*notices, *confirming_notices]
-        )
+        unconfirmed([*notices, *confirming_notices])
         return reading()
     failures.extend(
         notice.but(values={"confirmation": "recurred"}) for notice in confirming_notices

@@ -321,7 +321,6 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
 
 
 SAMPLE_DOCUMENT_CASES = [
-    ("<noscript>invisible</noscript>", "noscript", ("practice",)),
     ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
     ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
     (
@@ -335,8 +334,9 @@ SAMPLE_DOCUMENT_CASES = [
         ("practice",),
     ),
     (
-        '<template id="nested" data-sample><noscript>hidden</noscript></template>',
-        "noscript",
+        '<template id="nested" data-sample><p id="twice">One</p><p id="twice">Two</p>'
+        "</template>",
+        "duplicate-ids",
         ("practice", "nested"),
     ),
 ]
@@ -459,8 +459,8 @@ def test_sample_diagnostics_report_authored_lines(page_dir, nested):
     line = source[: source.index("<noscript>")].count("\n") + 1
     unknown = source[: source.index("<lf-unknown")].count("\n") + 1
     assert [(f.code, f.samples, f.values["line"]) for f in findings] == [
-        ("noscript", samples, line),
         ("unknown-widget", samples, unknown),
+        ("noscript", samples, line),
     ]
 
 
@@ -494,6 +494,37 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     ]
 
 
+def test_an_id_the_log_gives_an_event_is_refused_in_a_page_and_a_message(page_dir):
+    """A command's ID names a widget or a message in one address space, so markup may
+    not take an id the log already gives an event. An id that only looks like one, as
+    a hash written as a section's id, names nothing else and passes."""
+    shaped = '<section id="6d1d57ac"><h2>Shaped</h2></section>'
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", shaped + "</main>"))
+    status, findings = check_findings(page_dir)
+    assert status == 0, findings
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "6d1d57ac", "author": "user", "text": "A question"},
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.code, f.values) for f in findings] == [
+        ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
+    ]
+    (page_dir / "index.html").write_text(PAGE)
+    published(page_dir)
+    message = command_findings(
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        'See:\n\n<lf-code id="6d1d57ac">\n<pre><code>1</code></pre></lf-code>',
+    )
+    assert [(f.code, f.values) for f in message] == [
+        ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
+    ]
+
+
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
     """The page's own <style> and each inline style. Chrome drops a malformed
     declaration without a word, so the author hears of it here or not at all.
@@ -513,6 +544,22 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
         "page <style> (line 6)",
         "<p style> (line 11)",
     ]
+
+
+def test_a_url_of_two_values_is_advice_beside_the_sheets_drops(page_dir):
+    """A browser drops a declaration whose url() holds more than one value, as a URL
+    modifier or a second string, so the check says so beside the sheet, and delivery
+    carries the sheet as written."""
+    (page_dir / "index.html").write_text(
+        styled('.page { background-image: url("x.png" crossorigin(anonymous)); }')
+    )
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 0, findings
+    [advice] = found(findings, "css-url")
+    assert advice.severity == "advice"
+    assert advice.values["sheet"].startswith("page <style>")
 
 
 @pytest.mark.parametrize("style", ["color: red; } }", "& { color: red; }"])

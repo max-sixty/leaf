@@ -41,11 +41,15 @@ Whether a finding refuses is decided by its code, once, beside its words. A code
 refuses only where `_TEXT` names the guarantee it keeps: `_refuses` for a check that
 refuses its input, such as a page's source or an event, and `_fails` for the
 browser's reading of a page, which fails the check while the page is still served.
-Every other code is advice, which leaves the decision to the author. `severity`,
-`error` or `advice`, reads that declaration. A refusal's words end with its
-guarantee, so the agent learns what the refusal protects. Codes that protect the same
-thing, such as the registry's, the capture's and the event door's, name one
-guarantee, written once. `Rejected` raises only findings whose code refuses.
+A code declared `_Unread` says the browser could not read the page, as where it
+crashed: it is advice, and the check counts its gate as not run, as on a host with
+no browser (`Finding.unread`). Every other code is advice, which leaves the decision
+to the author. `severity`, `error` or `advice`, reads that declaration. A refusal's
+words end with its guarantee, so the agent learns what the refusal protects, and a
+door that refuses what it read (`Rejected`), as the message door does, words a
+`_fails` guarantee as a refusal too. Codes that protect the same thing, such as the
+registry's, the capture's and the event door's, name one guarantee, written once.
+`Rejected` raises only findings whose code refuses.
 
 The maintainer chose this, following root `AGENTS.md`, "Leaf's role": Leaf refuses
 only input that would break a guarantee whatever the agent meant, so each refusal
@@ -98,10 +102,26 @@ class Finding:
         return "".join(f"sample {s or '<unnamed>'!r}: " for s in self.samples) + text
 
     @property
+    def refusal(self) -> str:
+        """The finding's words as a refusal (`Rejected`) gives them: its words, then
+        the guarantee its code keeps, introduced as what was refused for, since that
+        door refuses what it read whichever check found it."""
+        said = _TEXT[self.code]
+        if not isinstance(said, _Refuses):
+            return self.said
+        return f"{self.said} (refused so that {said.keeps})"
+
+    @property
     def refuses(self) -> bool:
         """Whether the finding's code refuses what the check read or fails the check
         (`_refuses`, `_fails`), as its `severity` says `error`."""
         return isinstance(_TEXT[self.code], _Refuses)
+
+    @property
+    def unread(self) -> bool:
+        """Whether the finding's code says the browser could not read the page
+        (`_Unread`), which leaves the check as unread as on a host with no browser."""
+        return isinstance(_TEXT[self.code], _Unread)
 
     @property
     def severity(self) -> str:
@@ -225,6 +245,18 @@ def _refuses(keeps: str, words: Callable[[str, dict], str]) -> _Refuses:
     return _Refuses(words, keeps, "refused so that")
 
 
+@dataclass(frozen=True, slots=True)
+class _Unread:
+    """The words of a code that says the browser could not read the page, as where
+    it crashed, Leaf's own preview server stopped answering, or the gate's probe
+    failed: the finding is about the run, not the page, so the check counts the gate
+    as not run (`render_gate.command.BrowserCheck`), keeps no reading of the version
+    (`render_gate.handover_pass`), and a message it held posts, as on a host with no
+    browser. It is advice in every record, beside the result."""
+
+    words: Callable[[str, dict], str]
+
+
 def _fails(keeps: str, words: Callable[[str, dict], str]) -> _Refuses:
     """The words of a code that fails the browser's check of a page, to keep `keeps`:
     `page check --render` and `package check --render` exit 1, the page's server
@@ -254,6 +286,10 @@ _LIVE = "the log records decisions only from live widgets, never quoted ones"
 _PUBLISHED = "each revision's place in the log is where Leaf published it"
 _EDITED = "a message shows as edited only when its words changed"
 _ASKED_AGAIN = "each question a reply asks again stands on the user's On Me list"
+_ASKS = "each question on the user's On Me list shows the words that ask it"
+_ANSWERABLE = (
+    "each question on the user's On Me list changes what it shows when answered"
+)
 _SAMPLED = (
     "a live sample opens with its authored history, every event one the log admits"
 )
@@ -416,6 +452,11 @@ def _clipped_content(at: str, v: dict) -> str:
     return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
 
 
+def _question_group(v: dict) -> str:
+    """The named groups an asking widget may stand in (`values.groups`), as markup."""
+    return " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
+
+
 def _line(at: str, v: dict) -> str:
     """An element of the author's file, as they find it: its name and its line."""
     return f"{at} (line {v['line']})"
@@ -561,21 +602,21 @@ def _shift_evidence(v: dict) -> str:
     return f"\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
 
 
+def _capture_where(v: dict) -> str:
+    """Where a capture finding was read: the file (`file`) and the reference in it
+    (`specifier`), where it names them."""
+    return "".join(
+        [
+            f"{v['file']}: " if "file" in v else "",
+            f"{v['specifier']!r}: " if "specifier" in v else "",
+        ]
+    )
+
+
 def _captured(words, keeps: str = _CAPTURED):
-    """A capture finding's words: the file it read (`file`) and the reference in it
-    (`specifier`), where it names them, then `words`; refusing to keep `keeps`, the
-    family's guarantee unless a member names its own."""
-
-    def said(at: str, v: dict) -> str:
-        where = "".join(
-            [
-                f"{v['file']}: " if "file" in v else "",
-                f"{v['specifier']!r}: " if "specifier" in v else "",
-            ]
-        )
-        return where + words(v)
-
-    return _refuses(keeps, said)
+    """A capture finding's words: where it was read (`_capture_where`), then `words`;
+    refusing to keep `keeps`, the family's guarantee unless a member names its own."""
+    return _refuses(keeps, lambda at, v: _capture_where(v) + words(v))
 
 
 def _fixture(words):
@@ -643,16 +684,25 @@ _TEXT = {
     "console-warning": lambda at, v: f"warning: {v['text']}",
     "page-exception": _fails(_WORKS, lambda at, v: v["text"]),
     "window-error": _fails(_WORKS, lambda at, v: f"window error: {v['text']}"),
+    # A ResizeObserver loop the window reported: one a complete second attempt
+    # repeats fails the check, and one no complete attempt confirms leaves the page
+    # unread (`render_gate.version.render_version`).
     "resize-loop": _fails(
         _WORKS,
         lambda at, v: (
             f"window error: {v['text']}"
-            + {
-                None: "",
-                "recurred": " (recurred on the confirming render attempt)",
-                "incomplete": " (the confirming render attempt did not complete)",
-            }[v.get("confirmation")]
+            + (
+                " (recurred on the confirming render attempt)"
+                if v.get("confirmation")
+                else ""
+            )
         ),
+    ),
+    "resize-unconfirmed": _Unread(
+        lambda at, v: (
+            f"window error: {v['text']}, and no complete render attempt followed to"
+            " confirm it, so the check can't say whether the page's layout loops"
+        )
     ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
@@ -701,12 +751,18 @@ _TEXT = {
         + (f" after a {v['input']}" if v["input"] else " without input")
     ),
     # The gate's own run, where it could not read the page.
-    "gate-failed": lambda at, v: (
-        f"the browser gate failed while running its probe module: {v['error']}"
+    "gate-failed": _Unread(
+        lambda at, v: (
+            f"the browser gate failed while running its probe module, before it"
+            f" finished reading the page: {v['error']}"
+        )
     ),
-    "probe-failed": lambda at, v: (
-        f"the browser probe module failed: {v['error']}"
-        + (" — " + _explained(v["console"]) if v.get("console") else "")
+    "probe-failed": _Unread(
+        lambda at, v: (
+            f"the browser probe module failed before it finished reading the page:"
+            f" {v['error']}"
+            + (" — " + _explained(v["console"]) if v.get("console") else "")
+        )
     ),
     "reading-overran": _fails(
         _SERVES,
@@ -730,7 +786,12 @@ _TEXT = {
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
-    "server-stopped": lambda at, v: f"the server stopped answering: {v['error']}",
+    "server-stopped": _Unread(
+        lambda at, v: (
+            f"the preview server stopped answering before the browser finished"
+            f" reading the page: {v['error']}"
+        )
+    ),
     "not-ready": _fails(_SERVES, lambda at, v: v["error"]),
     "never-settled": lambda at, v: (
         f"the page never stopped moving ({', '.join(v['moving'])}), so the check"
@@ -946,7 +1007,11 @@ _TEXT = {
     ),
     # The page's own code, run once in the browser.
     "page-report": _fails(_WORKS, lambda at, v: v["text"]),
-    "browser-error": lambda at, v: v["error"],
+    "browser-error": _Unread(
+        lambda at, v: (
+            f"the browser failed before it finished reading the page: {v['error']}"
+        )
+    ),
     "request-failed": lambda at, v: (
         f"Browser request failed ({v['kind']}, {v['error']}) in {v['frame']}:"
         f" {v['url']}"
@@ -1036,12 +1101,9 @@ _TEXT = {
             " Markdown fence"
         ),
     ),
-    "noscript": _refuses(
-        _QUOTES,
-        lambda at, v: (
-            f"{at} at line {v['line']}: the browser renders none of its content; write"
-            " it plainly or leave it out"
-        ),
+    "noscript": lambda at, v: (
+        f"{at} at line {v['line']}: a browser running the page's scripts draws none"
+        " of its content, so the user never sees it; write it plainly or leave it out"
     ),
     "unnamed-sample": _refuses(
         _OPENS,
@@ -1122,19 +1184,19 @@ _TEXT = {
         _RUNTIME_NAMES,
         lambda at, v: f"ids in the runtime's own lf- namespace: {_json(v['ids'])}",
     ),
-    "event-shaped-ids": _refuses(
-        _ONE_ID,
-        lambda at, v: (
-            "ids shaped like the event ids the log mints (eight hex digits):"
-            f" {_json(v['ids'])}"
-        ),
-    ),
     "reserved-markers": _refuses(
         _RUNTIME_NAMES,
         lambda at, v: (
             f"{at} at line {v['line']} wears the runtime's own markers"
             f" ({', '.join(v['markers'])}); the lf- and data-lf- namespaces are the"
             " runtime's to write, but for the classes Leaf's idioms name"
+        ),
+    ),
+    "ids-taken-by-events": _refuses(
+        _ONE_ID,
+        lambda at, v: (
+            "ids the page's log already gives its events, which a command's ID could"
+            f" name instead: {_json(v['ids'])}"
         ),
     ),
     "ids-taken-by-messages": _refuses(
@@ -1244,10 +1306,22 @@ _TEXT = {
     ),
     "ungrouped-question": lambda at, v: (
         f"{_line(at, v)}: asks the user, but no group holds its question, so On Me"
-        " and the agent name it by the widget's own words; write its premise and this"
-        " widget in "
-        + " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
-        + ", its label asking the question"
+        " names it by the widget's label alone and selects the widget without its"
+        f" premise; write its premise and this widget in {_question_group(v)}, its"
+        " label asking the question"
+    ),
+    "unnamed-question": _refuses(
+        _ASKS,
+        lambda at, v: (
+            f"{_line(at, v)}: asks the user, but "
+            + (
+                f"{v['group']} round it has a blank label; give it a label"
+                if "group" in v
+                else "no label names its question; write its premise and this"
+                f" widget in {_question_group(v)}, its label"
+            )
+            + " asking the question"
+        ),
     ),
     "repeated-key": _refuses(
         _DECIDES,
@@ -1334,7 +1408,7 @@ _TEXT = {
         _SUGGESTS, lambda at, v: f"{_line(at, v)}: suggestions don't nest"
     ),
     "empty-suggestion": _refuses(
-        _SUGGESTS,
+        _ANSWERABLE,
         lambda at, v: (
             f"{_line(at, v)}: needs a <lf-old> (what it replaces), a <lf-new> (what it"
             " proposes), or both"
@@ -1359,12 +1433,10 @@ _TEXT = {
         ),
     ),
     # Message markup, which no version settles.
-    "message-settlement": _refuses(
-        _SUGGESTS,
-        lambda at, v: (
-            f"{at} is a settlement holder, but a version settles only the page's markup,"
-            " never a message's; put the change in the next version instead"
-        ),
+    "message-settlement": lambda at, v: (
+        f"{at} proposes a change inside a message, where deciding it changes only the"
+        " message's own words and no version writes it into the page; to propose a"
+        " change to the page, put it in the page's next version"
     ),
     "message-style": _refuses(
         _UNSTYLED,
@@ -1619,15 +1691,24 @@ _TEXT = {
         ),
         keeps=None,
     ),
+    # A relation no declared widget meets: each reference an instance makes is
+    # still held to it (`reference-contract`), so this tells the declaration's
+    # author that every such reference will be refused.
     "refers-unknown-map": _declared(
-        lambda v: f"`refers` `{v['attr']}` names unknown registry map {v['via']!r}"
+        lambda v: (
+            f"`refers` `{v['attr']}` names unknown registry map {v['via']!r}, so"
+            " every reference an instance makes through it is refused"
+        ),
+        keeps=None,
     ),
     "refers-unmatched": _declared(
         lambda v: (
             f"`refers` `{v['attr']}` requires {v['via']} where "
             + ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-            + ", but no declared widget matches"
-        )
+            + ", but no declared widget matches, so every reference an instance"
+            " makes through it is refused"
+        ),
+        keeps=None,
     ),
     "visual-id": _declared(
         lambda v: (
@@ -1950,7 +2031,10 @@ _TEXT = {
         lambda v: "a stylesheet dependency must have CSS MIME type"
     ),
     "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
-    "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
+    "css-url": lambda at, v: (
+        f"{v['sheet']} at {v['row']}:{v['column']}: url() holds more than one value,"
+        " so a browser drops its declaration without a word; write one quoted URL"
+    ),
     "css-import": _captured(
         lambda v: "CSS @import requires a stylesheet with CSS MIME type"
     ),
@@ -1959,7 +2043,10 @@ _TEXT = {
     "manifest-digest": _captured(
         lambda v: "captured manifest digest does not match revision"
     ),
-    "layer-import-remote": _captured(lambda v: "captured layer import is not local"),
+    "layer-import-remote": lambda at, v: (
+        _capture_where(v) + "a layer module imports from another server, which the"
+        " export leaves to load from there, so the file needs the network to draw"
+    ),
     "layer-import-missing": _captured(lambda v: "captured layer import is missing"),
     # The package check's refusal.
     "package": _refuses(_COMPOSES, lambda at, v: v["text"]),
@@ -2581,7 +2668,7 @@ _USER = {
 
 def _words(finding: Finding) -> str:
     said = _TEXT[finding.code]
-    if isinstance(said, _Refuses):
+    if isinstance(said, (_Refuses, _Unread)):
         said = said.words
     return said(finding.at, finding.values)
 
@@ -2606,7 +2693,7 @@ class Rejected(Refused):
                 return f"{heading}:\n" + "\n".join(f"  - {words(f)}" for f in findings)
             return "\n".join(map(words, findings))
 
-        super().__init__(listed(str))
+        super().__init__(listed(lambda f: f.refusal))
         # The person whose gesture it was reads what was refused, not the guarantee
         # the refusal tells the agent it keeps.
         if not heading and len(findings) == 1 and findings[0].code in _USER:

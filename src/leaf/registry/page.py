@@ -28,6 +28,8 @@ class PageRegistry(NamedTuple):
     registry: dict
     declaration_sources: dict[str, str]
     widget_sources: dict[str, str]
+    # The page's own declarations, as composed over the layer.
+    declarations: dict
 
 
 def compose_page_registry(
@@ -99,4 +101,6 @@ def compose_page_registry(
     for tag in registry:
         if is_element_name(tag):
             declaration_sources[tag] = "page" if tag in page_declarations else "layer"
-    return PageRegistry(registry, declaration_sources, dict(registry[MODULES]))
+    return PageRegistry(
+        registry, declaration_sources, dict(registry[MODULES]), page_declarations
+    )

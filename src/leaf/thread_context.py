@@ -111,8 +111,8 @@ def id_subject(
     markup, or any other event whose history it is part of
     (`thread_memberships`). An event on a page widget, an action or a worker's report,
     names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
-    `validation.markup.id_errors` refuses an authored id in the shape the log mints,
-    and message markup and versions refuse each other's ids."""
+    versions and message markup refuse an id the log gives an event
+    (`ids-taken-by-events`), and each other's ids."""
     if name in page_widgets:
         return {"kind": "widget", "id": name}
     names = thread_names(events)

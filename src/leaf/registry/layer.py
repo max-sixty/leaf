@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from leaf.findings import Finding
-from leaf.state import KERNEL_REGISTRY
+from leaf.state import KERNEL_REGISTRY, kernel_registry
 
 from .contract import (
     MODULES,
@@ -79,7 +79,7 @@ def kernel_fact_advice(declarations: dict, path) -> list[Finding]:
     merge keeps the kernel's whatever the layer says, so this advises the layer's
     author rather than refusing the layer. Values compare as JSON, so that `true` or
     `1.0` is not taken for a protocol of 1."""
-    kernel = read_registry_declarations(KERNEL_REGISTRY)
+    kernel = kernel_registry()
     found = [
         registry_finding("fixed-kernel-fact", path, name=name)
         for name in sorted(declarations.keys() & KERNEL_FACTS)

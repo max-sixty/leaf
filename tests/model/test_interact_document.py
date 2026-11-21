@@ -1523,18 +1523,21 @@ def test_version_descriptors_select_only_available_stamped_revisions():
     ]
 
 
-def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
-    """In a scripting browser noscript is hidden, while the file reader takes its
-    content for page words. Refusal prevents anchoring on text no user can see."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2><noscript>Fallback words.</noscript>",
-        )
+def test_check_advises_on_noscript_words_no_anchor_reaches(page_dir):
+    """In a scripting browser noscript is hidden, so the check says the user never
+    sees its words, and the file reader, like the browser, keeps them out of the
+    page's words, so no comment anchors on text no user can see."""
+    source = PAGE.replace(
+        "<h2>Plan</h2>", "<h2>Plan</h2><noscript>Fallback words.</noscript>"
     )
+    (page_dir / "index.html").write_text(source)
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "noscript", "<noscript>")
+    assert status == 0
+    [advice] = found(findings, "noscript", "<noscript>")
+    assert advice.severity == "advice"
+    text = passages_model.page_passages(structure_model.SourceDocument(source), {}).text
+    assert "Plan" in text
+    assert "Fallback words." not in text
 
 
 def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
@@ -1557,23 +1560,31 @@ def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
 
 
 def test_check_rejects_widget_violations(page_dir):
+    link = '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>'
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
-            '<lf-gloss id="short-gloss"/>'
-            "<figure/>"
-            "<lf-bogus></lf-bogus>"
-            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
-            '<lf-option id="stray" label="S"><strong>S</strong></lf-option>'
-            '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
-            '<lf-diagram id="bare-body">graph LR</lf-diagram>',
-        ).replace('<lf-option id="flag-first"', "<lf-option")
+        PAGE.replace(link, '<lf-gloss id="short-gloss"/><figure/><lf-bogus></lf-bogus>')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     # Both the widget and the plain <figure/>: the slash misleads a browser on
-    # any non-void tag, not only on the vocabulary's.
+    # any non-void tag, not only on the vocabulary's. The widget checks would read
+    # the tree the parser repaired, so they wait for markup that parses as written.
     assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
+    assert not found(findings, "unknown-widget")
+
+    # Block widgets stand outside the paragraph, where a <pre> would close it.
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            "<lf-bogus></lf-bogus>"
+            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
+            '<lf-option id="stray" label="S"><strong>S</strong></lf-option>'
+            '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
+            '<lf-diagram id="bare-body">graph LR</lf-diagram></main>',
+        ).replace('<lf-option id="flag-first"', "<lf-option")
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
     assert found(findings, "unknown-widget", "<lf-bogus>")
     assert found(
         findings, "attribute-schema", "<lf-column>", keyword="enum", path=["tone"]
@@ -1974,7 +1985,11 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     assert errors(markup.replace('resolves="plan"', 'resolves="c1"')) == []
 
 
-def test_reply_refuses_a_suggestion(page_dir):
+def test_a_reply_carrying_a_suggestion_posts_and_says_what_deciding_it_changes(
+    page_dir,
+):
+    """A suggestion in a message decides only the message's words, since no version
+    settles a message, so the reply posts and the agent hears that beside it."""
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
@@ -1986,11 +2001,11 @@ def test_reply_refuses_a_suggestion(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'Fixed:\n\n<lf-suggestion id="sug-x"><lf-new><p>fixed</p></lf-new></lf-suggestion>',
+            'Fixed: read <lf-suggestion id="sug-x"><lf-old>daily</lf-old><lf-new>weekly</lf-new></lf-suggestion>.',
         ],
     )
-    assert result.exit_code != 0
-    assert "never a message's" in result.output
+    assert result.exit_code == 0, result.output
+    assert "proposes a change inside a message" in result.output
 
 
 @pytest.mark.parametrize("invalid", ["html", "dependency"])
@@ -2412,13 +2427,13 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     ]
     assert (closed["kind"], closed["parent"]) == ("resolve", opened["id"])
 
-    # The log mints message ids in this shape, so a page may not author one.
+    # So a page may not author an id the log already gives an event.
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="flag-first"', 'id="20260927"')
+        PAGE.replace('id="flag-first"', f'id="{opened["id"]}"')
     )
     refused = runner.invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert refused.exit_code != 0
-    assert "ids shaped like the event ids the log mints" in refused.output
+    assert "ids the page's log already gives its events" in refused.output
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):

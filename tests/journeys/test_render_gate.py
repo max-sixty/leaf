@@ -356,9 +356,11 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
 
         page.route("**/checks/index.js", never_finishes)
 
+    # A probe that never loads reads nothing of the page, which the check says
+    # beside a passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
-    ).failures
+    ).findings
 
     assert asked, "the probe route was never requested, so no module load stalled"
     errors = [failure.values["error"] for failure in failures]

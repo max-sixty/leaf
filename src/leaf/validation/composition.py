@@ -15,6 +15,7 @@ from pathlib import Path
 from leaf.data_contracts import declared_data_bindings
 from leaf.findings import Finding
 from leaf.registry.contract import (
+    element_declarations,
     is_element_name,
     read_registry_declarations,
     registry_finding,
@@ -24,14 +25,13 @@ from leaf.registry.validation import event_clause_advice, validate_registry
 from leaf.registry.widgets import widget_advice
 from leaf.structure import SourceDocument
 
-from .instances import fragment_errors
-from .markup import id_errors
+from .instances import markup_findings
 
 
 def layer_advice(roots: list[Path], registry: dict) -> list[Finding]:
-    """What each of `roots`, a layer's packages or a page's `page/` directory, advises
-    of its own `registry.json` (`declaration_advice`), in `registry`, the stamped
-    vocabulary they compose."""
+    """What each of `roots`, a layer's packages, advises of its own `registry.json`
+    (`declaration_advice`), in `registry`, the stamped vocabulary they compose. A
+    page's own declarations its check has already read (`source.source_advice`)."""
     return [
         finding
         for root in roots
@@ -53,9 +53,10 @@ def declaration_advice(declarations: dict, registry: dict, path) -> list[Finding
         *kernel_fact_advice(declarations, path),
         *event_clause_advice(declarations, registry, path),
     ]
+    elements = element_declarations(registry)
     for tag in declarations:
         if is_element_name(tag) and tag in registry:
-            found += widget_advice(tag, registry[tag], path)
+            found += widget_advice(tag, registry, elements, path)
             found += _example_advice(tag, registry, path)
     return found
 
@@ -68,7 +69,7 @@ def _example_advice(tag: str, registry: dict, path) -> list[Finding]:
     if (example := registry[tag].get("example")) is None:
         return []
     parser = SourceDocument(example, fragment=True)
-    errors = fragment_errors(parser, registry) + id_errors(parser)
+    errors = markup_findings(parser, registry)
     errors += declared_data_bindings(parser.lf_elements, registry)[1]
     if refused := [error for error in errors if error.refuses]:
         return [

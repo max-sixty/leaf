@@ -93,6 +93,12 @@ def _matching_attempt(events: list[dict], event: dict) -> dict | None:
     return None
 
 
+def logged_ids(events: list[dict]) -> set[str]:
+    """Every event identity the log holds. A command's ID names a widget or a message
+    in one address space, so markup may not take one (`ids-taken-by-events`)."""
+    return {event["id"] for event in events if "id" in event}
+
+
 def _event_id_exists(events: list[dict], event_id: str) -> bool:
     """Whether this log already owns an event identity."""
     return any(existing.get("id") == event_id for existing in events)

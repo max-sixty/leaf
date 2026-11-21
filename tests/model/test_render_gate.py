@@ -182,15 +182,23 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
 
 def test_page_check_json_names_only_the_gates_that_read_the_page():
     """Failing page code ends the check before the render gate reads anything, so
-    `--json` says the render check was asked for and did not run."""
+    `--json` says the render check was asked for and did not run. A gate whose browser
+    could not read the page, as one that crashed, ran no more than one no browser ran,
+    and its finding fails nothing."""
     failed = Finding("page-report", values={"text": "leaf: <lf-x> failed"})
-    check = BrowserCheck(
-        ["page code", "render check"], "Chrome", page_code=[failed]
-    ).json()
-    assert (check["asked"], check["ran"]) == (
-        ["page code", "render check"],
-        ["page code"],
+    gates = ["page code", "render check"]
+    check = BrowserCheck(gates, "Chrome", page_code=[failed]).json()
+    assert (check["asked"], check["ran"]) == (gates, ["page code"])
+    crashed = Finding("browser-error", values={"error": "Target closed"})
+    stopped = Finding("server-stopped", values={"error": "Timeout 30000ms"})
+    unread = BrowserCheck(
+        gates,
+        "Chrome",
+        page_code=[],
+        render=render_gate_model.RenderReading([stopped], []),
     )
+    assert (unread.ran, unread.status) == (["page code"], 0)
+    assert BrowserCheck(["page code"], "Chrome", page_code=[crashed]).ran == []
 
 
 def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
@@ -298,11 +306,14 @@ def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
     assert unready.value.stage == "arrived"
 
 
-def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):
-    """The retry policy over whole attempts (`render_version`): a notice is ignored
-    only when a later complete attempt is clean, ordinary failures from both attempts
-    stand once each, and an incomplete confirmation pardons nothing. Advice is the
-    first attempt's. What an attempt hears is the browser's half, read by
+def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
+    monkeypatch,
+):
+    """The retry policy over whole attempts (`render_version`): a notice fails the
+    check only when a later complete attempt repeats it and is ignored when that
+    attempt is clean, ordinary failures from both attempts stand once each, and a
+    notice no complete attempt settles leaves the page unread. Advice is the first
+    attempt's. What an attempt hears is the browser's half, read by
     `test_a_recurring_resize_notice_fails_the_render_gate`."""
     notice = Finding("resize-loop", values={"text": "ResizeObserver loop completed"})
     error = Finding("console-error", values={"text": "first attempt"})
@@ -349,14 +360,20 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         "window error: ResizeObserver loop completed"
         " (recurred on the confirming render attempt)"
     )
-    # A confirmation that did not finish cannot say the notice was transient.
-    assert policy(
-        attempt([error], [notice]), attempt([failed], complete=False)
-    ).failures == [error, failed, confirmed("incomplete")]
+    # A confirmation that did not finish settles nothing, so the page is unread, and
+    # what stopped it stands beside the notice.
+    crashed = Finding("browser-error", values={"error": "Target closed"})
+    unsettled = policy(
+        attempt([error], [notice]), attempt([failed, crashed], complete=False)
+    )
+    unconfirmed = Finding("resize-unconfirmed", values=notice.values)
+    assert unsettled.failures == [error, failed]
+    assert unsettled.findings == [error, failed, crashed, unconfirmed]
+    assert unconfirmed.unread and not unconfirmed.refuses
     # Nor can an attempt that did not finish ask for one.
-    assert policy(attempt([error], [notice], complete=False)).failures == [
+    assert policy(attempt([error], [notice], complete=False)).findings == [
         error,
-        notice,
+        unconfirmed,
     ]
 
 

@@ -351,7 +351,7 @@ def _render_page(
         # The first line only: the rest is playwright's call log, which says
         # nothing about the page that a reader of this failure needs.
         stopped = Finding("server-stopped", values={"error": str(e).splitlines()[0]})
-        return ended([*errors, *resize_notices, stopped])
+        return ended([*errors, stopped], resize_notices)
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,

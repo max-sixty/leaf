@@ -117,13 +117,17 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
     return isinstance(schema, dict) and schema.get("type") == kind
 
 
-def widget_advice(tag: str, entry: dict, path) -> list[Finding]:
-    """What one element declaration, read with its defaults written in, advises
-    its author, each finding naming the file `path`: a data input's source attribute
-    not declared a string, which `leaf data`'s own grammar still checks; a measured
-    input whose source or run receipt an instance may leave out, so that instance is
-    never compared with its source's latest run; and a widget that asks with no
-    string `id` declared, which each instance's own check still requires."""
+def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Finding]:
+    """What the element declaration of `tag` in `registry`, read with its defaults
+    written in, advises its author, each finding naming the file `path`: a data
+    input's source attribute not declared a string, which `leaf data`'s own grammar
+    still checks; a measured input whose source or run receipt an instance may leave
+    out, so that instance is never compared with its source's latest run; a widget
+    that asks with no string `id` declared, which each instance's own check still
+    requires; and a `refers` relation no element in `declarations` can meet, which
+    each reference an instance makes still meets or is refused
+    (`reference-contract`)."""
+    entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
     found = []
@@ -157,6 +161,10 @@ def widget_advice(tag: str, entry: dict, path) -> list[Finding]:
             )
     if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
         found.append(registry_finding("addressable-id", path, tag, key="awaits"))
+    for attribute, reference in entry.get("refers", {}).items():
+        if problem := reference_relation_problem(reference, registry, declarations):
+            code, values = problem
+            found.append(registry_finding(code, path, tag, attr=attribute, **values))
     return found
 
 
@@ -221,10 +229,6 @@ def _validate_widget_structure(
             raise registry_error(
                 "undeclared-attributes", path, tag, key=key, names=unknown
             )
-    for attribute, reference in entry.get("refers", {}).items():
-        if problem := reference_relation_problem(reference, registry, declarations):
-            code, values = problem
-            raise registry_error(code, path, tag, attr=attribute, **values)
     if isinstance(entry.get("visual"), dict):
         if not ("id" in required and _typed(properties, "id", "string")):
             raise registry_error("visual-id", path, tag)

@@ -1112,9 +1112,9 @@ def live_versions(d):
     return files_model.published_versions(d, events)
 
 
-def fragment_errors(html, registry):
+def markup_findings(html, registry):
     parser = structure_model.SourceDocument(html)
-    return validation_model.fragment_errors(parser, registry)
+    return validation_model.markup_findings(parser, registry)
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">

@@ -787,17 +787,21 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
         ),
     ],
 )
-def test_a_typed_reference_names_a_reachable_package_role(
+def test_a_typed_reference_no_declared_widget_meets_is_advised(
     page_dir, reference, code, values
 ):
-    """A bad package relation fails at the registry door, not on every instance."""
+    """A relation no declared widget meets breaks no vocabulary: each reference an
+    instance makes through it is refused where it stands (`reference-contract`), so
+    the registry door admits it and `page check` tells the declaration's author."""
     registry = vocabulary(page_dir)
     registry["lf-option"]["refers"]["for"] = reference
+    registry_validation.validate_registry(registry, "test registry")
+    declare_vocabulary(page_dir, registry)
 
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
-    )
-    assert found([finding], code, "<lf-option>", attr="for", **values)
+    _, findings = check_findings(page_dir)
+
+    [advice] = found(findings, code, "<lf-option>", attr="for", **values)
+    assert advice.severity == "advice"
 
 
 def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):

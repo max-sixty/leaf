@@ -28,8 +28,8 @@ from interact_support import (
     comment,
     fetch,
     found,
-    fragment_errors,
     fresh_process,
+    markup_findings,
     owed,
     page_state,
     publish,
@@ -239,7 +239,7 @@ def test_page_events_name_revisions_and_stamps_name_both(page_dir):
 def test_options_require_an_id(page_dir):
     # Actions name their widget by id, and every group takes them.
     registry = registry_storage.load_registry(page_dir)
-    errs = fragment_errors(
+    errs = markup_findings(
         '<lf-options><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
@@ -251,7 +251,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
     registry = registry_storage.load_registry(page_dir)
-    errs = fragment_errors(
+    errs = markup_findings(
         '<lf-sample id="sp" label="a decision">'
         '<lf-options id="g"><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>'
         '<lf-board id="b"><lf-column id="c" label="To do">'
@@ -265,9 +265,11 @@ def test_sample_admits_interactive_widgets(page_dir):
 def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     """A widget that asks on a page stands in a named group, an `lf-group`: the group is
     where going to the obligation starts and its `label` the obligation's prompt, read
-    from the markup with no heading or ARIA read. `page check` refuses a widget no group
-    holds, and the registry a group without a label or an id; a message's widget, a
-    mention in a sample, a widget that asks nothing and one set among words need none."""
+    from the markup with no heading or ARIA read. `page check` refuses a question with
+    no words, as where no group holds a widget without a label of its own or the group's
+    label is blank, and advises on one its own label alone names; the registry refuses
+    a group without a label or an id. A message's widget, a mention in a sample, a
+    widget that asks nothing and one set among words need none."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
@@ -307,12 +309,38 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
         f'<section id="d" role="group" aria-label="Choose">{first}</section>',
         f'<fieldset id="d"><legend>Choose</legend>{first}</fieldset>',
     ):
-        assert refused(ungrouped) == [
-            ("ungrouped-question", "<lf-options id=g-one>")
-        ], ungrouped
+        assert refused(ungrouped) == [("unnamed-question", "<lf-options id=g-one>")], (
+            ungrouped
+        )
     assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
     (finding,) = question_errors(SourceDocument(f"<main>{first}</main>"), registry)
-    assert '<lf-group id="…" label="…">' in str(finding)
+    assert finding.refuses and '<lf-group id="…" label="…">' in str(finding)
+    # A blank label names nothing either, and the finding names the group to fix.
+    blank = f'<lf-group id="d" label=" ">{first}</lf-group>'
+    (finding,) = question_errors(SourceDocument(f"<main>{blank}</main>"), registry)
+    assert (finding.code, finding.values["group"]) == (
+        "unnamed-question",
+        "<lf-group id=d>",
+    )
+    assert prompts(blank)["g-one"] == {"text": "", "target": "d"}
+    # A widget whose own label names its question stands outside the region On Me
+    # selects, which is advice.
+    labelled = {
+        **registry,
+        "lf-options": {
+            **registry["lf-options"],
+            "attributes": {
+                **registry["lf-options"]["attributes"],
+                "properties": {
+                    **registry["lf-options"]["attributes"]["properties"],
+                    "label": {"type": "string"},
+                },
+            },
+        },
+    }
+    named = first.replace('id="g-one"', 'id="g-one" label="Which one?"')
+    (finding,) = question_errors(SourceDocument(f"<main>{named}</main>"), labelled)
+    assert (finding.code, finding.refuses) == ("ungrouped-question", False)
 
     # A settled group, which asks nothing, a sample's widgets, which ask nothing beyond
     # the sample, and a suggestion, which its sentence names, need no group.
@@ -328,7 +356,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     )
     assert refused(f"<p>Refill {suggestion}.</p>") == []
     # A message's widget is named by the message, so its markup needs no group.
-    assert fragment_errors(first, registry) == []
+    assert markup_findings(first, registry) == []
 
 
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
@@ -533,9 +561,11 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
 
     def refused(attributes):
+        # What the widget's attribute schema says; `data-lf-` names are the runtime's
+        # markers too, which `reserved-markers` refuses beside this.
         return [
             (e.code, e.values["keyword"], e.values["path"])
-            for e in fragment_errors(
+            for e in markup_findings(
                 '<lf-group id="kind-ask" label="Choose a route"><h2 id="kind-ask-h">Choose a route</h2>'
                 '<lf-options id="kind-options">'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
@@ -543,6 +573,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
                 "</lf-options></lf-group>",
                 registry,
             )
+            if e.code == "attribute-schema"
         ]
 
     # A value, like an id, may start with a digit: an alert called 5xx keeps its name.

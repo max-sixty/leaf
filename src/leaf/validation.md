@@ -35,8 +35,8 @@ them:
 - The runtime's `lf-` and `data-lf-` namespaces are reserved, for names it uses now
   and later, but for the classes the kernel's idioms name
   (`structure.AUTHORED_CLASSES`), which a page writes to take what the idiom offers.
-  No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
-  command's ID names a widget or a message in one address space.
+  No id is one the log already gives an event (`event_log.logged_ids`), since
+  a command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the

@@ -10,6 +10,7 @@ import turbohtml
 from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
+from leaf.event_log import logged_ids
 from leaf.events import build_threads
 from leaf.findings import Finding, Rejected, note
 from leaf.passages import JOINS_WORDS_TAGS, SourceReading
@@ -27,14 +28,12 @@ from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
+    markup_findings,
+    message_settlement_advice,
     reference_errors,
-    thread_markup_contract_errors,
 )
 from .markup import (
-    document_declaration_errors,
     fragment_style_errors,
-    id_errors,
-    markup_advice,
     text_media_errors,
 )
 
@@ -323,20 +322,21 @@ def _message_stages(
     """The findings of each stage of `message_markup_findings`, in order, each read
     only once the gate asks for it."""
     yield split_preformatted(frag)
-    yield (
-        thread_markup_contract_errors(frag, registry)
-        + extra_errors
-        + fragment_style_errors(frag)
-        + document_declaration_errors(frag)
-        + uncaptured_errors(frag, page_dir)
-    )
-    yield id_errors(frag)
+    yield [
+        *markup_findings(frag, registry),
+        *message_settlement_advice(frag, registry),
+        *extra_errors,
+        *fragment_style_errors(frag),
+        *uncaptured_errors(frag, page_dir),
+    ]
     thread = thread_structure(events)
     held = {
         identity for identity, message in thread.holders.items() if message != replacing
     }
     clash = sorted(frag.ids & (prior_ids | page.ids | held))
     yield [Finding("ids-taken", values={"ids": clash})] if clash else []
+    logged = sorted(frag.ids & logged_ids(events))
+    yield [Finding("ids-taken-by-events", values={"ids": logged})] if logged else []
     replaced = thread.fragments.get(replacing)
     standing = thread.ids - replaced.ids if replaced else thread.ids
     yield reference_errors(
@@ -371,5 +371,4 @@ def _message_stages(
         *sample_errors(page_dir, page, events, frag, registry, contracts),
         *uncaptured_sample_errors(page_dir, frag),
         *document_drops(frag),
-        *markup_advice(frag),
     ]

@@ -31,6 +31,17 @@ producer of the contract must take as commands goes in the contract's `instructi
 under `producer`: `leaf page instructions --use` returns it for a widget on either
 side of the contract.
 
+`package check` reads one package, so check a pair on a page. Start one in a directory
+outside both packages that selects them by path, write both widgets into its
+`index.html`, and run the render check, which draws the pair:
+
+```bash
+leaf page init --package ./shortlist --package ./finalists <page>
+leaf page check <page> --render
+```
+
+Serve that page to try recording and Undo by hand.
+
 ### Asking another widget to act
 
 A request from one element to another, such as a step list asking its film to hold a

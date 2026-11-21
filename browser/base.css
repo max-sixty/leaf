@@ -299,7 +299,7 @@ body {
  * was holding it, over whatever stands beside that box or past the window, where the
  * page would scroll sideways, which the render gate refuses. It reaches everything by
  * inheritance and does nothing anywhere a line already can't wrap, so the widgets
- * that scroll instead (lf-board, lf-diff, pre) are untouched. A metric's headline has
+ * that scroll instead (lf-board, lf-diff) are untouched. A metric's headline has
  * no width to spare at all, and without this a long value runs out of its card and
  * across whatever the grid put beside it.
  */

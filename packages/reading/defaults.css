@@ -164,16 +164,10 @@ h1 + .lede {
    code's muted ink rather than a sloped line, and the one thing to notice takes the
    tint lf-code gives a line to notice, under the code's own ink, which the browser's
    yellow and black ignore. The accent's wash is the draft comment's (--lf-mark-pending),
-   so a mark in it would read as a passage the user is pointing at.
-   Lines wrap, breaking anywhere a path or hash offers no break: output that scrolls
-   sideways is unreadable on a phone. Copying the block copies what is selected, output
-   included; taking only the commands would need a script that rewrites the clipboard,
-   or output the selection cannot reach, which would also keep a comment from pointing
-   at it. */
-pre.terminal {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+   so a mark in it would read as a passage the user is pointing at. Copying the block
+   copies what is selected, output included; taking only the commands would need a
+   script that rewrites the clipboard, or output the selection cannot reach, which would
+   also keep a comment from pointing at it. */
 pre.terminal i {
   font-style: normal;
   color: var(--lf-code-muted);

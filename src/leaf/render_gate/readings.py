@@ -545,9 +545,8 @@ def swept_faults(samples) -> list[Finding]:
 
 
 def squeezed_advice(readings) -> list[Finding]:
-    """Advice naming each table that scrolls sideways with a cell wrapped, each table
-    that breaks a short name inside itself (`brokenNames`), and each code block that
-    scrolls its lines in too little width to read them.
+    """Advice naming each table that scrolls sideways with a cell wrapped, and each table
+    that breaks a short name inside itself (`brokenNames`).
 
     The sweep is the reading's only home, and it takes in the desktop's width.
     Advice rather than a failure because the box still scrolls and every word in it
@@ -556,10 +555,7 @@ def squeezed_advice(readings) -> list[Finding]:
     `<code>`) is a choice of composition only the author can make. Its words say what
     the reader keeps and what hiding a column at the narrow width would take: authors
     told only the remedies chased the advice for up to eight render checks, hiding
-    columns at phone widths, which a phone reader then missed. For a code block, the
-    cost is a line read a few letters at a time, and the remedy (a width for the block
-    or its holder, or for a block in a table cell, inline code or a place outside the
-    table) is the author's choice."""
+    columns at phone widths, which a phone reader then missed."""
     return _swept(
         readings,
         lambda reading: {

@@ -345,13 +345,13 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
-    # Event ids and authored element ids belong to different identity spaces. Give
-    # the thread and widget the same spelling so only the typed target can separate
-    # their reports; a bare id or target lookup by store would merge them.
+    # A page refuses an element id its log already gives an event, so the thread
+    # takes its own id. A thread target spelled as the widget's id still reads none
+    # of the widget's reports, and a bare id is refused rather than guessed at.
     thread = append_carried_log_record(
         d,
         {
-            "id": "ag-wren",
+            "id": "c-wren",
             "kind": "comment",
             "author": "user",
             "revision": 1,

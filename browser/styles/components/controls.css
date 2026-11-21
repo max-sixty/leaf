@@ -880,7 +880,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
    (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
    this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
-   for a word, and a scroller holding such a seat keeps this much room at its sides.
+   for a word, and a scroller holding such a seat keeps this much room at its sides,
+   and a focus ring's beyond it.
    Under a finger the box is wider than the face, so the glyph stands inside the edge
    by the difference. The symbol states it again, so a surface that sets its own face
    gets its own inset. */

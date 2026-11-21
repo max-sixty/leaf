@@ -8,7 +8,7 @@
  */
 
 import { ringBox, visibleFocus } from "./focus.js";
-import { shownParts } from "./geometry.js";
+import { lined, shownParts } from "./geometry.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import {
   readingOrder,
@@ -386,8 +386,8 @@ export function createAnchorPaint({
   // `highlightsFromPoint` walks every range a highlight holds (notes/browser-support.md,
   // "Highlight hit testing"). With the annotation layer hidden there is no mark to be
   // under: an unseen passage shows no hand and opens nothing. With `whole`, a character's
-  // box reaches across its line's leading (`lined`), as a preview's room reads it
-  // (`markBox`); a press and a hover read the character alone.
+  // box reaches across its line's leading (geometry.js, `lined`), as a preview's room
+  // reads it (`markBox`); a press and a hover read the character alone.
   /** @param {number} x @param {number} y @param {Element | null} [under] the element
    * under the point, where the caller has hit-tested it already
    * @param {boolean} [whole] whether a character's box spans its whole line
@@ -440,22 +440,6 @@ export function createAnchorPaint({
     return [...character.getClientRects()].some((rect) =>
       holds(whole ? lined(rect, node) : rect, x, y),
     );
-  }
-  // A box of text in `node` stretched across its line's leading, so a paragraph's lines
-  // meet with no gap between them: whatever stands on a line holds every point of its
-  // height, and a preview's rows of hit tests (preview.js, `clearRoom`) find a mark
-  // wherever they land on its line, however the preview's height spaces them.
-  /** @param {DOMRectReadOnly} rect @param {Node} node @returns {import("./rect.js").Box} */
-  function lined(rect, node) {
-    const holder = node instanceof Element ? node : node.parentElement;
-    const pitch = holder ? parseFloat(getComputedStyle(holder).lineHeight) : NaN;
-    const half = Number.isFinite(pitch) ? Math.max(0, (pitch - rect.height) / 2) : 0;
-    return {
-      left: rect.left,
-      right: rect.right,
-      top: rect.top - half,
-      bottom: rect.bottom + half,
-    };
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;

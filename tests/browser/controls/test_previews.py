@@ -487,6 +487,44 @@ def test_a_mark_s_preview_stands_clear_of_the_mark_on_the_next_line(
     expect(page.locator(CARD)).to_contain_text("About the second words?")
 
 
+LOOSE = leaf_page(
+    "Loose",
+    '<p id="stacked" style="font-size: 20px; line-height: 3">The first line says '
+    "little.<br>Nor does the second.<br>Here the thread's words stand on it.<br>"
+    "And the line after.<br>The last line closes it.</p>" + "<p>More words.</p>" * 12,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_s_preview_stands_by_its_words_on_loosely_leaded_type(
+    engine, request, serve
+):
+    """Where a paragraph's leading is deeper than the gap a preview keeps from its line,
+    the preview's rows of hit tests land in its own line's leading, which reads as that
+    line's mark. That line is the preview's own, so the preview still stands below the
+    words it is about, at their start (preview.js, `clearRoom`)."""
+    words = "the thread's words"
+    url = serve(
+        LOOSE,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "About these words?",
+                "anchor": {"section": "stacked", "quote": words},
+            }
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    line = page.evaluate(WORDS_LINE, words)
+    page.mouse.move(line["x"] + 8, line["y"] + line["height"] / 2)
+    expect(page.locator(PREVIEW)).to_be_visible()
+    tip = page.locator(PREVIEW).bounding_box()
+    assert tip["y"] >= line["bottom"] and abs(tip["x"] - line["left"]) < 1, (tip, line)
+
+
 # A passage a thread is about, the words its mark paints, and where they stand.
 PASSAGE = (
     "Nothing is lost, and the edits stay queued, but the user sees a spinner until "

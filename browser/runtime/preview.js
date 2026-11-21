@@ -333,6 +333,7 @@ import {
   clippedContents,
   clippedRect,
   drawsText,
+  lined,
   shownParts,
   shownWindow,
   visualViewport,
@@ -1566,7 +1567,10 @@ function stand(record, reading, standing, aim = false) {
       Math.max(0, Math.min(height, at.room, towardSubject(at))),
     );
     if (reach < least) return reach;
-    const own = target instanceof Range ? box : holder.getBoundingClientRect();
+    const own =
+      target instanceof Range
+        ? { ...lined(box, target.startContainer), left: -Infinity, right: Infinity }
+        : holder.getBoundingClientRect();
     return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder, own)));
   };
   /** @type {Placement | null} */
@@ -1693,7 +1697,8 @@ function stand(record, reading, standing, aim = false) {
 // holder or what it holds, which are no other control, so it is not tested, as most of
 // a preview standing over a chart is not, which bounds its cost. A range's holder, the
 // element holding its words, holds other ranges on its other lines, as a paragraph does
-// other threads' marks, so for a range only its own line (`own`) goes untested.
+// other threads' marks, so for a range only its own line (`own`), across its leading
+// (geometry.js, `lined`) and its whole width, goes untested.
 /** @param {Placement} at @param {number} reach @param {Element} holder @param {Box} own */
 function clearRoom(at, reach, holder, own) {
   const around = new Set(climb(holder));

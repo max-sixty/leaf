@@ -11,12 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import {
-  authoredRank,
-  foldWidgetStates,
-  rankAt,
-  widgetStateReader,
-} from "/runtime/projection/model.js";
+import { authoredRank, foldWidgetStates, rankAt } from "/runtime/projection/model.js";
 
 // The rank cases `test_interact_document.py` holds `projection.py` to, so the append
 // door admits what this module computes and both runtimes rank authored units alike.
@@ -241,7 +236,7 @@ test("a move no revision has absorbed still places its card by its rank", () => 
 });
 
 test("a widget nothing moved keeps the very state its last folding gave it", () => {
-  const read = widgetStateReader();
+  const read = foldWidgetStates;
   const other = { state: { note: { action: "note", value: "x" } }, specs: new Map() };
   const both = new Map([...authored, ["other", other]]);
   const e = {
@@ -252,16 +247,13 @@ test("a widget nothing moved keeps the very state its last folding gave it", () 
     detail: { unit: "a", value: "done", rank: "5" },
   };
   const coordinate = JSON.stringify(["board", "a", "move"]);
+  const entry = { unit: "a", spec, e };
   const first = read(both, { desired: new Map() });
-  const moved = read(both, {
-    desired: new Map([[coordinate, { unit: "a", spec, e }]]),
-  });
+  const moved = read(both, { desired: new Map([[coordinate, entry]]) });
   assert.equal(moved.get("other"), first.get("other"));
   assert.notEqual(moved.get("board"), first.get("board"));
   assert.deepEqual(moved.get("board").state.move.value.done, ["a"]);
-  // The same entry in force again, in a new wrapper, keeps the state it made.
-  const again = read(both, {
-    desired: new Map([[coordinate, { unit: "a", spec, e }]]),
-  });
+  // The same entry in force again, in a new projection, keeps the state it made.
+  const again = read(both, { desired: new Map([[coordinate, entry]]) });
   assert.equal(again.get("board"), moved.get("board"));
 });

@@ -2,8 +2,8 @@
 /* Which of the user's comments a version was saved after: where the page compares a
    version with the one before it, as `v` does, every change it marks was made by that
    version's revisions, so one line under each change's count says the messages that
-   waited while the version was saved (../SOUL.md, "Changes the user requests remain
-   understandable as they happen").
+   waited while the version was saved (../../skills/leaf/SOUL.md, "Changes the user
+   requests remain understandable as they happen").
 
    The server says which, with the base's document the comparison asks for
    (`/api/view`, `saved_after`), each revision of the version judged by the log up to
@@ -15,7 +15,7 @@
    The tie is one of order, so the words state order: the version was saved while
    these comments waited, or with none waiting. They say neither that it answers a
    comment nor which paragraph followed which, since the log establishes neither. The
-   user chose on 5 November 2026 to say what each change came from rather than only
+   user chose to say what each change came from rather than only
    what it did; the version is the part of that the log can back.
 
    `versionProvenance` is the one value a surface that describes a change reads, the ⇄

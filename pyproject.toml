@@ -102,7 +102,6 @@ dev = [
   "leaf-dev",
   # The Python server behind leaf.page, in `worker/`.
   "leaf-website",
-  "pytest-image-snapshot[pixelmatch]>=0.5.3",
   "ty>=0.0.94",
   "ruff>=0.17.3",
   "datamodel-code-generator>=0.87.0",
@@ -138,6 +137,8 @@ select = [
   # Pytest mistakes: invalid fixture arguments, missing exception types,
   # duplicate cases, always-failing asserts, ineffective marks and parameters.
   "PT002", "PT010", "PT014", "PT015", "PT024", "PT025", "PT026", "PT028",
+  # Imports of the APIs `banned-api` below names.
+  "TID251",
 ]
 # The formatter owns line wrapping; existing module setup and callable expressions
 # may put imports after setup or use a lambda as a value.
@@ -151,6 +152,17 @@ explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]
+
+# No code outside the CLI, the commands and the tests imports a `leaf-dev` command
+# module (dev/AGENTS.md).
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"leaf_dev.commands".msg = "only the CLI and tests import a leaf-dev command module; move the code this needs into a module in dev/leaf_dev/ (dev/AGENTS.md)"
+
+[tool.ruff.lint.per-file-ignores]
+"dev/leaf_dev/cli.py" = ["TID251"]
+"dev/leaf_dev/commands/**" = ["TID251"]
+"dev/tests/**" = ["TID251"]
+"tests/**" = ["TID251"]
 
 [tool.ty.environment]
 # Match pytest's helper imports below, including tests/browser packages.
@@ -171,7 +183,7 @@ extra-paths = ["tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-n 2 --dist loadgroup --max-worker-restart=0 --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
+addopts = "-n 2 --dist loadgroup --max-worker-restart=0 --regtest-consider-line-endings -p leaf_dev.commands.suite.profile"
 markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
@@ -219,7 +231,6 @@ ignore_names = [
   # runner.
   "call_api",
   "get_assert",
-  "image_snapshot_*",
   "show_differences",
   # a subject's module fixture another tier directory's module imports by its alias
   # (`tests/AGENTS.md`, "Run what the change needs")
@@ -234,6 +245,9 @@ ignore_names = [
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.
   "redirect_request",
+  # shlex.shlex reads these lexer settings by name.
+  "whitespace",
+  "whitespace_split",
   # a reference held only so its page stays in the recent pages (samples.py)
   "parent_memory",
   # click, uvicorn, markdown-it
@@ -244,3 +258,35 @@ ignore_names = [
   "main_loop",
   "validateLink",
 ]
+
+[tool.typos.files]
+# Generated output and captured evidence retain their original text. Explicit
+# filenames need --force-exclude, which the pre-commit hook already supplies.
+extend-exclude = [
+  "browser/vendor/**",
+  "packages/**/vendor/**",
+  "evals/ui-review-detection/fixtures/**",
+]
+
+[tool.typos.default]
+# Revision ids are hexadecimal evidence, even when a run happens to spell a word.
+extend-ignore-re = ["\\b[0-9a-f]{7,40}\\b"]
+
+[tool.typos.default.extend-words]
+# The captured Worktrunk patch names this Rust UI crate.
+ratatui = "ratatui"
+# A render check quotes the passage print drops at 40 characters, so it can cut a
+# word in half; tests/*/test_render_commands.py expects one of those cuts.
+recor = "recor"
+# tests/*/test_interact_anchors.py aims a section anchor at `backfil-first`, one letter off an
+# id the fixture holds, because a near-miss is the typo the gate exists to refuse —
+# "corrected", the id exists and the refusal under test never fires.
+backfil = "backfil"
+# The media element's `seeked` event, named by the platform.
+seeked = "seeked"
+# A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
+udid = "udid"
+
+[tool.typos.default.extend-identifiers]
+# typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.
+PNGs = "PNGs"

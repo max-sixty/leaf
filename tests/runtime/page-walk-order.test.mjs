@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { renderedOrder, renderedOrdering } from "/runtime/shadow.js";
+import { renderedOrder, renderedOrdering } from "/runtime/shadow-tree.js";
 import { stepFrom } from "/runtime/current-target.js";
 import { inPageOrder } from "/runtime/thread/placement.js";
 

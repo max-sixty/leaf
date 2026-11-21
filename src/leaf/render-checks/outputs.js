@@ -17,7 +17,7 @@ export function observeOutputValues() {
       // The element that said it, which a shadow host stands in for as `target`.
       const [said] = event.composedPath();
       if (!(said instanceof Element)) return;
-      const outputs = declarationFor(said, "x-output") ?? {};
+      const outputs = declarationFor(said)?.outputs ?? {};
       for (const [output, { contract }] of Object.entries(outputs)) {
         const held = /** @type {Record<string, unknown>} */ (
           /** @type {unknown} */ (said)

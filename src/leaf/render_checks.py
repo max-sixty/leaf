@@ -1,7 +1,7 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
-from contextlib import contextmanager
+import time
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -13,24 +13,27 @@ from .schema import RENDER_CHECKS_DIR
 # (`render_gate.command.desktop_viewport`).
 RENDER_VIEWPORT = {"width": 1280, "height": 720}
 
-# The bound on one probe or request, sized for an oversubscribed host rather than an idle
-# one: it separates a wedged preview, which it turns into a useful failure rather than
-# an unbounded evaluate, from a machine that has not got there yet. At Playwright's own
-# 30s, browser tests on a host stacked with other sessions' suites timed out in a
-# different place each run and passed alone, and each red run was re-run whole, adding
-# the load that failed it. A longer bound costs only a slower failure for a real hang.
+# The bound on one probe or request, sized for an oversubscribed host rather than an
+# idle one: it separates a wedged preview, which it turns into a useful failure rather
+# than an unbounded evaluate, from a machine that has not got there yet. At Playwright's
+# own 30s, browser tests on a host stacked with other sessions' suites can time out in a
+# different place each run and pass alone, and re-running a red run whole adds the load
+# that failed it. A longer bound costs only a slower failure for a real hang.
 SERVED_TIMEOUT_MS = 120_000
-# How long a whole page handover may take before the page counts as wedged: the wait,
-# from navigation, for the page to state every readiness fact (`wait_until_ready`).
+# How long a page handover may go without progress before the page counts as wedged.
+# A handover is the wait, from navigation, for the page to state every readiness fact
+# (`wait_until_ready`), and `HandoverProgress` says what counts as progress.
 # `SERVED_TIMEOUT_MS` bounds one request or one probe, and a handover is all of a
-# page's work at once. The corpus is the heaviest page that work is read on: idle, it
-# reaches readiness in 16-18s; a 4-vCPU runner driving four browsers took it past 30s;
-# and on an oversubscribed 18-core host, plain `page check` saw it upgrade for 46s and
-# reach readiness at 48s. A shorter deadline fails a slow page that would have arrived,
-# so an agent checking its page on a busy machine reads a false failure. Waiting longer
-# weakens no claim, since the readiness facts say the same whenever they arrive; the
-# deadline only separates a page that never arrives from a machine that has not got
-# there yet.
+# page's work at once. The bound is on progress rather than on the whole handover,
+# because the whole grows with the page: each live sample a check starts loads a page
+# of its own, three at a time (`MAX_LOADING_SAMPLES` in runtime/sample.js), so a
+# gallery of them on a starved machine takes minutes while its samples keep landing.
+# A bound on the whole would fail such a page on any machine slow enough, and an agent
+# checking it on a busy machine would read a false failure. A bound on progress need
+# only outlast the page's slowest arrival, such as one sample's whole page, which counts
+# as one arrival of the page holding it until it has arrived. Waiting longer weakens no
+# claim, since the readiness facts say the same whenever they arrive; the bound only
+# separates a page that has stopped from a machine that has not got there yet.
 HANDOVER_DEADLINE_MS = 240_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
 # animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
@@ -66,6 +69,16 @@ _RENDERING_SETTLED = """facts => {
   const state = globalThis.__leafRenderDriver.renderingState();
   return (facts ?? Object.keys(state)).every(fact => state[fact]);
 }"""
+
+
+def open_render_page(opener, **options):
+    """A new page from `opener`, a browser or a context, opened with Playwright's
+    `new_page` `options`, whose every Playwright wait that names no deadline, its
+    navigations included, takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
+    which a page's `load` overruns on a starved host."""
+    page = opener.new_page(**options)
+    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    return page
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
@@ -212,31 +225,20 @@ def evaluate_probe(page, name: str, *args):
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
 
 
-@contextmanager
-def observe_probe(page, name: str, *args):
-    """Own a probe's native finish closure; fill its records when the scope ends.
-
-    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
-    observation in this document and disconnects it even if the caller's work fails.
-    """
-    _load_probes(page, _timeout(page, None))
-    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
-    records = []
-    try:
-        yield records
-    finally:
-        try:
-            records.extend(handle.evaluate("finish => finish()"))
-        finally:
-            handle.dispose()
-
-
-def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
+def wait_for_probe(
+    page,
+    name: str,
+    *args,
+    timeout_ms: int | None = None,
+    fixed_server: bool = False,
+) -> None:
     """Wait until one named browser probe returns a truthy value.
 
     The default patience suits a reading that arrives once the page settles. A caller
     waiting on work the page is doing on its behalf states its own budget, because the
-    page answers nothing at all while that work holds its main thread.
+    page answers nothing at all while that work holds its main thread. A caller whose
+    server nothing replaces passes `fixed_server`, as `wait_until_ready` takes it: a
+    page that declares it cannot start then raises `PageNotReady` at once.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -244,7 +246,7 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
     _load_probes(page, timeout_ms)
     try:
         page.wait_for_function(
-            _PROBE,
+            _PROBE_OR_REFUSED if fixed_server else _PROBE,
             arg={"name": name, "args": list(args)},
             timeout=timeout_ms,
             polling=PROBE_POLL_MS,
@@ -253,6 +255,8 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
         raise PlaywrightTimeout(
             f"Leaf wait probe {name} did not become true within {timeout_ms}ms"
         ) from error
+    if fixed_server:
+        _refuse_unstarted(page)
 
 
 def _wait_for_driver(page, fact: str, arg, missing: str) -> None:
@@ -303,15 +307,19 @@ def rendered(page, *, facts: tuple[str, ...] | None = None) -> None:
     )
 
 
-# The page's own readiness reading (`pageReadiness` in runtime/presentation.js), read
-# off the entry script so a bundled entry answers too. A page whose entry has not run
-# yet has no reading, and starting is the first stage it owes. `answering` is the one
-# stage read from out here: a page too busy to say which stage it is at.
-_READINESS = """({held, through}) => {
-  const readiness = document.querySelector('script[data-lf-entry]')?.lfReadiness;
-  return readiness ? readiness(held, through ?? undefined) : 'started';
+# Where the page stands on its way to readiness: 'ready', or the first stage it has yet
+# to state (`pageReadiness` in runtime/presentation.js) with how many arrivals it has
+# yet to land (`arrivalsOutstanding`), read off the entry script so a bundled entry
+# answers too. A page whose entry has not run yet has no reading, and starting is the
+# first stage it owes. `answering` is the one stage read from out here: a page too busy
+# to say which stage it is at. A reader without Playwright's waits, such as the iOS
+# probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
+STANDING = """({held, through}) => {
+  const entry = document.querySelector('script[data-lf-entry]');
+  if (!entry?.lfReadiness) return ['started', 0];
+  const stage = entry.lfReadiness(held, through ?? undefined);
+  return stage === null ? 'ready' : [stage, entry.lfArrivalsOutstanding()];
 }"""
-_READY = f"asked => ({_READINESS})(asked) === null"
 # The reason a page declared it cannot start (an incomplete startup fault, prepaint.js),
 # or null. Such a page upgrades nothing more until a replacement server reloads it
 # (bootstrap.js).
@@ -320,10 +328,18 @@ _REFUSED = """() => {
   return root.hasAttribute('data-lf-startup-error')
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
-_READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
-# The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
-# such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
-OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
+_PROBE_OR_REFUSED = f"call => ({_PROBE})(call) || ({_REFUSED})() !== null"
+# The page's standing once it differs from `last`, with 'refused' for a page that
+# declared it cannot start where the caller's server will not replace it.
+_STANDING_MOVED = f"""({{asked, refusable, last}}) => {{
+  const now = refusable && ({_REFUSED})() !== null ? 'refused' : ({STANDING})(asked);
+  return JSON.stringify(now) !== JSON.stringify(last) && now;
+}}"""
+# The stage the page has yet to state, or 'ready'.
+OUTSTANDING = f"""asked => {{
+  const standing = ({STANDING})(asked);
+  return standing === 'ready' ? standing : standing[0];
+}}"""
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
 UNREADY = {
@@ -349,6 +365,31 @@ class PageNotReady(TimeoutError):
         self.stage = stage
 
 
+class HandoverProgress:
+    """Whether each standing a wait reads (`STANDING`) moves the page's handover on: a
+    stage the wait has not yet seen it at, or fewer arrivals left at its stage than at
+    any reading there before. Arrivals that land only for others to take their place,
+    or a stage that swings back and forth, move it no further, so such a page's wait
+    still ends (`HANDOVER_DEADLINE_MS`)."""
+
+    def __init__(self):
+        self._fewest: dict[str, int] = {}
+
+    def moved(self, stage: str, left: int) -> bool:
+        if stage in self._fewest and left >= self._fewest[stage]:
+            return False
+        self._fewest[stage] = left
+        return True
+
+
+def asked_again(url: str) -> str:
+    """`url` as the document startup recovery asks the server for once more
+    (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for
+    another server rather than reloading itself from this one, so a reader that judges
+    the document it opened, such as a check against a fixed server, opens it here."""
+    return f"{url}{'&' if '?' in url else '?'}_leaf-recovered"
+
+
 def wait_until_ready(
     page,
     state: dict | None = None,
@@ -368,12 +409,15 @@ def wait_until_ready(
     later meets it as well. `through` names the last stage the caller needs, for a
     caller that wants the answer taken in while the page is still mid-gesture. Finite
     animation is not readiness; the render gate asks `pageSettled` for that on its own.
-    The deadline is `HANDOVER_DEADLINE_MS` unless the caller states one.
+    The wait gives up once the page has gone `HANDOVER_DEADLINE_MS` without progress,
+    or `timeout_ms` where the caller states one.
 
     A caller whose server nothing replaces while it waits, such as a check reading a
     preview of one candidate, passes `fixed_server`: a page that declares it cannot
     start is then refused at once, as stage `refused` with the page's own reason,
-    rather than at the deadline, since the reload it waits for never comes.
+    rather than at the deadline, since the reload it waits for never comes. Such a
+    caller opens the page at `asked_again`, or the page's one reload from the same
+    server replaces the document the caller is still reading.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -386,16 +430,32 @@ def wait_until_ready(
         "through": through,
     }
     timeout_ms = timeout_ms or HANDOVER_DEADLINE_MS
-    try:
-        page.wait_for_function(
-            _READY_OR_REFUSED if fixed_server else _READY, arg=asked, timeout=timeout_ms
-        )
-    except PlaywrightTimeout:
-        pass
-    else:
-        if fixed_server and (reason := page.evaluate(_REFUSED)) is not None:
-            raise PageNotReady("refused", f"the runtime could not start: {reason}")
-        return
+    progress = HandoverProgress()
+    standing = None
+    stalls = time.monotonic() + timeout_ms / 1000
+    left = timeout_ms
+    # Playwright reads a zero timeout as none, so the wait ends before one. The reading
+    # is polled on a timer, as the probes are (`_load_probes`): a framed page out of
+    # sight runs no animation frames.
+    while left > 0:
+        try:
+            standing = page.wait_for_function(
+                _STANDING_MOVED,
+                arg={"asked": asked, "refusable": fixed_server, "last": standing},
+                timeout=left,
+                polling=PROBE_POLL_MS,
+            ).json_value()
+        except PlaywrightTimeout:
+            break
+        if standing in ("ready", "refused"):
+            if fixed_server:
+                _refuse_unstarted(page)
+            return
+        if progress.moved(*standing):
+            stalls = time.monotonic() + timeout_ms / 1000
+            left = timeout_ms
+        else:
+            left = round((stalls - time.monotonic()) * 1000)
     # Read the stage through a bounded wait too, since `evaluate` takes no deadline: a
     # page whose own code holds its main thread answers neither.
     try:
@@ -407,16 +467,124 @@ def wait_until_ready(
     if stage == "ready":
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
-    raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
+    raise PageNotReady(stage, f"{words}: no progress in {timeout_ms}ms")
+
+
+def _refuse_unstarted(page) -> None:
+    """Raise `PageNotReady` as stage `refused`, with the page's own reason, where the
+    page declared it cannot start."""
+    if (reason := page.evaluate(_REFUSED)) is not None:
+        raise PageNotReady("refused", f"the runtime could not start: {reason}")
+
+
+# Every box holding `frame` in its document, across shadow roots as `renderedParent`
+# walks them (shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
+# Written out here since it runs in each sample's own document, which no probe reaches.
+_HOLDERS = """frame => {
+  const held = [];
+  for (let node = frame; node;
+       node = node.assignedSlot ?? node.parentElement ?? node.getRootNode().host)
+    held.push([node, node.scrollLeft, node.scrollTop]);
+  return held;
+}"""
+_PUT_BACK = """held => {
+  for (const [node, left, top] of held) node.scrollTo({left, top, behavior: 'instant'});
+}"""
+_SHOWS = "frame => frame.checkVisibility({visibilityProperty: true})"
+_UNSEEN = "frame => frame.hasAttribute('data-lf-unseen')"
+_SEEN = "frame => !frame.hasAttribute('data-lf-unseen')"
+# True once a document's next rendering has run and delivered its observers'
+# readings, a host's reading of whether its frame shows among them. A document out of
+# sight renders nothing but still runs its timers, so after 5 s, two orders of
+# magnitude above one rendering, it answers false.
+_RENDERED = """() => new Promise((settle) => {
+  setTimeout(() => settle(false), 5000);
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => settle(true))));
+})"""
+_LEAF = "() => Boolean(document.querySelector('script[data-lf-entry]')?.lfReadiness)"
 
 
 def start_near_work(page, state: dict | None = None, **ready) -> None:
     """Start the work the page holds back until the reader nears its node, such as
     each live sample's page, and wait until the page has taken it in, as
     `wait_until_ready` waits with `state` and `ready`. A check reads every document the
-    page can show, not only those near the window it opened at."""
+    page can show, not only those near the window it opened at.
+
+    A sample's page gets no rendering while its frame is off screen, so its host counts
+    what that page draws only while the frame shows, and marks the frame
+    `data-lf-unseen` meanwhile (sample.js). The page holding a hidden frame counts none
+    of the work that frame's page starts after loading, its own samples included, so
+    each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`
+    frame is then scrolled into view and its holder waited for, and every box the
+    scroll moved goes back. One no scroll can show, in a closed disclosure, a shut tab
+    or a box clipped to nothing, stays as the page has it."""
+    from playwright.sync_api import Error as PlaywrightError
+
     evaluate_probe(page, "startNearWork")
     wait_until_ready(page, state, **ready)
+    frames = getattr(page, "page", page).frames
+    tried = {frames[0]}
+    while untried := [frame for frame in frames if frame not in tried]:
+        for frame in untried:
+            tried.add(frame)
+            try:
+                # The page holding the frame counts its loading and the near work it
+                # starts; one still unseen, in a closed disclosure or a shut tab,
+                # would never settle.
+                holder = frame.parent_frame
+                if (
+                    holder.parent_frame is not None
+                    and holder.frame_element().evaluate(_SEEN)
+                    and holder.evaluate(_LEAF)
+                ):
+                    wait_until_ready(holder, timeout_ms=ready.get("timeout_ms"))
+                if frame.frame_element().evaluate(_UNSEEN):
+                    _show(frame, page, state, ready)
+            except PlaywrightError:
+                # A sample retired or reloaded meanwhile has no frame to show.
+                if not frame.is_detached():
+                    raise
+        frames = getattr(page, "page", page).frames
+    if len(tried) > 1:
+        rendered(page)
+        wait_until_ready(page, state, **ready)
+
+
+def _show(frame, page, state, ready) -> None:
+    """Scroll `frame` into view, outermost frame first, wait until its holder has
+    taken in what it draws, and scroll every box it moved back."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    elements = []
+    while frame.parent_frame is not None:
+        elements.append(frame.frame_element())
+        frame = frame.parent_frame
+    if not all(element.evaluate(_SHOWS) for element in elements):
+        return
+    held = [element.evaluate_handle(_HOLDERS) for element in elements]
+    holder = elements[0].owner_frame()
+    try:
+        # Outermost first, and each only once the document holding it renders, as
+        # Playwright's wait for a stable box needs: a frame an ancestor clips stays out
+        # of sight however it scrolls.
+        for element in reversed(elements):
+            owner = element.owner_frame()
+            if owner.parent_frame is not None and not owner.evaluate(_RENDERED):
+                break
+            element.scroll_into_view_if_needed()
+        else:
+            # The frame keeps its mark where no scroll shows it, and stays as the
+            # page has it.
+            holder.evaluate(_RENDERED)
+            if elements[0].evaluate(_SEEN):
+                if holder.parent_frame is None:
+                    wait_until_ready(page, state, **ready)
+                else:
+                    wait_until_ready(holder, timeout_ms=ready.get("timeout_ms"))
+    except PlaywrightTimeout:
+        pass  # A box that never stops moving can't be scrolled into view.
+    for boxes in held:
+        boxes.evaluate(_PUT_BACK)
 
 
 def install_window_errors(page, heard) -> None:

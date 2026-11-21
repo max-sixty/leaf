@@ -9,13 +9,17 @@
 
 /* The shared source primitive owns pre-upgrade appearance. The rendered diff
  * keeps code typography while its own shadow tree scrolls the evidence. */
+lf-diff,
+lf-call-diff {
+  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
+}
 lf-diff {
   contain: inline-size;
 }
 lf-diff.lf-rendered {
-  font-family: var(--mono);
-  font-size: var(--code-size);
-  line-height: var(--code-line);
+  font-family: var(--lf-mono);
+  font-size: var(--lf-code-size);
+  line-height: var(--lf-code-line);
   font-variant-ligatures: none;
 }
 
@@ -27,16 +31,16 @@ lf-call-diff {
   display: block;
   max-width: 100%;
   contain: inline-size;
-  margin: var(--sp-3) 0;
+  margin: var(--lf-sp-3) 0;
   overflow: hidden;
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
-  background: var(--pre-bg);
-  color: var(--code-ink);
-  font-family: var(--mono);
-  font-size: var(--code-size);
+  border: 1px solid var(--lf-code-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-pre-bg);
+  color: var(--lf-code-ink);
+  font-family: var(--lf-mono);
+  font-size: var(--lf-code-size);
   font-variant-ligatures: none;
-  line-height: var(--code-line);
+  line-height: var(--lf-code-line);
   container-type: inline-size;
 }
 
@@ -44,17 +48,17 @@ lf-call-diff {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--code-border);
-  background: var(--code-chrome);
-  color: var(--code-muted);
-  font: var(--font-ui);
+  gap: var(--lf-sp-3);
+  padding: var(--lf-sp-2) var(--lf-sp-3);
+  border-bottom: 1px solid var(--lf-code-border);
+  background: var(--lf-code-chrome);
+  color: var(--lf-code-muted);
+  font: var(--lf-font-ui);
 }
 
 .lf-call-summary {
   margin: 0;
-  font: var(--font-small);
+  font: var(--lf-font-small);
 }
 
 .lf-call-toggle {
@@ -63,7 +67,7 @@ lf-call-diff {
 
 .lf-call-group,
 .lf-call-root-location {
-  background: var(--pre-bg);
+  background: var(--lf-pre-bg);
 }
 
 .lf-call-group {
@@ -79,9 +83,9 @@ lf-call-diff {
 .lf-call-root-location {
   display: grid;
   grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
-  padding-block-start: var(--sp-1);
-  padding-inline-end: var(--sp-3);
-  border-top: 1px solid var(--code-border);
+  padding-block-start: var(--lf-sp-1);
+  padding-inline-end: var(--lf-sp-3);
+  border-top: 1px solid var(--lf-code-border);
 }
 
 .lf-call-root-location > .lf-call-location {
@@ -89,7 +93,7 @@ lf-call-diff {
   min-width: 0;
   margin-inline-start: 0;
   overflow: hidden;
-  font: var(--font-code);
+  font: var(--lf-font-code);
   text-overflow: ellipsis;
 }
 
@@ -103,19 +107,19 @@ lf-call-diff {
   margin: 0;
   grid-column: 1;
   grid-row: 1;
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
 }
 
 .lf-call-group-body {
   overflow-x: auto;
-  border-top: 1px solid color-mix(in srgb, var(--code-border) 60%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--lf-code-border) 60%, transparent);
 }
 
 .lf-call-line {
   display: grid;
   grid-template-columns: 2rem max-content max-content;
   min-width: max-content;
-  padding-inline-end: var(--sp-3);
+  padding-inline-end: var(--lf-sp-3);
   white-space: pre;
 }
 
@@ -125,7 +129,7 @@ lf-call-diff {
   grid-template-rows: auto;
   width: 100%;
   min-width: 0;
-  padding-block: var(--sp-1);
+  padding-block: var(--lf-sp-1);
 }
 
 .lf-call-group-summary .lf-call-body {
@@ -144,16 +148,16 @@ lf-call-diff {
 .lf-call-group-count {
   grid-column: 4;
   grid-row: 1;
-  margin-inline-start: var(--sp-4);
-  color: var(--code-muted);
-  font: var(--font-small);
+  margin-inline-start: var(--lf-sp-4);
+  color: var(--lf-code-muted);
+  font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   text-align: end;
   white-space: nowrap;
 }
 
 .lf-call-line + .lf-call-line {
-  border-top: 1px solid color-mix(in srgb, var(--code-border) 45%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--lf-code-border) 45%, transparent);
 }
 
 .lf-call-group-body .lf-call-line:first-child {
@@ -175,9 +179,9 @@ lf-call-diff {
 .lf-call-line[data-lf-meta] {
   grid-template-columns: 2rem minmax(0, 1fr);
   min-width: 0;
-  padding-block: var(--sp-1);
-  background: var(--code-chrome);
-  color: var(--code-muted);
+  padding-block: var(--lf-sp-1);
+  background: var(--lf-code-chrome);
+  color: var(--lf-code-muted);
   white-space: normal;
 }
 
@@ -187,41 +191,41 @@ lf-call-diff {
 }
 
 .lf-call-marker {
-  padding-inline: var(--sp-2);
-  color: var(--code-muted);
+  padding-inline: var(--lf-sp-2);
+  color: var(--lf-code-muted);
   text-align: center;
   user-select: none;
 }
 
 .lf-call-line[data-lf-status="added"] .lf-call-marker {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 
 .lf-call-line[data-lf-status="removed"] .lf-call-marker {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 
 .lf-call-location {
   white-space: pre;
-  margin-inline-start: var(--sp-4);
-  color: var(--code-muted);
-  text-decoration-color: var(--rule);
+  margin-inline-start: var(--lf-sp-4);
+  color: var(--lf-code-muted);
+  text-decoration-color: var(--lf-rule);
   text-underline-offset: 2px;
 }
 
 /* Only where there is somewhere to go: a row that names its location without linking it
  * must not answer the pointer as though it did. */
 .lf-call-location[href]:hover {
-  color: var(--accent);
+  color: var(--lf-accent);
   text-decoration-color: currentColor;
 }
 
 .lf-call-missing {
   display: block;
   min-width: 0;
-  padding: var(--sp-3);
-  color: var(--code-muted);
-  font: var(--font-ui);
+  padding: var(--lf-sp-3);
+  color: var(--lf-code-muted);
+  font: var(--lf-font-ui);
   white-space: normal;
 }
 

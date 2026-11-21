@@ -14,7 +14,7 @@ import { sampleNotice } from "../sample-child.js";
    once those owners stand. */
 import { letGo, release, focused } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
-import { inUi } from "../shadow.js";
+import { inUi } from "../shadow-tree.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";
@@ -44,17 +44,19 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // second copy of it is wrong.
 /** @param {string} name @param {string} title @param {string} sel @param {readonly import("./bindings.js").Command[]} rows */
 function currentLocationOn(name, title, sel, rows) {
+  const at = () => {
+    const el = focused();
+    return Boolean(el?.matches?.(sel)) && !inChrome(el);
+  };
   pageScope(name, {
     title,
     root: focused,
-    at: () => {
-      const el = focused();
-      return Boolean(el?.matches?.(sel)) && !inChrome(el);
-    },
+    at,
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the reference promising a press nothing makes.
-    when: () => pageQueryAll(sel).some((el) => !inChrome(el)),
+    // not see one would leave the reference promising a press nothing makes. It is asked
+    // on every key, so the user standing on one answers it before any walk of the page.
+    when: () => at() || pageQueryAll(sel).some((el) => !inChrome(el)),
     rows,
   });
 }
@@ -163,6 +165,9 @@ export function declareCurrentLocation({ pageState }) {
         touch: false,
         keys: ["Escape"],
         title: "let go",
+        // A popup of the page's may answer the same Escape from a listener on the
+        // document, and keeps focus on its trigger, so this waits for it.
+        waits: true,
         when: () => Boolean(currentLocationFloor()),
         run: release,
       },
@@ -187,6 +192,8 @@ pageRung("page", () => {
       : {
           title: "back to the page",
           out: letGo,
+          // From a control in the page, as the let-go above; the chrome is Leaf's own.
+          waits: !inChrome(focused(document)),
         };
   // A sample has one more containing page. Its own controls and current location unwind
   // first; the frame's owner takes the focus back, not another keyboard listener

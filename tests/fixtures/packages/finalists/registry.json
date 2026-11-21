@@ -32,24 +32,25 @@
   },
   "lf-finalists": {
     "description": "The picked candidates of a shortlist another widget holds, by name, each with a control that drops it from that shortlist. Use it to keep the finalists in view beside or away from the full list.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "for": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "for": { "type": "string" }
+      },
+      "required": ["id", "for"],
+      "additionalProperties": false
     },
-    "required": ["id", "for"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": true,
-    "x-refers": { "for": {} },
-    "x-data": {
+    "content": "empty",
+    "refers": { "for": {} },
+    "inputs": {
       "shortlist": {
         "contract": "shortlist",
         "reference": "for",
         "property": "value"
       }
     },
-    "x-instructions": "Set `for` to the id of a widget that holds a `shortlist`. The finalists keep no picks of their own: each Drop asks that widget to drop the candidate.",
-    "x-example": "<lf-finalists id=\"finalists\" for=\"candidates\"></lf-finalists>"
+    "example": "<lf-finalists id=\"finalists\" for=\"candidates\"></lf-finalists>",
+    "instructions": "Set `for` to the id of a widget that holds a `shortlist`. The finalists keep no picks of their own: each Drop asks that widget to drop the candidate."
   }
 }

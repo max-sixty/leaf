@@ -20,10 +20,10 @@ from pathlib import Path
 
 import yaml
 
+from leaf.anchor_capture import capture_anchor
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.passages import SourceReading
 from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
 from leaf.state import turn_open
@@ -34,12 +34,14 @@ from leaf_dev.arms import (
     LiveChild,
     LiveSession,
     PageClient,
+    arm_python,
     blocks,
     completed,
     environment,
     now,
     observed_sum,
     pages,
+    phase_traces,
     read_page_state,
     read_trace,
     resumed,
@@ -99,17 +101,11 @@ class Run:
 
     def traces(self) -> list[list[dict]]:
         """Keep each chat phase distinct within the continuous native session."""
-        phases = []
-        for path in sorted(self.dir.glob("stream-*.jsonl")):
-            phase = []
-            for record in read_trace(path):
-                if record["type"] == "eval_phase" and phase:
-                    phases.append(phase)
-                    phase = []
-                phase.append(record)
-            if phase:
-                phases.append(phase)
-        return phases
+        return [
+            phase
+            for path in sorted(self.dir.glob("stream-*.jsonl"))
+            for phase in phase_traces(read_trace(path))
+        ]
 
     def usable(self) -> bool:
         """Whether the native author finished the requested phases."""
@@ -128,15 +124,7 @@ def arm_fixture(run: Run, action: str, *args: str) -> None:
     """Run the fixture module with the selected arm's Leaf and isolated state."""
     subprocess.run(
         [
-            "uv",
-            "run",
-            "-q",
-            "--no-dev",
-            "--project",
-            str(run.payload),
-            "--with",
-            str(ROOT / "dev"),
-            "python",
+            *arm_python(run.payload, dev=ROOT / "dev"),
             "-m",
             "leaf_dev.usability_fixture",
             action,
@@ -150,10 +138,6 @@ def arm_fixture(run: Run, action: str, *args: str) -> None:
 def admit(run: Run, page: Path, event: dict) -> None:
     """Admit one user move through the arm's browser door."""
     arm_fixture(run, "admit", str(page), json.dumps(event))
-
-
-def page_events(page: Path) -> list[dict]:
-    return read_events(page)
 
 
 def build_reading(run: Run, page: Path, surface: str | None) -> None:
@@ -188,7 +172,7 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
     if 'id="cutover-mode"' in html:
         for move in READING_FIXTURE["moves"]:
             if move.get("undoes") == "previous":
-                move = {**move, "undoes": page_events(page)[-1]["id"]}
+                move = {**move, "undoes": read_events(page)[-1]["id"]}
             admit(run, page, move)
 
 
@@ -222,8 +206,8 @@ def build_remaining_review(run: Run, page: Path) -> None:
     )  # fmt: skip
     run.leaf(
         "thread", "create", str(page), "--section", "remaining-next",
-        "--title", "#59: next extraction scope", "--text", "My recommended next scope is #59.",
-        "--markup", seed["question"], check=True,
+        "--title", "#59: next extraction scope",
+        "--text", f"My recommended next scope is #59.\n\n{seed['question']}", check=True,
     )  # fmt: skip
     state = read_page_state(run.payload, run.state, page)
     assert [item["id"] for item in state["queues"]["on_user"]] == ["widget:next-touch"]
@@ -239,23 +223,10 @@ def build_layout_shifts(run: Run, page: Path) -> None:
     )  # fmt: skip
 
 
-def said(html: str) -> dict[str, str]:
-    """id → the words the element says, in Leaf's own reading of the markup: the
-    text a user selects and an anchor quotes."""
-    reading = SourceReading(SourceDocument(html), None)
-    return {element: spoken.words for element, spoken in reading.spoken.items()}
-
-
 def anchor(html: str, element: str, quote: str) -> dict:
-    """A comment anchor on `quote` inside the element with id `element`."""
-    text = said(html)[element]
-    at = text.index(quote)
-    return {
-        "section": element,
-        "quote": quote,
-        "prefix": text[max(0, at - 24) : at],
-        "suffix": text[at + len(quote) : at + len(quote) + 24],
-    }
+    """A comment anchor on `quote` inside the element with id `element`, with the
+    context Leaf captures for a selection (`anchor_capture.capture_anchor`)."""
+    return capture_anchor(SourceDocument(html), None, quote, element)
 
 
 def build_resume(run: Run, page: Path) -> None:
@@ -270,7 +241,7 @@ def build_resume(run: Run, page: Path) -> None:
         "text": inputs["rerun_comment"],
         "anchor": anchor(v1, "rehearsal-result", inputs["rerun_quote"]),
     })  # fmt: skip
-    rerun = page_events(page)[-1]["id"]
+    rerun = read_events(page)[-1]["id"]
     (page / "index.html").write_text(v2)
     run.leaf(
         "page", "stamp", str(page), "--text",
@@ -297,8 +268,8 @@ def build_resume(run: Run, page: Path) -> None:
     # inside the options that makes the save invalid, so the live page stays at v2.
     candidate = v2.replace(inputs["original_date"], inputs["unsaved_date"])
     candidate = candidate.replace(
-        '<lf-options id="rollout" choose>',
-        '<lf-options id="rollout" choose>\n' + inputs["invalid_child"],
+        '<lf-options id="rollout">',
+        '<lf-options id="rollout">\n' + inputs["invalid_child"],
     )
     assert candidate.count("3 November") == 1 and "approach-deadline" in candidate
     (page / "index.html").write_text(candidate)
@@ -349,7 +320,7 @@ def build_board(run: Run, page: Path) -> None:
             "kind": "action", "revision": 1, "widget": "work-board",
             "action": "move", "detail": detail,
         })  # fmt: skip
-    admit(run, page, {"kind": "undo", "undoes": page_events(page)[-1]["id"]})
+    admit(run, page, {"kind": "undo", "undoes": read_events(page)[-1]["id"]})
 
 
 def build_package(run: Run, page: Path) -> None:
@@ -464,7 +435,7 @@ def await_render_pass(run: Run, page: Path) -> set[str]:
                 time.sleep(2)
                 return {
                     event["id"]
-                    for event in page_events(page)
+                    for event in read_events(page)
                     if event["kind"] == "render" and requires_agent_attention(event)
                 }
         time.sleep(1)
@@ -688,7 +659,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 attention. Inline context or a pointer read only presents them."""
                 nonlocal delivered
                 if delivered < posted and pending_events <= opened_input_ids(
-                    page_events(page)
+                    read_events(page)
                 ):
                     delivered = posted
                     live.note(
@@ -814,7 +785,7 @@ def post_round(
             event["undoes"] = admitted[-1]["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in kinds_declaring("message")
+                e for e in read_events(page) if e["kind"] in kinds_declaring("message")
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(
@@ -920,7 +891,7 @@ def evidence(run: Run, traces: list[list[dict]]) -> dict:
                     str(path.relative_to(page)): json.loads(path.read_text())
                     for path in sorted((page / "data").rglob("*.json"))
                 },
-                "events": page_events(page),
+                "events": read_events(page),
             }
         )
     fixture = run.dir / "fixture"

@@ -15,7 +15,8 @@ def test_a_host_updates_and_reconnects_a_portable_element(browser):
 </head><body><div id="host"><host-reading id="reading"></host-reading></div>
 <script type="module">
 try {{
-  const {{ LeafElement, html, shadowStage, whileConnected, threadSurface, releaseOutlets }} = await import("/runtime/portable-api.js");
+  const {{ LeafElement, shadowStage, whileConnected, threadSurface, releaseOutlets }} = await import("/runtime/portable-api.js");
+  const {{ html }} = await import("/vendor/lit.js");
   window.reading = document.querySelector("#reading");
   shadowStage(document.querySelector("#host"), [reading]);
   customElements.define("host-reading", class extends LeafElement {{

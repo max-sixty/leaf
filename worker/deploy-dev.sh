@@ -34,7 +34,7 @@ if [[ ! -x "$wrangler" ]]; then
   exit 2
 fi
 
-deploy_arguments=(deploy --env dev --containers-rollout=immediate)
+deploy_arguments=(--env dev)
 if ! (
   cd "$worker_root"
   "$wrangler" secret list --env dev 2>/dev/null
@@ -59,14 +59,11 @@ head_commit=$(git -C "$repo_root" rev-parse HEAD)
 release=$(
   printf '%s:%s' "$head_commit" "$working_tree" | git -C "$repo_root" hash-object --stdin
 )
-LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" leaf-dev site
+LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" leaf-dev site build
 
-(
-  cd "$worker_root"
-  "$wrangler" "${deploy_arguments[@]}"
-)
+"$worker_root/wrangler-deploy.sh" "${deploy_arguments[@]}"
 
-uv run --project "$repo_root" leaf-dev verify-site "$origin" \
+uv run --project "$repo_root" leaf-dev site verify "$origin" \
   --release "$release" --wait 900
-uv run --project "$repo_root" leaf-dev journey "$origin" \
+uv run --project "$repo_root" leaf-dev journey run "$origin" \
   --release "$release"

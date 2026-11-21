@@ -17,7 +17,7 @@
    The version the user last saw is the newest stamped one at or before the newest
    revision they saw: the higher of the server's `seen` (`read_state.seen_revision`),
    which every tab of the page's one user writes, and what this tab showed itself. The
-   user chose on 31 October to count from a version, which a notice can name, rather
+   user chose to count from a version, which a notice can name, rather
    than from the revision they left, from the previous version, or from each change
    until they looked at it. So drafts between versions add up, and a page with no
    version at or before what the user saw has nothing to say.
@@ -29,11 +29,10 @@
    draft they watched land says nothing, though it differs from that version, since
    nothing in it is news. The notice is news, as a version's arrival is: it waits behind
    the user's own commands and passes after a notice's time (notifications.js), naming
-   its key in words as "Draft kept — g i resumes writing" does, and the leaf's menu
-   keeps Show changes as the lasting route. A revision landing while the notice is
-   counted starts the count again. The page arrives unmarked: the user chose on 3
-   November to call the marks up with a key rather than have them waiting, and on 4
-   November took up being told on return that there is something to call up, in a
+   its key in words, and the leaf's menu keeps Show changes as the lasting route. A
+   revision landing while the notice is counted starts the count again. The page arrives unmarked: the user chose
+   to call the marks up with a key rather than have them waiting, and to be told
+   on return that there is something to call up, in a
    notice that passes like the others. Rejected: a notice standing until the user's
    next input with a Show press, as an Undo does, which held the panel's seat for the
    agent's status until the user acted. The count waits until the document is
@@ -90,8 +89,9 @@ export function createSinceSeen({ markSeen }) {
   tabStore.set(HANDOFF_KEY, null);
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
-  // Counts arrivals, so a count in flight answers only the arrival that started it.
-  let arrival = 0;
+  // Counts arrivals, so a count in flight answers only the arrival that started it, and
+  // its notice stands only until the next (notifications.js, `stands`).
+  const arrival = signal(0);
   // The version the user last saw, as their arrival found it.
   const lastSeen = signal(/** @type {Version | null} */ (null));
 
@@ -144,7 +144,7 @@ export function createSinceSeen({ markSeen }) {
   /** @param {Version} since @param {number} mine */
   async function tell(since, mine) {
     const holds = () =>
-      mine === arrival && !selectedBase() && base()?.revision === since.revision;
+      mine === arrival.value && !selectedBase() && base()?.revision === since.revision;
     await whenDocumentPresented();
     while (holds()) {
       const revision = runtime.currentRevision;
@@ -154,6 +154,7 @@ export function createSinceSeen({ markSeen }) {
       if (n && holds())
         notice(`${counted(n, "change")} since v${since.version} — v shows them`, {
           background: true,
+          stands: holds,
         });
       return;
     }
@@ -164,7 +165,8 @@ export function createSinceSeen({ markSeen }) {
     if (!takesPart() || current === null || !runtime.showsActive || !attended()) return;
     if (arriving) {
       arriving = false;
-      const mine = ++arrival;
+      const mine = arrival.peek() + 1;
+      arrival.value = mine;
       const seen = newestSeen();
       const since = versionAt(seen);
       lastSeen.value = since;

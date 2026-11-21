@@ -4,37 +4,32 @@ Every tracked byte ships in every install, so Leaf's tree is text and its images
 in a separate Git repository instead, each at the path its reader would look for it in
 the tree (`pinned_copy`):
 
-- `examples/` holds the catalog previews (`leaf_dev.commands.refresh_previews`),
-  `examples/media/` the images the example pages show (`leaf_dev.commands.publish_media`),
+- `examples/` holds the catalog previews (`leaf_dev.commands.site.previews`),
+  `examples/media/` the images the example pages show (`leaf_dev.commands.site.media`),
   and `examples/traces/` the Playwright archives the examples link and the manifests
   imported from them, which an example names as an `asset` capture
   (`leaf_dev.example_data`);
 - `demo/` holds the README's recording and stills and the site's card
-  (`leaf_dev.commands.record_demo`);
+  (`leaf_dev.commands.site.demo`);
 - `evals/<case>/` holds what an instruction case hands its child
-  (`leaf_dev.commands.eval`).
+  (`leaf_dev.commands.eval.run`).
 
-`leaf-assets.json` pins media and reviewed thread expectations independently. Media
-publication follows the asset head; only snapshot acceptance advances the expectations
-that belong to this runtime. README image URLs name the media commit. Downloads land
+`.config/leaf-assets.json` pins one commit of the asset repository. Downloads land
 under .tmp, which both local builds and CI may discard and reconstruct.
 
 Every reader calls `pinned_assets()`, which fetches on a miss; `leaf-dev setup` warms
-the cache for both pins. A writer stages its files in a clone of the revision its
-checkout pins, so what it adds, replaces or removes is measured against the set its own
-branch reads. `publish` replays that change onto the repository's head, which keeps
-files other branches published since, then moves the pin. A writer that owns a whole
-tree, as snapshot acceptance owns the expectations, publishes that tree exactly as it
-staged it. The site's pages name catalog previews by example (`leaf_dev.docs`), so a
-moved pin changes no page source; only the README, which GitHub renders without a
-build, names the pinned commit. Staging and refused publication leave Leaf's consumers
-unchanged.
+the cache. A writer stages its files in a clone of the revision its checkout pins, so
+what it adds, replaces or removes is measured against the set its own branch reads.
+`publish` replays that change onto the repository's head, which keeps files other
+branches published since, then moves the pin. The site's pages name catalog previews
+by example (`leaf_dev.docs`), so a moved pin changes no page source; only the README,
+which GitHub renders without a build, names the pinned commit. Staging and refused
+publication leave Leaf's consumers unchanged.
 
 The head's history is a line and every pin is a commit on it, so in a merge conflict
-over `leaf-assets.json`, take the later media `revision`: it holds both branches'
-files. Where both branches published the same file, the later pin holds the later
-publication's copy, so publish that file again from the merged tree. A `thread_snapshots_revision` holds only its own branch's
-reviewed appearance, so accept the snapshots again from the merged tree.
+over `.config/leaf-assets.json`, take the later `revision`: it holds both branches' files.
+Where both branches published the same file, the later pin holds the later
+publication's copy, so publish that file again from the merged tree.
 """
 
 import json
@@ -43,24 +38,19 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal
 
 from leaf_dev import ROOT
 
-LOCK = "leaf-assets.json"
+LOCK = ".config/leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
 README = ROOT / "README.md"
-RevisionKey = Literal["revision", "thread_snapshots_revision"]
 
 
-def specification(
-    root: Path = ROOT, *, revision_key: RevisionKey = "revision"
-) -> tuple[str, str]:
+def specification(root: Path = ROOT) -> tuple[str, str]:
     """The repository and revision the checkout at `root` pins."""
     locked = json.loads((root / LOCK).read_text(encoding="utf-8"))
-    return locked["repository"], locked[revision_key]
+    return locked["repository"], locked["revision"]
 
 
 def raw_prefix(repository: str) -> str:
@@ -117,28 +107,28 @@ def _download(repository: str, revision: str, target: Path) -> None:
         raise RuntimeError(f"could not fetch {url} at {revision}: {error}") from error
 
 
-def pinned_assets(root: Path = ROOT, *, revision_key: RevisionKey = "revision") -> Path:
+def pinned_assets(root: Path = ROOT) -> Path:
     """Return the cached tree of the revision the checkout at `root` pins."""
-    repository, revision = specification(root, revision_key=revision_key)
+    repository, revision = specification(root)
     target = CACHE / revision
     if not (target / ".complete").is_file():
         _download(repository, revision, target)
     return target
 
 
-def assets_lock(path: Path) -> Path | None:
-    """The pin governing `path`: the `leaf-assets.json` of the checkout holding it, or
-    None outside any checkout that pins assets, such as a scratch source."""
-    return next((up / LOCK for up in path.parents if (up / LOCK).is_file()), None)
+def assets_checkout(path: Path) -> Path | None:
+    """The checkout holding `path` whose `LOCK` pins its assets, or None outside any
+    checkout that pins assets, such as a scratch source."""
+    return next((up for up in path.parents if (up / LOCK).is_file()), None)
 
 
 def pinned_copy(path: Path) -> Path | None:
     """Where the pinned assets hold `path`, a path in a checkout that keeps its bytes
     there. The copy never changes under a pin, so its pin is what a watcher follows."""
-    lock = assets_lock(path)
-    if lock is None:
+    checkout = assets_checkout(path)
+    if checkout is None:
         return None
-    return pinned_assets(lock.parent) / path.relative_to(lock.parent)
+    return pinned_assets(checkout) / path.relative_to(checkout)
 
 
 def run(*args: str, cwd: Path) -> str:
@@ -152,20 +142,10 @@ def run(*args: str, cwd: Path) -> str:
     return completed.stdout.strip()
 
 
-@dataclass(frozen=True)
-class Checkout:
-    """A clone of the asset repository at the revision Leaf pins under `revision_key`,
-    the pin `publish` advances. `tree` names a directory the writer owns whole."""
-
-    path: Path
-    revision_key: RevisionKey
-    tree: str | None = None
-
-
-def clone(staging: Path, *, revision_key: RevisionKey = "revision") -> Checkout:
-    """Clone the asset repository into `staging`, checked out at the revision Leaf pins
-    under `revision_key`, so a writer changes the set this checkout reads."""
-    repository, revision = specification(ROOT, revision_key=revision_key)
+def clone(staging: Path) -> Path:
+    """Clone the asset repository into `staging`, checked out at the revision Leaf pins,
+    so a writer changes the set this checkout reads."""
+    repository, revision = specification(ROOT)
     path = staging / "leaf-assets"
     run(
         "git",
@@ -178,36 +158,23 @@ def clone(staging: Path, *, revision_key: RevisionKey = "revision") -> Checkout:
     )
     run("git", "fetch", "--depth", "1", "origin", revision, cwd=path)
     run("git", "checkout", "--detach", revision, cwd=path)
-    return Checkout(path, revision_key)
+    return path
 
 
-def stage(
-    directory: str,
-    files: dict[str, bytes],
-    staging: Path,
-    *,
-    replace_tree: bool = False,
-    revision_key: RevisionKey = "revision",
-) -> Checkout:
-    """Clone the assets pinned under `revision_key` into `staging` with `directory`'s
-    files exactly `files`, for a generator to verify before it publishes. A file the
-    pin holds and `files` lacks is removed; one another branch published since the pin
-    is not there to remove. Subdirectories are left alone unless the caller owns the
-    complete tree, which `publish` then installs whole: `examples/media/` sits inside
-    the previews' `examples/`. Leaf's pin and README continue naming published
-    bytes."""
-    checkout = clone(staging, revision_key=revision_key)
-    if replace_tree:
-        checkout = Checkout(checkout.path, revision_key, tree=directory)
-    target = checkout.path / directory
+def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
+    """Clone the pinned assets into `staging` with `directory`'s files exactly `files`,
+    for a generator to verify before it publishes. A file the pin holds and `files`
+    lacks is removed; one another branch published since the pin is not there to
+    remove. Subdirectories are left alone: `examples/media/` sits inside the previews'
+    `examples/`. Leaf's pin and README continue naming published bytes."""
+    checkout = clone(staging)
+    target = checkout / directory
     target.mkdir(parents=True, exist_ok=True)
-    for stale in target.rglob("*") if replace_tree else target.iterdir():
-        if stale.is_file() and stale.relative_to(target).as_posix() not in files:
+    for stale in target.iterdir():
+        if stale.is_file() and stale.name not in files:
             stale.unlink()
     for name, content in files.items():
-        path = target / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content)
+        (target / name).write_bytes(content)
     return checkout
 
 
@@ -215,18 +182,12 @@ def stage(
 CHANGE = "refs/leaf-assets/change"
 
 
-def replay(checkout: Checkout, branch: str) -> None:
-    """Check out the remote head with the change applied: each file the change added or
-    altered takes the change's copy, and each it removed is removed, whatever another
-    writer did to that file since the pin. A tree the stage owns takes the change's
-    tree whole."""
-    path = checkout.path
+def replay(path: Path, branch: str) -> None:
+    """Check out the remote head with the change applied in the clone at `path`: each
+    file the change added or altered takes the change's copy, and each it removed is
+    removed, whatever another writer did to that file since the pin."""
     run("git", "fetch", "--depth", "1", "origin", branch, cwd=path)
     run("git", "checkout", "--detach", "FETCH_HEAD", cwd=path)
-    if tree := checkout.tree:
-        run("git", "rm", "-r", "-q", "--ignore-unmatch", "--", tree, cwd=path)
-        if run("git", "ls-tree", "--name-only", CHANGE, tree, cwd=path):
-            run("git", "checkout", CHANGE, "--", tree, cwd=path)
     fields = run(
         "git",
         "diff",
@@ -246,15 +207,14 @@ def replay(checkout: Checkout, branch: str) -> None:
         run("git", "commit", "-C", CHANGE, cwd=path)
 
 
-def publish(checkout: Checkout, message: str) -> str:
-    """Commit the checkout's change to its pin, replay it onto the repository's head and
-    push it, then advance the pin the checkout was cloned from. Media also updates the
-    README's image links. Where another writer changed or removed the same file
-    since the pin, this change's copy stands, as it would have on the pin. A rejected
-    push leaves its change available for an explicit retry; an unchanged checkout
-    keeps its pin."""
-    path, revision_key = checkout.path, checkout.revision_key
-    repository, pinned = specification(ROOT, revision_key=revision_key)
+def publish(path: Path, message: str) -> str:
+    """Commit the change in the clone at `path` to its pin, replay it onto the
+    repository's head and push it, then advance the pin the clone was made from and the
+    README's image links. Where another writer changed or removed the same file since
+    the pin, this change's copy stands, as it would have on the pin. A rejected push
+    leaves its change available for an explicit retry; an unchanged clone keeps its
+    pin."""
+    repository, pinned = specification(ROOT)
     branch = run(
         "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=path
     ).removeprefix("origin/")
@@ -264,24 +224,23 @@ def publish(checkout: Checkout, message: str) -> str:
         run("git", "update-ref", CHANGE, "HEAD", cwd=path)
     has_change = bool(run("git", "for-each-ref", CHANGE, cwd=path))
     if has_change:
-        replay(checkout, branch)
+        replay(path, branch)
     revision = run("git", "rev-parse", "HEAD", cwd=path)
     if revision != pinned:
         run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=path)
     lock = ROOT / LOCK
     locked = json.loads(lock.read_text(encoding="utf-8"))
-    locked[revision_key] = revision
+    locked["revision"] = revision
     lock.write_text(
         json.dumps(locked, indent=2) + "\n",
         encoding="utf-8",
     )
-    if revision_key == "revision":
-        README.write_text(
-            re.sub(
-                rf"({re.escape(raw_prefix(repository))})[0-9a-f]{{40}}/",
-                rf"\g<1>{revision}/",
-                README.read_text(encoding="utf-8"),
-            ),
-            encoding="utf-8",
-        )
+    README.write_text(
+        re.sub(
+            rf"({re.escape(raw_prefix(repository))})[0-9a-f]{{40}}/",
+            rf"\g<1>{revision}/",
+            README.read_text(encoding="utf-8"),
+        ),
+        encoding="utf-8",
+    )
     return revision

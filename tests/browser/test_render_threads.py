@@ -4,10 +4,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
-    append_command,
 )
-from journeys import detached_threads
-from journeys.test_render_threads import BARE_PAGE
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -27,14 +24,11 @@ from render_harness import (
 )
 
 from browser.threads import (
-    CHANGE_PAGE,
     IN_LANDING_BAND,
-    REPLY_CHANGE,
     append_agent_reply,
     claim_for_codex,
     open_panel_thread,
     seed_panel_threads,
-    seed_reply,
     stream_reply,
 )
 from leaf import cli as cli_model
@@ -53,8 +47,8 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     log will take that reply's answer, so the log accepting it moves nothing, and the
     stream's growth in the same readings is its arrival, not an edit.
 
-    The panel drew the user's pending message below the streaming reply, and the
-    accepted reading, whose live reply stands after every logged message, moved the
+    A panel drawing the user's pending message below the streaming reply would see the
+    accepted reading, whose live reply stands after every logged message, move the
     reply below it.
     """
     url = serve(PANEL_PAGE)
@@ -151,79 +145,6 @@ def test_walking_the_threads_lands_each_on_its_latest_message(browser, serve):
     ), "the long thread fits its view, so landing its latest message proves nothing"
 
 
-def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serve):
-    """A decided change keeps whatever of itself is still showing, wherever it stands.
-
-    `settledAway` asks whether a decision emptied an element: every child now a retired
-    slot or the runtime's own apparatus, with no words of its own left. Asked about the
-    page that test is right; asked about a change an agent sent in a reply it was asked
-    the wrong way round, because the panel holding it is itself the runtime's apparatus
-    and so every child of it answered yes. One accepted slot then emptied a change whose
-    other half was on screen: the anchor a user had put on it stopped resolving, the
-    outline came off, and the thread stood detached beside the words it was about.
-
-    The same change on the page is the control, and the two must agree."""
-    for where, markup, wid in (
-        ("the page", CHANGE_PAGE, "tv-doc-sug"),
-        ("a reply", BARE_PAGE, "tv-msg-sug"),
-    ):
-        url = serve(markup)
-        d = serve.page_dir
-        if wid.startswith("tv-msg"):
-            seed_reply(d, REPLY_CHANGE, wid)
-        else:
-            append_carried_log_record(
-                d,
-                {
-                    "kind": "comment",
-                    "id": "tv-on-it",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "Why ninety?",
-                    "anchor": {"section": wid},
-                },
-            )
-        append_command(
-            d,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": wid,
-                "action": "decide",
-                "detail": {"outcome": "accept"},
-            },
-        )
-        page = open_page(browser, url)
-        resized(page, 1280, 900)
-        if wid.startswith("tv-msg"):
-            open_panel_thread(page, "tv-decisioned")
-            rendered(page)
-        settled = page.evaluate(
-            """(wid) => {
-                 const el = document.getElementById(wid);
-                 return { state: el?.dataset.lfState,
-                          retired: [...(el?.querySelectorAll('[data-lf-retired]') ?? [])].length,
-                          marked: Boolean(el?.classList.contains('lf-mark-el')) };
-               }""",
-            wid,
-        )
-        # The panel shows one thread at a time, so opening the anchored thread there
-        # to read its quote would take down the reply holding the change it is about:
-        # in a reply the outline (`marked`) is what says the anchor still resolves.
-        settled["detached"] = wid.startswith("tv-doc") and "tv-on-it" in (
-            detached_threads(page, ["tv-on-it"])
-        )
-        assert settled["state"] == "accept" and settled["retired"] == 1, (
-            f"{where}: the change did not settle, so nothing here is being read "
-            f"({settled})"
-        )
-        assert not settled["detached"] and settled["marked"], (
-            f"{where}: the accepted change took its own anchor off the page "
-            f"({settled}) — its other half is still showing"
-        )
-
-
 def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     url = serve(PANEL_PAGE)
     opening = "I was wondering which space would be easier for everyone to find."
@@ -276,8 +197,8 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
 def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
     words in place. Enter sends the rewrite; Escape and Cancel leave the message as it
-    was and discard the words, so one Escape undoes the ↑ (the user's decision,
-    2026-10-06). Words a rewrite still holds when the page goes, as on a reload, wait
+    was and discard the words, so one Escape undoes the ↑ (the user's decision).
+    Words a rewrite still holds when the page goes, as on a reload, wait
     for the next opening, which Resume writing reaches.
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the

@@ -13,8 +13,9 @@
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
    Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
-   A hidden draft is news and a place: hiding one that still holds words says so once,
-   and Resume writing brings its editor back. A refused send reopens its box with the
+   A hidden draft is news and a place: hiding one that still holds words, or moving the
+   box off it to another passage or a thread, says so once, and Resume writing or its
+   row under Threads' Drafts brings its editor back. A refused send reopens its box with the
    words while the user has done nothing since Send. Startup reopens a stored composer
    record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
@@ -29,11 +30,12 @@ import { keeps, keepsHidden } from "../keeps.js";
 
 import {
   clearDraft,
+  commentContext,
   draftContexts,
   loadDraft,
+  noticeDraftKept,
   saveDraft,
   sendMessage,
-  transferDraft,
   watchDraft,
   watchDrafts,
   rememberWriting,
@@ -71,7 +73,6 @@ import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
 import { DRAFT_FORMAT } from "../kernel-facts.js";
 import { commitPoint } from "../pointed-place.js";
-import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer } from "../shadow-tree.js";
@@ -83,13 +84,13 @@ import { isNativeLayer } from "../shadow-tree.js";
 //
 // The ⋯ stands beside Dictate only while the field is empty, and the draft's first
 // word takes its place, so the field spans the bar in every state and nothing moves
-// as the user starts typing (response.css). Max chose this on 25 October 2026 over a
-// bordered button beside the field, which kept 40px of a 294px bar from the words
-// and ended a sent card's message short of its Reply field, over hiding that button
-// at the first key, which widened the field under the caret, and over no button at
-// all, which left a mouse or finger no way to Suggest or a reaction. It replaces
-// #4124's ⋯ over the field's end, in the head row the floating frame reserves, which
-// only the floating presentation had.
+// as the user starts typing (response.css). Max chose this over a
+// bordered button beside the field, which keeps part of the bar from the words
+// and ends a sent card's message short of its Reply field, over hiding that button
+// at the first key, which widens the field under the caret, and over no button at
+// all, which leaves a mouse or finger no way to Suggest or a reaction. Rejected too: a
+// ⋯ over the field's end, in the head row the floating frame reserves, which
+// only the floating presentation has.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
@@ -177,6 +178,7 @@ fabBar.prepend(composer);
  * @property {ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"]} openPageThread
  * @property {(anchor: Anchor | null) => Element | Range | null} anchorTravelAt
  * @property {() => Anchor | null} fabAnchorAt
+ * @property {() => string | null} fabHoldAt
  * @property {() => Element | null} fabPointAt
  * @property {() => ComposerFrame} fabFrameAt
  * @property {() => Promise<boolean>} fabPositioned
@@ -185,6 +187,7 @@ fabBar.prepend(composer);
  * @property {(handoff: import("./surface.js").FabFocusHandoff, anchor: Anchor | null, stands: () => boolean) => unknown} landFabFocus
  * @property {(anchor: Anchor | null, options?: {point?: Element | null | undefined, reveal?: boolean}) => unknown} showFab
  * @property {() => unknown} letGoOfFab
+ * @property {() => () => unknown} takeDownFab
  * @property {(command: import("../thread/actions.js").CreateComment) => NonNullable<ReturnType<ReturnType<typeof import("../thread/actions.js").createThreadActions>["create"]>>["delivery"] | null} createComment
  * @property {(destination: Element) => unknown} landSent
  * @property {() => Promise<unknown>} refreshThread
@@ -209,11 +212,35 @@ function wordsOf(element) {
 }
 export let composerOpen = false;
 
-// DRAFT_FORMAT identifies this owner's complete current persisted payload.
+// DRAFT_FORMAT identifies this owner's complete current persisted payload, which
+// Threads' Drafts also reads for what a passage's draft is about.
 /** @param {object | null | undefined} payload @returns {payload is ComposerDraft} */
-function isComposerDraft(payload) {
+export function isComposerDraft(payload) {
   return payload != null && "format" in payload && payload.format === DRAFT_FORMAT;
 }
+// The key a passage's draft is kept under (`createSelectionComposer` says why), and the
+// record it holds beside the words, touched now.
+/** @param {Anchor | null} anchor */
+const composerCtx = (anchor) => commentContext(anchorKey(anchor));
+/** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
+const composerPayload = (fields) => ({
+  format: DRAFT_FORMAT,
+  ...fields,
+  touched: Date.now(),
+});
+// The draft a comment the log holds on a passage was written in, as this composer keeps
+// it, which taking the comment back puts its words back in (undo.js).
+/** @param {{anchor: Anchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("./drawing-record.js").DraftDrawing | undefined}} comment */
+export const commentDraft = (comment) => ({
+  ctx: composerCtx(comment.anchor),
+  payload: composerPayload({
+    anchor: comment.anchor,
+    revision: comment.revision ?? null,
+    suggest: Boolean(comment.suggestion),
+    about: comment.about ?? null,
+    drawing: comment.drawing ?? null,
+  }),
+});
 
 /** @param {ComposerOptions} options */
 export function createSelectionComposer({
@@ -224,6 +251,7 @@ export function createSelectionComposer({
   openPageThread,
   anchorTravelAt,
   fabAnchorAt,
+  fabHoldAt,
   fabPointAt,
   fabFrameAt,
   fabPositioned,
@@ -232,6 +260,7 @@ export function createSelectionComposer({
   landFabFocus,
   showFab,
   letGoOfFab,
+  takeDownFab,
   createComment,
   landSent,
   refreshThread,
@@ -252,24 +281,20 @@ export function createSelectionComposer({
   // which is what picks the one to reopen at load. The key is the anchor's identity, so a
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
-  const COMPOSER_KEY = "composer:";
-  /** @param {Anchor | null} anchor */
-  const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
+  const COMPOSER_KEY = commentContext("");
   /** @type {import("./input.js").InputSync} */
   let syncComposer;
   let pendingRevision = applicationState.read().document.revision;
   // The draft owns its mode; the response action and editor hint present it.
   let suggestionMode = false;
-  /** @returns {ComposerDraft} */
-  const composerDraftPayload = () => ({
-    format: DRAFT_FORMAT,
-    anchor: pendingAnchor,
-    revision: pendingRevision,
-    suggest: suggestionMode,
-    about: pendingAbout,
-    drawing: pendingDrawing,
-    touched: Date.now(),
-  });
+  const composerDraftPayload = () =>
+    composerPayload({
+      anchor: pendingAnchor,
+      revision: pendingRevision,
+      suggest: suggestionMode,
+      about: pendingAbout,
+      drawing: pendingDrawing,
+    });
   const saveComposerDraft = (text = syncComposer.value()) =>
     saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
   // Words and their submission metadata belong to the shared draft generation.
@@ -340,8 +365,8 @@ export function createSelectionComposer({
   // What the box holds that a user would miss, asked once. The complete draft, because a
   // attached image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
-  // hiding box says about what became of the words, and the word Escape's row shows. They
-  // had a spelling each, and the one over the field alone read a box holding a picture
+  // hiding box says about what became of the words, and the word Escape's row shows. With
+  // a spelling each, the one over the field alone would read a box holding a picture
   // and nothing else as empty.
   /** @param {string | null | undefined} draft */
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);
@@ -398,6 +423,7 @@ export function createSelectionComposer({
   const responseReactionButtons = () =>
     responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
 
+  // The options stand whole around the ring, so a step says no position.
   /** @param {string} binding */
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
@@ -410,9 +436,6 @@ export function createSelectionComposer({
         backward ? -1 : 1,
       ),
       "move",
-    );
-    beginWalk("response-option", "Response", () =>
-      listWalkPosition(responseOptionButtons(), focused()),
     );
   }
 
@@ -476,16 +499,15 @@ export function createSelectionComposer({
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer?.cancelDictation();
-    // Hiding keeps the words and used to say nothing at all, so a press on the chrome took
-    // the box off screen with the user's sentence in it and left no sign the sentence
-    // still existed — recoverable only by reselecting that exact passage on that exact
-    // version. Said here rather than at each dismissal because every one of them — an
+    // Hiding keeps the words and says so: a hide that says nothing lets a press on the
+    // chrome take the box off screen with the user's sentence in it and leaves no sign the
+    // sentence still exists — recoverable only by reselecting that exact passage on that
+    // exact version. Said here rather than at each dismissal because every one of them — an
     // outside press, Escape, another target — leaves the same state, and
     // every path that discards the words empties the box before hiding it (leaveComposer),
-    // so those stay silent. The sentence names the address that brings the draft back,
+    // so those stay silent. The notice offers the press that brings the draft back,
     // which is the whole of what the user needs from this moment.
-    if (composerOpen && !open && composerHolds())
-      notice("Draft kept — g i resumes writing");
+    if (composerOpen && !open && composerHolds()) noticeDraftKept();
     composerOpen = open;
     // The wrapper contributes no card or box. Its field is the extended Comment
     // control inside the response bar; the other composer controls stay hidden there.
@@ -499,7 +521,7 @@ export function createSelectionComposer({
 
   // The quote suggestion mode auto-seeded, so reopening on a new anchor can tell
   // machine seed from user text: the seed belongs to its old anchor and is dropped;
-  // user text stays with its passage unless an explicit Comment gesture carries it.
+  // user text stays with its passage.
   let seededQuote = "";
   // Every view adopts the complete draft here. A fresh capture supplies its own
   // anchor/revision while taking existing words and modes; Resume supplies the saved
@@ -522,7 +544,7 @@ export function createSelectionComposer({
   // design mode is about design — and a restored draft passes its saved modes. A pointing
   // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
-  /** @param {Anchor | null} anchor @param {string | null | undefined} text @param {{suggest?: boolean | undefined, about?: "design" | null | undefined, drawing?: import("./drawing-record.js").DraftDrawing | null | undefined, carry?: boolean, focus?: boolean, point?: Element | null | undefined, revision?: number | null}} [options] */
+  /** @param {Anchor | null} anchor @param {string | null | undefined} text @param {{suggest?: boolean | undefined, about?: "design" | null | undefined, drawing?: import("./drawing-record.js").DraftDrawing | null | undefined, focus?: boolean, point?: Element | null | undefined, revision?: number | null}} [options] */
   function openComposer(
     anchor,
     text,
@@ -530,7 +552,6 @@ export function createSelectionComposer({
       suggest = undefined,
       about = undefined,
       drawing = undefined,
-      carry = false,
       focus = true,
       point = undefined,
       revision = applicationState.read().document.revision,
@@ -540,7 +561,6 @@ export function createSelectionComposer({
     const ctx = composerCtx(anchor || null);
     const previousCtx = composerCtx(pendingAnchor);
     const drawingSupplied = drawing !== undefined;
-    let carriedDraft = false;
     let storedDrawing = null;
     if (previousCtx !== ctx) {
       suggest = suggest === undefined ? false : suggest;
@@ -550,25 +570,15 @@ export function createSelectionComposer({
       if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
       seededQuote = "";
       composerEpoch += 1;
-      const previousText = syncComposer.value();
-      const previousDrawing = pendingDrawing;
+      // Every passage keeps its own draft (drafts.js, `draftSubject`), so the box
+      // takes up the one at the passage it opens on, whatever gesture opened it, and
+      // the words it leaves stay with their passage, listed under Threads' Drafts.
+      const leaves = composerOpen && composerHolds();
       syncComposer.load("");
-      // Automatic selection merely opens another passage's view. An explicit Comment
-      // gesture may instead carry unsent words into an empty passage, which preserves
-      // the old Alt-click promise without replacing independent work already held at
-      // the destination or making a user's next selection silently re-anchor a draft.
+      if (leaves) noticeDraftKept();
       const record = text ? null : composerRecord(ctx);
       storedDrawing = composerRecord(ctx)?.drawing ?? null;
-      // A drawing marks its own passage, so a draft holding one stays where it is, as
-      // its words do with it (`carryComposerToReply` says the same of a reply).
-      const carrying =
-        carry && previousText && !previousDrawing && !(record?.text || record?.drawing);
-      if (carrying) {
-        text ||= previousText;
-        carriedDraft = true;
-      } else if (record) {
-        ({ text, suggest, about } = record);
-      }
+      if (record) ({ text, suggest, about } = record);
     }
     adoptComposerDraft({
       anchor: anchor || null,
@@ -606,11 +616,8 @@ export function createSelectionComposer({
       landFabFocus(handoff, pendingAnchor, () => focusEpoch === composerEpoch);
     }
     watchComposer();
-    // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.
-    if (carriedDraft)
-      transferDraft(previousCtx, ctx, syncComposer.value(), composerDraftPayload());
-    else if (
+    if (
       drawingSupplied &&
       JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
         JSON.stringify(pendingDrawing)
@@ -620,12 +627,12 @@ export function createSelectionComposer({
     }
   }
   // A capture arrives with its passage and bytes together. Opening and attaching in one
-  // synchronous turn binds delivery to that draft's arrival generation, while carrying
-  // unsent words under the same rule as an explicit Comment gesture. Upload completion
-  // cannot retarget the picture if the user moves this composer to another passage.
+  // synchronous turn binds delivery to that draft's arrival generation. Upload
+  // completion cannot retarget the picture if the user moves this composer to another
+  // passage.
   /** @param {Anchor | null} anchor @param {readonly Blob[]} images @param {Parameters<typeof openComposer>[2]} [options] */
   function openComposerWithMedia(anchor, images, options = {}) {
-    openComposer(anchor, "", { carry: true, ...options });
+    openComposer(anchor, "", options);
     return syncComposer.addMedia(images);
   }
   // The box is one view of the draft on this passage, and it follows the plain
@@ -677,37 +684,33 @@ export function createSelectionComposer({
     syncSuggestMode(); // after the state it renders, which is now all of it
     hideComposer();
   }
-  // Detaching leaves the prior draft in its own context but removes this view from it.
-  // Advancing the generation makes the detachment later than both a draft watch and a
-  // send already in flight, so neither can reclaim the view when it settles.
-  function detachComposer() {
+  // `c` taking the user into a thread's reply leaves the composer's passage. Its draft
+  // stays there (drafts.js, `draftSubject`), and the box going down says so where it
+  // held words. Advancing the generation makes the detachment later than both a draft
+  // watch and a send already in flight, so neither can reclaim the view when it settles.
+  function leaveForThread() {
+    if (!pendingAnchor) return;
+    const kept = composerOpen && composerHolds();
     composerEpoch += 1;
     leaveComposer(false);
-  }
-  // Reply drafts hold ordinary message text. A passage's replacement, design remark,
-  // drawing, or attached media stays in its original context rather than losing its
-  // meaning when the user continues a different conversation.
-  /** @param {string | null} ctx */
-  function carryComposerToReply(ctx) {
-    if (!pendingAnchor) return;
-    const text = syncComposer.value();
-    if (
-      ctx &&
-      text &&
-      !loadDraft(ctx) &&
-      !suggestionMode &&
-      !pendingAbout &&
-      !pendingDrawing &&
-      !syncComposer.hasMedia()
-    )
-      transferDraft(composerCtx(pendingAnchor), ctx, text);
-    detachComposer();
     showFab(null);
+    if (kept) noticeDraftKept();
   }
+  // This tab's send, while it settles the composer it sends from (`send` below).
+  /** @type {{letGo: (() => unknown) | null} | null} */
+  let sending = null;
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
   function settleComposer() {
     leaveComposer(false);
+    // A send lands the user itself, on the conversation it opens, so the bar it takes
+    // down lets go of no one first. Letting go reads the page's reading place, which
+    // the first read after a change measures across the whole page (reading-place.js,
+    // `runsIn`), only for the send to move the user on.
+    if (sending) {
+      sending.letGo = takeDownFab();
+      return;
+    }
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
@@ -738,6 +741,13 @@ export function createSelectionComposer({
       where: anchorTravelAt(record.anchor) ?? composerInput,
       input: () =>
         composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
+      frame: () =>
+        composerOpen && composerCtx(pendingAnchor) === ctx
+          ? syncComposer.composition().field
+          : null,
+      close: () => {
+        if (composerOpen && composerCtx(pendingAnchor) === ctx) leaveForThread();
+      },
       open: () => {
         openDraft(composerRecord(ctx), { focus: false });
         const handoff = beginFabFocus();
@@ -768,8 +778,13 @@ export function createSelectionComposer({
         undoStroke: () => drawingEdits.undoStroke(pendingAnchor),
         remove: () => drawingEdits.remove(pendingAnchor),
       },
-      send: async (_text, raw, owns, visible) => {
+      // The second send an outlet's hold offers (`fabHoldAt`), whose comment holds the
+      // widget it is about while its thread is open. A suggestion and a drawing's
+      // comment hold nothing (`$events`, comment).
+      altLabel: () => (suggestionMode || pendingDrawing ? null : fabHoldAt()),
+      send: async (_text, raw, owns, _typed, alternate) => {
         const anchor = structuredClone(pendingAnchor);
+        const holds = alternate ? anchor?.section : null;
         const revision = pendingRevision;
         const ctx = composerCtx(anchor);
         const suggestion = suggestionMode;
@@ -781,42 +796,57 @@ export function createSelectionComposer({
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
-        const untouched = retainUserIntent({ source: document.documentElement });
-        let flight = null;
-        const sent = sendMessage(
-          ctx,
-          () => composerCtx(pendingAnchor) === ctx && owns(),
-          (attempt) => {
-            // Kept under the attempt, which names the thread before and after the log
-            // answers (`threadKey`), with the words that find the row again.
-            if (point) commitPoint(attempt, point, wordsOf(point));
-            const content = drawing
-              ? raw
-                ? { text: raw, drawing }
-                : { drawing }
-              : { text: raw };
-            return (flight = createComment({
-              ...content,
-              revision,
-              attempt,
-              ...(anchor && { anchor }),
-              ...(suggestion && { suggestion: true }),
-              ...(about && { about }),
-            }));
-          },
-        );
-        if (!sent) return;
-        // A refusal withdraws the thread the send drew and hands the words back to this
-        // passage's draft. While the user has done nothing since Send, the box comes back
-        // with them, as the page comment card's does. Withdrawing the thread the send
-        // landed them on hands their focus on (`handBack`), so where focus stands is no
-        // reading of their intent here, only whether they have acted since. After a
-        // later gesture the words wait for Resume writing.
-        void Promise.resolve(flight).then((accepted) => {
-          if (accepted || composerEpoch !== epoch || composerOpen) return;
-          const record = composerRecord(ctx);
-          if (record && untouched()) untouched.handoff(() => openDraft(record));
-        });
+        // A send that lands the user nowhere, its conversation unshown or a later
+        // gesture taking over, lets them go from the bar it took down as the
+        // settlement would have (`takeDownFab`).
+        /** @type {{letGo: (() => unknown) | null}} */
+        const settling = { letGo: null };
+        sending = settling;
+        const landElsewhere = () => settling.letGo?.();
+        /** @type {ReturnType<typeof sendMessage>} */
+        let sent;
+        try {
+          sent = sendMessage(
+            ctx,
+            () => composerCtx(pendingAnchor) === ctx && owns(),
+            (attempt) => {
+              // Kept under the attempt, which names the thread before and after the log
+              // answers (`threadKey`), with the words that find the row again.
+              if (point) commitPoint(attempt, point, wordsOf(point));
+              const content = drawing
+                ? raw
+                  ? { text: raw, drawing }
+                  : { drawing }
+                : { text: raw };
+              return createComment({
+                ...content,
+                revision,
+                attempt,
+                ...(anchor && { anchor }),
+                ...(suggestion && { suggestion: true }),
+                ...(about && { about }),
+                ...(holds && { holds }),
+              });
+            },
+            // A refusal withdraws the thread the send drew and hands the words back to
+            // this passage's draft, and the user who has done nothing since back to its
+            // box (drafts.js, `sendMessage`), as the page comment card's does, unless
+            // another passage's composer stands meanwhile.
+            () => {
+              if (composerEpoch !== epoch || composerOpen) return;
+              const record = composerRecord(ctx);
+              if (record) openDraft(record);
+            },
+          );
+        } finally {
+          sending = null;
+        }
+        if (!sent) return landElsewhere();
+        // The thread the send starts is its acknowledgement. The hold says what its
+        // press did beyond sending, and names the comment too, since it is the later
+        // write to the live region and would otherwise be all a listener heard. What
+        // being held means is the widget's to say, as it labelled the press.
+        if (holds) notice("Held until resolved");
         const revealSent = bindQueuedWork(
           /** @param {Parameters<typeof openPageThread>[1]} options */ (options) =>
             openPageThread(sent.id, options),
@@ -847,6 +877,7 @@ export function createSelectionComposer({
           const thread = destination && closestAcross(destination, THREAD);
           if (mayReveal() && thread) currentIntent.handoff(() => landSent(thread));
         }
+        landElsewhere();
       },
     });
     syncComposer.composition().field.append(fabOptionsTrigger);
@@ -979,8 +1010,7 @@ export function createSelectionComposer({
     openComposer,
     openComposerWithMedia,
     hideComposer,
-    detachComposer,
-    carryComposerToReply,
+    leaveForThread,
     openDraft,
     mount,
   };

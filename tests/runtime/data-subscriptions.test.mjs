@@ -5,13 +5,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { LeafElement, nothing, html } from "/runtime/widget-api.js";
+import { nothing, html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 let fixtureSequence = 0;
 async function scene() {
   adoptRegistry({
     "lf-feed": {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -49,7 +50,7 @@ async function feed(
   const tag = `lf-feed-${++feeds}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -325,22 +326,20 @@ test("data readiness does not wait for an unrelated widget region", async () => 
 // A widget holds an output as a property and says `change`; its readers use the same
 // LeafElement reader and presentation region as sources.
 let outputScenes = 0;
-// With `key`, the reader names its producer by that attribute, unique in a <section>.
-function outputScene(draw, key) {
+function outputScene(draw) {
   const suffix = ++outputScenes;
   const producerTag = `lf-output-${suffix}`;
   const consumerTag = `lf-consumer-${suffix}`;
   adoptRegistry({
     [producerTag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
-      "x-output": { rows: { contract: "rows" } },
-      ...(key ? { "x-unique": { [key]: "section" } } : {}),
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      outputs: { rows: { contract: "rows" } },
     },
     [consumerTag]: {
-      "x-data": {
+      inputs: {
         rows: { reference: "for", contract: "rows", property: "value" },
       },
-      "x-refers": { for: key ? { tag: producerTag, key } : {} },
+      refers: { for: {} },
     },
   });
   customElements.define(
@@ -483,28 +482,6 @@ test("a producer arriving or leaving under another name leaves a reader's readin
   main.prepend(feed);
   await settleOutput();
   assert.ok(reads > read);
-  document.body.replaceChildren();
-  await settleOutput();
-});
-
-test("a keyed reader follows the member arriving under its key", async () => {
-  const readings = [];
-  const { producerTag, consumerTag } = outputScene(
-    (element, value) => readings.push(value),
-    "name",
-  );
-  document.body.innerHTML = `<main><section><${consumerTag} for="primary"></${consumerTag}></section></main>`;
-  await settleOutput();
-  assert.equal(readings.at(-1), null);
-  const member = document.createElement(producerTag);
-  member.setAttribute("name", "primary");
-  member.rows = { rows: ["member"] };
-  document.querySelector("section").append(member);
-  await settleOutput();
-  assert.deepEqual(readings.at(-1), { rows: ["member"] });
-  member.remove();
-  await settleOutput();
-  assert.equal(readings.at(-1), null);
   document.body.replaceChildren();
   await settleOutput();
 });

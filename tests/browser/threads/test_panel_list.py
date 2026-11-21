@@ -23,6 +23,7 @@ from render_harness import (
 from browser.threads import claim_for_codex, open_panel_thread, thread_row
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -83,12 +84,12 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"parent": answered},
-        "Choose the backend here.",
-        '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
-        '<lf-options id="backend" choose>'
-        '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
-        '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
-        "</lf-options></lf-ask>",
+        "Choose the backend here.\n\n"
+        '<lf-group id="backend-decision" label="Which backend?">\n<h3 id="backend-decision-h">Which backend?</h3>'
+        '<lf-options id="backend">'
+        '<lf-option id="backend-sqlite" label="SQLite"><strong>SQLite</strong></lf-option>'
+        '<lf-option id="backend-postgres" label="Postgres"><strong>Postgres</strong></lf-option>'
+        "</lf-options></lf-group>",
     )
     told(page)
     expect(thread_row(page, answered).locator(".lf-row-end")).to_contain_text(
@@ -152,7 +153,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     mapped = page.locator(".lf-page-map-dialog .lf-page-map-action-label-word")
     expect(mapped.locator(".lf-thread-name-pending")).to_have_text(pending)
     page.keyboard.press("Escape")
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     owed = page.locator('.lf-fp-on-item[data-lf-list="agent"]')

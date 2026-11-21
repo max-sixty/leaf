@@ -1,6 +1,6 @@
-# Added for #1491: a grid can satisfy the same-dimensions table rule while its
-# purpose is a pattern across measurements. Compare the earlier instructions with the
-# explicit chart priority; the exact-value request checks the secondary table route.
+# A grid can satisfy the same-dimensions table rule while its purpose is a pattern
+# across measurements. Scores the explicit chart priority; the exact-value request
+# checks the secondary table route.
 description: numeric-grid-shows-shape
 metadata:
   purpose: "Numeric comparisons: show a shared trend as a chart, with exact values available for lookup."
@@ -27,16 +27,13 @@ assert:
       omits a group or the five-week sequence.
 variants:
   experiment-comparison:
-    # From #4662: a page reporting a prompt A/B copied the grid its analysis script
-    # printed, one column per wording and model, so each wording sat two or four
-    # columns from its baseline, and quoted the tested sentences only in another
-    # section. The prompt carries that printout and the agent's earlier reply that
-    # repeated it. On Claude Code, base 2a9d00dc5 failed effect-against-baseline in
-    # 14 of 14 runs and change-beside-effect in 11 of 11; with the experiment sentence
-    # in page-authoring.md, "Composing a page", 4 of 4 passed both. Asked plainly,
-    # with the grid and no earlier turns, base failed effect-against-baseline in 15 of
-    # 15 and passed it in 4 of 4 with the sentence, but base already quoted the added
-    # sentences beside its table in 10 of 12, so that form was dropped.
+    # A page reporting a prompt A/B copied the grid its analysis script printed, one
+    # column per wording and model, so each wording sat two or four columns from its
+    # baseline, and quoted the tested sentences only in another section. The prompt
+    # carries that printout and the agent's earlier reply that repeated it, since
+    # asked plainly, with the grid and no earlier turns, agents can already quote the
+    # tested sentences beside their table. The experiment sentence in
+    # page-authoring.md, "Composing a page", addresses it.
     metadata:
       purpose: "Experiment results: each variant's effect reads against its baseline, beside what the variant changed."
       tags:
@@ -104,13 +101,10 @@ variants:
           analysis printed, and any difference shown is computed correctly from them.
           Fail on an omitted or misread count.
   traffic-mix:
-    # Added after ordinary Leaf reports repeatedly described useful experiences
-    # without showing them. Unlike the complete configuration tasks, this request
-    # names an exploratory goal but no control or presentation form. Native page
-    # authoring tests the result; the source rubric cannot prove browser operation,
-    # which was checked separately on the retained samples. On 2026-10-24 both HEAD
-    # and an experimental authoring frame passed 1/1, choosing calculators and charts
-    # without a requested form; live probes confirmed the meaningful controls worked.
+    # An ordinary Leaf report can describe a useful experience without showing it.
+    # Unlike the complete configuration tasks, this request names an
+    # exploratory goal but no control or presentation form. Native page authoring
+    # tests the result; the source rubric cannot prove browser operation.
     metadata:
       authoring: true
       purpose: "Choose a useful way to explore changing assumptions in an ordinary decision page."
@@ -163,3 +157,69 @@ variants:
           are correct. It clearly presents this as a fixed-load mean estimate, without
           inferring tail, queueing, concurrency or changed-load performance. Fail on
           materially wrong arithmetic, inverted recommendations, or erased limits.
+  team-package:
+    # The same grid on a page that selects a team's package, whose author instructions
+    # give the page's charts to its own `lf-trend`. Invites the bundled `lf-chart`,
+    # which Leaf's instructions would pick for numbers if they named a widget.
+    metadata:
+      purpose: "A chart widget the page's package provides and asks for is used in place of the bundled chart."
+      page:
+        - ./evals/numeric-grid-shows-shape/fixtures/team-charts
+      tags:
+        - authoring
+        - charts
+        - packages
+    vars:
+      prompt: |
+        You are writing one section of a Leaf page for a reader comparing how three
+        groups changed over five weekly windows. The main finding is that all three
+        groups rose together in weeks 2–4 and fell in week 5. The reader also wants
+        to look up an individual measurement if needed.
+
+        | week | Alpha | Beta | Gamma |
+        | --- | ---: | ---: | ---: |
+        | 1 | 12 | 18 | 9 |
+        | 2 | 17 | 22 | 14 |
+        | 3 | 23 | 29 | 20 |
+        | 4 | 27 | 32 | 24 |
+        | 5 | 19 | 25 | 16 |
+    assert:
+      - type: llm-rubric
+        metric: package-widget
+        value: |
+          Pass only if the HTML leads with an `lf-trend` holding a table of the three
+          groups across the five weeks, so it draws their shared rise and fall. Fail
+          if the chart is an `lf-chart`, a hand-drawn figure or any form other than
+          the page package's `lf-trend`, or if a group or week is missing.
+  installed-package:
+    # The same grid for the analytics team, whose package the user installed on the
+    # machine: its author instructions give the team's charts to `lf-trend`. Neither
+    # the page nor the request names the package, so an author who knows only the
+    # bundled packages charts with `lf-chart`.
+    metadata:
+      purpose: "A package the user installed reaches an author who isn't told its name, by what its own instructions say it is for."
+      authoring: true
+      installed:
+        - evals/numeric-grid-shows-shape/fixtures/team-charts
+      tags:
+        - authoring
+        - charts
+        - packages
+    vars:
+      prompt: |
+        I'm on the analytics team. Write a page for this week's review comparing how
+        three groups changed over five weekly windows. The main finding is that all
+        three groups rose together in weeks 2–4 and fell in week 5. Readers also want
+        to look up an individual measurement.
+
+        | week | Alpha | Beta | Gamma |
+        | --- | ---: | ---: | ---: |
+        | 1 | 12 | 18 | 9 |
+        | 2 | 17 | 22 | 14 |
+        | 3 | 23 | 29 | 20 |
+        | 4 | 27 | 32 | 24 |
+        | 5 | 19 | 25 | 16 |
+    assert:
+      - type: contains
+        metric: installed-widget
+        value: "<lf-trend"

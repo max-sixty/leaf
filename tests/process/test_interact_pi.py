@@ -15,6 +15,7 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    inlined,
     serving,
 )
 
@@ -112,7 +113,7 @@ class Pi:
             continued = self.emit("turn_end")
             assert isinstance(continued, dict)
             [entry] = continued["entries"]
-            delivery = json.loads(entry["content"].split("\n")[1])
+            delivery = inlined(entry["content"])
             [batch] = delivery["batches"]
             ids = [event["id"] for event in batch["events"]]
             if until in ids:
@@ -176,7 +177,7 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
     continued = pi.emit("agent_before_settle")
     assert continued["continue"] is True
     [entry] = continued["entries"]
-    [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
+    [batch] = inlined(entry["content"])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
 
 

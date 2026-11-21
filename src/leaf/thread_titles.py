@@ -29,28 +29,23 @@ title is asked of `inference.CODEX_MODEL`, whatever model the user's tasks, or t
 website's, run on.
 
 A Codex title starts a private App Server when asked and stops it after the answer.
-Starting on demand takes roughly 1–2 s longer than keeping a server and thread warm,
-but keeps no idle App Server (about 105 MB each) for a page that is merely open.
+Starting on demand takes a little longer than keeping a server and thread warm, but
+keeps no idle App Server for a page that is merely open.
 
-On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol. Of twelve
-titles asked back to back, the last six failed with a 429 within 2 s, where
-gpt-6.1-sol answered all twelve. One of the 12 titles asked in three journeys failed
-the same way. After a burst, a title every 20 s for four minutes never failed. The
-backend's refusal (`turn_rate_limit_exceeded`) names a `Retry-After` that counts down
-to a free slot: asked again every second, the eleventh title of a burst, refused 27 s
-in, was told 33, 30, 28 … 4, 1 s and answered 39 s after its first refusal, which
-looks like a limit of ten titles a minute (codex-cli 0.160). Codex retries none of
-these, and its App Server passes on only the status, `responseTooManyFailedAttempts`
-with `httpStatusCode` 429, so Leaf cannot read the delay the refusal names.
+On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol: titles asked
+back to back can fail with a 429 within seconds where gpt-6.1-sol answers the same
+burst. The backend's refusal (`turn_rate_limit_exceeded`) names a `Retry-After` that
+counts down to a free slot, which looks like a limit of ten titles a minute (codex-cli
+0.160). Codex retries none of these, and its App Server passes on only the status,
+`responseTooManyFailedAttempts` with `httpStatusCode` 429, so Leaf cannot read the delay
+the refusal names.
 
 So a title refused for rate limits (`RateLimited`) is asked again, every
 `RETRY_INTERVAL` (5 s) until `RETRY_FOR` (120 s) after its first ask, each time on a
 new thread, and only while its thread is still untitled (`_name_thread`). It then
-arrives within 5 s of a slot freeing, and the cap spans two of those minutes. Of
-twelve titles asked at once, six were refused and each was written 41–48 s after its
-first ask; asked back to back, all twelve were written, one 20 s late. On every
-harness the record counts the refusals and how long they held the title up. A
-refusal for any other reason, or past the cap, fails as before.
+arrives within 5 s of a slot freeing, and the cap spans two of those minutes. On
+every harness the record counts the refusals and how long they held the title up. A
+refusal for any other reason, or past the cap, fails.
 
 Titles share every harness's tool-free JSON transport with widgets (`inference`).
 The title wrappers own their prompt, schema and rate-limit retry policy.
@@ -101,10 +96,10 @@ INSTRUCTIONS = (
     "short or vague message still gets a title, drawn from the passage if it has "
     "one."
 )
-# Last, after the thread's words. Measured on Haiku without thinking: with neither
-# this line nor the schema, 6 of 16 answers were prose, answering a message that
-# asked for work or asking for more context; with the schema and the line first,
-# 38 of 40 were titles; with the line last, 24 of 24.
+# Last, after the thread's words. On Haiku without thinking, with neither this line nor
+# the schema, many answers come back as prose, answering a message that asks for work
+# or asking for more context; with the schema and the line first, a few still aren't
+# titles; with the line last, they are.
 ASK = "Write the title of this thread."
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -125,11 +120,9 @@ Generate = Callable[[str, Path], dict]
 
 
 def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
-    """The thread `message` is in, and what a harness is asked for its title: the
-    passage the thread is on and its first spoken message, each between its own
-    tags, then `ASK`. The request is empty when the thread has neither, as one a
-    drawing or a reaction opened and nobody has written in yet. None when `message`
-    is in no untitled thread, as for a widget's action or a thread named already.
+    """The thread `message` is in, and what a harness is asked for its title
+    (`title_text`). None when `message` is in no untitled thread, as for a widget's
+    action or a thread named already.
 
     Any message in the thread can ask, so a thread whose first words come in a reply
     to a reaction is named on that reply, and a request that failed is made again
@@ -140,12 +133,23 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
     thread = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     if thread_id is None or thread is None or thread["title"] is not None:
         return None
-    parts = []
-    if quote := (thread["anchor"] or {}).get("quote"):
-        parts.append(f"<passage>\n{quote[:EXCERPT_LIMIT]}\n</passage>")
-    if opening := next((m for m in spoken_turns(thread) if m.get("text")), None):
-        parts.append(f"<message>\n{opening['text'][:EXCERPT_LIMIT]}\n</message>")
-    return thread_id, "\n\n".join([*parts, ASK]) if parts else ""
+    opening = next((m for m in spoken_turns(thread) if m.get("text")), None)
+    return thread_id, title_text(
+        (thread["anchor"] or {}).get("quote"), opening and opening["text"]
+    )
+
+
+def title_text(passage: str | None, message: str | None) -> str:
+    """What a harness is asked for a thread's title: the `passage` the thread is on
+    and its first spoken `message`, each between its own tags, then `ASK`. Empty
+    when the thread has neither, as one a drawing or a reaction opened and nobody
+    has written in yet."""
+    parts = [
+        f"<{tag}>\n{text[:EXCERPT_LIMIT]}\n</{tag}>"
+        for tag, text in (("passage", passage), ("message", message))
+        if text
+    ]
+    return "\n\n".join([*parts, ASK]) if parts else ""
 
 
 def title_reading(reading: dict) -> dict:

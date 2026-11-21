@@ -1,4 +1,4 @@
-# Added before pilot results: quantitative chart/data correction and next-run plan.
+# Quantitative chart/data correction and next-run plan.
 description: Latency review
 metadata:
   purpose: Compare exact synthetic performance runs, correct a latency measurement

@@ -159,7 +159,7 @@ class Samples:
             else thread_structure(events).fragments.get(message)
         )
         if holder is None:
-            raise ValueError(f"no message {message!r} carries markup")
+            raise ValueError(f"no message {message!r} holds HTML")
         template = next(
             (
                 sample

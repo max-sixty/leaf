@@ -7,7 +7,8 @@
 // invoker command to that widget, which owns the picks: `command="--toggle"`
 // with the candidate's key as the button's value, so the browser delivers it on
 // either host and the owner records the change as its own.
-import { LeafElement, html, repeat, offeredAction } from "/runtime/portable-api.js";
+import { html, repeat } from "/vendor/lit.js";
+import { LeafElement, offeredAction } from "/runtime/portable-api.js";
 
 customElements.define(
   "lf-finalists",

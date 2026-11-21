@@ -75,7 +75,7 @@ export async function notifyDataSubscribers() {
 
 /** @param {Element} element @param {string} input */
 const declaredInput = (element, input) => {
-  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  const declaration = registry[element.localName]?.inputs?.[input];
   if (!declaration)
     throw new Error(
       `<${element.localName}> input ${input} is not declared by this widget`,
@@ -83,36 +83,28 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
-// A reader binds its producer by a name: an id, or for a keyed reference the value of
-// an attribute the producer's tag declares unique. The name's signal moves when an
-// element that may hold an output arrives or leaves under it, so only the readers of
-// that name resolve it again, and a page of many producers loads without each arrival
-// reaching every reader. One watch covers every such tag, started by the first reader.
-// Each producer a reader has resolved has a signal its `change` moves.
+// A reader binds its producer by id. The id's signal moves when an element that may
+// hold an output arrives or leaves under it, so only the readers of that id resolve it
+// again, and a page of many producers loads without each arrival reaching every
+// reader. One watch covers every such tag, started by the first reader. Each producer
+// a reader has resolved has a signal its `change` moves.
 /** @type {Map<string, {peek(): number, value: number}>} */
 const standing = new Map();
-/** @param {string} name */
-function standingUnder(name) {
-  let moved = standing.get(name);
-  if (!moved) standing.set(name, (moved = signal(0)));
+/** @param {string} id */
+function standingUnder(id) {
+  let moved = standing.get(id);
+  if (!moved) standing.set(id, (moved = signal(0)));
   return moved;
 }
 /** @param {Element} element */
 function moveStanding(element) {
-  const unique = registry[element.localName]?.["x-unique"] ?? {};
-  const names = [
-    element.id,
-    ...Object.keys(unique).map((key) => element.getAttribute(key)),
-  ];
-  for (const name of names) {
-    const moved = name ? standing.get(name) : undefined;
-    if (moved) tick(moved);
-  }
+  const moved = element.id ? standing.get(element.id) : undefined;
+  if (moved) tick(moved);
 }
 let producersWatched = "";
 function watchProducers() {
   // A document adopts its registry once, so this starts one watch.
-  const tags = tagsDeclaring((entry) => Boolean(entry["x-output"])).join(",");
+  const tags = tagsDeclaring((entry) => Boolean(entry.outputs)).join(",");
   if (!tags || tags === producersWatched) return;
   producersWatched = tags;
   // An arrival is offered again when the nodes beside it change, which is no move.
@@ -219,7 +211,7 @@ function heldOutput(element, attribute, widget, contract) {
     if (!producer) return (held = null);
     changeOf(producer).value;
     return untracked(() => {
-      const outputs = registry[producer.localName]?.["x-output"] ?? {};
+      const outputs = registry[producer.localName]?.outputs ?? {};
       const name = Object.keys(outputs).find(
         (key) => outputs[key].contract === contract,
       );
@@ -278,7 +270,7 @@ const dataRead = applicationState.select(
 /** @param {Element} element */
 export function awaitsData(element) {
   return (
-    Object.values(registry[element.localName]?.["x-data"] ?? {}).some(
+    Object.values(registry[element.localName]?.inputs ?? {}).some(
       (declaration) => declaration.source && element.getAttribute(declaration.source),
     ) && !dataRead.read()
   );

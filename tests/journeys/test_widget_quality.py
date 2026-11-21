@@ -76,7 +76,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-bare"]["x-example"]
+    del registry["lf-bare"]["example"]
     registry_path.write_text(json.dumps(registry))
 
     ran = subprocess.run(
@@ -132,7 +132,7 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
             INITIAL_DRAWING_PAGE,
             head='<link rel="stylesheet" href="/page/theme.css">'
             + (
-                "<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
+                "<style>:root { --lf-sans: Georgia, serif; --lf-mono: Courier, monospace; }</style>"
                 if width == 390
                 else ""
             ),
@@ -149,17 +149,22 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         with page.expect_request("**/leaf.js"):
             navigate()
         expect(page.locator("main")).to_be_visible()
-        expect(page.locator("#drawing lf-playground-preview")).to_have_text(
+        expect(page.locator("#drawing-words")).to_have_text(
             "The actual preview, with its own words."
         )
-        expect(page.locator("#drawing input")).to_have_count(0)
+        expect(page.locator("#drawing input")).to_have_count(5)
         assert boot, "the positive control did not hold the entry module"
         page.unroute("**/leaf.js")
         boot.pop().continue_()
         wait_until_ready(page)
-        expect(page.locator('input[aria-label="Title"]')).to_have_value(title)
+        expect(page.get_by_role("textbox", name="Title")).to_have_value(title)
         expect(page.locator("lf-playground-output")).to_contain_text(title)
-        assert page.locator(".margin-entry-gallery-face").count() == 44
+        # Each of the page's two galleries draws one face per sample, the same samples.
+        drawn = page.locator("lf-margin-entry-gallery").evaluate_all(
+            "galleries => galleries.map(gallery => [gallery.querySelectorAll('.margin-entry-gallery-item').length, gallery.querySelectorAll('.margin-entry-gallery-face').length])"
+        )
+        assert len(drawn) == 2 and drawn[0] == drawn[1], drawn
+        assert drawn[0][0] > 0 and drawn[0][0] == drawn[0][1], drawn
         assert page.locator(".margin-entry-gallery-item").evaluate_all(
             "items => items.every(item => item.querySelector('.margin-entry-gallery-copy').getBoundingClientRect().left - item.querySelector('.margin-entry-gallery-face').getBoundingClientRect().right >= 7.5)"
         ), "the gallery label must follow the actual control's width"
@@ -192,3 +197,39 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
+
+
+def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browser):
+    """A generated view needs its first box; an equal reserved box is a control."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-first-box"],
+    )
+    assert made.exit_code == 0, made.output
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-first-box"]["example"] = (
+        '<lf-first-box id="moving"></lf-first-box>'
+        '<lf-first-box id="reserved"></lf-first-box>'
+    )
+    registry_path.write_text(json.dumps(registry))
+    (package / "defaults.css").write_text(
+        "lf-first-box { display: block; } #reserved { block-size: 40px; }"
+    )
+    (package / "widgets/lf-first-box.js").write_text("""\
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
+customElements.define("lf-first-box", class extends LeafElement {
+  render() { return html`<div style="block-size:40px">Drawn view</div>`; }
+});
+""")
+    findings = [
+        finding
+        for finding in widget_findings(browser.unwatched, package)
+        if finding.code == "keeps-first-box"
+    ]
+    assert {finding.at for finding in findings} == {"<lf-first-box id=moving>"}
+    assert {finding.values["layout"] for finding in findings} == {"column", "workspace"}
+    assert all(finding.values["first"]["height"] == 0 for finding in findings)
+    assert all(finding.values["now"]["height"] == 40 for finding in findings)

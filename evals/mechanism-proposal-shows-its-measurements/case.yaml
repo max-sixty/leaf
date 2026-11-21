@@ -1,0 +1,42 @@
+# Handed notes on a proposed mechanism (its parts, how a request moves through them,
+# timings measured against the current mechanism and three decisions), a page can
+# keep every measurement in tables instead of charting them. `request.md`
+# synthesizes such notes at about 3,200 words: a photo-upload pipeline moving its
+# variant generation from the request to a queue and workers.
+# This case doesn't reproduce that failure, which came with much longer notes, a
+# user's global instructions and xhigh effort, so it guards the default.
+# SKILL.md routes measured facts to authoring-evidence.md's `lf-chart` line.
+description: Mechanism proposal handover
+metadata:
+  purpose: "Show the subject: a page handing over a proposed mechanism charts the
+    timings measured against today's and draws the path a request takes through it."
+  authoring: true
+  tags:
+    - drawing
+    - charts
+vars:
+  prompt: file://mechanism-proposal-shows-its-measurements/request.md
+assert:
+  - type: llm-rubric
+    metric: charts-the-measurements
+    value: |
+      The notes measure today's upload path against the proposal: response time and
+      time until the variants are ready at each upload rate, where the time goes for
+      one photo, throughput and the worker minimum's effect. Pass if the page plots at
+      least one of those timing measurements as a chart: an `lf-chart`, or a chart the
+      author drew (inline SVG, canvas or sized boxes) whose marks' positions or lengths
+      encode the measured values. Fail if every timing measurement appears only in
+      tables, prose, metric tiles or inline numbers, or if the only charts show
+      something other than timings, such as cost.
+  - type: llm-rubric
+    metric: draws-the-request-path
+    value: |
+      Pass if a drawing on the page (an `lf-diagram`, `lf-timeline`, inline SVG or
+      other figure) does either of these: follows one upload through the proposed
+      mechanism in order, from the app's request through the API, queue and worker to
+      the variants being ready and the app being told, as a sequence diagram, an
+      ordered flow or a timeline of one upload's stages; or shows today's upload path
+      beside the proposed one, in one figure or two adjacent figures drawn alike. Fail
+      if the drawings show the parts without the order an upload moves through them
+      (boxes grouped by layer, or arrows for dependencies rather than the upload's
+      route), or if the upload's path appears only in prose, a list or a table.

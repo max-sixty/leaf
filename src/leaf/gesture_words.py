@@ -2,13 +2,14 @@
 
 A gesture is recorded as ids: the widget, the unit it folds on, the options it
 picked. They are words only to whoever still holds the document. The reading is
-the gesture's own document, the revision it names or the frozen message that sent
-the widget, under the vocabulary that document was written in, so a later version
-that reworded or removed an option does not change what the user chose. Deliveries,
+the gesture's own document, the revision it names or the message holding the widget
+as it read when the user made the gesture, under the vocabulary that document was
+written in, so a later version or edit that reworded or removed an option does not
+change what the user chose. Deliveries,
 the transcript, the served history and the undo offer state a gesture through this
 one reading.
 
-Done names no option: on a group whose `x-awaits.value` verb records the pick
+Done names no option: on a widget whose `awaits.value` verb records the pick
 as a set of ids, Done says that verb's state when the user pressed it, worded by the
 action that set it, or by Done's own document where the pick is authored. The pick
 is derived from the log before Done rather than stamped at admission, so Done keeps
@@ -20,10 +21,10 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself: the attribute its
-entry declares with `x-name`, else a leading `<summary>`, heading, or `<strong>`,
-inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
-the live page, read here off the document the gesture was made in.
+`name` is what the authoring contract calls it away from itself (`element_name`): a
+widget's `label` attribute (the registry's `$attributes`), else plain markup's caption
+(`caption_node`). It is the rule the browser's `addressableName` reads off the live
+page, read here off the document the gesture was made in.
 """
 
 from collections.abc import Callable
@@ -31,17 +32,27 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import InForce, event_document
-from .passages import SourceReading, collapse, enclosing_of, shown_words
+from .passages import SourceReading, collapse, created_words, enclosing_of
 from .projection import (
     attribute_marks,
-    frozen_thread_reading,
     markup_value,
     state_projection,
 )
-from .registry.contract import event_spec
+from .registry.contract import (
+    NAME_ATTRIBUTE,
+    event_spec,
+    is_element_name,
+)
 from .revision_artifact import read_revision
+from .thread_context import (
+    ThreadStructure,
+    logged_fragment,
+    message_wording,
+    thread_structure,
+)
 
-TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
+HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+SECTIONS = frozenset({"section", "article"})
 
 # revision → its immutable document read under the registry captured with it.
 RevisionReader = Callable[[int], SourceReading]
@@ -51,40 +62,54 @@ def revisions_on_disk(page_dir: Path) -> RevisionReader:
     return lambda revision: read_revision(page_dir, revision)
 
 
-def _text(node) -> str:
+def _text(node, root: bool = True) -> str:
+    """A node's words as a name reads them: a popover's below it, such as a gloss's
+    explanation, stand apart until shown and name nothing (passages.js, `named`)."""
     if isinstance(node, str):
         return node
-    return "".join(_text(child) for child in node["content"])
+    if not root and "popover" in node["attrs"]:
+        return ""
+    return "".join(_text(child, root=False) for child in node["content"])
 
 
-def leading_title_node(node: dict) -> dict | None:
-    """The element that titles `node`: its first title element, looking inside a
-    leading <header> or <hgroup> and past other elements, until text intervenes."""
-    for child in node["content"]:
-        if isinstance(child, str):
-            if child.strip():
-                return None
-            continue
-        if child["tag"] in TITLES:
-            return child
-        if child["tag"] in {"header", "hgroup"}:
-            return leading_title_node(child)
-    return None
+def _registered(node: dict, registry: dict) -> bool:
+    return is_element_name(node["tag"]) and node["tag"] in registry
 
 
-def leading_title(node: dict) -> str:
-    title = leading_title_node(node)
-    return collapse(_text(title)) if title else ""
+def caption_node(node: dict) -> dict | None:
+    """The caption that names plain markup: a disclosure's first <summary>, an
+    <hgroup>'s heading, or the heading a section or article opens with, alone or in an
+    <hgroup>. No other element is named by a heading inside it, and a <strong> names
+    nothing."""
+    elements = [child for child in node["content"] if not isinstance(child, str)]
+    if node["tag"] == "details":
+        return next((child for child in elements if child["tag"] == "summary"), None)
+    if node["tag"] == "hgroup":
+        return next((child for child in elements if child["tag"] in HEADINGS), None)
+    if node["tag"] not in SECTIONS:
+        return None
+    first = next((child for child in node["content"] if not _blank(child)), None)
+    if first is None or isinstance(first, str):
+        return None
+    if first["tag"] == "hgroup":
+        return caption_node(first)
+    return first if first["tag"] in HEADINGS else None
+
+
+def _blank(node) -> bool:
+    return isinstance(node, str) and not node.strip()
 
 
 def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself: the attribute
-    its entry declares with `x-name`, else its leading title, in the words the author
-    wrote. The browser's `addressableName` reads the same rule off the live page;
-    `tests/name_cases.json` holds both to the same cases."""
-    attribute = registry.get(node["tag"], {}).get("x-name")
-    declared = (node["attrs"].get(attribute) or "").strip() if attribute else ""
-    return declared or leading_title(node)
+    """What the authoring contract calls an element away from itself, in the words the
+    author wrote: a widget's `label` attribute (`contract.NAME_ATTRIBUTE`), else plain
+    markup's caption. A widget takes no name from its markup. The browser's
+    `addressableName` reads the same rule off the live page; `tests/name_cases.json`
+    holds both to the same cases."""
+    if _registered(node, registry):
+        return (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
+    caption = caption_node(node)
+    return collapse(_text(caption)) if caption else ""
 
 
 def _nodes(content: list):
@@ -129,45 +154,55 @@ class _Document:
 class GestureWords:
     """Readings of each document a page's gestures name, parsed once per document.
 
-    `registry` is the active one, which frozen thread markup reads under for the
-    page's whole lifetime; a page revision keeps the registry captured with it."""
+    `registry` is the active one, which thread markup reads under for the page's
+    whole lifetime; a page revision keeps the registry captured with it."""
 
     def __init__(self, events: list, registry: dict, revisions: RevisionReader):
         self.events = events
         self.registry = registry
         self.revisions = revisions
         self.by_id = {event["id"]: event for event in events}
-        self._documents: dict[int | None, _Document] = {}
+        self._documents: dict[int | str, _Document] = {}
         self._voices: dict[str, tuple[dict, list]] = {}
+
+    @cached_property
+    def _threads(self) -> ThreadStructure:
+        return thread_structure(self.events)
 
     def _document(self, event: dict) -> _Document | None:
         if event.get("meaning") is None:
             return None
         document = event_document(event)
-        revision = document.get("revision")
-        if revision not in self._documents:
-            if document["kind"] == "thread":
-                reading = frozen_thread_reading(self.events, self.registry)
-                self._documents[revision] = _Document(
-                    [
-                        fragment.authoring.content
-                        for fragment in reading.structure.fragments.values()
-                    ],
-                    reading.spoken,
+        if document["kind"] == "thread":
+            message = self._threads.holders.get(event["widget"])
+            if message is None:
+                return None
+            wording = message_wording(
+                self._threads, message, event.get("seq", self.events[-1]["seq"])
+            )
+            key = wording["id"]
+            if key not in self._documents:
+                fragment = logged_fragment(wording)
+                if fragment is None:
+                    return None
+                self._documents[key] = _Document(
+                    [fragment.authoring.content],
+                    SourceReading(fragment, self.registry).spoken,
                     self.registry,
-                    reading.structure.by_id,
+                    fragment.by_id,
                     None,
                 )
-            else:
-                assert revision is not None
-                reading = self.revisions(revision)
-                self._documents[revision] = _Document(
-                    [reading.document.authoring.content],
-                    reading.spoken,
-                    reading.registry,
-                    reading.document.by_id,
-                    revision,
-                )
+            return self._documents[key]
+        revision = document["revision"]
+        if revision not in self._documents:
+            reading = self.revisions(revision)
+            self._documents[revision] = _Document(
+                [reading.document.authoring.content],
+                reading.spoken,
+                reading.registry,
+                reading.document.by_id,
+                revision,
+            )
         return self._documents[revision]
 
     def _voice(self, event: dict) -> tuple[dict, list]:
@@ -186,13 +221,13 @@ class GestureWords:
         return self._voices[event["id"]]
 
     def _value_verb(self, event: dict) -> str | None:
-        """The widget's `x-awaits.value` verb where `event` answers through another
+        """The widget's `awaits.value` verb where `event` answers through another
         verb and that one records a set of ids on the widget, in `event`'s document."""
         if "answer" not in (event.get("meaning") or {}):
             return None
         entry = self.declaration(event)
-        verb = (entry.get("x-awaits") or {}).get("value")
-        spec = entry.get("x-state", {}).get(verb)
+        verb = (entry.get("awaits") or {}).get("value")
+        spec = entry.get("verbs", {}).get(verb)
         if (
             verb == event["action"]
             or spec is None
@@ -209,7 +244,7 @@ class GestureWords:
         One walk of the log serves every Done of the document, as `InForce` reads
         what each event changed: the fold of the document classifies the actions,
         then undos withdraw and the document's version notes restate where they
-        fall. A frozen thread folds without floors, as `frozen_thread_reading`
+        fall. A message's markup folds without floors, as `thread_markup_reading`
         does."""
         if document.held is None:
             classified = state_projection(
@@ -243,7 +278,7 @@ class GestureWords:
         return document.held
 
     def _pick(self, done: dict) -> tuple[dict, list] | None:
-        """What the widget's `x-awaits.value` verb held when `done` answered with
+        """What the widget's `awaits.value` verb held when `done` answered with
         another verb: the action holding it and its ids, or `done` and the ids its
         document authored. None where `_value_verb` names no such verb."""
         verb = self._value_verb(done)
@@ -253,7 +288,7 @@ class GestureWords:
         held = self._held(document).get(done["id"])
         if held is not None:
             return held, sorted(held["detail"]["value"])
-        spec = document.registry[document.nodes[done["widget"]]["tag"]]["x-state"][verb]
+        spec = document.registry[document.nodes[done["widget"]]["tag"]]["verbs"][verb]
         return done, markup_value(done["widget"], spec, document.by_id, document.marks)
 
     @cached_property
@@ -273,8 +308,8 @@ class GestureWords:
 
     def _created(self, gesture: dict, identity: str) -> str | None:
         """The words a user-written child had when `gesture` named it: those of the
-        latest action creating that id at or before the gesture, shown as the
-        child's `x-text-format` renders them."""
+        latest action creating that id at or before the gesture, as the child
+        shows them (`created_words`)."""
         at = self._positions.get(gesture["id"], len(self.events))
         creators = [
             event
@@ -288,17 +323,13 @@ class GestureWords:
         # carries its words is left to the creator's declaration.
         creates = (
             self.declaration(creator)
-            .get("x-state", {})
+            .get("verbs", {})
             .get(creator["action"], {})
             .get("creates")
         )
         if not creates:
             return None
-        document = self._document(creator)
-        assert document is not None
-        entry = document.registry.get(creator["meaning"]["creates"], {})
-        words = creator["detail"][creates["words"]]
-        return collapse(shown_words(words, entry, added=True))
+        return collapse(created_words(creator["detail"][creates["words"]]))
 
     def says(self, event: dict) -> dict[str, str]:
         """id → what it says, for the elements one gesture names.
@@ -336,7 +367,7 @@ class GestureWords:
     def gesture(self, event: dict) -> dict:
         """What an action did, in its record form's terms and its own document's
         words: the reading a history row and an undo offer both carry."""
-        spec = self.declaration(event).get("x-state", {}).get(event["action"], {})
+        spec = self.declaration(event).get("verbs", {}).get(event["action"], {})
         record = spec.get("record") or {}
         detail = event["detail"]
         if record.get("kind") == "attribute":
@@ -364,7 +395,7 @@ class GestureWords:
 
     def records_unsent(self, action: dict) -> bool:
         """Whether the action's verb records work the user hasn't sent
-        (`$state.unsent`), as the document they acted in declared it, so a later
+        (`$verbs.unsent`), as the document they acted in declared it, so a later
         version redeclaring the verb leaves earlier actions as they were."""
         spec = event_spec(self.declaration(action), action)
         return bool(spec and spec.get("unsent"))

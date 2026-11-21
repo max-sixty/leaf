@@ -15,13 +15,16 @@
    - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
      accessible name (browser/AGENTS.md): quiet at rest, with the library's fill under
      a hovering pointer, and the chip while what it opens shows (`aria-expanded`). One
-     that commits what it stands in, as Send and a rewrite's Save do, is in the
+     that carries badges (`.lf-badges`), as the panel's leaf does, draws no ground in
+     any state, since its badges stand over its top edge. One that commits what it stands in, as Send and a rewrite's Save do, is in the
      accent (`data-lf-tone="accent"`). A disc (`data-lf-disc`) is drawn in its
      action's own ink (`data-lf-tone`: `accent`, `ink`, `positive` or `negative`) and
      shows its state on a disc behind the glyph rather than a chip, as the composer's
      Send and Dictate and a thread's Resolve and Reopen do.
    - `word`: a press that says what it does in words, quiet as a symbol is. A toggle
-     is a word whose `aria-pressed` the theme draws as selected.
+     is a word whose `aria-pressed` the theme draws as selected. A selection the page
+     shows only in part (`data-lf-partial`), as the Skim control's Skim once the reader
+     opens a gap it folded, steps its border back.
    - `commit`: the one press on a surface that commits the user's work, framed in the
      accent; pressed (`aria-pressed`), as a question's Done once answered, in the ok
      tone.
@@ -31,13 +34,17 @@
      as its block's toolbar, as a code block's Copy does, wears the toolbar's frame
      (`data-lf-bar`).
    - `inline`: a press read as part of the line of words it stands in, such as a
-     thread's held news or a quote's Full quote, drawn as words in the accent at the
+     thread's held news, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
      `data-lf-news` and keeps the accent the unread dot wears, and one whose words say
      a warning with `data-lf-tone="warn"` takes the warning's ink. One standing among
-     a box's empty words (`data-lf-hint`), as a passing notice's Undo does at the
-     floating panel field's end, wears those words' dim face, as the word and key that
-     enter the box do (composing/input.js, `pressAtRest`).
+     quieter words (`data-lf-hint`) wears their face: a passing notice's Undo among a
+     box's empty words at the floating panel field's end, as the word and key that
+     enter the box do (composing/input.js, `pressAtRest`), a summary's count at its
+     head, set as a message's time is (thread/transcript.js), and a quote's label
+     where it opens the whole quote (thread/thread-card.js). One that opens the
+     item its words name elsewhere (`data-lf-link`), as a promise's word opens its row
+     in On Claude (thread/messages.js), is underlined at rest as a link is.
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step

@@ -10,58 +10,13 @@
 
   /** @type {{route: string, probes: Record<string, (...args: unknown[]) => unknown> | null, error: {reason: unknown} | null} | null} */
   let loading = null;
-  // Startup and passive checks observe separate windows through the same lifecycle.
-  // Read entries when delivered: a source node may disappear before a window ends.
-  /** @type {import("../../../browser/types/render-checks.js").RenderDriver["observeLayoutShifts"]} */
-  const observeLayoutShifts = (collect, buffered = false) => {
-    /** @param {DOMRectReadOnly} rectangle */
-    const rect = ({ x, y, width, height }) => ({ x, y, width, height });
-    /** @param {PerformanceEntry} entry @returns {entry is import("../../../browser/types/render-checks.js").NativeLayoutShift} */
-    const isLayoutShift = (entry) => entry.entryType === "layout-shift";
-    /** @param {PerformanceEntry[]} entries */
-    const read = (entries) =>
-      collect(
-        entries
-          .filter(isLayoutShift)
-          .filter((entry) => !entry.hadRecentInput)
-          .map((entry) => ({
-            startTime: entry.startTime,
-            value: entry.value,
-            sources: entry.sources.map((source) => {
-              const node = source.node;
-              return {
-                node: node instanceof Element ? node : (node?.parentElement ?? null),
-                before: rect(source.previousRect),
-                after: rect(source.currentRect),
-              };
-            }),
-          })),
-      );
-    const observer = new PerformanceObserver((list) => read(list.getEntries()));
-    if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
-      observer.observe({ type: "layout-shift", buffered });
-    return () => {
-      read(observer.takeRecords());
-      observer.disconnect();
-    };
-  };
-  /** @type {import("../../../browser/types/render-checks.js").ShiftReading[]} */
-  const startupShifts = [];
-  const endStartupShifts = observeLayoutShifts(
-    (entries) => startupShifts.push(...entries),
-    true,
-  );
-  const startupLayoutShifts = () => {
-    endStartupShifts();
-    return startupShifts;
-  };
 
-  // The block size each element whose tag declares x-height first shows before its
-  // module marks it drawn (`lf-rendered`), read as the page arrives without holding
-  // it. Delivery paints x-height as `data-lf-height` on each such element, empty where
+  // The block size each element whose tag declares `height` first shows before its
+  // module marks it drawn (`lf-rendered`), read as the page arrives without holding it.
+  // Delivery paints `height` as `data-lf-height` on each such element, empty where
   // the page states no height, so every one arrives with the parse. A ResizeObserver
-  // delivers a box after the layout of the frame that paints it. An element first
-  // shown already drawn gets no reading, since it never showed a box before drawing.
+  // delivers a box after the layout of the frame that paints it. An element first shown
+  // already drawn gets no reading, since it never showed a box before drawing.
   /** @type {Map<Element, number>} */
   const undrawn = new Map();
   const shownUndrawn = new ResizeObserver((entries) => {
@@ -214,8 +169,6 @@
     requestFrame,
     framePresented,
     renderingState,
-    observeLayoutShifts,
-    startupLayoutShifts,
     undrawnHeights,
     captureFirstBoxes,
     firstBoxes: () => firstBoxes,

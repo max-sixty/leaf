@@ -3,17 +3,18 @@
 A to-do is work the agent owes, on its On <agent> list. Nothing is a to-do on the
 user: everything On Me is an obligation whose source says how the user answers it,
 a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
-of its own to any of them. The user chose this on 2026-11-03, reversing the to-do on
-the user that `leaf task create --on user` opened from 2026-10: the widget or thread
+of its own to any of them. The user chose this over a to-do on the user
+(`leaf task create --on user`): the widget or thread
 an ask stands on is sovereign over how it is answered, and a step such as trying a
 build is asked in a thread, which the user's reply or settling reaction answers.
 
 An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a
 `start` event naming one item and the line the page's status shows as Working, and the
-item is in hand from then on. An ephemeral reply to an owed update writes the same
-start, with its text as the line (`take_in_hand`), so the thread and the Working
-line show the same words.
+item is in hand from then on. An ephemeral reply writes the same start, with its text
+as the line, on an owed update it addresses, or on the open to-do an answer opened,
+addressed by that answer's update or the to-do's own message (`thread.post_reply`), so
+the thread and the Working line show the same words.
 
 A to-do is on a thread, a page widget, an element, or the whole page.
 `leaf task create` writes a `todo` event. A reply that promises work it doesn't
@@ -28,10 +29,9 @@ answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`
 counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
-A `todo_end` can also close an open question an agent message asks, with
-`--obligation` or by a widget frozen in it, by its obligation id: `done` when the user
-answered it elsewhere, `dropped` when it no longer applies, never `failed`. Neither
-records an answer from the user (`obligations.end_question`).
+A `todo_end` names only a to-do. A question the agent asked in a thread, which the
+user answered elsewhere or which no longer applies, ends when the agent resolves the
+thread (`obligations`).
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
 stamped version that answers it (`workflows.handed_over`). It names the turn
@@ -43,17 +43,13 @@ that `leaf page open` and `leaf page close` write puts down every earlier start
 reads only the document and the log, sees it there. A start on a page declared
 `idle` reopens the page (`activity.declaration`).
 
-Only the session that wrote a to-do's latest start can end it, by `todo_end`
-or a stamp's `--completes` (`TodoReading.completion_error`), and a later start from
-another session moves that right. Putting work down changes activity, not this
-right: neither a turn ending nor a change of claim gives it back to an earlier
-session, and the same session can still end the to-do in a later turn. Before any
-start, any agent session can end it. Commands run outside a harness all share one
-empty session identity, so Leaf can't tell them apart.
+Any agent session can end any open to-do, whoever opened or last started it: a
+start shows who is at work, and gives no right over the to-do's end. The user
+decided this. Letting only the session that last started a to-do end it would
+make another session start the to-do first, a step that protects nothing.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget that declares `x-work` or holds an unsettled action
-(`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
+live widget (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
@@ -71,7 +67,6 @@ from pathlib import Path
 
 from .events import note_settlements, taken_back, unshown
 from .findings import Finding, Rejected
-from .obligations import asked_in_a_message
 from .thread_context import thread_ids, thread_names
 
 # What `task create` takes for the page as a whole; any other id names a widget or an
@@ -174,8 +169,7 @@ class TodoReading:
 
     @cached_property
     def ends(self) -> dict:
-        """The `todo_end` in force on each id it names, by that id: a to-do's, or an
-        obligation's the agent ended unanswered (`obligations.settle_by_words`)."""
+        """The `todo_end` in force on each to-do it names, by the to-do's id."""
         return {
             event["todo"]: {
                 "state": event["outcome"],
@@ -192,32 +186,6 @@ class TodoReading:
     @property
     def owed(self) -> list[dict]:
         return [todo for todo in self.todos if todo["state"] == "open"]
-
-    def completion_error(self, event: dict, todo: dict) -> Finding | None:
-        """Whether the writer can end this to-do under its latest start.
-
-        Read the log rather than `starts`, whose in-hand reading a `status`
-        declaration clears. Admission alone checks authority; projections consume admitted
-        endings without reclassifying them against later activity or claims.
-        """
-        latest = next(
-            (
-                start
-                for logged in reversed(self.events)
-                if (start := start_reading(logged)) and start["item"] == todo["id"]
-            ),
-            None,
-        )
-        if latest is not None and latest.get("session") != event.get("session"):
-            return Finding(
-                "todo-execution",
-                values={
-                    "todo": todo["id"],
-                    "start": latest["id"],
-                    "session": latest.get("session"),
-                },
-            )
-        return None
 
 
 def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
@@ -275,10 +243,8 @@ def todo_error(
 
     A to-do stands on an admitted thread, widget, page element or page. Replies can
     also open work on their own thread (`todo_reading`). A start names an open to-do or
-    an owed update. Both completion carriers share `TodoReading.completion_error`. An
-    end may also end an open question an agent message asks
-    (`obligations.asked_in_a_message`) by its id, while a page widget's obligation
-    stays owned by its state.
+    an owed update. An end names an open to-do, and one naming one of the user's
+    obligations is refused with how that obligation ends.
     """
     kind = event["kind"]
     if kind == "todo":
@@ -299,49 +265,36 @@ def todo_error(
         if item in owed or any(todo["id"] == item for todo in log.owed):
             return None
         return Finding("unowed-start", values={"item": item})
-    if kind == "note":
-        completed = note_settlements(event, "todo")
-        for todo in log.owed:
-            if todo["id"] in completed and (error := log.completion_error(event, todo)):
-                return error
-        return None
     if kind != "todo_end":
         return None
     identity = event["todo"]
     named = {"todo": identity}
     todo = next((todo for todo in log.todos if todo["id"] == identity), None)
     if todo is None:
-        item = next(
-            (item for item in items() if identity == item["id"]),
-            None,
-        )
+        item = next((item for item in items() if identity == item["id"]), None)
         if item is not None:
-            if not asked_in_a_message(item):
-                return Finding("widget-obligation", values=named)
-            if item["status"] != "open":
-                return Finding(
-                    "ended-obligation", values={**named, "status": item["status"]}
-                )
-            if event["outcome"] == "failed":
-                return Finding("failed-question", values=named)
-            return None
+            return Finding(
+                "obligation-end",
+                values={**named, "message": item["message"]},
+            )
         if ended := log.ends.get(identity):
             return Finding("ended-todo", values={**named, "state": ended["state"]})
         return Finding("unknown-todo", values=named)
     if todo["state"] != "open":
         return Finding("ended-todo", values={**named, "state": todo["state"]})
-    return log.completion_error(event, todo)
+    return None
 
 
 def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled `title` on what `subject` names: a page widget, thread,
     any other element of the page by its id, or `page` for the page as a whole; the
     record. A thread attachment supplies discussion context without making a reply
-    complete the task."""
+    complete the task. A long title is fitted (`thread.agent_title`)."""
     from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
+    from .thread import agent_title
     from .work import page_element, page_subject
 
     @contract_writer
@@ -365,7 +318,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
                 )
             record, _ = append_admitted(
                 page,
-                {"kind": "todo", "author": "agent", "subject": named, "title": title},
+                {
+                    "kind": "todo",
+                    "author": "agent",
+                    "subject": named,
+                    "title": agent_title(title),
+                },
             )
             return record
 
@@ -376,18 +334,20 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     """Append the start taking `item` in hand with `text` as its line, written as
     `identity`, within `page`, an open `service.PageTransaction`; the record.
 
-    The start names the claimant's turn when the posting session holds the page, which
-    is what lets that turn end over the update it started (`activity.started_in_turn`)
-    and what ends the start's hold with the turn. Another session's start names none: a
-    Claude Code subagent runs as its parent's session, so workers leave starts to the
-    session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
+    The start names the turn the command acts in when the posting session holds the
+    page (`state.acting_turn`): the claimant's. That is what lets the turn end over the
+    update it started, and what ends the start's hold once that turn has ended and no
+    background work of the session carries it on (`activity.start_holds`). Another
+    session's start names none. A Claude Code subagent runs as its
+    parent's session, so a worker's start is the main thread's.
+    `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
     start consumer reads either form through `start_reading`. A start on a page
     declared `idle` reopens it (`activity.declaration`)."""
     from .event_contracts import append_admitted
+    from .state import acting_turn
 
-    claim = page.claim
-    turn = claim["turn"] if claim and claim["id"] == identity.get("session") else None
+    turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(
         page,
         {
@@ -403,8 +363,8 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
 
 
 def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, an update's event id or an open to-do's id, in hand for this turn with
-    `text` as its line (`take_in_hand`); the record."""
+    """Take `item`, an update's event id or an open to-do's id, in hand with `text` as
+    its line (`take_in_hand`); the record."""
     from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source

@@ -8,7 +8,7 @@ import {
   presentContributionHost,
   presentContributionReceipts,
 } from "../../browser/runtime/contribution-controls.js";
-import { servedWorkflow } from "../served.mjs";
+import { servedState, servedWorkflow } from "../served.mjs";
 
 const workflow = (stage, condition = null) =>
   servedWorkflow({
@@ -145,4 +145,49 @@ test("a refused widget move without a projection coordinate does not break the a
   } finally {
     applicationState.release(new Set([attempt]));
   }
+});
+
+// The Margin and Page Map draw a claim's carriers apart and join its one arrival: a
+// carrier drawn partway through takes the pulse from there, and one drawn after it
+// ends takes none. Once no published workflow holds the claim, a claim that comes back
+// arrives anew, on the carrier that drew it before too.
+test("a claim's carriers share one arrival while a published workflow holds it", async (t) => {
+  const { applicationState } = await import("/runtime/semantic-state.js");
+  document.documentElement.style.setProperty("--lf-motion-agent-arrival", "1000ms");
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  const claimed = servedWorkflow({
+    id: "claimed-workflow",
+    stage: "working",
+    at_work: true,
+  });
+  let taken = 0;
+  const publish = (workflows) =>
+    assert.equal(
+      applicationState.adopt(servedState({ taken: ++taken, workflows })),
+      true,
+    );
+  // The delay a carrier's pulse starts at as it draws `receipt`, or null for none.
+  const carry = (control, receipt = claimed) => {
+    presentContributionReceipts(control, receipt, false);
+    return control.hasAttribute("data-lf-agent-arrival")
+      ? control.style.getPropertyValue("--lf-agent-arrival-delay")
+      : null;
+  };
+  const carrier = () => document.createElement("button");
+  const margin = carrier();
+  applicationState.identify(1);
+  publish([claimed]);
+  assert.equal(carry(margin), "0ms");
+  now = 400;
+  assert.equal(carry(carrier()), "-400ms");
+  now = 1400;
+  assert.equal(carry(carrier()), null);
+
+  // The update settles, and its carrier draws it without the claim.
+  publish([]);
+  assert.equal(carry(margin, null), null);
+  now = 2000;
+  publish([claimed]);
+  assert.equal(carry(margin), "0ms");
 });

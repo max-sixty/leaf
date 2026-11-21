@@ -1,7 +1,6 @@
 """Worker reports, rosters, worktree evidence, version comparisons and the command hub's
 goals and tasks, as the live page shows them."""
 
-import json
 import re
 from datetime import datetime, timedelta
 from itertools import pairwise
@@ -9,7 +8,6 @@ from itertools import pairwise
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     append_carried_log_record,
     append_command,
 )
@@ -67,7 +65,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     fraction = page.locator("#t-feeders > .work-progress")
     expect(fraction).to_contain_text("1/2 done")
     # Nothing waits on the user.
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -90,7 +90,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The visible status line follows the reported attribute, so a user listening
     # hears the current state too.
     assert "review" in task.aria_snapshot()
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     # A second report supersedes the first — absolute values fold — and the
     # progress fraction recounts across the tree.
@@ -104,7 +106,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -341,13 +345,13 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
-    # Event ids and authored element ids belong to different identity spaces. Give
-    # the thread and widget the same spelling so only the typed target can separate
-    # their reports; a bare id or target lookup by store would merge them.
+    # A page refuses an element id its log already gives an event, so the thread
+    # takes its own id. A thread target spelled as the widget's id still reads none
+    # of the widget's reports, and a bare id is refused rather than guessed at.
     thread = append_carried_log_record(
         d,
         {
-            "id": "ag-wren",
+            "id": "c-wren",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -476,17 +480,18 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {clockValue} = await window.__lfWidgetApi();
-          const {readApplicationPresentation} = await window.__lfCheckApi();
+          const {projectionRegionsPresented, readApplicationPresentation} =
+            await window.__lfCheckApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
           customElements.define('lf-report-proof', class extends api.LeafElement {
             render() {
-              if (!this.whenReady(() => api.reportsPresented(owner))) return api.noChange;
-              clockValue(() => window.__proofClock);
+              if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return noChange;
+              api.clockValue(() => window.__proofClock);
               window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
-              return api.noChange;
+              return noChange;
             }
           });
           window.__proofWatching = document.createElement('lf-report-proof');
@@ -619,16 +624,19 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     goal = page.locator("#goal-parser")
-    seat = goal.locator(":scope > .lf-thread-seat")
-    first = seat.locator(":scope > .lf-say")
-    write(first.get_by_role("textbox"), "Keep parsing; this is only a note.")
+    comment = goal.locator(":scope > .atlas-task-comment")
+    seat = goal.locator(":scope > .atlas-task-threads")
+    box = seat.locator(".lf-fab-input")
+    comment.click()
+    write(box, "Keep parsing; this is only a note.")
     with sending(page, "the note"):
-        first.get_by_role("button", name="Send", exact=True).click()
+        page.keyboard.press("Enter")
 
-    expect(first).to_be_visible()
-    write(first.get_by_role("textbox"), "Finish the hunk, then park.")
+    # The box gave way to the note's thread, and the row offers it again.
+    comment.click()
+    write(box, "Finish the hunk, then park.")
     with sending(page, "the held send"):
-        first.get_by_role("button", name="Send & pause", exact=True).click()
+        seat.get_by_role("button", name="Send & pause", exact=True).click()
 
     expect(goal).to_have_attribute("data-lf-held")
     roots = [
@@ -638,30 +646,6 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
         ("Keep parsing; this is only a note.", None),
         ("Finish the hunk, then park.", "goal-parser"),
     ]
-
-
-def test_command_goal_thread_follows_its_declaration_not_talk(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    registry = json.loads((COMMAND_HUB_PACKAGE / "registry.json").read_text())
-    task = registry["lf-test-task"]
-    task["properties"]["consult"] = {"type": "boolean"}
-    task["x-thread-seat"] = {
-        "when": {"consult": [True]},
-        "hold": "pause",
-    }
-    command = leaf_page(
-        "custom goal",
-        """<lf-test-plan id="hub">
-  <lf-test-task id="goal" status="active" consult><strong>Custom goal</strong></lf-test-task>
-</lf-test-plan>""",
-    )
-    url = serve(command, layer_registry={"lf-test-task": task})
-    page = open_page(browser, url)
-    seat = page.locator("#goal > .lf-thread-seat")
-    expect(seat.get_by_role("textbox", name="Say something here")).to_be_visible()
-    expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
 def test_task_hierarchy_is_accessible_through_reports_and_revisions(browser, serve):

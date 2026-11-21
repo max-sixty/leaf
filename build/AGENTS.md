@@ -1,11 +1,13 @@
 # Committed bundles
 
 This directory builds every browser file Leaf commits but doesn't write by hand: the
-third-party bundles and stylesheets and the runtime's table of the bundles' grammars.
-Installation, page init and export use the committed files and never run a compiler,
-and package authors write native JavaScript with no build. It also holds the kernel
-compiler (`runtime-bundle.mjs`), which only a prepared installation runs, so the
-tree commits no kernel and a runtime edit needs no rebuild.
+third-party bundles and stylesheets, the runtime's table of the bundles' grammars, and
+the floating panel's row a served document stands from its first paint
+(`panel-row.mjs`). Installation, page init and export use the committed files and never
+run a compiler, and package authors write native JavaScript with no build. It also
+holds the kernel compiler (`runtime-bundle.mjs`), which only a prepared installation
+runs, so the tree commits no kernel and a runtime edit needs no rebuild, but for one to
+the panel's row, which reaches the first paint once `pnpm run build:browser` draws it.
 
 `browser/build.mjs` is the one builder, and its header lists every output and the
 script that writes it. `pnpm run build:browser` type-checks and writes them all;

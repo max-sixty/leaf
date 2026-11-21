@@ -17,6 +17,7 @@ from interact_support import (
     available_loopback_port,
     declared,
     fixture_service,
+    inlined,
     read_record,
     record_claim,
     serving,
@@ -32,7 +33,6 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import reconnect as reconnect_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -169,13 +169,12 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)
     assert claim is not None and claim["turn"] == "resumed"
-    opening, envelope, *rest = json.loads(capsys.readouterr().out)[
-        "hookSpecificOutput"
-    ]["additionalContext"].split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [left["id"]]
-    assert hook_transport_model.ATTENTION_OPENING not in rest
+    assert hook_transport_model.ATTENTION_OPENING not in context
 
 
 def test_a_prompt_takes_back_a_page_whose_server_outlived_its_session(claimed, capsys):
@@ -195,15 +194,14 @@ def test_a_prompt_takes_back_a_page_whose_server_outlived_its_session(claimed, c
     assert capsys.readouterr().out == ""
 
 
-@pytest.mark.parametrize("cause", ["newer Leaf", "port held"])
+@pytest.mark.parametrize("cause", ["newer Leaf", "port held", "no time left"])
 def test_a_prompt_says_why_a_page_did_not_start_and_tries_again(
     page_dir, capsys, monkeypatch, cause
 ):
-    """A start refused, as for a page a newer Leaf initialized, or not ready within
-    its bound, as while another process holds the page's port, leaves the page as
-    it was and tells the turn which page and why. The bound keeps the prompt inside
-    its hook's timeout, which the 90 s wait for a held port would pass. The next
-    prompt tries again, and serves the page once the cause is gone."""
+    """A start refused, as for a page a newer Leaf initialized, while another
+    process holds the page's port, or once the hook has no time left before its
+    deadline, leaves the page as it was and tells the turn which page and why. The
+    next prompt tries again, and serves the page once the cause is gone."""
     record_claim(page_dir)
     with contextlib.ExitStack() as cause_stands:
         if cause == "newer Leaf":
@@ -216,15 +214,17 @@ def test_a_prompt_says_why_a_page_did_not_start_and_tries_again(
             layer.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
             cause_stands.callback(layer.write_bytes, recorded)
             reason = "Use a newer Leaf"
-        else:
+        elif cause == "port held":
             holder = cause_stands.enter_context(socket.socket())
             holder.bind(("127.0.0.1", 0))
             holder.listen()
             fixture_service(page_dir, holder.getsockname()[1], "session")
-            # A held port never becomes ready, so a short bound proves the same.
+            reason = "Address already in use"
+        else:
+            fixture_service(page_dir, available_loopback_port(), "session")
             bounded = cause_stands.enter_context(monkeypatch.context())
-            bounded.setattr(reconnect_model, "SERVE_WITHIN", 0.5)
-            reason = "did not become ready"
+            bounded.setattr(hook_transport_model, "CONFIRM_WITHIN", 0)
+            reason = "no time left"
         capsys.readouterr()
         prompt()
         context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][

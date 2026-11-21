@@ -268,12 +268,13 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     assert show.count() == 0
 
 
-def test_a_pointer_resting_on_the_panel_holds_news_s_press_until_the_next_key(
+def test_news_s_press_comes_and_goes_with_its_words_under_a_resting_pointer(
     browser, serve
 ):
-    """News's words pass on time, but while the pointer rests on the panel, the press
-    news offers neither comes to the field's end nor leaves it until the user's next
-    input, as any press arriving on its own (floating-panel.js, `pagePress`)."""
+    """With the pointer parked on the panel, as after a return by Cmd-Tab, Show changes
+    stands at the field's end while news's words say what changed, and leaves with
+    them, with no input between: its words say why the end changed, so it is no press
+    the panel holds still (floating-panel.js, `pageOffer`)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -289,12 +290,8 @@ def test_a_pointer_resting_on_the_panel_holds_news_s_press_until_the_next_key(
     visibility(page, "visible")
     expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes, v")
     expect_panel_says(page, "2 changes since v1")
-    expect(show).to_have_count(0)
-    page.keyboard.press("Shift")
     expect(show).to_have_count(1)
     expect_panel_says(page, "2 changes since v1", says=False)
-    expect(show).to_have_count(1)
-    page.keyboard.press("Shift")
     expect(show).to_have_count(0)
 
 

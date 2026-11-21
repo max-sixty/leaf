@@ -55,8 +55,8 @@ import { actionName } from "./icon-paths.js";
  * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
  * @typedef {SemanticBackground | {key: "text", value: Words, stands: (() => boolean) | null,
  * press: Press | null}} Background
- * @typedef {{action: string, command: string, run: () => unknown, stands: () => boolean,
- * shortcut: () => readonly string[]}} Press
+ * @typedef {{action: string, run: () => unknown, stands: () => boolean,
+ * keys: () => readonly string[], spoken: () => string}} Press
  */
 
 export const liveEl = el("div", "lf-ui lf-live");
@@ -78,11 +78,11 @@ let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 // What the seat says, whether it shows, the press it offers, or null, and whether it is
-// news, which answers no gesture of the user's. A press is the action it is, the page
-// command whose key makes the same press, what it does, whether it still can, and that
-// command's shortcut, as a page command's press is made (keyboard/control-keys.js,
-// `commandPress`). Errors are no notices: they go through errors.js, which keeps them
-// until they are dealt with.
+// news, which answers no gesture of the user's. A press is the action it is, what it
+// does, whether it still can, and the keys that would make it now, as the field's end
+// shows them and as a listener hears them, as a page command's press is made
+// (keyboard/control-keys.js, `commandPress`). Errors are no notices: they go through
+// errors.js, which keeps them until they are dealt with.
 /** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: Press | null, about: string | null, news: boolean}>>} */
 const noticePresentation = signal(
   Object.freeze({ message: "", visible: false, press: null, about: null, news: false }),
@@ -117,12 +117,12 @@ const presentNotice = (message, visible, press = null, about = null, news = fals
 };
 
 // What a listener hears of a notice or an error: its words, then the press it offers
-// with that press's shortcut, which the field's end shows a reader.
+// with the keys that would make it, which the field's end shows a reader.
 /** @param {Words} msg @param {Press | null} press @returns {Words} */
 export function heard(msg, press) {
   if (!press) return msg;
-  const shortcut = press.shortcut().join(" ");
-  const step = `. ${actionName(press.action)}${shortcut ? `, ${shortcut}` : ""}`;
+  const keys = press.spoken();
+  const step = `. ${actionName(press.action)}${keys ? `, ${keys}` : ""}`;
   return [noticeWords(msg), leafSays(step)].flat();
 }
 
@@ -183,9 +183,8 @@ function retireNotice() {
 // (`holds`), as an undo's is (undo.js), stands until the user's next input rather than
 // for its time: the panel says the press at the field's end (field-readings.js,
 // `end`), so one leaving on a timer would take it from under a hand on its way there.
-// News passes on its time, press or not, since it answers nothing the user did; the
-// panel holds its press still under a resting pointer, as it holds every press that
-// arrives on its own (floating-panel.js, `pagePress`). A press stands no longer than it
+// News passes on its time, its press with it, since it answers nothing the user did.
+// A press stands no longer than it
 // can act: a gesture the log refused, or one taken back by any route, takes its notice
 // away. An input on the press itself, which `keepsNotice` marks, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";

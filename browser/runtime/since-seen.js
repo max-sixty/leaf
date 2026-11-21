@@ -29,10 +29,8 @@
    with `v`, the key that marks them (notifications.js, `press`). A return to a
    draft they watched land says nothing, though it differs from that version, since
    nothing in it is news. The notice is news, as a version's arrival is: it waits behind
-   the user's own commands and passes after a notice's time, its press with it, though a
-   pointer resting on the panel keeps the press there until the user's next input, as it
-   keeps every press arriving on its own (floating-panel.js, `pagePress`). The leaf's
-   menu keeps Show changes as the lasting route. A
+   the user's own commands and passes after a notice's time, its press with it, and
+   the leaf's menu keeps Show changes as the lasting route. A
    revision landing while the notice is counted starts the count again. The page arrives unmarked: the user chose
    to call the marks up with a key rather than have them waiting, and to be told
    on return that there is something to call up, in a

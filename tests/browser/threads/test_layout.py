@@ -275,7 +275,9 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
     """The last translated frame and rest keep Copy on the message's head line, ending
-    where the card's own controls end (annotation-chrome.css, `--lf-margin-symbol-end`)."""
+    where the card's own controls end (annotation-chrome.css, `--lf-margin-symbol-end`),
+    less the transcript's scrollbar: where scrollbars take room, the reply makes the
+    transcript scroll and its bar stands between the message and the card's edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Opening turn.", {"section": "how-store"})
     append_agent_reply(serve.page_dir, root, "A reply with words to copy. " * 8)
@@ -306,13 +308,15 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         edges = """m => {
           const box = m.getBoundingClientRect();
           const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
+          const transcript = m.closest('.lf-thread-transcript');
           const card = m.closest('.lf-margin-thread')
             .querySelector('.lf-margin-thread-controls > :last-child')
             .getBoundingClientRect();
           return {
             right: copy.right - box.right,
             top: copy.top - box.top,
-            cardEnd: card.right - box.right,
+            cardEnd: card.right - box.right
+              - (transcript.offsetWidth - transcript.clientWidth),
           };
         }"""
         moving = message.evaluate(edges)

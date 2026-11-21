@@ -339,17 +339,6 @@ def grading(test: dict, condition: str, judge: Callable[[], dict]) -> dict:
     ]
     for assertion in assertions:
         value = assertion.get("value")
-        if isinstance(value, str) and value.endswith("/authoring_assertion.mjs"):
-            assert isinstance(assertion["config"], dict)
-            assertion["config"]["judge"] = {
-                "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
-                "config": {
-                    "pythonExecutable": sys.executable,
-                    # Allow setup and retirement around the native judge's
-                    # 20-minute turn, for workflows and short authoring alike.
-                    "timeout": 30 * 60 * 1000,
-                },
-            }
         if isinstance(value, str) and value.startswith("file://"):
             assertion["value"] = (
                 f"file://{ROOT / 'evals' / value.removeprefix('file://')}"

@@ -628,9 +628,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (press) pressing.set(field, () => said(press) !== pressText);
       else pressing.delete(field);
       const shown = pressText ? press : null;
+      // A box whose words are all at its end, as an open thread's Reply is in the
+      // panel, starts with them.
+      const keyed = [[word, entering].filter(Boolean).join(" · "), suffix]
+        .filter(Boolean)
+        .join(" ");
       const placeholder =
         (suffix || shown) && !status
-          ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
+          ? [keyed, pressText, lineHint && `${NEW_LINE} ${lineHint}`]
+              .filter(Boolean)
+              .join(" · ")
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       // The paint is the one writer of `readOnly`: a box that takes no words, and one

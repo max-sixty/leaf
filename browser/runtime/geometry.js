@@ -200,6 +200,24 @@ export function shownBand(el) {
   };
 }
 
+// A box of text in `node` stretched across its line's leading, half the gap between
+// the line's height and the box's on each side, so a paragraph's lines meet with no gap
+// between them and whatever stands on a line holds every point of its height.
+/** @param {Box} rect @param {Node} node @returns {Box} */
+export function lined(rect, node) {
+  const holder = node instanceof Element ? node : node.parentElement;
+  const pitch = holder ? parseFloat(getComputedStyle(holder).lineHeight) : NaN;
+  const half = Number.isFinite(pitch)
+    ? Math.max(0, (pitch - (rect.bottom - rect.top)) / 2)
+    : 0;
+  return {
+    left: rect.left,
+    right: rect.right,
+    top: rect.top - half,
+    bottom: rect.bottom + half,
+  };
+}
+
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less the
@@ -822,8 +840,8 @@ export function frameView(frame, within) {
 // scroll, a shadow stage's included (`watchScrolls`); a resize; the visual viewport,
 // which a soft keyboard or a pinch-pan moves without either; a native layer opening or
 // closing, which changes what a modal admits (`watchLayerChanges`); and chrome the room
-// is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
-// that stops watching.
+// is measured against changing the box it covers, which its owner announces
+// (`ROOM_MOVED`). Returns the call that stops watching.
 const ROOM_MOVED = "lf-room-moved";
 /** @param {EventTarget} [target] */
 export const announceRoom = (target = document) =>

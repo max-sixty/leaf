@@ -781,8 +781,8 @@ def test_a_notice_over_a_thread_s_field_ends_in_reply_and_its_key(browser, serve
     placeholder = page.locator(".lf-fp-field .lf-compose-placeholder")
     words = placeholder.locator(".lf-compose-placeholder-words")
     enters = placeholder.locator(".lf-compose-placeholder-enters")
-    expect(words).to_have_text("Reply…")
-    expect(enters).to_have_text("")
+    expect(words).to_have_text("")
+    expect(enters).to_have_text("Reply…")
     page.keyboard.press("n")
     expect(words).to_have_text("No search to repeat")
     expect(enters).to_have_text("Reply…")
@@ -1742,8 +1742,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     moves a row the user reads: the reopened row keeps its place, the new one waits,
     and a notice says what joined. Enter on it lets the list settle and lands on the
     first row it named, where K reads its preview. Later news holds the rows still
-    behind the notice, and that preview stands afresh clear of it. A tab press draws
-    the list whole, a row it held included."""
+    behind the notice, and that preview keeps its corner, its words fitted to the room
+    the notice leaves it (preview.js). A tab press draws the list whole, a row it held
+    included."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     append_carried_log_record(
@@ -1791,6 +1792,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(page.locator(PREVIEW)).to_be_visible()
     settled(page)
     landed = rows.evaluate_all(tops)
+    corner = page.locator(PREVIEW).bounding_box()
 
     append_carried_log_record(
         serve.page_dir,
@@ -1800,20 +1802,14 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect_preview_words(notice, "1 thread resolved")
     settled(page)
     assert rows.evaluate_all(tops) == landed
-    # The notice draws where the landed row's preview stood, and the preview
-    # stands afresh clear of it. A notice arriving under a preview is a rare path,
-    # which moves the preview rather than carrying a hold of its own (SOUL.md, "Keep
-    # the foundation small and extensible"), so the preview's words are the one move
-    # the watch reports here; the rows' are not.
+    # The notice draws under the landed row's preview, and the room above the notice
+    # holds a line of it, so the preview keeps its corner and its words are cut to
+    # that room, and the watch reports no move.
     page.wait_for_function(PREVIEW_CLEAR_OF_NOTICE)
+    held = page.locator(PREVIEW).bounding_box()
+    assert (held["x"], held["y"]) == (corner["x"], corner["y"]), (corner, held)
+    assert held["height"] < corner["height"], (corner, held)
     page.evaluate("() => window.lfShiftsJudged()")
-    consume_browser_errors(
-        page,
-        lambda problem: (
-            problem.code == "moved-without-input"
-            and any("lf-preview" in step for step in problem.values["node"])
-        ),
-    )
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     panel_tab(page, "Threads").click()
     expect(notice).to_have_count(0)
@@ -3696,6 +3692,39 @@ def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, ser
     page.keyboard.press("c")
     expect(field(page)).to_be_focused()
     expect(lead(page)).to_be_hidden()
+
+
+def test_an_open_thread_s_reply_stands_only_while_its_key_enters_the_field(
+    browser, serve
+):
+    """An open thread's field ends in Reply and the key that enters it only while that
+    key enters it, as the page's field ends in Comment and its key: once a walk goes on
+    to a stop the thread's view leaves in sight, `c` writes there, and Reply goes with
+    its key, leaving the walk's place alone beside the leaf."""
+    url = serve(OBLIGATION_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view).to_be_visible()
+    placeholder = page.locator(".lf-fp-field .lf-compose-placeholder")
+    reply = placeholder.locator(".lf-compose-placeholder-enters")
+    key = placeholder.locator("kbd")
+    expect(reply).to_have_text("Reply…")
+    expect(key).to_have_text("c")
+    expect(field(page)).to_have_attribute("placeholder", "Reply… c")
+
+    page.keyboard.press("m")
+    expect(lead(page)).to_have_text("1 of 2 waiting on me")
+    expect(view).to_be_visible()
+    expect(placeholder).not_to_contain_text("Reply")
+    expect(key).to_have_text("")
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Reply"))
+
+    view.focus()
+    expect(reply).to_have_text("Reply…")
+    expect(key).to_have_text("c")
 
 
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):

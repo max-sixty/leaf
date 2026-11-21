@@ -29,9 +29,8 @@
    draft they watched land says nothing, though it differs from that version, since
    nothing in it is news. The notice is news, as a version's arrival is: it waits behind
    the user's own commands and passes after a notice's time (notifications.js), naming
-   its key in words as "Draft kept — g i resumes writing" does, and the leaf's menu
-   keeps Show changes as the lasting route. A revision landing while the notice is
-   counted starts the count again. The page arrives unmarked: the user chose
+   its key in words, and the leaf's menu keeps Show changes as the lasting route. A
+   revision landing while the notice is counted starts the count again. The page arrives unmarked: the user chose
    to call the marks up with a key rather than have them waiting, and to be told
    on return that there is something to call up, in a
    notice that passes like the others. Rejected: a notice standing until the user's

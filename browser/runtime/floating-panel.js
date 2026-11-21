@@ -441,7 +441,7 @@ const GROUPS = Object.freeze([
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
 // Versions, a destination of the Go-to sequence, whose keys Open latest wears before
-// Versions' own key for the latest while `g` would open the sequence (`latestPress`).
+// Versions' own key for the latest (`latestPress`).
 const VERSIONS = "version.open";
 const GO_TO_OPEN = "navigation.go-to.open";
 // A thread's row in Threads, which names the thread by its key.
@@ -1333,7 +1333,7 @@ export function createFloatingPanel({
   // lacks with no words standing before it (walk-position.js, `walkWords`), so a
   // comparison's changes are named here, "Change 1 of 5 since v2". The agent's own
   // line, a to-do's title or a start's, stays in the thread, where the working message
-  // says it. A notice or the Go-to word, which pass in a moment, take the reply's place.
+  // says it. A notice or the Go-to word, which pass in a moment, take its place.
   // The thread's word is the one its view draws (`drawn`), held news included, as its
   // Resolve says it. The stance the user is in stands in the mode chip, beside its ✕
   // (`panelTemplate`).
@@ -4686,33 +4686,35 @@ export function createFloatingPanel({
   // no tab beside it and no tab stands with a blank where its count would go.
   // Rejected: a blank at zero, which reads as a gap after the word, and the word
   // centred in a room wider on both sides, which stood it off centre once it had a
-  // count, as On Me nearly always does.
+  // count, as On Me nearly always does. An empty gap stands between two tabs, for the
+  // strip's gutter track (floating-panel.css, `.lf-fp-filters`).
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count */
   const tabs = (names, current, label, choose, count) =>
     html`<div class="lf-fp-filters" data-lf-scroll role="group" aria-label="Show">
-      ${names.map((name) => {
+      ${names.map((name, at) => {
         const counted = count(name);
-        return html`<button
-          type="button"
-          ${offeredAction("word", "lf-fp-tab")}
-          aria-pressed=${String(current === name)}
-          @click=${() => {
-            refit();
-            choose(name);
-          }}
-        >
-          <span class="lf-fp-tab-words"
-            >${label(name)}${
-              counted === null
-                ? nothing
-                : html` <span class="lf-fp-count" ?data-lf-zero=${!counted}
-                    >${counted}</span
-                  >`
-            }</span
+        const gap = at ? html`<span class="lf-fp-tab-gap"></span>` : nothing;
+        return html`${gap}<button
+            type="button"
+            ${offeredAction("word", "lf-fp-tab")}
+            aria-pressed=${String(current === name)}
+            @click=${() => {
+              refit();
+              choose(name);
+            }}
           >
-        </button>`;
+            <span class="lf-fp-tab-words"
+              >${label(name)}${
+                counted === null
+                  ? nothing
+                  : html` <span class="lf-fp-count" ?data-lf-zero=${!counted}
+                      >${counted}</span
+                    >`
+              }</span
+            >
+          </button>`;
       })}
     </div>`;
   // Threads' own search, which its search button and `/` in Threads open: a fresh
@@ -5139,9 +5141,6 @@ export function createFloatingPanel({
   // so a notice's press stands there with its key, in the face Comment and c wear, over
   // the notice's own line with an inked Undo over the field's start, the one press in
   // the row in a face of its own.
-  // Its keys are those that would make the same press now, as the dispatcher reads it
-  // (`activeCommandLabel`): none with the caret in a box, where `m` is a letter typed
-  // (field-readings.js, `end`, says what the field's end shows then).
   /** @param {FieldPress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
@@ -5150,11 +5149,23 @@ export function createFloatingPanel({
       // Read at each ask, so a box standing this press rechecks its key without
       // reading the field's words again (composing/input.js, `pressing`).
       get keys() {
-        const key = activeCommandLabel([press.command]);
-        return key ? [key] : [];
+        return keysNow(press.command);
       },
       run: press.run,
     };
+  }
+  // The keys that would make a page command's press now, as the dispatcher reads them:
+  // its own key (`activeCommandLabel`), else, for a destination of the Go-to sequence,
+  // the sequence's steps while `g` would open it, as `g i` makes Resume writing's. None
+  // with the caret in a box, where each is a letter typed (field-readings.js, `end`,
+  // says what the field's end shows then).
+  /** @param {string} id */
+  function keysNow(id) {
+    const key = activeCommandLabel([id]);
+    if (key) return [key];
+    const goTo = activeCommandLabel([GO_TO_OPEN]);
+    const steps = commandSteps(id);
+    return goTo && steps[0] === goTo ? steps : [];
   }
   // The way out of the stance the user is in, as the field's end offers it while the
   // stance stands, on the page and in a thread (field-readings.js, `still`): Close, a
@@ -5191,10 +5202,8 @@ export function createFloatingPanel({
   // press at the field's end says its key: "Latest" alone, in the dim face every word
   // at the field's end wears, read as a status. Its keys are Versions' `g V` and then
   // Versions' own `l` (`latestRow`), which opens the live page as the press does, where
-  // a version's digit there opens that version pinned; they stand only while `g` would
-  // open the Go-to sequence now, so not while the caret is in a box (field-readings.js,
-  // `end`, says what the field's end shows then). The menu's row that opens the latest
-  // offers it too.
+  // a version's digit there opens that version pinned; they stand only while Versions'
+  // do (`keysNow`). The menu's row that opens the latest offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();
@@ -5203,9 +5212,8 @@ export function createFloatingPanel({
       word: "Open latest",
       // Read at each ask, as a notice's press's key is (`noticePress`).
       get keys() {
-        return activeCommandLabel([GO_TO_OPEN])
-          ? [...commandSteps(VERSIONS), labelOf(latestRow)]
-          : [];
+        const versions = keysNow(VERSIONS);
+        return versions.length ? [...versions, labelOf(latestRow)] : [];
       },
       // The press puts nothing away: a revision installed under an open thread hands
       // back the reply being written there (version.js, `restoreEditingContinuity`).

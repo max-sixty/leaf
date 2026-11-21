@@ -117,6 +117,7 @@ import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 import { signal } from "./framework.js";
 import { takesNoWords } from "./composing/input.js";
 
@@ -623,9 +624,21 @@ export function threadDraft(ctx) {
 }
 /** @param {string} ctx */
 const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
-// What a box that stops showing the user's words says, once, with the address that
-// brings them back.
-export const DRAFT_KEPT = "Draft kept — g i resumes writing";
+// What a box that stops showing the user's words says, once: that they are kept, with
+// Resume writing, the press that brings them back, at the panel field's end, where the
+// user looks for a moment's next press and its key (notifications.js, `press`). A
+// refusal's error, which offers no press, names the key in its words instead
+// (`keepRefusedWords`).
+export function noticeDraftKept() {
+  notice("Draft kept", { press: writingPlace && RESUME_WRITING });
+}
+/** @type {import("./notifications.js").NoticePress} */
+const RESUME_WRITING = {
+  action: "resume-writing",
+  command: "writing.resume",
+  run: () => pressCommand("writing.resume"),
+  stands: () => writingPlace !== null,
+};
 
 // A generation this document has sent and not heard back on. Its words are shown
 // wherever the gesture drew them, so the box they were written in reads empty, while
@@ -1168,7 +1181,7 @@ export function keepRefusedWords(attempts) {
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
-    hidden.length && DRAFT_KEPT,
+    hidden.length && "Draft kept — g i resumes writing",
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
   return {
@@ -1221,6 +1234,18 @@ export function registerWritingDestination(prefix, reveal) {
   return () => writingRoutes.delete(prefix);
 }
 
+// Whether the user stands on the box `ctx` is written in, as the thread walk leaves them
+// (`showDraft`), rather than in its editor: only a draft whose owner declares a writing
+// route has such a box (`frame`). The walk puts the box away once it has taken the
+// user on to another stop (`closeDraft`), keeping its words, as `c` into a thread does.
+/** @param {string} ctx */
+export function standsOnDraft(ctx) {
+  const frame = writingRoute(ctx)?.(ctx)?.frame?.();
+  return Boolean(frame) && focused() === frame;
+}
+/** @param {string} ctx */
+export const closeDraft = (ctx) => writingRoute(ctx)?.(ctx)?.close?.();
+
 // Words nothing on the active document holds a box for, as when a version removes the
 // content an edit was for, join the page's own draft after the words it already holds,
 // and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
@@ -1251,7 +1276,7 @@ function moveToPage(ctx) {
 // it was.
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string) => Promise<void>}} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string) => Promise<void>, showDraft: (ctx: string) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -1323,6 +1348,23 @@ export function createWritingResume({
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
     );
   };
+  // The thread walk's way onto a draft it names by context (navigation.js): the draft's
+  // box opens on its own record, as Resume writing opens it, and the user stands on the
+  // box rather than in it (`standsOnDraft`), so a walk key goes on walking and `c` puts
+  // the caret in the words. It answers whether the user arrived. Opening a draft is no
+  // content edit, so it leaves the writing place where it was.
+  /** @param {string} ctx */
+  const showDraft = async (ctx) => {
+    const route = writingRoute(ctx);
+    if (!route) return false;
+    const intent = retainUserIntent();
+    const frame = await arriveEditor(() => route(ctx), {
+      intent,
+      caret: null,
+      onFrame: true,
+    });
+    return Boolean(frame) && intent();
+  };
   return {
     command: {
       id: "writing.resume",
@@ -1335,6 +1377,7 @@ export function createWritingResume({
       run: resume,
     },
     resumeDraft,
+    showDraft,
   };
 }
 

@@ -1277,7 +1277,7 @@ html[data-lf-draw-mode] {
     flex-wrap: wrap;
     align-items: center;
     gap: 2px 8px;
-    font-weight: var(--lf-tip-strong);
+    font-weight: 600;
   }
   .lf-preview-keys {
     display: inline-flex;
@@ -1336,7 +1336,7 @@ html[data-lf-draw-mode] {
      the face wears. */
   .lf-place-heading,
   .lf-place-cell[data-lf-head] {
-    font-weight: var(--lf-tip-strong);
+    font-weight: 600;
   }
   /* Its items in block flow, each a line, which a line clamp counts and holds back, as
      it can't in a flex box. */
@@ -1359,7 +1359,7 @@ html[data-lf-draw-mode] {
   /* A member the widget's answer picks, checked as paper marks a chosen option
      (options.css). */
   .lf-place-item[data-lf-chosen] {
-    font-weight: var(--lf-tip-strong);
+    font-weight: 600;
   }
   .lf-place-item[data-lf-chosen]::before {
     content: "✓";

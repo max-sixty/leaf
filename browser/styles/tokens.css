@@ -474,8 +474,6 @@
      passage rather than a label. */
   --lf-tip-pad: 6px 10px;
   --lf-tip-r: var(--lf-r);
-  /* The weight of its name, and of the heads in a block it quotes. */
-  --lf-tip-strong: 600;
   /* Inline code's ground is a step from the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
      would vanish and its side padding read as double spaces around every span. */

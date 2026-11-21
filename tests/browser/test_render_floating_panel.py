@@ -5820,8 +5820,10 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     viewer = page.locator("dialog.lf-media-viewer")
 
     def look_at(picture):
-        # Its foot's start, clear of the removal mark on its top corner.
-        picture.click(position={"x": 3, "y": picture.bounding_box()["height"] - 3})
+        # Its foot's middle, clear of the removal mark on its top corner and of the
+        # fold mark that a pointer near the box's top-left shows over its foot's start.
+        box = picture.bounding_box()
+        picture.click(position={"x": box["width"] / 2, "y": box["height"] - 3})
         expect(viewer).to_be_visible()
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()

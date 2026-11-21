@@ -425,7 +425,9 @@ span.lf-diff-line-number {
    source rows and conversations need no synchronized columns or measurements. */
 /* The code's canvas is the ground anything Leaf draws on it stands on, such as a
    conversation's card (surfaces.css), and its quiet grey border frames what stands
-   there; a field on it is the canvas, since nothing stands lighter than white. */
+   there; a field on it is the canvas, since nothing stands lighter than white. The
+   user chose this over the author notes' grey, which made a conversation look like a
+   note. */
 :host(lf-diff.lf-rendered) .lf-diff-fold > pre {
   position: relative;
   margin: 0;

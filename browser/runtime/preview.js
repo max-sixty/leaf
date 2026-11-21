@@ -1009,6 +1009,10 @@ let pointingRead = null;
 let pointingAt;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let dwell;
+// The target under the pointer whose wait is over, by its dwell or at once while warm,
+// so a new aim inside it shows at once (`changed`).
+/** @type {Target | null} */
+let rested = null;
 // The wait before a pointer's preview goes once the pointer has left its target.
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let leaving;
@@ -1839,12 +1843,13 @@ function ended(record) {
     );
 }
 
-// The pointer's target changed: start its dwell, or show it at once while warm. A
+// The pointer's target changed: start its dwell, or show it at once while warm or where
+// it aims again inside the target it rested on (`again`). A
 // pointer that leaves its target for nothing, as on its way onto the preview, puts the
 // preview away only after a dwell, which its reaching the preview or the target cancels;
 // one that reaches another target shows that one at once.
-/** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] */
-function point(target, read = null, at) {
+/** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] */
+function point(target, read = null, at, again = false) {
   riding = false;
   if (sameTarget(target, pointing)) return;
   clearTimeout(leaving);
@@ -1853,6 +1858,7 @@ function point(target, read = null, at) {
   pointing = target;
   pointingRead = read;
   pointingAt = at;
+  rested = null;
   clearTimeout(dwell);
   // The preview the pointer leaves, which a focus preview never is.
   const left =
@@ -1872,11 +1878,14 @@ function point(target, read = null, at) {
   // The next target's preview replaces the one the pointer left at once, which reads
   // the next before the last ends, and takes its place where it stands by the same
   // element (`standsBy`); a next that says nothing leaves none.
-  if (left || performance.now() - cooled < WARM) {
+  if (left || again || performance.now() - cooled < WARM) {
+    rested = target;
     if (!show(target, "pointer", read, at) && shown === left) hide();
   } else
     dwell = setTimeout(() => {
-      if (pointing === target) show(target, "pointer", pointingRead, pointingAt);
+      if (pointing !== target) return;
+      rested = target;
+      show(target, "pointer", pointingRead, pointingAt);
     }, DWELL);
 }
 
@@ -2030,7 +2039,9 @@ function showHeld(held) {
 // a redraw. Where the user aimed at something new inside it (`aim`), as a chart's next
 // point, the aim is a new target: whatever put the last preview away, the route reading
 // the element shows it, focus the browser shows included; focus a press put there
-// without showing it leaves the aim to the pointer.
+// without showing it leaves the aim to the pointer, which shows it at once where it has
+// already rested inside the element (`rested`), as on a dial's depth whose press put its
+// preview away however long it was held, and after its dwell where it only just came.
 // What changed is the element that supplied the reading, its owner, which may stand
 // around what the route aims at, as a widget declares for the control in it that holds
 // focus.
@@ -2055,7 +2066,7 @@ function changed(node, aim) {
   else if (beneath && under(beneath, node) && !within(quiet)) {
     over = node;
     pointing = null;
-    point(node);
+    point(node, null, undefined, aim && within(rested));
   }
 }
 

@@ -322,13 +322,16 @@ def _message_stages(
     """The findings of each stage of `message_markup_findings`, in order, each read
     only once the gate asks for it."""
     yield split_preformatted(frag)
-    yield [
-        *markup_findings(frag, registry),
-        *message_settlement_advice(frag, registry),
-        *extra_errors,
-        *fragment_style_errors(frag),
-        *uncaptured_errors(frag, page_dir),
-    ]
+    yield markup_findings(
+        frag,
+        registry,
+        lambda: [
+            *message_settlement_advice(frag, registry),
+            *extra_errors,
+            *fragment_style_errors(frag),
+            *uncaptured_errors(frag, page_dir),
+        ],
+    )
     thread = thread_structure(events)
     held = {
         identity for identity, message in thread.holders.items() if message != replacing

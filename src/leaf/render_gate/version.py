@@ -161,8 +161,10 @@ def render_version(
     on every rendering. The unit here is the whole gate, including its replay probes: a
     notice fails the check only when a later complete attempt repeats it, and is
     ignored when that attempt is clean. Ordinary failures from both attempts are
-    retained. A notice no complete attempt confirms or pardons leaves the page unread
-    (`resize-unconfirmed`), as a browser that crashed does.
+    retained. A notice no complete attempt confirms or pardons is dropped: the attempt
+    that didn't complete holds what stopped it, either a finding the browser couldn't
+    read the page by, which leaves the reading unread, or the page's own failure, which
+    stands.
     """
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
@@ -198,21 +200,13 @@ def render_version(
         # Advice and the other readings are the first attempt's; failures accumulate.
         return replace(first, findings=[*failures, *first.advice])
 
-    def unconfirmed(found):
-        retain(Finding("resize-unconfirmed", values=notice.values) for notice in found)
-
-    if not complete:
-        unconfirmed(notices)
-        return reading()
-    if not notices:
+    if not (complete and notices):
         return reading()
 
     confirming, confirming_notices, complete = attempt()
-    # What stopped the confirming attempt, as a crashed browser, says why the notice
-    # stands unconfirmed.
+    # What stopped the confirming attempt, as a crashed browser, stands in its place.
     retain(f for f in confirming.findings if f.refuses or f.unread)
     if not complete:
-        unconfirmed([*notices, *confirming_notices])
         return reading()
     failures.extend(
         notice.but(values={"confirmation": "recurred"}) for notice in confirming_notices

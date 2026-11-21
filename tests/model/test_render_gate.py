@@ -14,6 +14,7 @@ from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import (
     PIN_VARIABLE,
     BrowserCheck,
+    WidgetQuality,
     desktop_viewport,
     user_engine,
 )
@@ -199,6 +200,9 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     )
     assert (unread.ran, unread.status) == (["page code"], 0)
     assert BrowserCheck(["page code"], "Chrome", page_code=[crashed]).ran == []
+    # So with the widget quality gate, where a crash once failed the package check.
+    quality = WidgetQuality(1, "Chrome", findings=(crashed,))
+    assert (quality.status, quality.json()["ran"]) == (0, [])
 
 
 def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
@@ -312,8 +316,8 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
     """The retry policy over whole attempts (`render_version`): a notice fails the
     check only when a later complete attempt repeats it and is ignored when that
     attempt is clean, ordinary failures from both attempts stand once each, and a
-    notice no complete attempt settles leaves the page unread. Advice is the first
-    attempt's. What an attempt hears is the browser's half, read by
+    notice no complete attempt settles is dropped for what stopped that attempt.
+    Advice is the first attempt's. What an attempt hears is the browser's half, read by
     `test_a_recurring_resize_notice_fails_the_render_gate`."""
     notice = Finding("resize-loop", values={"text": "ResizeObserver loop completed"})
     error = Finding("console-error", values={"text": "first attempt"})
@@ -360,26 +364,20 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
         "window error: ResizeObserver loop completed"
         " (recurred on the confirming render attempt)"
     )
-    # A confirmation that did not finish settles nothing, so the page is unread, and
-    # what stopped it stands beside the notice.
+    # A confirmation that did not finish settles nothing: what stopped it stands, a
+    # crash leaving the page unread and the page's own failure failing it, each once.
     crashed = Finding("browser-error", values={"error": "Target closed"})
-    unsettled = policy(
-        attempt([error], [notice]), attempt([failed, crashed], complete=False)
-    )
-    unconfirmed = Finding("resize-unconfirmed", values=notice.values)
-    assert unsettled.failures == [error, failed]
-    assert unsettled.findings == [error, failed, crashed, unconfirmed]
-    assert unconfirmed.unread and not unconfirmed.refuses
+    unread = policy(attempt([error], [notice]), attempt([crashed], complete=False))
+    assert unread.findings == [error, crashed]
+    assert policy(
+        attempt([error], [notice]), attempt([failed], complete=False)
+    ).findings == [error, failed]
     # Nor can an attempt that did not finish ask for one.
-    assert policy(attempt([error], [notice], complete=False)).findings == [
-        error,
-        unconfirmed,
-    ]
+    assert policy(attempt([error], [notice], complete=False)).findings == [error]
 
 
 def test_output_contract_failures_refuse_page_and_package_checks():
     from leaf.data_contracts import output_findings
-    from leaf.render_gate.command import WidgetQuality
     from leaf.render_gate.version import RenderReading
 
     registry = {

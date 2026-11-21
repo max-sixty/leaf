@@ -102,8 +102,10 @@ def _finding(check: str, tag: str, id: str = "", **values) -> Finding:
 
 
 class UnreadablePage(Exception):
-    """A page of worked examples that could not be drawn and brought to
-    presentation."""
+    """A page of worked examples the page itself kept from being drawn and brought to
+    presentation: errors it raised, a stage it never reached, or a capture refused.
+    A browser that fails on its own raises its own error, which says nothing of the
+    examples (`command.widget_quality`)."""
 
 
 def own_tags(package: Path) -> list[str]:
@@ -171,7 +173,7 @@ def _readings(
     browser, url: str, tags: list[str]
 ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     """Changed startup boxes, unshown keys, held scrollers and published outputs."""
-    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     page = open_render_page(browser, viewport=RENDER_VIEWPORT)
     install_driver(page)
@@ -208,7 +210,8 @@ def _readings(
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         held = evaluate_probe(page, "heldScrollers", tags)
         return changed, unshown, held, output_values(page)
-    except (PlaywrightError, RuntimeError, TimeoutError) as error:
+    except (PlaywrightTimeout, TimeoutError) as error:
+        # A wait the page never answered, as the render gate's `no-runtime` reads one.
         raise UnreadablePage(str(error).strip()) from error
     finally:
         close_render_page(page)

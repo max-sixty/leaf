@@ -94,7 +94,6 @@ def browser_read(findings: list[dict]) -> SimpleNamespace:
     """A browser that finished reading the page and found `findings`, as
     `command.BrowserCheck` answers."""
     return SimpleNamespace(
-        unavailable=None,
         findings=lambda: [
             SimpleNamespace(
                 code=finding["code"], unread=False, json=lambda f=finding: f
@@ -285,21 +284,18 @@ def test_a_reading_its_alarm_ended_is_told_as_a_failure_and_costs_it_once(
         Finding("probe-failed", values={"error": "Target closed"}),
         Finding("browser-error", values={"error": "Target closed"}),
         Finding("server-stopped", values={"error": "Timeout 30000ms exceeded."}),
-        Finding("resize-unconfirmed", values={"text": "ResizeObserver loop"}),
+        Finding("no-browser", values={"error": "no browser launched: none found"}),
     ],
     ids=lambda finding: finding.code,
 )
 def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir, unread):
-    """A browser that crashed, a preview server that stopped answering, or a notice no
-    complete attempt settled says nothing of the page, so nothing is told or refused
-    for it, as where no browser ran."""
+    """A browser that crashed or a preview server that stopped answering says
+    nothing of the page, so nothing is told or refused for it, as where no browser
+    ran."""
     handover_pass_model.remember_reading(
         page_dir,
         "sha256:0",
-        SimpleNamespace(unavailable=None, findings=lambda: [unread]),
-    )
-    handover_pass_model.remember_reading(
-        page_dir, "sha256:0", SimpleNamespace(unavailable="no browser", findings=list)
+        SimpleNamespace(findings=lambda: [unread]),
     )
     assert handover_pass_model.read_reading(page_dir) is None
 

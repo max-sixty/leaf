@@ -8,7 +8,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
+from browser.test_render_commands import (
+    FILM_DECLARATION,
+    FILM_PAGE,
+    no_browser,
+    unnamed_browser,
+)
 from conftest import LEAF_COMMAND
 from interact_support import (
     append_carried_log_record,
@@ -277,7 +282,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         env=named,
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr
-    unavailable = json.loads(checked.stdout)["browser"]["unavailable"]
+    unavailable = no_browser(json.loads(checked.stdout))
     assert unavailable.startswith("no browser launched: ")
     assert "LEAF_BROWSER_EXECUTABLE" in unavailable and str(missing) in unavailable
     assert "Chrome did not launch" not in unavailable
@@ -291,7 +296,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
             env=unnamed_browser() | {variable: str(missing)},
         )
         assert answered.returncode == 0, answered.stdout + answered.stderr
-        unavailable = json.loads(answered.stdout)["browser"]["unavailable"]
+        unavailable = no_browser(json.loads(answered.stdout))
         assert variable in unavailable and str(missing) in unavailable
         assert "LEAF_BROWSER_EXECUTABLE" not in unavailable
 
@@ -474,8 +479,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
         assert ran.returncode == status, ran.stdout + ran.stderr
         return json.loads(ran.stdout)
 
-    no_browser = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
-    assert no_browser["browser"] is None
+    unbrowsed = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert unbrowsed["browser"] is None
 
     (d / "index.html").write_text(FILM_PAGE)
     broken = check(1, LEAF_BROWSER_EXECUTABLE=headless_shell)
@@ -495,7 +500,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
 
     unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
     assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])
-    assert unrun["browser"]["unavailable"].startswith("no browser launched: ")
+    assert no_browser(unrun).startswith("no browser launched: ")
 
     (d / "page" / "film.js").write_text(
         "export const paint = (el, step) =>\n"

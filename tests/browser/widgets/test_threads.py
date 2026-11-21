@@ -411,10 +411,14 @@ def thread_on_a_sent_widget(serve):
     return url
 
 
-def test_a_suggestion_an_agent_sent_accepts_and_undoes_in_its_thread(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_suggestion_an_agent_sent_accepts_and_undoes_in_its_thread(
+    engine, request, serve
+):
     """A suggestion in an agent's message decides as one on the page does: accepting it
     retires the words it replaces and shows the ones it proposes, and undo brings the
     proposal back, all inside the thread, since no version settles a message."""
+    browser = request.getfixturevalue(engine)
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     append_carried_log_record(

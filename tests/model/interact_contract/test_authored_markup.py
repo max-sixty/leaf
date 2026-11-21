@@ -877,7 +877,7 @@ def test_sample_fixture_refusals_reach_page_check(
             "ids-taken",
         ),
         (
-            '<lf-code id="code"><pre><code class="language-python">1</code></pre></lf-code><style>p {color:red}</style>',
+            '<lf-code id="code">\n<pre><code class="language-python">1</code></pre></lf-code>\n<style>p {color:red}</style>',
             "message-style",
         ),
     ],

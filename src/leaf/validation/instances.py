@@ -1,6 +1,7 @@
 """Registry-declared markup instance validation."""
 
 import re
+from collections.abc import Callable, Iterable
 
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import element_name
@@ -591,18 +592,23 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     )
 
 
-def markup_findings(document: SourceDocument, registry: dict | None) -> list[Finding]:
+def markup_findings(
+    document: SourceDocument,
+    registry: dict | None,
+    own: Callable[[], Iterable[Finding]] = tuple,
+) -> list[Finding]:
     """What every gate finds in one authored document, a page's source, a sample's
     child, a message's HTML or a registry example alike, reading only its markup and
     the registry it is checked under (None where none composes): what refuses it and
-    what it advises, so a new check of that kind reaches each. A document the HTML
-    parser had to repair gets only the repair's findings, since the checks after it
-    would read the repaired tree: a `<pre>` that closes the paragraph Markdown drew
-    around a one-line `<lf-code>` leaves that widget with no body.
+    what it advises, so a new check of that kind reaches each. `own` gives the gate's
+    own checks of the document, such as its id namespace and the references into it.
 
-    Each gate adds what reads more than the markup, such as its id namespace and the
-    references into it, and the sheets delivery rewrites, which one read covers for
-    a document and its samples (`revision_artifact.document_drops`)."""
+    A document the HTML parser had to repair gets only the parser's findings, and
+    neither these checks nor the gate's run, since each would read the repaired tree:
+    a `<pre>` that closes the paragraph Markdown drew around a one-line `<lf-code>`
+    leaves that widget with no body. The sheets delivery rewrites are read once for a
+    document and its samples (`revision_artifact.document_drops`), so they are each
+    gate's whole document's to read."""
     structural = structure_errors(document)
     if repair_errors(document):
         return structural
@@ -612,4 +618,5 @@ def markup_findings(document: SourceDocument, registry: dict | None) -> list[Fin
         *id_errors(document),
         *(instance_errors(document, registry) if registry is not None else ()),
         *markup_advice(document),
+        *own(),
     ]

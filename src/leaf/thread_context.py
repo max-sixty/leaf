@@ -110,9 +110,11 @@ def id_subject(
     A thread is named by its own id, any message in it, a widget in its
     markup, or any other event whose history it is part of
     (`thread_memberships`). An event on a page widget, an action or a worker's report,
-    names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
-    versions and message markup refuse an id the log gives an event
-    (`ids-taken-by-events`), and each other's ids."""
+    names that widget, and an undo names what the gesture it withdraws named.
+    Versions and message markup refuse an id the log already gives an event
+    (`ids-taken-by-events`), and each other's ids, but the log mints a new event's id
+    clear only of other events' (`event_log.new_event_id`). So an id minted equal to
+    one a version already holds names both, and a widget on the page wins here."""
     if name in page_widgets:
         return {"kind": "widget", "id": name}
     names = thread_names(events)

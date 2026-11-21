@@ -1562,15 +1562,23 @@ def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
 def test_check_rejects_widget_violations(page_dir):
     link = '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>'
     (page_dir / "index.html").write_text(
-        PAGE.replace(link, '<lf-gloss id="short-gloss"/><figure/><lf-bogus></lf-bogus>')
+        PAGE.replace(
+            link, '<lf-gloss id="short-gloss"/><figure/><lf-bogus></lf-bogus>'
+        ).replace(
+            "</main>",
+            '<lf-options id="loose"><lf-option id="loose-a">A</lf-option></lf-options>'
+            "</main>",
+        )
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     # Both the widget and the plain <figure/>: the slash misleads a browser on
     # any non-void tag, not only on the vocabulary's. The widget checks would read
-    # the tree the parser repaired, so they wait for markup that parses as written.
+    # the tree the parser repaired, and so would the page's own, such as whether a
+    # question has words, so all of them wait for markup that parses as written.
     assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
     assert not found(findings, "unknown-widget")
+    assert not found(findings, "unnamed-question")
 
     # Block widgets stand outside the paragraph, where a <pre> would close it.
     (page_dir / "index.html").write_text(

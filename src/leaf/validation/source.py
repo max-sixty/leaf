@@ -137,11 +137,13 @@ def _authored_document_checks(
     the files it names are read once for the whole document: by the capture
     (`revision_artifact.capture_artifact`) and `check_source`'s `document_drops`,
     or for a message no capture reads, by its gate (`admission`)."""
-    errors = markup_findings(document, registry)
-    errors.extend(_page_errors(events, document, registry, thread_ids))
-    if registry is not None:
-        errors.extend(data_document_errors(readings))
-    return errors
+
+    def own():
+        yield from _page_errors(events, document, registry, thread_ids)
+        if registry is not None:
+            yield from data_document_errors(readings)
+
+    return markup_findings(document, registry, own)
 
 
 def sample_errors(

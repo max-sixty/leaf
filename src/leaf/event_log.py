@@ -99,11 +99,6 @@ def logged_ids(events: list[dict]) -> set[str]:
     return {event["id"] for event in events if "id" in event}
 
 
-def _event_id_exists(events: list[dict], event_id: str) -> bool:
-    """Whether this log already owns an event identity."""
-    return any(existing.get("id") == event_id for existing in events)
-
-
 def new_event_id(events: list[dict]) -> str:
     """An unused page-local identity, allocated under the append lease.
 
@@ -111,9 +106,10 @@ def new_event_id(events: list[dict]) -> str:
     from checking the held log, not their width; a harness pairs the id with its page.
     Admission allocates it before semantic folding and storage keeps that identity.
     """
+    taken = logged_ids(events)
     while True:
         candidate = secrets.token_hex(4)
-        if not _event_id_exists(events, candidate):
+        if candidate not in taken:
             return candidate
 
 
@@ -144,7 +140,7 @@ def _append_event_unlocked(
     reads the log under this same lease before its gates, so two server threads
     cannot both observe an attempt's absence and append it twice."""
     if "id" in event:
-        if _event_id_exists(events, event["id"]):
+        if event["id"] in logged_ids(events):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
         event["id"] = new_event_id(events)

@@ -684,9 +684,8 @@ _TEXT = {
     "console-warning": lambda at, v: f"warning: {v['text']}",
     "page-exception": _fails(_WORKS, lambda at, v: v["text"]),
     "window-error": _fails(_WORKS, lambda at, v: f"window error: {v['text']}"),
-    # A ResizeObserver loop the window reported: one a complete second attempt
-    # repeats fails the check, and one no complete attempt confirms leaves the page
-    # unread (`render_gate.version.render_version`).
+    # A ResizeObserver loop the window reported, which fails the check where a
+    # complete second attempt repeats it (`render_gate.version.render_version`).
     "resize-loop": _fails(
         _WORKS,
         lambda at, v: (
@@ -697,12 +696,6 @@ _TEXT = {
                 else ""
             )
         ),
-    ),
-    "resize-unconfirmed": _Unread(
-        lambda at, v: (
-            f"window error: {v['text']}, and no complete render attempt followed to"
-            " confirm it, so the check can't say whether the page's layout loops"
-        )
     ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
@@ -786,6 +779,7 @@ _TEXT = {
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
+    "no-browser": _Unread(lambda at, v: v["error"]),
     "server-stopped": _Unread(
         lambda at, v: (
             f"the preview server stopped answering before the browser finished"

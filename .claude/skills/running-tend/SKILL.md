@@ -34,11 +34,7 @@ none of them.
 The verdict rests on that weighing. Weigh the change before searching it for
 defects, and revisit the weighing when a defect shows a cost it missed: on Tend's own
 pull request a defect found in an addition gets fixed and the addition lands, so for
-an addition the weighing rejects, the rejection is the finding, not its defect. State
-in the session what the change adds that later changes must hold, what that buys, who
-pays its cost and who gains beyond the claimed case, and the cheapest other change
-you can name that buys the same. Where that change keeps what this one must and costs
-materially less, it is the finding: withhold approval and name it.
+an addition the weighing rejects, the rejection is the finding, not its defect.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the

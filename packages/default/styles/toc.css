@@ -270,31 +270,30 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       margin: 0;
     }
     /* The first and last labels extend past their markers into the padding. Its width
-     * is the labels' measure, a short label to a line and a long one in two. At rest it
-     * shows, and takes the pointer on, only the map's own box in the track: its spine
-     * and the markers on it. So the labels' measure never stands over the
-     * page's words, and the box the pointer rests on is the same one once the labels
-     * show, where it holds the pointer while it crosses between them. A clip path's
-     * insets are physical sides, so a right-to-left page clips from the other side. */
+     * is the labels' measure, a short label to a line and a long one in two. At rest
+     * it takes no pointer, so the pointer finds the map's own box in the track, under
+     * its spine and markers, and the page's words past it. Once the labels show, the
+     * whole measure takes the pointer, so it stays on the map while it crosses between
+     * them, and the moment the map hides, the words past the track are the page's again,
+     * while the labels still fade out. Rejected: a clip path holding the resting map to
+     * its track. Returning at once, it cut every label at the track while the part
+     * inside faded; held until the fade ended, it kept the page's words from the
+     * pointer through the fade. */
     lf-toc .lf-toc-nav {
       width: 320px;
       height: 100%;
       border: 0;
       box-sizing: border-box;
       padding: var(--lf-sp-4) 0;
-      clip-path: inset(0 calc(100% - 100cqi) 0 calc(-1 * var(--lf-sp-2)));
-      transition: background-color 0.24s ease-out;
-    }
-    lf-toc .lf-toc-nav:dir(rtl) {
-      clip-path: inset(0 calc(-1 * var(--lf-sp-2)) 0 calc(100% - 100cqi));
+      pointer-events: none;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
-      clip-path: none;
+      pointer-events: auto;
       background: color-mix(in srgb, var(--lf-paper) 92%, transparent);
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
       :scope:is(lf-toc) .lf-toc-nav {
-        clip-path: none;
+        pointer-events: auto;
         background: color-mix(in srgb, var(--lf-paper) 92%, transparent);
       }
     }
@@ -339,9 +338,8 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       background: var(--lf-accent);
     }
     /* A row is a span of the spine, and its link hangs from the row's top and may run
-       * past the row's foot when rows are dense. The row takes no presses, so the next
-       * row's span never stands over that link: the link is the only thing here to
-       * press. */
+       * past the row's foot when rows are dense. The links stand above every row (their
+       * z-index), so the next row's span never covers that link. */
     lf-toc .lf-toc-start,
     lf-toc li {
       --lf-toc-indent: 0px;
@@ -350,7 +348,6 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       flex: var(--lf-toc-span, 1) 1 0px;
       min-height: 0;
       margin: 0;
-      pointer-events: none;
     }
     lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] {
       display: none;
@@ -411,10 +408,6 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
       transform: translateY(calc(var(--lf-toc-row-shift, 0px) - 0.5lh));
-      pointer-events: auto;
-      transition:
-        color 0.12s ease-out,
-        opacity 0.24s ease-out;
     }
     lf-toc .lf-toc-start a {
       font: var(--lf-font-title);
@@ -427,6 +420,14 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
      * Go-to armed (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes). */
     lf-toc :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 0;
+    }
+    /* The words and the paper behind them fade in and out together, the part over the
+     * page with the part in the track. */
+    lf-toc :is(.lf-toc-nav, .lf-toc-link, .lf-toc-heading) {
+      transition:
+        color 0.12s ease-out,
+        opacity 0.24s ease-out,
+        background-color 0.24s ease-out;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 1;
@@ -486,9 +487,12 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
        * column's rule, where the marks stand as they do in the column, and at rest the
        * rule stands for the spine. The scrolling box clips what
        * crosses its edge, so the rule stands inside it, a mark's halo clear of the edge,
-       * rather than as its border. */
+       * rather than as its border. It shows no scrollbar: a classic one stands at the
+       * labels' far edge, over the page's words even at rest, and the fade at the
+       * outline's foot already says it goes on (`reachScrollers`, reach.js). */
     lf-toc[data-lf-outline] .lf-toc-nav {
       overflow-y: auto;
+      scrollbar-width: none;
       padding-inline-start: calc(var(--lf-sp-3) + 8px);
     }
     lf-toc[data-lf-outline] .lf-toc-rows::before {
@@ -537,11 +541,6 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       transform: none;
       -webkit-line-clamp: initial;
     }
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  lf-toc :is(a, .lf-toc-nav) {
-    transition: none;
   }
 }
 @media (forced-colors: active) {

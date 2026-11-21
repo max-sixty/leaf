@@ -1,9 +1,12 @@
 """One native contents route across in-flow and margin presentations."""
 
+import io
+
 import pytest
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, resized, told
+from render_harness import leaf_page, open_page, resized, rgb_pixels, told
 
 from leaf.render_checks import rendered, wait_until_ready
 
@@ -350,6 +353,86 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     page.emulate_media(media="print")
     assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
     expect(page.locator("#contents .lf-toc-start")).to_be_visible()
+
+
+@pytest.mark.parametrize("sections", [3, 80], ids=["map", "outline"])
+def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
+    browser, serve, sections
+):
+    """Leaving the revealed map fades all its words at one pace. The outline's "On this
+    page" label fades with its sections, and the part of each word over the prose fades
+    with the part in the spine's track. From the first frame of the fade, the prose past
+    the track takes the pointer, so a pointer that returns there reaches the page
+    rather than reopening the map. Mid-fade, a label past the track still shows."""
+    body = "".join(
+        f'<section><h2 id="s{n}">Section {n}</h2><p>{"Words. " * 20}</p></section>'
+        for n in range(1, sections + 1)
+    )
+    source = leaf_page(
+        "contents spine fade",
+        f'<aside id="route">{MAP_TRACK}</aside><div class="layout-column" id="body">'
+        f"<h1>Review</h1>{body}</div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    resized(page, 1440, 900)
+    toc = page.locator("#contents")
+    if sections > 3:
+        expect(toc).to_have_attribute("data-lf-outline", "")
+    track = toc.bounding_box()
+    y = track["y"] + 200
+    page.mouse.move(track["x"] + 3, y)
+    expect(toc.locator(".lf-toc-link").last).to_have_css("opacity", "1")
+    page.mouse.move(track["x"] + 900, y)
+    page.evaluate(
+        """([x, y]) => {
+          const toc = document.getElementById('contents');
+          const words = [...toc.querySelectorAll('.lf-toc-link, .lf-toc-heading')]
+            .filter(node => node.checkVisibility());
+          window.fade = {frames: [], done: false};
+          const watch = () => {
+            const opacities = words.map(node => Number(getComputedStyle(node).opacity));
+            const frame = {
+              least: Math.min(...opacities),
+              most: Math.max(...opacities),
+              mapTakesProse: toc.contains(document.elementFromPoint(x, y)),
+            };
+            window.fade.frames.push(frame);
+            if (frame.most === 0) window.fade.done = true;
+            else requestAnimationFrame(watch);
+          };
+          watch();
+        }""",
+        [track["x"] + track["width"] + 150, y],
+    )
+    page.wait_for_function("() => window.fade.done")
+    frames = page.evaluate("() => window.fade.frames")
+    assert any(0 < f["most"] < 1 for f in frames), frames
+    wrong = [f for f in frames if f["most"] > f["least"] or f["mapTakesProse"]]
+    assert wrong == [], frames
+
+    page.mouse.move(track["x"] + 3, y)
+    expect(toc.locator(".lf-toc-link").last).to_have_css("opacity", "1")
+    page.mouse.move(track["x"] + 900, y)
+    label = page.evaluate(
+        """trackEnd => {
+          const fades = document.getAnimations()
+            .filter(motion => motion instanceof CSSTransition);
+          for (const fade of fades) {
+            fade.pause();
+            fade.currentTime = 100;
+          }
+          const range = document.createRange();
+          range.selectNodeContents(document.querySelector('#contents li .lf-toc-link'));
+          const text = range.getClientRects()[0];
+          const start = Math.max(text.left, trackEnd + 2);
+          return {x: start, y: text.top, width: text.right - start, height: text.height};
+        }""",
+        track["x"] + track["width"],
+    )
+    assert label["width"] > 10, label
+    past_track = Image.open(io.BytesIO(page.screenshot(clip=label))).convert("RGB")
+    assert len(set(rgb_pixels(past_track))) > 1, label
 
 
 def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, serve):

@@ -463,9 +463,9 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         "timing: s.transitionTimingFunction}; }"
     )
     assert motion == {
-        "property": "color, opacity",
-        "duration": "0.12s, 0.24s",
-        "timing": "ease-out, ease-out",
+        "property": "color, opacity, background-color",
+        "duration": "0.12s, 0.24s, 0.24s",
+        "timing": "ease-out, ease-out, ease-out",
     }
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()

@@ -281,13 +281,15 @@ A thread names its widget by `id`, so a widget that shows threads needs an `id` 
 each instance and should require it in its schema: Leaf reports an instance without
 one as a failure of that widget and registers no surface for it.
 
-The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
-stop returning may still hold the comment box the user is typing in, so remove outlets
-only in `onCommit`, which runs once this pass's placement takes effect, and keep
-returned ones in the document while redrawing around them. A widget that must remove a
-node holding outlets at another time, such as when its data goes, first calls
-`releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf returns
-the widget's threads to the margin until the next pass.
+The widget creates, lays out and removes its outlets, and Leaf fills them, drawing each
+thread as a card with its own frame, no wider than a margin card, so an outlet sets only
+where its cards stand and draws no frame of its own. An outlet you stop returning may
+still hold the comment box the user is typing in, so remove outlets only in `onCommit`,
+which runs once this pass's placement takes effect, and keep returned ones in the
+document while redrawing around them. A widget that must remove a node holding outlets
+at another time, such as when its data goes, first calls `releaseOutlets(node)`, before
+any `holdFocus`. If `threadOutlets` throws, Leaf returns the widget's threads to the
+margin until the next pass.
 
 `threadSurface(this).open` is the reactive opener for the comment box on the widget or
 one of its data items, or `null` while no surface is registered, as in an export, which

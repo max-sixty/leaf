@@ -24,9 +24,8 @@
    the page or of a message, as a margin card's transcript does. A landing keeps that room
    too (`--lf-focus-ring-landing`, surfaces.css), and a sticky row keeps it as its own
    padding; a box whose edge touches something that paints draws its ring inset.
-   A large composite region paints a quiet ground inside its box instead. A page's
-   bounded block pads nothing at its sides, so it cuts a ring there (tokens.css, "Where
-   it stands").
+   A page's bounded block pads nothing at its sides, so it cuts a ring there
+   (tokens.css, "Where it stands").
 
    The response bar (`.lf-fab-bar`): its field (`.lf-response-control`) and every
    choice (the response face, controls.css) stand on one baseline with one type,
@@ -317,7 +316,6 @@ html[data-lf-draw-mode] {
      .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
      this one adds, since it floats over page content rather than the empty rail. */
   :is(.lf-fab-bar, .lf-margin-preview) {
-    --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-frame-top: calc(
       1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)

@@ -663,13 +663,10 @@
      so the words keep their width and place and nothing scrolls sideways. Once
      anything is scrolled away, what stands on the heads' line covers the room above
      it, the stuck head row across both tracks (`data-lf-scrolled`,
-     thread-preview.js); at the top a ring still has it.
-     The card's face is the thread's ground (above), so the thread paints none, not
-     even the quiet one a thread holding focus wears (surfaces.css). */
+     thread-preview.js); at the top a ring still has it. */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: max(var(--lf-focus-region-room), var(--lf-group-ring-end));
     padding: 0;
-    background: none;
   }
   .lf-margin-thread .lf-page-thread[data-lf-scrolled] {
     --lf-thread-room-cover: var(--lf-transcript-room);
@@ -703,9 +700,6 @@
   @media (forced-colors: active) {
     .lf-margin-thread .lf-page-thread::after {
       display: none;
-    }
-    .lf-margin-thread .lf-page-thread[data-lf-focus-within] {
-      outline: none;
     }
   }
   /* The row's ring has room in the card's common inset. Its inline containment keeps

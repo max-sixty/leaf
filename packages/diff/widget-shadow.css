@@ -507,14 +507,13 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening
    the source; sticky positioning keeps the conversation in view while it scrolls.
-   The conversation stands on the paper among the code's rows, a solid surface naming
-   its ground (package-themes.md). */
+   The outlet is a row of the code's own ground, and each thread in it stands as a
+   card (surfaces.css). Under a line, the card's edge stands at the code's first
+   column, as an author's note does (styles/notes.css), so the line numbers run on
+   past it; a diff too narrow to give the card its least width there starts it the
+   card's own inset from the rows' edge instead, the room it keeps at their end. */
 .lf-diff-thread-outlet {
   min-width: 0;
-  border-block: 1px solid var(--lf-rule);
-  --lf-ground: var(--lf-paper);
-  background: var(--lf-ground);
-  padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
   font: var(--lf-font-message);
   contain: inline-size;
@@ -524,35 +523,30 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   position: sticky;
   inset-inline-start: 0;
   inline-size: 100cqw;
+  padding-block: var(--lf-sp-2);
+  padding-inline: clamp(
+      var(--lf-comment-inset),
+      100cqw - var(--lf-thread-card-min) - var(--lf-comment-inset),
+      var(--lf-diff-code-at)
+    )
+    var(--lf-comment-inset);
 }
 .lf-diff-file-thread-outlet {
-  padding: 0;
-  margin-top: 8px;
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
+  margin-top: var(--lf-diff-gap);
 }
-/* The boundary has no padding: its disclosure is a full-width row like the file's.
-   The disclosure and conversation cards each own their inset once; message layout
-   remains with the shared thread renderer. */
+/* The file's Resolved disclosure is a full-width row like the file's own, its marker
+   where the file's stands inside the file's one-pixel border, and its focus ring inset
+   on its edge. */
 :host(lf-diff.lf-rendered)
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary {
   --lf-ring-at: var(--lf-focus-ring-inset);
-}
-/* The outlet owns the review row's boundary. Shared conversation separators and
-   focus treatment distinguish its threads without another card around each one. */
-.lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
-  max-width: 760px;
-}
-.lf-diff-thread-outlet .lf-page-thread {
-  padding: var(--lf-sp-2) 0;
-}
-.lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
-  padding-inline: var(--lf-diff-head-inset);
+  padding-inline: calc(var(--lf-diff-head-inset) + 1px);
 }
 /* A conversation's reply field rests as a Reply press: its hint alone, in the place of
-   the words, with no frame and no microphone, one control high. Going into it, by a
+   the words, with no frame, microphone or Send, one control high with the hint at
+   its middle. Going into it, by a
    press, Tab or `c`, opens it as the field it is, and it rests again once the user
    leaves it holding nothing: no words or picture, no dictation, no error. The field
    stays the one control, so every route to the reply reaches it. The user chose that
@@ -576,9 +570,12 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   > leaf-composition-field > .lf-compose-field > leaf-text {
     min-height: var(--lf-aim-floor);
     padding-block: 0;
+    align-content: center;
     cursor: pointer;
   }
-  > leaf-composition-field > .lf-compose-field > .lf-compose-dictate {
+  > leaf-composition-field
+    > .lf-compose-field
+    > :is(.lf-compose-dictate, .lf-compose-submit) {
     display: none;
   }
 }

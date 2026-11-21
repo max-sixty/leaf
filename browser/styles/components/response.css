@@ -828,7 +828,11 @@ leaf-text.lf-fab-input {
   align-items: flex-end;
   gap: 4px;
   width: 100%;
-  max-width: 760px;
+  /* The box stands where the card the comment becomes will (surfaces.css), its field
+     inside the card's frame and inset, so Send moves no word sideways, as a margin
+     comment box keeps its words where its card shows them (annotation-chrome.css). */
+  max-width: var(--lf-thread-card);
+  padding-inline: calc(var(--lf-comment-inset) + 1px);
   white-space: nowrap;
   color: var(--lf-ink);
 }

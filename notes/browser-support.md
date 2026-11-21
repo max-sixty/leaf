@@ -1262,15 +1262,14 @@ covering box; once its cost holds still and every engine names nothing under a c
 
 ### A popover's implicit anchor after a hide and show in one task in Firefox
 
-Firefox bug. Playwright Firefox 157 (build 1555) and 159 (build 1572), macOS, in a fresh
-context with no Leaf code, stand a popover by the source it was last shown with when it
-is hidden and shown again by another source in one task
-(`showPopover({source: b})`): it stands by `a`, 380 px off, whether the popover is
-`manual`, `auto` or `hint`. On 2026-11-20 that held only while the sequence started in
-the first few frames after the page loaded: started 50 ms or more after the `load`
-event, both builds stood it by `b`. A frame between the hide and the show stands it by
-`b` too, as does any change to the popover before the show, such as its words. Chromium
-156.0.8078.4 (headless shell build 1248) stood it by `b` every time:
+Firefox bug. On 2026-11-05, Playwright Firefox 157 (build 1555, macOS), in a fresh
+context with no Leaf code, stood a popover by the source it was last shown with when it
+was hidden and shown again by another source in one task
+(`showPopover({source: b})`): it stood by `a`. A frame between the hide and the show
+stood it by `b`, as did any change to the popover itself before the show, such as its
+words. Chromium 156.0.8078.4 (headless shell build 1248) stood it by `b` every time. On
+this page the manual and auto popovers stand 380 px off and the hint one, there, did not;
+on a Leaf page the hint one does:
 
 ```html
 <style>
@@ -1299,14 +1298,13 @@ event, both builds stood it by `b`. A frame between the hide and the show stands
 </script>
 ```
 
-The preview (`browser/runtime/preview.js`, `open`) is one popover that a move between
-two targets hides and shows again by the next in one task, so two targets with the same
-words would show the gap, but a preview first shows after a pointer's dwell or a Tab,
-long past those first frames. On a Leaf page of two controls named alike, in both
-builds, Tab from one to the other and a pointer sliding from one onto the other stood
-the preview by the second every time (6 of 6, 11 such reopenings), with no correction
-in `open`. Recorded, not corrected. To recheck, run the page above in Firefox; it logs
-0 once the gap closes.
+The preview (`browser/runtime/preview.js`, `open`) is one popover a warm switch hides
+and shows again by its next target in one task, so two targets with the same words in
+turn would stand the second preview by the first. Where a new source comes with the
+words the last one had, it moves the preview to the other side of a sibling, its
+stage's mark, which re-lays it out and which the page's write watch reads as a change,
+as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
+once it logs 0, drop the move in `open`.
 
 ### A touch long press in WebKit
 

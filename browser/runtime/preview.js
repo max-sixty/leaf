@@ -380,11 +380,13 @@ tip.append(body);
 // The chrome's own box the preview stands in, wherever it stands, a modal dialog of the
 // page's included, so the chrome's sheet dresses it and the margin's observer hears none
 // of its writes (margin-layout.js, `SURFACES`). It takes no box of its own in the
-// dialog's layout.
+// dialog's layout. Its mark is a sibling the preview moves around (`open`).
 const stage = document.createElement("div");
 stage.className = "lf-chrome";
 stage.style.display = "contents";
-stage.append(tip);
+const mark = document.createElement("span");
+mark.hidden = true;
+stage.append(mark, tip);
 // The chrome the preview stands in when no modal dialog does.
 /** @type {Element | null} */
 let home = null;
@@ -1292,12 +1294,15 @@ function anchorOf(record, reading) {
   };
 }
 
-// The source the preview was last shown with, held weakly, since it outlives the
-// preview and a revision may remove it, and the box its stage stands in.
+// The source the preview was last shown with, where it stood then, what it said, and
+// which side of its stage's mark it stands on. Held weakly, since it outlives the
+// preview and a revision may remove it.
 /** @type {WeakRef<Element> | null} */
 let anchored = null;
 /** @type {Element | null} */
 let seated = null;
+let said = "";
+let beforeMark = false;
 // Stand the stage in the topmost modal dialog while one stands, else in the chrome, and
 // say whether it moved.
 function seat() {
@@ -1307,15 +1312,26 @@ function seat() {
   if (modal) carryChromeStyles(modal);
   into.append(stage);
   seated = into;
+  beforeMark = false;
   return true;
 }
-// Show the preview by `source`.
+// Show the preview by `source`. Firefox 157 stands a popover hidden and shown again by a
+// new source in one task by the source it was last shown with, while nothing about the
+// popover itself changed since, as its words (notes/browser-support.md). Any insertion
+// lays it out again, so a new source that comes with the same words moves it to the
+// other side of its mark, a change the page's watch of its writes reads as one.
 /** @param {HTMLElement} source @param {boolean} standing @param {boolean} moved */
 function open(source, standing, moved) {
   const last = anchored?.deref();
   if (standing && source === last && !moved) return;
   if (standing) closeNativeLayer(tip);
+  if (!moved && source !== last && tip.textContent === said) {
+    beforeMark = !beforeMark;
+    if (beforeMark) mark.before(tip);
+    else mark.after(tip);
+  }
   anchored = new WeakRef(source);
+  said = tip.textContent ?? "";
   showNativeLayer(tip, { source });
 }
 

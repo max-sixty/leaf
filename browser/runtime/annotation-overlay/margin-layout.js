@@ -682,16 +682,18 @@ function passageBlock(words, target) {
 // at its right edge (`pinSeating`): a passage's level with its line, the block's own
 // above its top-right corner. `at` is the box holding a passage's words, or the
 // target of a row about the block itself: preformatted where it keeps its spaces and
-// doesn't wrap its lines, since wrapped lines reach that edge however long they are.
+// either doesn't wrap its lines or stands in a <pre>, whose lines the reading face
+// wraps only where they run past the block (reading.css, `pre`). Other text that keeps
+// its spaces and wraps, as a quoted message might, reaches that edge on every line.
 // The answer is the nearest block from `at` out, cut by every box around it, its own
 // clip included; null for text that isn't preformatted, which takes prose seats.
 /** @param {Element | null} at @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
 function preformattedBlock(at, bands, stop) {
-  const style = at && getComputedStyle(at);
+  if (!at) return null;
+  const style = getComputedStyle(at);
   if (
-    !style ||
     !/^(preserve|break-spaces)$/.test(style.whiteSpaceCollapse) ||
-    style.textWrapMode !== "nowrap"
+    (style.textWrapMode !== "nowrap" && !at.closest("pre"))
   )
     return null;
   while (at && /^(inline|contents)$/.test(getComputedStyle(at).display))

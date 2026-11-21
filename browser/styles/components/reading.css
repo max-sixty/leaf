@@ -105,8 +105,12 @@
      * happened, and leaves a prompt written a paragraph to a line readable a column's
      * width at a time. A line that fits keeps its columns. `anywhere` because what runs
      * long in source is paths, URLs and hashes, none of which offer the line box a
-     * break. Each row a line wraps onto hangs two characters in, so it reads as the rest
-     * of its line, and a wrapped command doesn't read as the next one. A block whose
+     * break. Each row a line wraps onto starts two columns past the line's own indent,
+     * behind a muted ↪, so it reads as the rest of its line, in code as in prose, and a
+     * wrapped command doesn't read as the next one. The runtime boxes each line for
+     * that (code-lines.js, which says why); a block it leaves as authored, and a page
+     * read without the runtime, hang every wrapped row two columns from the block's
+     * edge (`text-indent`), unmarked. A block whose
      * columns must line up past the column, such as a diagram drawn in characters,
      * keeps its lines with the author's own `white-space: pre`, and scrolls them.
      * Rejected: a control on each block that toggles wrapping, which the user offered in
@@ -130,6 +134,26 @@
       overflow-wrap: anywhere;
       text-indent: 2ch hanging each-line;
       overflow: auto hidden;
+    }
+    /* A line the runtime boxed. Its wrapped rows start two columns past its indent
+     * (`--lf-code-indent`, its leading columns), up to the 24 columns lf-code's lines
+     * stop at (code.css), and the first of the two holds the mark on each of them. The
+     * hang indents the rows after the first, and so leaves the first row's tab stops
+     * where the block's are. */
+    [data-lf-pre-line] {
+      display: block;
+      position: relative;
+      --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+      text-indent: var(--lf-code-hang) hanging;
+    }
+    [data-lf-pre-line]::before {
+      content: "";
+      position: absolute;
+      inset-block: 1lh 0;
+      inset-inline-start: calc(var(--lf-code-hang) - 2ch);
+      inline-size: 1ch;
+      background: var(--lf-code-muted);
+      mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y;
     }
     /* A code block and a table keep room under their content for an overlay scrollbar's
        track, as a text scroller does (above). Their own padding already holds part of

@@ -81,7 +81,10 @@ leaf-composition-field {
   margin-inline-end: auto;
   padding-inline-end: 0.75em;
 }
-.lf-compose-placeholder-lead:not(:empty) ~ span {
+/* The hint's parent is named so Chromium skips the rule for a span outside a hint,
+   rather than reading back over every sibling before it, which costs a code block's
+   thousands of token or line spans the square of their count. */
+.lf-compose-placeholder > .lf-compose-placeholder-lead:not(:empty) ~ span {
   flex: none;
 }
 /* The word naming what entering the box does (composing/input.js, `enters`) stands

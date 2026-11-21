@@ -2073,7 +2073,11 @@ def test_a_rule_s_subject_names_a_key():
     hash misses the bits the element's ancestors set. A key can match those bits on
     every row of a Leaf page and leave its rule matched in full, as
     `[data-lf-turn="user"]` alone can, where naming `.lf-margin-face` beside it lets
-    the filter reject the rule (Chromium 158)."""
+    the filter reject the rule (Chromium 158).
+
+    A subject a general sibling combinator (`~`) leads to also names an ancestor key,
+    or every element its key matches reads back over all its earlier siblings, which
+    costs a code block's thousands of token or line spans the square of their count."""
 
     def keys(compound):
         """The parts of the compound that name a key: a type, class, id or attribute,
@@ -2143,15 +2147,28 @@ def test_a_rule_s_subject_names_a_key():
         for each in (sheet, *layer_model.imported_sheets(sheet, root)):
             files.setdefault(each.resolve(), None)
     found = []
+    scans = []
     for sheet in files:
         where = sheet.relative_to(ROOT)
         for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
             subject = _split_top(selector, " >+~")[-1]
             if listed(subject) and not any(map(filtered, ancestors(selector))):
                 found.append(f"{where}: {selector}")
+            joins = re.findall(r"\s*([>+~])\s*|\s+", _strip_arguments(selector))
+            if (
+                joins
+                and joins[-1] == "~"
+                and not any(map(filtered, ancestors(selector)))
+            ):
+                scans.append(f"{where}: {selector}")
     assert not found, (
         "write each member of the list as a selector of its own, or name the key at "
         "no weight first, as `:where(.a):is(.a, .b[x])`:\n" + "\n".join(found)
+    )
+    assert not scans, (
+        "name the siblings' parent, as `.list > .lead ~ span`, so the rule passes over "
+        "an element elsewhere rather than reading back over its earlier siblings:\n"
+        + "\n".join(scans)
     )
 
 

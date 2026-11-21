@@ -353,9 +353,11 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also wraps a `<pre>`'s long lines, and a table's columns size to their content. A
-block whose columns must line up past its container's width, such as a diagram drawn
-in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such
+also wraps a `<pre>`'s long lines, and a table's columns size to their content. It
+puts each line of a `<pre>` in a `<span data-lf-pre-line>`, so the rows a line wraps onto
+hang from its indent behind a mark; a selector such as `pre span` reaches those spans
+too. A block whose columns must line up past its container's width, such as a diagram
+drawn in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such
 a block or a table scrolls inside a box that sets its own width, such as the column, a
 panel or any other block. A box that takes its width from its content, such as a flex
 item or a grid `auto` track, widens to its lines or the table's columns instead, past

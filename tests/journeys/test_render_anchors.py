@@ -24,6 +24,7 @@ from render_harness import (
     INLINE_PAGE,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
+    WORDS_RANGE,
     command_reference_rows,
     compare_with,
     consume_browser_errors,
@@ -573,10 +574,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
-          const text = pre.querySelector('code').firstChild;
-          const range = new Range();
-          range.setStart(text, text.length - suffix.length);
-          range.setEnd(text, text.length);
+          const range = ("""
+            + WORDS_RANGE
+            + """)(pre.querySelector('code'), suffix, true);
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
@@ -603,10 +603,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
-          const code = pre.querySelector('code');
+          const first = document.createTreeWalker(pre.querySelector('code'),
+            NodeFilter.SHOW_TEXT).nextNode();
           const range = new Range();
-          range.setStart(code.firstChild, 0);
-          range.setEnd(code.firstChild, 1);
+          range.setStart(first, 0);
+          range.setEnd(first, 1);
           const width = range.getBoundingClientRect().width;
           const style = getComputedStyle(pre);
           const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);

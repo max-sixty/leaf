@@ -11,6 +11,7 @@ from render_cases_layout import MARK
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
+    WORDS_RECTS,
     assert_follows_in_every_frame,
     leaf_page,
     margins_laid_out,
@@ -411,14 +412,16 @@ def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
 
 def _listing(lines, layout="workspace"):
     """A page holding `lines` in a code block that scrolls inside its `pre`, as
-    reveal.js's theme makes every long one."""
+    reveal.js's theme makes every long one, keeping its lines as an author who wants
+    them scrolled says (reading.css, `pre`)."""
     return leaf_page(
         "a code block that scrolls",
         "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
         'column it stands in from one edge to the other.</p><pre id="listing"><code>'
         + "\n".join(lines)
         + "</code></pre></div>",
-        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px;"
+        " white-space: pre; }"
         "</style>",
         layout=layout,
     )
@@ -438,14 +441,12 @@ LONG_NEIGHBOURS = [
     f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
 ]
 # Where a row's pin stands against its quoted words' first line and the code box.
-PIN_ON_LINE = """quote => {
+PIN_ON_LINE = (
+    """quote => {
   const code = document.querySelector('#listing code');
-  const text = code.firstChild;
-  const at = text.data.indexOf(quote);
-  const range = document.createRange();
-  range.setStart(text, at);
-  range.setEnd(text, at + quote.length);
-  const line = range.getClientRects()[0];
+  const line = ("""
+    + WORDS_RECTS
+    + """)(code, quote)[0];
   const box = code.getBoundingClientRect();
   const row = document.querySelector('[data-lf-margin-for="listing"]');
   const pin = row.getBoundingClientRect();
@@ -456,6 +457,7 @@ PIN_ON_LINE = """quote => {
           pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
           shown: !row.classList.contains('lf-withheld')};
 }"""
+)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -540,14 +542,11 @@ def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
     resized(page, 1280, 800)
     margins_laid_out(page)
     # The boxes of the quoted lines, as JavaScript taking the quote.
-    lines = """(quote) => {
-      const text = document.querySelector('#listing code').firstChild;
-      const at = text.data.indexOf(quote);
-      const range = document.createRange();
-      range.setStart(text, at);
-      range.setEnd(text, at + quote.length);
-      return [...range.getClientRects()].filter((box) => box.width);
-    }"""
+    lines = (
+        """(quote) => ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), quote)"""
+    )
     reading = f"""quote => {{
       const lines = ({lines})(quote);
       const code = document.querySelector('#listing code');
@@ -665,12 +664,9 @@ def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
     reading = page.evaluate(
         """() => {
           const block = document.getElementById('listing').getBoundingClientRect();
-          const text = document.querySelector('#listing code').firstChild;
-          const at = text.data.indexOf('short_second = 1');
-          const range = document.createRange();
-          range.setStart(text, at);
-          range.setEnd(text, at + 16);
-          const line = range.getClientRects()[0];
+          const line = ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), 'short_second = 1')[0];
           const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
             .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
                             box: row.getBoundingClientRect()}));

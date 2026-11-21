@@ -61,8 +61,8 @@ lf-code .lf-code-line {
   position: relative;
   --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
   padding: 0 var(--lf-code-inset-inline) 0
-    calc(var(--lf-code-gutter) + var(--lf-code-gap) + var(--lf-code-hang));
-  text-indent: calc(-1 * var(--lf-code-hang));
+    calc(var(--lf-code-gutter) + var(--lf-code-gap));
+  text-indent: var(--lf-code-hang) hanging;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

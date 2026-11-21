@@ -1639,7 +1639,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     # holding that too is a page that departed, not a restore case that leaked.
     arranged = {a["key"] for a in restore_cases}
     for finding, restore_case in zip(arrived, restore_cases, strict=True):
-        held = set(finding.split("returned holding ")[1].split(","))
+        held = set(finding.split("returned holding ")[1].split()[0].split(","))
         assert held & arranged == {restore_case["key"]}, finding
 
 

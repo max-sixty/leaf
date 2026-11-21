@@ -219,7 +219,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
           const words = document.createElement('span');
           words.className = 'lf-ui';
           words.textContent = 'COPY CONTROL';
-          document.querySelector('#code > span').after(words);
+          document.querySelector('#code span[style]').after(words);
         }"""
     )
     preview = page.locator(PREVIEW)

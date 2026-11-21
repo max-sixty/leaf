@@ -56,15 +56,6 @@ function boundary(app, event, thread, dispatch, actionForWidget, post) {
   app.enqueue({ ...produced, attempt: "local-attempt" }, "now");
   dispatch.post(produced);
   app.enqueue(command, "2026-10-09T12:00:00Z");
-  const markupCommand = {
-    kind: /** @type {const} */ ("comment"),
-    revision: 1,
-    attempt: "markup-comment",
-    text: "hello",
-    markup: "<p>hello</p>",
-  };
-  // @ts-expect-error Browser comments cannot carry agent-authored markup, even through a variable.
-  app.enqueue(markupCommand, "now");
   const { revision: _revision, ...incomplete } = command;
   // @ts-expect-error An action producer must include the document it acts on.
   app.enqueue(incomplete, "now");

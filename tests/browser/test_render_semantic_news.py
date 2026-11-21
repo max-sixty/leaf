@@ -29,7 +29,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute("data-lf-says", "notice")
@@ -53,13 +53,13 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
 def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     """An agent's new comment is heard, and the panel's seat keeps the agent's status."""
     page = open_page(browser, serve(PANEL_PAGE))
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute("data-lf-says", "notice")
 
     thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "A new page-wide agent note.", None
+        serve.page_dir, None, None, None, "A new page-wide agent note."
     )
     told(page)
     expect(page.locator(".lf-live")).to_have_text(
@@ -133,7 +133,7 @@ def test_an_edited_agent_message_is_heard_as_an_edit(browser, serve):
     page.keyboard.press("g")
 
     original = thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "Initial note.", None
+        serve.page_dir, None, None, None, "Initial note."
     )
     told(page)
     thread_model.cmd_edit(serve.page_dir, original["id"], "Current note.")

@@ -13,8 +13,10 @@
   <body>
     <main class="layout-column">
       <header id="plan-top">
-        <p class="eyebrow">Tend · sandboxing · implementation plan</p>
-        <h1>Move Tend’s agent runs into one sandbox</h1>
+        <hgroup>
+          <p>Tend · sandboxing · implementation plan</p>
+          <h1>Move Tend’s agent runs into one sandbox</h1>
+        </hgroup>
         <p class="lede" id="plan-lede">
           I’ll replace the workflow’s in-place PR checkout and separate setup step with
           a disposable working copy and one sandboxed execution path for Claude and
@@ -26,7 +28,7 @@
         </p>
       </header>
 
-      <section id="plan-context" class="layout-flow">
+      <section id="plan-context">
         <h2>What needs to change</h2>
         <p id="plan-current">
           The workflows currently replace the Actions working tree with PR code after
@@ -41,9 +43,9 @@
         </p>
       </section>
 
-      <section id="plan-implementation" class="layout-flow">
+      <section id="plan-implementation">
         <h2>Implementation order</h2>
-        <ol class="steps" id="plan-steps">
+        <ol id="plan-steps">
           <li id="plan-prepare">
             <h3>Replace the in-place checkout</h3>
             <ul>
@@ -133,7 +135,7 @@
         </ol>
       </section>
 
-      <section id="plan-validation" class="layout-flow">
+      <section id="plan-validation">
         <h2>How I’ll verify the change</h2>
         <p id="plan-test-order">
           I’ll add regression coverage alongside each step, regenerate the workflows,
@@ -178,8 +180,11 @@
         </table>
       </section>
 
-      <section id="plan-final" class="layout-flow">
-        <lf-ask id="plan-rollout">
+      <section id="plan-final">
+        <lf-group
+          id="plan-rollout"
+          label="Include self-hosted runners in this rollout?"
+        >
           <h2>Include self-hosted runners in this rollout?</h2>
           <p id="plan-rollout-premise">
             I’ll add the Linux namespace prerequisite check before launching the
@@ -187,8 +192,10 @@
             adjust and later restore host policy. Self-hosted Linux runners need
             administrator-configured namespace and AppArmor support.
           </p>
-          <lf-options id="plan-platforms" required>
-            <lf-option id="plan-admin"
+          <lf-options id="plan-platforms">
+            <lf-option
+              id="plan-admin"
+              label="Include them with an explicit prerequisite"
               ><strong>Include them with an explicit prerequisite</strong> Check support
               before setup; stop with an actionable error when host policy blocks the
               sandbox.
@@ -197,12 +204,12 @@
                 administrator-owned policy.</em
               ></lf-option
             >
-            <lf-option id="plan-hosted"
+            <lf-option id="plan-hosted" label="Start with GitHub-hosted runners"
               ><strong>Start with GitHub-hosted runners</strong> Refuse self-hosted
               execution for now and add it after a separate validation pass.</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-group>
         <p id="plan-close">
           After this decision, I’ll implement the steps in order, update the runner
           requirements in the docs, and regenerate the action workflows. The handoff

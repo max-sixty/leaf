@@ -1,15 +1,14 @@
 """Registry-declared markup instance validation."""
 
 import re
+from collections.abc import Callable, Iterable
 
 from leaf.findings import Finding, element_at
-from leaf.gesture_words import leading_title_node
-from leaf.obligations import (
-    encloses,
-    local_obligation_entry,
-)
+from leaf.gesture_words import element_name
+from leaf.obligations import group_tags, shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
+    authored_inert,
     exhibits,
     is_element_name,
     matches_when,
@@ -17,12 +16,19 @@ from leaf.registry.contract import (
     retirement_slots,
     state_specs,
 )
-from leaf.registry.kernel import authored_inert, kernel_marks
+from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
-from .markup import found_at, structure_errors
+from .markup import (
+    document_declaration_errors,
+    found_at,
+    id_errors,
+    markup_advice,
+    repair_errors,
+    structure_errors,
+)
 
 _GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
@@ -39,28 +45,27 @@ def member_holders(rec: dict, registry: dict):
         yield node
 
 
-def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
-    """Registry-derived errors shared by admission and `page init`."""
-    errors = fragment_errors(parser, registry)
+def message_settlement_advice(parser, registry: dict) -> list[Finding]:
+    """Each widget in a message's markup whose decision retires part of it, as a
+    suggestion's does, which no version writes into the page (`message-settlement`)."""
     settled = retirement_slots(registry)
-    errors.extend(
-        found_at("frozen-settlement", rec)
+    return [
+        found_at("message-settlement", rec)
         for rec in parser.lf_elements
         if rec["tag"] in settled
-    )
-    return errors
+    ]
 
 
 def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Validate parsed lf-* elements against the registry: schema over the
-    attribute instance, x-owners nesting, and the x-content model."""
+    attribute instance, `owners` nesting, and the content model."""
     errors = []
-    # Member containers admit exactly the tags that declare them as x-owners.
+    # Member containers admit exactly the tags that declare them as `owners`.
     members_of = {}
     for tag, entry in registry.items():
         if not is_element_name(tag):
             continue
-        for owner in entry.get("x-owners", []):
+        for owner in entry.get("owners", []):
             members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
@@ -80,7 +85,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # `lang`, `dir`, `aria-*` and the page's own `data-*` describe the element as
         # on any other. `data-lf-*` stays Leaf's; `hidden` and `inert` still validate,
         # since either could hide what the widget asks of the user.
-        props = entry.get("properties", {})
+        attributes = entry["attributes"]
+        props = attributes.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
             if name in AUTHORED_ALLOCATIONS or (
@@ -90,7 +96,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
-        for err in sorted(json_validator(entry).iter_errors(instance), key=str):
+        for err in sorted(json_validator(attributes).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
         for verb, spec in state_specs(entry):
             binding = spec.get("contract")
@@ -102,44 +108,27 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                         "instance-contract", rec, verb=verb, contract=name, **binding
                     )
                 )
-        for input_name, spec in entry.get("x-data", {}).items():
+        for input_name, spec in entry.get("inputs", {}).items():
             if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
                 spec.get("reference")
             ):
                 errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
-        # A member stands directly in an owner; one declaring x-within may also stand
-        # at any depth inside one of the regions it names. It belongs to its nearest
-        # owner, so going outward it must meet such a region before any owner.
-        want_owners = entry.get("x-owners", [])
-        within = entry.get("x-within", [])
-        nearest = next(
-            (
-                node["tag"]
-                for node in member_holders(rec, registry)
-                if node["tag"] in within or node["tag"] in want_owners
-            ),
-            None,
-        )
-        if want_owners and rec["parent"] not in want_owners and nearest not in within:
+        # A member stands directly in an owner.
+        want_owners = entry.get("owners", [])
+        if want_owners and rec["parent"] not in want_owners:
             errors.append(
-                found_at(
-                    "not-member",
-                    rec,
-                    owners=want_owners,
-                    parent=rec["parent"],
-                    within=within,
-                )
+                found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
-        # Tags that name this declaration in x-owners are its admissible members under
-        # any content model. "data" takes one <pre>, or none where the markup binds an
-        # x-data input, whose value is then the text; "members" takes element members
-        # only, and "empty" takes nothing at all.
-        content = entry["x-content"]
+        # Tags that name this declaration in `owners` are its admissible members
+        # under any content model. "data" takes one <pre>, or none where the markup
+        # binds an input (`inputs`), whose value is then the text; "members" takes
+        # element members only, and "empty" takes nothing at all.
+        content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
         bound = any(
             rec["attrs"].get(spec.get(key))
-            for spec in entry.get("x-data", {}).values()
+            for spec in entry.get("inputs", {}).values()
             for key in ("source", "reference")
         )
         if content == "empty" and (rec["children"] or rec["text"]):
@@ -205,31 +194,8 @@ def attribute_slot_errors(
     return errors
 
 
-def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Validate the direct grammar of registry-declared structural elements: a pane is an
-    optional header, exactly one body element, and an optional footer."""
-    errors = []
-    for rec in lf_elements:
-        role = registry.get(rec["tag"], {}).get("x-reading-role")
-        if role is None:
-            continue
-        direct = rec["direct"]
-        headers = [i for i, child in enumerate(direct) if child == "header"]
-        footers = [i for i, child in enumerate(direct) if child == "footer"]
-        if len(headers) > 1 or len(footers) > 1:
-            errors.append(found_at("pane-ends", rec, role=role))
-        if headers and headers[0] != 0:
-            errors.append(found_at("pane-header-first", rec, role=role))
-        if footers and footers[0] != len(direct) - 1:
-            errors.append(found_at("pane-footer-last", rec, role=role))
-        body = [child for child in direct if child not in {"header", "footer"}]
-        if len(body) != 1 or body[0] == "#text":
-            errors.append(found_at("pane-body", rec, role=role, body=body))
-    return errors
-
-
 def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A page's parts (`x-views.parts`) written directly in `main` lay the page out
+    """A page's parts (`views.parts`) written directly in `main` lay the page out
     themselves, each part's child carrying its own Layout, so the `main` holding them
     carries none. With one, its Layout and the parts' both arrange the page, and the
     page renders with nothing out of reach, so the render check passes it."""
@@ -242,84 +208,55 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
         for rec in document.lf_elements
         if rec["parent"] == "main"
-        and registry.get(rec["tag"], {}).get("x-views", {}).get("parts")
+        and registry.get(rec["tag"], {}).get("views", {}).get("parts")
     ]
 
 
-def unasked(rec: dict, entry: dict) -> dict:
-    """The `x-awaits.when` conditions a widget never met, as attribute and the values
-    it would ask at, or none where it asks, was asked, or can be made to ask.
-
-    The flag `x-awaits.retired` names is how an author ends an obligation already
-    asked, such as a settled decision kept with its context, so failing on it alone
-    leaves the widget counted. A condition a recorded value writes can still be met
-    by a gesture."""
-    awaits = entry["x-awaits"]
-    when = awaits.get("when") or {}
-    recorded = {
-        (spec.get("record") or {}).get("attr")
-        for spec in entry.get("x-state", {}).values()
-        if (spec.get("record") or {}).get("kind") == "value"
+def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each widget a page asks with has a question to show on On Me: the label of the
+    named group round it (`obligations.widget_groups`), else the widget's own `label`
+    (`gesture_words.element_name`), the words On Me lists and the agent hears. Leaf
+    reads both from the author's markup and infers neither. A question with no words,
+    as where neither the widget nor a group round it has a label that isn't blank, is
+    refused (`unnamed-question`). One named by its widget alone stands outside the
+    region On Me selects and the ring draws round, so its premise is out of view
+    (`ungrouped-question`, advice). A widget with words of its own needs no group: one
+    set among words (`inline`) is named by them, and one asking about each record of
+    its data (`awaits.records`) by each record's label. A message's widget needs none
+    either, since the message names what it asks, so only a page's documents are
+    checked."""
+    # A widget inside SVG keeps its exact source rather than a node, and so is no
+    # widget the walk reads.
+    groups = {
+        id(node): (node, group)
+        for node, group in widget_groups(document.authoring.content, registry)
     }
-    return {
-        attr: values
-        for attr, values in when.items()
-        if attr != awaits.get("retired")
-        and attr not in recorded
-        and not matches_when(rec["attrs"], {attr: values})
-    }
-
-
-def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`x-encloses`) supplies a leading title and
-    arrival region for the obligations inside it.
-
-    It never owns obligation identity or registration. Any number of sources can select
-    it, and each source retains its independent answer and lifecycle. An enclosing
-    widget whose widgets none ask shows a question the On Me list never counts and
-    the user can't answer, so the error names what each enclosed widget lacks to
-    ask (`unasked`), or that it holds none.
-    """
-
-    lf_elements = document.lf_elements
-    regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
-    framed = {id(region): [] for region in regions}
-    # A widget asks inside every frame around it, so a frame holding only a nested frame
-    # is as full as that one; the nearest still gives the obligation its prompt. A
-    # sample's widgets ask nothing beyond it (obligations.py, `shown_in`), so the walk
-    # stops there and a frame inside the sample still counts them.
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        if not local_obligation_entry(entry):
-            continue
-        for holder in enclosing_widgets(rec):
-            holder_entry = registry.get(holder["tag"], {})
-            if holder_entry.get("x-exhibit"):
-                break
-            if encloses(holder_entry):
-                framed[id(holder)].append((rec, unasked(rec, entry)))
     errors = []
-    for region in regions:
-        held = framed[id(region)]
-        # The obligation's title is what the shared name rule reads, so this asks that rule
-        # rather than restating a shape it accepts. It must be a heading as well, the
-        # question's place in the outline and in heading navigation.
-        node = document.authoring.node_of(region)
-        assert node is not None
-        title = leading_title_node(node)
-        titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
-        if all(lacks for _, lacks in held):
-            widgets = [
-                {
-                    "at": element_at(rec["tag"], rec["attrs"].get("id", "")),
-                    "line": rec["line"],
-                    "lacks": lacks,
-                }
-                for rec, lacks in framed[id(region)]
-            ]
-            errors.append(found_at("empty-question", region, widgets=widgets))
-        if not titled:
-            errors.append(found_at("untitled-question", region))
+    for rec in document.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        awaits = entry.get("awaits")
+        if (
+            awaits is None
+            or entry.get("inline")
+            or "records" in awaits
+            or not matches_when(rec["attrs"], awaits.get("when"))
+            or shown_in(rec, registry)
+            or (walked := groups.get(id(document.authoring.node_of(rec)))) is None
+        ):
+            continue
+        node, group = walked
+        values = {"line": rec["line"], "groups": group_tags(registry)}
+        if not element_name(group or node, registry):
+            code = "unnamed-question"
+            if group is not None:
+                values["group"] = element_at(group["tag"], group["attrs"].get("id", ""))
+        elif group is None:
+            code = "ungrouped-question"
+        else:
+            continue
+        errors.append(
+            Finding(code, element_at(rec["tag"], rec["attrs"].get("id", "")), values)
+        )
     return errors
 
 
@@ -360,13 +297,14 @@ def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
 
 
 def keyed_members(lf_elements: list, registry: dict) -> dict:
-    """Every member a keyed reference may name, as `(id(owner), tag, key, value)` mapped
+    """Every member a `unique` attribute keys, as `(id(owner), tag, key, value)` mapped
     to the members holding it, in document order; the owner is the member's nearest
-    enclosing element of the tag its x-unique declaration names for that key. A member
-    standing in no such owner is left out: x-owners reports where it stands."""
+    enclosing element of the tag its `unique` declaration names for that key. A
+    member
+    standing in no such owner is left out: `owners` reports where it stands."""
     members = {}
     for rec in lf_elements:
-        for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
+        for key, scope_tag in registry.get(rec["tag"], {}).get("unique", {}).items():
             value = rec["attrs"].get(key)
             scope = enclosing(rec, scope_tag, registry)
             if value is not None and scope is not None:
@@ -375,10 +313,10 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
 
 
 def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Each member whose x-unique attribute repeats an earlier member's value within
-    their shared owner: two playground controls with one name, or two choices of one
-    control with one value. Asked of one document, since an owner and its members
-    always stand in the same one."""
+    """Each member whose `unique` attribute repeats an earlier member's value within
+    their shared owner, such as two options of one set with one value, or two settings
+    of one playground preset for one field. Asked of one document, since an owner and
+    its members always stand in the same one."""
     return [
         found_at(
             "repeated-key",
@@ -386,7 +324,7 @@ def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
             key=key,
             value=value,
             first_line=first["line"],
-            scope=registry[tag]["x-unique"][key],
+            scope=registry[tag]["unique"][key],
         )
         for (_, tag, key, value), (first, *extras) in keyed_members(
             lf_elements, registry
@@ -409,22 +347,18 @@ def reference_errors(
     contract's predicate selects is named by exactly one referrer, as each readings
     seat is filled by one command.
 
-    A keyed reference names a member rather than an id: the `tag` member, inside the
-    referrer's own nearest owner of the tag its `key` is unique within (x-unique),
-    whose `key` attribute holds the value, as a playground preset's setting names a
-    control of the same playground.
-
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
-    keyed = None
     for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
+        # An undeclared tag is `widget_errors`' to report.
+        if (entry := registry.get(rec["tag"])) is None:
+            continue
         resolves = rec["attrs"].get("resolves")
         if (
-            "resolves" in entry.get("properties", {})
+            "resolves" in entry["attributes"].get("properties", {})
             and resolves
             and resolves not in thread_ids
         ):
@@ -433,29 +367,12 @@ def reference_errors(
                     "unknown-thread", rec, rec["attrs"].get("id", ""), resolves=resolves
                 )
             )
-        for attr, reference in entry.get("x-refers", {}).items():
+        for attr, reference in entry.get("refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
             reference_to = {"attr": attr, "target": target}
-            if member := reference.get("tag"):
-                if keyed is None:
-                    keyed = keyed_members(lf_elements, registry)
-                key = reference["key"]
-                scope_tag = registry[member]["x-unique"][key]
-                scope = enclosing(rec, scope_tag, registry)
-                if (id(scope), member, key, target) not in keyed:
-                    errors.append(
-                        found_at(
-                            "unmatched-member",
-                            rec,
-                            **reference_to,
-                            member=member,
-                            key=key,
-                            scope=scope_tag,
-                        )
-                    )
-            elif target not in ids:
+            if target not in ids:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
             elif mismatch := relation_mismatch(reference, by_id.get(target), registry):
                 errors.append(
@@ -463,21 +380,19 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
-            elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
+            elif attr == entry.get("shows", {}).get("reference") and target not in own:
                 # A view and the answer it shows travel in one document, so a board
-                # in a reply shows widgets frozen in the same reply (`shown_answers`).
+                # in a reply shows widgets in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
-        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
+        for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
             producer = by_id.get(target)
             if not target or not producer:
                 continue  # The ordinary relation check names a missing target.
             output = (
-                registry.get(producer["tag"], {})
-                .get("x-output", {})
-                .get(spec["output"])
+                registry.get(producer["tag"], {}).get("outputs", {}).get(spec["output"])
             )
             if output is None or output["contract"] != spec["contract"]:
                 errors.append(
@@ -494,7 +409,7 @@ def reference_errors(
         (tag, attr, reference)
         for tag, entry in registry.items()
         if is_element_name(tag)
-        for attr, reference in entry.get("x-refers", {}).items()
+        for attr, reference in entry.get("refers", {}).items()
         if reference.get("owns")
     ]
     for rec in lf_elements:
@@ -524,18 +439,19 @@ def reference_errors(
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """A conditional obligation needs an id when it is live.
 
-    Requiring every instance globally would outlaw inert option groups; checking the
-    declared predicate here gives the runtime exactly the addressability it consumes.
+    A widget whose schema leaves `id` optional may stand without one while its
+    predicate fails; checking the declared predicate here gives the runtime exactly
+    the addressability it consumes.
     """
     errors = []
     for rec in lf_elements:
-        declaration = registry.get(rec["tag"], {}).get("x-awaits")
+        declaration = registry.get(rec["tag"], {}).get("awaits")
         if (
             declaration is not None
             and matches_when(rec["attrs"], declaration.get("when"))
             and not rec["attrs"].get("id")
         ):
-            errors.append(found_at("needs-id", rec, role="x-awaits"))
+            errors.append(found_at("needs-id", rec, role="awaits"))
     return errors
 
 
@@ -569,9 +485,34 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return errors
 
 
+def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each pane (`reading-role: pane`) whose direct children aren't an optional header,
+    one body element and an optional footer, in that order, with what its grid does with
+    them (`base.css`, "A pane is one task region"). Advice, since a pane holding a
+    `<script>`, or blocks a script shows one at a time, works as it is."""
+    findings = []
+    for rec in document.lf_elements:
+        role = registry.get(rec["tag"], {}).get("reading-role")
+        if role != "pane":
+            continue
+        direct = rec["direct"]
+        headers = [i for i, child in enumerate(direct) if child == "header"]
+        footers = [i for i, child in enumerate(direct) if child == "footer"]
+        if len(headers) > 1 or len(footers) > 1:
+            findings.append(found_at("pane-ends", rec, role=role))
+        if headers and headers[0] != 0:
+            findings.append(found_at("pane-header-first", rec, role=role))
+        if footers and footers[0] != len(direct) - 1:
+            findings.append(found_at("pane-footer-last", rec, role=role))
+        body = [child for child in direct if child not in {"header", "footer"}]
+        if len(body) > 1 or body == ["#text"]:
+            findings.append(found_at("pane-body", rec, role=role, body=body))
+    return findings
+
+
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """A page's allocations that mean nothing where they stand
-    (`registry.kernel.authored_inert`), which delivery leaves unpainted, so nothing on
+    (`registry.contract.authored_inert`), which delivery leaves unpainted, so nothing on
     the page shows the author the width or height they asked for is missing. Advice,
     since the page works as it is; the words say where the allocation would hold. A
     message has its own rule for the room (`$marks`, `message`), so this reads only
@@ -588,7 +529,9 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
             continue
         tag = item["tag"]
         declaration = registry.get(tag, {}) if is_element_name(tag) else {}
-        if holds := authored_inert(key, declaration, content=item["content"]):
+        if holds := authored_inert(
+            key, declaration, item["attrs"], content=item["content"]
+        ):
             findings.append(
                 Finding(
                     "inert-allocation",
@@ -599,28 +542,81 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
                         "value": item["value"],
                         "holds": holds,
                     },
-                    severity="advice",
                 )
             )
     return findings
 
 
+def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each widget that takes its name in `label` but has none, and holds a <strong>
+    before any words of its own, whatever elements come first. The <strong> is a title
+    only the page shows, so Leaf names the widget by all its words, and an option draws
+    as a bare label of bold words. Advice, since bold words may open a label's own
+    words."""
+    findings = []
+    for rec in document.lf_elements:
+        properties = (registry.get(rec["tag"]) or {}).get("attributes", {})
+        if "label" not in properties.get("properties", {}) or "label" in rec["attrs"]:
+            continue
+        node = document.authoring.node_of(rec)
+        for child in node["content"] if node else ():
+            if isinstance(child, str):
+                if child.strip():
+                    break
+                continue
+            if child["tag"] == "strong":
+                findings.append(
+                    Finding(
+                        "unnamed-card",
+                        element_at(rec["tag"], rec["attrs"].get("id", "")),
+                        {"line": rec["line"]},
+                    )
+                )
+                break
+    return findings
+
+
 def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Every instance check that needs only the registry, no id namespace, so a new
-    check of that kind reaches page source and message markup alike."""
+    """Every instance check that needs only the registry, no id namespace, what it
+    refuses and what it advises, so a new check of that kind reaches page source and
+    message markup alike."""
     lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
-        + layout_errors(lf_elements, registry)
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + enclosing_errors(document, registry)
         + unique_errors(lf_elements, registry)
         + shown_errors(document, registry)
+        + pane_advice(document, registry)
+        + unnamed_card_advice(document, registry)
     )
 
 
-def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
-    """Structural + registry validation of an HTML fragment:
-    the discussion-side analog of `page check`."""
-    return structure_errors(parser) + instance_errors(parser, registry)
+def markup_findings(
+    document: SourceDocument,
+    registry: dict | None,
+    own: Callable[[], Iterable[Finding]] = tuple,
+) -> list[Finding]:
+    """What every gate finds in one authored document, a page's source, a sample's
+    child, a message's HTML or a registry example alike, reading only its markup and
+    the registry it is checked under (None where none composes): what refuses it and
+    what it advises, so a new check of that kind reaches each. `own` gives the gate's
+    own checks of the document, such as its id namespace and the references into it.
+
+    A document the HTML parser had to repair gets only the parser's findings, and
+    neither these checks nor the gate's run, since each would read the repaired tree:
+    a `<pre>` that closes the paragraph Markdown drew around a one-line `<lf-code>`
+    leaves that widget with no body. The sheets delivery rewrites are read once for a
+    document and its samples (`revision_artifact.document_drops`), so they are each
+    gate's whole document's to read."""
+    structural = structure_errors(document)
+    if repair_errors(document):
+        return structural
+    return [
+        *structural,
+        *document_declaration_errors(document),
+        *id_errors(document),
+        *(instance_errors(document, registry) if registry is not None else ()),
+        *markup_advice(document),
+        *own(),
+    ]

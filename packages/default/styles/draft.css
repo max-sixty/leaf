@@ -29,10 +29,12 @@ lf-draft {
 lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
+.lf-draft-body > :first-child,
+lf-draft > .lf-markdown-body > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
+.lf-draft-body > :last-child,
+lf-draft > .lf-markdown-body > :last-child {
   margin-bottom: 0;
 }
 /* The shared source primitive owns fallback presentation, which a draft's source
@@ -97,8 +99,8 @@ lf-draft > pre {
      is in it, and the open editor and a draft that asks for an edit (`required`) always,
      since there Edit is the way to answer. While it shows it covers the first line's
      last words, the editor's too: the user chose one seat for every block's marks
-     over keeping the edited line clear (31 October 2026), when it stood on the top
-     border. A finger sees it always, so it stands on the bottom border there: in the
+     over keeping the edited line clear by standing the toolbar on the top border. A
+     finger sees it always, so it stands on the bottom border there: in the
      corner, its finger-wide reach would take every press meant for the first line's
      end. */
   .lf-draft-tools {

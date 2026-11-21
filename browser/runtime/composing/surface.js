@@ -43,9 +43,9 @@
 
    Where `c` would open the box beside a target the user can see, the box already stands
    there, empty, with the key that opens it (`restFab`), so where `c` goes shows before
-   the press, as it does for a selection. The user chose this on 4 November 2026, with
+   the press, as it does for a selection. The user chose this, with
    the key in the panel's row and `c` leaving focus scrolled out of sight
-   (`focusedPlace`), from independent choices drawn side by side, accepting a box in the
+   (`focusedPlace`), accepting a box in the
    margin at every stop of a walk, every Tab and every press that leaves focus on a
    control. With no room in the margin, the box waits for the press (floating-response.js).
    They passed over `c` following only a ringed control, which turned their
@@ -75,12 +75,15 @@ import { html, render, signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import { COMMENT_HINT } from "../words.js";
 import {
+  addressedFocus,
   anchoringIsReady,
   lightSeat,
   resolveAnchor,
+  sectionOf,
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import { threadNamed } from "../thread/state.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
@@ -119,6 +122,7 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
+import { takesNoWords } from "./input.js";
 import { repaint } from "../repaint.js";
 import {
   drawn,
@@ -135,7 +139,7 @@ import {
   pressRecords,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { under, upFrom } from "../shadow.js";
+import { under, upFrom } from "../shadow-tree.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
 import { focusPlace } from "../user-place.js";
@@ -462,11 +466,18 @@ export function createResponseSurface({
   // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: it is a hidden stand-in for the drawing
   // (control-faces.js, `proxy`), so the drawing, which the user sees, is where they
-  // return. A quoted selection clears to the page; a removed subject has no parent to
-  // land on.
+  // return. A part of a drawing is returned to as travel reaches it, where the drawing
+  // names for it (`addressedFocus`), as a chart takes focus itself, settling on its point
+  // only if the user lands there. A quoted selection clears to the page; a removed
+  // subject has no parent to land on.
   /** @param {Anchor | null} anchor */
-  const returnPlaces = (anchor) =>
-    anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
+  const returnPlaces = (anchor) => {
+    if (!anchor || anchor.quote) return [];
+    const drawing = anchor.visual ? sectionOf(anchor) : null;
+    const part =
+      drawing && anchor.visual ? addressedFocus(drawing, anchor.visual) : null;
+    return [part, anchorTargetAt(anchor), visualActionAnchor(anchor)];
+  };
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who was in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
@@ -766,7 +777,7 @@ export function createResponseSurface({
       // A fast keyboard action can capture this completed native selection before the
       // pointer gesture's queued update arrives. That later update is the same target,
       // not a request to reopen its Comment composer: reopening calls closeReactions
-      // and used to collapse choices immediately after `e` exposed them.
+      // and would collapse choices immediately after `e` exposed them.
       if (sameAnchor(anchor, fabAnchor.value)) {
         placement?.place();
         return;
@@ -839,6 +850,10 @@ export function createResponseSurface({
   // - `point`, `dragged`: where it began, and whether it has since moved off it.
   // - `range`, `backward`: what the drag has held inside the document
   //   (`rememberPointerSelection`).
+  // - `away`: whether the hand last moved over something other than page words, such as
+  //   the layer. The selection alone can't say: over the layer's own words the browser
+  //   can leave its far end on the page's last words, inside the document while the
+  //   range holds everything after the press.
   // - `claimed`: a widget turned the press into a different gesture after pointerdown.
   //   `preventDefault` on its bubbling pointermove is the shared claim boundary: the
   //   selection surface must not restore the range it captured before that claim.
@@ -852,6 +867,7 @@ export function createResponseSurface({
    *   dragged: boolean,
    *   range: Range | null,
    *   backward: boolean,
+   *   away: boolean,
    *   claimed: boolean,
    *   words: string,
    *   action: boolean,
@@ -967,14 +983,14 @@ export function createResponseSurface({
     repaint();
   };
   // What this drag has had inside the document, kept against a release that ends holding
-  // something else. Only while both ends are still in it: `pageSelection` answers for the
-  // end the press began at, which stays in the page for the whole of a drag that leaves it,
-  // so without the far end this remembered the runaway range itself and had nothing to put
-  // back.
+  // something else. Only while both ends and the hand are still in it: `pageSelection`
+  // answers for the end the press began at, which stays in the page for the whole of a
+  // drag that leaves it, so without the far end and the hand (`away`) this would remember
+  // the runaway range itself and have nothing to put back.
   /** @param {PagePress} press */
   const rememberPointerSelection = (press) => {
     const selection = pageSelection();
-    if (!selection || leftThePage(selection)) return;
+    if (!selection || press.away || leftThePage(selection)) return;
     const anchor = selectionAnchor(selection);
     if (hasQuote(anchor)) {
       press.range = pageRange(selection).cloneRange();
@@ -1151,6 +1167,7 @@ export function createResponseSurface({
           dragged: false,
           range: null,
           backward: false,
+          away: false,
           claimed: false,
           words: stood ? stood.toString() : "",
           action:
@@ -1176,6 +1193,7 @@ export function createResponseSurface({
       }
       press.dragged ||=
         Math.hypot(ev.clientX - press.point.x, ev.clientY - press.point.y) > 3;
+      press.away = !pageWords(eventSource(ev));
     });
     document.addEventListener("touchstart", (ev) => {
       // The native touch event follows pointerdown and is the same selecting press.
@@ -1200,15 +1218,17 @@ export function createResponseSurface({
       const selected = selection ? selectionAnchor(selection) : null;
       // A drag whose far end left the document is the same release as one that ended holding
       // nothing: what the user meant is what the drag had before the pointer crossed out,
-      // and the range this press remembered is that. Without it, a hand five words along a
-      // paragraph overshooting the layer by 40px captured 14,387 characters, marked 22,140,
-      // and named the whole document in the field — because past the page's last words the
+      // and the range this press remembered is that. Without it, a hand a few words along a
+      // paragraph overshooting the layer would capture and mark far more than it held, and
+      // name the whole document in the field — because past the page's last words the
       // browser extends through everything between (leftThePage, composing/capture.js).
+      // A release with the hand over the layer (`away`) has left it too, wherever the
+      // browser put the selection's far end.
       //
       // Asked here and nowhere shared, because the gesture is what tells this from ⌘A: select
       // all means the document and lands its far end past the page by definition, and it
       // arrives through the keyboard's route, which never comes past this line.
-      const escaped = press.dragged && leftThePage();
+      const escaped = press.dragged && (press.away || leftThePage());
       const completed =
         press.dragged && (escaped || !hasQuote(selected)) ? press.range : null;
       const selectedByGesture =
@@ -1273,9 +1293,9 @@ export function createResponseSurface({
       // mouseup). The same complaint `offer` answers for a press on a control
       // (reachedForWords), and it governs the whole of
       // what a click on prose means — the block design mode comments on, and the thread a
-      // mark opens. Marked words are where it showed: a gesture inside one travelled to its
-      // thread, and with Threads open the reply box it landed in collapsed the selection
-      // the user had just made, so the words and the 💬 went with it.
+      // mark opens. Marked words show it most: a gesture inside one would travel to its
+      // thread, and with Threads open the reply box it lands in would collapse the
+      // selection the user just made, taking the words and the 💬 with it.
       //
       // Asked of what this press changed rather than of the current selection those two
       // have to read, because a mark is a painted range with no element to put the question
@@ -1300,13 +1320,16 @@ export function createResponseSurface({
         return;
       }
       // A painted owner may contain working controls or editing regions. Their
-      // native click keeps its meaning even when an annotation covers the owner.
-      if (closestAcross(target, WORKS)) return;
+      // native click keeps its meaning even when an annotation covers the owner. So does
+      // a click a widget took, which it says by preventing the click's default
+      // (module-input.md, "Pointer presses"), as keyboard/controller.js reads a key:
+      // a press on an option card picks the option and opens no thread on its question.
+      if (ev.defaultPrevented || closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
       // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
       // carries the pointer's place rounded to a whole pixel, while markAt measures against
-      // getClientRects, whose edges are floats. Asked at the rounded point this answered a
-      // different thread than refreshHover had just promised at the true one — a quote lit
+      // getClientRects, whose edges are floats. Asked at the rounded point, this can answer
+      // a different thread than refreshHover just promised at the true one — a quote lit
       // up under the hand and a press on it opening nothing.
       //
       // A click with no press behind it carries 0,0 rather than a position — `offer` calls
@@ -1389,18 +1412,22 @@ export function createResponseSurface({
     // The thread drawn with the user's place (`threadHere`), such as the card beside it,
     // is one place with it, so its reply box is where c writes, even where the thread is
     // about a block enclosing what they stand on: the box they see is the one c names,
-    // rather than a new thread on the obligation the card stands beside, which closed the
-    // card they were reading. That thread starts from `s`, which chooses an element.
+    // rather than a new thread on the obligation the card stands beside, which would close
+    // the card they are reading. That thread starts from `s`, which chooses an element.
     // An undrawn thread continues only where it is about what they stand on: its target
     // lies within the element they stand at — the obligation holding focus, answered or
     // not, else the element itself — as an obligation's options group does when the user
-    // holds one of its marks. So with no card shown, an element inside a commented block
-    // takes a thread of its own, and a selection still starts one on its words.
+    // holds one of its marks, or it names the very target they stand on, as a thread on
+    // the point a chart's keys stand on does, whose mark is not the element focus holds.
+    // So with no card shown, an element inside a commented block takes a thread of its
+    // own, and a selection still starts one on its words.
 
     const target = threadId && threadTarget(threadId);
     const subject =
       threadId &&
-      (!here || (target && under(target, heldObligation() ?? here.element)));
+      (!here ||
+        (target && under(target, heldObligation() ?? here.element)) ||
+        sameAnchor(threadNamed(threadId)?.anchor, here.anchor));
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // current target. Read both page and thread location before choosing the aim.
     // After the user lands elsewhere, Comment names that new place and opens its own
@@ -1551,7 +1578,12 @@ export function createResponseSurface({
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
     //
-    when: () => anchoringIsReady() || !pageSelection(),
+    // A box that takes no words now, as the panel's field while a stance stands
+    // (field-readings.js, `still`), is no place for c to write; words selected on the
+    // page still are, since a comment on them opens a box of its own.
+    when: () =>
+      (anchoringIsReady() || !pageSelection()) &&
+      (Boolean(offeredSelection) || !takesNoWords(commentDestination().box)),
     run: () => {
       // Activation reads the current native selection directly. Painting its offer
       // first would displace the reading controls only to restore them in this press.

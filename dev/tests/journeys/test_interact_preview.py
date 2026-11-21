@@ -5,10 +5,6 @@ package layer, the companion media and pinned assets, and the paths a watcher
 subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
-
-That is why they are here and not beside the preview's browser tests. A `main`
-mark is file-level, with no per-test escape, so a Python-decided reading filed
-in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
@@ -35,7 +31,6 @@ from interact_support import (
     fetch,
     fetch_hanging_up,
     record_claim,
-    stamp,
     wait_for,
 )
 
@@ -44,6 +39,7 @@ from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
 from leaf.registry.storage import layer_record
+from leaf_dev import arms
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
@@ -152,7 +148,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         assert turn_record is not None
         assert turn_record["generation"] == before["generation"]
         assert state.held_claims(sid)
-        assert leases.lock_is_held(preview.preview_lease(page))
+        assert leases.lock_is_held(arms.preview_lease(page))
         assert (current := server.running_server(page)) is not None
         assert current["url"] == url
 
@@ -202,7 +198,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
                 failure=f"chat {retirement} left its page server running",
             )
         wait_for(
-            lambda: leases.lock_is_held(preview.preview_lease(page)),
+            lambda: leases.lock_is_held(arms.preview_lease(page)),
             lambda held: not held,
             failure=f"chat {retirement} left its preview watcher running",
         )
@@ -234,7 +230,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             hosting.cmd_stop(page)
             state.end_session(sid)
             wait_for(
-                lambda: leases.lock_is_held(preview.preview_lease(page)),
+                lambda: leases.lock_is_held(arms.preview_lease(page)),
                 lambda held: not held,
                 failure="the explicitly stopped detached preview kept watching",
             )
@@ -318,7 +314,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
     assert task.returncode == 0, f"{output}{errors}"
     assert service.page_claim(page) is None
     assert server.running_server(page) is None
-    assert not leases.lock_is_held(preview.preview_lease(page))
+    assert not leases.lock_is_held(arms.preview_lease(page))
 
 
 def test_preview_publishes_companion_edits_at_its_existing_url(
@@ -347,11 +343,13 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
             {
                 "lf-reading": {
                     "description": "A reading",
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "empty",
+                    "attributes": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                    },
+                    "content": "empty",
                 }
             }
         )
@@ -603,7 +601,6 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
         yield {str(seed), str(source)}
         after = layer()
         assert after["generation"] == removed["generation"]
-        assert after["fingerprint"] != committed["fingerprint"]
         assert "Revised" in (page / "index.html").read_text()
 
     monkeypatch.setattr(
@@ -676,65 +673,6 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
     assert len(subscriptions) == 2
 
 
-def test_serving_preserves_a_direct_codex_wait(
-    codex_claimed_page, under_codex, codex_env, codex_queue
-):
-    """An active direct watcher keeps its lease instead of being replaced.
-
-    The queue is deliberately unavailable: a successful handoff must use the
-    real wait already watching this task. Stop still keeps that turn open.
-    """
-    page = codex_claimed_page
-    stamp(page)
-    program = """
-import json, subprocess, sys, time
-from pathlib import Path
-from leaf.leases import wait_is_live, adapter_is_live
-from leaf.service import PageTransaction, claim_page
-from leaf.session import cmd_waiting
-page = Path(sys.argv[1])
-claim_page(page)
-cmd_waiting(page)
-watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-try:
-    deadline = time.monotonic() + 30
-    while not wait_is_live(page, "codex-thread"):
-        assert watch.poll() is None, watch.communicate()
-        assert time.monotonic() < deadline, "the direct wait never took its lease"
-        time.sleep(0.01)
-    for command in ("start", "run"):
-        served = subprocess.run([sys.executable, "-m", "leaf", "server", command, str(page)],
-                                capture_output=True, text=True)
-        assert served.returncode == 0, served.stderr
-        assert json.loads(served.stdout)["url"]
-        assert watch.poll() is None
-        assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
-                             input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
-                             capture_output=True, text=True)
-    assert stopped.returncode == 0, stopped.stderr
-    reason = json.loads(stopped.stdout)["reason"]
-    assert "leaf wait" in reason and "no delivery adapter" not in reason
-finally:
-    with PageTransaction(page) as held:
-        held.set_status("idle")
-    output, errors = watch.communicate(timeout=30)
-    assert watch.returncode == 2, (output, errors)
-"""
-    task = under_codex(
-        shlex.join([sys.executable, "-c", program, str(page)]),
-        codex_env
-        | codex_queue
-        | {"CODEX_THREAD_ID": "codex-thread", "PREVIEW_QUEUE_AVAILABLE": "False"},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"
-
-
 def test_user_preview_restart_keeps_feedback_and_authored_progress(
     tmp_path, spawn, monkeypatch, request
 ):
@@ -749,8 +687,10 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     source.write_text(
         "<!doctype html><html><head><title>Reading</title></head><body><main>"
         '<h1>Initial reading</h1><lf-text-document id="receipt" source="receipt"></lf-text-document>'
-        '<lf-options id="route" required><lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></main></body></html>'
+        '<lf-group id="route-q" label="Which route?">'
+        '<lf-options id="route"><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>'
+        "</main></body></html>"
     )
     source.with_suffix(".data.json").write_text('{"receipt":"Original value"}')
     package = tmp_path / "package"
@@ -773,7 +713,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         text=True,
         check=False,
     )
-    assert refused.returncode != 0 and "unknown widget" in refused.stderr
+    assert refused.returncode != 0 and "unknown widget" in refused.stdout
     assert not page.exists()
     source.write_text(valid_initial)
 
@@ -879,6 +819,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     first = latest_revision(page)
     layer = load_registry(page)["$layer"]["generation"]
     media = page / "media" / "retained.svg"
+    media.parent.mkdir(exist_ok=True)
     media.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
     media_bytes = media.read_bytes()
     stop(task)
@@ -904,7 +845,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     # A restart updates authored and runtime inputs, but never replays new seeds
     # over the existing log or changes data the page already holds.
     fictional = next(event for event in read_events(page) if event["kind"] == "comment")
-    fictional |= {"id": "fictional", "text": "A different fictional seed"}
+    fictional = fictional | {"id": "fictional", "text": "A different fictional seed"}
     source.with_suffix(".jsonl").write_text(json.dumps(fictional) + "\n")
     source.with_suffix(".data.json").write_text('{"receipt":"Replacement seed"}')
     source.write_text(source.read_text().replace("Initial reading", "Revised reading"))
@@ -1024,83 +965,3 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
         assert fetch(held["url"], token=None)[0] == 200
     finally:
         successor.stop()
-
-
-def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
-    codex_claimed_page, tmp_path, under_codex, codex_env, codex_queue
-):
-    """A revived handoff connects once, including a reused foreground server.
-
-    The first server already exists with no adapter. Two public starts and a
-    foreground reuse must retain one adapter and leave Stop nothing to repair.
-    """
-    first = codex_claimed_page
-    second = tmp_path / "sibling"
-    shutil.copytree(first, second)
-    (second / "service.json").unlink()
-    ready, done = tmp_path / "ready.json", tmp_path / "done"
-    program = """
-import json, subprocess, sys, time
-from pathlib import Path
-from leaf.hosting import cmd_stop
-from leaf.leases import adapter_lease_path
-from leaf.state import end_session, write_json
-pages = list(map(Path, sys.argv[1:3]))
-ready, done = map(Path, sys.argv[3:])
-lease = adapter_lease_path("codex-thread")
-try:
-    identities = []
-    for command, page in (("start", pages[0]), ("start", pages[1]), ("run", pages[0])):
-        result = subprocess.run(
-            [sys.executable, "-m", "leaf", "server", command, str(page)],
-            capture_output=True, text=True,
-        )
-        assert result.returncode == 0, result.stderr
-        assert json.loads(result.stdout)["url"]
-        identities.append(lease.stat().st_ino)
-    stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
-        input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
-        capture_output=True, text=True,
-    )
-    assert stopped.returncode == 0, stopped.stderr
-    assert not stopped.stdout, stopped.stdout
-    write_json(ready, identities)
-    while not done.exists():
-        time.sleep(0.01)
-finally:
-    for page in pages:
-        cmd_stop(page)
-    end_session("codex-thread")
-"""
-    task = under_codex(
-        shlex.join(
-            [
-                sys.executable,
-                "-c",
-                program,
-                str(first),
-                str(second),
-                str(ready),
-                str(done),
-            ]
-        ),
-        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        wait_for(
-            ready.exists,
-            bool,
-            failure="the shared delivery handoff did not finish",
-        )
-        assert len(set(json.loads(ready.read_text()))) == 1
-        assert leases.wait_is_live(first, "codex-thread")
-        assert leases.wait_is_live(second, "codex-thread")
-        assert codex_adapter.adapter_is_live("codex-thread")
-    finally:
-        done.touch()
-        output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"

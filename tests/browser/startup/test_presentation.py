@@ -2,8 +2,6 @@
 and reduced motion beyond light DOM, reading regions, and the effective colour
 scheme."""
 
-import re
-
 import pytest
 from interact_support import wait_for
 from playwright.sync_api import expect
@@ -33,20 +31,33 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_the_document_is_readable_before_runtime_at_its_authored_position(
     browser, serve, width, has_touch
 ):
+    """The page and the floating panel's row both stand from the first paint, before
+    the runtime loads, and the runtime moves neither: the panel takes the row over
+    with its field and leaf where the row's stood."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
     )
     page = context.new_page()
     watched(page)
+    # Whether the row stood in the first frame the page drew.
+    page.add_init_script("""requestAnimationFrame(() => {
+      window.__rowAtFirstFrame = Boolean(
+        document.querySelector('.lf-floating-panel[data-lf-served]'));
+    })""")
     page.route("**/leaf.js", lambda route: boot.append(route))
+    row = {part: f"{PANEL} .lf-fp-{part}" for part in ("card", "field", "leaf")}
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(
                 serve(leaf_page("Startup", "<h1>Startup</h1>")), wait_until="commit"
             )
         expect(page.locator("h1")).to_be_visible()
+        expect(page.locator(f"{PANEL}[data-lf-served]")).to_be_visible()
+        page.wait_for_function("() => window.__rowAtFirstFrame !== undefined")
+        assert page.evaluate("() => window.__rowAtFirstFrame"), "the row came late"
         initial = page.locator("body > main").bounding_box()
+        served = {part: page.locator(at).bounding_box() for part, at in row.items()}
         assert boot, "the positive control did not hold the boot module"
         boot.pop().continue_()
         wait_until_ready(page)
@@ -54,6 +65,10 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         ), "runtime startup moved the shell"
+        expect(page.locator(PANEL)).to_have_count(1)
+        assert {part: page.locator(at).bounding_box() for part, at in row.items()} == {
+            part: pytest.approx(box, abs=1) for part, box in served.items()
+        }, "the panel took the row over somewhere else"
         expect(page.locator("h1")).to_be_visible()
         assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
             0, abs=1
@@ -136,9 +151,10 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     expect(child.locator(PANEL)).to_have_attribute("data-lf-rest", "row")
 
 
-def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
-    """A data renderer runs after the initial page dressing, but what it contributes
-    is still part of the Leaf and should carry the same visible navigation contract."""
+def test_a_projected_external_link_wears_the_mark_its_href_earns(browser, serve):
+    """A data renderer runs after the initial page dressing, and a link it draws wears
+    the mark after a link that leaves the page while its href leaves it, as the page's
+    own links do. The target and rel the renderer wrote stand as written."""
     url = data_projection_page(serve)
     # The page's own module for the family, which takes the package's place.
     module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
@@ -168,14 +184,10 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     page = open_page(browser, live_url(url))
     links = page.locator('#deployments a[href="https://example.com/status"]')
     expect(links).to_have_count(2)
-    expect(links.first).to_have_attribute("target", "_blank")
     expect(links.first).to_have_attribute("data-lf-external", "")
+    expect(links.first).to_have_attribute("target", "_self")
+    expect(links.first).to_have_attribute("rel", "author")
     api = page.locator('[data-lf-datum="api"] a')
-    api.evaluate("link => { link.target = '_parent'; link.rel = 'author next'; }")
-    expect(api).to_have_attribute("target", "_blank")
-    expect(api).to_have_attribute(
-        "rel", re.compile(r"(?=.*\bnext\b)(?=.*\bnoopener\b)")
-    )
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -186,40 +198,10 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
         ],
     )
     expect(api).to_have_attribute("href", "#title")
-    expect(api).to_have_attribute("target", "_parent")
-    expect(api).to_have_attribute("rel", "author next")
-    expect(api).not_to_have_attribute("aria-describedby", re.compile(".+"))
     expect(api).not_to_have_attribute("data-lf-external", "")
-
-    worker = page.locator('[data-lf-datum="worker"] a')
-    detached_worker = worker.element_handle()
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "deployments",
-        [{"key": "api", "value": "Running"}],
-    )
-    expect(worker).to_have_count(0)
-    assert detached_worker.evaluate(
-        """link => ({
-          target: link.getAttribute('target'),
-          rel: link.getAttribute('rel'),
-          describedBy: link.getAttribute('aria-describedby'),
-          mark: link.hasAttribute('data-lf-external'),
-        })"""
-    ) == {"target": "_self", "rel": "author", "describedBy": None, "mark": False}
-
     api.evaluate("link => { link.href = 'https://example.com/again'; }")
-    expect(api).to_have_attribute("target", "_blank")
-    detached_api = api.element_handle()
-    detached_api.evaluate("link => { link.href = '#title'; link.remove(); }")
-    assert detached_api.evaluate(
-        """link => ({
-          target: link.getAttribute('target'),
-          rel: link.getAttribute('rel'),
-          describedBy: link.getAttribute('aria-describedby'),
-          mark: link.hasAttribute('data-lf-external'),
-        })"""
-    ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": False}
+    expect(api).to_have_attribute("data-lf-external", "")
+    expect(api).to_have_attribute("target", "_self")
 
 
 @pytest.mark.parametrize("initial_motion", ["no-preference", "reduce"])
@@ -234,17 +216,25 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     """
     entry = {
         "description": "A package motion control.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     registry = {
         tag: {
             **entry,
-            **({"x-shadow": True} if tree == "shadow" else {}),
-            "x-example": f'<{tag} id="{tree}-example"></{tag}>',
+            **(
+                {
+                    "shadow": True,
+                }
+                if tree == "shadow"
+                else {}
+            ),
+            "example": f'<{tag} id="{tree}-example"></{tag}>',
         }
         for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
     }
@@ -271,7 +261,7 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
     for tag, declaration in registry.items():
         stage = (
             "shadowStage(this, nodes)"
-            if declaration.get("x-shadow")
+            if declaration.get("shadow")
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
@@ -347,24 +337,29 @@ customElements.define('{tag}', class extends HTMLElement {{
         )
 
 
-def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
+def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
     """The widget lifecycle has two presentation boundaries outside authored light DOM:
     async work finishes after the first dress, and declared shadow words live beyond it."""
     entry = {
         "description": "A project-supplied link.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
+        "content": "empty",
     }
-    settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
+    settled = {
+        **entry,
+        "example": '<lf-settled-link id="settled"></lf-settled-link>',
+    }
     shadow = {
         **entry,
-        "x-shadow": True,
-        "x-example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
+        "shadow": True,
+        "example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
     }
     authored = leaf_page(
         "late links",
@@ -425,22 +420,37 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
         (settled_link, "settled destination"),
         (shadow_link, "shadow destination"),
     ):
-        expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_accessible_name(name)
-        expect(link).to_have_accessible_description("opens in a new tab")
         expect(link).to_have_attribute("data-lf-external", "")
-    assert (
-        shadow_link.evaluate("link => getComputedStyle(link, '::after').display")
-        == "inline-block"
-    )
+    # The mark reaches the shadow stage, where it is drawn the em wide its gap and icon
+    # take, and at every width that holds the link's last word and the mark, it stays
+    # on that word's line.
+    assert shadow_link.evaluate(
+        """link => {
+          const host = link.getRootNode().host;
+          const text = link.firstChild;
+          const last = document.createRange();
+          last.setStart(text, text.length - 1);
+          last.setEnd(text, text.length);
+          host.style.display = 'block';
+          const apart = [];
+          for (let width = 120; width <= 300; width++) {
+            host.style.width = `${width}px`;
+            const word = last.getBoundingClientRect();
+            const mark = [...link.getClientRects()].at(-1);
+            if (Math.abs(mark.top - word.top) > word.height / 2) apart.push(width);
+          }
+          const em = parseFloat(getComputedStyle(link).fontSize);
+          const width = [...link.getClientRects()].at(-1).right - last.getBoundingClientRect().right;
+          const drawn = getComputedStyle(link, '::after').maskImage !== 'none';
+          return {drawn, em: Math.round(width / em * 10) / 10, apart};
+        }"""
+    ) == {"drawn": True, "em": 1.0, "apart": []}
 
     stamp_page(serve.page_dir, authored.replace("Late links", "Later links"), "later")
     wait_for_revision(page, 2)
     expect(page.locator("#settled-link")).to_have_attribute("data-lf-external", "")
     expect(page.locator("#settled-link")).to_have_accessible_name("settled destination")
-    expect(page.locator("#settled-link")).to_have_accessible_description(
-        "opens in a new tab"
-    )
 
 
 def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a_shift(

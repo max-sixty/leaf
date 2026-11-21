@@ -37,7 +37,9 @@ def declare_part_prefixes(page_dir, *prefixes):
     declare_on_page(
         page_dir,
         lambda registry: registry["lf-diagram"].update(
-            {"x-visual": {"prefixes": list(prefixes)}}
+            {
+                "visual": {"prefixes": list(prefixes)},
+            }
         ),
     )
 
@@ -161,10 +163,10 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "anchor": current,
             "title": None,
             "detached_from": None,
+            "rewritten_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
             "attention": None,
-            "holder": {"kind": "main"},
         }
     ]
 
@@ -371,9 +373,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             root["id"],
             "--detach",
             "--text",
-            "This must not partly land.",
-            "--markup",
-            '<lf-diagram id="flow"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            'This must not partly land.\n\n<lf-diagram id="flow">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
     assert refused.exit_code != 0
@@ -410,10 +410,10 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "anchor": None,
             "title": None,
             "detached_from": root["anchor"],
+            "rewritten_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
             "attention": None,
-            "holder": {"kind": "main"},
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
@@ -467,9 +467,8 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
             "--section",
             "answer",
             "--text",
-            "Moved this to the revised answer.",
-            "--markup",
-            '<lf-diagram id="answer"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            "Moved this to the revised answer.\n\n"
+            '<lf-diagram id="answer">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
 
@@ -538,11 +537,10 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--quote",
             "Ship dark",
             "--text",
-            "Pick:",
-            "--markup",
-            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" required>'
-            '<lf-option id="q1-a"><strong>A</strong>'
-            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
+            "Pick:\n\n"
+            '<lf-group id="q1-decision" label="Pick one">\n<h3 id="q1-decision-h">Pick one</h3><lf-options id="q1">'
+            '<lf-option id="q1-a" label="A"><strong>A</strong> '
+            '<span id="thread-label">Label</span></lf-option></lf-options></lf-group>',
         ).exit_code
         == 0
     )
@@ -557,9 +555,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "See:",
-            "--markup",
-            '<lf-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+            'See:\n\n<lf-diagram id="q1">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert clash.exit_code != 0 and "q1" in clash.output
@@ -572,9 +568,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "See:",
-            "--markup",
-            '<lf-diagram id="thread-label"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            'See:\n\n<lf-diagram id="thread-label">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
     assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output

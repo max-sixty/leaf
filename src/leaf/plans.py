@@ -13,14 +13,17 @@ The plan keeps the breakdown apart from what is owed. A to-do or an obligation k
 owner, rules and end (`todos`, `obligations`); a plan only arranges them beside plain steps.
 So a rewrite that leaves out an open to-do ends nothing: the to-do stays on its list,
 outside the plan. A plain step is no promise: work that must stay owed past the turn
-is a to-do the plan names. This is the shape the user chose on 2026-10-16 over giving
+is a to-do the plan names. This is the shape the user chose over giving
 to-dos a parent, which would have needed rules wherever a to-do ends (a stamp's
 `--completes`, `leaf task end`) and left obligations out of the tree, over grouping
 to-dos by the element they stand on, which shows no steps ahead, and over writing the
 plan into the page's markup, which makes every reshape a revision.
 
-Admission (`plan_error`) refuses an outline whose first step is not a goal or that
-skips a level, and a step naming an item the page doesn't hold. Every reader takes the
+Admission (`plan_error`) refuses a step naming an item the page doesn't hold. A
+step written more than one level below the step before it reads one level below that
+step, and a first step below the root reads as a goal (`plan_reading`), so
+`leaf task plan` says so beside the plan it wrote (`skipped_levels`) rather than
+refusing an outline that draws whole. Every reader takes the
 plan from `plan_reading`: each step with its `state`, `owner`, the `item` it names,
 the start `running` on a named to-do, `since`, when a working step began, its
 `steps`, and `done` of `total`, its children that are done of those not dropped.
@@ -37,7 +40,7 @@ Experimental, like to-dos and the lists; nothing outside this repository depends
 
 from pathlib import Path
 
-from .findings import Finding
+from .findings import Finding, note
 
 # What an obligation's status reads as on a step. An open one nobody owes a move on,
 # a question whose thread was resolved, reads done (`obligations`).
@@ -67,18 +70,27 @@ def plan_error(event: dict, todos: list[dict], items: list[dict]) -> Finding | N
     on the page and `items` every obligation, open or not."""
     if event["kind"] != "plan":
         return None
-    depth = -1
-    for step in event["steps"]:
-        if step["depth"] > depth + 1:
-            return Finding(
-                "plan-depth", values={"step": _label(step), "depth": step["depth"]}
-            )
-        depth = step["depth"]
     known = {todo["id"] for todo in todos} | {item["id"] for item in items}
     for step in event["steps"]:
         if "item" in step and step["item"] not in known:
             return Finding("unknown-plan-item", values={"item": step["item"]})
     return None
+
+
+def skipped_levels(steps: list[dict]) -> list[Finding]:
+    """Each of `steps` more than one level below the step before it, or a first step
+    below the root, which `plan_reading` places one level below that step."""
+    found = []
+    depth = -1
+    for step in steps:
+        if step["depth"] > depth + 1:
+            found.append(
+                Finding(
+                    "plan-depth", values={"step": _label(step), "depth": step["depth"]}
+                )
+            )
+        depth = min(step["depth"], depth + 1)
+    return found
 
 
 def _label(step: dict) -> str:
@@ -171,11 +183,14 @@ def _working_since(plans: list[dict], title: str) -> str:
 
 
 def cmd_plan(page_dir: Path, steps: list) -> dict:
-    """Write `steps` as the page's plan; the record."""
+    """Write `steps` as the page's plan; the record. A long step title is fitted
+    (`thread.agent_title`), and a step that skips a level is noted
+    (`skipped_levels`)."""
     from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
+    from .thread import agent_title
 
     @contract_writer
     def write(page_dir: Path) -> dict:
@@ -186,9 +201,15 @@ def cmd_plan(page_dir: Path, steps: list) -> dict:
                 {
                     "kind": "plan",
                     "author": "agent",
-                    "steps": steps,
+                    "steps": [
+                        {**step, "title": agent_title(step["title"])}
+                        if isinstance(step, dict) and isinstance(step.get("title"), str)
+                        else step
+                        for step in steps
+                    ],
                 },
             )
+            note(*skipped_levels(record["steps"]))
             return record
 
     return write(page_dir)

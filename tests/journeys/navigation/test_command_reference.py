@@ -20,8 +20,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     stays selectable, but explains the scope it needs instead of closing and doing
     nothing. Stable command IDs are exposed on the results so words can change without
     breaking this route or tooling built on it."""
-    # Go-to's kind filters need a visible page target; the page's old skip button
-    # used to supply one implicitly.
+    # Go-to's kind filters need a visible page target.
     page_with_target = NOTED_PAGE.replace(
         '<p id="p2">', '<a href="#p1">Jump to the first passage</a><p id="p2">'
     )
@@ -40,7 +39,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
     # The walk says its position where the panel says what passes, in the empty
-    # field's place.
+    # field's place, naming what it counts, since the panel stands apart from the list.
     expect(panel_field(page)).to_have_attribute(
         "placeholder", f"Command 1 of {commands.count()}"
     )

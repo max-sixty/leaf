@@ -240,9 +240,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ]
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
-    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    # A root the capture adds opens as it arrives, as the first did.
+    expect(groups.nth(1)).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
-        "aria-label", "Expand all 2 call-tree roots"
+        "aria-label", "Collapse all 2 call-tree roots"
     )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"
@@ -421,8 +422,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_obligations_answered(page, "1/5")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On Me: [1-9]")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · [1-9]\d* waiting on me")
     )
 
     honoring = re.sub(
@@ -432,22 +433,23 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `required` is optional editing, not an obligation framed by an `lf-ask`.
-    honoring = honoring.replace(
-        '<lf-ask id="decision-ledger-fixture-region">',
+    # A draft without `required` is optional editing, not an obligation its group asks.
+    honoring = re.sub(
+        r'<section\s+id="decision-ledger-fixture-region"[^>]*>',
         '<div id="decision-ledger-fixture-region">',
+        honoring,
     ).replace(
-        "</lf-draft>\n              </lf-ask>",
+        "</lf-draft>\n              </section>",
         "</lf-draft>\n              </div>",
     )
-    assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
+    assert '<section id="decision-ledger-fixture-region"' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable obligation inventory after the source
     # drops `required`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On Me: [1-9]")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · [1-9]\d* waiting on me")
     )
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("required")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")

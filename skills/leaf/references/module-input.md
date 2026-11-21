@@ -69,8 +69,8 @@ it, and `label` replaces the keycap. `description` is the command reference's to
 for it and the line under its title where a touch menu or an On Me card offers it. A
 `decision: true` row answers an obligation, `recommended: true` marks the answer
 the page advises, which an On Me card names, and `commits: true` marks the press that
-commits an answer the user composed, such as a group's Done, which an On Me card draws
-as that commit rather than as one more answer.
+commits an answer the user composed, such as an `lf-options`' Done, which an On Me
+card draws as that commit rather than as one more answer.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's
@@ -143,13 +143,13 @@ and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for 
 tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
-the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
-shows, as its `::before`, turning with its state; the widget's own rules place it.
+the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
+its `::before`, turning with its state; the widget's own rules place it.
 
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them
-from the enclosing `lf-ask`'s question and from its margin controls and threads. Number
+from its margin controls and threads. Number
 a widget's choices by the choice, not by what is available: a classifier declares Pass
 as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else. The
 page keeps `m` and `Shift+m` for moving through On Me.
@@ -172,19 +172,22 @@ absolutely, and writes the key into it while the key works. `leaf package check
 
 A list of focusable rows gets its arrow keys from `rowWalk({id, noun, plural, rows})`,
 whose two returned rows go into the list's scope: ArrowUp and ArrowDown step, Home and
-End reach the ends, and each step announces a position such as `Option 3 of 7`. `rows()`
-returns the list at each press, `landed(row)` runs after a move, and `scroll: false`
-keeps the page still.
+End reach the ends, and a step shows its position in Leaf's panel, such as `Entry 3 of
+7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
+runs after a move, and `scroll: false` keeps the page still.
 
 A row whose press carries the user along a list of its own, as a timeline's arrows
 carry a user on its step list to the new step's row, declares `lands(from)` ("Command
 rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
-`beginWalk(key, noun, read)` at each step and announces what it returns, such as
-`Hunk 3 of 7`. `read()` returns the position, usually from
-`listWalkPosition(items, current, {identity})`. A walk that comes round at its ends
-steps with `cycledRow(items, current, direction)`, which returns the item it lands on.
+`beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
+as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usually
+from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
+such as a chart's points or a tab strip, gives `list()`, its first and last stops;
+Leaf's panel then says nothing while both stand in view, since the focus ring shows
+where the step landed. A walk that comes round at its ends steps with
+`cycledRow(items, current, direction)`, which returns the item it lands on.
 
 ### Go-to targets
 
@@ -233,8 +236,9 @@ obligation; a module asks it whether the user is on its content from either.
 `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
-ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
-the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
+ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
+of controls the user moves through with arrow keys offers one Tab stop with
+`rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
 events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
@@ -324,7 +328,7 @@ once each time the preview shows, with the route that asked: `"pointer"`, `"focu
 stands, so what it says follows the page without tracking its own inputs; words that
 come back the same leave the preview as it is. It returns:
 
-- `{name, keys, detail, list, at, about, excerpt}`, every field optional. `name`
+- `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
   lists presses the register can't see, each as the steps its chips draw, as a control's
@@ -334,7 +338,8 @@ come back the same leave the preview as it is. It returns:
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
-  beneath it. `about` is the element the preview is about, which Leaf leaves
+  beneath it. Readings standing by one element redraw in place as the aim moves among
+  them. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view, and the preview shows only while some
   of that box does, so a point scrolled out of view takes its preview with it, though
@@ -345,7 +350,9 @@ come back the same leave the preview as it is. It returns:
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
-  are hidden from sight and from a screen reader alike.
+  are hidden from sight and from a screen reader alike. `unseen: true` keeps the face
+  from sight where the element draws its own; its words still describe what has
+  focus.
 - `null` where the element adds nothing now, including where the words it would say
   already show on it or beside it: a control keeps its own preview, and the search goes
   on to what holds the element.
@@ -384,7 +391,7 @@ declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
 
 A thread's words preview the thread to a pointer or a finger only where nothing else
 there takes the pointer: a control, native or ARIA, an element with a `title` or an
-`lfPreview`, or a widget that draws its content itself (`x-content` `data` or
+`lfPreview`, or a widget that draws its content itself (`content` `data` or
 `empty`). There the element's own preview shows, or none, and the thread is reached
 by its margin entry. Words a widget holds of the author's markup, outside any control
 in it, preview their thread.
@@ -405,8 +412,12 @@ A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a
 click made with Enter or Space through, checking `pressIsKeyboardActivation(event)`
 first. A container that takes a click anywhere on it, as an option card does, asks
-`worksInside(event.target, container)` for the control inside that the click was aimed
-at.
+`worksInside(event.target, container)` for the control the click was aimed at, inside
+the container or around it, and leaves the click to that control.
+
+A click on words a thread marks opens that thread, unless the click landed on a control
+or a handler took it. So a handler that acts on a click on anything but a control, such
+as a card, a mark or a phrase, calls `event.preventDefault()`.
 
 Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;
@@ -446,18 +457,18 @@ before wiring it.
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
 after the box's state changes. `sync.button` is the generated send control.
 
-Drafts survive a reload, a new version and a closed tab, and every tab of the page
-shares them. Keep each under a context string unique on the page, such as `option:` and
-its id:
+Drafts survive a reload, a new version and a closed tab, and every tab and device
+showing the page shares them, since the page's server keeps them. Keep each under a
+context string unique on the page, such as `option:` and its id:
 
 - `loadDraft(ctx)` returns the stored draft record, or `null`. Seed the box with
   `loadDraft(ctx)?.text ?? ""`; its `payload` holds the saved send data.
 - `saveDraft(ctx, text, payload)` records an edit, from `save`, with any `payload` the
   send needs.
 - `watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` when the
-  draft changes other than by typing in this box: another tab, a send emptying it, or a
-  refusal returning the words. Put them in the box with `sync.load(text ?? "")`, and
-  register the watch in `whileConnected`.
+  draft changes other than by typing in this box: another tab or device, a send
+  emptying it, or a refusal returning the words. Put them in the box with
+  `sync.load(text ?? "")`, and register the watch in `whileConnected`.
 - `sendDraft(ctx, owns, send)`, called from `send`, calls your `send(attempt, payload)`
   if the box still shows the stored draft and `owns()` is true, and resolves to the
   delivery's result. One `attempt` stands for one version of the words, so a resend

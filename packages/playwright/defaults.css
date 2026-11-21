@@ -323,7 +323,9 @@ lf-trace[hidden="until-found"] {
   inset-block: 2px;
   background: var(--lf-trace-mark);
 }
-:is(.lf-trace-call-bar, .lf-trace-input-label, .lf-trace-moment-pin):hover {
+.lf-trace-call-bar:hover,
+.lf-trace-input-label:hover,
+.lf-trace-moment-pin:hover {
   z-index: 1;
   filter: brightness(0.94);
 }
@@ -359,7 +361,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-bar[data-lf-active] {
   outline: 1px solid var(--lf-accent);
-  outline-offset: 0;
+  outline-offset: 0px;
 }
 .lf-trace-moment-pin[data-lf-current] {
   border-inline-start-color: var(--lf-accent);
@@ -482,18 +484,25 @@ lf-trace[hidden="until-found"] {
   margin-block: var(--lf-sp-2) 0;
 }
 /* Point metadata owns its scroll. Frame gaps and disclosure cannot shrink the
- * surrounding page or pull a control out from under a reader during playback. */
+ * surrounding page or pull a control out from under a reader during playback. Its
+ * ring stands one band inside its edge (below), so its words start a ring's room in,
+ * clear of the band; the scrollbar's gutter keeps the other side clear. */
 .lf-trace-metadata {
   margin-block-start: var(--lf-sp-3);
   block-size: 14rem;
   overflow: auto;
   scrollbar-gutter: stable;
+  padding-inline-start: var(--lf-focus-ring-room);
   --lf-top: 0px;
   --lf-holds-height: 1;
 }
 /* The scroller and the rows it holds stand their rings inside their edges, which the
    scroller clips (base.css, "Where it stands"). */
-:is(.lf-trace-metadata, .lf-trace-metadata > details > summary) {
+:where(.lf-trace-metadata):is(
+  .lf-trace-metadata,
+  .lf-trace-metadata > details > summary
+),
+.lf-trace-metadata > details > summary {
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-trace-readout {

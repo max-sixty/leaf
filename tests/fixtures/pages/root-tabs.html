@@ -23,17 +23,19 @@
   <body>
     <main class="layout-column">
       <header>
-        <p class="eyebrow">release 3.4 · candidate two</p>
-        <h1>Prepare the account migration</h1>
+        <hgroup>
+          <p>release 3.4 · candidate two</p>
+          <h1>Prepare the account migration</h1>
+        </hgroup>
         <p class="lede">
           Review the rollout plan, settle the remaining evidence question, and work
           through the migration queue without leaving this page.
         </p>
       </header>
 
-      <lf-tabs id="root-tabs" class="layout-flow">
-        <lf-tab id="plan-tab" label="Plan" class="layout-flow">
-          <section id="plan-return" class="layout-flow">
+      <lf-tabs id="root-tabs" flow="page">
+        <lf-tab id="plan-tab" label="Plan">
+          <section id="plan-return">
             <h2>Rollout plan</h2>
             <p>
               Move active accounts in three cohorts. Each cohort starts after the prior
@@ -47,7 +49,7 @@
             </p>
           </section>
 
-          <section id="plan-stages" class="layout-flow">
+          <section id="plan-stages">
             <h2>Stages</h2>
             <ol>
               <li>
@@ -65,7 +67,7 @@
             </ol>
           </section>
 
-          <section id="plan-gates" class="layout-flow">
+          <section id="plan-gates">
             <h2>Advancement gates</h2>
             <dl class="facts">
               <dt>Account totals</dt>
@@ -84,7 +86,7 @@
             </p>
           </section>
 
-          <section id="plan-rollback" class="layout-flow">
+          <section id="plan-rollback">
             <h2>Rollback</h2>
             <p>
               A failed gate returns reads to the current store and stops later cohorts.
@@ -98,8 +100,8 @@
           </section>
         </lf-tab>
 
-        <lf-tab id="evidence-tab" label="Evidence" class="layout-flow">
-          <section id="evidence-summary" class="layout-flow">
+        <lf-tab id="evidence-tab" label="Evidence">
+          <section id="evidence-summary">
             <h2>Rehearsal results</h2>
             <p>
               Three rehearsals copied 48,219 accounts from a production snapshot. Every
@@ -138,7 +140,7 @@
             </table>
           </section>
 
-          <section id="evidence-sign-in" class="layout-flow">
+          <section id="evidence-sign-in">
             <h2>Sign-in checks</h2>
             <p>
               The test covered password, passkey, and enterprise sign-in for new and
@@ -153,27 +155,30 @@
             </ul>
           </section>
 
-          <section id="evidence-open-choice" class="layout-flow">
-            <lf-ask id="evidence-question">
-              <h2>How long should each cohort remain under observation?</h2>
-              <p>
-                Every rehearsal stabilized within four hours. A full business day also
-                includes the daily permissions sync and the regional support handoff.
-              </p>
-              <lf-options id="observation-window" required>
-                <lf-option id="observe-four-hours">
-                  <strong>Four hours</strong> The rollout can finish in one day, before
-                  the daily permissions sync runs.
-                </lf-option>
-                <lf-option id="observe-one-day">
-                  <strong>One business day</strong> Each cohort includes the permissions
-                  sync and one support handoff before the next begins.
-                </lf-option>
-              </lf-options>
-            </lf-ask>
-          </section>
+          <lf-group
+            id="evidence-question"
+            label="How long should each cohort remain under observation?"
+          >
+            <h2 id="evidence-question-h">
+              How long should each cohort remain under observation?
+            </h2>
+            <p>
+              Every rehearsal stabilized within four hours. A full business day also
+              includes the daily permissions sync and the regional support handoff.
+            </p>
+            <lf-options id="observation-window">
+              <lf-option id="observe-four-hours" label="Four hours">
+                <strong>Four hours</strong> The rollout can finish in one day, before
+                the daily permissions sync runs.
+              </lf-option>
+              <lf-option id="observe-one-day" label="One business day">
+                <strong>One business day</strong> Each cohort includes the permissions
+                sync and one support handoff before the next begins.
+              </lf-option>
+            </lf-options>
+          </lf-group>
 
-          <section id="evidence-follow-through" class="layout-flow">
+          <section id="evidence-follow-through">
             <h2>Follow-through</h2>
             <p>
               After settling the observation window, return to the
@@ -191,11 +196,13 @@
           </section>
         </lf-tab>
 
-        <lf-tab id="workbench-tab" label="Workbench" class="layout-flow">
-          <section id="workbench" class="layout-flow">
+        <lf-tab id="workbench-tab" label="Workbench">
+          <section id="workbench">
             <header>
-              <p class="eyebrow">migration workbench · eight cohorts</p>
-              <h2>Prepare and inspect each cohort</h2>
+              <hgroup>
+                <p>migration workbench · eight cohorts</p>
+                <h2>Prepare and inspect each cohort</h2>
+              </hgroup>
             </header>
             <div id="workbench-regions">
               <lf-pane id="queue-pane" label="Cohort queue">
@@ -325,8 +332,8 @@ observe --cohort staff</code></pre>
             </div>
           </section>
         </lf-tab>
-        <lf-tab id="summary-tab" label="Summary" class="layout-flow">
-          <section id="release-summary" class="layout-flow">
+        <lf-tab id="summary-tab" label="Summary">
+          <section id="release-summary">
             <h2>Release decision</h2>
             <p>Advance only after the evidence meets every rollout gate.</p>
           </section>

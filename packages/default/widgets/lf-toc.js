@@ -15,8 +15,8 @@ import { sectionMarks } from "./toc-marks.js";
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
- * the document's origin to make room for type. The map ends inside main's trailing
- * padding. The labels keep their measure while faded out, so revealing them neither
+ * the document's origin to make room for type. The map fills its stuck track
+ * (toc.css). The labels keep their measure while faded out, so revealing them neither
  * moves the map nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
@@ -42,7 +42,7 @@ import { sectionMarks } from "./toc-marks.js";
  * Fitting the map into a scrollable outline preserves its reading position, except
  * when a viewport change would put the focused link outside the outline's window.
  *
- * Each row also marks where the page's open threads, its On me items and, while the
+ * Each row also marks where the page's open threads, its On Me items and, while the
  * changes view is on, its changes stand (toc-marks.js), and its link previews how many
  * of each its section holds. The element is a `LeafElement` for this alone: its
  * `render()` reads those readings, so it draws again exactly when they change, in the
@@ -79,7 +79,7 @@ import {
   scrollLimit,
   sizeObserver,
   whileConnected,
-  wrote,
+  named,
   focused,
   currentLocationIn,
 } from "/runtime/widget-api.js";
@@ -96,7 +96,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, { label: wrote, chrome: inChrome }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named, chrome: inChrome }));
     }
     get #nav() {
       return this.#drawing.nav;

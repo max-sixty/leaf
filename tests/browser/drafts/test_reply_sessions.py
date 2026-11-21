@@ -133,8 +133,10 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
+            "text": """Filter the files in this patch.
+
+<lf-diff id="reply-patch" data-height="151">
+<pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -245,7 +247,8 @@ def test_reply_admission_finishes_or_restores_its_native_session(
 ):
     """A provisional send keeps the editor owed a refusal; acceptance finishes editing.
 
-    Refusal returns words to the agent-resolved thread and retries the same attempt.
+    The send leaves the user on the thread. Refusal returns words to the agent-resolved
+    thread, and the user, who did nothing since, to them, and retries the same attempt.
     After acceptance, another tab's words remain saved without activating this editor.
     """
     url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
@@ -266,6 +269,7 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     holding(page, held, 1, "the provisional reply")
     attempt = held[0].request.post_data_json["attempt"]
     expect(field).to_have_js_property("value", "")
+    expect(card).to_be_focused()
     expect_resolved(page, surface, card, False)
     if answer == "accepted":
         held.pop().continue_()
@@ -279,6 +283,7 @@ def test_reply_admission_finishes_or_restores_its_native_session(
         expect_resolved(page, surface, card, True)
         expect(field).to_be_visible()
         expect(field).to_have_js_property("value", words)
+        expect(field).to_be_focused()
         assert stored_draft_text(page, "reply:" + root) == words
         # The refusal covers the words it gave back in the panel's field, which sends
         # nothing until the user's first edit or press there brings them back. The
@@ -347,7 +352,7 @@ def opened_by_a_click(browser, serve, threads):
 def test_the_caret_an_opening_places_begins_no_reply(browser, serve, threads):
     """The caret a click's opening leaves in an empty box is no reply being written, so
     an agent's Resolve does what it does to a reader's card: at a passage of three the
-    card moves on to the next thread, and at a solo passage it closes. It used to stand
+    card moves on to the next thread, and at a solo passage it closes. It doesn't stand
     on the resolved thread over its empty box (replies.js)."""
     page, card, _box, roots = opened_by_a_click(browser, serve, threads)
     events_model.append_event(
@@ -393,10 +398,11 @@ def test_the_user_s_own_act_in_an_opened_box_begins_their_reply(browser, serve, 
     expect(box).to_be_focused()
 
 
-def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(
+def test_typing_in_the_box_an_opening_left_keeps_its_reply_through_settlement(
     browser, serve
 ):
-    """The box Send leaves the caret in counts as written in once the user types there.
+    """The empty box a click's opening leaves the caret in counts as written in once the
+    user types there.
 
     An agent's Resolve then retains the card and its editor, as it does for any reply
     the user is writing, though the caret never left the box to come back to it.
@@ -404,13 +410,12 @@ def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(
     url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
     root = thread_root(serve.page_dir, "margin")
     page = open_page(browser, url)
-    card, field = open_reply(page, "margin", root)
-    write(field, "The first reply.")
-    with sending(page, "the first reply"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    rendered(page)
+    page.locator('[data-lf-margin-for="p3"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    field = card.locator("leaf-text")
     expect(field).to_be_focused()
-    words = "A second reply, typed without leaving the box."
+    rendered(page)
+    words = "A reply, typed without leaving the box."
     page.keyboard.type(words)
     expect(field).to_have_js_property("value", words)
     events_model.append_event(

@@ -24,6 +24,7 @@ from render_harness import (
     INLINE_PAGE,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
+    WORDS_RANGE,
     command_reference_rows,
     compare_with,
     consume_browser_errors,
@@ -214,7 +215,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // Inside what was selected, not merely somewhere: a matcher that finds
             // the right words in the wrong place paints, and paints a lie.
             //
-            // A mark can now land inside a widget's shadow tree (x-shadow), and two
+            // A mark can now land inside a widget's shadow tree (`shadow`), and two
             // ranges in different trees cannot be compared at all — comparing them
             // throws rather than answering. So the question crosses the way the
             // runtime's own does: the tree renders where its host stands, so a mark
@@ -278,12 +279,13 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
 def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     browser, serve
 ):
-    """Copy uses source, including whitespace, rather than rendered annotations.
+    """Copy uses source, including whitespace, rather than rendered line numbers.
 
     A numbered widget and both ordinary block shapes share the same gesture.
     The retained widget's Copy returns after a hidden widget is detached and
-    reconnected. The control stays reachable beside horizontally scrolling code,
-    and a revision updates its source or removes it without duplicating controls.
+    reconnected. The control stays reachable beside code that keeps its lines and
+    scrolls them sideways, and a revision updates its source or removes it without
+    duplicating controls.
     """
     colored = '\n  print("' + "long source " * 30 + '")\t\n'
     suffix = "VISIBLE_END"
@@ -295,7 +297,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             "copy source",
             '<h1 id="title">Copy source</h1>'
             + (
-                '<pre id="colored" style="anchor-name: --authored-colored, --authored-secondary">'
+                '<pre id="colored" style="white-space: pre; '
+                'anchor-name: --authored-colored, --authored-secondary">'
                 '<code class="language-python">'
                 + escape(colored_source)
                 + "</code></pre>"
@@ -305,18 +308,18 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + '<pre id="plain" tabindex="0"><code>'
             + escape(plain_source)
             + '</code></pre><a id="after-copy" href="#title">After code</a>'
-            + '<lf-code id="numbered" language="python" hi="2"><pre>'
+            + '<lf-code id="numbered" hi="2"><pre><code class="language-python">'
             + escape(widget)
-            + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
+            + "</code></pre></lf-code>"
             + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
-            head="<style>#plain { anchor-name: --authored-plain; }"
+            head="<style>#plain { anchor-name: --authored-plain; white-space: pre; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
 
     url = live_url(serve(document()))
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    # The draft's control is its own (`lf-draft.js`); these are the code blocks'.
+    # The draft's Copy stands in its toolbar (`lfBar`); these are the code blocks'.
     expect(page.locator("#draft .lf-draft-tools > .lf-code-copy")).to_have_count(1)
     controls = page.locator(".lf-code-copy:not(#draft *)")
     expect(controls).to_have_count(3)
@@ -324,7 +327,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(document_controls).to_have_count(2)
     expect(page.locator("#colored")).to_have_attribute("tabindex", "0")
     expect(page.locator("#colored")).to_have_attribute("aria-keyshortcuts", "Enter")
-    expect(page.locator("#numbered lf-note")).to_contain_text("not source")
     expect(page.locator("#numbered .lf-quiet")).to_have_count(1)
 
     anchors = {}
@@ -572,10 +574,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
-          const text = pre.querySelector('code').firstChild;
-          const range = new Range();
-          range.setStart(text, text.length - suffix.length);
-          range.setEnd(text, text.length);
+          const range = ("""
+            + WORDS_RANGE
+            + """)(pre.querySelector('code'), suffix, true);
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
@@ -602,10 +603,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
-          const code = pre.querySelector('code');
+          const first = document.createTreeWalker(pre.querySelector('code'),
+            NodeFilter.SHOW_TEXT).nextNode();
           const range = new Range();
-          range.setStart(code.firstChild, 0);
-          range.setEnd(code.firstChild, 1);
+          range.setStart(first, 0);
+          range.setEnd(first, 1);
           const width = range.getBoundingClientRect().width;
           const style = getComputedStyle(pre);
           const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -1270,7 +1272,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, wrote } = await window.__lfWidgetApi();
+      const { says, named } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -1290,7 +1292,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
-        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+        namedRename: named(document).includes('old-name.js → new-name.js'),
       };
     }""")
     assert result == {
@@ -1310,7 +1312,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         "bomTo": "\ufeffnew.js",
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
-        "wroteRename": False,
+        "namedRename": False,
     }
 
     result = page.evaluate("""() => {
@@ -1358,10 +1360,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     What the pointer path must not do is here too. A keyboard selection is never
     grown — shift-arrow is the user being precise — so the comment field captures
     a mid-word selection exactly as made. Machine-placed words never glue to the
-    author's, on either side of the declaration line: an undeclared generated span
-    is a fenced cell in the reading, and a declared label — a sample's, rendered
-    flush before its words inside a list item, where both share the one block — is
-    the seam itself.
+    author's: a generated span is a fenced cell in the reading.
 
     A sentence follows the same rule at its two meaningful edges. A drag that already
     reaches its opening and closing words grows over the punctuation around them, but
@@ -1376,8 +1375,6 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         serve(
             INLINE_PAGE.replace(
                 '<p id="p">',
-                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
-                "</lf-sample></li></ul>\n"
                 '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
                 "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
                 '<ul><li id="nested">“Opening words<p>Nested block.</p>'
@@ -1490,12 +1487,6 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     page.locator("#p2").scroll_into_view_if_needed()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
-
-    # The declared label: rendered by the real pass, flush before the sample's own
-    # words, unfenced because the registry models it — so the reading holds
-    # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
-    select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
-    assert captured() == "glyphs set close"
 
 
 @pytest.mark.shifts_unsurveyed

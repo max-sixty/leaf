@@ -1,20 +1,19 @@
 """Theme selection, recorded with a page's packages.
 
-A theme is a page's look: an ordinary named package composed right after Leaf's
-default package and before the content packages, so a project package can restate
-what the theme declares, as it once restated Leaf's own idioms. Leaf bundles one, `reading` (`DEFAULT_THEME`), which a new page takes
-unless the user's TOML catalogue names another default; the catalogue lists the
-personal themes agents may select, and each package's author instructions describe
-its intended uses. A personal theme builds on the reading look: `reading` composes
-first and the theme after it (`with_theme`), so a theme states only what it changes,
-such as three colours and a face, and its pages keep the look's idioms. It once
-replaced `reading`, and a theme of five declarations then lost the callout's tint,
-the tags and the label, each of which it had to restate. A look that wants none of
-the reading look is a content package on a page that takes no theme. A page that
-takes none starts from the browser's defaults and
-Leaf's tokens. A page records its selection separately from content packages, so
-replacing one never silently retains the previous theme. Existing pages keep their
-recorded selection, including none, until explicitly changed.
+A theme is a page's look: an ordinary named package composed right after Leaf's default
+package and before the content packages, so a project package can restate what the theme
+declares. Leaf bundles one, `reading` (`DEFAULT_THEME`), which a new page takes unless
+the user's TOML catalogue names another default; the catalogue lists the personal themes
+agents may select, and each package's author instructions describe its intended uses. A
+personal theme builds on the reading look: `reading` composes first and the theme after
+it (`with_theme`), so a theme states only what it changes, such as three colours and a
+face, and its pages keep the look's idioms. A theme that replaced `reading` would lose
+the callout's tint, the tags and the label, each of which it would have to restate. A
+look that wants none of the reading look is a content package on a page that takes no
+theme. A page that takes none starts from the browser's defaults and Leaf's tokens. A
+page records its selection separately from content packages, so replacing one never
+silently retains the previous theme. Existing pages keep their recorded selection,
+including none, until explicitly changed.
 
 A page records the theme's name, and whichever Leaf reads the page composes that
 package as it finds it, as it does every package the page selects

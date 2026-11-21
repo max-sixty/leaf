@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import (
-    command_findings,
     end_work_on,
     working,
 )
@@ -165,17 +164,15 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its page-edge margin entry without
-    inventing a comment thread. An options group deliberately has no such seat: adding
-    an option changes decision state, and any discussion starts as a separate thread
-    once that option exists. Unrelated versions leave the board claim in force, while
-    a claim made on v2 does not leak backward into a pinned v1 tab.
+    A board card receives its page-edge margin entry without inventing a comment
+    thread. Unrelated versions leave the board claim in force, while a claim made on v2
+    does not leak backward into a pinned v1 tab.
     """
     work_page = OBLIGATION_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1>\n'
         '<lf-board id="work-board"><lf-column id="work-now" label="In flight">\n'
-        '  <lf-card id="card-migration"><strong>Run the migration</strong> '
+        '  <lf-card id="card-migration" label="Run the migration"><strong>Run the migration</strong> '
         "Check the shard before cutover.</lf-card>\n"
         '</lf-column><lf-column id="work-next" label="Next"></lf-column>\n'
         '<lf-column id="work-done" label="Done"></lf-column></lf-board>',
@@ -189,10 +186,6 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         told(page)
 
     claim("card-migration", "checking the shard")
-    [unsupported] = command_findings(
-        "task", "create", d, "jobs", "--title", "Price the alternatives"
-    )
-    assert unsupported.code == "no-work-seat"
 
     card_button = page.locator(
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
@@ -246,7 +239,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 )
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
-    things had to be true for that. The "quoted ·" note over the bar is the theme's word
+    things had to be true for that. The "quoted" note over the bar is the theme's word
     *about* the region rather than a word in it, and the bar opened at the note, drawing
     the marking around a line the page never said. And a table cell is a margin barrier,
     so the room the exhibit's outermost blocks reserve against neighbours they haven't
@@ -405,8 +398,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 else clip["y"] + painted / scale
             )
             found[f"{edge}-exhibit"] = exhibit[edge]
-            if edge == "top":
-                found["note"] = exhibit["note"]
 
         assert abs(found["top"] - found["top-exhibit"]) <= 1, (
             f"#{spec}'s marking begins at {found['top']} and the exhibit at "
@@ -419,9 +410,3 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             f"a trailing margin inside a child that generates no box, which the "
             f"theme's rule for the sample's last child cannot reach"
         )
-        if found["note"] is not None:
-            assert found["note"] <= found["top"] + 1, (
-                f"#{spec}'s marking begins at {found['top']}, above the foot of the "
-                f"note at {found['note']}: the marking takes in a line the page never "
-                f"said"
-            )

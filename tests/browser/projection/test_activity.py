@@ -29,12 +29,12 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
         )
 
     def item(fast, restated=""):
-        return f"""<lf-ask id="route-ask"><h2>Which route?</h2>
-  <lf-options id="route" required>
+        return f"""<lf-group id="route-ask" label="Which route?"><h2 id="route-ask-h">Which route?</h2>
+  <lf-options id="route">
     <lf-option id="route-fast"{restated}>{fast}</lf-option>
     <lf-option id="route-slow">Slow path</lf-option>
   </lf-options>
-</lf-ask>"""
+</lf-group>"""
 
     page = open_page(browser, live_url(serve(page_with(item("Fast path")))))
     page.locator("#route-fast .lf-pick").click()

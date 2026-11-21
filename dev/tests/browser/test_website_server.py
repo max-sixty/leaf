@@ -14,9 +14,8 @@ from render_harness import (
     consume_browser_errors,
 )
 
-from leaf_dev import startup
-from leaf_dev.commands.journey import run as journey
-from leaf_dev.commands.site import verify as verify_site
+from leaf_dev import startup, website
+from leaf_dev.commands.journey import _journey as journey
 
 
 def shown_by(page, id):
@@ -30,7 +29,7 @@ def shown_by(page, id):
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     page = browser.new_page()
-    failures = verify_site.observe_startup(page)
+    failures = website.observe_startup(page)
     url = "https://site-verifier.test/broken"
     page.route(
         url,
@@ -47,7 +46,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     # design; its length is what the test spends watching nothing arrive.
     never_presents_ms = 100
     with pytest.raises(RuntimeError) as caught:
-        verify_site.await_presentation(page, url, failures, timeout=never_presents_ms)
+        website.await_presentation(page, url, failures, timeout=never_presents_ms)
     assert "widget resource unavailable" in str(caught.value)
     assert "runtime initialization failed" in str(caught.value)
     assert "the runtime never started" in str(caught.value)
@@ -57,7 +56,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     )
 
 
-def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, capsys):
+def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, capfd):
     page = browser.new_page()
     url = "https://site-verifier.test/revision/"
     module = b"export const broken = (; // \xe2\x98\x83"
@@ -76,13 +75,13 @@ def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, ca
             body=module,
         ),
     )
-    failures = verify_site.observe_startup(page)
+    failures = website.observe_startup(page)
     page.goto(url)
     with pytest.raises(RuntimeError, match="never presented"):
-        with verify_site.capture_script_responses(page):
+        with website.capture_script_responses(page):
             page.reload()
-            verify_site.await_presentation(page, url, failures, timeout=100)
-    evidence = json.loads(capsys.readouterr().err)
+            website.await_presentation(page, url, failures, timeout=100)
+    evidence = json.loads(capfd.readouterr().err)
     (script,) = evidence["scriptResponses"]
     assert script["url"] == url + "runtime.js"
     assert script["status"] == 200
@@ -93,16 +92,16 @@ def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, ca
     consume_browser_errors(page, "Unexpected token")
     # Success emits no bodies, and leaving either scope detaches its observer.
     module = b"export const healthy = true;"
-    with verify_site.capture_script_responses(page):
+    with website.capture_script_responses(page):
         page.reload()
-    assert capsys.readouterr().err == ""
+    assert capfd.readouterr().err == ""
     page.reload()
-    assert capsys.readouterr().err == ""
+    assert capfd.readouterr().err == ""
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page = browser.new_page()
-    verify_site.observe_startup(page)
+    website.observe_startup(page)
     url = "https://site-verifier.test/visible-response"
     page.route(
         url,
@@ -131,7 +130,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
 
 def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
     page = browser.new_page()
-    verify_site.observe_startup(page)
+    website.observe_startup(page)
     url = "https://site-verifier.test/retried-response"
     page.route(
         url,
@@ -159,7 +158,7 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
 
 def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browser):
     page = browser.new_page()
-    verify_site.observe_startup(page)
+    website.observe_startup(page)
     url = "https://site-verifier.test/completed-stream"
     page.route(
         url,
@@ -185,7 +184,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
     """Waiting on a reply, the journey's user opens each notice its thread shows,
     the second arriving once the first is opened, until the reply is in view."""
     page = browser.new_page()
-    verify_site.observe_startup(page)
+    website.observe_startup(page)
     url = "https://site-verifier.test/held-answer"
     page.route(
         url,
@@ -248,7 +247,7 @@ def test_startup_resources_outlive_the_browser_timing_buffer(browser):
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)
     with running_http_server(httpd):
         page = browser.new_page()
-        verify_site.observe_startup(page)
+        website.observe_startup(page)
         page.goto(f"http://127.0.0.1:{httpd.server_address[1]}/")
         reading = page.evaluate("window.__leafStartup.reading")
         for milestone in ("upgraded", "presented"):
@@ -261,7 +260,7 @@ def test_startup_resources_outlive_the_browser_timing_buffer(browser):
 def test_startup_shifts_are_attributed_diagnostics_not_failures(browser):
     """A painted startup move is recorded, while quiet and later frames add none."""
     page = browser.unwatched.new_page()
-    failures = verify_site.observe_startup(page)
+    failures = website.observe_startup(page)
     page.route(
         "http://startup.test/",
         lambda route: route.fulfill(
@@ -316,10 +315,8 @@ def test_startup_shifts_are_attributed_diagnostics_not_failures(browser):
         "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
     )
     assert startup.startup_reading(page)["shifts"] == reading["shifts"]
-    assert "initial layout shifts (diagnostic)" in verify_site.startup_line(
-        "page", reading
-    )
-    assert "#moving" in verify_site.startup_line("page", reading)
+    assert "initial layout shifts (diagnostic)" in startup.startup_line("page", reading)
+    assert "#moving" in startup.startup_line("page", reading)
     assert failures == []
 
 
@@ -337,7 +334,7 @@ def test_release_verifier_waits_for_the_revision_to_finish_presenting(browser):
             ),
         ),
     )
-    page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+    page.add_init_script(path=website.SCRIPT)
     page.goto("http://release-verifier.test/")
     page.evaluate(
         "document.querySelector('script[data-lf-entry]').lfReadiness = "

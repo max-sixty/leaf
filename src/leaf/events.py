@@ -33,8 +33,8 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
     """The document a widget event is made in, from its scope and revision.
 
     A `page` event's document is the revision it names; a `thread` event's is the
-    frozen thread markup, which lasts the page's whole lifetime and so carries no
-    revision. Admission, thread folds, and the browser all key documents on this
+    message markup, which no revision carries: an edit rewrites it in place
+    (`thread_context.thread_structure`). Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}
@@ -503,12 +503,15 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. Editing a covered message, or
-    undoing an edit of it, invalidates a summary containing prose, and so does
-    taking back a message its thread held when the summary was written, which the
-    prose may report wherever the message stood. A fold without prose keeps showing
-    the revised originals. Progress completion is separate (`progress_completions`),
-    so opening a summary never restores completed progress.
+    Summaries replace overlapping summaries whole. The user rewriting a covered
+    message, or undoing such a rewrite, retires every summary covering it, and so
+    does the user taking back a message its thread held when the summary was
+    written, which its words or label may report wherever the message stood: a
+    summary the agent wrote cannot account for the user's change. The agent's own
+    edit leaves the summary standing, since the agent knows what it changed and
+    says whether the summary still holds (`thread.cmd_edit`). A summary folds no
+    progress: the thread shows only the steps nothing has superseded, as working
+    messages (`progress_completions`).
     """
     edits = {}
     edited = {}
@@ -520,7 +523,7 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
             # The thread a message was said in, and when, whatever became of it since.
             thread = said[event["parent"]][0] if "parent" in event else event["id"]
             said[event["id"]] = (thread, event["seq"])
-        elif event["kind"] == "edit":
+        elif event["kind"] == "edit" and event["author"] != "agent":
             edited[event["id"]] = event["message"]
             edits[event["message"]] = event["seq"]
         elif event["kind"] == "undo" and event["undoes"] in edited:
@@ -539,69 +542,31 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
 
 
 def progress_completions(thread: dict) -> dict[str, dict]:
-    """The ordinary agent reply that supersedes each completed progress message.
-
-    The next non-failure agent reply completes all pending progress in its thread.
-    Reactions and user messages do not complete it. Presentation and unread share
-    this relation independently of explicit summaries and read acknowledgements.
-    """
-    pending = []
+    """The agent message that supersedes each progress message of `thread`: the next
+    one the agent says in it, a step, an answer or a failure. A step the user wrote
+    after waits for the agent's next message that is more than a step, so a step said
+    below the user's message leaves the one above it standing. So the thread holds at
+    most one step it hasn't superseded between two of the user's messages, its newest,
+    and a step never moves the user's message by ending above it. Reactions supersede
+    nothing. The turn that wrote a step can end it too, which the log doesn't say
+    (`served_state.thread.progress_ends`)."""
+    pending = None
+    spoken_after: list[str] = []
     completed = {}
     for message in spoken_turns(thread):
+        if message["author"] != "agent":
+            if pending is not None:
+                spoken_after.append(pending)
+            pending = None
+            continue
+        if pending is not None:
+            completed[pending] = message
         if message.get("ephemeral"):
-            pending.append(message["id"])
+            pending = message["id"]
             continue
-        if (
-            message["kind"] != "reply"
-            or message["author"] != "agent"
-            or message.get("failure")
-        ):
-            continue
-        completed.update((identity, message) for identity in pending)
-        pending = []
+        completed.update((step, message) for step in spoken_after)
+        pending, spoken_after = None, []
     return completed
-
-
-def summary_range(
-    thread: dict, summaries: list, start: str, end: str
-) -> tuple[str, str]:
-    """The range a summary asked from `start` through `end` must cover, where
-    `summaries` are those in force once it stands: the asked range, widened over every
-    message they leave in full above the last drawn summary.
-
-    The one rule a thread's summaries keep, so a reader sees the opening message, the
-    summaries, then only what is newer than all of them. Admission
-    (`event_contracts._thread_presentation_error`) refuses a range this widens and
-    names the wider one. It reads the summaries that stand once the asked one replaces
-    those it overlaps, so a summary that ends inside an earlier one cannot uncover that
-    one's tail above a later summary. Whatever the wider range replaces lies inside it,
-    so admission takes it as named. A delivery's `summary_hint`
-    (`thread_context.batch_threads`) is the range this gives for a run of messages, so
-    a hint may replace a summary in force to close a gap above it.
-
-    The opening message may stay outside, since it says what the thread is about. A
-    message counts where the panel draws it whole: a spoken turn no summary covers,
-    other than progress a later reply completed (`progress_completions`), which is
-    drawn nowhere. Pending progress is drawn, so it counts, and a reaction is a mark
-    on another message, so it doesn't. A summary of completed progress alone is drawn
-    nowhere, so no message stands above it. Only `covers` is read of each summary, so
-    a caller can weigh a range it has not written."""
-    covered = {identity for summary in summaries for identity in summary["covers"]}
-    completed = progress_completions(thread)
-    spoken = spoken_turns(thread)
-    drawn = [message for message in spoken if message["id"] not in completed]
-    last = max(
-        (at for at, message in enumerate(drawn) if message["id"] in covered),
-        default=0,
-    )
-    left = [
-        message["id"]
-        for message in drawn[:last]
-        if message["id"] != thread["id"] and message["id"] not in covered
-    ]
-    position = {message["id"]: at for at, message in enumerate(spoken)}
-    reach = [position[identity] for identity in (start, end, *left)]
-    return spoken[min(reach)]["id"], spoken[max(reach)]["id"]
 
 
 def _thread_summaries(
@@ -623,9 +588,8 @@ def _thread_summaries(
         for replaced in {holder[identity] for identity in covers if identity in holder}:
             for identity in active.pop(replaced)["covers"]:
                 del holder[identity]
-        if event["text"] and (
-            any(edits.get(identity, 0) > event["seq"] for identity in covers)
-            or any(made < event["seq"] < undone for made, undone in taken)
+        if any(edits.get(identity, 0) > event["seq"] for identity in covers) or any(
+            made < event["seq"] < undone for made, undone in taken
         ):
             continue
         active[event["id"]] = {
@@ -635,7 +599,7 @@ def _thread_summaries(
             "through": event["through"],
             "covers": covers,
             "text": event["text"],
-            "label": event.get("label", "Earlier discussion"),
+            **({"label": event["label"]} if "label" in event else {}),
         }
         holder.update(dict.fromkeys(covers, event["id"]))
     return sorted(active.values(), key=lambda summary: positions[summary["from"]])
@@ -649,7 +613,7 @@ def unanswered_turns(thread: dict) -> list[dict]:
     settles every input accumulated through it, and a later input starts a fresh
     batch. Until then each input stays owed, and answering an older one removes
     only that input while the newer address stays owed. Mere log order is not
-    settlement: an agent answering an older frozen-widget action after newer user
+    settlement: an agent answering an older thread-widget action after newer user
     input leaves that newer input with the agent.
 
     Not the agent, rather than the user: `author` is an open string on every message
@@ -845,11 +809,10 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
 
     One predicate for every reader of liveness — the fold's survival test, the
     words gate's, and the thread a decision settles — because a decision the log
-    has taken back has to be absent everywhere at once. It was written out twice
-    and a third reader went without: `build_threads` settled a thread on a decision
-    and never asked, so a suggestion the next version rewrote came back pending
-    with the thread it had answered still filed away, and the user was never asked
-    the question again."""
+    has taken back has to be absent everywhere at once. A reader that goes without,
+    as `build_threads` settling a thread on a decision without asking would, brings
+    a suggestion the next version rewrote back pending with the thread it answered
+    still filed away, and the user is never asked the question again."""
     return any(
         floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
     )

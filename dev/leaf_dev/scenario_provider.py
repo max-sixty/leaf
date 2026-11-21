@@ -7,8 +7,9 @@ evidence directory, so repetitions never share one, and the response's
 `metadata.work` names it. Authoring cases and executors declaring a `shots`
 parameter get a directory under the run's screenshot tree, independently of their
 grading assertions. That tree is all a screenshot judge may read. Both directories
-are named by the case but not the column, so no path the judge sees
-tells the arm or condition. Errors remain provider errors.
+take a random name, since an author, fork or judge reads these paths and the case,
+arm and condition each describe what is being measured (`commands/eval/run.py`).
+Errors remain provider errors.
 """
 
 import os
@@ -26,9 +27,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
     os.environ["CLAUDE_CONFIG_DIR"] = config["claude_config_dir"]
     samples = Path(config["samples"])
     samples.mkdir(parents=True, exist_ok=True)
-    work = Path(
-        tempfile.mkdtemp(prefix=f"{metadata['case'].replace('/', '-')}-", dir=samples)
-    )
+    work = Path(tempfile.mkdtemp(prefix="sample-", dir=samples))
     if metadata.get("authoring"):
         from leaf_dev.authoring_eval import execute
 

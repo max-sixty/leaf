@@ -3,7 +3,7 @@
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
    not gather Threads, the On lists, workflows or contributed actions. Shared contribution
-   controls retain native entries across page and frozen-Thread seats. This renderer's
+   controls retain native entries across page and Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
 
@@ -38,9 +38,9 @@
    from the window's foot, its passage quoted at its head and Show on page taking the
    user to the passage itself. A card open as a narrowing window loses the rail goes
    there too (`yieldPreview`), and a widening one gives the thread back to a card
-   (destination.js, `returnToPage`). The user chose this on 31 October 2026 over a card
-   placed for a narrow window, which stood under or over its words in from the window's
-   edge, over a strip of cut-off words and often over the passage itself, and needed
+   (destination.js, `returnToPage`). The user chose this over a card
+   placed for a narrow window, which stands under or over its words in from the window's
+   edge, over a strip of cut-off words and often over the passage itself, and needs
    placement rules of its own. Its cost is that the panel covers most of a phone's
    window, so the passage shows there only in the quote, until Show on page.
 
@@ -79,7 +79,6 @@ import {
   activateContributionControl as activateSharedContribution,
   presentContributionReceipts,
   syncContributionSelection,
-  syncContributionUnread,
 } from "../contribution-controls.js";
 import {
   entryEngaged,
@@ -109,6 +108,7 @@ import { move } from "../dom-move.js";
 import {
   declareRelease,
   focusDestination,
+  focusElement,
   handBack,
   holdFocus,
   layerLanding,
@@ -126,15 +126,21 @@ import { el, generatedElement, offerActionElement } from "../widget-elements.js"
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
-import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
+import { rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
-import { nativeLayerHolding, skipped } from "../shadow-tree.js";
+import {
+  nativeLayerHolding,
+  skipped,
+  renderedOrder,
+  renderedUnder,
+  under,
+} from "../shadow-tree.js";
 
-import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
+import { annotationsHidden, watchAnnotations } from "../annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
@@ -155,8 +161,8 @@ import { releaseReplies } from "../thread/replies.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
+import { alreadyShown } from "../landing-scroll.js";
 
-import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 
@@ -186,7 +192,7 @@ import { retainUserIntent } from "../user-intent.js";
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
  * currentLocationObligation: () => Element | null,
- * marksFor: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
+ * marksFor: ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
   refreshInventory,
@@ -210,6 +216,7 @@ export function createMarginProjection({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPart,
     entryPassage,
     sourceItem,
     workflowReceipt,
@@ -347,6 +354,8 @@ export function createMarginProjection({
   let hoveredControl = null;
   /** @type {Element | null} */
   let highlighted = null;
+  /** @type {Element | null} */
+  let highlightedSurface = null;
   let highlightFrame = 0;
   let rovingFrame = 0;
   // A native layer over the page (a modal, or a popover) or a contextual thread surface
@@ -480,11 +489,10 @@ export function createMarginProjection({
   // A marker's name says what it holds and its subject, and, only while it holds focus,
   // where it stands (`place`, `spokenPlace`). Where it stands changes for every marker
   // whenever a marker joins or leaves or the page's height changes, so naming every
-  // marker with it read every target's box on each such change: about 9 ms of a
-  // comment's send on the 1,024-section page `leaf-dev bench` generates, growing with
-  // the page. A listener hears the place as they land on a marker, by any route; one
-  // reading the markers without moving focus hears each one's subject alone (the user's
-  // choice, 2026-11-15).
+  // marker with it would read every target's box on each such change, a cost in every
+  // comment's send that grows with the page. A listener hears the place as they land on
+  // a marker, by any route; one reading the markers without moving focus hears each
+  // one's subject alone (the user's choice).
   /** @typedef {{index: number, of: number, position: number | null}} Place */
   /** @param {Entry} entry @param {Place | null} place */
   function markerName(entry, place) {
@@ -546,13 +554,21 @@ export function createMarginProjection({
     { root: document, rootMargin: "100% 0px" },
   );
 
-  // Of `rows`, those in front of the user (`seenRect`): one under the floating panel, or
-  // scrolled out of a pane, is no row the walk or the rail's way in may land on.
+  // Of `rows`, those shown whole in front of the user, the rows the walk and the rail's
+  // way in may land on: none under the floating panel or scrolled out of a pane
+  // (`seenRect`), and none half past an edge, which a landing would move
+  // (landing-scroll.js, `alreadyShown`, measured out to the ring's room the row wears
+  // once focused). The walk lands without moving the page, so on a cut row it left the
+  // ring off screen; and Tab onto one moved the page, since the browser reveals a
+  // focused box it counts out of view by centring it, 400 px in a 900 px window.
   /** @param {Iterable<HTMLElement>} rows */
   function seenRows(rows) {
     const clips = new Map();
     return [...rows].filter(
-      (row) => available(row) && seenRect(row, clips, markerBox(row)),
+      (row) =>
+        available(row) &&
+        seenRect(row, clips, markerBox(row)) &&
+        alreadyShown(row, { ringed: true }),
     );
   }
   // The rows in view, in the margin's order.
@@ -593,18 +609,8 @@ export function createMarginProjection({
     const [first, ...rest] = buttons;
     if (!current || !first || !rest.length) return;
     const direction = binding === rowArrows(current)[1] ? 1 : -1;
+    // The cluster's entries stand side by side, so the step says no position.
     focusDestination(cycledRow([first, ...rest], current, direction), "move");
-    beginWalk("margin-entry", "Action", () => {
-      const currentLocation = focused();
-      const currentLocationHost = closestAcross(
-        currentLocation,
-        "[data-lf-margin-for]",
-      );
-      return listWalkPosition(
-        clusterMarginEntries(currentLocationHost),
-        currentLocation,
-      );
-    });
   }
 
   // Folding a cluster the user was in hands them back to its toggle.
@@ -656,7 +662,7 @@ export function createMarginProjection({
   // hidden: `focusDestination`'s call, with its cause.
   /** @param {Parameters<typeof focusDestination>[0]} control @param {Parameters<typeof focusDestination>[1]} cause @param {Parameters<typeof focusDestination>[2]} [options] */
   function focusForNavigation(control, cause, options) {
-    reveal(control);
+    reveal(focusElement(control));
     focusDestination(control, cause, options);
   }
 
@@ -794,8 +800,8 @@ export function createMarginProjection({
       holdTabStop(rovedRow);
       return;
     }
-    // The stop is the highest row in view, or with none in view the row nearest the
-    // window, whatever held it before, so the way in follows from the page as it
+    // The stop is the highest row shown whole (`seenRows`), or with none the row nearest
+    // the window, whatever held it before, so the way in follows from the page as it
     // stands rather than from the widths and scrolls it passed through. A stop kept
     // where it stood while in view moved for good once a narrower width had shown
     // another row first. Only a row near the window can be in view, so while one is, a
@@ -925,6 +931,12 @@ export function createMarginProjection({
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
   });
+  // Leaving the rail reads its stop again at once. While focus stood on a row the stop
+  // stayed there (`syncRoving`), and a scroll may have carried that row half past an
+  // edge since, where a Shift+Tab straight back would land on it.
+  onCurrentLocation((node, cause, left) => {
+    if (left && under(left, nav) && !(node && under(node, nav))) syncRoving();
+  });
   // Leaving a cluster folds what it unfolded, unless the user went into a surface that
   // keeps its context (`inRetainedContext`). A node hidden under the user leaves it too,
   // as its blur did. A node removed from under them is in no cluster any more, and the
@@ -987,7 +999,8 @@ export function createMarginProjection({
       runKey: stepClusterMarginEntries,
     },
     // The walk answers from a marker, not from the entries beside it, which Left and
-    // Right move between.
+    // Right move between. It walks the markers in view, which stand whole on screen, so
+    // a step says no position.
     ...rowWalk({
       id: "margin",
       noun: "Marker",
@@ -1049,6 +1062,7 @@ export function createMarginProjection({
       {
         writesRelation: false,
         writesSeat,
+        unread: unreadIn(items) > 0,
         // A thread's entry previews its threads, as their passage marks do, as they
         // read when it shows; to the keyboard a lone thread's line leaves out the word
         // the entry's name already says (`markerName`, `spokenContext`).
@@ -1077,7 +1091,6 @@ export function createMarginProjection({
     );
     presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
     syncReadingRelation(node, choice);
-    syncContributionUnread(node, unreadIn(items));
     return behavior;
   }
 
@@ -1445,19 +1458,26 @@ export function createMarginProjection({
 
   // One gesture can move the trace's source more than once: a close that clears it and
   // the focus it hands back that names the same target again. The trace paints what the
-  // gesture ends on, once, in the frame that follows it.
-  /** @param {Element | null} target */
-  function highlight(target) {
-    if (highlighted === target) return;
+  // gesture ends on, once, in the frame that follows it. It marks `surface` where the
+  // entry names one, as an entry about a part of a picture names the surface its anchor
+  // resolved to (annotation-inventory.js, `entryPart`); a target that is itself a part
+  // a visual lists, as a contribution's on a diagram's node is, takes the surface the
+  // visual lists for it (visual-parts.js).
+  /** @param {Element | null} target @param {Element | null} [surface] */
+  function highlight(target, surface = null) {
+    if (highlighted === target && highlightedSurface === surface) return;
     highlighted = target;
+    highlightedSurface = surface;
     highlightFrame ||= nextRender(() => {
       highlightFrame = 0;
-      const part = highlighted
-        ? visualAt(highlighted, { unclaimed: false })?.part
-        : null;
+      const part =
+        highlighted && !highlightedSurface
+          ? visualAt(highlighted, { unclaimed: false })?.part
+          : null;
       paintTrace(
         highlighted,
-        part?.element === highlighted ? part.surface : highlighted,
+        highlightedSurface ??
+          (part?.element === highlighted ? part.surface : highlighted),
       );
     });
   }
@@ -1501,6 +1521,9 @@ export function createMarginProjection({
       marksFor(currentLocation).length > 0 &&
       threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
     const target = targetFor(entry) ?? null;
+    // An entry about a part of a picture traces that part, not the picture
+    // (annotation-inventory.js, `entryPart`).
+    const part = entryPart(entry);
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
@@ -1521,10 +1544,15 @@ export function createMarginProjection({
         ? changeSource.change
         : null,
     );
+    const marked = !(
+      changeSource ||
+      drawingOnly ||
+      currentLocationShown ||
+      obligationShown
+    );
     highlight(
-      changeSource || drawingOnly || currentLocationShown || obligationShown
-        ? null
-        : target,
+      marked ? (part?.element ?? target) : null,
+      marked ? (part?.surface ?? null) : null,
     );
   }
 
@@ -1655,10 +1683,10 @@ export function createMarginProjection({
   // it accompanies: the press takes it down and leaves the user beside its target. Tab
   // goes on from there, so into a target's own controls, such as an ask's options,
   // with the card coming back beside them, and a walk resumes from that thread.
-  // One press is on trial from 2026-10-29, while the user tries it in use. It replaced
+  // One press is on trial, while the user tries it in use. Rejected:
   // a middle step out onto the target with the card still up, which only the focus
-  // ring told apart from the card: after a click its first press left the card up and
-  // only drew a ring on the target. What that step reached is a Tab away, and the keys
+  // ring tells apart from the card: after a click its first press leaves the card up and
+  // only draws a ring on the target. What that step reached is a Tab away, and the keys
   // a target forwards, such as an option's number, answer from inside the card. If
   // the trial fails, `git log -S '"back to element"'` finds the step to restore.
   // A cluster the user unfolded themselves and opened the card from is a level of
@@ -1754,8 +1782,8 @@ export function createMarginProjection({
   }
   pageRung("margin options", optionsRung);
 
-  // The card's way out stands ahead of the reaction and navigation modes, as the
-  // surface's old local listener did, without another keydown listener of its own.
+  // The card's way out stands ahead of the reaction and navigation modes, without
+  // another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
     title: "In the margin",

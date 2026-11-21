@@ -8,10 +8,40 @@
  * complete set of chunk owners. Replacing or committing a stage reclaims unused
  * bytes; an interrupted upload retains at most one successor until that page retries.
  * This owner never interprets the log, computes widget state or infers activity.
+ * A page's drafts store is a record of its own, the store of record, which Python
+ * replaces whole with each write before it answers the write (`saveDrafts`,
+ * `publish_drafts` in `worker/leaf_website/storage.py`). A save names the store and
+ * version it replaces, and is taken only over that, so a save that arrives late, as
+ * one whose answer the container never heard, finds a newer store and changes
+ * nothing; the answer is the store held, which the container then works from. No page
+ * commit carries it, so no commit puts an older store back, and a saved `api/drafts`
+ * or `api/news` answer is served with the stored drafts in place of those it was
+ * captured with.
  * GET /records is one uncompressed TAR snapshot: records.json first contains the
- * committed file descriptors; each referenced chunk follows once as a regular file
- * named by its hex digest. Capture and stream retention share one synchronous
- * reading. The container consumes the snapshot before replacing any local inputs.
+ * committed file descriptors and each page's drafts store; each referenced chunk
+ * follows once as a regular file named by its hex digest. Capture and stream
+ * retention share one synchronous reading. The container consumes the snapshot
+ * before replacing any local inputs.
+ * A page's record is its whole page directory as the session left it, every revision
+ * it reads included, so a later release at the same page protocol restores and serves
+ * it as a local Leaf serves a page an earlier Leaf wrote. A captured response names the
+ * assets of the release whose container captured it, so the store keeps that release
+ * beside each committed page and serves the page's responses only to it; under another
+ * release the request wakes the container, which serves the page on its own runtime;
+ * its first read of the page, a transaction like any write, saves the responses again.
+ * Each request a container makes names the release its image runs (`Leaf-Release`).
+ * A container running when a deploy lands keeps the previous image until its session's
+ * first request after the deploy stops it (`LeafSession` in `index.ts`). The session
+ * object answers a store request from a release other than its own code's with 409
+ * before reading or writing anything (`pageStore`), so every commit since the object
+ * moved to the deployed code was written by the deployed release's image.
+ * The store itself also outlives deploys, so every later release reads the tables and
+ * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
+ * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their
+ * columns, and the session object's own keys (`index.ts`). A change to any of them moves
+ * it, which, as a page protocol bump does, starts every visitor on the published page,
+ * since the session's key names it (`recordScope`), rather than leaving a later
+ * release to misread an earlier one's rows. Nothing migrates a store.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
@@ -20,7 +50,11 @@
 
 import * as z from "zod/mini";
 import { createTarPacker } from "modern-tar";
-import type { ServedState } from "../../browser/types/contract.js";
+import type {
+  ServedDraftsAnswer,
+  ServedNewsAnswer,
+  ServedState,
+} from "../../browser/types/contract.js";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -28,7 +62,6 @@ const chunks = z.array(digest);
 const file = z.strictObject({ chunks, modified: z.number() });
 const publicationSchema = z.strictObject({
   root: z.string(),
-  release: z.string(),
   record: z.record(z.string(), file),
   responses: z.record(
     z.string(),
@@ -40,7 +73,20 @@ const publicationSchema = z.strictObject({
 });
 
 export type PagePublication = z.infer<typeof publicationSchema>;
-type WebsiteRelease = { release: string; pages: Record<string, unknown> };
+const draftsSchema = z.strictObject({
+  root: z.string(),
+  replaces: z.nullable(z.strictObject({ store: z.string(), version: z.number() })),
+  drafts: z.strictObject({
+    store: z.string(),
+    version: z.number(),
+    drafts: z.record(z.string(), z.record(z.string(), z.unknown())),
+  }),
+});
+type PageDrafts = z.infer<typeof draftsSchema>;
+export function readPageDrafts(value: unknown): PageDrafts {
+  return draftsSchema.parse(value);
+}
+type WebsitePages = { release: string; pages: Record<string, unknown> };
 const commitSchema = z.strictObject({ root: z.string(), identity: digest });
 type PublicationCommit = z.infer<typeof commitSchema>;
 export function readPublicationCommit(value: unknown): PublicationCommit {
@@ -78,21 +124,26 @@ export function prepareStateDelivery(
     state.data = { version: state.data.version };
 }
 
+export const STORE_FORMAT = 1;
+export const STORE_TABLES = `CREATE TABLE IF NOT EXISTS leaf_pages (
+  root TEXT, staged INTEGER, identity TEXT, release TEXT, PRIMARY KEY(root, staged)
+); CREATE TABLE IF NOT EXISTS leaf_files (
+  root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
+  PRIMARY KEY(root, staged, path)
+); CREATE TABLE IF NOT EXISTS leaf_responses (
+  root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
+  PRIMARY KEY(root, staged, path)
+); CREATE TABLE IF NOT EXISTS leaf_blobs (
+  digest TEXT PRIMARY KEY, bytes BLOB
+); CREATE TABLE IF NOT EXISTS leaf_drafts (
+  root TEXT PRIMARY KEY, drafts TEXT
+)`;
+
 export class PageStore {
   private deliveries = new Set<string[]>();
 
   constructor(private storage: DurableObjectStorage) {
-    storage.sql.exec(`CREATE TABLE IF NOT EXISTS leaf_pages (
-      root TEXT, staged INTEGER, release TEXT, identity TEXT, PRIMARY KEY(root, staged)
-    ); CREATE TABLE IF NOT EXISTS leaf_files (
-      root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
-      PRIMARY KEY(root, staged, path)
-    ); CREATE TABLE IF NOT EXISTS leaf_responses (
-      root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
-      PRIMARY KEY(root, staged, path)
-    ); CREATE TABLE IF NOT EXISTS leaf_blobs (
-      digest TEXT PRIMARY KEY, bytes BLOB
-    )`);
+    storage.sql.exec(STORE_TABLES);
   }
 
   private references(staged?: boolean, root?: string): string[] {
@@ -135,16 +186,16 @@ export class PageStore {
     }
   }
 
-  private checkRelease(root: string, release: string, manifest: WebsiteRelease): void {
-    if (!(root in manifest.pages) || release !== manifest.release)
+  private checkRoot(root: string, manifest: WebsitePages): void {
+    if (!(root in manifest.pages))
       throw new Error("publication does not name a page in this website release");
   }
 
   async prepare(
     publication: PagePublication,
-    manifest: WebsiteRelease,
+    manifest: WebsitePages,
   ): Promise<{ identity: string; missing: string[] }> {
-    this.checkRelease(publication.root, publication.release, manifest);
+    this.checkRoot(publication.root, manifest);
     // JSON's replacer sorts every object while preserving array order. Normalize
     // response addresses by the same rule used to store and serve them.
     const descriptor = JSON.stringify(
@@ -169,8 +220,8 @@ export class PageStore {
       this.storage.sql.exec(
         "INSERT INTO leaf_pages VALUES (?, 1, ?, ?)",
         root,
-        publication.release,
         identity,
+        manifest.release,
       );
       for (const [path, file] of Object.entries(publication.record)) {
         this.storage.sql.exec(
@@ -219,10 +270,9 @@ export class PageStore {
   blob(name: string): ArrayBuffer | null {
     digest.parse(name);
     const rows = this.storage.sql
-      .exec<{ bytes: ArrayBuffer }>(
-        "SELECT bytes FROM leaf_blobs WHERE digest = ?",
-        name,
-      )
+      .exec<{
+        bytes: ArrayBuffer;
+      }>("SELECT bytes FROM leaf_blobs WHERE digest = ?", name)
       .toArray();
     return rows[0]?.bytes ?? null;
   }
@@ -236,18 +286,17 @@ export class PageStore {
     );
   }
 
-  publish(commit: PublicationCommit, manifest: WebsiteRelease): void {
+  publish(commit: PublicationCommit): void {
     this.storage.transactionSync(() => {
       const root = commit.root;
       const pages = this.storage.sql
-        .exec<{ release: string; identity: string }>(
-          "SELECT release, identity FROM leaf_pages WHERE root = ? AND staged = 1",
+        .exec<{ identity: string }>(
+          "SELECT identity FROM leaf_pages WHERE root = ? AND staged = 1",
           root,
         )
         .toArray();
       if (pages[0]?.identity !== commit.identity)
         throw new Error("page publication was not staged");
-      this.checkRelease(root, pages[0].release, manifest);
       const missing = this.missing(this.references(true, root));
       if (missing.length) throw new Error(`missing page storage chunk ${missing[0]}`);
       this.erase(root, false);
@@ -259,6 +308,34 @@ export class PageStore {
       }
       this.collect();
     });
+  }
+
+  /** Take a page's drafts store where the one held is the one it `replaces`, and
+   * answer with the store held once it has: the one saved, or the one that turned
+   * it away. */
+  saveDrafts(value: PageDrafts, manifest: WebsitePages): ServedDraftsAnswer | null {
+    this.checkRoot(value.root, manifest);
+    const held = this.drafts(value.root);
+    const replaces = value.replaces;
+    if (
+      replaces === null
+        ? held !== null
+        : held?.store !== replaces.store || held.version !== replaces.version
+    )
+      return held;
+    this.storage.sql.exec(
+      "INSERT OR REPLACE INTO leaf_drafts VALUES (?, ?)",
+      value.root,
+      JSON.stringify(value.drafts),
+    );
+    return value.drafts as ServedDraftsAnswer;
+  }
+
+  private drafts(root: string): ServedDraftsAnswer | null {
+    const rows = this.storage.sql
+      .exec<{ drafts: string }>("SELECT drafts FROM leaf_drafts WHERE root = ?", root)
+      .toArray();
+    return rows.length ? (JSON.parse(rows[0].drafts) as ServedDraftsAnswer) : null;
   }
 
   records(): Response {
@@ -282,6 +359,14 @@ export class PageStore {
       .toArray()) {
       records[root][path] = { chunks: JSON.parse(chunks), modified };
     }
+    const drafts = Object.fromEntries(
+      this.storage.sql
+        .exec<{ root: string; drafts: string }>(
+          "SELECT root, drafts FROM leaf_drafts ORDER BY root",
+        )
+        .toArray()
+        .map(({ root, drafts }) => [root, JSON.parse(drafts)]),
+    );
     const names = [
       ...new Set(
         Object.values(records).flatMap((record) =>
@@ -300,7 +385,10 @@ export class PageStore {
         await writer.write(bytes);
         await writer.close();
       };
-      await add("records.json", new TextEncoder().encode(JSON.stringify(records)));
+      await add(
+        "records.json",
+        new TextEncoder().encode(JSON.stringify({ records, drafts })),
+      );
       for (const name of names) {
         const bytes = this.blob(name);
         if (bytes === null) throw new Error("published page storage chunk disappeared");
@@ -345,19 +433,24 @@ export class PageStore {
     );
   }
 
+  /** The response the page's last commit captured at `path`, or null where it captured
+   * none under `release`. */
   async response(
     root: string,
     path: string,
     request: Request,
+    release: string,
   ): Promise<Response | null> {
     const rows = this.storage.sql
       .exec<{
         headers: string;
         chunks: string;
       }>(
-        "SELECT headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
+        `SELECT headers, chunks FROM leaf_responses JOIN leaf_pages USING (root, staged)
+         WHERE root = ? AND path = ? AND staged = 0 AND release = ?`,
         root,
         responseIdentity(path),
+        release,
       )
       .toArray();
     if (rows.length === 0) return null;
@@ -366,8 +459,18 @@ export class PageStore {
     // Served while the container is stopped, so the tab reads that its next write
     // waits for the container to launch (`writeLaunchesAgent` in `layer-client.js`).
     headers.set("Leaf-State-Source", "durable");
+    const drafts =
+      path === "api/drafts" || path === "api/news" ? this.drafts(root) : null;
+    if (drafts !== null) headers.delete("Content-Length");
     if (request.method === "HEAD") return new Response(null, { headers });
+    if (drafts !== null && path === "api/drafts")
+      return Response.json(drafts, { headers });
     const body = this.body(JSON.parse(response.chunks));
+    if (drafts !== null) {
+      const news = (await new Response(body).json()) as ServedNewsAnswer;
+      news.drafts = { store: drafts.store, version: drafts.version };
+      return Response.json(news, { headers });
+    }
     if (path === "api/state" || path.startsWith("api/state?")) {
       const state = (await new Response(body).json()) as ServedState;
       prepareStateDelivery(state, request);

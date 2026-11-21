@@ -28,6 +28,8 @@ from ..file_bindings import bound_paths
 from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
+    DRAFTS_FILE,
+    DRAFTS_LOCK,
     INTERACTIONS_FILE,
     LAYER_FILE,
     PACKAGES_DIR,
@@ -37,13 +39,17 @@ from ..schema import (
     USER_VIEWS_LOCK,
 )
 from ..service import claim_path, page_claim
-from ..state import AGENT_TURNS, EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
+from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
 # request it answers; counting either would make a read say it changed itself, and
 # waking on either would rouse every watcher of a page a tab is merely looking at.
-UNWATCHED = frozenset({INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
+# `drafts.json` is the user's typing, which tabs hear on their own (`drafts.py`) and
+# the agent never reads.
+UNWATCHED = frozenset(
+    {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK, DRAFTS_FILE, DRAFTS_LOCK}
+)
 # The page's trees stamped entry by entry: the authored `page/` tree and `data/`.
 TREES = ("page", DATA_DIR)
 
@@ -99,11 +105,10 @@ def page_roots(page_dir: Path) -> set[Path]:
 
 
 def outside_inputs(page_dir: Path) -> set[Path]:
-    """The files outside the page directory its reading stamps: the claim, its
-    claimant session's lifecycle and its agents' turns (`state.AGENT_TURNS`), and
-    forks' hand-overs (`forks.HANDED`), which change what is deliverable, and each
-    bound file. A watcher subscribes to these by path, and follows a new set when
-    the claim or the grants change."""
+    """The files outside the page directory its reading stamps: the claim and its
+    claimant session's lifecycle, which change what is deliverable, and each bound
+    file. A watcher subscribes to these by
+    path, and follows a new set when the claim or the grants change."""
     return {path for _name, path in _outside(page_dir)}
 
 
@@ -114,13 +119,11 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
         # Turn openings/closings and SessionEnd are shared session publications,
         # not rewrites of every page claim. They change each claimed page's state.
         named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
-        named.append(("$agents", session_file(claim["id"], AGENT_TURNS.kind).resolve()))
-        named.append(("$forks", session_file(claim["id"], "forks").resolve()))
     return named + _bound(page_dir)
 
 
 def _bound(page_dir: Path) -> list[tuple[str, Path]]:
-    # Files a page binds for editing live outside it, so each is stamped by path.
+    # Files a page binds for editing may live outside it, so each is stamped by path.
     return [(f"$file:{name}", path) for name, path in bound_paths(page_dir).items()]
 
 
@@ -178,8 +181,8 @@ def held_page_reading(page_dir: Path) -> str:
     the same stamps (`source_readings`), so a file source validation reads that could
     change without moving it would leave a save unactivated; `media/` is stamped
     without descending because its filenames are content-addressed. The state answer
-    also carries each bound file's stamp (`file_bindings.binding_stamps`), naming
-    which binding moved.
+    also carries each bound file's label and stamp (`file_bindings.bound_files`),
+    naming which binding moved.
     """
     return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
 

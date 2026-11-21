@@ -84,7 +84,8 @@ Two classic models.</pre></lf-code>
     )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("body > main")).to_be_visible()
-    expect(page.locator(PANEL)).to_be_hidden()
+    # The served row stands from the first paint; the runtime's panel hasn't mounted.
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-served", "")
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
@@ -148,14 +149,13 @@ def _asked(context):
 def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     """The vocabulary is the layer's; the modules are this page's.
 
-    Every tag with a module used to import on every page, so a triage board
-    with no diff anywhere on it fetched Pierre's renderer, and that one module was
-    more than half the bytes the page moved. The board page's own modules, the board,
-    its grid and its activity feed, are the population: a page that asked for nothing
+    With every tag's module imported on every page, a triage board with no diff
+    anywhere on it would fetch Pierre's renderer. The board page's own modules, the
+    board, its grid and its activity feed, are the population: a page that asked for nothing
     would satisfy every refusal below and
     say nothing about which of them holds.
 
-    The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
+    The shadow rules follow the same line: `/shadow.css` is what a `shadow` widget
     renders under, so a page with no such widget never asks for it, and the theme
     arrives once, through the document's `<link>`.
     """
@@ -472,7 +472,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
 def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     """A tag the document never had still upgrades in the panel.
 
-    The frozen markup an agent's reply carries is the third boundary that can
+    The markup an agent's reply carries is the third boundary that can
     introduce a widget, and `buildMsgBody` instantiates it synchronously once the
     panel builds a body — so the module has to be in hand before the state that
     carries the reply is applied, not fetched on a mutation once the element is
@@ -505,14 +505,14 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "--done",
             response_reference(d, "c-store"),
             "--text",
-            "Depends what you want to keep:",
-            "--markup",
-            (
-                '<lf-ask id="store-decision"><h3>Which store?</h3>'
-                '<lf-options id="store-pick" required>'
-                '<lf-option id="store-redis"><strong>Redis</strong></lf-option>'
-                '<lf-option id="store-cookie"><strong>A signed cookie</strong>'
-                "</lf-option></lf-options></lf-ask>"
+            "Depends what you want to keep:"
+            + "\n\n"
+            + (
+                '<lf-group id="store-decision" label="Which store?">\n<h3 id="store-decision-h">Which store?</h3>'
+                '<lf-options id="store-pick">'
+                '<lf-option id="store-redis" label="Redis"><strong>Redis</strong></lf-option>'
+                '<lf-option id="store-cookie" label="A signed cookie"><strong>A signed cookie</strong> '
+                "</lf-option></lf-options></lf-group>"
             ),
         ],
     )

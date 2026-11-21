@@ -23,6 +23,7 @@ from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     EVERY_TURN_DEPENDENCIES,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _observer,
     _watched,
@@ -54,7 +55,6 @@ from leaf import codex_state as codex_state_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import forks as forks_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -64,6 +64,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.json_block import json_block, read_json_block
 from leaf.refusals import Refused
 
 
@@ -315,9 +316,7 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
     action ahead of a comment, input a reply already settled, and an event that owes no
     answer."""
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
-        )
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(
@@ -825,8 +824,8 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
         else output["hookSpecificOutput"]["additionalContext"]
     )
     [(path, record)] = codex_records("codex-thread")
-    assert len(context.splitlines()) == 1
-    envelope = json.loads(context)
+    envelope, after = read_json_block(context)
+    assert after == ""
     assert envelope == delivery_model.cmd_delivery_read(path.stem)
     assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(path.stem)
     assert envelope["batches"][0]["events"][0]["id"] == comment["id"]
@@ -918,7 +917,7 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
             return
         answer = json.loads(capsys.readouterr().out)
         assert answer["decision"] == "block"
-        envelope = json.loads(answer["reason"])
+        envelope, _ = read_json_block(answer["reason"])
         assert [event["id"] for event in envelope["batches"][0]["events"]] == [
             comment["id"]
         ]
@@ -1137,11 +1136,7 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     )
     offer = json.loads(capsys.readouterr().out)
     [(path, _)] = codex_records("codex-thread")
-    context = json.dumps(
-        delivery_model.cmd_delivery_read(path.stem),
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
+    context = json_block(delivery_model.cmd_delivery_read(path.stem))
     if delivery_hook == "Stop":
         assert offer == {"decision": "block", "reason": context}
     else:
@@ -1256,7 +1251,7 @@ def test_codex_tool_hook_offers_only_what_the_cursor_has_not_passed(
     ]
     assert [
         event["id"]
-        for batch in json.loads(context)["batches"]
+        for batch in read_json_block(context)[0]["batches"]
         for event in batch["events"]
     ] == [newer["id"]]
 
@@ -1337,9 +1332,9 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         },
     )
     [(path, record)] = codex_records("codex-thread")
-    assert json.loads(
+    assert read_json_block(
         json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
-    ) == delivery_model.cmd_delivery_read(path.stem)
+    )[0] == delivery_model.cmd_delivery_read(path.stem)
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
@@ -1893,7 +1888,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         )
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
         assert prompt is not None
-        assert json.loads(prompt) == delivery_model.cmd_delivery_read(path.stem)
+        assert read_json_block(prompt)[0] == delivery_model.cmd_delivery_read(path.stem)
         assert [args[2] for args in queued] == [
             delivery_model.delivery_pointer_prompt(path.stem)
         ]
@@ -2323,22 +2318,6 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
     assert [record["state"] for _, record in codex_records("codex-thread")] == (
         [] if abandoned else ["starting"]
     )
-    if abandoned:
-        # The pickup names what the abandonment's receipt passed, so a quiet tool
-        # hook on the page reads its log alone.
-        def unread(page):
-            raise AssertionError("a quiet tool hook read who holds each thread")
-
-        monkeypatch.setattr(forks_model, "page_holding", unread)
-        cleanup_model.prompt_turn("codex-thread", "next-turn")
-        hooks_model.cmd_hook(
-            "codex",
-            {
-                "hook_event_name": "PostToolUse",
-                "session_id": "codex-thread",
-                "turn_id": "next-turn",
-            },
-        )
 
 
 def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(

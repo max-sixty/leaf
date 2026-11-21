@@ -42,13 +42,12 @@ def _read_events(page_dir):
 
 
 # The panel's control at rest, which a test focuses to stand the user in the panel.
-def _on_me_mark(page):
-    return page.locator(".lf-fp-on-user")
+def _leaf(page):
+    return page.locator(".lf-fp-leaf")
 
 
-# The page's one standing sign of unread messages: a dot on the On Me mark, whose name
-# counts the threads holding news, and on the folded leaf. The leaf's dot stands
-# whatever view is open, where the view's ✕ takes the mark's seat, so it is read here.
+# The page's one standing sign of unread messages: a dot on the leaf, whose name counts
+# the threads holding news, whatever view is open or however the panel stands.
 def _expect_news(page, news=True):
     dot = page.locator(".lf-fp-news-dot")
     if news:
@@ -258,7 +257,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
         "#read-clip { height: 100px; overflow: auto; }",
     )
-    _on_me_mark(child).focus()
+    _leaf(child).focus()
     _open_first_unread(page, child)
     _still_unread(page, child)
 
@@ -280,9 +279,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
         "#read-gap { height: 2000px; }",
     )
-    # Below the first screen it shows nothing: the user focuses its On Me mark and
+    # Below the first screen it shows nothing: the user focuses its leaf and
     # scrolls the containing page back to the top first.
-    _on_me_mark(child).focus()
+    _leaf(child).focus()
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
@@ -312,7 +311,7 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     page.locator("#owner-modal").evaluate(
         "dialog => { dialog.close(); dialog.showModal(); }"
     )
-    _on_me_mark(child).focus()
+    _leaf(child).focus()
     _open_first_unread(page, child)
     _scroll_to_message(page, child, "document.querySelector('#owner-modal')")
     _read_by_the_sample(page, child)
@@ -361,12 +360,12 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
         None,
         None,
         None,
-        "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" required>'
+        "Choose the next step.\n\n"
+        '<lf-group id="read-decision" label="Which way?">\n<h3 id="read-decision-h">Which way?</h3>'
+        '<lf-options id="read-choice">'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     if origin == "reference":

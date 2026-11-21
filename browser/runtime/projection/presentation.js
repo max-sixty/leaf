@@ -19,7 +19,7 @@ import {
   readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
-import { widgetElement } from "../widget-descriptors.js";
+import { addressableAt } from "../thread/messages.js";
 import { authored, elementById, inChrome, renderRetired } from "../passages.js";
 import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
@@ -66,12 +66,12 @@ function paintStateOrigins(projection, marked) {
 // current outcome is one the registry says retires it. This marks every such widget,
 // whether or not its module renders anything. A module that animates its own settling,
 // as lf-suggestion does, has already run it in the publication before this writes the
-// same mark. A widget in a message's frozen markup is marked before the thread mounts
+// same mark. A widget in a message's markup is marked before the thread mounts
 // it, so it joins the panel settled and the thread's passages skip what it retired.
 /** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
-    const owner = widgetElement(widgetId);
+    const owner = addressableAt(widgetId);
     const decision = owner && decisionFor(owner.localName);
     if (!decision) continue;
     const wanted = state[decision.verb]?.detail?.outcome;
@@ -90,7 +90,7 @@ const widgetStates = readPart((root) => root.effective.widgets);
 export function createProjectionPresentation() {
   // The region claims a paint synchronously as each publication is made, before the
   // coordinator seals which regions the pass must paint. So its previous paint cannot
-  // stand for a new reading while frozen widget markup is still joining the document;
+  // stand for a new reading while thread widget markup is still joining the document;
   // the pass paints it afterwards. Before the server's first answer `reading` returns
   // null, and there is nothing to paint. The coverage stamp below follows presentation
   // (`watchPresentation`) rather than this region.
@@ -106,16 +106,22 @@ export function createProjectionPresentation() {
   // A live revision keeps that reading until its next projection completes. Current
   // document readiness belongs to the presentation coordinator, whose document:patch
   // region holds the installation, rather than to erasing and restoring this count.
+  // The fold keeps the coverage records while no event joins the log (`kept.js`), so
+  // once the stamp covers them a presentation that moves no widget event, such as a
+  // thread's repaint, returns without walking the log again.
+  /** @type {unknown} */
+  let stamped = null;
   const coverage = () => {
     const root = applicationState.read();
+    const records = root.effective.coverage;
     if (
+      records === stamped ||
       root.phase === "waiting" ||
       root.authoritative === null ||
       !projectionRegionsPresented([])
     )
       return;
     const projection = root.effective.projection;
-    const records = root.effective.coverage;
     const ready = records.every((record) => {
       if (record.coordinate === null) return true;
       const e = record.event;
@@ -126,8 +132,9 @@ export function createProjectionPresentation() {
         projectionRegionsPresented(record.coordinate.slice(0, 1))
       );
     });
-    if (ready)
-      keeps(document.body, PAGE_PAINT_ATTRIBUTE.applied, String(records.length));
+    if (!ready) return;
+    keeps(document.body, PAGE_PAINT_ATTRIBUTE.applied, String(records.length));
+    stamped = records;
   };
   let coverageQueued = false;
   const updateCoverage = () => {
@@ -178,8 +185,8 @@ export function createProjectionPresentation() {
 
   // `present` is not returned. The region repaints from its own subscription above, or
   // from `presentDocument` when a caller has changed the document. Handing one caller
-  // a third way in is how the obligation inventory once got left out of a document-wide
-  // repaint.
+  // a third way in can leave an owner, such as the obligation inventory, out of a
+  // document-wide repaint.
 }
 
 /** @param {Element} root */

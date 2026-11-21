@@ -92,6 +92,7 @@ import {
   clippedPlace,
   fixedInWindow,
   landingBand,
+  landingInsets,
   placeBox,
   placeHolder,
   scrollContainer,
@@ -175,8 +176,33 @@ function shownFor(where) {
   const room = roomAround(ring, where);
   return box.height <= room.height && box.width <= room.width ? ring : where;
 }
+// The part of `where` a landing has to show: its box, less what a region reaching the
+// window's foot reserves there for the floating panel. The region states that room
+// (`--lf-end-room`, layouts.css) and lays its last content out that far above its foot,
+// so the band at the foot that holds none of its content is that room and the margin
+// the band keeps above the panel (the root's `--lf-landing-room`), never more of the
+// band than that: a panel opened higher, over the region's content, still has a landing
+// bring that content clear of it. Measured whole, every region of a held workspace was
+// taller than its room by the panel's resting band, so a link to one, or a file opened
+// in an editor filling one, scrolled the page to put the region's opening at the band's
+// top, wherever something after `main` gave the page room to scroll its header away.
 /** @param {Destination} where */
-const destinationBox = (where) => placeBox(shownFor(where));
+const destinationBox = (where) => {
+  const shown = shownFor(where);
+  const box = placeBox(shown);
+  const reserved =
+    shown instanceof Element
+      ? Number.parseFloat(getComputedStyle(shown).getPropertyValue("--lf-end-room")) ||
+        0
+      : 0;
+  if (reserved <= 0) return box;
+  const root = document.documentElement;
+  const margin =
+    Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) ||
+    0;
+  const foot = Math.min(landingInsets(root).bottom, reserved + margin);
+  return new DOMRect(box.x, box.y, box.width, Math.max(0, box.height - foot));
+};
 /** @param {Destination} where */
 const holderOf = (where) => placeHolder(shownFor(where));
 
@@ -298,11 +324,16 @@ function seesWhole(seen, box, want, room) {
 const ringed = (where) =>
   where instanceof Element && where.matches(":focus-within, [data-lf-focus-within]");
 
-/** @param {Destination} where @param {{block?: ScrollLogicalPosition}} [options] */
-export function alreadyShown(where, { block = "nearest" } = {}) {
+// `ringed` measures it out to its ring's room before the user is on it, for a choice of
+// where focus will land made before it arrives (margin-projection.js, `seenRows`).
+/** @param {Destination} where @param {{block?: ScrollLogicalPosition, ringed?: boolean}} [options] */
+export function alreadyShown(
+  where,
+  { block = "nearest", ringed: on = ringed(where) } = {},
+) {
   const shown = shownFor(where);
   const box = destinationBox(where);
-  const out = ringed(where) ? marginBox(where, box) : box;
+  const out = on ? marginBox(where, box) : box;
   const seen = seenRect(shown, new Map(), out);
   if (!seen) return false;
   const room = landingRoom(where);

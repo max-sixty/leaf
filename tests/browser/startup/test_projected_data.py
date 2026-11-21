@@ -18,9 +18,11 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
+    _until,
     compare_with,
     consume_browser_errors,
     fetch_whole_state,
+    holding,
     leaf_page,
     nudge,
     open_page,
@@ -66,8 +68,8 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
-        prose: [leaf.says(lede), leaf.wrote(lede)],
-        datum: [leaf.says(datum), leaf.wrote(datum), datum.textContent],
+        prose: [leaf.says(lede), leaf.named(lede)],
+        datum: [leaf.says(datum), leaf.named(datum), datum.textContent],
       };
     })""")
     assert readings == {
@@ -144,22 +146,24 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     )
     feed = {
         "description": "A live deployment feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
         },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
+        "content": "empty",
+        "inputs": {
             "rows": {
                 "contract": "deployment-rows",
                 "source": "source",
                 "property": "value",
             }
         },
-        "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+        "example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
     }
     contract = {
         "description": "Deployment records with durable ids.",
@@ -370,9 +374,7 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
     lines follows them across updates: while the lines read as they did, they stay
     marked and the thread's margin entry stands beside them. A line the document holds
     twice is told apart by the lines around each copy. Once an update rewrites a
-    commented line, its comment stands nowhere on the page. Each comment used to come
-    off its lines on the first update, every margin entry collecting at the document's
-    top, and a comment on a repeated line stood there from the start."""
+    commented line, its comment stands nowhere on the page."""
     lines = [f"line {i} " + "words " * (i % 9) for i in range(1, 401)]
     # Row 128 ends the listing's first run of rows; row 310 repeats row 300.
     lines[127] = "the last row of the first run"
@@ -440,22 +442,24 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     )
     entry = {
         "description": "A project-supplied derived feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
+        "content": "empty",
+        "inputs": {
             "rows": {
                 "contract": "derived-rows",
                 "source": "source",
                 "property": "value",
             }
         },
-        "x-example": '<lf-derived id="derived-example"></lf-derived>',
+        "example": '<lf-derived id="derived-example"></lf-derived>',
     }
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
@@ -526,7 +530,7 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     source_page = leaf_page(
         "waiting document",
         """
-<lf-text-document id="full" source="full-text" label="full.toml" language="toml"></lf-text-document>
+<lf-text-document id="full" source="full-text" label="full.toml" class="language-toml"></lf-text-document>
 """,
     )
     url = live_url(serve(source_page))
@@ -565,7 +569,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "captured source",
         f"""
 <h1 id="title">Leaf skill</h1>
-<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
+<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" class="language-markdown"></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )
@@ -832,28 +836,44 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
-    crossed = []
+    asked = []
+    agreed = []
 
     def crossed_state(route):
-        crossed.append(route.request.url)
-        route.fulfill(json=stale)
+        asked.append(route)
+        if len(asked) > 1:
+            route.fulfill(json=stale)
 
-    # One transient freshness observation asks for the crossed read. Then the
-    # origin again advertises the reading the page holds, so the heartbeat ages
-    # the accepted state rather than repeatedly repairing a freshness mismatch.
-    page.route("**/api/state*", crossed_state)
-    with page.expect_response("**/api/state*"):
-        page.route(
-            "**/api/news*",
-            lambda route: route.fulfill(
-                json={
-                    "reading": stale["reading"] if crossed else "crossed-state-reading",
-                    "pages": None,
-                }
-            ),
+    def news(route):
+        if asked:
+            agreed.append(route)
+        route.fulfill(
+            json={
+                "reading": stale["reading"] if asked else "crossed-state-reading",
+                "pages": None,
+                "drafts": route.fetch().json()["drafts"],
+            }
         )
+
+    # One transient freshness observation asks for the crossed read. Then the origin
+    # again advertises the reading the page holds, so the heartbeat ages the accepted
+    # state rather than repeatedly repairing a freshness mismatch. The shared clock
+    # repairs a mismatch only while no read is out, so the route holds the crossed read
+    # until a look has taken the agreement in, as the next look's request shows.
+    page.route("**/api/state*", crossed_state)
+    page.route("**/api/news*", news)
+    holding(page, asked, 1, "the crossed state read")
+    holding(page, agreed, 2, "a second look after the origin agreed")
+    asked[0].fulfill(json=stale)
+    _until(
+        page,
+        lambda traffic: (
+            traffic.heard == traffic.asked and traffic.applied == traffic.received
+        ),
+        "applied the crossed read",
+    )
     ticked(page)
-    assert len(crossed) == 1
+    assert len(asked) == 1
     expect(timestamp).to_have_text("1h")
     # With no newer state at all, the thread's row still ages by the clock.
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
@@ -920,7 +940,7 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
 def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     browser, serve
 ):
-    """Active and frozen consumers keep their declarations as a source is rebound.
+    """Page and thread consumers keep their declarations as a source is rebound.
 
     A changed contract must reach the browser even with identical value bytes, clear
     the incompatible consumer, and leave it able to recover.
@@ -929,18 +949,24 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     def entry(tag, contract):
         return {
             "description": "An instrumented data reader.",
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "source": {"type": "string"},
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "source": {"type": "string"},
+                },
+                "required": ["id", "source"],
+                "additionalProperties": False,
             },
-            "required": ["id", "source"],
-            "additionalProperties": False,
-            "x-content": "empty",
-            "x-data": {
-                "data": {"contract": contract, "source": "source", "property": "value"}
+            "content": "empty",
+            "inputs": {
+                "data": {
+                    "contract": contract,
+                    "source": "source",
+                    "property": "value",
+                }
             },
-            "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+            "example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
         }
 
     def module(tag):
@@ -994,7 +1020,7 @@ customElements.define(TAG, class extends LeafElement {
     thread_model.post_reply(
         serve.page_dir,
         {"responds": "question"},
-        "Frozen feed.",
+        "Thread feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])

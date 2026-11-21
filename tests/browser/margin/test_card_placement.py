@@ -75,12 +75,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-fp-on-user").focus()
+        page.locator(".lf-fp-leaf").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-fp-on-user")).to_be_focused()
+        expect(page.locator(".lf-fp-leaf")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -97,8 +97,9 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
 def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
     browser, serve, width
 ):
-    """Only a full-width message leaves the margin row clear; a narrower message
-    uses the row's space and reaches the visible edge."""
+    """A card clears its margin row only where the row has room for the measure it
+    may widen to, and otherwise stands beside the words. Either way a short message
+    keeps it at the least width, or the window's room where that is narrower."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -114,7 +115,9 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
                   preferred: parseFloat(getComputedStyle(card)
-                    .getPropertyValue('--lf-thread-card'))};
+                    .getPropertyValue('--lf-thread-card')),
+                  minimum: parseFloat(getComputedStyle(card)
+                    .getPropertyValue('--lf-thread-card-min'))};
         }"""
     )
     past = (
@@ -127,9 +130,7 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
         abs=0.5,
     ), geometry
     assert geometry["cardRight"] == pytest.approx(
-        geometry["viewport"] - 8
-        if geometry["viewport"] - 8 - geometry["cardLeft"] < 592
-        else geometry["cardLeft"] + 592,
+        min(geometry["viewport"] - 8, geometry["cardLeft"] + geometry["minimum"]),
         abs=0.5,
     ), geometry
 
@@ -138,15 +139,15 @@ PICK_UNDER_A_CARD = leaf_page(
     "Pick under a card",
     """
 <h1 id="title">Pick under a card</h1>
-<lf-ask id="ask">
-  <h3>What should a phone's one-row banner hold?</h3>
-  <lf-options id="choice" required>
-    <lf-option id="row"><strong>Status in words</strong> The status keeps its words
+<lf-group id="ask" label="What should a phone's one-row banner hold?">
+  <h3 id="ask-h">What should a phone's one-row banner hold?</h3>
+  <lf-options id="choice">
+    <lf-option id="row" label="Status in words"><strong>Status in words</strong> The status keeps its words
     on the row, cut short with an ellipsis where the sentence runs long.</lf-option>
-    <lf-option id="two"><strong>Keep two rows</strong> The status keeps its
+    <lf-option id="two" label="Keep two rows"><strong>Keep two rows</strong> The status keeps its
     sentence.</lf-option>
   </lf-options>
-</lf-ask>
+</lf-group>
 """,
 )
 
@@ -519,13 +520,13 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     rendered(page)
     after = page.evaluate(offset)
     if transform == "scale(0.25)":
-        # The card's lengths are its own, so its measure shrinks with the transform
-        # while it stands where it did.
-        measure = page.evaluate(
+        # The card's lengths are its own, so its least width shrinks with the
+        # transform while it stands where it did.
+        minimum = page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-thread-card'))"
+            ".getPropertyValue('--lf-thread-card-min'))"
         )
-        before = {**before, "width": measure * 0.25}
+        before = {**before, "width": minimum * 0.25}
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 

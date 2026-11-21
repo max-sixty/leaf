@@ -1,7 +1,6 @@
-# Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
-# put a lede in the header), the change 3 of 3.
-# Those historical scores required particular header contents and density-working.
-# The current rubric judges usable working space and understandable context instead.
+# The rubric judges usable working space and understandable context: introductory
+# or status material, such as a lede in the header, fails where it crowds the
+# working regions, whatever the header's tag names, number of rows or density class.
 description: workspace-header-is-one-row
 metadata:
   purpose: "Writing a workspace: context leaves room to read and decide in the working regions."
@@ -51,9 +50,9 @@ variants:
         action that submits the review. Keep enough room to read the selected test's
         evidence and make its decision.
     assert:
-      - type: javascript
+      - type: python
         metric: shared-rule-during-review
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        value: file://../dev/leaf_dev/regrade.py:authoring
         config:
           rubric: |
             At the requested 1280 by 800 laptop viewport, switch tests and read a long log. The

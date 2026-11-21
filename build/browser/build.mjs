@@ -11,7 +11,9 @@
  * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
  * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
- * (`build/vendor.mjs`). The layer's `vendor/` and each package's hold nothing else,
+ * (`build/vendor.mjs`), and the floating panel's row as a served document stands it
+ * from its first paint (`build/panel-row.mjs`). The layer's `vendor/` and each
+ * package's hold nothing else,
  * so a file there that no build writes is stale. Leaf installation, vendoring,
  * activation, and export never invoke this tool.
  * The compiler's layer paths are generated into `tsconfig.paths.json` from the
@@ -34,6 +36,7 @@ import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
+import { panelRowOutputs } from "../panel-row.mjs";
 import { signalsPath } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
@@ -87,7 +90,7 @@ export async function compilerPaths(directory = root) {
  * it bundles (`build/lit.mjs`), read from Lit's own declarations. */
 async function litTypes() {
   return Buffer.from(
-    `/* @noformat Generated from Lit's package exports by build/browser/build.mjs. */\n${await litNamespace()}\n`,
+    `/* Generated from Lit's package exports by build/browser/build.mjs. */\n${await litNamespace()}\n`,
   );
 }
 /**
@@ -160,7 +163,7 @@ async function litModule() {
 
 // Every schema a page's log at the current protocol relies on, and every record's,
 // as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
-// forward. A build refuses a change that breaks it.
+// forward. A build refuses a change to it at the same protocol.
 const baselineName = "build/browser/protocol-baseline.json";
 
 // JSON with a key per line to `depth` levels and each value below on one line, so the
@@ -183,7 +186,7 @@ async function protocolOutputs() {
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(
-      `A page's log at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+      `Schemas changed at page protocol ${baseline.protocol}:\n${refused.join("\n")}\nUndo the change, or bump $events.protocol in browser/runtime/kernel-registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
@@ -202,7 +205,7 @@ export async function checkRuntimeModules(directory = root) {
   );
   if (typescript.length)
     throw new Error(
-      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\n${typescript.join("\n")}`,
+      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build:\n${typescript.join("\n")}`,
     );
 }
 
@@ -324,7 +327,7 @@ export async function buildOutputs() {
       `${assets}/vendor/${name}.LICENSES.txt`,
       Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
     );
-  for (const producer of [styleOutputs, vendorOutputs])
+  for (const producer of [styleOutputs, vendorOutputs, panelRowOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   return outputs;
 }

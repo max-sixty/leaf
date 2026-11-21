@@ -33,6 +33,7 @@ import base64
 import io
 import json
 import re
+import sys
 from itertools import pairwise
 from pathlib import Path
 
@@ -44,6 +45,7 @@ from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
+    WORDS_RANGE,
     assert_follows_in_every_frame,
     compositor_trace,
     frame_image,
@@ -442,14 +444,12 @@ def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     )
     page.set_viewport_size({"width": width, "height": 900})
     words = "Keep the active card"
-    phrase = """words => {
-      const text = document.querySelector('#source code').firstChild;
-      const range = document.createRange();
-      const start = text.data.indexOf(words);
-      range.setStart(text, start);
-      range.setEnd(text, start + words.length);
-      return range.getBoundingClientRect().toJSON();
-    }"""
+    phrase = (
+        """words => ("""
+        + WORDS_RANGE
+        + """)(document.querySelector('#source code'), words)
+      .getBoundingClientRect().toJSON()"""
+    )
     passage = page.evaluate(phrase, words)
     if route == "pointer":
         y = passage["top"] + passage["height"] / 2
@@ -750,7 +750,7 @@ def test_a_box_whose_start_stands_away_from_its_text_takes_the_card_s_width(
     ],
 )
 def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
-    browser, serve, region, route
+    browser, serve, request, region, route
 ):
     """The first compositor frame showing the returned passage already attaches its box.
 
@@ -758,6 +758,18 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
+    # Chrome 159 leaves a box placed by CSS anchoring out of the first frame that shows
+    # its anchor again, on a plain page with no Leaf code too, and the regions it does
+    # so in differ by platform (#6539). The mark is strict, so these cases fail again
+    # once Chrome draws that frame.
+    dropped = {"document", "code"} | ({"pane"} if sys.platform == "darwin" else set())
+    if region in dropped and int(browser.version.split(".")[0]) >= 159:
+        request.applymarker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="#6539: Chrome 159 drops an anchored box from the first returned frame",
+            )
+        )
     marker_style = f"""<style>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
@@ -1299,7 +1311,9 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     100%, which only pans it sideways, and a pane the page scrolls scrolls nothing
     itself. So a comment ⌥-clicked into the shot stands beside it rather than over it,
     and one on words in the pane takes the window's room: the answer that arrives grows
-    the card, rather than scrolling inside a card the shot or the pane cuts short."""
+    the card, rather than scrolling inside a card the shot or the pane cuts short. The
+    answer grows a card beside the shot past the window's foot, which lifts it
+    (thread-preview.js, `rises`)."""
     shot = None
     if subject.startswith("shot"):
         page = open_page(browser, serve(named_source("release-notes")))
@@ -1342,7 +1356,9 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         for event in reversed(event_log.read_events(serve.page_dir))
         if event["kind"] == "comment"
     )["id"]
-    append_agent_reply(serve.page_dir, root, "Because each tenant restores alone. " * 8)
+    append_agent_reply(
+        serve.page_dir, root, "Because each tenant restores alone. " * 12
+    )
     told(page)
     expect(card.locator(".lf-msg")).to_have_count(2)
     rendered(page)

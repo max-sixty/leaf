@@ -23,15 +23,15 @@ You investigated and prototyped. Your notes:
 - The captures below come from a prototype. Its implementation is not included in
   this workspace.
 - Captures, each a 1640x1010 window with the thread open beside the column:
-  - evals/decision-options-fit-the-window/captures/start-card.png: today's margin
+  - captures/start-card.png: today's margin
     card, where every route starts.
-  - evals/decision-options-fit-the-window/captures/card-with-button.png: the card
+  - captures/card-with-button.png: the card
     with the Open in panel icon in its head, at about x 1180 to 1640, y 10 to 80.
-  - evals/decision-options-fit-the-window/captures/today-panel.png: after Threads,
+  - captures/today-panel.png: after Threads,
     then the thread's row: the panel's view at 540px.
-  - evals/decision-options-fit-the-window/captures/panel-panel.png: after Open in
+  - captures/panel-panel.png: after Open in
     panel at today's size.
-  - evals/decision-options-fit-the-window/captures/reading-panel.png: after Open
+  - captures/reading-panel.png: after Open
     in panel at reading size, the whole thread.
 - Once a route is chosen, you'll build it from the prototype into the runtime with
   a keyboard route, carry a reply being written into the panel, and show the user

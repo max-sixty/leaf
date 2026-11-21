@@ -27,6 +27,7 @@ import { surfaceFocusTarget } from "./surfaces.js";
 import { beginThreadSeats, commitThreadSeats, retainThreadSeats } from "./inline.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
+import { draftAnchor, draftsReading } from "../drafts.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -49,7 +50,7 @@ function renderHolds(threads) {
 /** @param {{surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
  * finishPlacement: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["finishPlacement"]}},
  * anchorPlacement: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>,
- * anchorPaint: Pick<ReturnType<typeof import("../annotation-overlay/anchor-paint.js").createAnchorPaint>, "paint"> | null,
+ * anchorPaint: Pick<ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>, "paint">,
  * anchorControls: Pick<ReturnType<typeof import("../anchor-controls.js").createAnchorControls>, "render" | "withholdVisualActions">,
  * drawingPaint: Pick<ReturnType<typeof import("../composing/drawing-ink.js").createDrawingInk>, "paint">,
  * pageGeometry: Pick<ReturnType<typeof import("../page-geometry.js").createPageGeometry>, "pageShifted">,
@@ -143,9 +144,13 @@ export function createThreadPresentation({
           threads,
           draft: readDraft(),
           actionAnchor: activeActionAnchor(),
+          saved: draftsReading().flatMap((saved) => {
+            const anchor = draftAnchor(saved);
+            return anchor ? [{ context: saved.context, anchor }] : [];
+          }),
         });
         if (anchors) {
-          anchorPaint?.paint(anchors);
+          anchorPaint.paint(anchors);
           anchorControls.render(anchors);
         }
         drawingPaint.paint();

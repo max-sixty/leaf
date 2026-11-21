@@ -79,6 +79,16 @@ PORT_WAIT_SECONDS = 90
 # route slowed by a loaded machine still delivers its answer.
 STOP_GRACE_SECONDS = 30
 
+# How long the server keeps an idle keep-alive connection before closing it. A
+# client that pools connections reuses an idle one until its own idle timeout, and a
+# request it sends on a connection the server is closing at that moment is lost
+# unanswered. The Workers runtime keeps its connections to a leaf.page container for
+# 5 s (`kj::HttpClientSettings::idleTimeout`), uvicorn's default keep-alive too, and
+# a request that reuses a connection idle for 5 s then fails as "Network connection
+# lost". A server that outlasts the client's pool leaves every idle close to the
+# client.
+KEEP_ALIVE_SECONDS = 60
+
 # Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
 # (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
 # a wildcard listener.
@@ -232,6 +242,7 @@ class LeafHTTPServer:
                 page_app(endpoint, self),
                 log_config=None,
                 access_log=False,
+                timeout_keep_alive=KEEP_ALIVE_SECONDS,
                 lifespan="off",
                 # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
                 # page's own gate never sees, ahead of the key and the page's routes.
@@ -473,7 +484,7 @@ def started_server(page_dir: Path, url: str) -> dict:
     """A started server's URL and reading (`server_reading`) as one object, noting
     an address that stays on this machine (`server.loopback_only`)."""
     if loopback_only(page_dir):
-        note(Finding("loopback-only", severity="advice"))
+        note(Finding("loopback-only"))
     return {"url": url} | server_reading(page_dir)
 
 
@@ -838,6 +849,52 @@ def claim_and_start(
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+
+
+def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
+    """`leaf server start`: take and serve the page (`claim_and_start`) with this
+    Leaf, restarting at its address a running server another Leaf started.
+
+    A server keeps the Leaf it started under, and markup and layout contracts move
+    between commits with no protocol change, so the agent asking to serve a page
+    must get the Leaf whose `page check` it read, not one an older session or a
+    deleted checkout left running. Another Leaf is another install or checkout, or
+    this one at another commit (`layer.payload_provenance`). Uncommitted edits don't
+    count, since the record can't say whether they changed after the server started.
+
+    Whether this Leaf can serve the page is decided first, as a fresh bind decides
+    it (`http.page_endpoint`), so a refusal leaves the page with its owner and the
+    other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
+    once the page is taken, since a session service comes back only for the
+    session holding it; one that can't start again leaves the service enabled and
+    down, for a revival to bring back. Only this command restarts: a hook or watch
+    reviving a page may run an older Leaf than the server it finds."""
+    from .http import page_endpoint
+
+    replacing = _served_by_another_leaf(page_dir)
+    if replacing:
+        with page_locked(page_dir):
+            page_endpoint(page_dir, host_key())
+    with claim_and_start(page_dir, host, persistent) as started:
+        pass
+    if replacing:
+        with restarting_server(page_dir, session_harness()):
+            pass
+    return started
+
+
+def _served_by_another_leaf(page_dir: Path) -> bool:
+    """Whether the page's running server records a Leaf other than this one, by
+    path or commit (`start_page`)."""
+    from .layer import payload_provenance
+
+    existing = running_server(page_dir)
+    if not existing:
+        return False
+    here = payload_provenance(include_path=True)
+    return any(
+        existing["runtime"].get(key) != here.get(key) for key in ("path", "commit")
+    )
 
 
 class _StopScope(Enum):

@@ -138,10 +138,6 @@ export class RecordingTimeline {
     return scroller;
   }
 
-  get zoom() {
-    return this.#zoom;
-  }
-
   // The scroller arrives with the first drawing, which can follow the connection.
   #observeScroller() {
     if (this.scroller && this.#host.isConnected) this.#observer.observe(this.scroller);
@@ -208,21 +204,10 @@ export class RecordingTimeline {
       this.#scrollTo(x - width / 2);
   }
 
-  /** @param {number} factor @param {number | null} [anchor] @param {[number, number] | null} [fit] */
-  zoomBy(factor, anchor = null, fit = null) {
+  /** @param {number} factor @param {number | null} [anchor] */
+  zoomBy(factor, anchor = null) {
     const scroller = this.scroller;
     if (!scroller) return;
-    if (fit) {
-      // Fit a time range into the middle three fifths of the window.
-      const [from, to] = fit;
-      const range = Math.max(10, to - from);
-      this.#zoom = Math.max(
-        1,
-        Math.min(this.#maxZoom(), (this.#recording.duration * 0.6) / range),
-      );
-      this.#applyZoom(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
-      return;
-    }
     const time =
       anchor ??
       (this.#visible(this.#time)
@@ -866,6 +851,9 @@ export class RecordingTimeline {
   /** @param {PointerEvent} event */
   #tap(event) {
     if (this.#options.quoted) return;
+    // A mouse's press on the track scrubbed at pointerdown, so its click is the track's
+    // too.
+    event.preventDefault();
     const touched = event.pointerType === "touch" ? this.#touched : null;
     this.#touched = null;
     const target = touched?.target ?? event.target;

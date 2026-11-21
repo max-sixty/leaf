@@ -9,11 +9,12 @@
 // `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
 // holds words, each is asked whether its words are still on the page: the field itself,
 // still connected and laid out (`checkVisibility`, which a field under `display: none`
-// fails) and still holding them, or else another laid-out field holding the same words,
-// which is how a re-render hands a draft to the node replacing its box, and where the
-// watch follows them. A field scrolled out of view is still on the page, and so is one
-// under `visibility: hidden`, which is how a surface whose target a pane has scrolled
-// past waits out of view for it to come back.
+// fails) and still holding them, alone or within a longer text, or else another laid-out
+// field holding the same words or the same longer text, which is how a re-render hands a
+// draft to the node replacing its box, and where the watch follows them. A field
+// scrolled out of view is still on the page, and so is one under `visibility: hidden`,
+// which is how a surface whose target a pane has scrolled past waits out of view for it
+// to come back.
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
@@ -21,10 +22,15 @@
 // reaches this one as storage news, or, where this document reads the store before
 // that news is delivered, as its own reading of the store: words this document stored
 // that the store no longer holds when they leave the screen, under a key whose value
-// another document changed, are that edit's to have put away. A write arriving after
+// another document changed, are that edit's to have put away. Leaf keeps its drafts on
+// the page's server rather than in the browser's storage (runtime/drafts.js), so the
+// watch reads the drafts this document writes there and what the server answers it,
+// as they pass and before the page reads them, as a store of the same kind: words this
+// document wrote that the server holds no longer, under a draft another document
+// changed or sent, are that edit's to have put away. A write arriving after
 // they left is later input, which redeems nothing. A close watcher's close, such as Android's back
 // gesture makes, puts words away only where the page's storage still holds them, as Leaf's
-// draft store does for kept words and for saved ones until the log accepts them: back may close an editor but
+// drafts do for kept words and for saved ones until the log accepts them: back may close an editor but
 // never throw its words away (keyboard/close-requests.js), whether a gesture or a
 // script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
@@ -81,9 +87,12 @@
       if (node.shadowRoot) yield* fields(node.shadowRoot);
     }
   }
-  // The laid-out field holding these words, if any does.
-  const shownIn = (words) =>
-    [...fields()].find((field) => drawn(field) && text(field) === words) ?? null;
+  // The laid-out field holding these words, if any does: their text alone, or the
+  // longer text a field last showed them within (`shown`).
+  const shownIn = ({ words, shown }) =>
+    [...fields()].find(
+      (field) => drawn(field) && (text(field) === words || text(field) === shown),
+    ) ?? null;
   // A field words are typed into: an input only where it takes text, not a checkbox or
   // a range, whose `value` is not words.
   const TYPED = new Set(["text", "search", "url", "email", "tel", "number"]);
@@ -105,6 +114,8 @@
     // This is the owner's declared input chain, not an arbitrary ancestor's `open`.
     editor: [...valueOwners(field)].find((owner) => owner.open === true) ?? null,
     close: null,
+    // The longer text the field last showed the words within, as a draft join makes.
+    shown: null,
   });
 
   // Applied or cancelled typing cannot put words away. An uncancelled native
@@ -239,11 +250,124 @@
   // Retain that exact value operation until the same field proves its paint;
   // a select's typed filter is not its `input` and never borrows its selected value.
   const painting = new Map();
-  // Whether the page's storage still holds these words, bare or as a JSON string, as
-  // Leaf's draft store keeps them.
+  // Whether the page's storage still holds these words, bare or as a JSON string.
   const holds = (value, words) =>
     value === words || Boolean(value?.includes(JSON.stringify(words)));
+  // Leaf's drafts, read off what passes between this document and the page's server:
+  // the words this document last wrote of each draft, the attempts it wrote them as,
+  // the words of each write still out, by the write's place among the draft's writes,
+  // and what the server said it holds of each in an answer asked for after this
+  // document's last write of it, null for none, with the store and its version then.
+  /** @type {Map<string, string | null>} */
+  const draftsWritten = new Map();
+  const attemptsWritten = new Set();
+  /** @type {Map<string, number>} */
+  const writesOf = new Map();
+  /** @type {Map<string, Map<number, string | null>>} */
+  const draftsOut = new Map();
+  /** @type {Map<string, {attempt: string, text: string} | null>} */
+  const draftsHeld = new Map();
+  /** @type {Map<string, {store: string, version: number}>} */
+  const heldAt = new Map();
+  const { fetch: send } = window;
+  const draftPath = (input) => {
+    try {
+      const { pathname } = new URL(
+        input instanceof Request ? input.url : input,
+        location.href,
+      );
+      return /\/api\/drafts$/.test(pathname)
+        ? "reading"
+        : /\/api\/draft$/.test(pathname)
+          ? "write"
+          : null;
+    } catch {
+      return null;
+    }
+  };
+  window.fetch = function (input, init) {
+    const kind = draftPath(input);
+    // Any other request passes through untouched, its promise the page's own.
+    if (!kind) return send.apply(this, arguments);
+    // Each draft's writes so far as this request sets out: an answer speaks of a draft
+    // only where no later write of it went out meanwhile.
+    const asked = new Map(writesOf);
+    let context = null;
+    let place = 0;
+    if (kind === "write")
+      try {
+        const written = JSON.parse(init.body);
+        ({ context } = written);
+        place = (writesOf.get(context) ?? 0) + 1;
+        writesOf.set(context, place);
+        asked.set(context, place);
+        attemptsWritten.add(written.record.attempt);
+        draftsWritten.set(context, written.record.text ?? null);
+        draftsOut.set(
+          context,
+          new Map(draftsOut.get(context)).set(place, written.record.text ?? null),
+        );
+        draftsHeld.delete(context);
+      } catch {
+        // A body the watch can't read credits nothing.
+      }
+    const settle = () => {
+      if (context !== null) draftsOut.get(context)?.delete(place);
+    };
+    // A reading may be served before a write out at the time, or answered after a
+    // later one, so it speaks of a draft only with nothing newer heard of its store,
+    // and, with a write of it out, only of another document's words, which the page
+    // takes over that write as the server would (runtime/drafts.js). Another store's
+    // versions order nothing against the one heard before it.
+    /** @param {string} key @param {string} store @param {number} version @param {{attempt: string} | null} [held] */
+    const current = (key, store, version, held = null) =>
+      (writesOf.get(key) ?? 0) === (asked.get(key) ?? 0) &&
+      (heldAt.get(key)?.store !== store || version >= heldAt.get(key).version) &&
+      (kind === "write" ||
+        !draftsOut.get(key)?.size ||
+        Boolean(held && !attemptsWritten.has(held.attempt)));
+    /** @param {string} key @param {{attempt: string, text: string} | null} held @param {string} store @param {number} version */
+    const hear = (key, held, store, version) => {
+      draftsHeld.set(key, held);
+      heldAt.set(key, { store, version });
+    };
+    return send.apply(this, arguments).then(
+      async (response) => {
+        if (response.ok)
+          try {
+            const answer = await response.clone().json();
+            if (kind === "reading") {
+              for (const key of new Set([
+                ...draftsHeld.keys(),
+                ...Object.keys(answer.drafts),
+              ]))
+                if (current(key, answer.store, answer.version, answer.drafts[key]))
+                  hear(key, answer.drafts[key] ?? null, answer.store, answer.version);
+            } else if (
+              context !== null &&
+              current(context, answer.store, answer.version)
+            )
+              hear(context, answer.record, answer.store, answer.version);
+          } catch {
+            // An answer the watch can't read credits nothing.
+          }
+        // The write stays out until its answer is heard, so no moment between the
+        // response's headers and its body holds the words in neither.
+        settle();
+        return response;
+      },
+      (error) => {
+        settle();
+        throw error;
+      },
+    );
+  };
+  // Words a server holds, or a write of them still out, which it may yet take; a
+  // write it failed or turned away keeps nothing.
   const stored = (words) => {
+    if ([...draftsHeld.values()].some((held) => held?.text === words)) return true;
+    if ([...draftsOut.values()].some((out) => [...out.values()].includes(words)))
+      return true;
     try {
       for (let i = 0; i < localStorage.length; i++)
         if (holds(localStorage.getItem(localStorage.key(i)), words)) return true;
@@ -280,6 +404,12 @@
   }
   // A store that refuses reads, as a page's storage may, shows no other tab's edit.
   const replacedElsewhere = (words) => {
+    for (const [context, mine] of draftsWritten) {
+      if (mine !== words || !draftsHeld.has(context)) continue;
+      const now = draftsHeld.get(context);
+      if (now === null || (now.text !== words && !attemptsWritten.has(now.attempt)))
+        return true;
+    }
     try {
       for (const [key, mine] of written) {
         if (!holds(mine, words)) continue;
@@ -348,7 +478,7 @@
   const judge = (field, held, source, replaced) => {
     const { words, typedOrder } = held;
     // Back by the time of judging: a re-render that put them straight back.
-    const heir = shownIn(words);
+    const heir = shownIn(held);
     if (heir) {
       holding.set(heir, held);
       watching();
@@ -427,6 +557,13 @@
         } else painting.delete(field);
         continue;
       }
+      // A field whose text grew around the words still shows them, as a draft that
+      // joins another tab's words does (runtime/drafts.js, `bothWords`).
+      if (drawn(field) && text(field).includes(held.words)) {
+        held.shown = text(field);
+        painting.delete(field);
+        continue;
+      }
       holding.delete(field);
       const operation = painting.get(field);
       painting.delete(field);
@@ -438,7 +575,7 @@
         drawn(field) &&
         text(field) === operation.value;
       const effectSource = matched ? operation.source : source;
-      const heir = shownIn(held.words);
+      const heir = shownIn(held);
       if (heir) holding.set(heir, held);
       else
         pending.set(field, {

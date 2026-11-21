@@ -21,7 +21,6 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
-    AVAILABLE_COMMANDS,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
     PANEL,
@@ -55,8 +54,9 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     url = serve(
         leaf_page(
             "Inline settlement",
-            '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
-            "Should these jobs share a visit?</lf-verdict>"
+            '<h1>Review the plan</h1><lf-group id="proposal-q" label="Should these jobs share a visit?">'
+            '<lf-verdict id="proposal" asks>'
+            "Should these jobs share a visit?</lf-verdict></lf-group>"
             '<label>Another thought <input id="later"></label>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
@@ -145,10 +145,12 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
     thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     summary = page.locator("#jobs .lf-resolved-summary")
     # Freeze the actual retirement when it becomes inert, so assertions cover the
-    # interval before its natural finish without racing a wall-clock duration.
+    # interval before its natural finish without racing a wall-clock duration. It is
+    # the fold, not the tint an undo of the last Resolve may still be fading.
     thread.evaluate("""node => new MutationObserver(() => {
         if (!node.inert) return;
-        const animation = node.getAnimations()[0];
+        const animation = node.getAnimations().find((played) =>
+            played.effect.getKeyframes().some((frame) => "blockSize" in frame));
         if (!animation || animation === window.retirement) return;
         window.retirement = animation;
         animation.pause();
@@ -290,12 +292,12 @@ def expect_focus_in(page, locator):
     page.wait_for_function(FOCUS_IN, arg=locator.element_handle())
 
 
-# The ways back from a settlement (undo.js header; folding.js): `z` taking it at once
-# after its landing; `z` taking it where its place is in view after the user did
-# something else; the notice's Undo; the log refusing it; and `z` showing it first,
-# where the user has left its place, and taking it on the second press. "shown" runs
-# last on a shared page, since it leaves the page scrolled and a disclosure open.
-WAYS_BACK = ("landing", "seen", "notice", "refusal", "shown")
+# The ways back from a settlement (undo.js header; folding.js): ⌘Z right after its
+# landing; ⌘Z where its place is in view after the user did something else; the
+# notice's Undo; the log refusing it; and ⌘Z where the user has left its place.
+# "away" runs last on a shared page, since it leaves the page scrolled and a disclosure
+# open.
+WAYS_BACK = ("landing", "seen", "notice", "refusal", "away")
 
 
 class Surface(NamedTuple):
@@ -310,17 +312,16 @@ class Surface(NamedTuple):
     aside: Callable[[], None]
     # Inputs that take the thread's place out of view.
     away: Callable[[], None]
-    # The thread shown again, and the user on it, by a `z` that shows before it takes.
-    shown: Callable[[], None]
     # The user back on the thread there, with no other surface showing it.
     returned: Callable[[], None]
     # The ways back the settlement leaves the user no route to.
     unreachable: frozenset = frozenset()
 
 
-# A Reopen lands the caret in the thread's reply, where `z` is a letter typed; leaving
-# the box ends the landing's arm.
-REOPENED_IN_THE_BOX = frozenset({"landing"})
+# A Reopen lands the caret in the thread's reply, which keeps ⌘Z for its words, so
+# neither ⌘Z nor the notice's Undo, which stands only while ⌘Z would make it, takes
+# the Reopen back there.
+REOPENED_IN_THE_BOX = frozenset({"landing", "notice"})
 
 FILLER = "".join(
     f"<p id='f{i}'>Filler {i}. " + "Words. " * 30 + "</p>" for i in range(30)
@@ -347,7 +348,7 @@ def press_r(page):
 
 def card_surface(browser, serve, gesture):
     """A margin card beside the thread's passage. No card draws a resolved thread, so
-    only a Resolve is made there, and a `z` that shows it shows its passage."""
+    only a Resolve is made there."""
     url, root = anchored_long_page(serve, gesture)
     page = open_page(browser, url)
     resized(page, 1440, 900)
@@ -367,13 +368,6 @@ def card_surface(browser, serve, gesture):
         scroll_settled(page)
         expect(passage).not_to_be_in_viewport()
 
-    def shown():
-        # No card or margin control draws a resolved thread, so the user lands on its
-        # passage.
-        expect(passage).to_be_focused()
-        expect(passage).to_be_in_viewport()
-        expect(page.locator(PANEL_THREAD)).to_have_count(0)
-
     def returned():
         expect(card).to_be_focused()
         expect(page.locator(PANEL_THREAD)).to_have_count(0)
@@ -384,7 +378,6 @@ def card_surface(browser, serve, gesture):
         press_r(page),
         lambda: page.locator("#p54").click(),
         away,
-        shown,
         returned,
     )
 
@@ -420,8 +413,7 @@ def panel_surface(browser, serve, gesture):
         aside,
         away,
         returned,
-        returned,
-        REOPENED_IN_THE_BOX | {"notice"} if gesture == "reopen" else frozenset(),
+        REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset(),
     )
 
 
@@ -488,18 +480,12 @@ def seat_surface(browser, serve, gesture):
         expect(page.locator(PANEL_THREAD)).to_have_count(0)
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
-    def shown():
-        # The element the seat stands in fits the window, so it lands whole.
-        expect(page.locator("#jobs")).to_be_in_viewport(ratio=1)
-        returned()
-
     return Surface(
         page,
         enter,
         settle,
         lambda: page.locator("#h").click(),
         away,
-        shown,
         returned,
         REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset(),
     )
@@ -540,17 +526,12 @@ def reader_surface(browser, serve, gesture):
         expect_focus_in(page, thread)
         expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
-    def shown():
-        expect(thread).to_be_in_viewport()
-        expect_focus_in(page, thread)
-
     return Surface(
         page,
         lambda: None,
         settle,
         lambda: workspace.locator("h4").first.click(),
         away,
-        shown,
         returned,
         REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset({"notice"}),
     )
@@ -573,11 +554,12 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
     browser, serve, subtests, surface, gesture
 ):
     """A settlement takes the user's view of its thread away, and every way back gives
-    that view back on the surface the user had it on: `z` by each of its three ways,
-    the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
-    choose chose for the thread as it stood at the way back: it put a thread resolved
-    in its card in the panel, where resolved threads open, one resolved in the panel's
-    view in a card, and one resolved in a seat in the panel, then a card."""
+    that view back on the surface the user had it on: ⌘Z pressed on it, beside it or
+    away from it, the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
+    choose would choose for the thread as it stood at the way back: it would put a
+    thread resolved in its card in the panel, where resolved threads open, one resolved
+    in the panel's view in a card, and one resolved in a seat in the panel, then a
+    card."""
     s = surface(browser, serve, gesture)
     page = s.page
     page.evaluate(OPEN_THREAD_COUNT)
@@ -603,18 +585,8 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
                 expect_open_threads(page, after)
                 if way == "seen":
                     s.aside()
-                elif way == "shown":
+                elif way == "away":
                     s.away()
-                    page.evaluate(AVAILABLE_COMMANDS)
-                    page.wait_for_function(
-                        "() => window.__lfAvailableCommands()['history.undo']"
-                        "?.includes('z') ?? false"
-                    )
-                    page.keyboard.press("z")
-                    expect(page.locator(".lf-live")).to_contain_text(
-                        "Press again to undo"
-                    )
-                    s.shown()
                 if way == "notice":
                     with sending(page, "the notice's Undo"):
                         page.locator(".lf-fp-field .lf-compose-press").click()
@@ -677,9 +649,8 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
 
 def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
     """Resolve in a card shows the thread after the resolved one at the same passage,
-    else the one before, standing the user on it, and the page doesn't move; `z` brings
-    the thread back where it was resolved (thread-preview.js, the user's choice of 4
-    November 2026)."""
+    else the one before, standing the user on it, and the page doesn't move; ⌘Z brings
+    the thread back where it was resolved (thread-preview.js, the user's choice)."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -736,14 +707,10 @@ def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, s
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 
-    An open margin card repaints for reasons the user never asked for — a relative
-    timestamp ageing, a receipt phase landing, a margin contribution changing — and each
-    one re-runs the whole thread render. Nothing in that render is a reason to take the
-    user off the control they have reached, so the control they were about to press
-    has to still be the one the next key reaches.
-
-    `lf-actions` is the margin's own repaint door, and its render runs inside this call,
-    so the state the press reads is stated rather than waited out.
+    An open margin card redraws its whole thread on every reading of it, as when the
+    agent's reply lands while the user rests on the card's Resolve. Nothing in that
+    render is a reason to take the user off the control they have reached, so the
+    control they were about to press has to still be the one the next key reaches.
     """
     page = open_page(
         browser,
@@ -782,13 +749,25 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     assert page.evaluate("() => window.__lfDetachedThread"), (
         "the detached margin card reached display before its thread rendered"
     )
-    resolve = page.locator(".lf-margin-thread").get_by_role(
-        "button", name="Resolve thread", exact=True
-    )
+    card = page.locator(".lf-margin-thread")
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.focus()
     expect(resolve).to_be_focused()
-    page.evaluate("() => document.dispatchEvent(new Event('lf-actions'))")
+    answer = "Both jobs fit one visit."
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": answer,
+        },
+    )
+    told(page)
+    expect(card).to_contain_text(answer)
     expect(resolve).to_be_focused()
     with sending(page, "the resolve the repaint could have unseated"):
         page.keyboard.press("Enter")
@@ -847,7 +826,7 @@ def test_a_settlement_in_flight_leaves_its_opposite_live(held_events, serve):
 
 
 def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
-    """`z` after the user's own Resolve reopens the thread at once, as the Resolve
+    """⌘Z after the user's own Resolve reopens the thread at once, as the Resolve
     closed it: an undo stands in the thread of the gesture it takes back, so it is no
     news to hold behind a notice."""
     url = serve(PANEL_PAGE)
@@ -1015,13 +994,13 @@ ATTACHED_THREAD_PAGE = leaf_page(
     "an element and its thread",
     """<h1>Cache review</h1>
 <p id="passage" tabindex="0">The budget note covers latency budgets for the cache.</p>
-<lf-ask id="cache-ask">
-  <h2>Which cache should we keep?</h2>
-  <lf-options id="cache" required>
+<lf-group id="cache-ask" label="Which cache should we keep?">
+  <h2 id="cache-ask-h">Which cache should we keep?</h2>
+  <lf-options id="cache">
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>
   </lf-options>
-</lf-ask>""",
+</lf-group>""",
 )
 
 
@@ -1056,7 +1035,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
         ).to_be_visible()
 
     arrive()
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.keyboard.press("r")
     rendered(page)
     expect(card).to_be_visible()

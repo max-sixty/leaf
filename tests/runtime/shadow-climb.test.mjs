@@ -5,11 +5,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { composedParentNode, renderedUnder, under, upFrom } from "/runtime/shadow.js";
 import {
   eachRenderedChild,
   eachRenderedElement,
   renderedParent,
+  composedParentNode,
+  renderedUnder,
+  under,
+  upFrom,
 } from "/runtime/shadow-tree.js";
 
 test("a climb crosses a shadow root to its host", () => {
@@ -20,8 +23,8 @@ test("a climb crosses a shadow root to its host", () => {
 });
 
 test("a climb stops at the top of a detached subtree, a link's included", () => {
-  // A link answers `host` with its URL's host name, which the climb once took for a
-  // node and then threw on.
+  // A link answers `host` with its URL's host name, which a climb that took it for a
+  // node would then throw on.
   const link = document.createElement("a");
   link.href = "http://127.0.0.1:4000/";
   const text = document.createTextNode("words");

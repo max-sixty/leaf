@@ -1,5 +1,5 @@
-# Guardrail for the 2026-10-01 repeated-link repair. Both 78f9fc8cd and the
-# repair kept the exact URL in 2/2 runs, guarding the final handoff.
+# Guardrail for the page-url progress cases: the user doesn't want a progress
+# message to repeat the page URL, but the final handoff keeps it.
 description: page-url-followup-final
 metadata:
   purpose: "Handoff: a later turn's final response keeps the exact existing page URL."

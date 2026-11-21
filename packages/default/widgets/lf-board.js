@@ -21,7 +21,7 @@
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
- * A card with `shows` is the board's view of another widget's answer (x-shows,
+ * A card with `shows` is the board's view of another widget's answer (`shows`,
  * `shownAnswer`), such as a proposal's pick in its own section. The board draws it in
  * the column whose `value` that answer names, read from the widget's state in this
  * render, so a pick there, an undo, a refusal and a revision's retraction move the card
@@ -36,9 +36,15 @@
  * cards their items (#structure), and each grip is named for the column its
  * card now sits in (#names). Both are attributes on authored elements — the
  * light DOM stays verbatim, which is what the anchor pass and the version diff
- * walk. The theme's column heading is CSS generated content with empty alt
- * text, so the label reaches the tree once, as the list's name, rather than
- * twice. */
+ * walk. The column's heading is the module's span, aria-hidden, so the label
+ * reaches the tree once, as the list's name, rather than twice.
+ *
+ * A column's heading is the one title the default widgets draw from a `label`, where
+ * option cards, board cards and samples show only what their author writes
+ * (lf-options.js). The column is a list the board builds, and its heading is that
+ * list's name beside its card count. An authored heading would be a child the column's
+ * `members` content refuses, and a non-item inside a list a screen reader reads as one
+ * of its items. */
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
@@ -50,7 +56,6 @@ import {
   offerAction,
   generatedElement,
   quoted,
-  says,
   announce,
   labelOf,
   layoutChanged,
@@ -133,24 +138,19 @@ customElements.define(
     // describe rather than afford, so this holds for a quoted board too: an
     // exhibit is read like anything else, it just takes no input.
     //
-    // The heading is written here too, rather than declared x-says and left to
-    // the runtime's pass, because it is two things at once: the words a user
-    // selects to comment on the column, and the list's accessible name. The pass
-    // renders one run of words at an edge and knows nothing about names, so it
-    // would put these into the tree a second time under a list already carrying
-    // them. Same marker (the theme styles [data-lf-said]) and same contract
-    // (generated, so the diff looks away; not .lf-ui, so the anchor pass doesn't)
-    // — a widget with a module of its own does the part only it can, which is
-    // the line the layer's AGENTS.md draws and a widget's authored labels are the
-    // other case of.
+    // The heading is written here too, because it is two things at once: the words a
+    // user selects to comment on the column, and the list's accessible name, so the
+    // tree hears them once, as the name. It is the page speaking (`says: true`) and
+    // generated, so the diff looks away, and it isn't .lf-ui, so the anchor pass
+    // doesn't.
     #structure() {
       for (const col of this.#columns()) {
         col.setAttribute("role", "list");
         keeps(col, "aria-label", col.getAttribute("label"));
         for (const card of this.#cards(col)) card.setAttribute("role", "listitem");
-        if (col.querySelector(':scope > [data-lf-said="label"]')) continue;
+        if (col.querySelector(":scope > .lf-column-name")) continue;
         const heading = document.createElement("span");
-        heading.dataset.lfSaid = "label";
+        heading.className = "lf-column-name";
         generatedElement(heading, { says: true });
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
@@ -251,7 +251,7 @@ customElements.define(
       return Boolean(this.reading?.actions.move?.available);
     }
 
-    // A card showing another widget's answer (x-shows) moves when that answer can
+    // A card showing another widget's answer (`shows`) moves when that answer can
     // change, and every other card when the board's own move can.
     /** @param {Element} card */
     #movable(card) {
@@ -260,10 +260,10 @@ customElements.define(
     }
 
     // The value a column holds for a card showing an answer, null for none: the
-    // attribute the card's x-shows names.
+    // attribute the card's `shows` names.
     /** @param {Element} column @param {Element} card */
     #holds(column, card) {
-      const shows = declarationFor(card, "x-shows");
+      const shows = declarationFor(card)?.shows;
       if (!shows) throw new Error("Shown-answer card has no declared column value");
       return column.getAttribute(shows.value) || null;
     }
@@ -293,8 +293,7 @@ customElements.define(
 
     /** @param {Element} card */
     #title(card) {
-      const strong = card.querySelector(":scope > strong");
-      return (strong && says(strong)) || card.id;
+      return card.getAttribute("label")?.trim() || card.id;
     }
     /** @returns {NodeListOf<HTMLElement>} */
     #columns() {
@@ -328,7 +327,7 @@ customElements.define(
       const held = () => this.#grabbed?.grip === grip;
       // Whether the card is authored to show an answer, read off its markup since the
       // answer's own state may not have loaded yet.
-      const shows = card.hasAttribute(declarationFor(card, "x-shows")?.attr ?? "");
+      const shows = card.hasAttribute(declarationFor(card)?.shows?.reference ?? "");
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.

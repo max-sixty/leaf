@@ -4,7 +4,7 @@
  * is transient. lf-shot owns comparison controls, layout and capture scrolling;
  * the dashboard supplies capture metadata and retains case articles and threads.
  * A case's header names only the capture size and browser, with Capture details
- * holding the rest: on 2026-10-26 the user chose this over a line that also said the
+ * holding the rest: the user chose this over a line that also said the
  * images were captured screenshots whose links don't work, which they show
  * themselves. */
 import "/widgets/lf-shot.js";
@@ -17,6 +17,7 @@ import {
   offered,
   offeredAction,
   cycledRow,
+  announce,
   beginWalk,
   listWalkPosition,
   holdFocus,
@@ -43,6 +44,7 @@ import {
 /** @typedef {import("../../../browser/types/contract.js").DataVisualRun} VisualRun */
 /** @typedef {import("../../../browser/types/contract.js").DataVisualRunCase} VisualCase */
 /** @typedef {import("../../../browser/types/contract.js").DataVisualRunTarget} VisualTarget */
+/** @typedef {ReturnType<typeof readThreads>["threads"][number]} PageThread */
 /** @typedef {{record: VisualCase, article: HTMLElement, threads: HTMLElement, shot: Shot, before: string, after: string, difference: import("../../default/widgets/lf-shot.js").DescribedDifference | null, pendingDifference: Shot["difference"] | null, controls: () => ReturnType<typeof readCaseControls>}} VisualEntry */
 /** @param {HTMLElement} article */
 function readCaseControls(article) {
@@ -99,7 +101,7 @@ customElements.define(
     }
 
     // The run, set by whoever hosts the widget: Leaf from the bound source (the
-    // registry's `x-data.run.property`), or null while that source has none.
+    // registry's `inputs.run.property`), or null while that source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
@@ -275,14 +277,27 @@ customElements.define(
       );
     }
     // n and Shift+n walk the cases, coming round at either end, and say where the
-    // landing stands among them as every walk does.
+    // landing stands among them as every walk does. The queue beside the case lists them
+    // all, so its first and last rows bound the list the walk stands in, and a listener
+    // hears the place, which the case's own words don't say.
     /** @param {-1 | 1} delta */
     #step(delta) {
       const ids = () => this.#cases.map(({ record }) => record.id);
       this.#select(cycledRow(ids(), this.#selected?.record.id, delta), true);
-      beginWalk("visual-case", "Case", () =>
-        listWalkPosition(ids(), this.#selected?.record.id),
+      const said = beginWalk(
+        "visual-case",
+        "Case",
+        () => listWalkPosition(ids(), this.#selected?.record.id),
+        {
+          list: () => {
+            const rows = [
+              ...(this.#queue?.querySelectorAll(".lf-vr-case-button") ?? []),
+            ];
+            return [rows[0], rows.at(-1)];
+          },
+        },
       );
+      if (said) announce(said);
     }
     /** @param {string | undefined} id @param {boolean} [land] */
     #select(id, land = false) {
@@ -333,6 +348,17 @@ customElements.define(
       ).length;
 
       const available = Boolean(this.reading?.actions.review?.available);
+      // Group the page's threads by case once, so a redraw reads each thread once
+      // rather than once per case.
+      /** @type {Map<string, PageThread[]>} */
+      const threadsByCase = new Map();
+      for (const thread of readThreads().threads) {
+        const anchor = thread.anchor;
+        if (anchor?.section !== this.id || anchor.datum == null) continue;
+        const group = threadsByCase.get(anchor.datum);
+        if (group) group.push(thread);
+        else threadsByCase.set(anchor.datum, [thread]);
+      }
       return html`<div class="lf-vr-dashboard">
         <header class="lf-vr-heading">
           <h2 ${generated({ says: true })}>${run.title}</h2>
@@ -353,7 +379,7 @@ customElements.define(
               ${repeat(
                 this.#cases,
                 ({ record }) => record.id,
-                ({ record }) => {
+                ({ record }, index) => {
                   const approved = this.#approved(record.id);
                   return html`<button
                     type="button"
@@ -365,7 +391,7 @@ customElements.define(
                     @click=${() => this.#select(record.id)}
                   >
                     <span class="lf-vr-case-number lf-row-lead" aria-hidden="true"
-                      >${run.cases.indexOf(record) + 1}</span
+                      >${index + 1}</span
                     >
                     <span class="lf-row-main">${record.title}</span>
                     <span
@@ -385,7 +411,13 @@ customElements.define(
               this.#cases,
               ({ record }) => record.id,
               (entry) =>
-                this.#case(entry, this.#approved(entry.record.id), available, run),
+                this.#case(
+                  entry,
+                  this.#approved(entry.record.id),
+                  available,
+                  threadsByCase.get(entry.record.id) ?? [],
+                  run,
+                ),
             )}
           </div>
         </div>
@@ -453,8 +485,8 @@ customElements.define(
       });
     }
 
-    /** @param {VisualEntry} entry @param {boolean} approved @param {boolean} available @param {VisualRun} run */
-    #case(entry, approved, available, run) {
+    /** @param {VisualEntry} entry @param {boolean} approved @param {boolean} available @param {readonly PageThread[]} threads the threads anchored on this case @param {VisualRun} run */
+    #case(entry, approved, available, threads, run) {
       const { record, before, after } = entry;
       keeps(
         entry.article,
@@ -469,10 +501,6 @@ customElements.define(
       keeps(entry.shot, "before", before);
       keeps(entry.shot, "after", after);
       keeps(entry.shot, "alt", `${record.title}. ${record.result}`);
-      const threads = readThreads().threads.filter(
-        (thread) =>
-          thread.anchor?.section === this.id && thread.anchor.datum === record.id,
-      );
       /** @param {string} label @param {string | null | undefined} href */
       const link = (label, href) =>
         href

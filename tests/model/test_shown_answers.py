@@ -1,4 +1,4 @@
-"""A board card that shows a section's answer (`x-shows`, `shown_answers.py`): the
+"""A board card that shows a section's answer (`shows`, `shown_answers.py`): the
 answer stays the section widget's one fact, so the door takes no board move of the
 card, and `page check` and message admission hold the markup's placement of it to that
 answer."""
@@ -21,7 +21,7 @@ def section(group: str, chosen: str | None = None, extra: str = "") -> str:
         f"{' selected' if value == chosen else ''}>{value.title()}</lf-option>"
         for value in ("next", "later", "drop")
     )
-    return f'<lf-options id="{group}" required>{options}{extra}</lf-options>'
+    return f'<lf-options id="{group}">{options}{extra}</lf-options>'
 
 
 def board(columns: dict[str, list[str]], open_column: bool = True) -> str:
@@ -30,7 +30,8 @@ def board(columns: dict[str, list[str]], open_column: bool = True) -> str:
     `open_column`, every column holds a value."""
     cards = {
         column: "".join(
-            f'<lf-card id="card-{group}" shows="{group}"><strong>{group}</strong></lf-card>'
+            f'<lf-card id="card-{group}" label="{group}" shows="{group}">'
+            f"<strong>{group}</strong></lf-card>"
             for group in groups
         )
         for column, groups in columns.items()
@@ -49,7 +50,7 @@ def board(columns: dict[str, list[str]], open_column: bool = True) -> str:
         )
         + '<lf-column id="col-mine" label="Mine"'
         + ("" if open_column else ' value="drop"')
-        + '><lf-card id="card-own"><strong>Own</strong></lf-card></lf-column>'
+        + '><lf-card id="card-own" label="Own"><strong>Own</strong></lf-card></lf-column>'
         + "</lf-board>"
     )
 
@@ -156,14 +157,12 @@ def test_every_column_value_is_one_the_widget_can_answer():
 
 
 def test_a_card_shows_only_a_widget_whose_answer_names_a_value():
-    page = leaf_page(
-        "Proposals", board({"open": ["plan"]}).replace('shows="plan"', 'shows="plan"')
-    )
+    page = leaf_page("Proposals", board({"open": ["plan"]}))
     assert found(shown_findings(page), "shows-no-answer", target="plan")
 
 
 def test_a_card_in_a_reply_shows_widgets_of_the_same_reply():
-    """Frozen markup's answers are its own widgets', in the thread that holds them; a
+    """Thread markup's answers are its own widgets', in the thread that holds them; a
     card in a reply naming a widget on the page would read state from another
     document."""
     page = SourceDocument(PAGE)
@@ -194,6 +193,6 @@ def test_a_card_in_a_reply_shows_widgets_of_the_same_reply():
 )
 def test_an_answer_names_a_value_only_when_its_picks_agree_on_one(answer, named):
     by_id = SourceDocument(
-        section("rail") + '<lf-option id="rail-added">Ask</lf-option>'
+        section("rail", extra='<lf-option id="rail-added">Ask</lf-option>')
     ).by_id
     assert named_value(answer, "value", by_id) == named

@@ -1,6 +1,5 @@
 /* A control the runtime stands over one of the page's blocks: Copy at a code block's
-   corner (code-copy.js), a heading's link (heading-links.js) and a recording's play bar
-   (video-controls.js).
+   corner (code-copy.js) and a heading's link (heading-links.js).
 
    A document block's control stands in chrome, so the page's own sibling and child
    selectors keep matching what the page wrote. CSS anchors keep it on the block without
@@ -14,9 +13,6 @@
    Document controls share one stable chrome child, including their clipping frames.
    Making every control a sibling of transient chrome lets a new margin measurement
    invalidate structural selectors on every block's control in a long page.
-   A block with a hovered or focused chrome control carries `data-lf-control-active`,
-   so the page can keep its own hover or focus reveal active across the separate trees.
-   The mark leaves when the control does, including when the block is removed.
    A control a widget stands inside its own tree uses the anchor alone (`anchorControl`,
    `aimControl`), since the widget's tree is where its hover and focus are read.
 
@@ -32,11 +28,11 @@ import {
   refreshAnchorView,
 } from "./css-anchors.js";
 import { chromeRoot } from "./chrome.js";
-import { focusDestination, onCurrentLocation } from "./focus.js";
+import { focusDestination } from "./focus.js";
 import { move } from "./dom-move.js";
 import { keepsHidden, layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
-import { skipped, upFrom } from "./shadow-tree.js";
+import { skipped } from "./shadow-tree.js";
 
 const home = document.createElement("div");
 home.className = "lf-block-controls";
@@ -49,50 +45,15 @@ const makeCut = () => {
   return frame;
 };
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
-// read again each time the control is revealed and once a frame after a resize or a
-// change of the page's own heads (`restandControls`), since a header can come, go or
-// change height while the control shows or while it hides.
+// read again each time the control is revealed and once a frame after a resize, since a
+// header can come, go or change height while the control shows or while it hides.
 /** @type {Map<HTMLElement, Element>} */
 const placed = new Map(); // document control → its block
-const wired = new WeakSet();
 // The controls other chrome keeps clear of where they stand (`blockControlBoxes`).
 /** @type {WeakSet<HTMLElement>} */
 const footprints = new WeakSet();
-/** @type {HTMLElement | null} */
-let hoveredControl = null;
-/** @type {HTMLElement | null} */
-let focusedControl = null;
-/** @param {HTMLElement | null} control */
-const activeBlock = (control) => (control ? placed.get(control) : undefined);
-/** @param {Element | null | undefined} block */
-const syncActive = (block) => {
-  if (block)
-    block.toggleAttribute(
-      "data-lf-control-active",
-      activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block,
-    );
-};
-/** @param {"hover" | "focus"} kind @param {HTMLElement | null} control */
-const setActiveControl = (kind, control) => {
-  const previous = kind === "hover" ? hoveredControl : focusedControl;
-  if (previous === control) return;
-  if (kind === "hover") hoveredControl = control;
-  else focusedControl = control;
-  syncActive(activeBlock(previous));
-  syncActive(activeBlock(control));
-};
-onCurrentLocation((node) => {
-  for (let at = node; at; at = upFrom(at)) {
-    if (at instanceof HTMLElement && placed.has(at))
-      return setActiveControl("focus", at);
-  }
-  setActiveControl("focus", null);
-});
 let restanding = 0;
-/** Stand every document control in its block's frames again, in the next frame: after
- * a resize, and when the page's own heads change what they cover (root-headers.js),
- * which no resize says. */
-export function restandControls() {
+addEventListener("resize", () => {
   restanding ||= nextRender(() => {
     restanding = 0;
     // A hidden panel's old layout is invalid after resize. Reading its cuts would
@@ -104,8 +65,7 @@ export function restandControls() {
     for (const { control, block, levels } of read)
       standInChrome(control, block, levels);
   });
-}
-addEventListener("resize", restandControls);
+});
 
 /** Where each document control with a footprint stands over its block, shown or
  * hidden at rest, so a margin pin keeps off it (margin-layout.js, `coverIn`) and
@@ -127,8 +87,7 @@ export function blockControlBoxes() {
  * has none, since a pin keeping clear of it would move as the pointer passed. */
 /** @param {HTMLElement} control @param {Element} block @param {ReturnType<typeof headerLevels>} levels @param {boolean} [footprint] */
 export function standInChrome(control, block, levels, footprint = true) {
-  const previousBlock = placed.get(control);
-  if (!previousBlock && footprint) footprints.add(control);
+  if (footprint && !placed.has(control)) footprints.add(control);
   const frames = cutFrames(
     levels,
     (cuts.get(control) ?? []).map(({ frame }) => frame),
@@ -136,17 +95,6 @@ export function standInChrome(control, block, levels, footprint = true) {
   );
   cuts.set(control, frames);
   placed.set(control, block);
-  if (!wired.has(control)) {
-    wired.add(control);
-    control.addEventListener("pointerenter", () => setActiveControl("hover", control));
-    control.addEventListener("pointerleave", () => {
-      if (hoveredControl === control) setActiveControl("hover", null);
-    });
-  }
-  if (previousBlock !== block) {
-    syncActive(previousBlock);
-    syncActive(block);
-  }
   if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
   const outer = frames[0]?.frame;
   if (outer && outer.parentNode !== home) move(home, outer, null);
@@ -251,12 +199,8 @@ export const pressedElsewhere = (event, control) =>
 /** Take a document control and its frames out of chrome once its block has left. */
 /** @param {HTMLElement} control */
 export function releaseControl(control) {
-  const block = placed.get(control);
-  if (hoveredControl === control) hoveredControl = null;
-  if (focusedControl === control) focusedControl = null;
   control.remove();
   cuts.get(control)?.[0]?.frame.remove();
   cuts.delete(control);
   placed.delete(control);
-  syncActive(block);
 }

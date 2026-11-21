@@ -1,7 +1,7 @@
 /* The tab's title: the page's authored title, with what waits on the user counted in
    front of it while it is above zero ("(2) Finish the ship review").
 
-   The user chose this (2026-11-05, "Count On Me in the tab"): someone waiting on the
+   The user chose this: someone waiting on the
    agent has the terminal in front of them and the page in a tab, and the favicon says
    the agent's state but not whether anything waits on them. The count is On Me's own
    (`onUserCount`, queue-api.js), so the tab and the panel's badge show one number.
@@ -14,9 +14,8 @@
    zero. At zero the authored title is the tab's, so a page that waits on nobody is
    untouched.
 
-   `authoredTitle()` is what other readers of "this page's title" use (All pages,
-   live-leaves.js; a thread card's trail, thread-card.js); `document.title` now says the
-   tab's. A revision replaces the authored title node (version.js, `activateHead`), which
+   `authoredTitle()` is what other readers of "this page's title" use, packages through
+   widget-api.js; `document.title` now says the tab's. A revision replaces the authored title node (version.js, `activateHead`), which
    the head observer follows: its work is one head's, not the page's size. */
 
 const TAB = document.createElement("title");

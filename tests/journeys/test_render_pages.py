@@ -22,7 +22,7 @@ from render_harness import (
     INLINE_PAGE,
     leaf_page,
     open_page,
-    page_registry,
+    page_declarations,
     panel_settled,
     resized,
     root_overflow,
@@ -41,6 +41,7 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.thread_context import logged_fragment
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import authored_sources, named_source
 
@@ -369,10 +370,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         carried_threads = set()
-        for carried in [e for e in events if e.get("markup")]:
-            for wid, rec in structure_model.SourceDocument(
-                carried["markup"]
-            ).by_id.items():
+        for carried in events:
+            fragment = logged_fragment(carried)
+            for wid, rec in (fragment.by_id if fragment else {}).items():
                 drawn.append(wid)
                 carried_ids.add(wid)
                 thread_id = thread_of(carried["id"])
@@ -384,12 +384,12 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 # user, whatever answers it has to have been built here too:
                 # data-lf-offer is the runtime's own mark for a thing to work, so
                 # this asks the declaration and never the tag.
-                if "value" in registry[rec["tag"]].get("x-awaits", {}):
+                if "value" in registry[rec["tag"]].get("awaits", {}):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
         # hidden bodies have no boxes. The public page check never opens Threads,
-        # so exercise its own probes here against every frozen message's widgets.
+        # so exercise its own probes here against every thread message's widgets.
         # A question answered in words has no control of its own.
         if carried_ids:
             for thread_id in sorted(carried_threads):
@@ -398,7 +398,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     (
                         "draws a box of no size",
                         "tinyBoxes",
-                        page_registry(page),
+                        page_declarations(page),
                     ),
                     (
                         "has a control clipped out of its box",
@@ -503,13 +503,15 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
     its whole side, unlike the contents spine that declares its shell-edge occupancy."""
     entry = {
         "description": "A project package's compound review surface.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-space": "available",
-        "x-example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "space": "available",
+        "example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
     }
     source = leaf_page(
         "Available package surface",
@@ -664,7 +666,9 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     """
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
-    framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
+    framed = framed.replace("<div id='own-frame'", "<section id='own-frame'").replace(
+        "</lf-board></div>", "</lf-board></section>"
+    )
     source = OWN_MARGIN_FURNITURE.replace(
         "</head>",
         "<style>main { position: relative; max-inline-size: var(--lf-col); "
@@ -675,7 +679,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
     failures = render_gate_model.render_version(
         browser, serve(source.replace("</main>", framed + "</main>"))
-    ).failures
+    ).findings
 
     assert [
         f
@@ -693,7 +697,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
         f
         for f in failures
         if f.at == "<lf-board id=framed>"
-        and f.values.get("frame") == "<div id=own-frame>"
+        and f.values.get("frame") == "<section id=own-frame>"
     ], (
         "the gate said nothing about a wide widget escaping a frame that scrolls: "
         f"{failures}"
@@ -737,15 +741,14 @@ def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
 def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve):
     """A page Layout's box is `main`, or a child of a `main` that carries none, and its
     parent is the shell it is placed in. A column whose box is a child of `main` takes
-    the same column, margin content, contents map and breakouts as one on `main`
+    the same column, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
     root workspace fills the window while a child keeps document end room. A `main` the
     page narrows, borders or gives scrollbar gutters is the shell the child column
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
 <h1>Migration plan</h1>
-<div class="layout-sidebar"><aside id="route"><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside><div class="layout-column layout-notes">
-<div class="layout-note"><p>Support cadence.</p><aside class="note" id="frequency">Support runs this twice a month.</aside></div>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside><div class="layout-column">
 <h2 id="move">Move</h2>
 <p>Shift one cohort at a time while keeping the old readers available.</p>
 <div id="room" data-width="available">Available evidence.</div>
@@ -770,7 +773,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         inner: [Math.round(rect(main)[0] + main.clientLeft),
                 Math.round(rect(main)[0] + main.clientLeft + main.clientWidth)],
       };
-      for (const id of ['route', 'frequency', 'room', 'contents']) {
+      for (const id of ['route', 'room', 'contents']) {
         const node = document.getElementById(id);
         if (node) {
           const style = getComputedStyle(node);
@@ -881,21 +884,21 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     browser, serve
 ):
     """A framed holder, a callout, requests its own width on column and sidebar pages:
-    its evidence stays inside that frame, and a wide child alone does not widen it. An
-    obligation frames nothing, so it takes no width of its own: a wide child stands in
-    the page's flow and the obligation's box grows round it. Workspace holders and
-    explicitly bounded cells keep the room their containing region grants."""
+    its evidence stays inside that frame, and a wide child alone does not widen it. A
+    question's section draws no frame, so it takes no width of its own: a wide child stands in the page's flow and the section's box grows
+    round it. Workspace holders and explicitly bounded cells keep the room their
+    containing region grants."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
-        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
-        'required><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+        '<lf-group id="{id}" label="Ship it?"><h3 id="{id}-h">Ship it?</h3>{table}'
+        '<lf-options id="{id}-o">'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-group>'
     )
     body = (
         '<p id="prose">Prose.</p>'
-        + item.format(id="ask", width="", table="")
-        + item.format(id="stated", width=' data-width="wide"', table="")
-        + item.format(id="holds", width="", table=table.format(id="holds"))
+        + item.format(id="ask", table="")
+        + item.format(id="holds", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
@@ -903,12 +906,13 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<aside class="callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
-        + '<lf-options id="list" required><lf-option id="list-a">Leave it</lf-option>'
+        + '<lf-group id="list-q" label="Raise the limit?">'
+        + '<lf-options id="list"><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
-        + "</lf-options>"
+        + "</lf-options></lf-group>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'stated', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
+      ['prose', 'ask', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
         .map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
@@ -922,9 +926,10 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     edge = at["prose"]["left"]
     wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
-    # blocks widen it. A width written on an obligation has no effect.
-    for boxed in ("ask", "stated", "callout", "contained-c", "list"):
+    # blocks widen it. A question's words keep the prose's edge.
+    for boxed in ("callout", "contained-c", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
+    assert at["ask"]["left"] == edge, at
     # A granted callout's padding and border fall inside the wide measure.
     assert at["granted-c"] == {"width": wide, "left": edge}, at
     # The obligation's box takes in the table it holds, which takes the room it declares.
@@ -936,23 +941,18 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # grid track, it doesn't grow.
     extras = (
         "<ol><li>"
-        + item.format(id="listed", width="", table=table.format(id="listed"))
+        + item.format(id="listed", table=table.format(id="listed"))
         + "</li></ol>"
-        + item.format(
-            id="both", width=' data-width="available"', table=table.format(id="both")
-        )
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
-        + item.format(id="tracked", width="", table=table.format(id="tracked"))
+        + item.format(id="tracked", table=table.format(id="tracked"))
         + "<p>Beside.</p></div>"
         + item.format(
             id="narrow",
-            width="",
             table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
         )
         + '<div id="wrapper" data-width="wide">'
         + item.format(
             id="wrapped",
-            width="",
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
         )
         + "</div>"
@@ -969,8 +969,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     at = column.evaluate(
         measure.replace(
             "'list']",
-            "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked', 'wrapper',"
-            " 'wrapped']",
+            "'list', 'listed', 'listed-t', 'tracked', 'wrapper', 'wrapped']",
         )
     )
     assert at["holds-t"]["width"] == wide, at
@@ -983,9 +982,6 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     assert at["granted-c"]["width"] == wide, at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (
-        at
-    )
     assert at["tracked"]["width"] == 350, at
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
@@ -1029,7 +1025,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "ask", "stated", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "ask", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 

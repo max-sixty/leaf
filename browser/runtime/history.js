@@ -66,7 +66,7 @@ import { deepFocus, drawn, focusDestination, readCaret, blurFocused } from "./fo
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
-import { upFrom } from "./shadow.js";
+import { upFrom } from "./shadow-tree.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { readingBlock } from "./reading-place.js";

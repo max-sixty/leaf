@@ -9,7 +9,7 @@ vars:
     You are moving a status page from the user's own site into a Leaf page, so they can
     comment on it and answer a question on it. The page takes no theme
     (`leaf page init --no-theme`), keeps the site's markup, and gains one
-    `<lf-options id="rollout" required>` with three options under its last section.
+    `<lf-options id="rollout">` with three options under its last section.
 
     The user's message: "Keep our stylesheet as it is, it's the same one the site
     ships." The stylesheet:

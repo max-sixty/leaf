@@ -13,6 +13,9 @@ export function pageIdentity() {
     layer: state?.layer ?? null,
     preview: state?.preview ?? null,
     session_reference: runtime.sessionReference,
-    browser: { user_agent: navigator.userAgent },
+    browser: {
+      user_agent: navigator.userAgent,
+      webdriver: navigator.webdriver === true,
+    },
   });
 }

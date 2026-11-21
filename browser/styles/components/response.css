@@ -15,7 +15,8 @@
 leaf-composition-field {
   display: contents;
 }
-:is(.lf-fab-bar, .lf-margin-preview),
+.lf-fab-bar,
+.lf-margin-preview,
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -29,7 +30,8 @@ leaf-composition-field {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
 }
 :root,
-:is(.lf-fab-bar, .lf-margin-preview),
+.lf-fab-bar,
+.lf-margin-preview,
 .lf-compose-field {
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
@@ -38,7 +40,7 @@ leaf-composition-field {
   --lf-compose-pad-inline-start: 10px;
   /* A field: the ring a surface draws round it for the words being typed stands on
      its edge (base.css, "Where it stands"). */
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -79,7 +81,10 @@ leaf-composition-field {
   margin-inline-end: auto;
   padding-inline-end: 0.75em;
 }
-.lf-compose-placeholder-lead:not(:empty) ~ span {
+/* The hint's parent is named so Chromium skips the rule for a span outside a hint,
+   rather than reading back over every sibling before it, which costs a code block's
+   thousands of token or line spans the square of their count. */
+.lf-compose-placeholder > .lf-compose-placeholder-lead:not(:empty) ~ span {
   flex: none;
 }
 /* The word naming what entering the box does (composing/input.js, `enters`) stands
@@ -108,8 +113,8 @@ leaf-composition-field {
 }
 /* The new-line key a focused box that holds lines says after its send key
    (composing/input.js, `lineHint`), in the label's face and size, quiet in the ink
-   every empty box's words wear (`--lf-quiet`). The user chose one size on 11 November
-   2026 over this hint a step smaller, which left the label as loud as it was.
+   every empty box's words wear (`--lf-quiet`). The user chose one size over this hint
+   a step smaller, which left the label as loud as it was.
    Where room runs short the label stands
    whole, and what follows it goes whole onto a line the placeholder doesn't show, this
    hint first, then the send key; the label shortens only where it can't stand alone.
@@ -186,7 +191,7 @@ leaf-composition-field {
    letter just typed never shows under a fading Send, and shows at once for the
    pointer or focus, since the user is reaching for it. When the row leaves the corner
    free, Send fades back in over a disclosure's time (`--lf-motion-disclosure`), which
-   the user asked be short enough to go unnoticed (31 October). Words can stand above
+   the user asked be short enough to go unnoticed. Words can stand above
    Send here, so Send is one line tall and its disc a square of that line (`--lf-field-row`, the aim floor
    at least), centred on the last row and clear of the row above, whether or not the
    corner is free; the box is as tall as its rows, so that row stands at the same
@@ -200,12 +205,12 @@ leaf-composition-field {
 
    A one-line field (`aria-multiline="false"`), such as an option's title, has no
    column above Send to give its words, so it keeps the room and the seat its owner
-   gives its action, as every field did before this.
+   gives its action.
 
-   Experimental: the user chose on 29 October 2026 to try this although it departs
-   from common practice, where a chat or comment box keeps Send drawn beside or below
-   its words and gives up the column above it. Keeping Send's room on every line,
-   main's layout before this, is the established alternative to return to. */
+   Experimental: the user chose to try this although it departs from common practice,
+   where a chat or comment box keeps Send drawn beside or below its words and gives up
+   the column above it. Keeping Send's room on every line is the established
+   alternative to return to. */
 @property --lf-field-row {
   syntax: "<length>";
   inherits: true;
@@ -317,7 +322,8 @@ leaf-composition-field {
 /* Send stands in the field's end corner, and Dictate in its place while it shows. They,
    Other responses beside them, and a thread's Resolve and Reopen are symbols whose
    state shows on a disc (controls.css, `data-lf-disc`). */
-:is(.lf-compose-submit, .lf-compose-dictate) {
+.lf-compose-submit,
+.lf-compose-dictate {
   position: absolute;
   z-index: 1;
   inset-inline-end: var(--lf-compose-action-inset);
@@ -367,7 +373,8 @@ leaf-composition-field {
    the paper sets the ground and ring its pictures meet it with. */
 /* How far a picture's corner marks stand out past it, in a draft's shelf and on a
    rewrite's pictures alike. */
-:is(.lf-composer-media, .lf-msg-media) {
+.lf-composer-media,
+.lf-msg-media {
   --lf-media-mark-overhang: 6px;
 }
 .lf-composer-media {
@@ -429,13 +436,13 @@ leaf-composition-field {
 }
 /* Each attachment is its picture alone and its controls marks on its corners: there
    under a finger, and shown to a pointer over the picture or a key on it. The user
-   chose this in the floating panel on 19 October over each image boxed with its
-   removal a press the image's height, a frame and a divider for one picture. Every
+   chose this over each image boxed with its removal a press the image's height, a
+   frame and a divider for one picture. Every
    shelf wears it, so a surface states only where its shelf stands. An image stands
    whole in its own proportions, at its own size or shrunk to fit within the shelf's
    height and twice that width, as its sent message draws it at its own size or shrunk
    to the thread's room (`.lf-message-media`, integration.css), so its frame is the
-   picture's own shape. The user chose this on 27 October over standing every image
+   picture's own shape. The user chose this over standing every image
    at the shelf's height and cropping it to between three quarters and twice as wide
    as tall, which cut both ends off a wide screenshot. Its button frames the picture
    (controls.css, `data-lf-frame`). */
@@ -525,9 +532,11 @@ leaf-composition-field {
   > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
+/* A reply box stands where the thread's next message would, a message's gap under the
+   last one (surfaces.css). */
 .lf-thread-reply {
   display: block;
-  margin-top: var(--lf-sp-3);
+  margin-top: var(--lf-msg-gap);
   min-width: 0;
 }
 :is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
@@ -542,7 +551,12 @@ leaf-composition-field {
    and last line or picture by its padding and frame, a comment box line's
    (`--lf-response-height`), less the room those lines already keep
    (`--lf-thread-text-pad-block`, as a margin card's do). So opening it adds nothing to
-   the message's height. Discard and Save stand at the message's head (`.lf-msg-edit-actions`). Rejected by the user on 2026-10-22: the
+   the message's height, however long the message is, and the field has no maximum
+   height. Under a reply box's cap of half the window (controls.css), a longer
+   message's rewrite would be shorter than the message, and its first lines would
+   scroll out of sight under the frame. Where the rewrite is taller than the thread's
+   view, the view scrolls to the caret (message-edit.js, `enter`). Discard and Save
+   stand at the message's head (`.lf-msg-edit-actions`). Rejected by the user: the
    reply box's own field, its padding inside the words' box, under a draft's cropped
    shelf of the pictures, which moved and rewrapped the words. */
 .lf-msg-editor {
@@ -566,6 +580,7 @@ leaf-composition-field {
 }
 .lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {
   min-height: 0;
+  max-height: none;
   padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
 .lf-msg-editor
@@ -591,9 +606,9 @@ leaf-composition-field {
 }
 /* Discard and Save stand among the message's head controls while it is open, in its
    Edit and Copy controls' place and with their face, as glyphs: Discard's undo, and
-   Save's save. The user chose glyphs on 2026-10-24 over the words, which ran into the
-   head's labels, and on 2026-10-25 a save glyph over the reply box's send and a check,
-   neither of which reads as saving. A cross would read as the card's Close beside
+   Save's save. The user chose glyphs over the words, which ran into the head's
+   labels, and a save glyph over the reply box's send and a check, neither of which
+   reads as saving. A cross would read as the card's Close beside
    them. Where Copy is left out, the pair is one control wider than Edit, and in a
    short head it stands over the labels' end on the message's ground, as the head's
    controls do when they show (controls.css), which the pair always does. Both wear
@@ -623,9 +638,11 @@ leaf-composition-field {
 }
 /* While a rewrite is open its thread offers no Resolve or Reopen: the row is the
    rewrite's, and saving reopens a resolved thread anyway. The control leaves the row, so
-   the controls after it shift over (the user's choice, 2026-10-25). */
-:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) {
-  & :is(.lf-resolve, .lf-reopen) {
+   the controls after it shift over (the user's choice). */
+.lf-page-thread:has(.lf-msg-editor),
+.lf-fp-opened:has(.lf-msg-editor) {
+  & .lf-resolve,
+  & .lf-reopen {
     display: none;
   }
   /* Here the thread's controls beside its first message's head hold only that control
@@ -645,7 +662,8 @@ leaf-composition-field {
   }
 }
 
-:is(.lf-fab-bar, .lf-margin-preview) {
+.lf-fab-bar,
+.lf-margin-preview {
   --lf-response-height: var(--lf-line);
 }
 /* The comment box, card and card reply share one text column, so Send moves no
@@ -653,7 +671,8 @@ leaf-composition-field {
    its edge: past Send, which stands centred in one response line, or under a mouse,
    where Send takes only a free corner (above), at the thread text inset, as at the
    start. The field spends one pixel of each inset on its frame. */
-:is(.lf-fab-bar, .lf-margin-preview) {
+.lf-fab-bar,
+.lf-margin-preview {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
@@ -661,7 +680,8 @@ leaf-composition-field {
   --lf-comment-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 @media (hover: hover) and (pointer: fine) {
-  :is(.lf-fab-bar, .lf-margin-preview) {
+  .lf-fab-bar,
+  .lf-margin-preview {
     --lf-comment-text-end: var(--lf-thread-text-inset);
   }
   leaf-text.lf-fab-input {
@@ -673,9 +693,9 @@ leaf-composition-field {
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
    the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
-   reply box's taller field, with the message keeping its height from first paint
-   (#2985), which made every short card taller than the box it came from for a rewrite
-   the user may never open. */
+   reply box's taller field, with the message keeping its height from first paint,
+   which made every short card taller than the box it came from for a rewrite the
+   user may never open. */
 .lf-fab-bar .lf-compose-field,
 .lf-margin-preview .lf-thread-reply .lf-compose-field,
 .lf-response-control,
@@ -733,8 +753,8 @@ leaf-text.lf-fab-input {
 /* The native top layer keeps this picker out of each composer's layout and clipping.
    CSS anchors follow its trigger across floating, panel and widget seats. The row has
    no backing box: each choice's own button face stands on the page, as the field
-   does. Max removed the box, a bordered, shadowed card behind the row,
-   on 23 October 2026 as unneeded. The padding stays, clear, as room for each choice's
+   does. The user rejected a box, a bordered, shadowed card behind the row, as
+   unneeded. The padding stays, clear, as room for each choice's
    focus ring inside the popover's scrollport. */
 .lf-response-options {
   position: fixed;

@@ -44,11 +44,11 @@ def color_cue_markup():
         '<h1>Review</h1><section id="review"><lf-tabs id="views">'
         + "".join(
             f'<lf-tab id="{name}" label="{name}">'
-            f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
-            f'<lf-options id="choice-{name}" required>'
+            f'<lf-group id="ask-{name}" label="Choose {name}?"><h2 id="ask-{name}-h">Choose {name}?</h2>'
+            f'<lf-options id="choice-{name}">'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
-            "</lf-ask></lf-tab>"
+            "</lf-group></lf-tab>"
             for name in ("first", "second")
         )
         + "</lf-tabs></section>",
@@ -71,7 +71,7 @@ def walk_position(page):
 
 
 def expect_walk_position(page, text):
-    """Wait until the walk says `text` ("1 of 4 waiting on me · Options"), or, with None,
+    """Wait until the walk says `text` ("1 of 4 waiting on me"), or, with None,
     until no walk is under way."""
     page.evaluate(WALK_POSITION)
     page.wait_for_function(

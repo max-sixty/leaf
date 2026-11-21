@@ -8,11 +8,7 @@ updates handed back to them among them; On <agent>
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery. Each thread's `holder` names who
-holds it (`holding.py`): the main thread, a fork with whether its turn runs, closed or
-lapsed, or the line fork while Leaf keeps its messages back; and each obligation
-record's `holder` who on the agent's side owes it now (`holding.owed_by`), null for a
-record the agent doesn't owe. `source` states whether a document
+agent recovers what it owes without the delivery. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
@@ -32,9 +28,10 @@ from .delivery import current_responses
 from .document_reading import DocumentReading
 from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
+from .file_bindings import granted_files
 from .files import revision_path
 from .passages import page_passages
-from .projection import FrozenThreadReading, retirement_outcomes
+from .projection import ThreadMarkupReading, retirement_outcomes
 from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.storage import layer_metadata
@@ -58,8 +55,8 @@ def state_entry(coordinate, e: dict, facts: dict, thread: str | None = None) -> 
     with the facts its delivery carried about it (`event_facts`).
 
     `revision` is the exact document the action was taken on, which for a widget an agent
-    sent is a fact about the gesture and none about the widget: thread markup is
-    frozen in the log, so no page version bounds one of these.
+    sent is a fact about the gesture and none about the widget: no page version
+    bounds thread markup.
     """
     widget, unit, _verb = coordinate
     return {
@@ -145,6 +142,8 @@ def _base_state(
             else {}
         ),
         "measurement_lag": [],
+        # The files the page's editors edit, each by its binding (`granted_files`).
+        "files": granted_files(page_dir),
         # What is on the user (On Me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete
@@ -165,6 +164,9 @@ def _base_state(
                 "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
+                # The passage a version rewrote, which left the thread on its section:
+                # the words the thread is about once the page no longer shows them.
+                "rewritten_from": thread["rewritten_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for thread_id, thread in threads.items()
@@ -223,7 +225,7 @@ def _apply_document_state(
 
 
 def _apply_thread_state(
-    state: dict, thread: FrozenThreadReading, facts: EventFacts
+    state: dict, thread: ThreadMarkupReading, facts: EventFacts
 ) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
@@ -308,12 +310,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             for item in state["obligations"]
             if item["thread"] is None
             and (
-                (
-                    item["source"]["kind"] == "widget"
-                    and (
-                        inside(item["source"]["id"]) or inside(item["prompt"]["target"])
-                    )
-                )
+                (item["source"]["kind"] == "widget" and inside(item["source"]["id"]))
                 or (
                     item["source"]["kind"] == "update"
                     and item["source"]["subject"]["kind"] == "widget"
@@ -437,17 +434,11 @@ def page_state(
         _apply_thread_state(state, reading.thread, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
-        # taken in yet, at their current content version; and who on the agent's side
-        # has the thread.
+        # taken in yet, at their current content version.
         for thread in state["threads"]:
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
-            thread["holder"] = context.work.holding.hold(thread["id"]).holder
-        owing = {item["obligation"]: item["holder"] for item in folded["obligations"]}
-        state["obligations"] = [
-            {**record, "holder": owing.get(record["id"])}
-            for record in view["obligations"]
-        ]
+        state["obligations"] = view["obligations"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]

@@ -6,6 +6,7 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
+    expect_panel_says,
     open_page,
     panel_field,
 )
@@ -20,7 +21,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     comes back after it without being announced twice; the live region is retained
     through every change, and the user stays where they stood."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.evaluate(
         """async () => {
           window.__lfStatusNodes = {'.lf-live': document.querySelector('.lf-live')};
@@ -67,10 +68,9 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
         )
         == 1
     ), "restoring background news announced it again"
+    # Go-to takes the seat, so the background news gives way to the sequence's word.
     page.keyboard.press("g")
-    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-lf-says", "notice"
-    )
+    expect_panel_says(page, "Agent replied — open Threads", says=False)
     assert page.evaluate(
         """() => Object.entries(window.__lfStatusNodes).every(
           ([selector, node]) => document.querySelector(selector) === node

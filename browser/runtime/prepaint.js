@@ -92,10 +92,12 @@
   // (passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
   // first fault names the page and is said once more as `lf-startup-fault`, which a
   // served page's bootstrap answers by saying the page has a problem where it is the
-  // page's own, and otherwise by waiting for a server that can start the page
-  // (bootstrap.js); an export has no server to wait for. A later fault only takes the
-  // mark off where it is incomplete. The first is the earliest evidence and a later one
-  // is often its consequence; the bootstrap's report keeps the first as well.
+  // page's own, and otherwise by asking its server for the page again where it is
+  // incomplete, and by waiting for a server that can start the page (bootstrap.js);
+  // an export has no server to wait for. A later fault only takes the mark off where
+  // it is incomplete, which the bootstrap reads when it acts. The first is the
+  // earliest evidence and a later one is often its consequence; the bootstrap's
+  // report keeps the first as well.
   /** @param {string} reason @param {boolean} incomplete @param {unknown} [error] @param {boolean} [page] */
   const fault = (reason, incomplete, error = null, page = false) =>
     window.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
@@ -125,7 +127,7 @@
             }
           : null;
       window.dispatchEvent(
-        new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
+        new CustomEvent("lf-startup-fault", { detail: { reason, page } }),
       );
     });
   window.addEventListener(
@@ -489,6 +491,35 @@
       userStore.set(quickKey, String(on));
       document.dispatchEvent(new CustomEvent("lf-keyboard-preference"));
     },
+  };
+
+  // The layer's constructed stylesheets (stylesheets.js), from the text every delivery
+  // carries in its head (`delivery_sheets` in revision_delivery.py), with no request
+  // and no await. Whoever asks first builds them, once the head holds that text: a
+  // served page's bootstrap as `body` arrives, which adopts the chrome's so the panel's
+  // row it stands there paints styled (bootstrap.js), else the runtime as it loads.
+  /** @type {ReturnType<Window["lfSheets"]> | null} */
+  let sheets = null;
+  window.lfSheets = () => {
+    if (sheets) return sheets;
+    const delivery = document.querySelector(
+      'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
+    );
+    if (!delivery) throw new Error("The document has no runtime stylesheets");
+    /** @type {{chrome: string, marks: string, annotations?: string}} */
+    const text = JSON.parse(delivery.textContent);
+    /** @param {string} rules */
+    const constructed = (rules) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(rules);
+      return sheet;
+    };
+    sheets = {
+      chrome: constructed(text.chrome),
+      marks: constructed(text.marks),
+      annotations: text.annotations ? [constructed(text.annotations)] : [],
+    };
+    return sheets;
   };
 
   // The floating panel (floating-panel.js) is the page's chrome. The reader's one

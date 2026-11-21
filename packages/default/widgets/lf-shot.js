@@ -391,6 +391,7 @@ export class Shot extends HTMLElement {
       });
       comparison.addEventListener("click", (event) => {
         if (dragged || handleOf(event) || !plainPress(event)) return;
+        event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });
       comparison.lfCommands = {

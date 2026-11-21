@@ -22,10 +22,10 @@ Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underl
 issue** to the verdict; most of Tend's own pull requests land on this review alone.
 Once a change moves Leaf toward a coherent architecture, its claimed path works and
 what it adds is worth keeping, the review is done. Reserve findings for architectural
-seams, cross-runtime invariants, public surface traps (root `AGENTS.md`, "Where
-instructions live", names those in prose), regressions anywhere the change reaches,
-additions that cost more than they buy, or a central claim or test that is false or
-that nothing has shown.
+seams, cross-runtime invariants, a public interface that misleads its user, the text
+defects root `AGENTS.md`, "Where instructions live", lists, regressions anywhere the
+change reaches, additions that cost more than they buy, or a central claim or test
+that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
 prose or test polish unless they expose one of those problems. Those findings ask a
 change to cover more or read better; a finding that it adds more than it buys is
@@ -34,11 +34,7 @@ none of them.
 The verdict rests on that weighing. Weigh the change before searching it for
 defects, and revisit the weighing when a defect shows a cost it missed: on Tend's own
 pull request a defect found in an addition gets fixed and the addition lands, so for
-an addition the weighing rejects, the rejection is the finding, not its defect. State
-in the session what the change adds that later changes must hold, what that buys, who
-pays its cost and who gains beyond the claimed case, and the cheapest other change
-you can name that buys the same. Where that change keeps what this one must and costs
-materially less, it is the finding: withhold approval and name it.
+an addition the weighing rejects, the rejection is the finding, not its defect.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the
@@ -161,12 +157,10 @@ way, remains engineering work, owned by the cause's session through
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
 
-A cause waits on the maintainer when its next step is one only they can take: a
-decision, or reproducing a failure only `test-macos` shows once the failing run's
-diagnostics, pictures and the code leave its cause open, since no runner you can
-reach has macOS. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
-names them), say in it what you found and what their answer or reproduction should
-settle, and unassign them once they act. A cause that asks them something without
+A cause waits on the maintainer when its next step is one only they can take, such
+as a decision. Assign it to the maintainer while it waits (`notes/TODO.md`, "Backlog",
+names them), say in it what you found and what their answer should settle, and
+unassign them once they act. A cause that asks them something without
 assigning them is missing from their list of assigned issues.
 
 For each durable failure, look for the pull request that introduced it, first
@@ -180,11 +174,11 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
-checks your Linux runner can run suffice (**A red `ci` on main is live** says what
-settles the rest). Pull requests run only the later-tier
-tests they edit, so run the claimed ones yourself. The pull request's CI must
-reach a terminal result on the exact head (`monitor-ci`). A failure there outside
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows,
+**A red `ci` on main is live** says what shows the before and after. Pull requests
+run only the later-tier tests they edit, so run the claimed ones yourself. The merge
+also waits for the pull request's CI to reach a terminal result on the exact head; `monitor-ci`,
+**Which heads to poll**, says which session does that waiting. A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
 calls for a rerun: the report for that run carries it to its own cause. GitHub's
 applying merge rules still govern the merge.
@@ -201,10 +195,21 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 0); that is not a regression. A `test` that held a runner and still ended cancelled
 hit its timeout, and that is a failure.
 
-The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
-can't reproduce, and it takes four to five hours. For a failure only that job shows, the
-failing run is the evidence from before the fix, and the next scheduled run on main,
-after the fix merges, is the evidence from after it. If that run still fails, its
+A scheduled run runs every test a push runs, so main's push and schedule `ci` reports
+share most of their failures. When both need diagnosis, the push report owns each
+failure a push run also shows. The schedule report's diagnosis covers what pushes
+don't run, the `journeys` and `nightly` tests and `test-macos`, and links the push
+report's diagnosis and cause issues for the rest instead of rerunning or bisecting
+those tests itself.
+
+The scheduled run's `test-macos` job runs every tier on macOS and takes four to five
+hours, so reproduce a failure only it shows by dispatching that test alone on its
+runner (`tests/AGENTS.md`, **Races**). The same dispatch failing on a branch at the
+fix's base, and passing every copy on the fix's branch in enough copies that the
+base's failure rate would have failed three of them (54 where the base failed 1 of
+18), is the evidence from before and after the fix. Where no dispatch reproduces the
+failure, the failing scheduled run is the evidence from before, and the next one on
+main, after the fix merges, the evidence from after. If that run still fails, its
 report brings the failure back to triage.
 
 ## Cloudflare logs
@@ -235,7 +240,7 @@ and its lane's next passing run closes it.
 ## Leave backlog issues to the maintainer
 
 An issue labelled `backlog` is an item on the maintainer's prioritised backlog
-(`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
+(`notes/TODO.md` says how it is kept), not a report awaiting triage. When one reaches
 you, whether through triage or an unread notification, take no action, post
 nothing, and acknowledge the notification.
 
@@ -334,12 +339,11 @@ compared, whether or not anything grew.
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
-`test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
-runs either moves to `tests/journeys/` or gets faster; a journey within the browser
-budget in both moves to `tests/browser/` when its boundary is one page. A single
-reading moves nothing, since one run's time includes contention. Open one pull
-request with the moves, listing each test and the times behind it.
+`test` job's summary lists the tests over their directory's budget (`leaf-dev
+suite profile`). A test over budget in two daily runs either moves to
+`tests/journeys/` or gets faster. A single reading moves nothing, since one run's time
+includes contention. Open one pull request with the moves, listing each test and the
+times behind it.
 
 ## Weekly: interface sweep
 
@@ -360,6 +364,20 @@ pull request for the area; leave a set another open pull request is
 changing to a later sweep. In the description, name each copy's introducing pull
 request (`git log -S`), so the copies added since the area's last sweep show what
 review let through.
+
+## Weekly: eval cases' frozen deliveries
+
+An eval case that embeds a delivery envelope froze its `handling` clauses when it was
+made, so a later change to the clauses under `$events` in
+`browser/runtime/kernel-registry.json` leaves it scoring text no agent now receives.
+Compare each case's embedded clauses with the registry's, and regenerate each stale
+envelope from the current Leaf the way its header says it was made, keeping the case's
+other facts. Leave a case whose header says it holds a wording on purpose, such as one
+that pastes each arm's wording into its prompt. Run each regenerated case on head
+(`uv run leaf-dev eval run <case> --harness claude-code --repeat 3`) and record the
+commit and result in its header, as earlier re-freezes did. Open one pull request for
+the week's cases, naming any whose result fell: the shipped handling regressed there,
+or the case's criterion needs revisiting.
 
 ## Weekly: vendored browser dependencies
 

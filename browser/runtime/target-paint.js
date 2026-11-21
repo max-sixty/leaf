@@ -94,7 +94,7 @@ export function labelAim(node) {
     Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth),
   );
   // The label stacks with what it names: over the chrome's surfaces where the aimed
-  // item stands in one, as a widget frozen in a reply does.
+  // item stands in one, as a widget in a reply does.
   keeps(labelStand.root, "data-lf-paint-plane", inChrome(surface) ? "chrome" : "page");
   const stood = standAt(labelStand, placed);
   const above = shown.top - node.offsetHeight - room;

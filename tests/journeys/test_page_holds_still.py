@@ -166,9 +166,11 @@ def thread_page(serve):
     read = append_agent_reply(
         d, notes, "A short first paragraph.\n\nThe paragraph being read. " + WORDS * 2
     )["id"]
+    # The first two steps take a line each, so with `read` at the reading line the
+    # last message starts inside the window and the reply box below it.
     for n in range(4):
         user(notes, f"And then {n}?")
-        append_agent_reply(d, notes, f"Then step {n}. " + WORDS)
+        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
     user(long, "Show me the lines.")
     lines = append_agent_reply(d, long, LINES)["id"]
@@ -226,11 +228,17 @@ def diff_page(serve):
 
 
 def dial_page(serve, repeat=1):
-    """The detail example's incident report, with the words of the cause's first
-    paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds behind
-    the section's gist."""
-    source = named_source("detail").read_text()
-    start = source.index('<p id="detail-cause-1">') + len('<p id="detail-cause-1">')
+    """The incident report example without its chart, with the words of the cause's
+    first paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds
+    behind the section's gist. The places below were measured on the report's words
+    alone: the chart, a gist Skim keeps, moves where each line stands and which block
+    the browser anchors on."""
+    source = named_source("incident-report").read_text()
+    chart = source.index('<figure class="gist" id="incident-impact-chart">')
+    source = (
+        source[:chart] + source[source.index("</figure>", chart) + len("</figure>") :]
+    )
+    start = source.index('<p id="incident-cause-1">') + len('<p id="incident-cause-1">')
     end = source.index("</p>", start)
     words = " ".join([source[start:end]] * repeat)
     source = f"{source[:start]}<em>{words}</em>{source[end:]}"
@@ -291,9 +299,9 @@ DECISIONS_PAGE = leaf_page(
     + "</section>"
     + "".join(
         f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
-        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
-        f'<lf-options id="ways-{n}" required><lf-option id="north-{n}">North</lf-option>'
-        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        f'<lf-group id="decide-{n}" label="Ask {n}: which way should part {n} go?"><h3 id="decide-{n}-h">Ask {n}: which way should part {n} go?</h3>'
+        f'<lf-options id="ways-{n}"><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-group></section>'
         for n in range(1, ASKS + 1)
     ),
 )
@@ -719,7 +727,7 @@ GUTTER_COMMENT = f"""() => {{
 def put_dial(motion, at=900 * 0.25 - 10):
     def put(page, built):
         page.emulate_media(reduced_motion=motion)
-        scroll_to(page, "#detail-cause-1", at)
+        scroll_to(page, "#incident-cause-1", at)
 
     return put
 
@@ -729,9 +737,9 @@ def put_dial(motion, at=900 * 0.25 - 10):
 # on through the turn back to Read. Each is read as the box of its first word's first
 # letter, so the em's inline box and the gist's block compare line for line.
 DIAL_READING = """() => {
-  const em = document.querySelector('#detail-cause-1 em');
+  const em = document.querySelector('#incident-cause-1 em');
   if (!em.checkVisibility()) window.__lfDialFolded = true;
-  const read = window.__lfDialFolded ? document.getElementById('detail-cause-gist') : em;
+  const read = window.__lfDialFolded ? document.getElementById('incident-cause-gist') : em;
   const text = read.firstChild;
   const at = text.data.search(/\\S/);
   const range = document.createRange();
@@ -746,9 +754,9 @@ DIAL_READING = """() => {
 # own letters half a leading lower, 2.1-2.5px, a step below what the eye takes in
 # across a fold.
 DIAL_WORDS = """() => {
-  const em = document.querySelector('#detail-cause-1 em');
+  const em = document.querySelector('#incident-cause-1 em');
   if (!em.checkVisibility()) window.__lfDialFolded = true;
-  if (window.__lfDialFolded) return document.getElementById('detail-cause-gist');
+  if (window.__lfDialFolded) return document.getElementById('incident-cause-gist');
   if (window.__lfDialWords) return window.__lfDialWords;
   const {offsetNode: text, offset} = document.caretPositionFromPoint(
     em.parentElement.getBoundingClientRect().left + 1, innerHeight / 4);
@@ -774,7 +782,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -799,7 +807,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
@@ -854,18 +862,21 @@ def open_card(page, built, thread):
     return card
 
 
-def put_card(thread, *, words=False, on=None, tabbed=False):
+def put_card(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
         card = open_card(page, built, thread)
         if words:
             card.get_by_role("textbox", name="Reply", exact=True).click()
             page.keyboard.type("Half a thought")
+        if left:
+            page.keyboard.press("Escape")
+            expect(card.locator(".lf-page-thread")).to_be_focused()
         rest(page, on, tabbed)
 
     return put
 
 
-def put_panel(thread, *, words=False, on=None, tabbed=False):
+def put_panel(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
         """Open `thread` in the floating panel from Threads."""
         scroll_to(page, "#p-20", 300)
@@ -878,6 +889,9 @@ def put_panel(thread, *, words=False, on=None, tabbed=False):
         if words:
             page.locator(PANEL_REPLY).click()
             page.keyboard.type("Half a thought")
+        if left:
+            page.keyboard.press("Escape")
+            expect(view).to_be_focused()
         rest(page, on, tabbed)
 
     return put
@@ -886,9 +900,11 @@ def put_panel(thread, *, words=False, on=None, tabbed=False):
 def floating_places():
     """The places in a thread's two floating boxes, the margin card and the floating
     panel's view: writing a reply, on Send with the reply written, the caret in the
-    empty reply box, and the pointer resting on Resolve at the box's head, with and
-    without words in the reply box, in a thread whose next message is news (`told`) and
-    in one whose next message answers the user (`asked`)."""
+    empty reply box, on the thread itself, where a send and Escape from the box leave
+    the user, which waits at its reply box (thread/reply-landing.js, `standsAt`), and
+    the pointer resting on Resolve at the box's head, with and without words in the
+    reply box, in a thread whose next message is news (`told`) and in one whose next
+    message answers the user (`asked`)."""
     for thread in ("told", "asked"):
         for box, put, reply, resolve, send in (
             ("card", put_card, CARD_REPLY, CARD_RESOLVE, CARD_SEND),
@@ -912,6 +928,13 @@ def floating_places():
                 f"{box}-caret-{thread}",
                 "floating",
                 put(thread),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-thread-{thread}",
+                "floating",
+                put(thread, left=True),
                 Found(reply),
                 {"thread above": thread},
             )
@@ -1099,7 +1122,7 @@ PLACES = [
         "dial",
         put_dial("no-preference"),
         DIAL_READING,
-        {"dial": None, "glided": "detail-impact-gist"},
+        {"dial": None, "glided": "incident-impact-gist"},
     ),
     Place("dial-reduced", "dial", put_dial("reduce"), DIAL_READING, {"dial": None}),
     Place(
@@ -1523,7 +1546,7 @@ def turn(page, label):
     "Controls stay where the user aims"), so the frames from the press until it ends
     are marked `gliding` (`ARM`) and the place's check passes over them; the frame it
     ends in and every one after are held to the place."""
-    depth = page.get_by_role("radio", name=label, exact=True)
+    depth = page.get_by_role("radio", name=re.compile(rf"^{label} \d+ min$"))
     box = depth.bounding_box()
     page.evaluate("() => { window.__lfPlaceRecord.turning = true; }")
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -1536,11 +1559,11 @@ def turn(page, label):
 def dial_turn(page, built, target, place):
     """Skim, which folds the paragraph read behind its section's gist, then Read."""
     turn(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
     settle(page)
     checkpoint(page, "skimmed")
     turn(page, "Read")
-    expect(page.locator("#detail-cause-1")).to_be_visible()
+    expect(page.locator("#incident-cause-1")).to_be_visible()
 
 
 LATE_IMAGE = (
@@ -1568,7 +1591,7 @@ def grown_after_glide(page, built, target, place):
     )
     holding(page, held, 1, "the image's load")
     turn(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
     settle(page)
     checkpoint(page, "skimmed")
     held[0].fulfill(status=200, content_type="image/svg+xml", body=LATE_IMAGE)
@@ -1726,7 +1749,7 @@ DIFF_READING = (
 )
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
-    "the glide; Chromium held it before #5397"
+    "the glide"
 )
 
 # The cases the runtime fails today, with what each measured: a fix flips one to a
@@ -1759,14 +1782,14 @@ MOVES_ON_MAIN = {
 # rule's owner records the choice, and a change of mind there flips the case to a pass,
 # whose strict mark then fails until its entry goes.
 EMPTY_REPLY = (
-    "a card grows down past the empty reply box a send or an opening left the caret "
-    "in, 239px, so the answer shows under the words read (thread-preview.js, the "
-    "user's choices of 5 and 9 November 2026)"
+    "a card grows down past the empty reply box an opening left the caret in, or the "
+    "thread a send left the user on, 239px, so the answer shows under the words read "
+    "(thread-preview.js, the user's choices)"
 )
 # News that grows a thread's box may carry its secondary controls from under a resting
 # pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
 # "News moves what the reader reads only in the thread they are in").
-SECONDARY = " (browser/AGENTS.md, the user's choice of 14 November 2026)"
+SECONDARY = " (browser/AGENTS.md, the user's choice)"
 RESOLVE_IN_PANEL = (
     "the panel's view grows from its top edge for the answer the user waits for and "
     "carries Resolve 216px up from under the pointer resting on it, where a message's "
@@ -1784,7 +1807,8 @@ RESOLVE_OVER_WORDS = (
 )
 MOVES_BY_CHOICE = {
     **{
-        f"card-caret-{thread}-reply-above-{engine}": EMPTY_REPLY
+        f"card-{place}-{thread}-reply-above-{engine}": EMPTY_REPLY
+        for place in ("caret", "thread")
         for thread in ("told", "asked")
         for engine in ENGINES.values()
     },

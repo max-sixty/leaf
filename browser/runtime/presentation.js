@@ -27,7 +27,7 @@
    the presentation coordinator reopens. A reader outside the page does not combine
    them itself: `pageReadiness` names the first of these facts, and of those below,
    still outstanding, and the entry script hands it to every such reader as
-   `lfReadiness`.
+   `lfReadiness`, beside `arrivalsOutstanding` as `lfArrivalsOutstanding`.
 
    Presentation is not the end of the page's arrival. An owner may deliberately keep work
    off the presentation path, such as a widget's progressive upgrade, and that work
@@ -98,6 +98,10 @@ export function deferredArrival(work) {
 export async function whenArrived() {
   while (arriving.size) await Promise.allSettled(arriving);
 }
+
+/** How many declared arrivals have yet to land. A reader outside the page that waits
+    on `arrived` takes a fall in it as progress (render_checks.py, `HandoverProgress`). */
+export const arrivalsOutstanding = () => arriving.size;
 
 /** Run `work` once the page has presented, as an arrival the page answers for.
  * @template T @param {() => T | PromiseLike<T>} work @returns {Promise<T>} */

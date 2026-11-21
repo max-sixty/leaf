@@ -5,7 +5,7 @@ import select
 import subprocess
 import sys
 from urllib.error import HTTPError
-from urllib.parse import parse_qs, quote, urlsplit
+from urllib.parse import parse_qs, quote, urljoin, urlsplit
 from urllib.request import urlopen
 
 import pytest
@@ -70,20 +70,22 @@ def test_trace_handoff_serves_the_native_viewer_without_desktop_launches(
     )
     address = server.stdout.readline().strip()
     assert address.startswith("http://127.0.0.1:"), address
+    # The root redirects to the viewer, which reads the archive relative to itself.
     with urlopen(address, timeout=STATED_TIMEOUT) as response:
         viewer = response.read()
-        parameters = parse_qs(urlsplit(response.url).query)
+        located = response.url
+    parameters = parse_qs(urlsplit(located).query)
     assert b"<html" in viewer
     assert parameters["trace"] == [f"file?path={quote(str(trace), safe='')}"]
     with urlopen(
-        f"{address}/trace/{parameters['trace'][0]}", timeout=STATED_TIMEOUT
+        urljoin(located, parameters["trace"][0]), timeout=STATED_TIMEOUT
     ) as response:
         assert response.read() == trace.read_bytes()
     private = tmp_path / "private.txt"
     private.write_text("outside the recording")
     with pytest.raises(HTTPError) as denied:
         urlopen(
-            f"{address}/trace/file?path={quote(str(private), safe='')}",
+            urljoin(located, f"file?path={quote(str(private), safe='')}"),
             timeout=STATED_TIMEOUT,
         )
     assert denied.value.code == 403

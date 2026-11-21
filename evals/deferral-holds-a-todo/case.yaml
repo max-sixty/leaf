@@ -1,13 +1,11 @@
-# From a review page on 2026-10-19: the user commented on a case's section, "we're
-# changing the backing box, so push this off until that's done", and the agent answered
-# `--done` with "Held: ... stays an open item until then", keeping the deferral in its
-# own closeout's open items. Nothing on the page held it, so the case's decision stood on
-# On Me while the user had put it off. The prompt pastes the closeout rule that pulled
-# that way. Cold, both arms reply with a to-do. At 4782f9761, where the to-do left the
-# decision on On Me, all 3 base runs also withdrew `c13-pick` in a revision and planned
-# to ask again under a new id; with the to-do holding the decision, all 3 head runs
-# left the widget alone. Those 6 runs were graded on a rubric without the withdrawal
-# clause, and read by hand for it.
+# On a review page the user commented on a case's section, "we're changing the
+# backing box, so push this off until that's done", and the agent answered `--done`
+# with "Held: ... stays an open item until then", keeping the deferral in its own
+# closeout's open items. Nothing on the page held it, so the case's decision stood on
+# On Me while the user had put it off. The prompt pastes the closeout rule that
+# pulled that way. Where the to-do leaves the decision on On Me, an agent can also
+# withdraw `c13-pick` in a revision and plan to ask again under a new id; while the
+# to-do holds the decision, the decision stays off On Me.
 description: deferral-holds-a-todo
 metadata:
   purpose: "Conversation loop: a decision the user puts off until other work lands is
@@ -20,7 +18,7 @@ vars:
     You are a Claude Code session driving a live Leaf review page at
     ~/.local/state/leaf/pages/ui-review, served with `leaf server start`. Section `c13`
     of the page presents one design case, with an `lf-options` group `c13-pick`
-    (`required`, options "Build it" and "Leave it") asking whether to build it. The user
+    (options "Build it" and "Leave it") asking whether to build it. The user
     picked "Build it", then cleared the pick, and the delivery brought one user comment,
     id da47301f, opening thread da47301f on section `c13`: "we're changing the backing
     box, so push this off until that's done". Its answer is

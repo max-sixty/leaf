@@ -21,7 +21,7 @@
       </aside>
       <div class="layout-column">
         <hgroup id="title">
-          <p class="eyebrow">Exploration</p>
+          <p>Exploration</p>
           <h1>Feeds in Leaf</h1>
         </hgroup>
         <p class="lede" id="lede">
@@ -52,7 +52,7 @@
           <h2>Every verb on a feed card already exists in Leaf</h2>
           <p id="verbs-intro">
             Each card is one decision with its evidence beside it, which is exactly what
-            an item framed by an <code>lf-ask</code> is. The On view of Leaf's panel
+            an item framed by a section and its heading is. The On view of Leaf's panel
             already lists a page's items as cards, with inline answers plus Show and
             Discuss.
           </p>
@@ -67,7 +67,7 @@
               <tr>
                 <th scope="row">The work, done</th>
                 <td>
-                  The card's evidence inside an <code>lf-ask</code>: a table, a chart, a
+                  The card's evidence in its question's section: a table, a chart, a
                   diff
                 </td>
               </tr>
@@ -122,102 +122,99 @@
                 Three things are ready for you. Everything here is made up.
               </p>
 
-              <section id="card-venue">
-                <lf-ask id="ask-venue">
-                  <hgroup id="venue-head">
-                    <p class="eyebrow">Email · from the inbox pass</p>
-                    <h2>Reply to the venue about Friday's room?</h2>
-                  </hgroup>
-                  <p id="venue-context">
-                    The Example Hall asked whether 40 seats is still right. The calendar
-                    invite has 46 accepted.
-                  </p>
-                  <lf-draft id="venue-draft">
-                    <pre>
+              <lf-group id="ask-venue" label="Reply to the venue about Friday's room?">
+                <hgroup id="venue-head">
+                  <p>Email · from the inbox pass</p>
+                  <h2 id="ask-venue-h">Reply to the venue about Friday's room?</h2>
+                </hgroup>
+                <p id="venue-context">
+                  The Example Hall asked whether 40 seats is still right. The calendar
+                  invite has 46 accepted.
+                </p>
+                <lf-draft id="venue-draft">
+                  <pre>
 Hi Sam,
 
 Could we move up to the larger room? We're at 46 confirmed, so 50 seats would be safest.
 
 Thanks,
 Max</pre>
-                  </lf-draft>
-                  <lf-options id="venue-choice" required>
-                    <lf-option id="venue-send"
-                      ><strong>Send</strong> Sends the draft as it reads now.</lf-option
-                    >
-                    <lf-option id="venue-later"
-                      ><strong>Not now</strong> Brings it back tomorrow.</lf-option
-                    >
-                  </lf-options>
-                </lf-ask>
-              </section>
+                </lf-draft>
+                <lf-options id="venue-choice">
+                  <lf-option id="venue-send" label="Send" recommended
+                    ><strong>Send</strong> Sends the draft as it reads now.</lf-option
+                  >
+                  <lf-option id="venue-later" label="Not now"
+                    ><strong>Not now</strong> Brings it back tomorrow.</lf-option
+                  >
+                </lf-options>
+              </lf-group>
 
-              <section id="card-numbers">
-                <lf-ask id="ask-numbers">
-                  <hgroup id="numbers-head">
-                    <p class="eyebrow">Report · from the weekly numbers pass</p>
-                    <h2>Send the team this week's numbers?</h2>
-                  </hgroup>
-                  <table id="numbers-table">
-                    <thead>
-                      <tr>
-                        <th>Measure</th>
-                        <th class="num">This week</th>
-                        <th class="num">Last week</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <th scope="row">Pages authored</th>
-                        <td class="num">212</td>
-                        <td class="num">180</td>
-                      </tr>
-                      <tr>
-                        <th scope="row">Median first reply</th>
-                        <td class="num">58 s</td>
-                        <td class="num">62 s</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <lf-draft id="numbers-draft">
-                    <pre>
+              <lf-group id="ask-numbers" label="Send the team this week's numbers?">
+                <hgroup id="numbers-head">
+                  <p>Report · from the weekly numbers pass</p>
+                  <h2 id="ask-numbers-h">Send the team this week's numbers?</h2>
+                </hgroup>
+                <table id="numbers-table">
+                  <thead>
+                    <tr>
+                      <th>Measure</th>
+                      <th class="num">This week</th>
+                      <th class="num">Last week</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Pages authored</th>
+                      <td class="num">212</td>
+                      <td class="num">180</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Median first reply</th>
+                      <td class="num">58 s</td>
+                      <td class="num">62 s</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <lf-draft id="numbers-draft">
+                  <pre>
 Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
-                  </lf-draft>
-                  <lf-options id="numbers-choice" required>
-                    <lf-option id="numbers-send"
-                      ><strong>Send to the team</strong></lf-option
-                    >
-                    <lf-option id="numbers-skip"
-                      ><strong>Skip this week</strong></lf-option
-                    >
-                  </lf-options>
-                </lf-ask>
-              </section>
+                </lf-draft>
+                <lf-options id="numbers-choice">
+                  <lf-option id="numbers-send" label="Send to the team"
+                    ><strong>Send to the team</strong></lf-option
+                  >
+                  <lf-option id="numbers-skip" label="Skip this week"
+                    ><strong>Skip this week</strong></lf-option
+                  >
+                </lf-options>
+              </lf-group>
 
-              <section id="card-ci">
-                <lf-ask id="ask-ci">
-                  <hgroup id="ci-head">
-                    <p class="eyebrow">CI · from the overnight pass</p>
-                    <h2>Main went red overnight. What should happen?</h2>
-                  </hgroup>
-                  <p id="ci-context">
-                    One commit broke <code>test_parser</code>. Nothing else landed after
-                    it.
-                  </p>
-                  <lf-options id="ci-choice" required>
-                    <lf-option id="ci-revert"
-                      ><strong>Revert it</strong> Opens a revert PR now.</lf-option
-                    >
-                    <lf-option id="ci-fix"
-                      ><strong>Draft a fix</strong> Investigates and comes back with a
-                      PR.</lf-option
-                    >
-                    <lf-option id="ci-leave"
-                      ><strong>Leave it</strong> Someone else owns it.</lf-option
-                    >
-                  </lf-options>
-                </lf-ask>
-              </section>
+              <lf-group
+                id="ask-ci"
+                label="Main went red overnight. What should happen?"
+              >
+                <hgroup id="ci-head">
+                  <p>CI · from the overnight pass</p>
+                  <h2 id="ask-ci-h">Main went red overnight. What should happen?</h2>
+                </hgroup>
+                <p id="ci-context">
+                  One commit broke <code>test_parser</code>. Nothing else landed after
+                  it.
+                </p>
+                <lf-options id="ci-choice">
+                  <lf-option id="ci-revert" label="Revert it"
+                    ><strong>Revert it</strong> Opens a revert PR now.</lf-option
+                  >
+                  <lf-option id="ci-fix" label="Draft a fix"
+                    ><strong>Draft a fix</strong> Investigates and comes back with a
+                    PR.</lf-option
+                  >
+                  <lf-option id="ci-leave" label="Leave it"
+                    ><strong>Leave it</strong> Someone else owns it.</lf-option
+                  >
+                </lf-options>
+              </lf-group>
             </template>
           </lf-sample>
           <p id="sample-gaps">
@@ -356,19 +353,21 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
         </section>
 
         <section id="choose-first">
-          <lf-ask id="ask-first-build">
-            <h2>Which feed should Leaf try first?</h2>
+          <lf-group id="ask-first-build" label="Which feed should Leaf try first?">
+            <h2 id="ask-first-build-h">Which feed should Leaf try first?</h2>
             <p id="first-build-premise">
               Both options use items as the cards. They differ in where the cards come
               from and where you read them. They compose: a feed page from A would
               become one source in B's list.
             </p>
-            <lf-options id="first-build" required>
-              <lf-option id="build-today-page">
-                <small class="tag">Leaf code: almost none</small
-                ><small class="tag">proactive: yes</small
-                ><small class="tag ok">recommended</small>
+            <lf-options id="first-build">
+              <lf-option
+                id="build-today-page"
+                label='A. A "Today" page owned by one background session'
+              >
                 <strong>A. A "Today" page owned by one background session</strong>
+                <small class="tag">Leaf code: almost none</small
+                ><small class="tag">proactive: yes</small>
                 A launchd job resumes one standing Claude Code session each morning. It
                 checks the sources you name and writes a card for each action. Your
                 press resumes it to carry the action out.
@@ -405,7 +404,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                   source's context, and cards from your other sessions don't reach it.
                 </p>
               </lf-option>
-              <lf-option id="build-cross-page">
+              <lf-option id="build-cross-page" label="B. On Me across every page">
                 <small class="tag">Leaf code: rows, a view, persistence</small
                 ><small class="tag">proactive: no</small>
                 <strong>B. On Me across every page</strong>
@@ -453,7 +452,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 </p>
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </lf-group>
           <details id="first-build-why">
             <summary>
               A first, because the experience is the open question and A tests it
@@ -469,30 +468,33 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
           </details>
         </section>
 
-        <section id="offers">
-          <lf-ask id="ask-offers">
-            <h2>Should agents turn the offers in their replies into cards?</h2>
-            <p id="offers-premise">
-              This is the tweet's discovery argument applied to one page. Agents end
-              replies with offers like "say the word and I'll open the PR", and those go
-              unanswered: the research found no agent message that put two explicit
-              questions, while multi-part asks arrived as prose offers. An instruction
-              could make each offer an item with <strong>Do it</strong> and
-              <strong>Not now</strong>, so you discover what the agent could do next
-              without inventing the prompt. It costs a change to
-              <code>conversation-loop.md</code>, scored with <code>evals/</code>. The
-              risk is over-asking, which the same research found destroys the signal.
-            </p>
-            <lf-options id="offers-choice" required>
-              <lf-option id="offers-yes"
-                ><strong>Yes, try it with an eval</strong></lf-option
-              >
-              <lf-option id="offers-no"
-                ><strong>No, leave offers in prose</strong></lf-option
-              >
-            </lf-options>
-          </lf-ask>
-        </section>
+        <lf-group
+          id="ask-offers"
+          label="Should agents turn the offers in their replies into cards?"
+        >
+          <h2 id="ask-offers-h">
+            Should agents turn the offers in their replies into cards?
+          </h2>
+          <p id="offers-premise">
+            This is the tweet's discovery argument applied to one page. Agents end
+            replies with offers like "say the word and I'll open the PR", and those go
+            unanswered: the research found no agent message that put two explicit
+            questions, while multi-part asks arrived as prose offers. An instruction
+            could make each offer an item with <strong>Do it</strong> and
+            <strong>Not now</strong>, so you discover what the agent could do next
+            without inventing the prompt. It costs a change to
+            <code>conversation-loop.md</code>, scored with <code>evals/</code>. The risk
+            is over-asking, which the same research found destroys the signal.
+          </p>
+          <lf-options id="offers-choice">
+            <lf-option id="offers-yes" label="Yes, try it with an eval"
+              ><strong>Yes, try it with an eval</strong></lf-option
+            >
+            <lf-option id="offers-no" label="No, leave offers in prose"
+              ><strong>No, leave offers in prose</strong></lf-option
+            >
+          </lf-options>
+        </lf-group>
 
         <section id="differ">
           <h2>Leaf's feed should drain, not scroll forever</h2>

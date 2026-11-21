@@ -18,6 +18,7 @@ from interact_support import (
     continued,
     declare_data_input,
     delivered,
+    inlined,
     last_deliverable_seq,
     working,
 )
@@ -93,9 +94,10 @@ def browser_read(findings: list[dict]) -> SimpleNamespace:
     """A browser that finished reading the page and found `findings`, as
     `command.BrowserCheck` answers."""
     return SimpleNamespace(
-        unavailable=None,
         findings=lambda: [
-            SimpleNamespace(code=finding["code"], json=lambda f=finding: f)
+            SimpleNamespace(
+                code=finding["code"], unread=False, json=lambda f=finding: f
+            )
             for finding in findings
         ],
     )
@@ -275,16 +277,25 @@ def test_a_reading_its_alarm_ended_is_told_as_a_failure_and_costs_it_once(
     assert len(ran) == 2
 
 
-def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir):
-    """Chrome failing says nothing of the page, so nothing is told or refused for it."""
-    failed = Finding("gate-failed", values={"error": "Target closed"})
+@pytest.mark.parametrize(
+    "unread",
+    [
+        Finding("gate-failed", values={"error": "Target closed"}),
+        Finding("probe-failed", values={"error": "Target closed"}),
+        Finding("browser-error", values={"error": "Target closed"}),
+        Finding("server-stopped", values={"error": "Timeout 30000ms exceeded."}),
+        Finding("no-browser", values={"error": "no browser launched: none found"}),
+    ],
+    ids=lambda finding: finding.code,
+)
+def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir, unread):
+    """A browser that crashed or a preview server that stopped answering says
+    nothing of the page, so nothing is told or refused for it, as where no browser
+    ran."""
     handover_pass_model.remember_reading(
         page_dir,
         "sha256:0",
-        SimpleNamespace(unavailable=None, findings=lambda: [failed]),
-    )
-    handover_pass_model.remember_reading(
-        page_dir, "sha256:0", SimpleNamespace(unavailable="no browser", findings=list)
+        SimpleNamespace(findings=lambda: [unread]),
     )
     assert handover_pass_model.read_reading(page_dir) is None
 
@@ -361,7 +372,7 @@ def test_advice_holds_no_turn_and_goes_in_with_what_a_hook_hands_over(
     )
     state_model.prompt_turn("s1")
     hooks_model.cmd_hook("claude-code", repeated)
-    envelope = json.loads(continued(json.loads(capsys.readouterr().out)).split("\n")[1])
+    envelope = inlined(continued(json.loads(capsys.readouterr().out)))
     [batch] = envelope["batches"]
     assert [e["id"] for e in batch["events"]] == [advice["id"], comment["id"]]
 
@@ -384,15 +395,8 @@ def test_only_what_the_last_reading_did_not_hold_is_told(claimed, told):
 def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
     claimed, told
 ):
-    """A layout shift's words carry when it started, and a sideways scroll's how far,
-    and neither names an element, so another reading that measures them anew holds
-    nothing the agent hasn't heard."""
-    shift = {
-        "code": "startup-layout-shift",
-        "severity": "advice",
-        "values": {"cls": 0.12, "entries": [{"at": 812.4, "value": 0.12}]},
-        "text": "startup CLS 0.1200 before first settled presentation; …812.4…",
-    }
+    """A sideways scroll's words carry how far it scrolls and names no element, so
+    another reading that measures it anew holds nothing the agent hasn't heard."""
     scrolls = {
         "code": "page-scrolls",
         "severity": "error",
@@ -400,21 +404,14 @@ def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
         "values": {"past": 206},
         "text": "at 360–480px wide, the page scrolls sideways by 206px",
     }
-    assert len(told([shift, scrolls])) == 1
-    remeasured = [
-        {
-            **shift,
-            "values": {"cls": 0.12, "entries": [{"at": 905.1, "value": 0.12}]},
-            "text": "startup CLS 0.1200 before first settled presentation; …905.1…",
-        },
-        {
-            **scrolls,
-            "widths": [360, 400],
-            "values": {"past": 190},
-            "text": "at 360–400px wide, the page scrolls sideways by 190px",
-        },
-    ]
-    assert len(told(remeasured)) == 1
+    assert len(told([scrolls])) == 1
+    remeasured = {
+        **scrolls,
+        "widths": [360, 400],
+        "values": {"past": 190},
+        "text": "at 360–400px wide, the page scrolls sideways by 190px",
+    }
+    assert len(told([remeasured])) == 1
 
 
 def test_console_errors_are_told_apart_by_their_words(claimed, told):

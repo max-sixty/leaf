@@ -22,8 +22,8 @@ waking the session says whether a watch ran and could read the page. A command's
 time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one the
 sandbox bridge runs for Claude Code is timed from the bridge's start of it.
 
-Claude Code's pages follower records in each page the session holds whether it keeps
-threads back for line forks (`record_follower`).
+Claude Code's pages follower records in each page the session holds that it runs
+there, listing line forks for the page's rounds (`record_follower`).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -33,7 +33,7 @@ to the host clock; observed_at and monotonic_ms belong to one browser tab.
 A page's trace keeps entered values, draft text and selections for debugging, with no
 limit on its size; only a password field's characters stay out, also after a
 show-password toggle, except in a closed shadow root (`interaction-log.js`).
-The user chose this on 2026-11-04 over recording only the structural fields leaf.page's
+The user chose this over recording only the structural fields leaf.page's
 Worker keeps, and over recording nothing unless the user turns it on.
 """
 
@@ -99,12 +99,9 @@ def launched() -> float:
     return process.create_time()
 
 
-def record_command(
-    command: str, *, turn: str | None = None, refused: str | None = None
-) -> None:
+def record_command(command: str, *, refused: str | None = None) -> None:
     """Record in each page this command acted on how long it has taken, with the
-    harness session that ran it, the agent turn of the session it named (`turn`,
-    `leaf --turn`), and the error it ended with where Leaf refused it
+    harness session that ran it, and the error it ended with where Leaf refused it
     (`refused`, what `cli.LeafGroup` printed), once: a later call records nothing. A diagnostic
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
@@ -128,7 +125,6 @@ def record_command(
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
             "durationMs": round((ended - started) * 1000, 1),
             "session": session,
-            **({"turn": turn} if turn else {}),
             **({"refused": refused} if refused is not None else {}),
             "context": session_context(session),
         }
@@ -164,23 +160,11 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     _record_in(pages, record)
 
 
-def record_follower(
-    pages: list[Path], session: str, *, module: object, forks: bool, current: bool
-) -> None:
+def record_follower(pages: list[Path], session: str) -> None:
     """Record in each page a Claude Code session's pages follower starts listing
-    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), the
-    digest the module loaded with (`module`), and whether that module is this
-    Leaf's (`current`, `session_runtime.module_current`): the follower keeps threads
-    back for line forks only where both hold. Dropped where the page can't be
-    written, as `record_command` is."""
-    record = {
-        "source": "cli",
-        "type": "follower",
-        "session": session,
-        "module": module,
-        "forks": forks,
-        "current": current,
-    }
+    (`hooks.cmd_pages`) that the follower runs, holding the session's forks lane.
+    Dropped where the page can't be written, as `record_command` is."""
+    record = {"source": "cli", "type": "follower", "session": session}
     _record_in(pages, record)
 
 

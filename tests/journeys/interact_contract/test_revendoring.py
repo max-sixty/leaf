@@ -60,10 +60,10 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
 def test_init_allows_changed_generated_child_semantics(page_dir):
     registry = vocabulary(page_dir)
     options = (
-        '<lf-ask id="route-decision"><h2>Which route?</h2>'
-        '<lf-options id="route" required>'
+        '<lf-group id="route-decision" label="Which route?"><h2 id="route-decision-h">Which route?</h2>'
+        '<lf-options id="route">'
         '<lf-option id="route-authored">Authored route</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     version = page_dir / "index.html"
     version.write_text(
@@ -82,7 +82,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
         },
     )
 
-    del registry["lf-options"]["x-state"]["add"]["creates"]
+    del registry["lf-options"]["verbs"]["add"]["creates"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
     (overlay / "registry.json").write_text(

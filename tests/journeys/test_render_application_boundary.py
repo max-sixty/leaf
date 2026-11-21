@@ -302,7 +302,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     )
 
 
-def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
+def test_thread_presentation_waits_for_its_own_widgets_only(browser, serve):
     """The thread parent absorbs descendants without joining unrelated page work."""
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
@@ -347,18 +347,18 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         }"""
     )
 
-    long_thread(serve.page_dir, "frozen-widget-question", "Show the frozen widget.")
+    long_thread(serve.page_dir, "thread-widget-question", "Show the thread widget.")
     # The panel's thread view is the reader that draws the reply's widget.
-    open_panel_thread(page, arrived(page, "frozen-widget-question"))
+    open_panel_thread(page, arrived(page, "thread-widget-question"))
     append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
             "author": "agent",
             "revision": 1,
-            "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the thread.",
-            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
+            "parent": "thread-widget-question",
+            "text": "This widget prepares inside the thread.\n\n"
+            '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
     append_command(
@@ -416,7 +416,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         }"""
     )
     long_thread(
-        serve.page_dir, "failing-widget-question", "Show another frozen widget."
+        serve.page_dir, "failing-widget-question", "Show another thread widget."
     )
     open_panel_thread(page, arrived(page, "failing-widget-question"))
     append_carried_log_record(
@@ -426,8 +426,8 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "author": "agent",
             "revision": 1,
             "parent": "failing-widget-question",
-            "text": "This widget fails its preparation.",
-            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
+            "text": "This widget fails its preparation.\n\n"
+            '<lf-local id="thread-failing" choice="idle"></lf-local>',
         },
     )
     page.wait_for_function(
@@ -442,11 +442,11 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         "threadReady = false; "
         "whenLeafRegionsPresented(['thread'], () => true)"
         ".then(() => { threadReady = true; }); "
-        "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
+        "failedThreadPreparation.reject(new Error('thread descendant failure')); true"
     )
     page.wait_for_function("threadReady")
     expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
     expect_open_threads(page, 2)
     reported_browser_errors(
-        page, "leaf: Presentation failed: frozen descendant failure"
+        page, "leaf: Presentation failed: thread descendant failure"
     )

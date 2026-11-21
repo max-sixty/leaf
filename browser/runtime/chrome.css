@@ -91,11 +91,15 @@
    disagree. The hand stands on the element under the pointer (page-geometry.js), so
    arming and a crossing restyle only what that element holds. Elsewhere a press takes
    nothing (claimPress) and the page keeps its own cursor, the I-beam over words no item
-   holds: an arrow declared on the body for them restyled every element each time the
-   page armed or disarmed, 1.0 to 1.2 s in Firefox on a page of thirty 4 MB text
-   documents. A control keeps its own cursor while armed. */
-body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
-  cursor: pointer;
+   holds: an arrow declared on the body for them would restyle every element each time
+   the page arms or disarms, which can take Firefox over a second on a page of large
+   text documents. A control keeps its own cursor while armed. Only an armed page or
+   Design mode paints the hand, so the rule reads no mark on `body`, whose every change
+   makes Firefox visit the whole page. Where the aim's press takes an item on the page,
+   it takes it whatever cursor the page gives the item, so the hand covers that cursor,
+   as the crosshair does (integration.css). */
+body [data-lf-over-item] {
+  cursor: pointer !important;
 }
 /* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
    moves about the page, so two fingers still pan and zoom it there; a second finger
@@ -109,11 +113,6 @@ html[data-lf-region-capture] {
 }
 html[data-lf-draw-mode] {
   touch-action: pinch-zoom;
-}
-/* A change's mark is an annotation, so hiding annotations (`o`) hides its bar
-   (margin-bars.js) too. */
-:root[data-lf-annotations="hidden"] {
-  --lf-change-bar: transparent;
 }
 /* The unanswered decision the user is in (markHere) wears the location ring
    (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
@@ -320,15 +319,13 @@ html[data-lf-draw-mode] {
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
-    --lf-comment-foot-gap: var(--lf-sp-3);
     --lf-comment-frame-top: calc(
       1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
     );
-    /* The card's reply row at rest, which the editor's frame reserves beneath the words,
-       so a box that fills the window becomes a card of the same height. */
-    --lf-comment-reply-row: calc(
-      var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px
-    );
+    /* The card's reply row at rest, its box a message's gap (surfaces.css) under the
+       words, which the editor's frame reserves beneath them, so a box that fills the
+       window becomes a card of the same height. */
+    --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h) + 2px);
     --lf-comment-frame-bottom: calc(
       var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px
     );
@@ -337,7 +334,7 @@ html[data-lf-draw-mode] {
      to the response line with its frame, so the row reserves no frame beyond it. */
   @media (hover: hover) and (pointer: fine) {
     :is(.lf-fab-bar, .lf-margin-preview) {
-      --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h));
+      --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h));
     }
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
@@ -365,10 +362,12 @@ html[data-lf-draw-mode] {
     path {
     stroke: var(--lf-accent);
   }
-  /* Unsent ink whose composer is put away stays on the page, dashed as a draft set
-     aside, apart from the drawing the open composer carries. */
+  /* Unsent ink whose composer is put away, or whose element a revision took away, stays
+     on the page dimmed, apart from the drawing the open composer carries. The user
+     chose dimming over dashing for a draft; the accent stays, since
+     grey ink over the page read as the page's own strikethrough. */
   .lf-drawing-mark.lf-drawing-parked path {
-    stroke-dasharray: 7 6;
+    stroke-opacity: 0.6;
   }
   .lf-live {
     position: fixed;
@@ -550,10 +549,12 @@ html[data-lf-draw-mode] {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr);
     align-items: baseline;
-    column-gap: 8px;
+    column-gap: var(--lf-choice-gap);
     row-gap: 2px;
     /* A choice (controls.css) pads its ring room; the margins take that padding
-       back, so the checkbox stands on the search field's edge. */
+       back, so the checkbox stands on the search field's edge. Its own grid places
+       the checkbox, so the start padding holds no mark. */
+    padding-inline-start: var(--lf-choice-pad);
     margin: calc(4px - var(--lf-choice-pad)) 0 calc(12px - var(--lf-choice-pad))
       calc(-1 * var(--lf-choice-pad));
     flex: none;
@@ -585,10 +586,10 @@ html[data-lf-draw-mode] {
     min-width: 0;
   }
   /* The results are the one part of the column that gives up height when the window is
-     short; the head, the search and this line keep their own. As a shrinkable flex item
-     the line was squeezed to its 1.2em floor, 13.8px under a 16.7px line, and the results
-     started on its last pixel, so a scrolled row ran into the words. One line is its
-     floor, empty or not, and the results start a step below it. */
+     short; the head, the search and this line keep their own. Squeezed as a shrinkable
+     flex item below its own line height, the line would let the results start on its
+     last pixel, so a scrolled row would run into the words. One line is its floor, empty
+     or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
   .lf-command-reference-meta {
@@ -639,11 +640,11 @@ html[data-lf-draw-mode] {
      the command 10px after them, then the command, then its description. The keys
      share one column, as wide as `g letters`, so every command starts on one edge;
      a step's alternatives stand as keys of their own, two to a line, so Move's six
-     take three. The user chose this on 28 October over three others: each key 10px after
+     take three. The user chose this over three others: each key 10px after
      its command, which zigzagged down the list; keys at the row's end, a dialog's
-     width from their words; and one column after the widest command. Before those, a
-     table whose key column was a fixed 104px stood a lone key some 80px from its
-     command and wore the document's data-table rule, a hairline under every cell.
+     width from their words; and one column after the widest command. Rejected too: a
+     table whose key column is a fixed 104px, which stands a lone key some 80px from its
+     command and wears the document's data-table rule, a hairline under every cell.
      Rows part by their own room, and a section by its band.
 
      A description stays out of sight at rest, as references set none and palettes set
@@ -748,6 +749,11 @@ html[data-lf-draw-mode] {
     flex: 1;
     font: var(--lf-font-title);
   }
+  /* Close's ✕, rather than its box, ends where the dialog's words end, as in the
+     floating panel's head (controls.css, `--lf-symbol-inset`). */
+  .lf-dialog-head > .lf-icon-action:last-child {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
+  }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. A row on the user's turn
      stands on the turn's wash, as its margin entry does (controls.css). */
@@ -783,7 +789,8 @@ html[data-lf-draw-mode] {
       calc(100dvh - var(--lf-page-map-top) - var(--lf-safe-bottom) - 12px)
     );
     margin: 0 auto;
-    padding: 14px;
+    --lf-sheet-inset: 14px;
+    padding: var(--lf-sheet-inset);
     border: 1px solid var(--lf-border);
     border-radius: var(--lf-r-l);
     --lf-ground: var(--lf-paper);
@@ -804,12 +811,17 @@ html[data-lf-draw-mode] {
   .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--lf-ink) 26%, transparent);
   }
+  /* The report scrolls out to the sheet's padding edge and keeps the sheet's padding as
+     its own, as the Page Map's list does, so its words start and end where the title
+     and Close's ✕ do, and Copy's box and focus ring, hung past its words' end
+     (controls.css, `--lf-symbol-inset`), stay inside what it clips. */
   .lf-inspection-body {
     overflow: auto;
     min-height: 0;
     overflow-wrap: anywhere;
     overscroll-behavior: contain;
-    padding: var(--lf-focus-ring-room);
+    margin-inline: calc(-1 * var(--lf-sheet-inset));
+    padding: var(--lf-focus-ring-room) var(--lf-sheet-inset);
     scroll-padding: var(--lf-focus-ring-room);
   }
   /* Each section of the report is a region of the dialog, named in the label font
@@ -836,11 +848,6 @@ html[data-lf-draw-mode] {
   .lf-inspection-body h3 {
     margin-block: 10px 2px;
   }
-  /* The title starts where the report's words do, inside the room the report keeps
-     for a focus ring. */
-  .lf-inspection-dialog > .lf-dialog-head {
-    padding-inline-start: var(--lf-focus-ring-room);
-  }
   .lf-inspection-body details {
     margin-block: 10px;
   }
@@ -853,6 +860,10 @@ html[data-lf-draw-mode] {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+  /* Copy's glyph ends on the report's edge, under Close's. */
+  .lf-copyable-head > .lf-icon-action {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
   }
   /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
      wraps rather than scrolling sideways, so it keeps no room under its last line for a
@@ -883,7 +894,7 @@ html[data-lf-draw-mode] {
      the rows' place stands on the same edge. */
   .lf-page-map-list {
     --lf-rows-bleed: 6px;
-    margin-inline: -14px;
+    margin-inline: calc(-1 * var(--lf-sheet-inset));
     padding-inline: var(--lf-rows-bleed);
     margin-top: 10px;
     overflow: auto;
@@ -922,7 +933,7 @@ html[data-lf-draw-mode] {
 
   /* Design mode shows the page's bones: every item (a widget, a section, a heading with
      an id) wears a dashed legend box drawn from its geometry like the aim's (paintLegend),
-     one pixel outside its border box. Every item but a widget's parts (x-owners) also
+     one pixel outside its border box. Every item but a widget's parts (`owners`) also
      wears its tag and id above the corner; parts are named under the pointer. Dashed,
      because a legend is structural and a solid contour is a gesture's. Under the pointer
      the aim marks one item (`[data-lf-aimed]`) with its full name (.lf-inspect). No pointer
@@ -995,7 +1006,12 @@ html[data-lf-draw-mode] {
     background: var(--lf-work);
   }
   .lf-change-bar {
-    background: var(--lf-change-bar, var(--lf-change));
+    background: var(--lf-change);
+  }
+  /* A change's mark is an annotation, so hiding annotations (`o`, annotation-layer.js)
+     hides its bar too. */
+  :scope[data-lf-annotations-hidden] .lf-change-bar {
+    background: transparent;
   }
   /* The change a Change entry points at, outlined round all its blocks, in the quiet
      contour a margin control draws round what it concerns (`[data-lf-traced]`,
@@ -1142,7 +1158,7 @@ html[data-lf-draw-mode] {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      padding-bottom: max(var(--lf-sheet-inset), env(safe-area-inset-bottom));
     }
     /* The sheet is the rail's replacement where there is no margin to draw one in, so
        its rows are touch-sized because of what the sheet is, not because of what is
@@ -1224,7 +1240,9 @@ html[data-lf-draw-mode] {
     border-radius: var(--lf-tip-r);
     background: var(--lf-tip-bg);
     color: var(--lf-tip-ink);
-    box-shadow: var(--lf-raise-1);
+    box-shadow:
+      0 0 0 1px var(--lf-tip-ring),
+      var(--lf-tip-lift);
     font: var(--lf-font-tip);
     text-align: start;
     white-space: normal;
@@ -1258,6 +1276,11 @@ html[data-lf-draw-mode] {
   }
   .lf-preview[data-lf-face="excerpt"] {
     max-width: min(26rem, var(--lf-preview-span));
+  }
+  /* A preview whose element draws what it shows stands unseen, so it still ends and
+     describes as any other (preview.js, `unseen`). */
+  .lf-preview[data-lf-face="unseen"] {
+    visibility: hidden;
   }
   .lf-preview-name {
     display: flex;
@@ -1319,15 +1342,17 @@ html[data-lf-draw-mode] {
      excerpt room: under the place's name, its first parts as the page reads them, each a
      line of detail the face fits to its room (`fit`, preview.js), a list's items, a
      table's cells and a code block's lines each cut to one, then the conversations about
-     it under a rule. The tooltip's ground is the page's ink, so its marks mix the
-     tooltip's own ink rather than the paper's colours. */
+     it under a rule. Its marks mix the face's own ink, so they hold on whatever ground
+     the face wears. */
   .lf-place-heading,
   .lf-place-cell[data-lf-head] {
     font-weight: 600;
   }
-  .lf-place-list {
-    display: flex;
-    flex-direction: column;
+  /* Its items in block flow, each a line, which a line clamp counts and holds back, as
+     it can't in a flex box. */
+  .lf-place-list,
+  .lf-place-item {
+    display: block;
   }
   .lf-place-item,
   .lf-place-cell,

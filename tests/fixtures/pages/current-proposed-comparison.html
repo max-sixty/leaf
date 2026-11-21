@@ -18,8 +18,10 @@
   <body>
     <main class="layout-workspace" id="comparison-workspace">
       <header>
-        <p class="eyebrow">release review · decision recorded</p>
-        <h1>Compare expired-session recovery</h1>
+        <hgroup>
+          <p>release review · decision recorded</p>
+          <h1>Compare expired-session recovery</h1>
+        </hgroup>
         <p class="lede" id="comparison-summary">
           One shared refresh per tab is selected for 2.8. The former policy and selected
           result remain side by side for audit and comments.
@@ -29,7 +31,7 @@
       <div id="comparison-regions">
         <lf-pane id="comparison-current" label="Current policy">
           <header>
-            <p class="eyebrow">current result</p>
+            <p>current result</p>
             <h2>Refresh every failed request</h2>
           </header>
           <div>
@@ -73,7 +75,7 @@
 
         <lf-pane id="comparison-proposed" label="Proposed policy">
           <header>
-            <p class="eyebrow">proposed result · selected</p>
+            <p>proposed result · selected</p>
             <h2>Share one refresh per tab</h2>
           </header>
           <div>
@@ -122,13 +124,13 @@
       </div>
 
       <footer>
-        <lf-ask id="comparison-policy-decision">
+        <section id="comparison-policy-decision">
           <h2>Which policy should ship?</h2>
           <p>
             The selected policy is incorporated above and remains recorded with the
             comparison it was chosen from.
           </p>
-          <lf-options id="comparison-policy" required settled>
+          <lf-options id="comparison-policy" settled>
             <lf-option id="comparison-policy-current"
               >Keep independent refreshes</lf-option
             >
@@ -136,7 +138,7 @@
               >Adopt one shared refresh per tab</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </section>
       </footer>
     </main>
   </body>

@@ -1,8 +1,8 @@
 """Safari on an iOS simulator, for a probe or stills of an iPhone-only difference.
 
 Playwright's WebKit is a desktop build and differs from iOS WebKit beyond its version:
-on 2026-10-26 iOS 26.1 listed adopted stylesheets in `document.styleSheets` and
-Playwright's WebKit 26.6 did not, which unstyled Leaf's chrome on iPhones alone.
+iOS 26.1 lists adopted stylesheets in `document.styleSheets` and Playwright's WebKit
+26.6 does not, so code that reads that list can break Leaf's chrome on iPhones alone.
 Playwright drives no iOS browser, so this drives the simulator's Safari through
 safaridriver, Apple's WebDriver server, with Selenium as its client.
 
@@ -22,7 +22,13 @@ import click
 from selenium import webdriver
 from selenium.common.exceptions import JavascriptException
 
-from leaf.render_checks import HANDOVER_DEADLINE_MS, OUTSTANDING, UNREADY, PageNotReady
+from leaf.render_checks import (
+    HANDOVER_DEADLINE_MS,
+    STANDING,
+    UNREADY,
+    HandoverProgress,
+    PageNotReady,
+)
 
 # The bound on one script, as `SERVED_TIMEOUT_MS` bounds one Playwright probe.
 SCRIPT_TIMEOUT_S = 120
@@ -70,7 +76,7 @@ def ios_safari(scheme: str = "light"):
         options.set_capability("safari:useSimulator", True)
         options.set_capability("safari:deviceUDID", udid)
         # Under the default strategy, which waits for the page's load, navigating to a
-        # Leaf page never returned (2026-10-26); `load` waits on readiness instead.
+        # Leaf page can fail to return; `load` waits on readiness instead.
         options.set_capability("pageLoadStrategy", "none")
         driver = webdriver.Safari(options=options)
         try:
@@ -100,9 +106,8 @@ class Tab:
 def evaluate(driver, expression: str, arg=None):
     """What `expression` gives in the page, awaited, as Playwright's `evaluate` takes it:
     a function is called with `arg`, and a function's source may end its statement,
-    as a script file's does (`stills_baselines.js`). The expression is part of the
-    script WebDriver runs rather than a string the page evaluates, so a page's CSP
-    doesn't refuse it."""
+    as a script file's does. The expression is part of the script WebDriver runs
+    rather than a string the page evaluates, so a page's CSP doesn't refuse it."""
     expression = expression.strip().removesuffix(";")
     answer = driver.execute_async_script(
         "const [arg, done] = arguments;"
@@ -137,17 +142,23 @@ def load(driver, address: str, leaf: bool = True) -> None:
     # can take the first one's port, so the old document is marked as left.
     driver.execute_script("window.__leafProbeLeft = true")
     driver.get(address)
-    deadline = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
-    stage = (
-        f"({OUTSTANDING})({{held: null, through: null}})"
+    stalls = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
+    progress = HandoverProgress()
+    standing = (
+        f"({STANDING})({{held: null, through: null}})"
         if leaf
-        else "document.readyState === 'complete' ? 'ready' : 'started'"
+        else "document.readyState === 'complete' ? 'ready' : ['started', 0]"
     )
-    stage_now = f"() => window.__leafProbeLeft ? 'started' : {stage}"
-    while (reached := evaluate(driver, stage_now)) != "ready":
-        if time.monotonic() > deadline:
-            words = UNREADY[reached] if leaf else "the page never loaded"
-            raise PageNotReady(reached, f"{words} within {HANDOVER_DEADLINE_MS}ms")
+    standing_now = f"() => window.__leafProbeLeft ? ['started', 0] : {standing}"
+    while (reached := evaluate(driver, standing_now)) != "ready":
+        if progress.moved(*reached):
+            stalls = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
+        elif time.monotonic() > stalls:
+            stage = reached[0]
+            words = UNREADY[stage] if leaf else "the page never loaded"
+            raise PageNotReady(
+                stage, f"{words}: no progress in {HANDOVER_DEADLINE_MS}ms"
+            )
         time.sleep(0.1)
     if leaf:
         evaluate(driver, SETTLED)

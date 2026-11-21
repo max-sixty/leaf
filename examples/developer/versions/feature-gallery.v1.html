@@ -12,8 +12,10 @@
         </div>
       </aside>
       <div class="layout-column">
-        <p class="eyebrow">developer playground</p>
-        <h1>Leaf feature gallery</h1>
+        <hgroup>
+          <p>developer playground</p>
+          <h1>Leaf feature gallery</h1>
+        </hgroup>
         <p class="lede" id="bg-lede">
           Try Leaf’s working features together on one synthetic page. Everything here is
           an experiment; accepting, rejecting, editing, or reacting does not choose a
@@ -27,7 +29,7 @@
           takes back a decision, and a live preview keeps experiments on reload.
         </p>
 
-        <section id="bg-core-surfaces" class="layout-flow">
+        <section id="bg-core-surfaces">
           <h2>Start with the On Me drawer</h2>
           <p id="bg-core-surfaces-guide">
             The banner is Leaf’s persistent control surface, not part of this document.
@@ -37,14 +39,14 @@
             suggestion rows in that panel exercise Accept, Reject, and Undo later in
             this gallery.
           </p>
-          <lf-ask id="bg-choice-ask">
+          <lf-group id="bg-choice-ask" label="Which map should the sample team carry?">
             <h3>Which map should the sample team carry?</h3>
-            <lf-options id="bg-choice" required>
+            <lf-options id="bg-choice">
               <lf-option id="bg-choice-street">Street map</lf-option>
               <lf-option id="bg-choice-trail">Trail map</lf-option>
             </lf-options>
-          </lf-ask>
-          <section id="bg-task-on-you" class="layout-flow">
+          </lf-group>
+          <section id="bg-task-on-you">
             <h3>A task on you</h3>
             <p>
               The agent put a task on you about this section: check that the trail map
@@ -61,34 +63,34 @@
           </p>
         </section>
 
-        <section id="bg-user-workflows" class="layout-flow">
+        <section id="bg-user-workflows">
           <h2>Try the core user workflows</h2>
 
-          <section id="bg-signoff" class="layout-flow">
+          <section id="bg-signoff">
             <h3>Permission for a stated action</h3>
             <p id="bg-signoff-guide">
               Choose Book the shelter, then press it again to reopen the request. Other
               questions can stay unanswered. The pick stays through unrelated page edits
               until its author explicitly restates the request.
             </p>
-            <lf-ask id="bg-picnic-decision">
+            <lf-group id="bg-picnic-decision" label="Book the covered picnic shelter?">
               <h4>Book the covered picnic shelter?</h4>
               <p>
                 Reserve the park's covered shelter for the sample group's Saturday
                 lunch.
               </p>
-              <lf-options id="bg-picnic" required>
-                <lf-option id="bg-picnic-skip"
+              <lf-options id="bg-picnic">
+                <lf-option id="bg-picnic-skip" label="Leave it unbooked"
                   ><strong>Leave it unbooked</strong></lf-option
                 >
-                <lf-option id="bg-picnic-book"
+                <lf-option id="bg-picnic-book" label="Book the shelter"
                   ><strong>Book the shelter</strong></lf-option
                 >
               </lf-options>
-            </lf-ask>
+            </lf-group>
           </section>
 
-          <section id="bg-design-comments" class="layout-flow">
+          <section id="bg-design-comments">
             <h3>Comment on the interface</h3>
             <p id="bg-design-guide">
               Press <kbd>l</kbd> to enter design mode, then click the
@@ -99,7 +101,7 @@
           </section>
         </section>
 
-        <section id="bg-changes" class="layout-flow">
+        <section id="bg-changes">
           <h2>Accept, reject, undo</h2>
           <p id="bg-changes-guide">
             The heavier ring means an immediate action. Try either verdict, then the
@@ -127,7 +129,7 @@
           </p>
         </section>
 
-        <section id="bg-editing" class="layout-flow">
+        <section id="bg-editing">
           <h2>Edit, save, undo</h2>
           <p id="bg-editing-guide">
             Edit opens a field; Save commits its words; Cancel leaves them alone. While
@@ -138,7 +140,7 @@
 Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </lf-draft>
           <p id="bg-history-guide">
-            This second draft already has a saved edit. Press <kbd>z</kbd> to undo it,
+            This second draft already has a saved edit. Press <kbd>⌘Z</kbd> to undo it,
             or edit it again.
           </p>
           <lf-draft id="bg-history">
@@ -146,7 +148,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </lf-draft>
         </section>
 
-        <section id="bg-threads" class="layout-flow">
+        <section id="bg-threads">
           <h2>Open a thread, or start one</h2>
           <p id="bg-thread-pending">
             <strong>A title still pending.</strong> The workshop schedule leaves lunch
@@ -170,7 +172,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </p>
         </section>
 
-        <section id="bg-reactions" class="layout-flow">
+        <section id="bg-reactions">
           <h2>Leave a mark</h2>
           <p id="bg-reactions-guide">
             Each row starts with a different reaction already on it. Its small square
@@ -198,7 +200,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </p>
         </section>
 
-        <section id="bg-button-cluster" class="layout-flow">
+        <section id="bg-button-cluster">
           <h2>One item, many Buttons</h2>
           <p id="bg-margin-control-workflow-guide">
             <strong>Act, fail, and settle.</strong> Accept or Reject starts as an
@@ -260,26 +262,26 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </p>
         </section>
 
-        <section id="bg-readings" class="layout-flow">
+        <section id="bg-readings">
           <h2>Read a recorded outcome</h2>
           <p id="bg-readings-guide">
             A Map Button can describe an item as well as offer an action. This settled
             choice has an Outcome instead of a question. Open it to inspect the recorded
             choice. It only changes the sample page.
           </p>
-          <lf-ask id="bg-outcome-ask">
+          <lf-group id="bg-outcome-ask" label="Where should the sample group meet?">
             <h3>Where should the sample group meet?</h3>
-            <lf-options id="bg-outcome" required>
+            <lf-options id="bg-outcome">
               <lf-option id="bg-outcome-door">At the door</lf-option>
               <lf-option id="bg-outcome-desk">At reception</lf-option>
             </lf-options>
-          </lf-ask>
+          </lf-group>
         </section>
 
-        <section id="bg-external-data" class="layout-flow">
+        <section id="bg-external-data">
           <h2>Exercise external data</h2>
 
-          <section id="bg-source-captures" class="layout-flow">
+          <section id="bg-source-captures">
             <h3>Show a captured text document</h3>
             <p id="bg-source-guide">
               The document follows its source's current value. Its caption names the
@@ -289,11 +291,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               id="bg-source-live"
               source="gallery-source"
               label="feature-gallery-source.toml · lines 1–4"
-              language="toml"
+              class="language-toml"
             ></lf-text-document>
           </section>
 
-          <section id="bg-measurement-lag" class="layout-flow">
+          <section id="bg-measurement-lag">
             <h3>Find a measured number whose source ran again</h3>
             <p id="bg-measurement-guide">
               <strong>Stale measurement.</strong> The authored benchmark is
@@ -310,14 +312,14 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </section>
         </section>
 
-        <section id="bg-default-presentation" class="layout-flow">
+        <section id="bg-default-presentation">
           <h2>Tour the default presentation elements</h2>
           <p id="bg-default-guide">
             Each subsection uses the shipped default widgets directly. The content is
             synthetic so the gallery can favor feature coverage over a user story.
           </p>
 
-          <section id="bg-metrics-and-chart" class="layout-flow">
+          <section id="bg-metrics-and-chart">
             <h3>Metrics and chart</h3>
             <div id="bg-metrics" class="layout-tiles">
               <dl id="bg-metric-complete" class="metric">
@@ -359,23 +361,23 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </lf-chart>
           </section>
 
-          <section id="bg-code-and-tree" class="layout-flow">
+          <section id="bg-code-and-tree">
             <h3>Annotated code, glossary, and file tree</h3>
             <p id="bg-gloss-line">
               The sample uses a
-              <lf-gloss
-                id="bg-gloss"
-                tip="A narrow end-to-end path through the real system."
-                >walking skeleton</lf-gloss
+              <lf-gloss id="bg-gloss"
+                >walking skeleton<span popover
+                  >A narrow end-to-end path through the real system.</span
+                ></lf-gloss
               >. Hover, focus, or click the marked phrase to open its explanation.
             </p>
-            <lf-code id="bg-code" language="python" hi="2-3">
-              <pre>
+            <lf-code id="bg-code" hi="2-3">
+              <pre><code class="language-python">
 def route(weather):
     if weather == "rain":
         return "covered terrace"
     return "courtyard"
-</pre>
+</code></pre>
               <lf-note id="bg-code-note" at="2">
                 The branch exists only to make the highlighted walkthrough visible.
               </lf-note>
@@ -390,7 +392,7 @@ gallery/
 </pre>
           </section>
 
-          <section id="bg-neutral-comparison" class="layout-flow">
+          <section id="bg-neutral-comparison">
             <h3>Neutral comparison with chips</h3>
             <div id="bg-compare" class="layout-tiles">
               <section id="bg-variant-paper" class="panel">
@@ -406,7 +408,7 @@ gallery/
             </div>
           </section>
 
-          <section id="bg-plans-and-history" class="layout-flow">
+          <section id="bg-plans-and-history">
             <h3>Milestones and chronology</h3>
             <h4 id="bg-work-plan">Planned work</h4>
             <ol id="bg-milestones">
@@ -440,7 +442,7 @@ gallery/
             </ol>
           </section>
 
-          <section id="bg-tab-set" class="layout-flow">
+          <section id="bg-tab-set">
             <h3>Tabbed views</h3>
             <p id="bg-tabs-guide">
               Switch panels, reload, and confirm that this browser tab remembers its
@@ -458,14 +460,17 @@ gallery/
             </lf-tabs>
           </section>
 
-          <section id="bg-quoted-and-visual" class="layout-flow">
+          <lf-group
+            id="bg-quoted-and-visual"
+            label="Quoted sample and before/after shot"
+          >
             <h3>Quoted sample and before/after shot</h3>
             <lf-sample id="bg-sample" label="an inert multiple-pick decision">
-              <lf-options id="bg-sample-options" required multiple>
-                <lf-option id="bg-sample-paper">
+              <lf-options id="bg-sample-options" multiple>
+                <lf-option id="bg-sample-paper" label="Paper signs">
                   <strong>Paper signs</strong> Nothing to charge.
                 </lf-option>
-                <lf-option id="bg-sample-screen">
+                <lf-option id="bg-sample-screen" label="Display signs">
                   <strong>Display signs</strong> Easy to update.
                 </lf-option>
               </lf-options>
@@ -480,10 +485,10 @@ gallery/
               before="/media/051bee487bfb5d13.png"
               after="/media/a99a1b63048502d0.png"
             ></lf-shot>
-          </section>
+          </lf-group>
         </section>
 
-        <section id="bg-version-changes" class="layout-flow">
+        <section id="bg-version-changes">
           <h2>Changed since the earlier version</h2>
           <p id="bg-version-guide">
             Open the versions menu in the banner and use Compare beside v1. The changed
@@ -494,7 +499,7 @@ gallery/
           <p id="bg-change">The sample walk crosses the park to the fountain.</p>
         </section>
 
-        <section id="bg-delivery" class="layout-flow">
+        <section id="bg-delivery">
           <h2>What happens after a press</h2>
           <p id="bg-delivery-guide">
             Sending can briefly show a busy mark. A definitive refusal offers Retry and
@@ -505,10 +510,10 @@ gallery/
           </p>
           <lf-board id="bg-work-board">
             <lf-column id="bg-work-ready" label="Ready">
-              <lf-card id="bg-work"
-                ><strong>Check the sample route</strong>
-                Drag this card to Tried, or use its grip with Enter and the arrows. An
-                agent’s live work claim can put an Active Button here.
+              <lf-card id="bg-work" label="Check the sample route">
+                <strong>Check the sample route</strong> Drag this card to Tried, or use
+                its grip with Enter and the arrows. An agent’s live work claim can put
+                an Active Button here.
               </lf-card>
             </lf-column>
             <lf-column id="bg-work-tried" label="Tried"></lf-column>

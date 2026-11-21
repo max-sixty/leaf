@@ -9,7 +9,6 @@ from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
     LONG_PAGE,
     draft_control,
-    draft_key,
     expect_panel_says,
     hold_selection,
     leaf_page,
@@ -18,6 +17,7 @@ from render_harness import (
     select_words,
     selection_field,
     sending,
+    stored_drafts,
     write,
 )
 
@@ -221,14 +221,10 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     select_words(page, "#p2")
     expect(field).to_have_js_property("value", "")
     expect(field).not_to_be_focused()
-    assert (
-        page.evaluate(
-            """prefix => Object.keys(localStorage)
-          .filter(key => key.startsWith(prefix)).length""",
-            draft_key(page, "composer:"),
-        )
-        == 1
-    )
+    composed = [
+        context for context in stored_drafts(page) if context.startswith("composer:")
+    ]
+    assert len(composed) == 1
 
     select_words(page, "#p1")
     expect(field).to_have_js_property("value", original)
@@ -383,10 +379,12 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "")
     expect(field).to_have_attribute("aria-label", re.compile("Paragraph 3"))
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     write(field, "About the third.")
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("t")
+    # On the anchored thread, which a press on its marker opens with the caret in its
+    # reply, and Escape leaves the reply for.
+    page.locator('[data-lf-margin-for="p41"] .lf-margin-marker').click()
+    page.keyboard.press("Escape")
     page.keyboard.press("c")
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
@@ -421,18 +419,18 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     )
 
 
-def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
-    """Where no thread has news, a draft the user put away dots the On Me mark grey,
-    and a press on the mark opens Threads, where Drafts lists it."""
+def test_a_put_away_draft_dots_the_leaf_grey(browser, serve):
+    """Where no thread has news, a draft the user put away dots the leaf grey, and a
+    press on the leaf opens Threads, where Drafts lists it."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page.locator(".lf-fab-input")
-    mark = page.locator(".lf-fp-on-user")
-    dot = mark.locator(".lf-fp-news")
+    mark = page.locator(".lf-fp-leaf")
+    dot = mark.locator(".lf-fp-news-dot")
     expect(dot).to_be_hidden()
     choose_comment_target(page, "#p9")
     write(field, "About the ninth paragraph.")
     page.keyboard.press("Escape")
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     expect(dot).to_be_visible()
     expect(dot).to_have_attribute("data-lf-drafts", "")
     expect(mark).to_have_accessible_name(re.compile("1 draft unsent"))
@@ -445,8 +443,9 @@ def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
 
 
 def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
-    """A comment draft stands as a dashed margin entry at its passage, and a reply
-    draft beside its thread's entry; a press on one resumes it in its own box."""
+    """A comment draft stands as a margin entry at its passage, and a reply draft
+    beside its thread's entry, each in an ink apart from a thread's; a press on one
+    resumes it in its own box."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     field = page.locator(".lf-fab-input")
     drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
@@ -455,11 +454,8 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     write(field, ninth)
     page.keyboard.press("Escape")
     expect(drafts).to_have_count(1)
-    expect(drafts).to_have_css("border-top-style", "dashed")
     expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("t")
-    page.keyboard.press("c")
+    page.locator('[data-lf-margin-for="p41"] .lf-margin-marker').click()
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
     write(reply, "A reply to the anchored thread.")
@@ -468,6 +464,8 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     expect(drafts).to_have_count(2)
     thread = page.locator('.lf-margin-face[data-lf-kinds~="comment"]')
     expect(thread).to_have_attribute("data-lf-kinds", "comment draft")
+    ink = "n => getComputedStyle(n.querySelector('.lf-margin-entry-icon')).color"
+    assert thread.evaluate(ink) not in drafts.evaluate_all(f"ns => ns.map({ink})")
 
     drafts.first.click()
     expect(field).to_be_focused()
@@ -673,22 +671,24 @@ customElements.define('lf-draft-subject', class extends LeafElement {
         layer_registry={
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "source": {"type": "string"},
+                "attributes": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "source": {"type": "string"},
+                    },
+                    "required": ["id"],
+                    "additionalProperties": False,
                 },
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "empty",
-                "x-data": {
+                "content": "empty",
+                "inputs": {
                     "words": {
                         "contract": "text-document",
                         "source": "source",
                         "property": "value",
                     }
                 },
-                "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
+                "example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }
         },
         layer_widgets={"lf-draft-subject.js": module},

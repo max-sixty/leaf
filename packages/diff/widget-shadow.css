@@ -2,7 +2,7 @@
 @import "./styles/disclosure.css";
 @import "./styles/worktrees.css";
 
-/* The diff's rules inside its own shadow tree (x-shadow). A selector in defaults.css stops
+/* The diff's rules inside its own shadow tree (`shadow`). A selector in defaults.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
@@ -110,10 +110,13 @@
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
   flex: 1 1 0;
 }
-/* The path observer reads this font's native ellipsis width without adding words
-   or allocating another column. It paints the folder only where that glyph fits. */
+/* The path observer reads the width of a wide letter and this font's native ellipsis
+   without adding words or allocating another column. It paints the folder only where
+   both fit, since a box's first character is clipped rather than ellipsed (CSS
+   Overflow, `text-overflow`), as Firefox draws it: a box with room for the ellipsis
+   alone shows a cut letter and no ellipsis there. */
 .lf-diff-head .lf-diff-dir::before {
-  content: "…" / "";
+  content: "m…" / "";
   position: absolute;
   visibility: hidden;
   inline-size: max-content;
@@ -335,7 +338,7 @@ span.lf-diff-line-number {
 }
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
 .lf-diff-comment {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — base.css's rule for a control packed into something rather than standing
@@ -355,8 +358,8 @@ span.lf-diff-line-number {
 }
 /* The file header pins at the top of what scrolls it while its own rows go past: the name
    of the part you are reading has to be on screen for the whole of it, not only at its
-   start. At forty-six files over thirty-two thousand pixels, opening one file and reading
-   down it left nothing on screen saying which file it was.
+   start. In a long diff, opening one file and reading down it would otherwise leave
+   nothing on screen saying which file it was.
    The slot is `--lf-top`, inherited through this boundary: below the head room and any
    sticky header under it where the window scrolls, and the pane's own top edge where a workspace
    pane does (layouts.css), so the header stops where the box holding it starts showing
@@ -477,7 +480,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 :where(:host(lf-diff)) [data-line-type="change-addition"] [data-diff-span] {
   background: var(--lf-code-add-mark);
 }
-:where(:host(lf-diff)) :is([data-separator], [data-no-newline]) {
+:where(:host(lf-diff)) [data-separator],
+:where(:host(lf-diff)) [data-no-newline] {
   padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
   color: var(--lf-code-muted);
   background: var(--lf-code-chrome);
@@ -490,7 +494,12 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    chrome's face, as the path does the reverse. The row keeps the source's face,
    so its inset measures the code column in the code's `ch`; the label is a block so
    its line box holds only its own face and the row stays one source line tall. */
-:where(:host(lf-diff)) :is([data-separator-wrapper], [data-no-newline] > span) {
+:where(:host(lf-diff))
+  :where([data-separator-wrapper]):is(
+    [data-separator-wrapper],
+    [data-no-newline] > span
+  ),
+:where(:host(lf-diff)) [data-no-newline] > span {
   display: block;
   font: var(--lf-font-small);
   line-height: var(--lf-code-line);
@@ -546,9 +555,9 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    the words, with no frame and no microphone, one control high. Going into it, by a
    press, Tab or `c`, opens it as the field it is, and it rests again once the user
    leaves it holding nothing: no words or picture, no dictation, no error. The field
-   stays the one control, so every route to the reply reaches it as before. The user
-   chose that on 26 October 2026 over a Reply field open under every conversation,
-   which took about a third of the height of two conversations under one file. */
+   stays the one control, so every route to the reply reaches it. The user chose that
+   over a Reply field open under every conversation, which takes much of the height of
+   the conversations under a file. */
 .lf-diff-thread-outlet
   .lf-thread-reply:not(
     :focus-within,

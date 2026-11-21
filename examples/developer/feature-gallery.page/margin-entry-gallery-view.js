@@ -131,7 +131,7 @@ const GROUPS = [
   },
   {
     heading: "Face anatomy",
-    summary: "Icon or glyph · count badge · transient label and context",
+    summary: "Icon or glyph · count badge and unread dot · transient label and context",
     samples: [
       {
         name: "Glyph face",
@@ -147,6 +147,23 @@ const GROUPS = [
         behavior: "disclosure",
         rank: "reading",
         count: 3,
+      },
+      {
+        name: "News",
+        detail: "one reading, unread",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        unread: true,
+      },
+      {
+        name: "Count and news",
+        detail: "3 readings, one unread",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        count: 3,
+        unread: true,
       },
       {
         name: "Label + context",

@@ -136,29 +136,31 @@
     }
   },
   "lf-repo-feed": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "source": { "type": "string" }
-    },
-    "required": ["id", "source"],
-    "additionalProperties": false,
     "description": "An obligation-free stream of repository changes with distance, topic and contextual discussion.",
-    "x-content": "empty",
-    "x-data": {
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
+    },
+    "content": "empty",
+    "inputs": {
       "changes": {
         "contract": "repo-feed",
         "source": "source",
         "property": "value"
       }
     },
-    "x-example": "<lf-repo-feed id=\"repo-feed\" source=\"repo-changes\"></lf-repo-feed>",
-    "x-output": {
+    "outputs": {
       "stories": {
         "contract": "repo-feed"
       }
-    }
+    },
+    "example": "<lf-repo-feed id=\"repo-feed\" source=\"repo-changes\"></lf-repo-feed>"
   }
 }

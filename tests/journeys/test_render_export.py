@@ -117,24 +117,24 @@ customElements.define("lf-offline-test", class extends LeafElement {
 OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "choice": {"type": "string"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-state": {
+        "content": "empty",
+        "verbs": {
             "choose": {
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "choice"},
             }
         },
-        "x-example": (
-            '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>'
-        ),
+        "example": '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>',
     },
 }
 
@@ -193,22 +193,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
                 arg=selector,
             )
             assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
-            if selector == "#video":
-                # Leaf's bar replaces the browser's controls, the same in each engine.
-                assert player.get_attribute("controls") is None
-                bar = page.get_by_role("group", name="Test pattern")
-                bar.get_by_role("button", name="Play recording").click()
-                page.wait_for_function(
-                    "selector => document.querySelector(selector).currentTime > 0",
-                    arg=selector,
-                )
-                bar.get_by_role("button", name="Pause recording").click()
-                assert player.evaluate("el => el.paused")
-                expect(
-                    bar.get_by_role("slider", name="Recording position")
-                ).to_have_attribute("aria-valuetext", re.compile(r"^0:0\d of 0:08$"))
-                player.evaluate("el => { el.currentTime = 0; }")
-            # Reach the player through ordinary sequential focus.
+            # Reach the browser's player controls through ordinary sequential focus.
             for _ in range(20):
                 page.keyboard.press("Tab")
                 if player.evaluate("el => document.activeElement === el"):
@@ -233,13 +218,8 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         for selector in ("#video", "#audio"):
             player = touch.locator(selector)
             bounds = player.bounding_box()
-            # A finger plays a recording by tapping its picture, and the audio player
-            # by its own button.
-            spot = (
-                {"x": bounds["width"] / 2, "y": bounds["height"] / 3}
-                if selector == "#video"
-                else {"x": 24, "y": 27}
-            )
+            # A finger plays each by its player's own play button.
+            spot = {"x": 24, "y": bounds["height"] - 48 if selector == "#video" else 27}
             player.tap(position=spot)
             touch.wait_for_function(
                 "selector => !document.querySelector(selector).paused", arg=selector

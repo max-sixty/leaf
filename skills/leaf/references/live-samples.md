@@ -1,14 +1,14 @@
 # Live samples
 
-Use `<lf-sample interactive>` to show working widgets inline, with a sample label
-and gutter. Its contents belong to the surrounding page: choices and edits use that
-page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
+Show working widgets inline, beside a gutter, in a live sample, such as
+`<lf-sample interactive>`. Its contents belong to the surrounding page: choices and
+edits use that page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
 rather than ask, so none of them goes on On Me. Give every widget its own page-wide
 id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
 <lf-sample id="delivery-sample" interactive label="Delivery choices">
-  <lf-options id="delivery-choice" required>
+  <lf-options id="delivery-choice">
     <lf-option id="delivery-standard">Standard delivery</lf-option>
     <lf-option id="delivery-express">Express delivery</lf-option>
   </lf-options>
@@ -49,13 +49,14 @@ with a live sample can't be exported (`serving-pages.md`, "Exported files").
 To give the sample a page-wide setting such as `data-annotations="page"`, put it on the
 template.
 
-A thread message's `--markup` can carry a live sample too. It uses the layer of the
+A thread message can carry a live sample too. It uses the layer of the
 version showing the message and can load only that version's saved files, so keep its
 code inline in the template. Its `data-sample-threads` can't name the thread the
 message is in.
 
 To start the sample with made-up conversations or decisions, write an inline JSON
-script in the same markup as the template and name its id in `data-sample-events`:
+script beside the template, in the same page or message, and name its id in
+`data-sample-events`:
 
 ```html
 <script id="service-history" type="application/json">

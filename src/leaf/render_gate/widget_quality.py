@@ -4,7 +4,7 @@ Presentation findings here are advice for whoever writes the widget. Output cont
 violations are errors, shared with `page check --render`: a page cannot rely on invalid
 data, and the finding names the producer whose author must fix it.
 
-The report renders the package's worked examples (`x-example`) under the layer the
+The report renders the package's worked examples (`example`) under the layer the
 package appears in (`packages.package_layer_inputs`), and reads only the tags the
 package's own `registry.json` declares. Examples share a page where their ids allow,
 so an example that points at another's element finds it, and a page costs one render
@@ -51,15 +51,18 @@ from leaf.findings import Finding, element_at
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.page_snapshot import capture_page_snapshot
-from leaf.registry.contract import element_declarations, read_registry_declarations
+from leaf.registry.contract import (
+    element_declarations,
+    read_registry_declarations,
+)
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
-    SERVED_TIMEOUT_MS,
     close_render_page,
     evaluate_probe,
     install_driver,
     observe_output_documents,
+    open_render_page,
     output_values,
     wait_for_probe,
     wait_until_ready,
@@ -95,14 +98,14 @@ WRAPPERS = {
 def _finding(check: str, tag: str, id: str = "", **values) -> Finding:
     """One check's reading of one widget, named by its instance where the check read
     one."""
-    return Finding(
-        check, element_at(tag, id), {"tag": tag, **values}, severity="advice"
-    )
+    return Finding(check, element_at(tag, id), {"tag": tag, **values})
 
 
 class UnreadablePage(Exception):
-    """A page of worked examples that could not be drawn and brought to
-    presentation."""
+    """A page of worked examples the page itself kept from being drawn and brought to
+    presentation: errors it raised, a stage it never reached, or a capture refused.
+    A browser that fails on its own raises its own error, which says nothing of the
+    examples (`command.widget_quality`)."""
 
 
 def own_tags(package: Path) -> list[str]:
@@ -117,7 +120,7 @@ def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str]]:
     pages = []
     ids = set()
     for tag in tags:
-        if (example := registry[tag].get("x-example")) is None:
+        if (example := registry[tag].get("example")) is None:
             continue
         own = SourceDocument(example, fragment=True).ids
         if not pages or own & ids:
@@ -170,15 +173,14 @@ def _readings(
     browser, url: str, tags: list[str]
 ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     """Changed startup boxes, unshown keys, held scrollers and published outputs."""
-    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    page = browser.new_page(viewport=RENDER_VIEWPORT)
-    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    page = open_render_page(browser, viewport=RENDER_VIEWPORT)
     install_driver(page)
     errors = []
     collect_page_errors(page, errors)
     # Runtime reports already reach the console; an example's preview writes no log.
-    answer_reports(page, lambda text: None)
+    answer_reports(page)
     try:
         observe_output_documents(page)
         held = []
@@ -208,7 +210,8 @@ def _readings(
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         held = evaluate_probe(page, "heldScrollers", tags)
         return changed, unshown, held, output_values(page)
-    except (PlaywrightError, RuntimeError, TimeoutError) as error:
+    except (PlaywrightTimeout, TimeoutError) as error:
+        # A wait the page never answered, as the render gate's `no-runtime` reads one.
         raise UnreadablePage(str(error).strip()) from error
     finally:
         close_render_page(page)

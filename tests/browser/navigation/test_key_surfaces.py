@@ -31,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
     """Even overlapping identical words give the polite region two arrivals."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.evaluate(
         """async () => {
           window.__lfLiveNode = document.querySelector('.lf-live');
@@ -100,14 +100,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
 
 def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
-    """One declaration per binding, and every surface is a projection of it. The d/u
-    reading-page pair is the case that named this: a runtime key must be visible wherever
-    the keyboard vocabulary is projected.
+    """One declaration per binding, and every surface is a projection of it. A runtime
+    key must be visible wherever the keyboard vocabulary is projected.
 
     Where it is projected is the reference, which is read for the words — a key named on
     no surface at all is what this refuses.
 
-    It is refused now, where a scope is declared, so the next binding written without a
+    It is refused where a scope is declared, so the next binding written without a
     word fails on the page that introduces it rather than going quiet on every page after
     it. A row that presses nothing needs none — F7 is the browser's caret browsing, real
     and worth knowing and not what the next press does."""
@@ -260,7 +259,9 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               dispatchEvent(new Event('resize'));
             }"""
     )
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
+    # The field's end still names its press, Next On Me while On Me lists anything,
+    # but not the key that makes it.
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved · Next On Me")
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top
@@ -273,7 +274,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     page.keyboard.press("Escape")
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
 
     expect(page_comment(page)).not_to_have_attribute("placeholder", re.compile(r" c$"))
     expect(badge).to_have_count(0)
@@ -292,9 +293,9 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 def test_a_page_at_rest_repaints_the_panel_only_when_the_state_moves(browser, serve):
     """A repaint that schedules the next one is a loop no surface reports.
 
-    The banner's More once wrote `aria-expanded` inside the shared repaint, which the
-    runtime watches over the whole document, so the paint delivered its own write back
-    to itself and asked for another frame, and the page went on repainting for as long
+    Were the banner's More to write `aria-expanded` inside the shared repaint, which the
+    runtime watches over the whole document, the paint would deliver its own write back
+    to itself and ask for another frame, and the page would go on repainting for as long
     as it was open — every browser test on every page paying for it. The panel stands
     in the same repaint and writes the same kind of state.
 

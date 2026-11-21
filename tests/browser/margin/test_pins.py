@@ -9,6 +9,7 @@ from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_harness import (
+    CHROME_ROOT,
     PANEL,
     leaf_page,
     margins_laid_out,
@@ -27,7 +28,7 @@ from browser.margin import (
 )
 from leaf.render_checks import rendered
 from leaf_dev.browser import WINDOWS
-from leaf_dev.commands.placement import pins as pin_cases
+from leaf_dev.commands.placement import _pin_cases as pin_cases
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -69,7 +70,7 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
 
 def test_a_pin_stands_by_its_run_of_text_rather_than_over_it(browser, serve):
     """A pin is an overlay, so it finds room rather than making it: a suggestion's
-    Accept and Reject stood inside the corner of its run and covered the words being
+    Accept and Reject standing inside the corner of its run would cover the words being
     decided. With room by the run, they stand there, touching it, over none of the
     paragraph's words."""
     source = leaf_page(
@@ -283,13 +284,13 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     "options",
     [
         (
-            '<lf-option id="o-close"><strong>Close</strong> Point at the decline.'
+            '<lf-option id="o-close" label="Close"><strong>Close</strong> Point at the decline.'
             "</lf-option>"
-            '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+            '<lf-option id="o-leave" label="Leave open"><strong>Leave open</strong> Resurfaces.</lf-option>'
         ),
         # Fourteen one-word options, drawn as a column of cells that all but fill the
-        # group: a guess at whether a target is drawn by its parts once took them for
-        # the group's own face and stood the pin in the first cell.
+        # group: a guess at whether a target is drawn by its parts would take them for
+        # the group's own face and stand the pin in the first cell.
         '<lf-option id="o-close">Close</lf-option>'
         '<lf-option id="o-leave">Leave open</lf-option>'
         + "".join(f'<lf-option id="o-{n}">Option {n}</lf-option>' for n in range(12)),
@@ -299,13 +300,13 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
 def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, options):
     """A choice is the group's, so its receipt pins to the options as a whole. The
     group's top-right corner lies on its first option's card, and a card reads as one
-    thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
-    the "Close" card, just below its radio. Its first seat is just outside the group's
-    top-right corner, so the pin stands beside the group instead, however many cards
-    it holds."""
+    thing, so a pin there reads as that option's: picking "Leave open" would draw "Sent"
+    on the "Close" card, just below its radio. Its first seat is just outside the
+    group's top-right corner, so the pin stands beside the group instead, however many
+    cards it holds."""
     body = (
-        '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
-        f'<lf-options id="o" required>{options}</lf-options></lf-ask>'
+        '<lf-group id="a" label="Close #1176 as won\'t-fix?"><h2 id="a-h">Close #1176 as won\'t-fix?</h2>'
+        f'<lf-options id="o">{options}</lf-options></lf-group>'
     )
     page = open_page(
         browser, serve(leaf_page("a choice", f"<div>{body}</div>", layout="sidebar"))
@@ -330,14 +331,13 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
 def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
     """An option card lends its key the seat of its own mark (options.css), which a pin
     keeps clear of as a control, so the keys showing as focus enters the options leave
-    every pin where it stood and under none of them. Read as cover, a shown key moved
-    each pin beside the options a few pixels whenever focus entered or left them."""
+    every pin where it stood and under none of them. Read as cover, a shown key would
+    move each pin beside the options a few pixels whenever focus entered or left them."""
     options = "".join(
-        f'<lf-option id="c-{n}"><strong>Option {n}</strong> what choosing it does.'
-        "</lf-option>"
+        f'<lf-option id="c-{n}" label="Option {n}"><strong>Option {n}</strong> what choosing it does.</lf-option>'
         for n in range(1, 5)
     )
-    body = f'<lf-ask id="q"><h2>Which way?</h2><lf-options id="c" required>{options}</lf-options></lf-ask>'
+    body = f'<lf-group id="q" label="Which way?"><h2 id="q-h">Which way?</h2><lf-options id="c">{options}</lf-options></lf-group>'
     comments = [_comment_on(f"c-{n}") for n in range(1, 5)]
     page = open_page(
         browser,
@@ -610,7 +610,9 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     expect(toggle).to_contain_text("Hide annotations")
     press_visible(page, toggle, touch=True)
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(pin).to_be_hidden()
     margins_laid_out(page)
     assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
@@ -618,8 +620,8 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Show annotations")
     press_visible(page, toggle, touch=True)
-    expect(page.locator("html")).not_to_have_attribute(
-        "data-lf-annotations", re.compile(".*")
+    expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+        "data-lf-annotations-hidden", re.compile(".*")
     )
     expect(pin).to_be_visible()
 
@@ -632,23 +634,23 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
       <div id="ask-body">
         <p>The change, summarised in a paragraph long enough to read as one.</p>
         <div style="height: 1200px"></div>
-        <lf-ask id="body-ask">
-          <h3>Which follow-up comes first?</h3>
-          <lf-options id="body-choice" required>
+        <lf-group id="body-ask" label="Which follow-up comes first?">
+          <h3 id="body-ask-h">Which follow-up comes first?</h3>
+          <lf-options id="body-choice">
             <lf-option id="body-bench">Benchmark selected-row demand</lf-option>
             <lf-option id="body-dryrun">Close the dry-run gap</lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
         <div style="height: 1200px"></div>
       </div>
       <footer>
-        <lf-ask id="foot-ask">
-          <h3>Merge this revision?</h3>
-          <lf-options id="foot-choice" required>
+        <lf-group id="foot-ask" label="Merge this revision?">
+          <h3 id="foot-ask-h">Merge this revision?</h3>
+          <lf-options id="foot-choice">
             <lf-option id="foot-approve">Approve and merge</lf-option>
             <lf-option id="foot-hold">Hold for the benchmark</lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </footer>
     </lf-pane>
     <lf-pane id="ask-other" label="Notes"><div><p>Notes.</p></div></lf-pane>
@@ -661,9 +663,9 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
 
 def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     """A pin goes below a control of the page level with it rather than take its
-    presses. The controls were read at their whole boxes, so a body obligation's controls
-    scrolled behind the pane's footer, where nobody can see or press them, pushed the
-    footer obligation's marker below the heading it stands beside."""
+    presses. Were the controls read at their whole boxes, a body obligation's controls
+    scrolled behind the pane's footer, where nobody can see or press them, would push
+    the footer obligation's marker below the heading it stands beside."""
     page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-pane"), "bounded")
@@ -708,12 +710,12 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     source = leaf_page(
         "A slotted Ask",
         '<div><h1>Reading region</h1><div id="reader-host">'
-        '<lf-ask id="slotted-ask">'
-        "<h3>Which channel?</h3>"
+        '<lf-group id="slotted-ask" label="Which channel?">'
+        '<h3 id="slotted-ask-h">Which channel?</h3>'
         '<button id="ask-help" style="position:absolute; top:0; right:0; '
         'width:120px; height:44px">Explain channels</button>'
-        '<lf-options id="channel" required><lf-option id="email">Email</lf-option>'
-        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div></div>',
+        '<lf-options id="channel"><lf-option id="email">Email</lf-option>'
+        '<lf-option id="chat">Chat</lf-option></lf-options></lf-group></div></div>',
         head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
         layout="sidebar",
     )
@@ -763,7 +765,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         f'<section id="card{i}" style="border:1px solid var(--lf-rule);'
         'background:var(--lf-card);margin:0;height:44px">'
         '<div style="background:var(--lf-chip);height:44px">'
-        f'<button id="action{i}" class="lf-btn" style="float:right" '
+        f'<button id="action{i}" style="float:right" '
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
@@ -919,8 +921,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     grow and carry it level with a button the other column holds where it was."""
     lines = "".join(f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2))
     options = "".join(
-        f'<lf-option id="o-{i}"><strong>Option {i}</strong> a short description.'
-        "</lf-option>"
+        f'<lf-option id="o-{i}" label="Option {i}"><strong>Option {i}</strong> a short description.</lf-option>'
         for i in (1, 2, 3)
     )
     # A pane whose words reach its right edge only once it is scrolled to its foot, and
@@ -964,8 +965,8 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
         '<div id="right"><button id="neighbour" style="position:relative">A button'
         "</button></div></div>"
         '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
-        '<lf-ask id="q"><h3 id="question">Which one?</h3>'
-        f'<lf-options id="o" required multiple>{options}</lf-options></lf-ask></section>'
+        '<lf-group id="q" label="Which one?"><h3 id="question">Which one?</h3>'
+        f'<lf-options id="o" multiple>{options}</lf-options></lf-group></section>'
         + "".join(
             f'<section><h2>Section {n}</h2><p id="far-{n}">Words about section {n},'
             " enough for a line of reading.</p></section>"
@@ -1069,7 +1070,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     rendered(page)
     compare("a scroll and a sent comment")
 
-    resolve.click()
+    press_visible(page, resolve)
     rendered(page)
     compare("a resolve")
 

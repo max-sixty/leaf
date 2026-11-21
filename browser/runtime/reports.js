@@ -23,7 +23,7 @@
    when their source retains history. A module showing freshness therefore still sees
    when the log last heard from a worker after a stamp absorbs the worker's report.
 
-   An agent-written x-state verb may declare `text: true`, which requires each report
+   An agent-written verb (`verbs`) may declare `text: true`, which requires each report
    to carry non-empty `detail.text`. That is the envelope's `text`; consumers never
    infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
@@ -50,7 +50,6 @@
 
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
-import { currentProjection } from "./projection/state.js";
 import { applicationRegionsPresented, readPart } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
 
@@ -109,46 +108,29 @@ export const saidAt = (el) => {
   return time?.dateTime || publishedAt();
 };
 
-// The server's history reading: `events`, the newest logged events, newest first,
-// each already carrying its thread, whether it was undone, and a gesture's words as its
-// own document had them, and the application's `phase`, so a widget never replaces a
+// The server's history reading: `events`, the newest logged events, newest first, each
+// already carrying its thread, whether it was undone, and a gesture's words as its own
+// document had them, and the application's `phase`, so a widget never replaces a
 // reading it retained with the empty one a page shows before it is `ready`. The server
-// sends the events only to a page holding a widget that declares `x-history`; elsewhere
-// they are empty.
+// sends the events only to a page holding a widget that declares `history`;
+// elsewhere they are empty.
 export const readHistory = readPart((root) => ({
   phase: root.phase,
   events: root.authoritative?.browser.history ?? [],
 }));
 
-/** @param {Element | ReportTarget | null} target */
-const reportWidgets = (target) => {
-  const key = targetKey(reportTarget(target));
-  const widgets = new Set(target instanceof Element ? [target.id] : []);
-  for (const entry of currentProjection().classified.values()) {
-    if (entry.terminal || entry.e.kind !== "report") continue;
-    if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
-      widgets.add(entry.e.widget);
-  }
-  return widgets;
-};
-
 // A report can speak only once the renderer of its widget and coordinate chrome have
 // committed, and any required asynchronous preparation, the same coordinator region
 // startup and pending release use. A widget that narrates its reports in the update
 // that draws its state (a `LeafElement`, leaf-element.js) is its own render, so only
-// its preparation, the coordinate chrome, and any other widget the reports name must
-// have committed. Read in a render, the answer is followed as the time a render shows is.
+// its preparation and the coordinate chrome must have committed: a report names its
+// widget by id, so the reports on a widget name no other. Read in a render, the answer
+// is followed as the time a render shows is.
 /** @param {import("./leaf-element.js").LeafElement} target */
 export const reportsReady = (target) =>
   target.whenReady(() =>
     applicationRegionsPresented([
       "projection:chrome",
       `widget:${target.id}:preparation`,
-      ...[...reportWidgets(target)]
-        .filter((widget) => widget !== target.id)
-        .flatMap((widget) => [
-          `widget:${widget}:render`,
-          `widget:${widget}:preparation`,
-        ]),
     ]),
   );

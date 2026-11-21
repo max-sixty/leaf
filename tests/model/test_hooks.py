@@ -17,6 +17,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
     acknowledged_through,
@@ -29,6 +30,7 @@ from interact_support import (
     delivered,
     delivered_ref,
     freeze_events,
+    inlined,
     last_deliverable_seq,
     owed_answers,
     page_state,
@@ -64,6 +66,7 @@ from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.json_block import read_json_block
 from leaf.registry.storage import LAYER, layer_record
 from leaf.served_state import context as context_model
 
@@ -90,38 +93,26 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
 
     monkeypatch.setattr(file_changes_model, "FileChanges", unexpected_watcher)
     hooks_model.cmd_pages({"session_id": "s1"})
-    assert json.loads(capsys.readouterr().out) == {"pages": [], "completions": []}
+    assert json.loads(capsys.readouterr().out) == {"pages": [], "do": []}
 
 
 def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsys):
-    """Without forks, the per-session page list follows claims on its timer and
-    subscribes to none of its pages, only to the session's completion requests
-    (`completions.watch`)."""
+    """The per-session page list follows claims on its timer: a page the session no
+    longer holds leaves the list at the next presence read, which ends the follower
+    once the session holds none."""
 
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
-    subscribed = []
-    subscribe = file_changes_model.FileChanges
-
-    def watching(roots, accepts):
-        subscribed.append(set(roots))
-        return subscribe(roots, accepts)
-
-    def forbidden(*_args, **_kwargs):
-        pytest.fail("the page list subscribed to a page")
 
     def release(_marks, _timeout):
         cleanup_model.end_session("s1")
 
-    monkeypatch.setattr(file_changes_model, "FileChanges", watching)
-    monkeypatch.setattr(file_changes_model, "page_changes", forbidden)
     monkeypatch.setattr(file_changes_model, "wait", release)
     hooks_model.cmd_pages({"session_id": "s1"})
-    assert subscribed == [{cleanup_model.sessions_home().resolve()}]
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
     assert len(first["pages"]) == 1
     assert first["pages"][0]["page_key"] == cleanup_model.page_key(claimed)
-    assert last == {"pages": [], "completions": []}
+    assert last == {"pages": [], "do": []}
 
 
 def test_pages_follower_lists_completions_whatever_its_pages_show(
@@ -147,9 +138,14 @@ def test_pages_follower_lists_completions_whatever_its_pages_show(
     monkeypatch.setattr(file_changes_model, "wait", release)
     hooks_model.cmd_pages({"session_id": "s1"})
     [listed] = map(json.loads, capsys.readouterr().out.splitlines())
-    assert listed == {"pages": [], "completions": [request]}
-    assert request["request"] == {"prompt": "Name it"}
-    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "Named"})
+    [instruction] = listed["do"]
+    assert (listed["pages"], instruction["do"], instruction["request"]) == (
+        [],
+        "complete",
+        {"prompt": "Name it"},
+    )
+    assert instruction["basis"] == {"kind": "completion", "completion": request["id"]}
+    completions_model.replied("s1", {**instruction, "text": "Named"})
     asking.join()
     assert replied == [{"text": "Named"}]
 
@@ -167,10 +163,10 @@ def test_the_follower_hears_a_completion_as_it_is_asked():
     )
     asking.start()
     woke = heard.wait(mark, STATED_TIMEOUT)
-    [request] = wait_for(
-        lambda: completions_model.pending("s1"), bool, failure="nothing was asked"
+    [instruction] = wait_for(
+        lambda: completions_model.listed("s1"), bool, failure="nothing was asked"
     )
-    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "{}"})
+    completions_model.replied("s1", {**instruction, "text": "{}"})
     asking.join()
     heard.close()
     assert woke, "the request woke nothing"
@@ -328,7 +324,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     # The Stop hook delivers this one into the running turn itself.
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    [batch] = inlined(reason)["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
     claim_record_9 = service_model.page_claim(others)
     assert claim_record_9 is not None
@@ -444,7 +440,7 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    [batch] = inlined(reason)["batches"]
     assert [event["id"] for event in batch["events"]] == ["c1"]
     claim_record_18 = service_model.page_claim(claimed)
     assert claim_record_18 is not None
@@ -500,7 +496,7 @@ def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
     assert claim is not None
@@ -530,7 +526,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    envelope = json.loads(continued(answer).split("\n")[1])
+    envelope = inlined(continued(answer))
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
@@ -577,7 +573,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     hooks_model.cmd_hook("claude-code", repeated)
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    envelope = json.loads(continued(answer).split("\n")[1])
+    envelope = inlined(continued(answer))
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
     assert handed(claimed, error["id"]) and handed(claimed, comment["id"])
@@ -616,9 +612,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
 
     monkeypatch.setattr(hook_transport_model, "freeze_delivery", freeze_then_transfer)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    opening, envelope, *_ = continued(capsys.readouterr().out).split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(continued(capsys.readouterr().out))["batches"]
     assert (batch["page"], [event["id"] for event in batch["events"]]) == (
         str(claimed),
         [comments[claimed]["id"]],
@@ -641,10 +635,8 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
-    again = json.loads(
-        json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ].split("\n")[1]
+    again = inlined(
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
     )
     [batch] = again["batches"]
     assert (batch["page"], [event["id"] for event in batch["events"]]) == (
@@ -736,7 +728,7 @@ def test_a_pointer_is_handed_once_per_turn_until_its_reader_confirms(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
 
     # A new turn's prompt hands over again whatever a pointer left unconfirmed.
@@ -822,9 +814,7 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     )
 
     hooks_model.cmd_hook("pi", {"hook_event_name": "Stop", "session_id": "s1"})
-    opening, envelope, *_ = continued(capsys.readouterr().out).split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(continued(capsys.readouterr().out))["batches"]
     assert [(event["id"], event["text"]) for event in batch["events"]] == [
         (comment["id"], text)
     ]
@@ -888,8 +878,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
         "additionalContext"
     ]
     leases_model.release_lease(lease)
-    envelope = context.split("\n")[1]
-    payload = json.loads(envelope)
+    payload = inlined(context)
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
@@ -917,7 +906,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     )
     boundary = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert boundary["hookEventName"] == "PostToolBatch"
-    later_delivery = json.loads(boundary["additionalContext"].split("\n")[1])
+    later_delivery = inlined(boundary["additionalContext"])
     assert later_delivery["acknowledge"] is None
     [batch] = later_delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
@@ -1010,7 +999,7 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
         context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
             "additionalContext"
         ]
-        [batch] = json.loads(context.split("\n")[1])["batches"]
+        [batch] = inlined(context)["batches"]
         return [event["id"] for event in batch["events"]]
 
     def retitled(title: str) -> None:
@@ -1122,9 +1111,7 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     Escape dropped. A reminder, another hook's context, a record still being written
     and a missing transcript show nothing."""
     delivery = {"batches": [{"events": [{"id": "e1"}, {"id": "e2"}]}]}
-    inline = "\n".join(
-        [hook_transport_model.INLINE_OPENING, json.dumps(delivery), "Leaf needs"]
-    )
+    inline = "\n".join([hook_transport_model.inline_context(delivery), "Leaf needs"])
     records = [
         {"type": "user", "promptId": "p1", "message": {"content": "hi"}},
         {
@@ -1326,6 +1313,68 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert hook("PostToolBatch") == ""
 
 
+def test_a_busy_turn_is_reminded_of_a_missing_line_only_where_it_owes_an_answer(
+    claimed, capsys
+):
+    """Claude Code says busy of a session for the whole of its turn, and every page
+    the session holds reads working by it. A page the agent owes no answer is not
+    asking for a line, so its tool boundaries stay quiet however long the turn
+    runs, even with an open to-do the agent may have left for later while it works
+    elsewhere. Once the page holds an update the agent owes, a boundary asks the
+    agent to say what it is doing."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(
+        registry / f"{os.getpid()}.json",
+        {
+            "pid": os.getpid(),
+            "sessionId": "s1",
+            "status": "busy",
+            "statusUpdatedAt": int(time.time() * 1000),
+        },
+    )
+    mark = cleanup_model.session_file("s1", cleanup_model.STATUS_CHECKED_SUFFIX)
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+
+    def check_due():
+        os.utime(mark, (stood.timestamp(), stood.timestamp()))
+
+    hook("UserPromptSubmit")
+    assert hook("PostToolBatch") == ""
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    record_claim(
+        claimed, **{**claim, "turn_opened": stood.isoformat(timespec="seconds")}
+    )
+    assert activity_reading(claimed)["kind"] == "working"
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    opened = CliRunner().invoke(
+        cli_model.cli, ["task", "create", str(claimed), "page", "--title", "Fit S"]
+    )
+    assert opened.exit_code == 0, opened.output
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Fit S too."}
+    )
+    check_due()
+    context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert f"Leaf: {claimed} has shown no status line from you for 3 min" in context
+
+
 def test_a_tool_boundary_with_nothing_new_answers_from_the_log(
     claimed, monkeypatch, capsys
 ):
@@ -1416,7 +1465,7 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     assert acknowledged_through(claimed) == asked["seq"]
     assert asked["id"] in reminder
     # The widget error that moved the log goes inline; the comment only as owed.
-    [batch] = json.loads(reminder.split("\n")[1])["batches"]
+    [batch] = inlined(reminder)["batches"]
     assert asked["id"] not in [event["id"] for event in batch["events"]]
 
 
@@ -1464,6 +1513,89 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     claim_record_26 = service_model.page_claim(claimed)
     assert claim_record_26 is not None
     assert claim_record_26["turn_closed"]
+    assert left_owed() == []
+
+
+def test_a_start_holds_its_message_while_background_work_runs(
+    claimed, interactive, monkeypatch, capsys
+):
+    """A turn that starts a message and gives its work to an agent in the background
+    ends over it. While Claude Code says the session has been busy since the start,
+    the page reads the message Working, and neither a later turn's prompt nor the
+    watch names it, as the user decided: the agent may still be answering it. Once
+    the background work ends with the message still owed, the page reads it stalled
+    and the watch wakes a turn that names it, once."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    asked = append_carried_log_record(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "What does the lease allow?"},
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+
+    def left_owed() -> list[str]:
+        with service_model.PageTransaction(claimed) as page:
+            return [event["id"] for event in session_model.left_owed(page)]
+
+    def condition() -> dict | None:
+        [workflow] = [
+            item
+            for item in activity_reading(claimed)["workflows"]
+            if item["input"] == asked["id"]
+        ]
+        return workflow["condition"]
+
+    hooks_model.cmd_hook("claude-code", prompt)
+    capsys.readouterr()
+    started = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "task",
+            "start",
+            str(claimed),
+            asked["id"],
+            "--text",
+            "A fork reads the lease",
+        ],
+    )
+    assert started.exit_code == 0, started.output
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert left_owed() == []
+
+    # The next turn, for a message in another thread, hands that one over and names
+    # nothing of the started one, nor does the watch once the turn ends.
+    other = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Shorten the intro."}
+    )
+    hooks_model.cmd_hook("claude-code", prompt)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert other["id"] in context
+    assert asked["id"] not in context
+    thread_model.post_reply(
+        claimed, {"parent": other["id"], "responds": other["id"]}, "Shortened."
+    )
+    hooks_model.cmd_hook("claude-code", stop)
+    capsys.readouterr()
+    assert left_owed() == []
+    assert condition() is None
+
+    # The background work ends with the message unanswered.
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    assert condition() == {"kind": "stale", "operation": "work"}
+    woke = hooks_model.cmd_watch("claude-code", stop)
+    assert woke is not None
+    assert woke.startswith(f"{claimed} has an update still owed an answer")
+    hooks_model.cmd_hook("claude-code", prompt)
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert asked["id"] in reminder["additionalContext"]
     assert left_owed() == []
 
 
@@ -1534,7 +1666,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     opens hands the move over. That turn ends without answering it, so the watch
     wakes another, whose prompt names the answer it owes."""
     page = claimed
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page / "index.html").write_text(source)
     publish(page)
     session_model.cmd_waiting(page)
@@ -1570,16 +1702,16 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     observations["the watch wakes the session"] = hooks_model.cmd_watch(
         "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
     )
-    # The context is an instruction line, the delivery on the next, then what the
-    # turn owes; shown apart so the delivery reads as data.
+    # The context is an instruction line, a blank line and the delivery's block, then
+    # what the turn owes; shown apart so the delivery reads as data.
     context = hook("UserPromptSubmit")["hookSpecificOutput"]["additionalContext"]
-    instruction, delivery, *attention = context.split("\n")
+    instruction, _, rest = context.partition("\n\n")
+    envelope, attention = read_json_block(rest)
     observations["delivered at prompt"] = {
         "instruction": instruction,
-        "delivery": json.loads(delivery),
-        "attention": "\n".join(attention),
+        "delivery": envelope,
+        "attention": attention,
     }
-    envelope = json.loads(delivery)
     assert envelope["batches"][0]["events"][0]["id"] == sent["id"]
     session = service_model.page_claim(page)
     assert session is not None
@@ -1658,13 +1790,6 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(
         assert delivered_ref(claimed, asked["id"]) == ref
 
 
-def inline_delivery(context: str) -> dict:
-    """The delivery a hook handed over inline, from the context it added."""
-    opening, envelope, *_ = context.split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    return json.loads(envelope)
-
-
 def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered(
     claimed, capsys, monkeypatch
 ):
@@ -1701,7 +1826,7 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
     output = json.loads(capsys.readouterr().out)
     context = output["hookSpecificOutput"]["additionalContext"]
     assert re.findall(r'<leaf-delivery id="(\w+)"', context) == [captured["id"]]
-    handed = inline_delivery(context)
+    handed = inlined(context)
     assert handed["id"] != original.partition(":")[0]
     [batch] = delivery_model.read_delivery(handed["id"])["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
@@ -1861,10 +1986,8 @@ def test_a_hook_stopped_before_receipt_has_confirmed_nothing(
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
-    retry = json.loads(
-        json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ].split("\n")[1]
+    retry = inlined(
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
     )
     assert [len(batch["events"]) for batch in retry["batches"]] == [1, 1]
     assert all(
@@ -2085,7 +2208,7 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
         "additionalContext"
     ]
     assert old not in context
-    handed = inline_delivery(context)["id"]
+    handed = inlined(context)["id"]
     [batch] = delivery_model.read_delivery(handed)["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
     # Its receipt records the new ref, so no later hook hands it over again.
@@ -2225,8 +2348,8 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
         )
         assert elapsed == pytest.approx(hook_transport_model.CONFIRM_WITHIN)
-        _, envelope, *_ = continued(capsys.readouterr().out).split("\n")
-        assert [batch["page"] for batch in json.loads(envelope)["batches"]] == [
+        envelope = inlined(continued(capsys.readouterr().out))
+        assert [batch["page"] for batch in envelope["batches"]] == [
             str(claimed.resolve())
         ]
     finally:

@@ -10,9 +10,8 @@ from functools import cached_property
 from leaf.events import event_document
 from leaf.obligations import answer_verbs, answering_action, replayed_attrs
 from leaf.projection import (
-    AuthoredOrders,
-    frozen_thread_reading,
     page_reading,
+    thread_markup_reading,
     with_action,
 )
 from leaf.registry.contract import (
@@ -25,7 +24,7 @@ from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
-    """The page and frozen-thread readings one admission folds, each built once.
+    """The page and thread-markup readings one admission folds, each built once.
 
     The contract gates and the meaning stamped after them read the same log, so
     they share one fold of it rather than each paying for their own."""
@@ -58,7 +57,7 @@ class AdmissionReadings:
 
     @cached_property
     def thread(self):
-        return frozen_thread_reading(
+        return thread_markup_reading(
             self.events, self.registry, withdrawn=self.log.withdrawn
         )
 
@@ -98,7 +97,7 @@ def state_meaning(event: dict, record: dict, registry: dict, scope: str) -> dict
     the old event remains history instead of being read as the new operation."""
     origin = record["tag"]
     entry = registry[origin]
-    spec = entry["x-state"][event["action"]]
+    spec = entry["verbs"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     meaning = {
         "scope": scope,
@@ -150,7 +149,7 @@ def answer_meaning(
         "seq": readings.events[-1]["seq"] + 1 if readings.events else 1,
     }
     projection = with_action(
-        reading.projection, candidate, entry["x-state"][event["action"]]
+        reading.projection, candidate, entry["verbs"][event["action"]]
     )
     return (
         answering_action(
@@ -175,7 +174,7 @@ def answer_meaning(
         record["attrs"].get("resolves")
         if not declined
         and matches_when(
-            replayed_attrs(record, projection), entry["x-awaits"].get("when")
+            replayed_attrs(record, projection), entry["awaits"].get("when")
         )
         else None,
     )
@@ -191,29 +190,8 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     if record is None:
         record = thread_structure(events).by_id[event["widget"]]
         scope = "thread"
-    entry = registry[record["tag"]]
     admitted = dict(event)
     admitted["meaning"] = state_meaning(event, record, registry, scope)
-    position = entry["x-state"][event["action"]].get("record") or {}
-    if position.get("kind") == "position":
-        # The authored units the rank lies among, in their order on the sending
-        # document: a later document that authors them differently has placed
-        # the unit itself (`projection.move_absorbed`).
-        #
-        # Every move records the container's whole authored order, so on a board of
-        # n cards the log grows by n ids a move, and each fold compares each moved
-        # unit's list with the current order. Moves made on one revision record the
-        # same list for one container. Not yet built: a fold compares once per
-        # revision and container rather than once per move; and, with a protocol
-        # bump, a move records no list, and readers take the order from the document
-        # the move was made on.
-        reading = (
-            readings.page(event["revision"]) if scope == "page" else readings.thread
-        )
-        byid = reading.document.by_id if scope == "page" else reading.by_id
-        admitted["meaning"]["among"] = AuthoredOrders(byid, registry).of(
-            event["widget"], position
-        )[event["detail"]["value"]]
     answers, closes = answer_meaning(sender, record, admitted, readings)
     if answers:
         admitted["meaning"]["answer"] = closes

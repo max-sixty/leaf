@@ -1,19 +1,22 @@
-/* Undo: the `z` walk and the one door every withdrawal goes through.
+/* Undo: the ⌘Z walk and the one door every withdrawal goes through.
 
    The server's view of the shown revision lists, newest first, the user's gestures this
-   document can take back (`served_state/document.py`); nothing here judges a candidate
-   again. `z` takes the head of that list only when the server marks it `newest`, the
-   user's newest gesture, so a gesture the list doesn't hold, such as a move a later
-   revision's markup places, ends the walk, unless the press before armed another
-   gesture (below), which it then takes; a widget's Undo, a
-   reaction chip, and a reaction strip each name an exact entry, and a notice's Undo
-   takes the gesture it reports by `z`'s rules (`offerUndo`). All of them withdraw
+   document can take back (`served_state/document.py`); nothing here judges an entry
+   of it again. ⌘Z (Ctrl+Z off a Mac) takes the head of that list only when the server
+   marks it `newest`, the user's newest gesture, so a gesture the list doesn't hold,
+   such as a move a later revision's markup places, ends the walk. The one gesture ⌘Z takes from outside the
+   list is an action still in this page's ledger (below). A widget's Undo, a reaction chip, and a
+   reaction strip each name an exact entry, and a notice's Undo takes the gesture it
+   reports by ⌘Z's rules (`offerUndo`). All of them withdraw
    through `withdraw`.
 
-   `z` says what it takes and how long ago that was made, in the command reference, the
+   ⌘Z says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
-   safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
-   every tab and after a reload. A thread goes by its name as it stands now, a rewrite
+   safety” 3d ago", then "Undone: resolved “Rollout safety” 3d ago"), in
+   every tab and after a reload. The age follows the words with no separator, so it
+   reads as when the gesture was made, not when the undo was; the notice says
+   "Undone", Leaf's past participle, never "Undid" with its "I" left out (glossary.md,
+   "Reader-facing words"). A thread goes by its name as it stands now, a rewrite
    by the words it replaced, a message by the words it was sent with and a reaction by
    where it stands, all of which the page already holds. An action's ids are words only
    in the document it was made in, so the server serves what the head did in that
@@ -22,50 +25,80 @@
    An exact control's older entry carries no such reading, so its undo names only the
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
-   `z` leaves the user at what it takes back, the gesture's place: the thread a
-   settlement or reaction is in, the message a rewrite changed or the user sent, the
-   message holding a widget an agent sent, or the element changed. A press reaches the
-   place one of three ways:
+   ⌘Z takes the gesture back in the press, as an editor's undo does, and then leaves
+   the user at its place: the thread a settlement or reaction is in, the message a
+   rewrite changed or a reply the user sent, the message holding a widget an agent sent,
+   the element changed, or the passage a comment was on, since taking a comment back
+   may remove its thread. Where the place was out of view when the user pressed, the page
+   shows it once it presents the withdrawal, the way an `lf-activity` row's link does,
+   a thread opening and an element travelled to as its fragment, so Back returns to
+   where the user pressed. Its notice says what was taken and how long ago. Visibility
+   decides only whether the press travels, never whether it takes, so a reading of it
+   that misses costs a scroll and never a press. It is read where each cover and each
+   scroll Leaf runs comes to rest, so a press as a panel closes reads the page the
+   closing leaves, and a press during the scroll a walk starts reads the page that
+   scroll leaves. An exact control, such as a widget's Undo or a reaction chip, is
+   pressed where its gesture is drawn, so its withdrawal moves nobody.
 
-   - Where the user sees it, the press takes the gesture there.
-   - Where the place is out of view, the press shows it and takes nothing, so `z`
-     never takes back what the user cannot see. It shows the place the
-     way an `lf-activity` row's link does, a thread opening and an element travelled
-     to as its fragment, and arms, saying "Press again to undo: …". The second press
-     takes it back. Any key between, a press on the page, or a scroll taking what the
-     press showed out of view clears the arm, and the next press shows again; a press
-     in Leaf's chrome keeps it, since the menu's Undo, the touch route, is reached
-     through the leaf.
-   - Where the gesture's own landing has just carried the user from its place, as a
-     thread settlement's does (thread/folding.js, `landedAway`), the user's last look
-     at it was the gesture itself, so the press takes it at once. The gesture arms the
-     press as a showing press does, and the same inputs clear it; after one, the rules
-     above apply.
+   Taking at once is the user's decision. Rejected: showing an out-of-view gesture with
+   the first press and taking it with a second, so that a press never took what the user
+   couldn't see. Its arm had to be cleared by every input, scroll and surface it met,
+   and each reading of visibility that missed cost a press that took nothing, as when
+   the press followed the Escape closing a panel. The notice and the travel tell the user
+   what a press took instead.
 
-   Only what the user sees decides which: what the agent has received or done with the
-   gesture doesn't, so `z` works the same before and after the agent reads it (the
-   user's decision, 3 November 2026). Rejected: showing a gesture the agent had picked
-   up first wherever it stood, part of the design chosen on 21 October, which made `z`
-   depend on delivery the user can't see happen.
+   What ⌘Z, or a notice's Undo, took back takes a tint once the page shows the
+   withdrawal, after the page has gone there if it was out of view (`tint`). It is the
+   tint a message arriving and a revision's changed block take (motion.js,
+   `backgroundFlash`), so the page marks every change it shows the same way. It tints
+   the widget, message, thread or passage the undo changed, and a message the undo took
+   away tints the thread that held it. The undo's notice stands until the user's next
+   input rather than for its time (notifications.js, `holds`). Under reduced motion
+   there is no tint, and the held notice says it alone. An exact control's withdrawal
+   tints nothing, since the user pressed it where the gesture is drawn. The tint and the
+   hold are the user's decision, over keeping a notice that leaves after 4 s, holding it
+   in ink, darkening the panel's field, and an outline at twice the focus band's width.
+   The user found the tint better to look at, and the band belongs to the marks of
+   where the user is and what a gesture addresses (tokens.css). The tint stands where the
+   user is already looking, or where the undo took them, and shows what changed rather
+   than only naming it. It fades within about a second, since a tint held would lie
+   over what the user reads, so the notice is what holds. A dark field is as loud, but
+   at the window's foot, away from the change, and gives one notice a face no other
+   control wears.
 
-   Showing is a navigation step, so Back returns to where the user pressed. The rule is
-   the same for every gesture; only a place's kind decides how it is shown. An exact
-   control, such as a widget's Undo or a reaction chip, is pressed where its gesture is
-   drawn, so its withdrawal moves nobody.
+   A choice the user has just made may still be on its way to the log when they press,
+   which is when a misclick is caught. The press takes it by its attempt, as the
+   widget's own Undo does, and travels to it as to any other gesture: the ledger sends
+   the undo once the log has the action (`travelling`). A message or a settlement still
+   being sent can't be named before the log answers, so ⌘Z waits for it, as it waits
+   for a reading being applied, for an older action still being presented, and for a
+   held drag.
 
    A settlement takes the user's view of its thread away, so it leaves with this page
    the reader the user had the thread in, the page or the panel (`retainGesture`,
-   `settled`, thread/folding.js). `z` shows the settlement in that reader, and taking
-   it back, by whichever of the three ways, returns the user there once the page
-   presents the withdrawal, so undoing a settlement gives back the view it took.
+   `settled`, thread/folding.js), and taking it back returns the user there once the
+   page presents the withdrawal, so undoing a settlement gives back the view it took,
+   even where its landing carried them from the thread.
 
    A widget's gesture leaves, by its attempt, the words the widget named it by
    (`retainGesture`, `says`, pending/dispatch.js), and while this page holds them its
    undo is said in them, the name its own announcement used: "Chose “Fast”",
-   then "Undid: Chose “Fast” · just now". Those words, a settlement's reader and a
-   landing's arm live with the page that made the gesture, so after a reload or from
-   another tab a gesture out of view is shown before it is taken, and a thread opens
-   where a route to it opens it. */
+   then "Undone: Chose “Fast” just now". Those words and a settlement's reader live
+   with the page that made the gesture, so after a reload or from another tab a thread
+   opens where a route to it opens it.
+
+   Taking back what the user wrote puts it to draft rather than discarding it, since no
+   redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
+   its drawing, go back to its passage's draft or the page's, a reply's to its thread's
+   reply box, and a rewrite's to the message's rewrite, and Resume writing goes to them.
+   A comment whose thread goes with it brings the words of that thread's reply box
+   along, after its own, so nothing the user wrote is left in a box that no longer
+   stands. The log's answer decides the undo, so the words come back with it, in the box
+   the press leaves the user at. Rejected: leaving the words only in the log, which no
+   reading shows once nothing stands on the message (the user's decision); and holding
+   the reply unseen with the comment's draft until it is sent again, as a refused
+   comment does (`keepRefusedWords`), which carried it under whatever was sent from
+   that box next. */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -80,19 +113,24 @@ import { PENDING } from "./thread/identity.js";
 import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
-import { focusDestination, inputCount, onUserInput } from "./focus.js";
-import { placeBox, placeHolder, seenRect, shownRect, whenNone } from "./geometry.js";
+import { focusDestination } from "./focus.js";
+import { placeBox, placeHolder } from "./geometry.js";
+import { seenLanded } from "./scroll-containers.js";
 import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { ago } from "./presence.js";
 import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
-import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
+import { dragHeld } from "./widget-elements.js";
+import { backgroundFlash, flashDuration } from "./motion.js";
+import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
+import { commentDraft } from "./composing/selection.js";
+import { threadKey } from "./thread/model.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -166,15 +204,18 @@ function gestureWords(event, gesture) {
 }
 
 // Where taking `event` back shows on the page: the thread it settled or reacted in, the
-// message a rewrite changed or the user sent, a widget an agent sent in a message (its
-// message is its place), or the element it changed. A rewrite changes only its message's
-// words, so the thread's passage or marker in view doesn't show it.
+// message a rewrite changed or a reply the user sent, a widget an agent sent in a
+// message (its message is its place), or the element it changed or a comment was on.
+// A rewrite changes only its message's words, so the thread's passage or marker in view
+// doesn't show it. Taking a comment back removes its thread unless an answer stands on
+// it, which only the server's reading says, so its place is its passage, never the
+// thread.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
   const message =
     event.kind === "edit"
       ? event.message
-      : (event.kind === "comment" || event.kind === "reply") && !event.token
+      : event.kind === "reply" && !event.token
         ? event.id
         : null;
   if (message)
@@ -196,16 +237,50 @@ function placeOf(event) {
   return { fragment: id, nodes: [elementById(id)] };
 }
 
-// Whether the user sees any of a destination (an element or a Range), past whatever
-// covers it.
+// The draft a message the user wrote was written in, holding what taking it back gives
+// back: a comment's words, and its drawing, to its passage's draft or the page's, with
+// the reply box of the thread it opened (`under`); a reply's to its thread's reply box;
+// a rewrite's to the message's rewrite, written over the words taking it back restores.
+// Null for a reaction, a deletion, whose words come back on the message, and every
+// gesture that wrote none.
+/** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object, under?: string | null} | null} */
+function writtenIn(event) {
+  if (event.token) return null;
+  const text = event.text ?? "";
+  switch (event.kind) {
+    case "comment": {
+      const { anchor } = event;
+      const thread = threadNamed(event.id);
+      const under = thread ? replyContext(threadKey(thread)) : null;
+      if (anchor) return { ...commentDraft({ ...event, anchor }), text, under };
+      return text ? { ctx: PAGE_DRAFT, text, under } : null;
+    }
+    case "reply": {
+      const thread = event.parent ? threadNamed(event.parent) : null;
+      return thread && text ? { ctx: replyContext(threadKey(thread)), text } : null;
+    }
+    case "edit":
+      return text
+        ? {
+            ctx: rewriteContext(event.message),
+            text,
+            ...(typeof event.base === "string" && { payload: { over: event.base } }),
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
+// Whether the user sees any of a destination (an element or a Range) where the glides
+// under way leave it, past whatever covers it where it comes to rest.
 /** @param {Element | Range | null | undefined} where */
 const seen = (where) => {
   const holder = where && placeHolder(where);
-  return Boolean(where && holder && seenRect(holder, new Map(), placeBox(where)));
+  return Boolean(where && holder && seenLanded(holder, placeBox(where), true));
 };
 
-const KEYS_HELD = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"]);
-const UNDO_KEYS = ["z"];
+const UNDO_KEYS = ["Mod+z"];
 
 /** @param {{post: ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["post"],
  * stateApplying: () => boolean, unaccountedGesture: () => boolean,
@@ -246,25 +321,45 @@ export function createUndo({
   // this page made it, else in the words the page holds for it now.
   /** @param {UndoEvent} event */
   const said = (event) => {
-    const gesture = runtime.undo.find((entry) => entry.event.id === event.id)?.gesture;
+    // By attempt as well, since an action still in the ledger goes by its pending id.
+    const gesture = runtime.undo.find(
+      (entry) =>
+        entry.event.id === event.id ||
+        (event.attempt !== undefined && entry.event.attempt === event.attempt),
+    )?.gesture;
     return (
       (event.attempt ? gestures.get(event.attempt)?.says : undefined) ??
       gestureWords(event, gesture)
     );
   };
-  // ...and how long ago it was made.
+  // ...and how long ago it was made, as one clause (the header).
   /** @param {UndoEvent} event */
-  const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" · ");
+  const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" ");
 
-  // The gesture `z` would take on the list the page holds now.
-  const headEntry = () => {
+  // The gesture ⌘Z would take on the list the page holds now.
+  const head = () => {
     const [first] = runtime.undo;
-    return first?.newest ? first : null;
+    return first?.newest ? first.event : null;
   };
-  const head = () => headEntry()?.event ?? null;
   function undoable() {
     return stateApplying() ? null : head();
   }
+  // The user's newest gesture while it is an action still in the ledger, which the list
+  // doesn't hold yet. It goes by its pending id, the name the page draws it under until
+  // a reading logs it and the ledger renames once the log answers
+  // (pending/model.js, `nameAdmitted`), as the widget's own Undo names it. None while
+  // a drag is held, since the widget draws nothing until the drag ends.
+  const travelling = () => {
+    if (dragHeld()) return null;
+    const entry = readApplication().unresolved.findLast(
+      ({ state }) => state !== "refused",
+    );
+    return entry?.event.kind === "action"
+      ? { ...entry.event, id: entry.localId, ts: entry.timestamp }
+      : null;
+  };
+  // The gesture the next press takes.
+  const next = () => travelling() ?? head();
   // Whether taking back this exact gesture now takes back what the user sees. The
   // ordered ledger sends the undo behind everything already queued, the target's own
   // unanswered send included, and the server remains final admission. Two things it
@@ -280,7 +375,8 @@ export function createUndo({
       .some(
         (entry) =>
           entry.event.kind === "action" &&
-          (entry.admitted?.id ?? entry.localId) !== event.id,
+          entry.localId !== event.id &&
+          entry.admitted?.id !== event.id,
       );
   }
 
@@ -293,79 +389,23 @@ export function createUndo({
       return null;
     }
     const taken = takes(event);
+    const written = writtenIn(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        notice(`Undid: ${taken}`);
+        notice(`Undone: ${taken}`, { holds: true });
+        // The answer brings the reading that holds the withdrawal, in which a
+        // comment's thread is gone unless something stands on the comment.
+        if (written)
+          giveBackWords(
+            written.ctx,
+            written.text,
+            written.payload,
+            written.under && !threadNamed(event.id) ? written.under : null,
+          );
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;
     });
-  }
-
-  // The gesture the next press takes without showing it first: the one the last press
-  // showed, or one whose landing has just carried the user from its place (the
-  // header's three ways).
-  /**
-   * @type {{
-   *   is: (event: {id: string, attempt?: string}) => boolean,
-   *   stop: () => void,
-   *   inputs: number[],
-   *   shown: boolean,
-   *   landing: boolean,
-   * } | null}
-   */
-  let armed = null;
-  function disarm() {
-    armed?.stop();
-    armed = null;
-  }
-  // Each input since the arm that could be something else, by its place in the
-  // user's inputs (`inputCount`). A key may be the press that takes the gesture, so
-  // the arm holds through one, and that press reads it as its own. The undo key itself
-  // takes, shows or, while the page waits on a change, does nothing, so it is never
-  // the user looking elsewhere.
-  // A wheel clears a landing's arm, whose place nothing watches; a shown place clears
-  // its own arm as it leaves the view.
-  onUserInput((event) => {
-    if (!armed || event.type === "blur") return;
-    if (event.type === "wheel" && !armed.landing) return;
-    if (
-      event instanceof KeyboardEvent &&
-      event.type === "keydown" &&
-      (event.repeat || KEYS_HELD.has(event.key) || UNDO_KEYS.includes(event.key))
-    )
-      return;
-    if (
-      (event.type === "pointerdown" || event.type === "touchstart") &&
-      inChrome(eventSource(event))
-    )
-      return;
-    armed.inputs.push(inputCount());
-    if (armed.inputs.length > 1) disarm();
-  });
-  // Whether this press takes the armed gesture: the press before it has finished
-  // showing it, so a quick second press can't take what never reached the screen, and
-  // nothing came between, or only the press itself.
-  /** @param {UndoEvent} event */
-  const armedFor = (event) =>
-    armed?.is(event) &&
-    armed.shown &&
-    armed.inputs.every((input) => input === inputCount())
-      ? armed
-      : null;
-  // A thread settlement's landing has carried the user from the gesture's place
-  // (thread/folding.js). Until they act, the user's last look at the gesture was the
-  // gesture itself.
-  /** @param {string} attempt */
-  function landedAway(attempt) {
-    disarm();
-    armed = {
-      is: (event) => event.attempt === attempt,
-      stop: () => {},
-      inputs: [],
-      shown: true,
-      landing: true,
-    };
   }
 
   // The page's own drawings of a thread: in the panel, on a seat or beside its passage.
@@ -383,10 +423,10 @@ export function createUndo({
       ...place.nodes,
     ].some(seen);
 
-  // Whether `z` shows the gesture of the undo list's `entry` before taking it.
-  /** @param {UndoEntry} entry */
-  function needsShowing(entry) {
-    const place = placeOf(entry.event);
+  // Whether `event`'s place stands out of view, so taking it back travels there.
+  /** @param {UndoEvent} event */
+  function outOfView(event) {
+    const place = placeOf(event);
     return place !== null && !inView(place);
   }
 
@@ -407,70 +447,35 @@ export function createUndo({
   const settledHere = (event) =>
     event.attempt ? gestures.get(event.attempt)?.settled : undefined;
 
-  // Go to what the gesture changed, under the intent of the press that asked for it,
-  // and resolve to the nodes that show it.
-  /** @param {UndoEvent} event @param {UserIntent} intent */
-  async function show(event, intent = retainUserIntent()) {
+  // Go to what the gesture changed, under the intent of the press that asked for it: a
+  // thread in the `reader` its settlement was made in, where it was made here.
+  /** @param {UndoEvent} event @param {UserIntent} intent @param {Reader} [reader] */
+  function show(event, intent, reader) {
     const place = placeOf(event);
-    if (!place) return [];
-    if (place.message) {
-      const opened = await openThread(place.message, { part: "message", intent });
-      return [opened, ...place.nodes].filter((node) => node !== null);
-    }
-    if (place.thread) {
-      const reader = settledHere(event)?.reader;
-      const shown = await returnToThread(place.thread, intent, reader);
-      return shown instanceof Element ? [shown] : [];
-    }
-    // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so Back returns
-    // to where the user was reading. The navigation step lands after this press returns, so the
-    // show waits for it to finish where the Navigation API says when that is.
+    if (place?.message) return openThread(place.message, { part: "message", intent });
+    if (place?.thread) return returnToThread(place.thread, intent, reader);
+    if (place?.fragment === undefined || !intent()) return;
+    // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so
+    // Back returns to where the user was reading.
     const url = new URL(window.location.href);
-    if (place.fragment === undefined) return [];
     url.hash = place.fragment;
     if (window.navigation)
-      await window.navigation.navigate(url.href).finished.catch(() => {});
-    else window.location.assign(url);
-    return place.nodes.filter((node) => node !== null);
+      return window.navigation.navigate(url.href).finished.catch(() => {});
+    window.location.assign(url);
   }
 
+  // Tint what taking `event` back changed, as the page draws it now (the header): the
+  // nodes at its place still drawn, else the thread a message it took away was in.
   /** @param {UndoEvent} event */
-  function arm(event) {
-    disarm();
-    let stop = () => {};
-    /** @type {NonNullable<typeof armed>} */
-    const current = {
-      is: (/** @type {{id: string}} */ other) => other.id === event.id,
-      stop: () => stop(),
-      inputs: [],
-      shown: false,
-      landing: false,
-    };
-    armed = current;
-    notice(`Press again to undo: ${takes(event)}`);
-    // What the press shows may still be on its way into view, so only leaving it after
-    // it was seen clears the arm. Leaf's own surfaces standing over it, as the leaf's
-    // menu does while a finger reaches its Undo, are no look elsewhere, so the place is
-    // read past them; and a drawing the panel takes away for the menu, as a thread's
-    // view, leaves the arm standing, since it went by a press in Leaf's chrome.
-    void show(event).then((nodes) => {
-      if (armed !== current) return;
-      current.shown = true;
-      if (!nodes.length) return;
-      let landed = false;
-      stop = whenNone(
-        nodes,
-        (node) => {
-          const shown = shownRect(node, new Map());
-          landed ||= Boolean(shown);
-          return shown;
-        },
-        () => {
-          const scrolledAway = nodes.some((node) => node.isConnected);
-          if (landed && scrolledAway && armed === current) disarm();
-        },
-      );
-    });
+  function tint(event) {
+    const place = placeOf(event);
+    if (!place) return;
+    const drawn = place.nodes.filter((node) => node?.isConnected);
+    const thread =
+      place.thread ??
+      (event.kind === "reply" && event.parent ? threadIdNamed(event.parent) : null);
+    for (const node of new Set(drawn.length ? drawn : thread ? drawingsOf(thread) : []))
+      if (node) backgroundFlash(node, flashDuration());
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an
@@ -482,46 +487,37 @@ export function createUndo({
     raiseError(WAIT);
     return false;
   }
-  // Take back the undo list's `entry` by the header's three ways, then, for a
-  // settlement this page made, return the user to its thread in the reader it was
-  // made in.
-  /** @param {UndoEntry} entry */
-  function walkTo(entry) {
-    const { event } = entry;
-    const heldArm = armedFor(event);
-    if (!heldArm && needsShowing(entry)) {
-      arm(event);
-      return null;
-    }
+  // Take back `event`, then leave the user at its place: for a settlement this page
+  // made, its thread in the reader it was made in, else the place where it stood out of
+  // view when they pressed. Both are read before the withdrawal, which takes the
+  // settlement's reader with it. What it changed is tinted once the user is there.
+  /** @param {UndoEvent} event */
+  function walkTo(event) {
     const settled = settledHere(event);
-    const thread = placeOf(event)?.thread;
+    const travels = Boolean(settled) || outOfView(event);
     const intent = retainUserIntent();
     const answer = withdraw(event);
     if (!answer) return null;
-    disarm();
-    if (settled && thread)
-      void whenDocumentPresented()
-        .then(() => returnToThread(thread, intent, settled.reader))
-        .catch(() => {});
+    void whenDocumentPresented()
+      .then(async () => {
+        if (travels) await show(event, intent, settled?.reader);
+        tint(event);
+      })
+      .catch(() => {});
     return answer;
   }
   function undoLast() {
+    const action = travelling();
+    if (action) return walkTo(action);
     if (!settled()) return null;
-    // A press after one that showed a gesture, or after a settlement's landing, takes
-    // that gesture, as its "Press again to undo" or its notice's Undo promised, even
-    // where another tab's gesture has since become the newest. The promise lasts as
-    // long as the arm does: once an input has come between, the press starts again
-    // from the list's head.
-    const promised = runtime.undo.find(({ event }) => armedFor(event));
-    if (promised) return walkTo(promised);
-    const entry = headEntry();
-    return entry ? walkTo(entry) : null;
+    const event = head();
+    return event ? walkTo(event) : null;
   }
 
   // The press a notice of the gesture made under `attempt` offers (notifications.js,
   // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
   // Undo (thread/folding.js, `nextStep`). It takes
-  // back that gesture as `z` takes the list's head, never what `z` would take by then,
+  // back that gesture as ⌘Z takes the list's head, never what ⌘Z would take by then,
   // and stands while the page can still take the gesture back, so the log refusing it,
   // or its withdrawal by any route, takes the notice away.
   /** @param {string} attempt @returns {import("./notifications.js").NoticePress} */
@@ -531,49 +527,59 @@ export function createUndo({
     run() {
       if (!settled()) return null;
       const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
-      return entry ? walkTo(entry) : null;
+      return entry ? walkTo(entry.event) : null;
     },
     stands: () => takeable()?.has(attempt) ?? true,
   });
 
-  // The last thing the user did to this page, put back. Its own key rather than the
-  // platform's ⌘Z, which belongs to the box a user is typing in and is taken by the
-  // browser everywhere else: this is a page-level press like every other letter, and the
-  // typing scope keeps it off a composer's words by claiming its letters. The word is
+  // The last thing the user did to this page, put back, on the platform's undo chord
+  // rather than a letter, the user's decision: an undo can change what is out of view,
+  // so a word typed onto the page by someone who thought they were in a box must not
+  // reach it. A box keeps every letter, with any modifier, for its words
+  // (keyboard/text-entry.js), so ⌘Z undoes typing inside a box and a gesture outside
+  // one, as Draw mode's takes back a stroke. Rejected: `z`, which `zazu` typed onto the
+  // page presses twice; ⇧Z, which a capitalised word presses; and `g Z`, two presses
+  // for every undo. Resolve keeps `r`, also the user's choice, since what it changes is
+  // the thread in front of them. A chord is no printed key, so one pressed before the
+  // page's history arrives isn't held for it (bootstrap.js) and does nothing. The word is
   // "undo" and never the verb it is about to state — `move` is one widget's word, and a
   // line that said it would be naming a member where the mechanism is what holds.
   pageCommand({
     id: "history.undo",
     ready: savedReadingSettled,
     keys: UNDO_KEYS,
-    // Said from the list the page holds rather than `undoable`, so a reading being
-    // applied leaves the words standing while it holds the press back. The menu's row
-    // cuts long words, so it says the age at its end rather than after them. The words
-    // stand whether the press will show or take: which it does turns on where the user
-    // is reading when they press, which a scroll changes without a repaint.
+    // Said from the gesture the next press takes (`next`) rather than `undoable`, so a
+    // reading being applied leaves the words standing while it holds the press back.
+    // The menu's row cuts long words, so it says the age at its end rather than after
+    // them.
     description: () => {
-      const event = head();
+      const event = next();
       return event ? `Undo: ${takes(event)}` : "Undo the latest update";
     },
     title: "undo",
     touch: () => {
-      const event = head();
+      const event = next();
       return event ? `Undo: ${said(event)}` : "Undo";
     },
     touchValue: () => {
-      const event = head();
+      const event = next();
       return event ? ago(event.ts) : "";
     },
     menu: "page",
-    // Dead while the page holds a gesture no log read accounts for, this one's own send
-    // included. The line drops the chip for as long as that is true rather than
-    // promising a press that would undo the wrong thing.
-    when: () => !unaccountedGesture() && Boolean(undoable()),
+    // Dead while the page holds a gesture no log read accounts for, other than an
+    // action it can take by its attempt now, this one's own send included. The line
+    // drops the chip for as long as that is true rather than promising a press that
+    // would undo the wrong thing or only say to wait.
+    when: () => {
+      const action = travelling();
+      return action
+        ? withdrawable(action)
+        : !unaccountedGesture() && Boolean(undoable());
+    },
     run: (/** @type {Parameters<typeof undoLast>} */ ...args) => undoLast(...args),
   });
 
   return {
-    landedAway,
     offerUndo,
     returnToThread,
     retainGesture,

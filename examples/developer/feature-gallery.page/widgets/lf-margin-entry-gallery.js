@@ -29,7 +29,7 @@ function wireSample({ sample, key, control, disclosure }) {
         disabled: !sample.interactive,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
-      { selected: sample.selected ?? false },
+      { selected: sample.selected ?? false, unread: sample.unread ?? false },
     );
     presentContributionReceipts(
       control,

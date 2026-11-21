@@ -4,7 +4,6 @@ import json
 import re
 import shlex
 from pathlib import Path
-from typing import get_args
 
 import click
 from click.testing import CliRunner
@@ -13,7 +12,6 @@ from unidiff import PatchSet
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import forks as forks_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
@@ -28,7 +26,6 @@ from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
 
 
@@ -134,7 +131,9 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     registry = complete_declarations(load_registry(page_dir) | entry)
 
     registry_validation.validate_registry(registry, "package tutorial")
-    validation_model.validate_registry_examples(registry, "package tutorial")
+    assert (
+        validation_model.declaration_advice(entry, registry, "package tutorial") == []
+    )
 
 
 # The event log is How it works' "Event log" tab.
@@ -142,10 +141,12 @@ EVENT_LOG = named_source("how-it-works")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
-    """The text of one authored `lf-code`'s `<pre>`."""
+    """The text of one authored `lf-code`'s `<pre>`, as the widget reads it
+    (widget-upgrade.js, `bodyText`): leading blank lines, such as the one after the
+    `<code>` naming its language, are the block's layout."""
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
-    return select_one_result_2.text
+    return select_one_result_2.text.lstrip("\n")
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -350,25 +351,12 @@ def test_the_event_log_page_quotes_the_registry():
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
     assert shown == {
-        "x-state": entry["x-state"],
-        "x-awaits": {
-            "value": entry["x-awaits"]["value"],
-            "answered": entry["x-awaits"]["answered"],
+        "verbs": entry["verbs"],
+        "awaits": {
+            "value": entry["awaits"]["value"],
+            "answered": entry["awaits"]["answered"],
         },
     }
-
-
-def test_the_forks_guide_lists_the_judgments_and_endings_forks_keeps():
-    """The guide's sorting table names each judgment the line fork can answer
-    (`forks.ANSWER`), and its endings table each outcome `forks.ended` gives a
-    thread, so a judgment or outcome added to the code fails here until the guide,
-    the design's reference, says what it means."""
-    tree = SourceDocument(named_source("forks").read_text()).tree
-    answer: dict = forks_model.ANSWER
-    judgments = {code.text for code in tree.select("table#sorting-table td code")}
-    assert judgments == set(answer["properties"]["work"]["enum"])
-    endings = [code.text for code in tree.select("table#endings tbody th code")]
-    assert sorted(endings) == sorted(get_args(forks_model.Ending))
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():
@@ -401,25 +389,11 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk from the root Click group, past a
-        group's own options, as `leaf --turn <turn> thread reply` passes `--turn`."""
+        """The subcommand path these tokens walk from the root Click group."""
         command, path = cli_model.cli, []
-        tokens = iter(tokens)
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
-            option = next(
-                (
-                    p
-                    for p in command.params
-                    if isinstance(p, click.Option) and token in p.opts
-                ),
-                None,
-            )
-            if option is not None:
-                if not option.is_flag:
-                    next(tokens, None)
-                continue
             sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break

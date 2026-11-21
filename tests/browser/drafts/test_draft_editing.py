@@ -11,6 +11,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_DRAWN, JOURNEY_V1, _publish
 from render_harness import (
+    CHROME_ROOT,
     compare_with,
     consume_browser_errors,
     draft_control,
@@ -70,10 +71,9 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
     inside_before = page.screenshot(clip=inside)
 
     # Aimed at where the browser actually drew the word, not at an offset from the
-    # box's edge. A pixel count is a fact about one font: 60px into this line was
-    # "migration" while the theme set drafts in 16px system-ui, and lands in "the"
-    # now that it sets them in 17px Charter — so the test read as "the editor opens
-    # on the wrong word" when nothing about the gesture had changed.
+    # box's edge. A pixel count is a fact about one font: a change of face moves the
+    # word a fixed offset lands in, so the test would read as "the editor opens on the
+    # wrong word" when nothing about the gesture had changed.
     spot = page.evaluate(
         """(word) => {
             const body = document.querySelector('#draft-ops .lf-draft-body');
@@ -271,16 +271,16 @@ DRAFT_AS_DRAWN = """(draft, words) => {
 
 
 def test_a_draft_edits_where_it_reads(browser, serve, subtests):
-    """A draft's editor drew its Markdown in a sent message's face: a heading at the
-    words' size, a blank line for each gap between blocks, a picture as its source, a
-    fence's lines at a code line each and no mark after a link that leaves the page.
-    Opening a draft holding them moved the words below its first block. The words and
-    picture now stay where the prose showed them, the editor taking each block's face
-    and gaps from where it stands, an indented block's code as a fence's.
+    """A draft's editor that drew its Markdown in a sent message's face — a heading at
+    the words' size, a blank line for each gap between blocks, a picture as its source,
+    a fence's lines at a code line each and no mark after a link that leaves the page —
+    would move the words below its first block on opening. The words and picture stay
+    where the prose showed them, the editor taking each block's face and gaps from
+    where it stands, an indented block's code as a fence's.
 
-    A draft also drew a line break at each of its source's, so one wrapped for a wider
-    editor showed a short line after each long one. It reads as a Markdown file now, a
-    line break inside a paragraph a space, and its editor joins those lines too, so each
+    A draft that drew a line break at each of its source's would show a short line after
+    each long one when wrapped for a wider editor. It reads as a Markdown file, a line
+    break inside a paragraph a space, and its editor joins those lines too, so each
     word stays where the prose showed it."""
     url = serve(
         leaf_page(
@@ -580,8 +580,8 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
 def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
     """A draft an agent sends in a reply opens at a click on its words in the panel's
     thread, as one on the page does. The message the reader draws it in is Leaf's own
-    surface, marked as generated chrome, and the draft once took that mark for a press
-    of its own and left the click to it, so only its ✎ opened it."""
+    surface, marked as generated chrome, and a draft that took that mark for a press
+    of its own would leave the click to it, so only its ✎ would open it."""
     url = serve(leaf_page("Reply draft", "<h1>Reply draft</h1>"))
     question = panel_comment(serve.page_dir, "Could you draft the note?")
     replied = CliRunner().invoke(
@@ -592,9 +592,9 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
             "--done",
             response_reference(serve.page_dir, question),
             "--text",
-            "Here it is:",
-            "--markup",
-            '<lf-draft id="reply-draft"><pre>The note to send.</pre></lf-draft>',
+            "Here it is:"
+            + "\n\n"
+            + ('<lf-draft id="reply-draft">\n<pre>The note to send.</pre></lf-draft>'),
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -617,9 +617,9 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
         serve(
             leaf_page(
                 "Draft in an Ask",
-                '<h1>Release note</h1><lf-ask id="note-decision">'
-                "<h2>How should the note read?</h2>"
-                f'<lf-draft id="note" required><pre>{original}</pre></lf-draft></lf-ask>',
+                '<h1>Release note</h1><lf-group id="note-decision" label="How should the note read?">'
+                '<h2 id="note-decision-h">How should the note read?</h2>'
+                f'<lf-draft id="note" required><pre>{original}</pre></lf-draft></lf-group>',
             )
         ),
     )
@@ -656,9 +656,9 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
 
 def test_the_draft_box_is_its_own_door(browser, serve):
     """A draft is the one block on a page whose whole purpose is that the user rewrites
-    it, and until now the only thing that said so was a pencil in the margin 45px away.
-    The block itself ignored a press. The gesture that did open it in place was a
-    double-click, which is a thing you have to already know.
+    it, which a pencil in the margin says only from beside it, and a block that ignored
+    a press would leave a double-click, which is a thing you have to already know, as
+    the gesture that opens it in place.
 
     So the box is the door, and the caret lands where the press did. Which is a door that
     has to be opened carefully, because the same words are the page's words: a user
@@ -840,7 +840,9 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     page.keyboard.press("Tab")
     expect(draft_control(page, "save", "local")).to_be_focused()
     page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(draft_control(page, "save", "local")).to_be_visible()
     expect(draft_control(page, "cancel", "local")).to_be_visible()
     expect(draft.locator("[data-lf-draft-action]:visible")).to_have_count(2)
@@ -1000,8 +1002,8 @@ def test_a_finger_s_reach_on_a_draft_copies_past_copy_and_stops_short_of_the_wor
 
     Under a finger the toolbar stands on the box's bottom border, and each mark's reach
     half a finger's floor above it. The box's padding keeps that reach off the words, so
-    a press at the end of the last line puts the caret there. The padding was 10px, so
-    the press 3px above the field's foot under Discard discarded the edit."""
+    a press at the end of the last line puts the caret there. With less padding, the
+    press 3px above the field's foot under Discard would discard the edit."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )

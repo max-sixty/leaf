@@ -14,6 +14,7 @@
    so a widget that must also run off a Leaf page imports from there and every other
    widget keeps importing from here. */
 import "./element-integration.js";
+import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { iconTemplate } from "./icons.js";
@@ -27,14 +28,17 @@ export { rankAt } from "./projection/model.js";
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
-// `titledElement(heading)`: the element a heading titles, the outermost one that opens
-// with it, which a count per heading counts under that heading.
+// `authoredTitle()`: the page's own `<title>`, without the count the tab's title
+// shows in front of it.
+export { authoredTitle } from "./tab-title.js";
+// `titledElement(heading)`: the element a heading titles, its hgroup and the section or
+// article that opens with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
-// The part of the page a node stands in, by the one rule On me groups its items by and
+// The part of the page a node stands in, by the one rule On Me groups its items by and
 // a link's preview names a place by.
 export { partOver } from "./thread/placement.js";
 // The authored page body, or the body of the message whose markup a node stands in.
@@ -47,7 +51,6 @@ export { registerRootHeader } from "./root-headers.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
-export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; their current location and whether it is in a scope; recording where a layer opened
@@ -67,11 +70,17 @@ export {
 } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
-// The obligations a region of the page holds, by the rule every count and walk of them reads.
-export { obligationsIn } from "./obligations/place.js";
+// The obligations a region of the page holds, by the rule every count and walk of them
+// reads, and which regions hold a widget that asks the user something, including one
+// whose obligation the inventory hasn't listed yet or lists as withdrawn.
+export {
+  obligationsByRegion,
+  obligationsIn,
+  regionsAwaiting,
+} from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (x-shows).
+// A view's reading and writing of another widget's answer (`shows`).
 export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
@@ -92,7 +101,7 @@ export { threadSummary } from "./thread/messages.js";
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-export { isNativeLayer } from "./shadow-tree.js";
+export { isNativeLayer, under } from "./shadow-tree.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
 export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";
@@ -131,19 +140,14 @@ export {
 } from "./reading-regions.js";
 export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
-export { says, wrote } from "./passages.js";
-export { ago, agePreview } from "./presence.js";
+export { named, phrasing, says } from "./passages.js";
+export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
-export {
-  declarationFor,
-  elementsDeclaring,
-  layerFact,
-  matchesWhen,
-} from "./registry.js";
+export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export {
   flashDuration,
   foldDuration,
@@ -163,14 +167,13 @@ export {
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
-export { copyBlock } from "./code-copy.js";
 export { copyControl } from "./copy-control.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
-export { highlightBlocks } from "./syntax.js";
+export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export {
@@ -192,7 +195,8 @@ export { leafEditorView } from "./editor-view.js";
  * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
  * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
-  const owner = await import("./sample.js");
+  // The page counts the sample's arrival from here; the host counts it once it starts.
+  const owner = await deferredArrival(import("./sample.js"));
   return owner.mountSample(frame, options);
 }
 export { wear } from "./dress.js";

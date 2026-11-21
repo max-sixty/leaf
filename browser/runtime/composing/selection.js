@@ -31,9 +31,9 @@ import { keeps, keepsHidden } from "../keeps.js";
 import {
   clearDraft,
   commentContext,
-  DRAFT_KEPT,
   draftContexts,
   loadDraft,
+  noticeDraftKept,
   saveDraft,
   sendMessage,
   watchDraft,
@@ -505,9 +505,9 @@ export function createSelectionComposer({
     // exact version. Said here rather than at each dismissal because every one of them — an
     // outside press, Escape, another target — leaves the same state, and
     // every path that discards the words empties the box before hiding it (leaveComposer),
-    // so those stay silent. The sentence names the address that brings the draft back,
+    // so those stay silent. The notice offers the press that brings the draft back,
     // which is the whole of what the user needs from this moment.
-    if (composerOpen && !open && composerHolds()) notice(DRAFT_KEPT);
+    if (composerOpen && !open && composerHolds()) noticeDraftKept();
     composerOpen = open;
     // The wrapper contributes no card or box. Its field is the extended Comment
     // control inside the response bar; the other composer controls stay hidden there.
@@ -575,7 +575,7 @@ export function createSelectionComposer({
       // the words it leaves stay with their passage, listed under Threads' Drafts.
       const leaves = composerOpen && composerHolds();
       syncComposer.load("");
-      if (leaves) notice(DRAFT_KEPT);
+      if (leaves) noticeDraftKept();
       const record = text ? null : composerRecord(ctx);
       storedDrawing = composerRecord(ctx)?.drawing ?? null;
       if (record) ({ text, suggest, about } = record);
@@ -694,7 +694,7 @@ export function createSelectionComposer({
     composerEpoch += 1;
     leaveComposer(false);
     showFab(null);
-    if (kept) notice(DRAFT_KEPT);
+    if (kept) noticeDraftKept();
   }
   // This tab's send, while it settles the composer it sends from (`send` below).
   /** @type {{letGo: (() => unknown) | null} | null} */

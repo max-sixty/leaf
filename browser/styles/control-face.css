@@ -41,6 +41,20 @@
   word-spacing: normal;
   text-transform: none;
 }
+/* On a touch screen, a field the user types in takes the entry floor (tokens.css,
+   `--lf-entry-floor`) as its default size, since iOS Safari zooms the page onto a
+   smaller field as it takes focus. It weighs nothing, as the face above does, so a size
+   the page gives its own field outranks it. */
+@media (pointer: coarse) {
+  :where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"])),
+  :where(:root body select:not(.lf-chrome *)),
+  :where(:root body textarea:not(.lf-chrome *)),
+  :where(:host input:not([type="checkbox"], [type="radio"])),
+  :where(:host select),
+  :where(:host textarea) {
+    font-size: max(var(--lf-entry-floor), var(--lf-t-5));
+  }
+}
 :where(.lf-ui-face) {
   color: var(--lf-ink);
 }

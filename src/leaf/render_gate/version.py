@@ -31,11 +31,11 @@ class RenderReading:
 
     @property
     def failures(self) -> list[Finding]:
-        return [f for f in self.findings if f.severity == "error"]
+        return [f for f in self.findings if f.refuses]
 
     @property
     def advice(self) -> list[Finding]:
-        return [f for f in self.findings if f.severity == "advice"]
+        return [f for f in self.findings if not f.refuses]
 
 
 def _render_version_attempt(
@@ -57,24 +57,22 @@ def _render_version_attempt(
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the On Me walk would travel to the top of the page,
     words the user can read and can't select, a word the registry promised that never
-    reached the page, an attribute a module left on a
-    widget that its entry never declared (a file's reading sees one writer, and this is
-    the other), a version that authors widget state the log replays over, a widget whose
-    render() is relative, so a read's replay of the sender's own gesture moves the
-    page again, a settled holder whose mark or
-    still-showing slot words disagree with the log's decision, as advice a drawing whose
-    height differs from the box it showed before drawing, and an SVG paint token that
-    does not resolve to valid paint. Then, resizing that loaded page through every
-    width from 360px to 1920px
-    (`readings.sweep`), it reads the geometry that moves with the window: the
-    page scrolling sideways, content set past the column and out into the margin, a
-    horizontal scrollbar with no room below what it scrolls, a control clipped out of
-    reach, a box cutting off its own content where no scroll reaches it, words drawn on
-    top of other words, words left under Leaf's panel with every scroller at its end.
-    There it also reads, as advice naming
-    the widths it spans, whether a drawing's fit to its box shrinks its labels past
-    reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
-    reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
+    reached the page, a version that authors widget state the log replays over, a
+    widget whose render() is relative, so a read's replay of the sender's own gesture
+    moves the page again, a settled holder whose mark or still-showing slot words
+    disagree with the log's decision, and an SVG paint token that does not resolve to
+    valid paint; and as advice, an attribute a module left on a widget that its entry
+    never declared (a file's reading sees one writer, and this is the other), and a
+    drawing whose height differs from the box it showed before drawing. Then, resizing
+    that loaded page through every width from 360px to 1920px (`readings.sweep`), it
+    reads the geometry that moves with the window: a control clipped out of reach, a
+    box cutting off its own content where no scroll reaches it, words drawn on top of
+    other words, words left under Leaf's panel with every scroller at its end. There it
+    also reads, as advice naming the widths it spans, the page scrolling sideways,
+    content set past the column and out into the margin, a horizontal scrollbar with no
+    room below what it scrolls, whether a drawing's fit to its box shrinks its labels
+    past reading, and whether a table scrolls sideways with a cell in it wrapped. That
+    pass reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
     are advice wherever they are read. No failures is a pass.
 
     The geometry has one reading (`readings.swept_faults`), reported by the runs of
@@ -160,8 +158,12 @@ def render_version(
 
     Chrome can emit the notice once under load, while a layout feedback loop emits it
     on every rendering. The unit here is the whole gate, including its replay probes: a
-    notice is ignored only when a later complete attempt is clean. Ordinary failures from both attempts are retained, and
-    an incomplete confirmation cannot pardon the notice that prompted it.
+    notice fails the check only when a later complete attempt repeats it, and is
+    ignored when that attempt is clean. Ordinary failures from both attempts are
+    retained. A notice no complete attempt confirms or pardons is dropped: the attempt
+    that didn't complete holds what stopped it, either a finding the browser couldn't
+    read the page by, which leaves the reading unread, or the page's own failure, which
+    stands.
     """
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
@@ -197,19 +199,13 @@ def render_version(
         # Advice and the other readings are the first attempt's; failures accumulate.
         return replace(first, findings=[*failures, *first.advice])
 
-    if not complete:
-        retain(notices)
-        return reading()
-    if not notices:
+    if not (complete and notices):
         return reading()
 
     confirming, confirming_notices, complete = attempt()
-    retain(confirming.failures)
+    # What stopped the confirming attempt, as a crashed browser, stands in its place.
+    retain(f for f in confirming.findings if f.refuses or f.unread)
     if not complete:
-        retain(
-            notice.but(values={"confirmation": "incomplete"})
-            for notice in [*notices, *confirming_notices]
-        )
         return reading()
     failures.extend(
         notice.but(values={"confirmation": "recurred"}) for notice in confirming_notices

@@ -26,7 +26,6 @@ from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
 
 
@@ -132,7 +131,9 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     registry = complete_declarations(load_registry(page_dir) | entry)
 
     registry_validation.validate_registry(registry, "package tutorial")
-    validation_model.validate_registry_examples(registry, "package tutorial")
+    assert (
+        validation_model.declaration_advice(entry, registry, "package tutorial") == []
+    )
 
 
 # The event log is How it works' "Event log" tab.

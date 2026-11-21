@@ -2142,8 +2142,9 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     """A generated link hint completes the navigation step it names.
 
     A fragment lands focus on its target, so the user does not remain at the place they
-    left. An external link keeps its new-tab behavior and names that context change even
-    though the sequence activates the link without first moving focus through it."""
+    left. A link its author sends to a new tab opens there and names that context change
+    even though the sequence activates the link without first moving focus through
+    it."""
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={server_model.host_key()}"
     page = open_page(
@@ -2154,7 +2155,8 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
                 f"""
 <h1>Addressed links</h1>
 <p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
-<p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<p><a id="external" href="{destination}" target="_blank" aria-label="Leaf guide"
+  >Open the guide</a>.</p>
 <div style="height: 1600px"></div>
 <h2 id="arrival">Conclusion</h2>
 <p>The internal navigation step ends here.</p>
@@ -2179,9 +2181,11 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
 
 
-def test_an_external_link_says_and_opens_where_it_goes(
+def test_an_external_link_wears_its_mark_and_opens_where_its_author_says(
     browser, serve, other_leaf, one_user
 ):
+    """A link that leaves the page wears the mark after it and keeps the attributes its
+    author wrote, so with no `target` it opens in the page's own tab."""
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={server_model.host_key()}"
     url = serve(
@@ -2202,25 +2206,23 @@ def test_an_external_link_says_and_opens_where_it_goes(
     page = open_page(browser, url, context=one_user)
     external = page.locator("#external")
 
-    expect(external).to_have_attribute("target", "_blank")
-    expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+    expect(external).not_to_have_attribute("target", re.compile(".*"))
     expect(external).to_have_accessible_name("other leaf documentation")
-    expect(external).to_have_accessible_description("curated source opens in a new tab")
-    # The treatment stands inside the link, so the paragraph ends where it was written.
+    expect(external).to_have_accessible_description("curated source")
+    # The mark stands inside the link, so the paragraph ends where it was written: an
+    # empty inline box whose padding the icon fills (surfaces.css).
     expect(page.locator("#external ~ *")).to_have_count(0)
     expect(external).to_have_attribute("data-lf-external", "")
     mark = external.evaluate("""link => {
       const style = getComputedStyle(link, '::after');
-      return {display: style.display, width: parseFloat(style.width), mask: style.maskImage};
+      return {display: style.display, room: parseFloat(style.paddingInlineStart),
+        mask: style.maskImage};
     }""")
-    assert mark["display"] == "inline-block"
-    assert mark["width"] > 0
+    assert mark["display"] == "inline"
+    assert mark["room"] > 0
     assert "data:image/svg+xml" in mark["mask"]
     expect(page.locator("#fragment")).not_to_have_attribute("data-lf-external", "")
-    expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
     expect(page.locator("#svg-external")).not_to_have_attribute("data-lf-external", "")
-    expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
-    tab = opened_tab(page, destination, external.click)
-    expect(tab).to_have_url(f"{other_url}/")
-    expect(page).to_have_url(url.split("?", 1)[0])
+    external.click()
+    expect(page).to_have_url(f"{other_url}/")

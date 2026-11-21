@@ -582,6 +582,12 @@ holds the measurement.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--lf-raise-1` to `--lf-raise-3` (`styles/tokens.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
+- **Words share a baseline by layout alone.** A row whose words must stand on one
+  baseline aligns its items by baseline or sets the words in one face. A row that
+  centres words of two sizes leaves their baselines apart by a fraction of the
+  difference in their sizes. The user chose to leave that gap rather than close it
+  with a strut, a line box shorter than its words or an offset, since each needs rules
+  of its own around it and stays right only while a check measures baselines.
 
 ### The browser answers first
 

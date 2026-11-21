@@ -538,11 +538,12 @@ const BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
 /** @param {Element} el */
 const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // What no label can speak through, however it is marked: an inline script, the
-// stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
+// stylesheet a rendered diagram carries inside its <svg>, a slot the user's decision
+// took off the page, a native field's default-value markup, and the fallback a
+// browser running scripts never draws (<noscript>). Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
 // runtime's.
-const SILENT_TAGS = new Set(["script", "style", "textarea"]);
+const SILENT_TAGS = new Set(["script", "style", "textarea", "noscript"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // Automatic control capture uses authored words, which the file reads too, never

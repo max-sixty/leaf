@@ -2259,7 +2259,8 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
-    """A work-bearing block inside an option does not turn its margin entry into a pick."""
+    """A block holding the agent's work inside an option does not turn its margin entry
+    into a pick."""
     layer = tmp_path / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(
@@ -2274,7 +2275,6 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                         "additionalProperties": False,
                     },
                     "content": "markup",
-                    "work": True,
                 }
             }
         )

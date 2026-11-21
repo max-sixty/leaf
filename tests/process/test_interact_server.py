@@ -533,20 +533,15 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     publish(page_dir)
     # The declaration selects from the current log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
-    # source alone — still opens its samples. What a child may not do is name a
-    # thread it does not have, and the ordinary child-document check says so
-    # about the element that names it.
-    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"unseeded"}')
-    assert status == 200, raw
-    assert (
-        json.loads(fetch(server + json.loads(raw)["url"] + "api/state")[1])["events"]
-        == []
-    )
-    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"practice"}')
-    assert (
-        status == 400
-        and "resolves='aabb0011' names no thread" in json.loads(raw)["error"]
-    )
+    # source alone — still opens its samples, one naming a thread it does not have
+    # among them, which the ordinary child-document check advises on.
+    for template in (b"unseeded", b"practice"):
+        status, raw = fetch(
+            f"{server}/api/samples", data=b'{"template":"' + template + b'"}'
+        )
+        assert status == 200, raw
+        state = fetch(server + json.loads(raw)["url"] + "api/state")[1]
+        assert json.loads(state)["events"] == []
     for identity, text in (
         ("aabb0011", "Selected thread"),
         ("aabb0022", "Outside thread"),

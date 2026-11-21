@@ -556,7 +556,7 @@
      there is more above or below, in place of a scrollbar, whose overlay flashed with
      every line the field scrolled to. The field says which edges words run past
      (text-field.js, `more-above`, `more-below`). */
-  .lf-fp-field .lf-compose-field > leaf-text[data-lf-overflows] {
+  .lf-fp-field .lf-compose-field > leaf-text:state(overflows) {
     --lf-fp-fade-top: 0px;
     --lf-fp-fade-bottom: 0px;
     scrollbar-width: none;
@@ -1294,9 +1294,10 @@
     white-space: nowrap;
   }
   /* Every row keeps the same final column for its copy icon or submenu arrow,
-     so its shortcut ends at the same edge even when that column is empty. Its keys and
-     symbols are no text to share the name's baseline, so it stands centred on the
-     name's first line. */
+     so its shortcut ends at the same edge even when that column is empty. The column
+     stands centred on the name's first line, its value with its keys and symbols, so
+     the smaller value's baseline stands a little above the name's, a gap Leaf
+     leaves (browser/AGENTS.md, "Words share a baseline by layout alone"). */
   .lf-fp-end {
     display: grid;
     grid-template-columns: auto auto 16px;
@@ -1305,16 +1306,8 @@
     gap: 8px;
     min-height: 1lh;
   }
-  /* The value is words, so it keeps the name's first line's baseline: its box is a
-     line of the name's face, from a strut, as the leaf's count's is (above). Centred
-     with the keys on that line, the smaller value stood higher. */
   .lf-fp-end > .lf-fp-value {
     grid-area: 1 / 1;
-    line-height: 0;
-    &::before {
-      content: "\200b" / "";
-      font: var(--lf-font-compact);
-    }
   }
   .lf-fp-end > .lf-binding-sequence {
     grid-area: 1 / 2;

@@ -265,7 +265,6 @@ class _Native:
             Finding(
                 "watch-limit",
                 values={"limit": limit, "roots": [str(path)]},
-                severity="advice",
             )
         )
         return self._schedule(path, recursive, polling=True)

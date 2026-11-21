@@ -148,17 +148,18 @@ def _launch(read, engine):
 
 @dataclass(frozen=True, slots=True)
 class BrowserCheck:
-    """What the browser gates read of the candidate: `gates` names those asked for;
-    `unavailable` says why no browser ran them, or is None where `browser` did. Page
-    code that fails ends the check before the render reading, so `render` is None
-    there as well as where it was not asked for, and `ran` names only the gates that
-    read the page. `screens` is the directory and each
-    saved screen with what it shows, including when the render gate found failures.
-    `desktop` is the window the render check reads the desktop at, where it was asked for."""
+    """What the browser gates read of the candidate: `gates` names those asked for,
+    and `browser` the browser that ran them. Where none could, each gate's reading is
+    the one finding that says why (`no-browser`), so a host with no browser reads as
+    one whose browser crashed (`findings.Finding.unread`). Page code that fails ends
+    the check before the render reading, so `render` is None there as well as where
+    it was not asked for, and `ran` names only the gates that read the page.
+    `screens` is the directory and each saved screen with what it shows, including
+    when the render gate found failures. `desktop` is the window the render check
+    reads the desktop at, where it was asked for."""
 
     gates: list[str]
     browser: str | None = None
-    unavailable: str | None = None
     page_code: list[Finding] | None = None
     render: RenderReading | None = None
     screens: tuple[Path, list[tuple[Path, str]]] | None = None
@@ -166,27 +167,35 @@ class BrowserCheck:
 
     @property
     def status(self) -> int:
-        failed = (self.page_code or []) + (self.render.failures if self.render else [])
-        return 1 if failed else 0
+        return 1 if any(f.refuses for f in self.findings()) else 0
 
     def findings(self) -> list[Finding]:
-        return [*(self.page_code or []), *(self.render.findings if self.render else [])]
+        # A browser none could launch is each gate's reading, and said once.
+        return list(
+            dict.fromkeys(
+                [
+                    *(self.page_code or []),
+                    *(self.render.findings if self.render else []),
+                ]
+            )
+        )
 
     @property
     def ran(self) -> list[str]:
+        """The gates that read the page: each that ran, less one whose browser could
+        not read it (`findings.Finding.unread`), which is as unread as a gate no
+        browser ran."""
         return [
             gate
-            for gate, reading in (
+            for gate, found in (
                 ("page code", self.page_code),
-                ("render check", self.render),
+                ("render check", self.render.findings if self.render else None),
             )
-            if reading is not None
+            if found is not None and not any(f.unread for f in found)
         ]
 
     def json(self) -> dict:
         reading = {"asked": self.gates, "ran": self.ran, "browser": self.browser}
-        if self.unavailable is not None:
-            reading["unavailable"] = self.unavailable
         if self.render is not None:
             assert self.desktop is not None
             reading["desktop"] = self.desktop.json()
@@ -255,28 +264,33 @@ def browser_check(
                 lambda browser: read(browser, url), user_engine(page_dir)
             )
         except NoBrowser as error:
-            return BrowserCheck(gates, unavailable=str(error), desktop=desktop)
-    return BrowserCheck(
-        gates, browser_name, None, errors, reading, saved, desktop=desktop
-    )
+            missed = [Finding("no-browser", values={"error": str(error)})]
+            return BrowserCheck(
+                gates,
+                page_code=missed if page_code else None,
+                render=RenderReading(missed, []) if render else None,
+                desktop=desktop,
+            )
+    return BrowserCheck(gates, browser_name, errors, reading, saved, desktop=desktop)
 
 
 def message_check(page_dir: Path, kind: str, markup: str) -> None:
     """Run a message's markup once, as a page of its own (`page_code.message_page`),
     where it places a widget only a browser can judge, and refuse it on every error
-    that run reports, as plain `page check` refuses a page. Takes the page's current
+    that run reports, as plain `page check` fails a page. Takes the page's current
     layer, the one the thread will draw the message with. Where the host has no
-    browser the message posts unrun, and reports any failure when its thread draws."""
+    browser, or the browser fails before it reads the message, the message posts
+    unrun, and reports any failure when its thread draws."""
     from leaf.files import latest_revision
-    from leaf.findings import Rejected
+    from leaf.findings import Rejected, note
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import ArtifactError, capture_artifact
     from leaf.structure import SourceDocument
-    from leaf.validation.markup import structure_errors
+    from leaf.validation.markup import repair_errors
 
     from .page_code import message_page, places_judged_widget
 
-    if structure_errors(SourceDocument(markup, fragment=True)):
+    if repair_errors(SourceDocument(markup, fragment=True)):
         # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
         # with the paragraph Markdown drew around it, is the markup gate's to
         # refuse, showing the HTML Markdown drew, where a run would report only
@@ -305,38 +319,45 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
         page_dir, document, revision, url="/", artifact=artifact
     )
     ran = browser_check(page_dir, snapshot, page_code=True, render=False)
+    # What explains a failure without deciding one, such as a request that failed,
+    # and a run the browser couldn't finish, which posts the message as a host with
+    # no browser does, go beside the result.
+    note(*(f for f in ran.findings() if not f.refuses))
     if ran.status:
-        raise Rejected(ran.findings(), f"the HTML in the {kind} doesn't draw")
+        raise Rejected(
+            [f for f in ran.findings() if f.refuses],
+            f"the HTML in the {kind} doesn't draw",
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class WidgetQuality:
     """What `package check --render` read of the package's `widgets`: its findings
-    and the browser that drew the worked examples, or why no browser could. A finding
-    is advice for the widgets' author, apart from invalid output contracts and examples
-    that could not be drawn (`unreadable-examples`), which fail the check."""
+    and the browser that drew the worked examples. A finding is advice for the
+    widgets' author, apart from invalid output contracts and examples the page could
+    not draw (`unreadable-examples`), which fail the check, and a browser that couldn't
+    read them (`findings.Finding.unread`), which leaves the gate unrun."""
 
     widgets: int
     browser: str | None = None
-    unavailable: str | None = None
     findings: tuple[Finding, ...] = ()
 
     @property
     def status(self) -> int:
-        return 1 if any(f.severity == "error" for f in self.findings) else 0
+        return 1 if any(f.refuses for f in self.findings) else 0
 
     def json(self) -> dict:
         """The browser reading, in the shape `BrowserCheck.json` gives it."""
-        ran = [] if self.unavailable is not None else ["widget quality"]
-        reading = {"asked": ["widget quality"], "ran": ran, "browser": self.browser}
-        if self.unavailable is not None:
-            reading["unavailable"] = self.unavailable
-        return reading
+        unread = any(f.unread for f in self.findings)
+        ran = [] if unread else ["widget quality"]
+        return {"asked": ["widget quality"], "ran": ran, "browser": self.browser}
 
 
 def widget_quality(package: Path) -> WidgetQuality:
     """Read the widget quality checks (`widget_quality`) of the package's own
     widgets in the host's browser."""
+    from playwright.sync_api import Error as PlaywrightError
+
     from .widget_quality import UnreadablePage, own_tags, widget_findings
 
     def read(browser):
@@ -344,10 +365,14 @@ def widget_quality(package: Path) -> WidgetQuality:
             return widget_findings(browser, package)
         except UnreadablePage as error:
             return [Finding("unreadable-examples", values={"error": str(error)})]
+        except PlaywrightError as error:
+            return [Finding("browser-error", values={"error": str(error).strip()})]
 
     widgets = len(own_tags(package))
     try:
         findings, browser_name = run_in_browser(read)
     except NoBrowser as error:
-        return WidgetQuality(widgets, unavailable=str(error))
+        return WidgetQuality(
+            widgets, findings=(Finding("no-browser", values={"error": str(error)}),)
+        )
     return WidgetQuality(widgets, browser_name, findings=tuple(findings))

@@ -40,14 +40,11 @@ import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
-import { chromeRoot } from "./chrome.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
 
-/** @typedef {Document | DocumentFragment | Element} Scope
- * @typedef {{target: string | null, rel: string | null, "aria-describedby": string | null}} LinkAttributes
- * @typedef {{baseline: LinkAttributes, painted: LinkAttributes | null, markId: string | null, addedNoopener: boolean}} ExternalLinkState */
+/** @typedef {Document | DocumentFragment | Element} Scope */
 /** @type {Set<string>} */
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -109,141 +106,20 @@ export function watchQuietWords() {
   });
 }
 
-// Parser paint and later arrivals share one treatment and its per-link ownership.
-// Prepaint seats the mark before authored prose first paints; this watch carries the
-// same owner through revisions, generated content and declared shadow stages.
-/** @type {(keyof LinkAttributes)[]} */
-const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
-/** @type {WeakMap<Element, ExternalLinkState>} */
-const externalLinkState = new WeakMap();
-let externalDescriptionSequence = 0;
-/** @type {WeakMap<Node, HTMLSpanElement>} */
-const externalDescriptions = new WeakMap();
+// The mark after a link that leaves the page (prepaint.js, `markExternalLink`).
+// Prepaint seats it before authored prose first paints; this watch carries it through
+// revisions, generated content and declared shadow stages.
 /** @param {string | null} href */
 export const opensElsewhere = (href) => window.lfLinks.opensElsewhere(href);
-/** @param {Element} link */
-export const isExternalPageLink = (link) =>
-  link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
-/** @param {HTMLAnchorElement} link */
-function externalDescription(link) {
-  const root = link.getRootNode();
-  let description = externalDescriptions.get(root);
-  if (!description) {
-    description = generatedElement(document.createElement("span"), { says: false });
-    description.id = `lf-external-description-${++externalDescriptionSequence}`;
-    description.hidden = true;
-    description.dataset.lfRuntime = "";
-    description.textContent = "opens in a new tab";
-    externalDescriptions.set(root, description);
-  }
-  // In the document it waits in the chrome, since `body`'s children are the page's
-  // own (passages.js, pageDocument).
-  const holder = root instanceof Document ? chromeRoot : root;
-  if (description.parentNode !== holder) move(holder, description);
-  return description.id;
-}
-// The text field draws the same mark after a link it shows (composing/text-field.js).
-/** @param {Element} link @returns {LinkAttributes} */
-const linkAttributes = (link) => ({
-  target: link.getAttribute("target"),
-  rel: link.getAttribute("rel"),
-  "aria-describedby": link.getAttribute("aria-describedby"),
-});
-/** @param {string | null} value */
-const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
-/** @param {string | null} value @param {string} token */
-function withToken(value, token, insensitive = false) {
-  const values = tokens(value);
-  const wanted = insensitive ? token.toLowerCase() : token;
-  if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
-    values.push(token);
-  return values.join(" ");
-}
-/** @param {string | null} value @param {string | null} token */
-function withoutToken(value, token, insensitive = false) {
-  if (value === null) return null;
-  const unwanted = insensitive ? token?.toLowerCase() : token;
-  return tokens(value)
-    .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
-    .join(" ");
-}
-/** @param {Element} link @param {LinkAttributes} values */
-function writeLinkAttributes(link, values) {
-  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
-}
-/** @param {Element} link @param {ExternalLinkState} state */
-function rememberExternalLinkChanges(link, state) {
-  if (!state.painted) return;
-  const current = linkAttributes(link);
-  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
-    if (current[name] === state.painted[name]) continue;
-    let value = current[name];
-    if (name === "rel" && state.addedNoopener)
-      value = withoutToken(value, "noopener", true);
-    if (name === "aria-describedby") value = withoutToken(value, state.markId);
-    state.baseline[name] = value;
-  }
-}
-/** @param {Element} link @param {ExternalLinkState} state */
-function clearExternalLink(link, state) {
-  rememberExternalLinkChanges(link, state);
-  writeLinkAttributes(link, state.baseline);
-  link.removeAttribute(PAGE_PAINT_ATTRIBUTE.external);
-  externalLinkState.delete(link);
-}
-/** @param {Element} link */
-function leaveExternalLink(link) {
-  const state = externalLinkState.get(link);
-  if (state) clearExternalLink(link, state);
-}
-/** @param {Element} link */
-function renderExternalLink(link) {
-  // SVG links share this selector but not the HTML anchor API, and they have no
-  // dependable inline box in which an HTML text mark could stand.
-  if (!(link instanceof HTMLAnchorElement)) return;
-  window.lfLinks.markExternalLink(link);
-  if (!isExternalPageLink(link)) {
-    leaveExternalLink(link);
-    return;
-  }
-  let state = externalLinkState.get(link);
-  if (!state) {
-    state = {
-      baseline: linkAttributes(link),
-      painted: null,
-      markId: null,
-      addedNoopener: false,
-    };
-    externalLinkState.set(link, state);
-  } else rememberExternalLinkChanges(link, state);
-  state.markId = externalDescription(link);
-  state.addedNoopener = !tokens(state.baseline.rel).some(
-    (value) => value.toLowerCase() === "noopener",
-  );
-  // Another owner may describe the link through element references, which empty the
-  // attribute, as a focus preview does (preview.js); while those hold the mark's
-  // description, the link already says it opens elsewhere, so the references stay.
-  const described = link.ariaDescribedByElements?.includes(
-    /** @type {Element} */ (externalDescriptions.get(link.getRootNode())),
-  );
-  writeLinkAttributes(link, {
-    target: "_blank",
-    rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": described
-      ? link.getAttribute("aria-describedby")
-      : withToken(state.baseline["aria-describedby"], state.markId),
-  });
-  state.painted = linkAttributes(link);
-}
 
 export function watchNativeContent() {
   const { keepDisclosure, finishEarlyContent } = window.lfStorage;
-  watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+  watchArrivals("a, details", ["href"], {
     arrive: (element) => {
       if (element instanceof HTMLDetailsElement) keepDisclosure(element);
-      else renderExternalLink(element);
+      else window.lfLinks.markExternalLink(element);
     },
-    leave: leaveExternalLink,
+    leave: (element) => element.removeAttribute(PAGE_PAINT_ATTRIBUTE.external),
   });
   finishEarlyContent();
 }
@@ -254,7 +130,7 @@ export function watchNativeContent() {
 // a page has them exactly when it has a widget layer at all. Written once because it
 // happens twice, over the page at the upgrade and over each root a live revision brings
 // into it, and a near-copy of it would go stale the day the vocabulary grows a third
-// pass. A link's treatment is not among them: it
+// pass. A link's mark is not among them: it
 // is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
 /** @param {Scope} root */
 export function paintDeclaredWords(root) {

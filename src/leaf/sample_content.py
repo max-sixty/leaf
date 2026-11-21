@@ -32,7 +32,7 @@ from .thread_context import (
     thread_names,
     thread_structure,
 )
-from .validation.admission import message_markup_errors
+from .validation.admission import message_markup_findings
 from .validation.markup import text_media_errors
 
 
@@ -150,14 +150,11 @@ def initial_sample_events(
     for seq, command in enumerate(commands, 1):
         try:
             event = deepcopy(command)
-            if "publication" in event:
-                raise _refused("fixture-publication", reference, event=seq)
+            # The door refuses an unknown kind and a publication in its own words
+            # (`command_error`, `fixture-event`); the defaults below need the kind.
             kind = event.get("kind")
-            if not isinstance(kind, str) or kind not in kinds:
-                raise _refused(
-                    "fixture-kind", reference, event=seq, kinds=sorted(kinds)
-                )
-            spec = kinds[kind]["record"]
+            known = isinstance(kind, str) and kind in kinds
+            spec = kinds[kind]["record"] if known else {"properties": {}}
             event.setdefault("id", f"{seq:08x}")
             event.setdefault("ts", constructed_at)
             event.setdefault("author", "user")
@@ -200,7 +197,7 @@ def initial_sample_events(
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )
-                if errors := message_markup_errors(
+                found = message_markup_findings(
                     page_dir,
                     fragment,
                     events,
@@ -215,7 +212,8 @@ def initial_sample_events(
                         event.get("parent", event.get("message"))
                     ),
                     replacing=event.get("message"),
-                ):
+                )
+                if errors := [f for f in found if f.refuses]:
                     raise _refused(
                         "fixture-markup",
                         reference,

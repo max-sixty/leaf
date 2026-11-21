@@ -705,21 +705,30 @@ button.lf-inline-action,
 summary {
   align-content: center;
 }
-/* --lf-entry-floor under every field, beside --lf-aim-floor under every aim. iOS Safari zooms
-   the page onto a text field set under 16px as the field takes focus, and leaves the page
+/* --lf-entry-floor under each of Leaf's own fields: its composers (`leaf-text`), and
+   every field in its chrome or offered by a widget (`.lf-ui`). iOS Safari zooms the
+   page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
    panning sideways across a page wider than the screen. The zoom answers the field's
-   computed size, so the floor outranks every face a field is given — the layer's own
-   13px find box and 14px response field among them — and 1em keeps a field no smaller
-   than the type around it. The query gates the rule rather than leaving it to the token,
-   because at a zero floor the rule would still pull every field to its surroundings.
-   A radio or checkbox takes no typing, so iOS doesn't zoom onto it, and its mark keeps
-   the size of its label's type (controls.css, `.lf-choice`). */
+   computed size, so the floor outranks every face Leaf gives a field — its 13px find
+   box and 14px response field among them — and 1em keeps a field no smaller than the
+   type around it. A field the page wrote takes the floor only from the default face
+   (control-face.css), so the size its author gives it stands. The query gates the rule
+   rather than leaving it to the token, because at a zero floor the rule would still
+   pull each field to its surroundings. A radio or checkbox takes no typing, so iOS
+   doesn't zoom onto it, and its mark keeps the size of its label's type (controls.css,
+   `.lf-choice`). */
 @media (pointer: coarse) {
-  input:not([type="radio"], [type="checkbox"]),
-  textarea,
   leaf-text,
-  select {
+  .lf-chrome input:not([type="radio"], [type="checkbox"]),
+  .lf-chrome textarea,
+  .lf-chrome select,
+  .lf-ui input:not([type="radio"], [type="checkbox"]),
+  .lf-ui textarea,
+  .lf-ui select,
+  input.lf-ui:not([type="radio"], [type="checkbox"]),
+  textarea.lf-ui,
+  select.lf-ui {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }
@@ -977,36 +986,21 @@ summary {
   white-space: nowrap;
 }
 /* A long name is cut at 40% of its head, which leaves its time and receipt room, and a
-   short one stands whole in a narrow head up to 5em.
-
-   Every word on a head's line stands on one baseline. The head centres each of its
-   boxes separately. The time, a receipt and a notice of news are each a line in the
-   head's face, but the name is set larger, and larger text centred on its own line
-   sits with its baseline lower, here by about a pixel. So the name's box takes its
-   line from a strut, a zero-width character in the head's face, rather than from the
-   name's own face (`line-height: 0`), and the name stands on the strut's baseline.
-   Each engine places a baseline alike in boxes of the same line and face, so the
-   name's meets the others' exactly. The strut opens only the first line, so the name
-   keeps to one line. Its box clips only sideways, since its line is shorter than the
-   name's face and clipping it would cut accents.
-
-   Rejected: aligning the head's boxes by baseline, which puts the words at the top of
-   the head, taller than their line, rather than centred on it; and a strut in the
-   metadata on the name's line, which left the notice of news, centred beside the
-   head, a pixel or more above the rest. */
+   short one stands whole in a narrow head up to 5em. The head centres each of its
+   boxes on its line, so the name, set larger than the time beside it, stands its
+   baseline a little lower than the time's, a gap Leaf leaves (browser/AGENTS.md,
+   "Words share a baseline by layout alone"). Rejected: aligning the head's boxes by
+   baseline. Alone, it stands the words at the top of the head, which is taller than
+   their line; with `flex-wrap: wrap` and `align-content: center` it keeps them
+   centred, but a narrow head then wraps its time below the name. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
   max-inline-size: max(40%, 5em);
   min-width: 0;
-  overflow: clip visible;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: var(--lf-font-name);
-  line-height: 0;
   color: var(--lf-ink);
-  &::before {
-    content: "\200b" / "";
-    font: var(--lf-font-small);
-  }
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
@@ -1167,13 +1161,12 @@ summary {
   }
 }
 /* Held news and header words spend separate retained allocations. A receipt may
-   change inside its metadata box, but cannot grow underneath the notice. The box
-   clips only sideways, so a name's accents above its line still show (above). */
+   change inside its metadata box, but cannot grow underneath the notice. */
 .lf-msg-head > .lf-held-header-item {
   flex: 0 0 var(--lf-held-header-width);
   max-inline-size: var(--lf-held-header-width);
   box-sizing: border-box;
-  overflow: clip visible;
+  overflow: hidden;
 }
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;

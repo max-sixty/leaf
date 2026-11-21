@@ -811,17 +811,6 @@
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
   //
-  // What this cannot see, said out loud so a green is not read as more than it is. A
-  // joined `lf-options` carrying log news — restated, pending, reported — deliberately
-  // stands its ring down, because an element takes one outline and the log has claimed it;
-  // the layer's own comment (packages/default/defaults.css) names the carriers that stand in
-  // its place as the washed cell and the key badges, and neither is an outline nor an
-  // accent shadow. That is a fifth way of drawing "here" and this reading has no honest
-  // test for it: accepting a background would pass every stop on a tinted page. No corpus
-  // example reaches the state — none carries `restated`, the one shipped log carries no
-  // report, and the samples make no gesture — so nothing here is being excused today. A
-  // reading of the wash has to come with the corpus case that shows it.
-  //
   // A marked element answers the keyboard with the same accent ring as any other
   // focusable passage. Its hover and current-thread contours are written out rather
   // than drawn with the ring's token, so they cannot be mistaken for focus.

@@ -9,8 +9,8 @@
    moves on from it. The let-go lands on what they see, so it moves nothing, and they
    are not beside what they let go of, so no walk comes back to it (current-target.js,
    `walkOrigin`). It is not Escape's release: a card open beside what they left stays
-   open where it rides. Chromium still applies a radio's, slider's or select's own arrows
-   at the control the key was aimed at, wherever focus has gone
+   open where it rides. Chromium and WebKit still apply a radio's, slider's or select's
+   own arrows at the control the key was aimed at, wherever focus has gone
    (notes/browser-support.md), so those are withheld, and that arrow scrolls nothing. The
    key stops at the document once it lets go, so no listener on the control or a widget
    around it hears it, and a page's own listener on the document or window hears it only

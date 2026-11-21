@@ -3527,9 +3527,7 @@ def test_a_table_held_open_by_a_cell_s_kept_spaces_is_reported_squeezed(
                 "(table) => table.scrollWidth - table.clientWidth <= 1"
             )
             reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
-            squeezed = {
-                f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
-            }
+            squeezed = {f["at"]: Finding.read(f) for f in reading["squeezed"]}
             assert {at: f.code for at, f in squeezed.items()} == {
                 "<table id=spaced>": "squeezed-table",
             }, reading["squeezed"]

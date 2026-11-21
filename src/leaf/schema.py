@@ -46,10 +46,6 @@ WIDGET_NAME_RULE = (
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
-# An id the log mints for an event. Page ids and event ids are one address space:
-# a command's ID is a widget or a message, whichever the page holds, so an authored
-# id may not take this shape (`validation.markup.id_errors`).
-EVENT_ID = r"[0-9a-f]{8}"
 # The record forms one vocabulary of declared state draws on ($verbs in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -383,7 +379,6 @@ FACTS: dict[str, dict] = {
         "required": ["reference", "value"],
         "additionalProperties": False,
     },
-    "work": {"const": True},
     "history": {"const": True},
     "owners": _TAGS,
     "unique": {

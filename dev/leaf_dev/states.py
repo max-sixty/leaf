@@ -261,15 +261,17 @@ def paste_screenshot(page: Page, field: Locator) -> None:
     """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         # This exercises the paste handler and shelf; keep its payload local to the
-        # tab so captures cannot overwrite or race the machine's clipboard.
+        # tab so captures cannot overwrite or race the machine's clipboard. Firefox
+        # drops a constructed ClipboardEvent's `clipboardData`, so the event carries
+        # the transfer as an own property, which every engine reads.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
           const transfer = new DataTransfer();
           transfer.items.add(new File([image], 'pasted.png', {type: 'image/png'}));
-          field.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
+          const paste = new Event('paste', {bubbles: true, cancelable: true});
+          Object.defineProperty(paste, 'clipboardData', {value: transfer});
+          field.dispatchEvent(paste);
         }""")
     expect(
         page.get_by_role("button", name="Remove attached image 1", exact=True)
@@ -290,6 +292,16 @@ def page_comment_photo(page: Page) -> None:
     field = page.locator(".lf-fp-field leaf-text")
     field.click()
     page.keyboard.insert_text("Is this screenshot right?")
+    paste_screenshot(page, field)
+
+
+def thread_reply_photo(page: Page) -> None:
+    """An open thread in the floating panel with a screenshot pasted into its reply,
+    standing in the band the panel opens between the thread and the box."""
+    floating_thread(page)
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Here is what I see")
     paste_screenshot(page, field)
 
 
@@ -3202,6 +3214,7 @@ STATES = (
         "feature-gallery",
         page_comment_photo_hover,
     ),
+    State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State(
         "share-link",

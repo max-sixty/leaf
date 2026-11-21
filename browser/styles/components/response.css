@@ -366,11 +366,10 @@ leaf-composition-field {
    flow takes that padding back with its margins, so its pictures keep the field's edge;
    a shelf a surface places takes it back with its offsets. A picture lies at
    --lf-raise-1, whose shadow reaches its drop and blur below it. A picture stands up to
-   120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its content,
-   which 56px was not. Pictures of different heights meet the field's side of the
-   shelf, which is its foot wherever it stands above the field; a surface that hangs
-   its shelf below the field aligns them to its top. A surface whose ground is not
-   the paper sets the ground and ring its pictures meet it with. */
+   `--lf-media-h` tall (tokens.css). Pictures of different heights meet the field's
+   side of the shelf, which is its foot wherever it stands above the field; a surface
+   that hangs its shelf below the field aligns them to its top. A surface whose ground
+   is not the paper sets the ground and ring its pictures meet it with. */
 /* How far a picture's corner marks stand out past it, in a draft's shelf and on a
    rewrite's pictures alike. */
 .lf-composer-media,
@@ -384,12 +383,9 @@ leaf-composition-field {
       var(--lf-media-mark-overhang) + (var(--lf-aim-floor) - var(--lf-mark-size)) / 2
     )
   );
-  --lf-media-h: 120px;
-  /* How far the pictures stand clear of the edge they meet as it is drawn, wherever a
-     surface places the shelf: the floating panel's edge, or a field's, where the ring
-     the field wears on its edge (base.css) stands outside its box, so a surface that
-     places its shelf by a field adds `--lf-focus-ring-w`. */
-  --lf-media-gap: 8px;
+  /* A surface that places its shelf by a field rather than by its own edge adds
+     `--lf-focus-ring-w` to `--lf-media-gap` (tokens.css), since the ring the field
+     wears on its edge (base.css) stands outside its box. */
   display: flex;
   align-items: flex-end;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));

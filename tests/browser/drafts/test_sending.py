@@ -220,10 +220,10 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
                 "final": True,
             },
         )
-    # The words went back to a box out of view, so the refusal says where they are.
+    # The words went back to a box out of view, so the refusal says they are kept.
     expect_panel_says(
         page,
-        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept",
     )
 
     # Their passage still holds their draft, so opening it again finds the words.
@@ -450,7 +450,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     assert stored_draft_text(page, "general") == later
     expect_error_waits_in_menu(
         page,
-        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept",
     )
     consume_browser_errors(page, http_error_console(400))
 

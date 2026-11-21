@@ -149,7 +149,7 @@
  * asked for as a margin card's reply box shows it, and beside Comment at rest, which
  * they chose to match the box that rests beside a target (composing/surface.js,
  * `restFab`); and a passing press's key, such as Next thread's `t` or Next On Me's `m`
- * (`noticePress`). The menu's rows carry every other key and `?` opens the full
+ * (notifications.js, `pressReading`). The menu's rows carry every other key and `?` opens the full
  * reference, which the user chose over a hint or two in the line over the field, to
  * keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
@@ -307,6 +307,7 @@ import {
   gestureReading,
   noticeReading,
   noticeWords,
+  pressReading,
 } from "./notifications.js";
 import {
   dismissError,
@@ -368,9 +369,8 @@ import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { byRenderedOrder, renderedUnder, under } from "./shadow-tree.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
-import { commandSteps } from "./keyboard/control-keys.js";
+import { commandKeysNow, commandSteps } from "./keyboard/control-keys.js";
 import {
-  activeCommandLabel,
   escapeInvocation,
   innermostStance,
   pressCommand,
@@ -416,8 +416,8 @@ const leafMarks = (onUser, news, kept) =>
 // The page's field's name where no selection is offered, which the field the document
 // serves wears too (`panelTemplate`, `initial`).
 const PAGE_FIELD_NAME = "Comment on the page";
-// The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
-// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
+// The field's end at rest while On Me lists anything (`pagePress`): the walk's route `m`
+// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pagePress`
 // decides when it stands.
 /** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
 /** @type {FieldPress} */
@@ -443,7 +443,6 @@ const FOLD = "panel.floating.fold";
 // Versions, a destination of the Go-to sequence, whose keys Open latest wears before
 // Versions' own key for the latest (`latestPress`).
 const VERSIONS = "version.open";
-const GO_TO_OPEN = "navigation.go-to.open";
 // A thread's row in Threads, which names the thread by its key.
 const THREAD_ROW = ".lf-fp-thread[data-lf-key]";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
@@ -476,15 +475,16 @@ const NO_STANDING = new Set();
 // position for a notice's moment after each step (notifications.js, `answerStep`), in
 // the words the screen lacks (walk-position.js, `walkWords`). `says` is what the
 // surface's own words say of where the user stands: the page field's say each fact
-// `standing` does (`STANDING`), so a notice about one of them is left to those words and
-// a walk over its list says its place alone; the folded leaf's peek and a thread's field
-// say none.
+// `standing` does (`STANDING`), so a notice about one of them is left to those words,
+// unless it offers a press, which those words don't, and a walk over its list says its
+// place alone; the folded leaf's peek and a thread's field say none.
 /** @param {ReadonlySet<string>} says */
 function passingFacts(says) {
   const notice = noticeReading();
   const { goTo, walk } = statusContextReading();
+  const said = notice.about !== null && !notice.press && says.has(notice.about);
   return {
-    notice: notice.visible && !(notice.about && says.has(notice.about)) ? notice : null,
+    notice: notice.visible && !said ? notice : null,
     goTo,
     step: walk && answeringStep() ? walkWords(walk, says) : null,
   };
@@ -996,9 +996,12 @@ export function createFloatingPanel({
   host.addEventListener("pointerleave", () => {
     pointer = null;
     readCorner();
-    // A press offered while the pointer stood on the panel stands once it leaves
-    // (`pagePress`).
-    if (shownOffer !== pageOffer()) paint();
+    // What a field's end held while the pointer stood on the panel takes its change
+    // once it leaves (`steady`).
+    if (steadied) {
+      steadied = false;
+      paint();
+    }
   });
   const leaf = shell("leaf");
   const field = shell("field");
@@ -1218,7 +1221,8 @@ export function createFloatingPanel({
       selected: page && selectedWords ? excerptWords(selectedWords.quote, 60) : null,
       notice: notice && {
         message: notice.message,
-        press: notice.press ? noticePress(notice.press) : null,
+        press: notice.press ? pressReading(notice.press) : null,
+        holds: notice.holds,
       },
       goTo,
       step,
@@ -1306,25 +1310,37 @@ export function createFloatingPanel({
   }
   // The page's own press at the field's end: Open latest while the page shows an older
   // version (`latestPress`), else Next On Me while On Me lists anything, or null, where
-  // Comment and c stand (`pageOffer`). It comes and goes with the server's reading
-  // rather than with the user's input, so while the pointer rests on the panel the
-  // field's end keeps what it showed, and takes the change at the user's next input or
-  // once the pointer leaves: a press arriving there would stand where the user was
-  // about to press another (browser/AGENTS.md, "The page holds still under the user's
-  // aim").
-  /** @returns {FieldPress | "latest" | null} */
-  const pageOffer = () =>
-    latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
-  /** @type {ReturnType<typeof pageOffer>} */
-  let shownOffer = null;
-  let offerShownAt = -1;
-  function pagePress() {
-    if (pointer === null || inputCount() !== offerShownAt) {
-      shownOffer = pageOffer();
-      offerShownAt = inputCount();
-    }
-    if (shownOffer === "latest") return latestPress();
-    return shownOffer ? noticePress(shownOffer) : null;
+  // Comment and c stand.
+  const pagePress = () =>
+    latestPress() ?? (onUserCount() ? pressReading(NEXT_ON_ME) : null);
+  // The press at a field's end comes and goes without the user's input too: the page's
+  // own with the server's reading (`pagePress`), and a notice's as its moment passes.
+  // So while the pointer rests on the panel each field's end keeps what it showed, and
+  // takes the change at the user's next input or once the pointer leaves: a press
+  // arriving or passing there would put another, or none, where the user was about to
+  // press (browser/AGENTS.md, "The page holds still under the user's aim"). A notice's
+  // press appears with its notice, whose words beside it say why it is there. That
+  // includes the notice of the user's own gesture, which can arrive after a paint the
+  // same gesture caused, so no input separates the two. A press kept past its notice
+  // goes once it can no longer act (`stands`), as a refused Resolve takes Next thread
+  // away with the user back on the thread.
+  let steadied = false;
+  /** @param {() => string | import("./composing/input.js").BoxPress | null} read */
+  function steady(read) {
+    /** @type {string | import("./composing/input.js").BoxPress | null} */
+    let shown = null;
+    let at = -1;
+    return () => {
+      const now = read();
+      const { visible, press } = noticeReading();
+      const acts = typeof shown !== "object" || (shown?.stands?.() ?? true);
+      if (pointer !== null && inputCount() === at && !(visible && press) && acts) {
+        steadied = true;
+        return shown;
+      }
+      at = inputCount();
+      return (shown = now);
+    };
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
@@ -1424,8 +1440,9 @@ export function createFloatingPanel({
     const sync = wireInput(input, {
       hint: () => saying(null, input),
       hintParts: () => fieldHint(null, input),
-      // The one press the moment offers at the field's end (field-readings.js, `end`).
-      enters: () => fieldReading(null, input).end,
+      // The one press the moment offers at the field's end (field-readings.js, `end`),
+      // still under a resting pointer (`steady`).
+      enters: steady(() => fieldReading(null, input).end),
       // While a stance stands the field takes no words (field-readings.js, `still`).
       closed: stanceHolds,
       // Named for what a press there does, as the field's reading says it, once the
@@ -1513,8 +1530,8 @@ export function createFloatingPanel({
           hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
           hintLead: (drawn) => turnLead(key, replyInput(), drawn),
           // A notice passing over the thread's field offers its press at the field's
-          // end, as over the page's (field-readings.js, `end`).
-          enters: () => fieldReading(key, replyInput()).end,
+          // end, as over the page's (field-readings.js, `end`; `steady`).
+          enters: steady(() => fieldReading(key, replyInput()).end),
           closed: stanceHolds,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
@@ -5132,39 +5149,11 @@ export function createFloatingPanel({
   }
 
   // ---------- the field's presses ----------
-  // A notice's press, or the page's own (`pageOffer`), as the
-  // field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
-  // page command that makes it, as the command reference spells them, and what it does.
-  // The user chose that the right side of the box is for shortcuts,
-  // so a notice's press stands there with its key, in the face Comment and c wear, over
-  // the notice's own line with an inked Undo over the field's start, the one press in
-  // the row in a face of its own.
-  /** @param {FieldPress} press
-   * @returns {import("./composing/input.js").BoxPress} */
-  function noticePress(press) {
-    return {
-      word: actionName(press.action),
-      // Read at each ask, so a box standing this press rechecks its key without
-      // reading the field's words again (composing/input.js, `pressing`).
-      get keys() {
-        return keysNow(press.command);
-      },
-      run: press.run,
-    };
-  }
-  // The keys that would make a page command's press now, as the dispatcher reads them:
-  // its own key (`activeCommandLabel`), else, for a destination of the Go-to sequence,
-  // the sequence's steps while `g` would open it, as `g i` makes Resume writing's. None
-  // with the caret in a box, where each is a letter typed (field-readings.js, `end`,
-  // says what the field's end shows then).
-  /** @param {string} id */
-  function keysNow(id) {
-    const key = activeCommandLabel([id]);
-    if (key) return [key];
-    const goTo = activeCommandLabel([GO_TO_OPEN]);
-    const steps = commandSteps(id);
-    return goTo && steps[0] === goTo ? steps : [];
-  }
+  // A notice's press, or the page's own (`pagePress`), stands at the field's end as
+  // notifications.js reads it (`pressReading`). The user chose that the right side of
+  // the box is for shortcuts, so a notice's press stands there with its key, in the
+  // face Comment and c wear, over the notice's own line with an inked Undo over the
+  // field's start, the one press in the row in a face of its own.
   // The way out of the stance the user is in, as the field's end offers it while the
   // stance stands, on the page and in a thread (field-readings.js, `still`): Close, a
   // press that ends the stance at once, as the ✕ beside its name does
@@ -5183,7 +5172,7 @@ export function createFloatingPanel({
     if (!held || !exit || !advertisesKeys()) return null;
     return {
       word: actionName("close"),
-      // Read at each ask, as a notice's press's key is (`noticePress`).
+      // Read at each ask, as a notice's press's key is (`pressReading`).
       get keys() {
         const escape = escapeInvocation();
         const ends =
@@ -5201,16 +5190,16 @@ export function createFloatingPanel({
   // at the field's end wears, read as a status. Its keys are Versions' `g V` and then
   // Versions' own `l` (`latestRow`), which opens the live page as the press does, where
   // a version's digit there opens that version pinned; they stand only while Versions'
-  // do (`keysNow`). The menu's row that opens the latest offers it too.
+  // do (`commandKeysNow`). The menu's row that opens the latest offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();
     if (latest.shown === null || latest.disabled) return null;
     return {
       word: "Open latest",
-      // Read at each ask, as a notice's press's key is (`noticePress`).
+      // Read at each ask, as a notice's press's key is (`pressReading`).
       get keys() {
-        const versions = keysNow(VERSIONS);
+        const versions = commandKeysNow(VERSIONS);
         return versions.length ? [...versions, labelOf(latestRow)] : [];
       },
       // The press puts nothing away: a revision installed under an open thread hands

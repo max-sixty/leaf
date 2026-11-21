@@ -240,8 +240,9 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
 
 def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     """Leaving says which revision the user saw. Coming back after the agent revised
-    says how much changed since the version they last saw and marks nothing, and `v`
-    marks those changes, though a newer version stands between."""
+    says how much changed since the version they last saw and marks nothing, offering
+    Show changes with `v` at the field's end, and `v` marks those changes, though a
+    newer version stands between."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -252,8 +253,8 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
-    expect_panel_says(page, "v shows them")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes v")
+    expect_panel_says(page, "2 changes since v1 · Show changes v")
     expect(marked).to_have_count(0)
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
@@ -261,7 +262,28 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     # Once the comparison stands, the news that v would show it goes with it, read
     # once the press has drawn, well before its moment would end.
     rendered(page)
-    assert "v shows them" not in (panel_field(page).get_attribute("placeholder") or "")
+    assert "Show changes" not in (panel_field(page).get_attribute("placeholder") or "")
+
+
+def test_on_a_touchscreen_the_news_names_no_key(browser, serve):
+    """A touchscreen has no `v` to press, so neither the panel's field nor the live
+    region names one: each offers Show changes as its word alone, the finger's route to
+    the changes."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+
+    visibility(page, "visible")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes")
+    expect_panel_says(page, "2 changes since v1 · Show changes")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_text("Show changes")
 
 
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
@@ -282,7 +304,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     wait_for_revision(page, 3)
 
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2 — v shows them")
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2. Show changes v")
     page.keyboard.press("v")
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
@@ -309,7 +331,7 @@ def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serv
     revise(d, DELTA)
     wait_for_revision(page, 3)
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes v")
     assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 

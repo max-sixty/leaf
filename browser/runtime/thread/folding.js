@@ -100,7 +100,7 @@ export async function settleThread({
     : anyOpenThread()
       ? `Resolved ${named}`
       : "All threads resolved";
-  notice(said, { press: nextStep(!resolved, undo.offerUndo(attempt)) });
+  notice(said, { press: nextStep(!resolved, undo.offerUndo(attempt)), holds: true });
   await landGesture({
     land,
     answer,

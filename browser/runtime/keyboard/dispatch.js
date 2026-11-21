@@ -36,9 +36,10 @@
    the ordinary text-entry row to return to the panel, keeping the query. Exact input
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
-   `activeCommandLabel` projects the
-   dispatcher's live result into the destination composition box's placeholder. Each
-   box's `aria-label` remains its shortcut-free accessible name.
+   `activeCommandBinding` gives the dispatcher's live answer for a command, which the
+   keys a surface names beside a press read (control-keys.js, `commandKeysNow`), such as
+   the destination composition box's placeholder. Each box's `aria-label` remains its
+   shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
    It unwinds the state standing in front of the user rather than a history of how they
@@ -96,7 +97,6 @@ import {
   live,
   routedCommand,
   referencedCommandEntry,
-  spell,
   word,
 } from "./bindings.js";
 import {
@@ -605,16 +605,14 @@ function commandMatching(matches, commands = false) {
 }
 /** @param {string} id */
 const commandFor = (id) => commandMatching((command) => command.id === id, true);
-// A contextual surface asks the dispatcher which of its routes to one capability is
-// reachable from the user's current scope, and the box's placeholder names whichever one
-// dispatch would answer. Asked by command id rather than by row, so the surface holds no
-// reference into another scope's declaration. This includes shadowing by native text entry
-// and modes, not only each row's own liveness.
+// Which binding of a capability dispatch would answer from the user's current scope, or
+// null. Asked by command id rather than by row, so the asking surface holds no reference
+// into another scope's declaration. This includes shadowing by native text entry and
+// modes, not only each row's own liveness.
 /** @param {Iterable<string>} ids */
-export function activeCommandLabel(ids) {
+export function activeCommandBinding(ids) {
   const wanted = new Set(ids);
-  const command = commandMatching((entry) => wanted.has(entry.id));
-  return command?.binding != null ? spell(command.binding) : "";
+  return commandMatching((entry) => wanted.has(entry.id))?.binding ?? null;
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
 // intrinsic key and an obligation alias can share a command id while only one is shadowed.

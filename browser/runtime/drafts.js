@@ -627,10 +627,11 @@ const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 // What a box that stops showing the user's words says, once: that they are kept, with
 // Resume writing, the press that brings them back, at the panel field's end, where the
 // user looks for a moment's next press and its key (notifications.js, `press`). A
-// refusal's error, which offers no press, names the key in its words instead
-// (`keepRefusedWords`).
+// refusal's error offers no press, so it says only that the words are kept
+// (`keepRefusedWords`), and Resume writing still reaches them.
 export function noticeDraftKept() {
-  notice("Draft kept", { press: writingPlace && RESUME_WRITING });
+  const press = writingPlace && RESUME_WRITING;
+  notice("Draft kept", { press, holds: press !== null });
 }
 /** @type {import("./notifications.js").NoticePress} */
 const RESUME_WRITING = {
@@ -1133,7 +1134,7 @@ export function giveBackWords(ctx, text, payload, under = null) {
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
 // destination, a content change to that draft like any other, and the refusal's error
-// carries the sentence naming that address (delivery.js). The error is about the box on
+// says they are kept (delivery.js). The error is about the box on
 // screen the sending gesture's words came back to, where there is one (`field`).
 //
 // Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
@@ -1181,7 +1182,7 @@ export function keepRefusedWords(attempts) {
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
-    hidden.length && "Draft kept — g i resumes writing",
+    hidden.length && "Draft kept",
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
   return {

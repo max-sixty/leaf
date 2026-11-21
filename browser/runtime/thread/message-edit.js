@@ -35,7 +35,12 @@
    reloads, and Restore discarded edit (`g D`, a keyboard's convenience as Resume writing
    is, with no row on every page's menu) puts it back in its draft and opens its message on it. Recovery has no
    timer and never replaces words of the rewrite's own, open, sending or newer from
-   another tab. The notice that follows a discard names the key.
+   another tab. The notice that follows a discard offers it as its press, Restore edit
+   (notifications.js, `press`), which the panel field's end shows only while `g D`
+   would make it. Escape lands the caret in the reply box, where `g` types a letter, so
+   the press shows only once the user leaves the box within the notice's moment, and the
+   live region, which hears the notice as it arrives, hears no key. Holding the notice
+   until the next input would not lengthen that: the Escape that leaves the box is one.
    Rejected: a timed Undo chip after the discard, a target the user cannot learn
    (notifications.js), and a row of every page's menu for a pointer or finger, which put
    a command on each page for a mishap of one keyboard gesture (the user's decision).
@@ -117,6 +122,7 @@ import { seenRect } from "../geometry.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
+import { pressCommand } from "../keyboard/dispatch.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -149,6 +155,7 @@ const sending = new Set();
 // settles that draft in every tab and Resume writing goes back where it went before.
 /** @type {{id: string, text: string, over: string} | null} */
 let discarded = null;
+const RESTORE = "message.edit.restore";
 
 // Restore discarded edit: the words go back to the rewrite's draft, and its message
 // opens on them as it does on words a reload kept, the editor raising its warning where
@@ -168,7 +175,7 @@ export function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
       : null;
   };
   return {
-    id: "message.edit.restore",
+    id: RESTORE,
     keys: ["Shift+d"],
     title: "Restore discarded edit",
     touch: "Restore discarded edit",
@@ -461,9 +468,16 @@ export class MessageEditor {
     // Closing as Escape and Discard do, throwing away what changed.
     const close = () => {
       if (unchanged()) return leave(true, { says: "Stopped editing" });
-      discarded = { id, text: whole(), over: base };
+      const thrown = (discarded = { id, text: whole(), over: base });
       leave(true);
-      notice("Edit discarded; g D restores it");
+      notice("Edit discarded", {
+        press: {
+          action: "restore-edit",
+          command: RESTORE,
+          run: () => pressCommand(RESTORE),
+          stands: () => discarded === thrown,
+        },
+      });
     };
     // Back's way out (`keep`, keyboard/close-requests.js): closing as Escape does, but
     // changed words stay in the draft, which the message says it holds, and opening the

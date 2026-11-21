@@ -54,6 +54,7 @@ import {
   spell,
   PRESS,
 } from "../keyboard/bindings.js";
+import { pressWords } from "../keyboard/control-keys.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, keepsNotice } from "../notifications.js";
 import { selectableOffered } from "../element-markers.js";
@@ -90,7 +91,7 @@ import { offeredAction } from "../widget-elements.js";
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
  * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string, alternate: boolean) => unknown} Sender
- * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
+ * @typedef {{word: string, keys: readonly string[], run: () => unknown, stands?: (() => boolean) | undefined}} BoxPress
  * @typedef {Object} InputOptions
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
@@ -616,12 +617,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const entering = suffix && typeof offered === "string" ? offered : "";
       // What a press says at rest, or nothing where it stands nowhere (`enters`).
       /** @param {BoxPress} reading */
-      const said = (reading) =>
-        !advertisesKeys()
-          ? reading.word
-          : reading.keys.length
-            ? [reading.word, ...reading.keys].join(" ")
-            : "";
+      const said = (reading) => pressWords(reading.word, reading.keys);
       const pressText = press ? said(press) : "";
       // The press as drawn, whose keys its owner reads at each ask, so the recheck
       // costs that reading alone rather than the box's words.

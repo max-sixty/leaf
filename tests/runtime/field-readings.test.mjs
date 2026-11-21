@@ -133,15 +133,15 @@ test("while a stance stands the field's end offers its Close, on the page and in
     readField(facts({ ...still, selected: "the queue fills" })).end,
     "Comment…",
   );
-  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD };
+  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD, holds: true };
   assert.equal(
     readField(facts({ ...still, thread: true, notice: resolved })).end,
     NEXT_THREAD,
   );
 });
 
-test("a notice offering a press says it over an error, and offers its press", () => {
-  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD };
+test("a notice holding a press says it over an error, and offers its press", () => {
+  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD, holds: true };
   const over = facts({ error: { message: "Couldn't load v3" }, notice: resolved });
   assert.deepEqual(
     [said(over), readField(over).end],
@@ -149,6 +149,9 @@ test("a notice offering a press says it over an error, and offers its press", ()
   );
   assert.equal(readField(facts({ ...over, thread: true })).end, NEXT_THREAD);
   assert.equal(said({ ...over, writing: true }), "Couldn't load v3");
+  // News passes with its press, so it leaves the error the field's words.
+  const news = { message: "2 changes since v1", press: NEXT_THREAD, holds: false };
+  assert.equal(said({ ...over, notice: news }), "Couldn't load v3");
 });
 
 test("the folded leaf's peek says what passes, in the field's order", () => {

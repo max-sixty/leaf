@@ -56,10 +56,15 @@ import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { isElement, skipped } from "./shadow-tree.js";
+import {
+  isElement,
+  skipped,
+  under,
+  renderedUnder,
+  renderedParent,
+} from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { holdReach, reachReadingScroller } from "./reach.js";
-import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 

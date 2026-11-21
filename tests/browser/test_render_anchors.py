@@ -114,7 +114,7 @@ def thread_head(page, thread_id):
         arg=thread_id,
     )
     open_panel_thread(page, thread_id)
-    return page.locator(".lf-thread-quote-head")
+    return page.locator(PANEL_THREAD).locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -1515,7 +1515,7 @@ def test_resizing_closed_code_sections_does_not_lay_out_each_hidden_section(
 
 def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     source = "wide-source-" * 30
-    markup = f'<pre id="source"><code>{source}</code></pre>'
+    markup = f'<pre id="source" style="white-space: pre"><code>{source}</code></pre>'
     page = open_page(
         browser,
         live_url(serve(leaf_page("Code stop", markup))),
@@ -4518,7 +4518,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     expect(first).to_have_count(1)
     page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
-    expect_panel_says(page, "Hunk 1 of 1")
+    expect(page.locator(".lf-live")).to_contain_text("Hunk 1 of 1")
 
     page.keyboard.press("]")
     page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
@@ -5311,6 +5311,30 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
     assert 0 <= start["top"] and start["bottom"] <= 600, start
 
 
+# What the page hears as it starts that its input clock counts as the user's
+# (document-inputs.js), and where focus lands: startup reopens a saved draft only while
+# neither has moved (`recoverComposer` in leaf.js). Registered before the reload, so its
+# listeners come before the clock's.
+HEARD_AS_IT_STARTS = """(() => {
+  const heard = (window.__lfHeard = []);
+  const named = (node) =>
+    node === window
+      ? 'window'
+      : node instanceof Element
+        ? node.localName + (node.id ? '#' + node.id : '') +
+          [...node.classList].slice(0, 2).map((name) => '.' + name).join('')
+        : String(node?.nodeName ?? node);
+  const types = ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'blur', 'focusin'];
+  for (const type of types)
+    addEventListener(type, (event) => {
+      if (type === 'blur' && (event.target !== window || document.hasFocus())) return;
+      const trust = event.isTrusted ? 'trusted' : 'untrusted';
+      const at = named(event.composedPath()[0]);
+      heard.push(`${Math.round(event.timeStamp)} ms: ${trust} ${type} on ${at}`);
+    }, {capture: true, passive: true});
+})();"""
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request, serve):
     """The comment box of a draft on a passage that runs from the page's words into a
@@ -5348,8 +5372,15 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
           });
         }"""
     )
+    page.add_init_script(script=HEARD_AS_IT_STARTS)
     page.reload()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    try:
+        expect(page.locator(".lf-composer")).to_be_visible()
+    except AssertionError as closed:
+        heard = page.evaluate("() => window.__lfHeard")
+        raise AssertionError(
+            f"the draft's box stayed closed; the page heard as it started: {heard}"
+        ) from closed
     page.evaluate("() => scrollTo(0, 0)")
     page.evaluate(
         """async () => {

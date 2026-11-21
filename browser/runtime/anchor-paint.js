@@ -8,7 +8,7 @@
  */
 
 import { ringBox, visibleFocus } from "./focus.js";
-import { shownParts } from "./geometry.js";
+import { lined, shownParts } from "./geometry.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import {
   readingOrder,
@@ -25,7 +25,8 @@ import { bareReaction } from "./thread/model.js";
 import { threadNamed } from "./thread/state.js";
 import { threadPreview } from "./thread/messages.js";
 import { declareRanges, pointRange } from "./preview.js";
-import { renderedParent, shadowHost, upFrom } from "./shadow.js";
+import { holds } from "./rect.js";
+import { renderedParent, shadowHost, upFrom } from "./shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -384,11 +385,14 @@ export function createAnchorPaint({
   // at cost 512 reads at the last of 512 marks in one paragraph, and the platform's own
   // `highlightsFromPoint` walks every range a highlight holds (notes/browser-support.md,
   // "Highlight hit testing"). With the annotation layer hidden there is no mark to be
-  // under: an unseen passage shows no hand and opens nothing.
+  // under: an unseen passage shows no hand and opens nothing. With `whole`, a character's
+  // box reaches across its line's leading (geometry.js, `lined`), as a preview's room
+  // reads it (`markBox`); a press and a hover read the character alone.
   /** @param {number} x @param {number} y @param {Element | null} [under] the element
    * under the point, where the caller has hit-tested it already
+   * @param {boolean} [whole] whether a character's box spans its whole line
    * @returns {{id: string, where: Mark, alike: readonly Findable[]} | null} */
-  function markHit(x, y, under = elementFromPointAcross(x, y)) {
+  function markHit(x, y, under = elementFromPointAcross(x, y), whole = false) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
     // Changes to the page's words not yet placed are placed now, ahead of the reading.
     settle();
@@ -401,7 +405,7 @@ export function createAnchorPaint({
     if (caret && text) {
       text.tree ??= treeOf([...text.pieces].sort((a, b) => a.start - b.start));
       for (const at of [caret.offset, caret.offset - 1]) {
-        if (at < 0 || !overCharacter(caret.offsetNode, at, x, y)) continue;
+        if (at < 0 || !overCharacter(caret.offsetNode, at, x, y, whole)) continue;
         words = piecesAt(text.tree, at);
         break;
       }
@@ -425,32 +429,33 @@ export function createAnchorPaint({
     }
     return hit && { id: hit.id, where: hit.where, alike };
   }
-  // Whether the point lies over the character at `at` in a text node.
-  /** @param {Node} node @param {number} at @param {number} x @param {number} y */
-  function overCharacter(node, at, x, y) {
+  // Whether the point lies over the character at `at` in a text node, or with `whole`
+  // over its line (`lined`).
+  /** @param {Node} node @param {number} at @param {number} x @param {number} y @param {boolean} whole */
+  function overCharacter(node, at, x, y, whole) {
     if (at >= (node.textContent?.length ?? 0)) return false;
     const character = document.createRange();
     character.setStart(node, at);
     character.setEnd(node, at + 1);
-    return [...character.getClientRects()].some(
-      (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+    return [...character.getClientRects()].some((rect) =>
+      holds(whole ? lined(rect, node) : rect, x, y),
     );
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
   // A mark under a point beneath a preview, which the preview keeps clear of as it does
   // a control, since a press there opens its thread (preview.js, `declareRanges`): the
-  // box of the mark's line there, or the element marked.
+  // box of the mark's line there, across the line's leading (`lined`), or the element
+  // marked.
   /** @param {number} x @param {number} y @param {Element} under */
   function markBox(x, y, under) {
-    const where = markHit(x, y, under)?.where;
+    const where = markHit(x, y, under, true)?.where;
     if (!where) return null;
     if (!(where instanceof Range)) return where.getBoundingClientRect();
     return (
-      [...where.getClientRects()].find(
-        (line) =>
-          x >= line.left && x <= line.right && y >= line.top && y <= line.bottom,
-      ) ?? where.getBoundingClientRect()
+      [...where.getClientRects()]
+        .map((line) => lined(line, where.startContainer))
+        .find((line) => holds(line, x, y)) ?? where.getBoundingClientRect()
     );
   }
   /** @type {(() => void) | null} */

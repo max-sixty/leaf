@@ -40,7 +40,6 @@ def chart_target(sample: dict) -> str:
     return (
         (sample["target"] if harness is None else harness.title)
         + (" through a preview" if sample.get("preview") else "")
-        + (" with forks" if sample.get("forks") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")
     )
 

@@ -297,10 +297,11 @@ TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
 # (`$passages.why-closing-and-opening`).
 CLOSING = frozenset(kernel_passages()["closing"])
 OPENING = frozenset(kernel_passages()["opening"])
-# Text no anchor can reach: executable/style content and native field defaults.
-# head is outside the browser's tree altogether, which starts at document.body —
-# without it a page's <title> would be quotable and land nowhere.
-UNQUOTABLE_TAGS = {"script", "style", "head", "textarea"}
+# Text no anchor can reach: executable/style content, native field defaults, and the
+# fallback a browser running Leaf's scripts never draws (`noscript`). head is outside
+# the browser's tree altogether, which starts at document.body — without it a page's
+# <title> would be quotable and land nowhere.
+UNQUOTABLE_TAGS = {"script", "style", "head", "textarea", "noscript"}
 
 
 class _PassageParser:
@@ -753,9 +754,15 @@ class SourceReading:
         self.document = document
         self.registry = registry or {}
 
-    @cached_property
+    @property
     def inventory(self) -> SourceInventory:
-        """Read historical consumers together, without retaining parser records."""
+        """Read historical consumers together, without retaining parser records.
+        A stored revision keeps its own in its page's compact memo instead
+        (`RevisionReading.inventory`)."""
+        return self._inventory
+
+    @cached_property
+    def _inventory(self) -> SourceInventory:
         from .data_contracts import data_document_readings
         from .obligations import obligation_registrations
 

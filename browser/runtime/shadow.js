@@ -2,33 +2,6 @@
  * the shared highlight rules. */
 import { isStage, liveStages } from "./arrivals.js";
 import { registry } from "./registry.js";
-export { overIn, SAID, UI_MARKS, uiInside, inUi } from "./shadow-tree.js";
-import {
-  excludedByInert,
-  byRenderedOrder,
-  composedParentNode,
-  hostIn,
-  renderedOrder,
-  renderedOrdering,
-  renderedParent,
-  renderedUnder,
-  shadowHost,
-  under,
-  upFrom,
-} from "./shadow-tree.js";
-export {
-  excludedByInert,
-  byRenderedOrder,
-  composedParentNode,
-  hostIn,
-  renderedOrder,
-  renderedOrdering,
-  renderedParent,
-  renderedUnder,
-  shadowHost,
-  under,
-  upFrom,
-};
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: a `shadow` widget is

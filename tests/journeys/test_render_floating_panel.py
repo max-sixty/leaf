@@ -178,7 +178,7 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     words = page.locator(".lf-fp-field").bounding_box()
     leaf = page.locator(".lf-fp-leaf").bounding_box()
     mark = expand.bounding_box()
-    assert mark["x"] + mark["width"] <= words["x"] + 0.5, (words, mark)
+    assert words["x"] + words["width"] <= mark["x"] + 0.5, (words, mark)
     assert words["y"] <= mark["y"] + 0.5, (words, mark)
     assert mark["y"] + mark["height"] <= leaf["y"] + 0.5, (leaf, mark)
     page.keyboard.press("Escape")
@@ -189,7 +189,7 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     words = page.locator(".lf-fp-field").bounding_box()
     leaf = page.locator(".lf-fp-leaf").bounding_box()
     mark = expand.bounding_box()
-    assert mark["x"] + mark["width"] <= words["x"] + 0.5, (words, mark)
+    assert words["x"] + words["width"] <= mark["x"] + 0.5, (words, mark)
     assert mark["y"] + mark["height"] <= leaf["y"] + 0.5, (leaf, mark)
     page.keyboard.press("Escape")
     field(page).click()
@@ -453,14 +453,14 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
 ):
     """While the page shows a version older than the latest, the field's words say which
     before the status, and its end offers Open latest in Comment's place, so nothing in
-    the row moves and the On Me mark keeps its seat; the press opens the latest, and the
+    the row moves and the leaf keeps its place; the press opens the latest, and the
     words and the press go with it: in place on a tab the agent has since revised, and
     from a version the user travelled back to, where the press wears its keys, Versions'
     `g V` and then its `l`, which make it too, leaving Versions."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
     latest = latest_press(page)
-    marks = page.locator(".lf-fp-quick")
+    marks = page.locator(".lf-fp-leaf")
     settled(page)
     seats = marks.bounding_box()
     expect(latest).to_have_count(0)
@@ -512,7 +512,7 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf and the counts at rest, Dictate as the user opens the field, and Send while
+    leaf at rest, Dictate as the user opens the field, and Send while
     they type, each centred on the field's last line of words, however many lines it
     holds. Send floats in the field's end corner, as an anchored comment box's does,
     and under a mouse the words take its column (drafts/test_send_corner.py follows
@@ -520,8 +520,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
-    for mark in ("leaf", "count"):
-        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
+    assert abs(seats["leaf"] - seats["line"]) < 0.5, seats
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
@@ -545,9 +544,9 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
 
 
 def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
-    """With a view open, its Close ends its controls and the field reaches the row's
-    end, at rest and widened alike, so widening the field leaves Close beside the
-    controls."""
+    """With a view open, its Close ends its controls and the field reaches the leaf at
+    the row's end, at rest and widened alike, so widening the field leaves Close beside
+    the controls."""
     page = floating(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -558,19 +557,16 @@ def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
     expect(close).to_have_count(1)
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
 
-    def reaches_the_row_s_end():
+    def reaches_the_leaf():
         settled(page)
-        row = page.locator(".lf-fp-row").bounding_box()
+        leaf = page.locator(".lf-fp-leaf").bounding_box()
         words = page.locator(".lf-fp-field").bounding_box()
-        assert row["x"] + row["width"] - (words["x"] + words["width"]) < 12, (
-            row,
-            words,
-        )
+        assert leaf["x"] - (words["x"] + words["width"]) < 12, (leaf, words)
 
-    reaches_the_row_s_end()
+    reaches_the_leaf()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
-    reaches_the_row_s_end()
+    reaches_the_leaf()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
     close.click()
@@ -637,19 +633,6 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     expect(rows.first).not_to_have_attribute("href", re.compile("."))
     other = pages.locator("a.lf-fp-page", has_text="The other leaf")
     expect(other).to_have_attribute("target", "_blank")
-    # A page's title and what its agent is doing stand on one baseline, though the
-    # title is set larger (floating-panel.css, `.lf-fp-page`).
-    for row in (rows.first, other):
-        baselines = row.evaluate(
-            """row => [...row.querySelectorAll('.lf-fp-label, .lf-fp-value')].map(words => {
-              const mark = words.appendChild(document.createElement('span'));
-              mark.style.cssText = 'display: inline-block; block-size: 0';
-              const y = mark.getBoundingClientRect().top;
-              mark.remove();
-              return y;
-            })"""
-        )
-        assert len(baselines) == 2 and max(baselines) - min(baselines) < 0.1, baselines
     page.keyboard.press("Escape")
     expect(pages).to_have_count(0)
 

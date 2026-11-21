@@ -1,5 +1,5 @@
 /* The vendor's native input sits in a shadow
-   root the layer's own field floor (shadow.css) does not reach, so the same floor
+   root the layer's own field floor (surfaces.css) does not reach, so the same floor
    is passed in as the size the vendor sets its value in: never under --lf-entry-floor,
    and never smaller than the type around it. */
 wa-input {
@@ -107,7 +107,7 @@ wa-option {
 wa-slider:not([range])[data-lf-focus-visible-within]::part(thumb),
 wa-slider[range]::part(lf-focus-visible) {
   outline: var(--lf-focus-ring);
-  outline-offset: 0;
+  outline-offset: 0px;
 }
 wa-slider[range]::part(lf-focus-visible) {
   z-index: 4;

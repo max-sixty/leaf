@@ -7,16 +7,17 @@ have to picture or piece together from a description, and put that thing on the 
 in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, and a visual change between two versions is an `lf-shot` before-and-after
-  pair (`authoring-evidence.md`, "Interactive and visual evidence").
+  point, and a visual change between two versions is a before-and-after pair of
+  captures (`authoring-evidence.md`, "Interactive and visual evidence").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
-  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
-  package. An order of events between actors is an `lf-timeline`.
+  sample the user operates (`live-samples.md`), or as previews the reader plays and
+  scrubs together. An order of events between actors is a timeline the reader steps
+  through.
 - A proposal or mechanism nothing can show yet is drawn: where things sit, what
   contains, calls or feeds what, how a state changes, today beside the proposal, and
   alternatives in one frame at one scale.
 - Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
-  are an `lf-chart`, even when they compare the same measures across items. Label the
+  are a chart, even when they compare the same measures across items. Label the
   values the argument cites, and put exact values in a table below it when readers
   need them.
 - Items the user reads one at a time and compares on the same facts, such as settings,
@@ -24,10 +25,13 @@ in its own form:
   grouped or sorted by the fact they scan first. Values the user looks up, and
   measures in units that can't share an axis, go in a table too.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
-  passage whole, conditions included, so the reader can check the claim on the page.
-  When the point is what code does, such as what it draws or which rule wins, show
-  that effect in one of the forms above, with the code beside it.
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
+
+The page's vocabulary provides most of these forms as widgets whose entries say what
+each shows ("Read the registry"). Use the one it offers rather than building the form
+yourself, and where the page has none, select the package that adds it
+(`leaf package list`).
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
 sizes, and what contains or links them. Add one where that geometry makes a
@@ -38,8 +42,27 @@ per counted item shows only the count, and boxes holding sentences show only the
 sentences. When the user has nothing to picture, as when they weigh a refactor's reasons
 and cost, leave the case in words and draw nothing.
 
-`authoring-evidence.md` says which element draws each kind of evidence, and how to draw
-a figure of your own.
+`authoring-evidence.md` says how to present each kind of evidence, and how to draw a
+figure of your own.
+
+## Show what a claim rests on
+
+A claim the page makes about the work, such as a count, a cause, what code does or
+what a change changes, rests on material you read: the cases behind the count, the
+records of what happened, the code, the diff. Put that material on the page with the
+claim, quoted rather than retold, so the user can see what the claim means and check it
+without asking you or leaving the page. They often see in it what your summary left
+out. Quote a rule or other passage the claim turns on whole, conditions included, and
+excerpt a log or a diff to the lines that show the claim.
+
+How long the material is decides where it goes, not whether it goes on the page. The
+case or the few lines that show the claim most plainly stand beside it, and the rest,
+such as every case behind a count or a whole diff, stays on the page; "Reading cost"
+says when to collapse it. A link to where the material lives goes beside the material
+rather than in its place, except where the reader has no reason to check the claim,
+as with a fact they already hold or a status they take on trust, such as a passing CI
+run. Where the cases are too many, too large or private to show, show those the claim
+turns on and say how to reach the rest.
 
 ## Develop the work
 
@@ -71,10 +94,10 @@ interaction operable when trying it reveals more than seeing its states together
 
 Use real material where available. Fill gaps needed to demonstrate a proposal with
 plausible fictional content, clearly labeled as illustrative. This lets the reader
-judge a design before it is implemented or tested; claims about real behavior
-still require evidence. Keep the distinction visible beside the demonstration.
-`authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
-operable Leaf examples.
+judge a design before it is implemented or tested, while a claim about real behavior
+rests on real material ("Show what a claim rests on"). Keep the distinction visible
+beside the demonstration. `authoring-evidence.md` says how to present each kind of
+evidence; `live-samples.md` owns operable Leaf examples.
 
 Compose the page from that material. Explain the conclusion, reasons, costs and
 limits beside the result they concern, and remove descriptions the result makes
@@ -98,7 +121,8 @@ nested disclosures reveal substantial content of their own.
 Preserve the meaning and units of facts you use. Check derived quantities against their
 inputs, and keep uncertainty and evidence limits beside the claims they qualify. When
 your findings contradict the user's supplied facts, show the discrepancy explicitly.
-Use `lf-gloss` for unfamiliar terms the reader can open locally.
+Explain an unfamiliar term where the reader meets it, in a gloss they can open beside
+the phrase without leaving the sentence.
 
 Link each pull request, issue, commit, URL, and file or source line with a known
 destination in every section, decision and reply that names it. The user reaches each
@@ -143,7 +167,7 @@ Give a long scrolling document a contents outline so the reader can move between
 sections and see where they are; a document short enough to take in at a glance needs
 none.
 
-Write an empty `lf-toc` with a stable id in the authored sidebar track. A reading
+Write the contents outline in the authored sidebar track, as its entry says. A reading
 page composes the route and its document as siblings:
 
 ```html
@@ -208,8 +232,10 @@ revisions and checks cover it as they cover `main`. Only `main` takes the Layout
 the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
 
 Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
-panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
-in `--lf-paper`, which the theme paints the window in. A page that takes no theme
+panel, and its head by `--lf-head-room`, the phone's status bar. A workspace `main`
+keeps that foot room inside its own regions instead, so content after it adds
+`padding-bottom: var(--lf-foot-room)` of its own. Set the page's ground in
+`--lf-paper`, which the theme paints the window in. A page that takes no theme
 paints its own ground on `html`, since `body` is a container, which keeps its own
 background off the window below a short page. It also sets `--lf-paper` and
 `--lf-ink` to its ground and text colours, so Leaf's panel, thread cards and
@@ -298,12 +324,12 @@ formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
 by its LaTeX.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
-put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual
-language from `$languages.names` or a bundled grammar's alias, such as `language-js`
-and `language-sh`. Leaf colours a native
-block only where the reading face reaches it: the `reading` theme turns it on, and a
-page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
-(`package-themes.md`, "Personal themes"). Format example code with
+put the same block inside a code excerpt with numbered lines for a walkthrough. Name
+the actual language from `$languages.names` or a bundled grammar's alias, such as
+`language-js` and `language-sh`. Leaf colours a native block only where the reading
+face reaches it: the `reading` theme turns it on, and a page with no theme sets
+`--lf-reading-face: 1` on a box around the `<pre>` (`package-themes.md`, "Personal
+themes"). Format example code with
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it.
 Data in a language Leaf colours, such as a JSON object a tool returned, is code wherever
@@ -313,10 +339,9 @@ other samples are plain. Text in no such language, such as a log or a message as
 agent receives it, stays literal and uncoloured.
 
 Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
-from a doc or a pull request's description, in `lf-text-document preview="markdown"`
-with its exact text in the `<pre>` (`authoring-evidence.md`, "Source files and media").
-Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is
-itself the subject, show it literally in `<pre><code>`.
+from a doc or a pull request's description, in a text document that previews it, with
+its exact Markdown a tab away (`authoring-evidence.md`, "Source files and media").
+Where Markdown syntax is itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="lf-scroll"` to that same box. Leaf contains its positioned descendants and
@@ -328,16 +353,18 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content. A `<pre>` asks its
-container for no width, so a box that takes its width from its content can leave it
-too narrow to read, which `page check --render` reports. A table scrolls inside a box
-that sets its own width, such as the column, a panel or any
-other block. A box that takes its width from its content, such as a flex item or a
-grid `auto` track, widens to the table's columns instead, past a phone's window if
-they need it, so give that box `min-width: 0` to keep the table scrolling inside it.
-A page without the face keeps the browser's tables and code blocks, so it puts one
-that can outgrow a narrow window in a box of its own that scrolls sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+also wraps a `<pre>`'s long lines, and a table's columns size to their content. It
+puts each line of a `<pre>` in a `<span data-lf-pre-line>`, so the rows a line wraps onto
+hang from its indent behind a mark; a selector such as `pre span` reaches those spans
+too. A block whose columns must line up past its container's width, such as a diagram
+drawn in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such
+a block or a table scrolls inside a box that sets its own width, such as the column, a
+panel or any other block. A box that takes its width from its content, such as a flex
+item or a grid `auto` track, widens to its lines or the table's columns instead, past
+a phone's window if they need it, so give that box `min-width: 0` to keep it scrolling
+inside. A page without the face keeps the browser's tables and code blocks, so it puts
+one that can outgrow a narrow window in a box of its own that scrolls sideways, as
+above. Text that can't break, such as a bare identifier or a cell kept on
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,

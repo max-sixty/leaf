@@ -533,20 +533,15 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     publish(page_dir)
     # The declaration selects from the current log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
-    # source alone — still opens its samples. What a child may not do is name a
-    # thread it does not have, and the ordinary child-document check says so
-    # about the element that names it.
-    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"unseeded"}')
-    assert status == 200, raw
-    assert (
-        json.loads(fetch(server + json.loads(raw)["url"] + "api/state")[1])["events"]
-        == []
-    )
-    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"practice"}')
-    assert (
-        status == 400
-        and "resolves='aabb0011' names no thread" in json.loads(raw)["error"]
-    )
+    # source alone — still opens its samples, one naming a thread it does not have
+    # among them, which the ordinary child-document check advises on.
+    for template in (b"unseeded", b"practice"):
+        status, raw = fetch(
+            f"{server}/api/samples", data=b'{"template":"' + template + b'"}'
+        )
+        assert status == 200, raw
+        state = fetch(server + json.loads(raw)["url"] + "api/state")[1]
+        assert json.loads(state)["events"] == []
     for identity, text in (
         ("aabb0011", "Selected thread"),
         ("aabb0022", "Outside thread"),
@@ -2096,7 +2091,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     """The DOM need not re-fold the log to know a prior action will reappear, and
-    the head `z` takes says what it did in its document's words, which no other
+    the head ⌘Z takes says what it did in its document's words, which no other
     entry pays for."""
     version = page_dir / "index.html"
     version.write_text(
@@ -2170,9 +2165,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
     source = structure_model.SourceDocument("")
     passages = passages_model.page_passages(source, {})
     document = document_reading_model.DocumentReading(
@@ -2189,7 +2182,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     # An answered reaction is the user's to take back as an unanswered one is, so the
-    # newest, rx2, heads the list for `z`. The comment is no longer the newest gesture,
+    # newest, rx2, heads the list for ⌘Z. The comment is no longer the newest gesture,
     # and no exact control names a message with words, so it isn't listed.
     assert [candidate["event"]["id"] for candidate in candidates] == [
         "rx2",
@@ -2204,7 +2197,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
 
 
 def test_undo_walk_ends_at_the_users_newest_gesture():
-    """`z` takes the head only while it is the user's newest gesture. Bookkeeping
+    """⌘Z takes the head only while it is the user's newest gesture. Bookkeeping
     and gestures already withdrawn do not end the walk, and a comment the user sent
     is taken as any gesture is, while it is the newest; an action this document does
     not paint ends the walk."""
@@ -2217,9 +2210,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
         {"id": "a1", "kind": "action", "author": "user", "widget": "gone"},
     ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
     source = structure_model.SourceDocument("")
     passages = passages_model.page_passages(source, {})
     document = document_reading_model.DocumentReading(
@@ -2245,7 +2236,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):
-    """The view's undo list is final: `z` takes its head and a widget filters it.
+    """The view's undo list is final: ⌘Z takes its head and a widget filters it.
 
     A decision carried into a later revision stays undoable there. One that revision
     restated and one whose widget it dropped are
@@ -3493,6 +3484,28 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     ]
 
 
+def test_a_record_torn_before_its_newline_still_answers_its_retry(page_dir):
+    """A crash can tear an append after its record and before its newline. The
+    sender saw its send fail and sends the same attempt again, which must find the
+    record rather than append it a second time."""
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
+    )
+    torn = {
+        "id": "0badc0de",
+        "ts": "2026-11-18T12:00:00.000+00:00",
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "torn",
+        "attempt": "retried",
+    }
+    with open(page_dir / "events.jsonl", "ab") as f:
+        f.write(event_model.jsonl_line(torn).encode())
+    with service_model.PageTransaction(page_dir) as page:
+        assert page.matching_attempt(torn) == {**torn, "seq": 2}
+
+
 def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
     page_dir, monkeypatch
 ):
@@ -3913,7 +3926,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
         assert _news(server.origin) == {
             "reading": snapshot.reading,
             "pages": None,
-            "drafts": 0,
+            "drafts": {"store": snapshot.drafts()["store"], "version": 0},
         }
 
 

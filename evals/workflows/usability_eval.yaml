@@ -345,7 +345,7 @@ cases:
   # is task setup, since without it agents can ask in chat; obligation registration
   # remains an agent choice. Score placement separately so a usable plain-text
   # thread cannot conceal a missing On Me obligation. The message-API metric
-  # separates lf-ask from --obligation.
+  # separates a page widget from --obligation.
   page-question:
     inputs:
       prompts:
@@ -454,9 +454,9 @@ cases:
           thread fails. Equivalent wording and valid commands are allowed.
         transform: context.metadata.texts?.['evidence'] ?? ''
   # Grades executed conversational requests and settlement, where assessment cases
-  # grade proposed commands. No prompt names On Me, obligations, lf-ask or the
+  # grade proposed commands. No prompt names On Me, obligations, lf-group or the
   # expected commands. It requires an agent-initiated thread rather than accepting
-  # document Asks.
+  # page widgets.
   clarification:
     inputs:
       prompts:
@@ -1131,8 +1131,7 @@ cases:
         transform: context.metadata.texts?.['evidence'] ?? ''
   # Advice alone wakes nobody (`render_gate.handover_pass`), so it reaches the agent
   # with the user's next message. A base arm with no render pass hears it as the page's
-  # error beside the same message. The message asks for work, since a fork of the
-  # conversation answers a question without waking the agent.
+  # error beside the same message.
   render-advice-with-comment:
     inputs:
       prompts:

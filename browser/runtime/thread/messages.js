@@ -62,7 +62,10 @@ import {
   rememberAuthoredParents,
   stageAuthoredStates,
 } from "../projection/authored.js";
-import { stageWidgetDescriptors } from "../widget-descriptors.js";
+import {
+  bindWidgetDescriptors,
+  stageWidgetDescriptors,
+} from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
   strongestWorkflow,
@@ -254,7 +257,7 @@ function threadStands(thread, said) {
   };
 }
 
-// When a message or a run's face was said, in its head (presence.js, `saidAt`): its
+// When a message or a step's face was said, in its head (presence.js, `saidAt`): its
 // day, then its time. A head too narrow for both keeps the day whole and drops the
 // time onto a line it clips (surfaces.css), so a crowded head still says which day,
 // where an ellipsis cut it to "Nov 1…"; the preview reads the time whole.
@@ -511,6 +514,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
+    bindWidgetDescriptors(descriptors.bindings);
     const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
     // The message's words as the page reading says them (`says`). `says` refuses text
@@ -646,7 +650,7 @@ export function authoredHolder(id) {
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
  * workflows: readonly import("../framework/application.js").Workflow[],
- * leaves?: import("../voice.js").Said | null}} options */
+ * leaves?: {word: import("../voice.js").Said, todo: string | null} | null}} options */
 export function messageReading(
   message,
   { authoredRank = 0, workflows, leaves = null },
@@ -670,11 +674,11 @@ export function messageReading(
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
-    // thread shows as its run's face until an answer folds it (transcript.js).
+    // thread shows as a face, not a message, until something ends it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
-    // question the user owes words to, the agent's Still to do (`todoWord`) for work it
-    // promised and has not ended (thread-card.js).
+    // question the user owes words to, the agent's On it or Still to do (`todoWord`) for
+    // work it promised and has not ended (thread-card.js), with that to-do's id.
     leaves,
     version: message.content_version,
     // Original log order: edits move the words without moving where they were said.
@@ -726,9 +730,10 @@ export function messageReading(
  * reply: {wireInput: ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
- * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
+ * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"],
+ * showTodo: (todo: string) => unknown}} MessageCommands */
 
-// The tint a turn arrives in, a message or a progress run's face (transcript.js):
+// The tint a turn arrives in, a message or a step's face (transcript.js):
 // one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
 // CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
 // Animations interpolates a var() colour keyframe discretely. The shared motion gate
@@ -836,6 +841,7 @@ export class MessageView {
               options,
             ),
           land: () => this.#commands.edit.land(this.node),
+          saved: () => this.#commands.edit.saved(this.node),
           paint: () => this.#commands.edit.paint(this.node),
           previous: () => this.#commands.edit.previous(presentation.model.id),
           reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
@@ -931,12 +937,7 @@ export class MessageView {
                 >`
               : nothing
           }
-          ${receipt}
-          ${
-            model.leaves
-              ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>`
-              : nothing
-          }
+          ${receipt} ${this.#leavesWord(model.leaves)}
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>`
@@ -1050,6 +1051,33 @@ export class MessageView {
   // Whether this view draws an open rewrite.
   get editing() {
     return this.#editor !== null;
+  }
+
+  // What an answer leaves standing, beside its time. A to-do's word opens On <agent> at
+  // the to-do's row, its card open (floating-panel.js, `showTodo`), since the row says
+  // what the agent is doing about it and where it stands among the rest; its Discuss
+  // leads back here. The word is underlined, as a link is (`data-lf-link`), in the
+  // head's ink (`data-lf-hint`), and is a Tab stop, since only a promise still open
+  // draws one. The user chose the press over keeping the word plain, and the underline
+  // over a chevron after the word and over a symbol in its place, which hides the word
+  // until hovered and means nothing readers already know.
+  /** @param {ReturnType<typeof messageReading>["leaves"]} leaves */
+  #leavesWord(leaves) {
+    if (!leaves) return nothing;
+    const { word, todo } = leaves;
+    if (!todo) return html`<span class="lf-msg-leaves">${voiced(word)}</span>`;
+    const opens = `Open in On ${agentName()}`;
+    return html`<button
+      type="button"
+      ${offeredAction("inline", "lf-msg-leaves")}
+      data-lf-hint=""
+      data-lf-link=""
+      aria-label=${`${word.text}, ${opens}`}
+      .lfPreview=${() => ({ name: opens })}
+      @click=${() => this.#commands.showTodo(todo)}
+    >
+      ${voiced(word)}
+    </button>`;
   }
 
   // Copy stands at the head's end, after the message's own control (controls.css), and

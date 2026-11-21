@@ -1,4 +1,4 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 import itertools
 import json
@@ -40,7 +40,7 @@ from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
-from leaf_dev import ROOT, startup
+from leaf_dev import ROOT, startup, website
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.journey import chart as journey_chart
 from leaf_dev.commands.journey import run as journey_run
@@ -202,14 +202,6 @@ class _FailedTurn:
         }
 
 
-class _Text:
-    def __init__(self, text: str):
-        self.text = text
-
-    def inner_text(self) -> str:
-        return self.text
-
-
 class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
@@ -259,16 +251,16 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, *, arg, timeout: int):
+    def wait_for_function(self, expression: str, *, arg, timeout: int, polling=None):
         if expression == OUTSTANDING:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":
             # The readiness the verifier waits on (`wait_until_ready`).
-            assert arg == {"held": None, "through": "presented"}
+            assert arg["asked"] == {"held": None, "through": "presented"}
             self.presentation_waits.append(timeout)
             if self.reloaded and self.reload_stalls_at is not None:
                 raise PlaywrightTimeout("the page never got ready")
-            return None
+            return SimpleNamespace(json_value=lambda: "ready")
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg and not self.presentation_pending:
             return
@@ -277,11 +269,10 @@ class _DeployedPage:
             return
         raise PlaywrightTimeout("revision did not arrive")
 
-    def locator(self, selector: str):
-        assert selector == "main"
-        return _Text(self.recorded)
-
     def evaluate(self, script: str, arg=None):
+        if "document.body.children" in script:
+            # The page's text, less Leaf's own elements.
+            return self.recorded
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
@@ -319,6 +310,8 @@ class _DeployedPage:
             return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
             return self.status
+        if "innerText" in script:
+            return self.recorded
         return []
 
 
@@ -359,8 +352,10 @@ class _DeployedSite:
         return self.context
 
 
-class _RollingOutContainer:
-    """An allocation the image rollout has not reached, so the edge answers for it."""
+class _PreviousImageContainer:
+    """An allocation the image rollout has not reached. Its container runs the
+    previous image, which exits as the page store refuses its release, so the
+    activating read gets the Containers SDK's failure to start it."""
 
     def __init__(self, release: str, page: _DeployedPage):
         self.release = release
@@ -382,23 +377,17 @@ class _RollingOutContainer:
                 },
                 headers={"leaf-release": self.release, "leaf-session": "passive"},
             )
-        # What `rollingOut` in `worker/src/index.ts` sends: the deployed release
-        # rather than this container's, no session at all, and `Retry-After` naming
-        # the rollout as the reason there is nothing to compare.
-        starting = _Read(
-            {},
-            "this release is still starting",
-            headers={"retry-after": "5", "leaf-release": self.release},
+        return _answered(
+            500,
+            {"leaf-release": self.release, "leaf-session": "active"},
+            "Failed to start container: the container exited before its port was ready",
         )
-        starting.ok = False
-        starting.status = 503
-        return starting
 
     def close(self) -> None:
         self.closed = True
 
 
-class _RollingSite:
+class _Allocations:
     """Successive allocations, so the gate's retry gets a fresh one each time."""
 
     def __init__(self, contexts: list):
@@ -414,23 +403,10 @@ class _RollingSite:
 def _rolling_clock(monkeypatch, samples: list[float], slept: list[float]) -> None:
     readings = iter(samples)
     monkeypatch.setattr(
-        verify_site,
+        website,
         "time",
         SimpleNamespace(monotonic=readings.__next__, sleep=slept.append),
     )
-
-
-class _Allocation:
-    """One activating read, answering as the edge or as the container it reached."""
-
-    def __init__(self, answer: _Read):
-        self.answer = answer
-        self.request = self
-        self.asked: list[str] = []
-
-    def get(self, url: str, **kwargs) -> _Read:
-        self.asked.append(url)
-        return self.answer
 
 
 def _answered(status: int, headers: dict | None = None, body: str = "") -> _Read:
@@ -440,12 +416,9 @@ def _answered(status: int, headers: dict | None = None, body: str = "") -> _Read
     return answer
 
 
-ACTIVATION = "https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1"
-
-
-def run_browser_journey(website):
-    """The release ask at the user's browser end on `website`'s session and release."""
-    session, version = website
+def run_browser_journey(site):
+    """The release ask at the user's browser end on `site`'s session and release."""
+    session, version = site
     return journey.run_journey(journey.BrowserEnd(session, None), version)
 
 
@@ -497,7 +470,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     @contextmanager
     def worker():
         lifecycle.append("worker")
-        yield verify_site.LocalWorker(
+        yield website.LocalWorker(
             "http://127.0.0.1:8787", "b" * 40, "test-worker", ROOT / ".tmp"
         )
 
@@ -777,7 +750,7 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 def test_local_verification_settles_host_network(monkeypatch):
     @contextmanager
     def worker():
-        yield verify_site.LocalWorker(
+        yield website.LocalWorker(
             "http://127.0.0.1:8787", "release", "test-worker", ROOT / ".tmp"
         )
 
@@ -796,14 +769,14 @@ def test_local_verification_settles_host_network(monkeypatch):
     result = CliRunner().invoke(verify_site.verify_site, ["website-worker"])
 
     assert isinstance(result.exception, RuntimeError)
-    assert attempts == [verify_site.wait_for_host_network]
+    assert attempts == [website.wait_for_host_network]
 
 
 def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
     monkeypatch, tmp_path
 ):
     run = tmp_path / "run-_up9yvbg"
-    monkeypatch.setattr(verify_site, "run_directory", lambda parent: run)
+    monkeypatch.setattr(website, "run_directory", lambda parent: run)
 
     def stop_before_build(*args, **kwargs):
         raise RuntimeError("stop before building")
@@ -814,12 +787,12 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
         calls.append(args[0])
         return subprocess.CompletedProcess(args[0], 0, stdout="")
 
-    monkeypatch.setattr(verify_site, "copy_working", stop_before_build)
-    monkeypatch.setattr(verify_site.subprocess, "run", docker)
+    monkeypatch.setattr(website, "copy_working", stop_before_build)
+    monkeypatch.setattr(website.subprocess, "run", docker)
 
     with (
         pytest.raises(RuntimeError, match="stop before building"),
-        verify_site.local_worker(),
+        website.local_worker(),
     ):
         pass
 
@@ -830,13 +803,13 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
     now = [0.0]
     readings = itertools.chain(["before", "before"], itertools.repeat("after"))
-    monkeypatch.setattr(verify_site.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(website.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(
-        verify_site.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
+        website.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
     )
-    monkeypatch.setattr(verify_site, "host_addresses", lambda: next(readings))
+    monkeypatch.setattr(website, "host_addresses", lambda: next(readings))
 
-    verify_site.wait_for_host_network()
+    website.wait_for_host_network()
 
     # Quiet for 2.5 s from the change at 0.2 s.
     assert now[0] > 2.6
@@ -846,15 +819,15 @@ def test_a_refused_answer_carries_what_the_server_said_about_it():
     """A status alone cannot separate one 500 from another, so the body travels with
     it, bounded so a page of HTML served by mistake does not become the run log."""
     url = "https://leaf.page/examples/triage-board/api/state"
-    assert verify_site.answered(_answered(200), url).status == 200
+    assert website.answered(_answered(200), url).status == 200
 
     fault = json.dumps({"error": "KeyError: 'browser'"})
     with pytest.raises(RuntimeError) as faulted:
-        verify_site.answered(_answered(500, body=fault), url)
+        website.answered(_answered(500, body=fault), url)
     assert str(faulted.value) == f"{url} returned 500: {fault}"
 
     with pytest.raises(RuntimeError) as refused:
-        verify_site.answered(_answered(502, body="b" * 4000), url)
+        website.answered(_answered(502, body="b" * 4000), url)
     assert len(str(refused.value)) < len(url) + 600
 
 
@@ -977,7 +950,7 @@ def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
 
 
 def test_startup_line_distinguishes_an_unobserved_state_request():
-    startup = {
+    reading = {
         "first_byte": 20,
         "document": 30,
         "paint": {"first-contentful-paint": 40},
@@ -996,7 +969,7 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
         },
     }
 
-    line = verify_site.startup_line("page", startup)
+    line = startup.startup_line("page", reading)
 
     assert "JS fetched 45 ms" in line
     assert "state answered not observed" in line
@@ -1004,7 +977,7 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
 
 
 def test_startup_line_distinguishes_an_unobserved_first_paint():
-    startup = {
+    reading = {
         "first_byte": 20,
         "document": 30,
         "paint": {},
@@ -1023,7 +996,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
         },
     }
 
-    line = verify_site.startup_line("page", startup)
+    line = startup.startup_line("page", reading)
 
     assert "first contentful paint not observed" in line
     assert "first contentful paint 0 ms" not in line
@@ -1217,19 +1190,12 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
 def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     monkeypatch,
 ):
-    """A rollout answered by the edge is the same wait as one read off a container.
-
-    `publish-site` deployed release `a471af1a…` and its release pass verified
-    leaf.page in Chrome; six seconds later the agent pass failed outright on
-    `https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1
-    returned 503` (run 35320758891). `api/view` activates a session, and until the
-    container image rollout reaches the allocation it gets, the Worker unseats the
-    session and answers `503` rather than handing a foreign release on. That is the
-    condition this loop already waits out when the container answers for itself, so
-    it has to end in the same retry rather than in a red deploy.
-    """
+    """The release pass can verify one allocation while the rollout has yet to reach
+    the next. `api/view` activates a session, and a container still on the previous
+    image fails to start, so the agent pass tries a fresh session rather than ending
+    the deploy."""
     release = "a471af1a" + "0" * 56
-    starting = _RollingOutContainer(
+    starting = _PreviousImageContainer(
         release, _DeployedPage("", revision=1, presented_at=900.0)
     )
     ready = _DeployedContainer(
@@ -1238,8 +1204,8 @@ def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     slept: list[float] = []
     _rolling_clock(monkeypatch, [0.0, 12.0], slept)
 
-    site = _RollingSite([starting, ready])
-    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+    site = _Allocations([starting, ready])
+    session = website.agent_session(site, release, origin="https://leaf.page")
 
     assert session.context is ready
     # The unseated allocation is dropped rather than carried into the turn.
@@ -1252,12 +1218,10 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     release = "a471af1a" + "0" * 56
     page = _DeployedPage("", revision=1, presented_at=900.0)
 
-    class Resetting(_RollingOutContainer):
+    class Resetting(_PreviousImageContainer):
         def get(self, url: str, headers: dict | None = None, **kwargs):
             if "api/view" in url:
-                raise verify_site.PlaywrightError(
-                    "APIRequestContext.get: read ECONNRESET"
-                )
+                raise website.PlaywrightError("APIRequestContext.get: read ECONNRESET")
             return super().get(url, headers=headers, **kwargs)
 
     resetting = Resetting(release, page)
@@ -1265,8 +1229,8 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     slept: list[float] = []
     _rolling_clock(monkeypatch, [0.0, 12.0], slept)
 
-    site = _RollingSite([resetting, ready])
-    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+    site = _Allocations([resetting, ready])
+    session = website.agent_session(site, release, origin="https://leaf.page")
 
     assert session.context is ready
     assert resetting.closed and not ready.closed
@@ -1277,64 +1241,24 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
 def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
     """The bound still holds, and the message says which reading ran it out."""
     release = "a471af1a" + "0" * 56
-    starting = _RollingOutContainer(
+    starting = _PreviousImageContainer(
         release, _DeployedPage("", revision=1, presented_at=900.0)
     )
     slept: list[float] = []
     _rolling_clock(monkeypatch, [0.0, 400.0], slept)
 
     with pytest.raises(RuntimeError) as failure:
-        verify_site.agent_session(
-            _RollingSite([starting]), release, origin="https://leaf.page"
+        website.agent_session(
+            _Allocations([starting]), release, origin="https://leaf.page"
         )
 
     assert "reached no container able to admit its agent's turn" in str(failure.value)
-    assert verify_site.STILL_STARTING in str(failure.value)
+    assert "returned 500: Failed to start container" in str(failure.value)
     assert slept == []
 
 
-def test_the_rollout_answer_is_the_one_503_the_activating_read_waits_on():
-    """Both passes make this request, so one function reads what comes back.
-
-    Run 35320758891 printed `...api/view?revision=1&through_seq=1 returned 503` seven
-    times: six inside the release pass's `until` loop, then the seventh in the agent
-    pass, which ended the deploy. Every one was the Worker's own `rollingOut` answer,
-    which says the deployment is still landing. A bare status cannot say that, and
-    two investigations went to Cloudflare's control plane instead.
-    """
-    rolling = _Allocation(
-        _answered(
-            503,
-            {"retry-after": "5", "leaf-release": "a" * 64},
-            "this release is still starting",
-        )
-    )
-
-    assert verify_site.activation_read(rolling, ACTIVATION) is None
-    assert rolling.asked == [ACTIVATION]
-
-
-def test_a_503_the_worker_did_not_write_is_this_release_failing():
-    """`Retry-After` separates the Worker's rollout answer from a container's own 503.
-
-    A container answering `503` for itself comes back through the pass-through path
-    without the header, and waiting that out would sit on a broken release until the
-    workflow's deadline instead of reporting it.
-    """
-    broken = _Allocation(
-        _answered(503, {"leaf-session": "active"}, "the page has no revision 1")
-    )
-
-    with pytest.raises(RuntimeError) as failure:
-        verify_site.activation_read(broken, ACTIVATION)
-
-    assert str(failure.value) == (
-        f"{ACTIVATION} returned 503: the page has no revision 1"
-    )
-
-
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
-    monkeypatch, capsys
+    monkeypatch, capfd
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
@@ -1348,7 +1272,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
-    recorded = f"Deployment {release[:8]} verified"
+    monkeypatch.setattr(journey, "release_name", lambda: "summit-maple")
+    recorded = "Deployment summit-maple verified"
     page = _DeployedPage(
         recorded,
         revision=1,
@@ -1404,7 +1329,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # the wait for the title the log already holds, one the wait for the reply the
     # page has already shown, and two surround the revision wait this case measures.
     with monkeypatch.context() as timing:
-        timing.setattr(verify_site, "time", SimpleNamespace(monotonic=lambda: 0.0))
+        timing.setattr(website, "time", SimpleNamespace(monotonic=lambda: 0.0))
         timing.setattr(
             journey,
             "time",
@@ -1425,9 +1350,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
     assert journey.TURN_PRESENTATION > 30_000
     # The startup profile the run reports, and the verifier's own readings.
-    assert page.init_scripts == [startup.SCRIPT, verify_site.VERIFIER_SCRIPT]
+    assert page.init_scripts == [startup.SCRIPT, website.SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
-    reported = capsys.readouterr().err
+    reported = capfd.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
     assert '"responseVisible": 12500.0' in reported
     # On a website the journey reads the log the page serves, which says when the
@@ -1478,7 +1403,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ],
         },
         "change": {
-            "marker": release[:8],
+            "marker": "summit-maple",
             "revision": 2,
             "reply": "deployment verified",
         },
@@ -1545,7 +1470,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     presentation names, while one that applied an old answer stands under its status.
     """
     release = "5b6be522" + "0" * 56
-    recorded = f"Deployment {release[:8]} verified"
+    recorded = f"Deployment {release[:7]} verified"
     published = {
         "revision": 2,
         "url": "revisions/2.html",
@@ -1730,18 +1655,18 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "print(json.dumps(dict(event='container_http_ready', port=server.server_port)), flush=True)\n"
         "server.serve_forever()\n"
     )
-    monkeypatch.setattr(verify_site, "ROOT", root)
-    monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
+    monkeypatch.setattr(website, "ROOT", root)
+    monkeypatch.setattr(website, "BUILD_SITE", [sys.executable, str(build_site)])
     monkeypatch.setattr(
-        verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
+        website, "serve_site", lambda install: [sys.executable, str(serve_site)]
     )
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
         pytest.raises(RuntimeError, match="journey failed"),
-        verify_site.local_adapter() as (origin, release),
-        verify_site.local_adapter() as (other_origin, other_release),
+        website.local_adapter() as (origin, release),
+        website.local_adapter() as (other_origin, other_release),
     ):
         assert release == "a" * 40
         assert other_release == release
@@ -1810,7 +1735,7 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
             return _Read({"status": "started"})
 
     context = Requests()
-    verify_site.start_direct_agent(
+    website.start_direct_agent(
         context,
         "http://127.0.0.1:8080/examples/triage-board/",
         {"id": "comment-id"},
@@ -1822,3 +1747,26 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
             {"event": "comment-id"},
         ),
     ]
+
+
+WRITE_THROUGH_DRIVER = """
+import sys
+from playwright.sync_api import sync_playwright
+from leaf_dev import website
+
+with sync_playwright():
+    website.write_fully(2, b"x" * int(sys.argv[1]))
+"""
+
+
+def test_script_evidence_reaches_a_stderr_pipe_the_driver_made_non_blocking():
+    # The Node driver leaves the inherited stderr pipe non-blocking, so a dump
+    # larger than the pipe's buffer must wait for the reader rather than stop.
+    size = 4 << 20
+    run = subprocess.run(
+        [sys.executable, "-c", WRITE_THROUGH_DRIVER, str(size)],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr[-2000:].decode(errors="replace")
+    assert run.stderr == b"x" * size

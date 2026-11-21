@@ -7,9 +7,10 @@
  * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
+import { authoredScope, elementReading, HEADING, readsElement } from "./passages.js";
+import { keptEach } from "./kept.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
-import { uiInside, upFrom } from "./shadow.js";
+import { uiInside, upFrom } from "./shadow-tree.js";
 import { excerptWords } from "./words.js";
 
 /** @type {Record<string, string>} */
@@ -90,9 +91,9 @@ export function addressableSays(addressable) {
 // the page states"): HTML calls h1–h6 "headings for their sections" without saying
 // which element is the section, and an element that opens with its heading is the case
 // where the two agree. No other element is named by a heading inside it, and a <strong>
-// names nothing. The words are the ones the author wrote (the `wrote` reading), so a
-// gloss's tip the page draws beside its phrase is no part of a heading's name, and
-// generated chrome names nothing: chrome inside the element, asked about the element's
+// names nothing. The words are the ones the author wrote less a popover's (the `named`
+// reading), so a gloss's explanation is no part of a heading's name, and generated
+// chrome names nothing: chrome inside the element, asked about the element's
 // own insides, since a section an agent sent in a reply stands inside the floating
 // panel's chrome and its heading is still its name. An element the contract gives no
 // name answers "". The server names an obligation's element by the same rule off the
@@ -107,14 +108,16 @@ const SECTIONS = "section, article";
 /** The caption that names plain markup by that rule, or null: a disclosure's first
  * <summary>, an hgroup's heading, or the heading a section or article opens with, alone
  * or in an <hgroup>. Finding it reads the element's children, so the answer is kept as
- * long as the page reading stands (`keptAnswer`), as an element's words are: a label
- * asked again on every pass, or a preview climbing past a long run of paragraphs, reads
- * them once.
+ * long as the piece of the page reading the element stands in (passages.js,
+ * `readsElement`), as an element's words are: a label asked again on every pass, or a
+ * preview climbing past a long run of paragraphs, reads them once.
  * @param {Element} container @returns {Element | null} */
 export const leadingTitle = (container) =>
-  registered(container)
-    ? null
-    : keptAnswer(container, "leading title", () => openingTitle(container));
+  registered(container) ? null : openingTitleKept(container);
+const openingTitleKept = keptEach((/** @type {Element} */ container) => {
+  readsElement(container);
+  return openingTitle(container);
+});
 /** @param {Element} element @returns {Element | null} */
 function openingTitle(element) {
   const child = (/** @type {string} */ selector) =>
@@ -169,17 +172,13 @@ export function titlingHeading(element) {
 function declaredName(element) {
   return (registered(element) && element.getAttribute("label")?.trim()) || "";
 }
-// Where a name comes from: an attribute's words, or an element whose words are the name,
-// read by the reading the rule names. A reader that reads names as something else draws
+// Where a name comes from: an attribute's words, or an element whose words, in the
+// `named` reading, are the name. A reader that reads names as something else draws
 // them, as a preview reads them as the page draws them, reads the same source.
-/** @typedef {{words: string} | {by: Element, reading: "named" | "says"}} Naming */
+/** @typedef {{words: string} | {by: Element}} Naming */
 /** @param {Naming | null} naming @returns {string} */
 const namingWords = (naming) =>
-  !naming
-    ? ""
-    : "words" in naming
-      ? naming.words
-      : elementReading(naming.by, naming.reading);
+  !naming ? "" : "words" in naming ? naming.words : elementReading(naming.by, "named");
 // What `addressableName` reads, by the rule above: its declared attribute, else its
 // leading title.
 /** @param {Element} element @returns {Naming | null} */
@@ -187,9 +186,7 @@ function addressableNaming(element) {
   const declared = declaredName(element);
   if (declared) return { words: declared };
   const title = leadingTitle(element);
-  return title && elementReading(title, "named")
-    ? { by: title, reading: "named" }
-    : null;
+  return title && elementReading(title, "named") ? { by: title } : null;
 }
 /** @param {Element | null | undefined} element */
 export const addressableName = (element) =>
@@ -210,13 +207,16 @@ export const addressableName = (element) =>
 export const LABEL_WORDS = 60;
 /** @param {Element} element @returns {Naming | null} */
 const captionNaming = (element) => {
-  const caption = keptAnswer(element, "caption", () =>
-    [...element.children].find(
-      (child) => child.matches("figcaption, caption") && !uiInside(child, element),
-    ),
-  );
-  return caption && elementReading(caption) ? { by: caption, reading: "says" } : null;
+  const caption = captionOf(element);
+  return caption && elementReading(caption, "named") ? { by: caption } : null;
 };
+// An element's own caption, kept as its words are (passages.js, `readsElement`).
+const captionOf = keptEach((/** @type {Element} */ element) => {
+  readsElement(element);
+  return [...element.children].find(
+    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+  );
+});
 // A form control's caption is its <label>.
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element
  * @returns {Naming | null} */
@@ -224,7 +224,7 @@ function accessibleNaming(element) {
   const label = element.getAttribute("aria-label")?.trim();
   if (label) return { words: label };
   const labelled = element.labels?.[0];
-  if (labelled && elementReading(labelled)) return { by: labelled, reading: "says" };
+  if (labelled && elementReading(labelled, "named")) return { by: labelled };
   const alt = element.alt?.trim();
   return alt ? { words: alt } : null;
 }
@@ -264,8 +264,8 @@ export function addressableLabel(element) {
 // named by the question, a chart by its section. The chrome's label for an element
 // reads it (`addressableLabel`); a place's name, which follows headings inside the
 // holder too, is thread/placement.js's `partOver`. The page's column is `main`, beside the
-// body's other content; its leading heading titles the page, not each unnamed element in
-// it.
+// body's other content; a name its author gives it, such as an `aria-label`, names the
+// page, not each unnamed element in it.
 /** @param {Element} element @returns {Naming | null} */
 function holderNaming(element) {
   const scope = authoredScope(element);

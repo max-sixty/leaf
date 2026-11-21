@@ -18,9 +18,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const NATIVE = "node_modules/@awesome.me/webawesome/dist/styles/native.css";
 
-/** Leaf owns the type and the focus band of every control (surfaces.css), and its
- * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
- * properties out. A transition would also report a control's old colour to whatever
+/** Leaf owns the type and the focus band of every control (control-face.css,
+ * surfaces.css), and its motion (`--lf-motion-*`), so the rules taken from a dependency
+ * leave these properties out. A transition would also report a control's old colour to whatever
  * reads it during the fade, as a test reading a state just set does. */
 const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
 
@@ -185,7 +185,7 @@ async function regions(source, projections) {
     return found;
   };
   const sources = [...new Set(projections.map((p) => p.source ?? source))];
-  let out = `/* @noformat Generated from ${sources.join(" and ")} by build/styles.mjs. */\n`;
+  let out = `/* Generated from ${sources.join(" and ")} by build/styles.mjs. */\n`;
   for (const { faces, source: from = source, drops, within = [] } of projections) {
     const text = await readFile(resolve(root, from), "utf8");
     let projected = "";
@@ -491,5 +491,5 @@ async function sheet(source) {
       },
     },
   }).code.toString();
-  return `/* @noformat Generated from ${source} by build/styles.mjs. */\n${tokens}`;
+  return `/* Generated from ${source} by build/styles.mjs. */\n${tokens}`;
 }

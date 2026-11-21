@@ -38,12 +38,10 @@ declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt and to fork for each
-thread Leaf keeps back and to make each completion a page server asks of it, and at
-each turn's end asks the clerk what to fork the conversation with; `--fork` asks for
-each fork's prompt and hands back its answer (`clerk.cmd_fork`, `forks.cmd_fork`),
-or a completion's (`completions.cmd_reply`). The follower records the process it
-runs in, so a Stop can tell the user where Claude Code didn't load the module
+session's pages (`cmd_pages`) to draw them beside the prompt and to take the
+instructions Leaf lists for it, and reports what each came to with `--fork`
+(`carrier.step`, whose header holds that contract). The follower records the process
+it runs in, so a Stop can tell the user where Claude Code didn't load the module
 (`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
@@ -101,14 +99,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     assert isinstance(event, str)
-    if event == "PostToolBatch" and (agent := payload.get("agent_id")):
-        # A boundary of an agent running a turn of the session's own
-        # (`state.worker_tool_batch`), which carries only that turn's input.
-        from .harness import hook_harness
-        from .hook_transport import carry_agent_turn
-
-        carry_agent_turn(hook_harness(harness, sid), sid, agent, started=started)
-        return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):
@@ -267,51 +257,39 @@ SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
 
 def cmd_pages(payload: dict) -> None:
     """Print the live pages the payload's session holds (`presence.live_leaves`)
-    and the model completions page servers ask of it (`completions.pending`), as one
-    JSON object, `{"pages": [...], "completions": [...]}`, then again each time
-    either changes, until the session holds no page. Leaf's Claude Code hooks module
-    draws the pages beside the prompt, and makes each completion, given as the `id`
-    and `request` it answers with `$.model.complete`.
+    and the instructions Leaf has for its hooks module (`carrier.py`), as one JSON
+    object, `{"pages": [...], "do": [...]}`, then again each time either changes,
+    until the session holds no page. The module draws the pages beside the prompt
+    and runs each instruction once: a completion each page server asks of the
+    session (`completions.listed`) and a line fork for each round of the user's that
+    awaits the agent's working line (`forks.look`).
 
     Read the pages every presence interval: a dead server leaves its row behind, so
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
-    the digest of the module's source as it loaded, `session_runtime.module_current`),
-    makes the follower the session's forks lane
-    (`forks.take_lane`) while it runs, and gives each page the threads a line turn
-    holds (`kept_back`), each as the `thread`, `inputs` and `turn` the module asks a
-    line fork about (`forks.look`). Between presence reads it waits on each page's
-    subscription (`file_changes.page_changes`) and on the lane's name, so it looks
-    again as a message is admitted or as a later follower takes the lane. It reads a
-    page again only once its reading has moved, since admission opens the line
-    turn.
+    The follower is the session's forks lane (`forks.take_lane`) while it runs, and
+    lists the line forks while it holds it. Between presence reads it waits on each
+    page's subscription (`file_changes.page_changes`) and on the lane's name, so it
+    looks again as a message is admitted or as a later follower takes the lane. It
+    reads a page again only once its reading has moved. Its first look at a page
+    takes the log as it stands, so it lists no round older than itself, and a
+    follower started again lists none an earlier one listed.
 
     It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
     under that Leaf. A follower runs as long as its session, while the session's
     hooks hand themselves at each call to the Leaf delivering for it: a newer copy
     Claude Code installed, a checkout the session selected, or the same checkout
-    moved past a protocol bump. That newer Leaf reads an older follower's lane as no
-    one's. On 8 November one follower, four days old, kept back messages that the
-    line fork's step, under the newer Leaf, refused as not kept back, so each waited
-    out the 30 s hold with no line.
+    moved past a protocol bump.
 
     The module that reads the list stays the one the session loaded until
-    `/reload-plugins`, so a follower under a newer Leaf may print it to a module
-    that reads kept-back threads by an older contract. From 10 to 11 November a
-    session running a checkout's Leaf under the installed copy's module, which read
-    them under another name, kept back every thread message for the whole 30 s with
-    no line fork asked. So a follower whose module isn't this Leaf's keeps nothing
-    back, and the session's messages reach it as they would without forks.
+    `/reload-plugins`, so a follower under a newer Leaf may print it to an older
+    module, which runs its instructions as any (`carrier.py`).
 
-    The follower notes its verdict once in each page it holds
-    (`interaction_log.record_follower`): whether the module asked for forks, the
-    module's digest, and whether that module is this Leaf's. So a message admission
-    found with no lane (`forks.kept_from_main_at_admission`) says whether forks were
-    off, the module stale, or the follower that held the lane gone
-    (`leaf-dev logs timeline`)."""
+    The follower notes once in each page it holds that it runs
+    (`interaction_log.record_follower`), so a round that got no line fork says
+    whether a follower had run (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module
@@ -321,30 +299,27 @@ def cmd_pages(payload: dict) -> None:
     if (pid := ClaudeCodeHarness.process_pid()) is not None:
         mark_module(sid, pid)
     if not owned_pages(sid):
-        print(json.dumps({"pages": [], "completions": []}), flush=True)
+        print(json.dumps({"pages": [], "do": []}), flush=True)
         return
 
-    from .completions import pending, watch
-    from .file_changes import FileChanges, wait
+    from .completions import listed as completions_listed
+    from .completions import watch
+    from .file_changes import FileChanges, page_changes, wait
+    from .forks import lane_path, take_lane
     from .interaction_log import record_follower
+    from .leases import release_lease
+    from .page_memory import memory_of
     from .presence import PRESENCE_CACHE_S, live_leaves
-    from .session_runtime import module_current
 
     queued = watch(sid)
-    asked, current = bool(payload.get("forks")), module_current(payload.get("module"))
-    forking = asked and current
-    # The pages this follower has noted its verdict in, each once.
+    # Whether this follower still holds the lane, which a later one takes.
+    forking = True
+    # The pages this follower has made its note in (`record_follower`), each once.
     noted: set = set()
-    if forking:
-        from .file_changes import page_changes
-        from .forks import lane_path, take_lane
-        from .leases import release_lease
-        from .page_memory import memory_of
-
-        lane = take_lane(sid)
-        # Resolved, as notifications name it.
-        named = lane_path(sid).resolve()
-        renamed = FileChanges({named.parent: False}, lambda path: path == named)
+    lane = take_lane(sid)
+    # Resolved, as notifications name it.
+    named = lane_path(sid).resolve()
+    renamed = FileChanges({named.parent: False}, lambda path: path == named)
     looked: dict = {}
     shown = None
     try:
@@ -353,13 +328,7 @@ def cmd_pages(payload: dict) -> None:
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
-            record_follower(
-                sorted(held - noted),
-                sid,
-                module=payload.get("module"),
-                forks=asked,
-                current=current,
-            )
+            record_follower(sorted(held - noted), sid)
             noted |= held
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process
@@ -378,24 +347,24 @@ def cmd_pages(payload: dict) -> None:
                     ),
                 ]
                 if forking and not still_named(lane.fileno(), named):
-                    # A later follower took the lane, and lists what this one would.
+                    # A later follower took the lane, and lists the line forks now.
                     forking = False
                     renamed.close()
-                kept = (
-                    {page: _kept_back(sid, page, looked) for page in held}
+                lines = (
+                    {page: _lines(sid, page, looked) for page in held}
                     if forking
                     else {}
                 )
                 listed = json.dumps(
                     {
                         "pages": [
-                            {
-                                **{field: leaf[field] for field in SHOWN_FIELDS},
-                                **({"kept_back": kept[page]} if forking else {}),
-                            }
-                            for page, leaf in leaves
+                            {field: leaf[field] for field in SHOWN_FIELDS}
+                            for _, leaf in leaves
                         ],
-                        "completions": pending(sid),
+                        "do": [
+                            *completions_listed(sid),
+                            *(item for items in lines.values() for item in items),
+                        ],
                     }
                 )
                 if listed != shown:
@@ -435,9 +404,9 @@ def _moved_on(sid: str) -> bool:
         return False
 
 
-def _kept_back(sid: str, page_dir, looked: dict) -> list[dict]:
-    """The page's kept-back threads (`forks.look`), read again only once the page's
-    reading has moved."""
+def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
+    """The line forks to list for the page (`forks.look`), read again only once the
+    page's reading has moved, from the seq the follower's first look took."""
     from .forks import look
     from .served_state.reading import page_reading
 
@@ -445,13 +414,12 @@ def _kept_back(sid: str, page_dir, looked: dict) -> list[dict]:
         stamp = page_reading(page_dir)
         kept = looked.get(page_dir)
         if kept is not None and kept[0] == stamp:
-            return kept[1]
-        threads = look(sid, page_dir)
+            return kept[2]
+        requests, after = look(sid, page_dir, kept[1] if kept is not None else None)
     except FileNotFoundError:
         looked.pop(page_dir, None)
         return []
-    requests = [thread.basis(page_dir) for thread in threads]
-    looked[page_dir] = (stamp, requests)
+    looked[page_dir] = (stamp, after, requests)
     return requests
 
 
@@ -513,16 +481,9 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        # A completion's reply (`completions`), a kept-back thread's forks, those
-        # beside them or the end of an agent's run (`forks`), or else the clerk's.
-        if "completion" in payload:
-            from .completions import cmd_reply as cmd_fork
-        elif "thread" in payload or "ended" in payload or "beside" in payload:
-            from .forks import cmd_fork
-        else:
-            from .clerk import cmd_fork
+        from .carrier import step
 
-        answered = cmd_fork(payload.get("session_id") or "", payload)
+        answered = step(payload.get("session_id") or "", payload)
         if answered is not None:
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return

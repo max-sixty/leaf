@@ -15,7 +15,6 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .findings import Finding
-from .forks import kept_from_main_at_admission
 from .harness import claim_harness
 from .presence import nudge_unwatched
 from .refusals import Refused
@@ -120,12 +119,8 @@ def _execute_event(
             return event_rejection(event, error)
         if appended:
             claim = page.active_claim
-            # Input that asks for the agent reaches it even when no watcher will,
-            # unless an agent's turn holds it, a line turn admission opens for it
-            # included, whose end nudges in its place (`forks`).
-            if requires_agent_attention(admitted) and not kept_from_main_at_admission(
-                page, admitted
-            ):
+            # Input that asks for the agent reaches it even when no watcher will.
+            if requires_agent_attention(admitted):
                 nudge_unwatched(page)
             if event["kind"] in kinds_declaring("message") and claim:
                 spoken = admitted["id"], claim

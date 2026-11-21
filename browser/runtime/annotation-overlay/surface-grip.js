@@ -35,7 +35,7 @@ const SLOP = 3;
  * dropped: (box: DOMRect | null) => void}} options */
 export function surfaceGrip({ surface, bounds, dropped }) {
   const grip = el("div", "lf-ui lf-surface-grip");
-  grip.title = "Drag to move";
+  grip.lfPreview = () => ({ name: "Drag to move" });
   /** @type {Carry | null} */
   let held = null;
   let offset = { x: 0, y: 0 };

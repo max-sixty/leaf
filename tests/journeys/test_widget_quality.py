@@ -159,7 +159,12 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         wait_until_ready(page)
         expect(page.get_by_role("textbox", name="Title")).to_have_value(title)
         expect(page.locator("lf-playground-output")).to_contain_text(title)
-        assert page.locator(".margin-entry-gallery-face").count() == 44
+        # Each of the page's two galleries draws one face per sample, the same samples.
+        drawn = page.locator("lf-margin-entry-gallery").evaluate_all(
+            "galleries => galleries.map(gallery => [gallery.querySelectorAll('.margin-entry-gallery-item').length, gallery.querySelectorAll('.margin-entry-gallery-face').length])"
+        )
+        assert len(drawn) == 2 and drawn[0] == drawn[1], drawn
+        assert drawn[0][0] > 0 and drawn[0][0] == drawn[0][1], drawn
         assert page.locator(".margin-entry-gallery-item").evaluate_all(
             "items => items.every(item => item.querySelector('.margin-entry-gallery-copy').getBoundingClientRect().left - item.querySelector('.margin-entry-gallery-face').getBoundingClientRect().right >= 7.5)"
         ), "the gallery label must follow the actual control's width"

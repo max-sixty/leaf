@@ -391,9 +391,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`). A fork Leaf gave a thread's work names
-    its own turn in its `leaf` commands, as Leaf's prompt tells it, so they act in
-    that turn (`state.acting_agent_turn`)."""
+    (`agent_id`, `state.worker_tool_batch`), a fork of the conversation's too
+    (measured at 2.1.329)."""
 
     job: str | None = None
 
@@ -1123,10 +1122,10 @@ def claude_code_entered(transcript: Path) -> set[str]:
         except ValueError:
             continue
         for content in attachment.get("content") or []:
-            if (delivery := inline_delivery(content)) is not None:
+            if (inline := inline_delivery(content)) is not None:
                 entered.update(
                     event["id"]
-                    for batch in delivery["batches"]
+                    for batch in inline[0]["batches"]
                     for event in batch["events"]
                 )
     return entered

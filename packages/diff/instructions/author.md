@@ -1,3 +1,6 @@
+Select this package to show a patch with commentable lines, the call-tree diff of a
+change, or a set of worktree snapshots.
+
 ## A patch review
 
 `lf-diff` has its own file listing. When directory hierarchy helps the reader navigate

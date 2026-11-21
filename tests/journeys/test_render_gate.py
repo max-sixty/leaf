@@ -356,9 +356,11 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
 
         page.route("**/checks/index.js", never_finishes)
 
+    # A probe that never loads reads nothing of the page, which the check says
+    # beside a passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
-    ).failures
+    ).findings
 
     assert asked, "the probe route was never requested, so no module load stalled"
     errors = [failure.values["error"] for failure in failures]
@@ -383,10 +385,12 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
             ),
         )
 
+    # A probe that fails reads nothing of the page, which the check says beside a
+    # passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser.unwatched, failing_probe),
         serve(LONG_PAGE),
-    ).failures
+    ).findings
     assert len(failures) == 1, failures
     assert {failure.code for failure in failures} == {"probe-failed"}, failures
     # A dynamic import's failure is no page fault. The gate's own wait must not echo it
@@ -1004,7 +1008,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     native SVG is the other control: a gradient reference is valid paint even though
     it is not a color.
 
-    And the replay check reaches a decision made in the panel. `RELATIVE_REPLAYS`
+    And the replay check reaches a decision made in the panel. `relativeReplays`
     applies every winner in force again and asks whether anything moved; a widget an
     agent sent in a reply is folded by a projection of its own and replayed into a tree
     the panel built, and the probe reads the validation state adapter, which returns
@@ -1297,14 +1301,14 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         cut = page.index(start)
         return page[:cut] + page[page.index(end, cut) + len(end) :]
 
-    option = INLINE_PAGE[INLINE_PAGE.index('<section id="opts-decision"') :]
-    option = option[: option.index("</section>") + len("</section>")]
+    option = INLINE_PAGE[INLINE_PAGE.index('<lf-group id="opts-decision"') :]
+    option = option[: option.index("</lf-group>") + len("</lf-group>")]
     # The question the granted figure holds takes its words off the column, which the
     # gate rightly advises against (`words-off-column`); the figure's table stays.
     framed = without(
         tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
-        '<section id="figure-asked"',
-        "</section>",
+        '<lf-group id="figure-asked"',
+        "</lf-group>",
     )
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
@@ -1402,7 +1406,7 @@ body { max-width: 768px; margin-inline: auto; }
     url = serve(source)
     failures = render_gate_model.render_version(
         primed(browser, scroll_it), url
-    ).failures
+    ).findings
 
     def reported(code, at):
         return [f for f in failures if f.code == code and f.at == at]
@@ -1462,14 +1466,12 @@ def test_the_render_gate_reports_a_compact_spill(browser, serve):
         head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
     )
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    overflow = [
-        finding for finding in reading.failures if finding.code == "page-scrolls"
-    ]
-    assert [f.widths for f in overflow] == [(360, 600)], reading.failures
+    overflow = [finding for finding in reading.advice if finding.code == "page-scrolls"]
+    assert [f.widths for f in overflow] == [(360, 600)], reading.findings
 
 
 @pytest.mark.shifts_unsurveyed
-def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
+def test_the_render_gate_reads_a_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: the
@@ -1523,12 +1525,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } - {("clipped-content", *box) for box in cut} == {
-        ("page-scrolls", "", (600, 880)),
-    }, reading.failures
-    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
-    # last line only under the pointer, and the room is the author's to choose.
-    [strip] = reading.advice
+    } - {("clipped-content", *box) for box in cut} == set(), reading.failures
+    # The row that spills between 600 and 880px scrolls the page sideways, which keeps
+    # every word in reach, and a strip that leaves no room for an overlay scrollbar
+    # covers its last line only under the pointer: both are the author's to judge.
+    [scrolls] = [f for f in reading.advice if f.code == "page-scrolls"]
+    assert (scrolls.at, scrolls.widths) == ("", (600, 880)), reading.advice
+    [strip] = [f for f in reading.advice if f.code == "scrollbar-clearance"]
     assert (strip.code, strip.at, strip.widths) == (
         "scrollbar-clearance",
         "<div id=strip>",
@@ -1636,7 +1639,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     # holding that too is a page that departed, not a restore case that leaked.
     arranged = {a["key"] for a in restore_cases}
     for finding, restore_case in zip(arrived, restore_cases, strict=True):
-        held = set(finding.split("returned holding ")[1].split(","))
+        held = set(finding.split("returned holding ")[1].split()[0].split(","))
         assert held & arranged == {restore_case["key"]}, finding
 
 
@@ -1654,7 +1657,7 @@ def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
         wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
     assert unready.value.stage == "log"
     assert str(unready.value) == (
-        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
+        f"the runtime never finished replaying the log: no progress in {EXPECTED_STALL_MS}ms"
     )
 
     for route in held:

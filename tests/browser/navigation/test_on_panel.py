@@ -94,13 +94,13 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
     )
     position = walk_position(page)
     assert position is not None
-    assert position["text"] == "1 of 1 waiting on me · Reply"
+    assert position["text"] == "1 of 1 waiting on me"
 
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
-    threads. The panel's On Me mark counts what waits on the user. A reply the user
+    threads. The panel's leaf counts what waits on the user. A reply the user
     sends takes its thread off that count and out of the walk once the server has read
     the reply."""
     url = serve(QUEUE_PAGE)
@@ -148,19 +148,19 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"]')
     message = thread.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(message).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect_walk_position(page, "2 of 2 waiting on me")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(message).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect_walk_position(page, "2 of 2 waiting on me")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(message).to_be_focused()
 
     page.keyboard.press("Enter")
@@ -180,7 +180,7 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(1)
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 1 waiting on me · Options")
+    expect_walk_position(page, "1 of 1 waiting on me")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect_walk_position(page, "Thread 1 of 2")
@@ -242,10 +242,11 @@ SEEN_SHARE = """async (selector) => {
 
 def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, serve):
     """While anything waits on the user, the panel field's end offers Next On Me with
-    `m`, and still does once an answer leaves one item there. With the caret in the
-    card's reply box, where `m` is a letter typed, the press stands without its key and
-    still walks to the next item, whose key it then says. Once nothing is On Me, the
-    field's end offers it no more."""
+    `m`, and still does once an answer leaves one item there, the send leaving the user
+    on the thread, where `m` walks. With the caret back in the card's reply box, where
+    `m` is a letter typed, the field's end shows nothing, and the press and its key
+    stand again once the caret leaves. Once nothing is On Me, the field's end offers it
+    no more."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -277,19 +278,25 @@ def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, s
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
     expect(press.locator("kbd")).to_have_text("m")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     page.keyboard.press("Enter")
-    box = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"] leaf-text')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"]')
+    box = thread.locator("leaf-text")
     write(box, "Weekly.")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect_on_me(page, 1)
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(thread).to_be_focused()
+    expect(press.locator("kbd")).to_have_text("m")
+    page.keyboard.press("c")
     expect(box).to_be_focused()
-    expect(press.locator("kbd")).to_have_count(0)
+    expect(press).to_have_count(0)
+    page.locator("h1").click()
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
     press.click()
     expect(page.locator("#channel-ask")).to_be_focused()
-    expect(press.locator("kbd")).to_have_text("m")
 
     with sending(page, "the pick"):
         page.locator("#beta").click()
@@ -331,21 +338,21 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
         scroll_settled(page)
         assert page.evaluate(SEEN_SHARE, selector) > 0.99
 
-    for position in ("1 of 3 · Options", "2 of 3 · Options", "3 of 3 · Reply"):
+    for at in (1, 2, 3):
         page.keyboard.press("m")
-        expect_walk_position(page, position.replace(" ·", " waiting on me ·"))
+        expect_walk_position(page, f"{at} of 3 waiting on me")
     panel_settled(page, view="thread")
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 3 waiting on me · Options")
+    expect_walk_position(page, "1 of 3 waiting on me")
     lands_whole("#mid-ask")
     expect(thread).to_have_count(1)
     expect(page.locator(".lf-fp-field .lf-compose-placeholder-lead")).to_have_text(
-        "1 of 3 waiting on me · Options"
+        "1 of 3 waiting on me"
     )
 
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 3 waiting on me · Options")
+    expect_walk_position(page, "2 of 3 waiting on me")
     panel_settled(page, open=False)
     lands_whole("#foot-ask")
 
@@ -393,14 +400,14 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
     resized(page, 1280, 900)
     page.evaluate("getSelection().removeAllRanges()")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 2 waiting on me")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Reply")
+    expect_walk_position(page, "2 of 2 waiting on me")
     panel_settled(page, view="thread")
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(page.locator("#bound-ask")).to_be_focused()
     panel_settled(page, open=False)
     scroll_settled(page)
@@ -421,7 +428,7 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect_walk_position(page, "2 of 2 waiting on me")
     expect(page.locator("#foot-ask")).to_be_focused()
     expect(on_me).to_have_count(1)
     page.keyboard.press("t")
@@ -494,13 +501,12 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert answer["widget"] == "second"
     button.click()
     expect(first).to_be_focused()
-    # Next put the answer out of view in its tab, so the first press shows it there
-    # and the second takes it back.
-    page.keyboard.press("z")
-    expect(page.locator("#second")).to_be_focused()
+    # Next put the answer out of view in its tab, so the press takes it back and then
+    # shows it there.
     with sending(page, "undo the second item's answer after Next"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
+    expect(page.locator("#second")).to_be_focused()
     expect(words).to_have_text("2 left to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
     # Leave the next press at the region's start, as on initial arrival.
@@ -517,10 +523,10 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
     button.click()
     expect(first).to_be_focused()
-    expect_walk_position(page, "1 of 2 waiting on me here · Options")
+    expect_walk_position(page, "1 of 2 waiting on me here")
     button.click()
     expect(second).to_be_focused()
-    expect_walk_position(page, "2 of 2 waiting on me here · Options")
+    expect_walk_position(page, "2 of 2 waiting on me here")
     back_to_the_tally()
     page.keyboard.press("Enter")
     expect(first).to_be_focused()
@@ -541,7 +547,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(count).not_to_have_css("color", waiting_color)
     expect(button).to_be_disabled()
     with sending(page, "undo the first decision's answer"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(words).to_have_text("1 left to answer")
     expect(count).to_have_css("color", waiting_color)
@@ -587,7 +593,7 @@ def test_an_idle_m_arrival_paints_in_its_first_frame(browser, serve, idle_setup)
       }, true);
     }""")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 1 waiting on me · Options")
+    expect_walk_position(page, "1 of 1 waiting on me")
     expect(page.locator("#channel-ask")).to_be_focused()
     assert page.evaluate("focusAtFirstFrame") == "channel-ask"
 
@@ -637,18 +643,18 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
     page.keyboard.press("m")
     page.wait_for_function("window.threadRevealStarted === true")
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
     page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     assert walk_position(page) is None
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(page.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')).to_be_focused()
 
 
@@ -794,16 +800,16 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     page.keyboard.press("Escape")
     open_obligation("widget:pick-3")
     expect(page.locator("#ask-3")).to_be_focused()
-    expect_walk_position(page, "2 of 4 waiting on me · Options")
+    expect_walk_position(page, "2 of 4 waiting on me")
 
     page.locator("#step lf-option-control").first.click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("Escape")
     open_obligation("widget:plan")
-    expect_walk_position(page, "3 of 3 waiting on me · Rewrite")
+    expect_walk_position(page, "3 of 3 waiting on me")
     open_obligation("widget:step")
     expect(page.locator("#step-ask")).to_be_focused()
-    expect(page.locator(".lf-live")).to_have_text("Options · Answered: Keep it")
+    expect(page.locator(".lf-live")).to_have_text("Answered: Keep it")
     expect_walk_position(page, None)
 
 

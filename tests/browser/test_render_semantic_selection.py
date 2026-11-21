@@ -17,7 +17,6 @@ from render_harness import (
     ROOT,
     available_commands,
     expect_panel_says,
-    field_press,
     leaf_page,
     open_page,
     panel_control,
@@ -27,6 +26,7 @@ from render_harness import (
     scroll_settled,
     selection_field,
     sending,
+    stance_exit,
     write,
 )
 
@@ -228,14 +228,13 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
 
 
 def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
-    """The picker's way out, Close at the panel field's end, stays in the panel's row
-    as the primary pointer changes under it."""
+    """The picker's way out, the ✕ at the panel row's end, stays in the row as the
+    primary pointer changes under it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    cancel = field_press(page).filter(has_text="Close")
+    cancel = stance_exit(page)
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     expect(cancel).to_be_visible()
-    expect(cancel.locator("kbd")).to_have_text("esc")
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -259,7 +258,6 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(3)  # heading, paragraph, and figure
     page.keyboard.press("Tab")
-    expect_panel_says(page, "Target 1 of 3")
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")
@@ -394,7 +392,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
-    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(field).to_be_focused()
     page.keyboard.type("A page note")
     expect(field).to_have_js_property("value", "A page note")
@@ -466,26 +464,22 @@ DENSE_TARGETS_PAGE = leaf_page(
 )
 
 
-def test_the_picker_s_close_ends_it_whatever_escape_would_take_back(browser, serve):
-    """Escape takes back a typed hint letter before it closes the picker, so the panel
-    field's Close, which ends the picker at once, says `esc` only while no letter
-    stands typed."""
+def test_the_picker_s_way_out_ends_it_whatever_escape_would_take_back(browser, serve):
+    """Escape takes back a typed hint letter before it closes the picker, and the ✕ at
+    the panel row's end ends the picker at once, a letter typed or none."""
     page = open_page(browser, serve(DENSE_TARGETS_PAGE))
     page.keyboard.press("s")
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(61)
-    close = field_press(page).filter(has_text="Close")
-    expect(close.locator("kbd")).to_have_text("esc")
+    close = stance_exit(page)
+    expect(close).to_have_attribute("aria-label", re.compile("."))
     codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     first = next(code for code in codes if len(code) == 2)[0]
     page.keyboard.press(first)
     expect(close).to_be_visible()
-    expect(close.locator("kbd")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(hints).to_have_count(61)
-    expect(close.locator("kbd")).to_have_text("esc")
     page.keyboard.press(first)
-    expect(close.locator("kbd")).to_have_count(0)
     close.click()
     expect(hints).to_have_count(0)
 
@@ -853,6 +847,21 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     expect(page.locator(".lf-live")).to_contain_text(
         "Match 2 of 2: …Unified title Unified body, rewritten."
+    )
+
+
+def test_a_match_inside_a_word_reads_back_as_the_word(browser, serve):
+    """A listener hears each match in the words around it, and one inside a word, as
+    "the" in "rather", reads back as that word rather than with spaces put around it.
+    Enter, which selects the match, says its place as `n` does."""
+    html = leaf_page("search inside a word", "<p>Follow-ups rather than blockers.</p>")
+    page = open_page(browser, serve(html))
+    page.keyboard.press("/")
+    page.keyboard.type("the")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Match 1 of 1: …Follow-ups rather than blockers."
     )
 
 

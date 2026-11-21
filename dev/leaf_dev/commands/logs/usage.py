@@ -3,7 +3,8 @@
     leaf-dev logs usage [--since ISO] [--json]
 
 Regular maintenance asks who would notice a mechanism gone (root `AGENTS.md`,
-"Regular maintenance"). This answers from the record rather than from the tree: a
+"Regular maintenance"; `/developing-leaf`, "Measure a removal"). This answers from the
+record rather than from the tree: a
 widget an example shows and no page ever held, a key nobody pressed in a month, a
 `leaf` command no agent ran. It reads every page directory under the state home's
 `pages/`, so it counts the people and agents who worked on this machine, and a

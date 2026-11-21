@@ -24,6 +24,7 @@ from render_harness import (
     INLINE_PAGE,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
+    WORDS_RANGE,
     command_reference_rows,
     compare_with,
     consume_browser_errors,
@@ -282,8 +283,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     A numbered widget and both ordinary block shapes share the same gesture.
     The retained widget's Copy returns after a hidden widget is detached and
-    reconnected. The control stays reachable beside horizontally scrolling code,
-    and a revision updates its source or removes it without duplicating controls.
+    reconnected. The control stays reachable beside code that keeps its lines and
+    scrolls them sideways, and a revision updates its source or removes it without
+    duplicating controls.
     """
     colored = '\n  print("' + "long source " * 30 + '")\t\n'
     suffix = "VISIBLE_END"
@@ -295,7 +297,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             "copy source",
             '<h1 id="title">Copy source</h1>'
             + (
-                '<pre id="colored" style="anchor-name: --authored-colored, --authored-secondary">'
+                '<pre id="colored" style="white-space: pre; '
+                'anchor-name: --authored-colored, --authored-secondary">'
                 '<code class="language-python">'
                 + escape(colored_source)
                 + "</code></pre>"
@@ -309,7 +312,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + escape(widget)
             + "</code></pre></lf-code>"
             + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
-            head="<style>#plain { anchor-name: --authored-plain; }"
+            head="<style>#plain { anchor-name: --authored-plain; white-space: pre; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
 
@@ -571,10 +574,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
-          const text = pre.querySelector('code').firstChild;
-          const range = new Range();
-          range.setStart(text, text.length - suffix.length);
-          range.setEnd(text, text.length);
+          const range = ("""
+            + WORDS_RANGE
+            + """)(pre.querySelector('code'), suffix, true);
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
@@ -601,10 +603,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
-          const code = pre.querySelector('code');
+          const first = document.createTreeWalker(pre.querySelector('code'),
+            NodeFilter.SHOW_TEXT).nextNode();
           const range = new Range();
-          range.setStart(code.firstChild, 0);
-          range.setEnd(code.firstChild, 1);
+          range.setStart(first, 0);
+          range.setEnd(first, 1);
           const width = range.getBoundingClientRect().width;
           const style = getComputedStyle(pre);
           const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);

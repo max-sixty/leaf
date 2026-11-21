@@ -86,6 +86,14 @@ window.Selection.prototype.getComposedRanges ??= function ({ shadowRoots = [] } 
   const [endContainer, endOffset] = rescoped(range.endContainer, range.endOffset, true);
   return [{ startContainer, startOffset, endContainer, endOffset }];
 };
+// happy-dom has no StaticRange either, which the runtime builds for a span of the page
+// it reads rather than selects (passages.js, `runReading`).
+globalThis.StaticRange ??= class StaticRange {
+  /** @param {{startContainer: Node, startOffset: number, endContainer: Node, endOffset: number}} init */
+  constructor({ startContainer, startOffset, endContainer, endOffset }) {
+    Object.assign(this, { startContainer, startOffset, endContainer, endOffset });
+  }
+};
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
 // the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and

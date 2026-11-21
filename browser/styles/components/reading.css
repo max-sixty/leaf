@@ -23,17 +23,16 @@
  * dresses one of these elements for its own purpose weighs only what that purpose
  * needs. The page's own sheet and every later tier outrank the whole tier.
  *
- * The face's rules for content wider than its box come first: a block of code or a
- * table scrolls inside itself rather than widening the page, an identifier breaks
- * where it must, and paper wraps what a screen scrolls. They belong to the face rather
- * than to every page because each replaces part of the browser's own layout of an
- * element the author may have designed around. A table made a block around its grid
- * holds its rows to their content whatever width, border or ground the author gave
- * the table, and a code block keeps room under its last line whatever padding the
- * author gave it. A page without the face keeps the browser's layout. Where that runs
- * past the window, the page scrolls sideways (base.css) and `page check --render`
- * refuses the page (`page-scrolls`), so its author fixes the overflow in the page's
- * own CSS.
+ * The face's rules for content wider than its box come first: a block of code wraps
+ * its long lines, a table scrolls inside itself rather than widening the page, and an
+ * identifier breaks where it must. They belong to the face rather than to every page
+ * because each replaces part of the browser's own layout of an element the author may
+ * have designed around. A table made a block around its grid holds its rows to their
+ * content whatever width, border or ground the author gave the table, and a code block
+ * keeps room under its last line whatever padding the author gave it. A page without
+ * the face keeps the browser's layout. Where that runs past the window, the page
+ * scrolls sideways (base.css) and `page check --render` refuses the page
+ * (`page-scrolls`), so its author fixes the overflow in the page's own CSS.
  */
 /* Markup Leaf renders from Markdown, a message's or a widget's body (`markdown.js`,
    `.lf-markdown-body`), is Leaf's reading of it, so it wears the face whatever theme the
@@ -95,32 +94,66 @@
      * cell, because a cell's minimum is its longest word, and that is what keeps a
      * column of row names from being squeezed under the prose beside it. The minimum is
      * what every shrinking box is sized from, so a flex item or a grid track holding a
-     * long name hands room to its neighbour the same way.
-     * A block (pre) wraps nothing, so this reaches nothing there. */
+     * long name hands room to its neighbour the same way. */
     code,
     samp,
     kbd:where(:not(.lf-key-badge)) {
       overflow-wrap: anywhere;
     }
-    /* A block that scrolls its own lines never sizes what holds it: without this a long
-     * line is every flex item's and grid track's minimum up the tree. Sideways only,
-     * `hidden` down: `visible` there computes to `auto` beside `auto`, which makes the
-     * block one that scrolls down, and a landing inside it then counts none of the sticky
-     * headers over it (state.css, `across`). Sized by its lines, it has nothing to scroll
-     * down; a block an author bounds says how it scrolls down.
+    /* A code block wraps its long lines, on screen as on paper, as lf-code's lines do
+     * (code.css). Scrolling them instead hides a line's end, where a log line says what
+     * happened, and leaves a prompt written a paragraph to a line readable a column's
+     * width at a time. A line that fits keeps its columns. `anywhere` because what runs
+     * long in source is paths, URLs and hashes, none of which offer the line box a
+     * break. Each row a line wraps onto starts two columns past the line's own indent,
+     * behind a muted ↪, so it reads as the rest of its line, in code as in prose, and a
+     * wrapped command doesn't read as the next one. The runtime boxes each line for
+     * that (code-lines.js, which says why); a block it leaves as authored, and a page
+     * read without the runtime, hang every wrapped row two columns from the block's
+     * edge (`text-indent`), unmarked. A block whose
+     * columns must line up past the column, such as a diagram drawn in characters,
+     * keeps its lines with the author's own `white-space: pre`, and scrolls them.
+     * Rejected: a control on each block that toggles wrapping, which the user offered in
+     * case wrapping couldn't be the default: a line that fits keeps its layout, and the
+     * block a wrap would break is one its author knows.
      *
-     * The same rule costs a block in a box that takes its width from its content (a flex
-     * item, a grid `auto` track beside an `fr` track, a box sized to fit), which sizes
-     * without it: the rule can squeeze short commands in a flex row too narrow to read.
-     * `page check --render` reports a block left too narrow to read (`squeezedBoxes`,
-     * render-checks/layout.js), and the author gives the block or its holder a width. A
-     * one-column grid inside the block would size it by its lines and still let it
-     * shrink, but its text-only lines lost the room after their last character, and a
-     * block mixing text and tags stood each run in a row
-     * of its own. */
+     * The block asks what holds it for its lines' width, as a table asks for its
+     * columns' (below), and a line that wraps anywhere asks for no minimum, so a flex
+     * item or grid track holding one shrinks to its room. A block that keeps its lines
+     * asks for their whole width as its minimum, so a box that takes its width from its
+     * content widens to it, as it does to a table. Rejected: inline-size containment,
+     * which keeps a block from widening its holder but sizes it as if empty, so two
+     * short commands in a flex row stand too narrow to show a character.
+     *
+     * Sideways only, `hidden` down: `visible` there computes to `auto` beside `auto`,
+     * which makes the block one that scrolls down, and a landing inside it then counts
+     * none of the sticky headers over it (state.css, `across`). Sized by its lines, it
+     * has nothing to scroll down; a block an author bounds says how it scrolls down. */
     pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      text-indent: 2ch hanging each-line;
       overflow: auto hidden;
-      contain: inline-size;
+    }
+    /* A line the runtime boxed. Its wrapped rows start two columns past its indent
+     * (`--lf-code-indent`, its leading columns), up to the 24 columns lf-code's lines
+     * stop at (code.css), and the first of the two holds the mark on each of them. The
+     * hang indents the rows after the first, and so leaves the first row's tab stops
+     * where the block's are. */
+    [data-lf-pre-line] {
+      display: block;
+      position: relative;
+      --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+      text-indent: var(--lf-code-hang) hanging;
+    }
+    [data-lf-pre-line]::before {
+      content: "";
+      position: absolute;
+      inset-block: 1lh 0;
+      inset-inline-start: calc(var(--lf-code-hang) - 2ch);
+      inline-size: 1ch;
+      background: var(--lf-code-muted);
+      mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y;
     }
     /* A code block and a table keep room under their content for an overlay scrollbar's
        track, as a text scroller does (above). Their own padding already holds part of
@@ -139,20 +172,6 @@
         padding-block-end: var(--lf-text-scroll-clearance);
       }
     }
-    /* Paper has no scrollbar, so a line past the column is not a scroll away but gone.
-       Code wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet
-       already makes for its rows. `anywhere` because what runs long in source is paths,
-       URLs and minified data, none of which offer the line box a break to find.
-       `overflow-x` is left alone: once the line wraps there is nothing to scroll, and
-       releasing the clip would only let what cannot wrap paint out through the block's
-       own border. A rule that restates `white-space` for its own box states the paper
-       half beside itself, since every other rule of the tier outranks this one. */
-    @media print {
-      pre {
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-    }
     /* A table's columns hold what is in them, and the space between two of them is
      * one gutter wide. `width: 100%` bought the opposite: the browser's auto layout
      * spreads leftover width across every column, so a four-column survey's columns
@@ -162,7 +181,7 @@
      * display:block is what buys it back, and a wide table's answer with it. The
      * grid inside a block box shrink-wraps, so a table takes the measure only when
      * its content asks for it, wraps its cells when the content asks for more, and
-     * scrolls inside itself — like pre, like lf-board — when even the wrapping
+     * scrolls inside itself — like lf-board — when even the wrapping
      * can't fit. Nothing narrower does all three: overflow on a table box is
      * ignored outright, and a table that spills lands in the margin where a
      * suggestion's controls hang, having scrolled the page by nothing the render
@@ -174,7 +193,7 @@
      * name that could not break (an identifier has nowhere to break until the rule
      * at `code` above gives it one) or because there are more columns than the
      * measure holds. `page check --render` advises on a table that scrolls with a
-     * cell in it wrapped at any width from 360px to 1920px (`squeezedBoxes`,
+     * cell in it wrapped at any width from 360px to 1920px (`squeezedTables`,
      * render-checks/layout.js) and leaves the third case to a table with nothing
      * left to wrap.
      *
@@ -183,21 +202,19 @@
      * rowgroup, row, columnheader and cell through it, with or without an explicit
      * role, and a long table still breaks across printed pages, since a page box
      * fragments an overflow block rather than clipping it. What paper does lose is
-     * a table too wide to wrap, which it loses either way — the same trade pre and
-     * lf-board already make, and the reason not to write a print rule undoing this
-     * one.
+     * a table too wide to wrap, which it loses either way — the same trade lf-board
+     * already makes, and the reason not to write a print rule undoing this one.
      *
      * A table asks its holder for its columns' width, as the browser's own table does,
      * and scrolls them where the holder gives it less. Rejected: an inline-size
-     * container so that its width never widened its holder, as `pre`'s containment
-     * keeps a code block's. Containment sizes a box as if it were
-     * empty, so a holder that takes its width from its content (a flex item, a grid's
-     * `auto` track, a box sized to fit, such as a thread card) gives the table none: a
-     * table in a flex row can collapse to nothing, and a thread card stays at its
-     * narrowest, scrolling a table it has room for. A table in such a holder widens it
-     * to the columns' width, past the window if the columns need that, and the render
-     * check reports the page scrolling sideways. In the column, a panel or any other
-     * block, the table takes its holder's width and scrolls.
+     * container so that its width never widened its holder. Containment sizes a box as
+     * if it were empty, so a holder that takes its width from its content (a flex
+     * item, a grid's `auto` track, a box sized to fit, such as a thread card) gives the
+     * table none: a table in a flex row can collapse to nothing, and a thread card stays
+     * at its narrowest, scrolling a table it has room for. A table in such a holder
+     * widens it to the columns' width, past the window if the columns need that, and the
+     * render check reports the page scrolling sideways. In the column, a panel or any
+     * other block, the table takes its holder's width and scrolls.
      *
      * Like `pre` it scrolls only sideways, `hidden` down, so a landing on what it
      * holds still counts the sticky headers over the table. Scrolling sideways makes it

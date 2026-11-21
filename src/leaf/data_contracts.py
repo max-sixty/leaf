@@ -347,7 +347,6 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[Fin
                 "run": entry["run"],
                 "current_run": entry["current_run"],
             },
-            severity="advice",
         )
         for entry in measurement_lag_entries(lf_elements, registry, stored)
     ]

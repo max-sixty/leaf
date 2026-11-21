@@ -50,3 +50,12 @@ lf-chart .lf-chart-at line {
   stroke: var(--lf-muted);
   stroke-dasharray: 2 3;
 }
+/* A dot or a line's vertex a comment names, and the one the reader is on, wear a ring
+   round them, wider than the reader's own, that draws nothing of its own: Leaf strokes
+   it while its aim or the comment is in play, as it strokes a bar Plot drew
+   (surfaces.css). It takes no pointer, so the pointer reads the drawing beneath. */
+lf-chart .lf-chart-marks {
+  fill: none;
+  stroke: none;
+  pointer-events: none;
+}

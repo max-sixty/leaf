@@ -112,6 +112,10 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
     const captures = [];
     async function snapshot() {
       const controls = await page.evaluate(() => {
+        // An earlier snapshot's indexes name elements this one may not list, so clear
+        // them before numbering, or an old and a new control share an index.
+        for (const el of document.querySelectorAll("[data-eval-control]"))
+          el.removeAttribute("data-eval-control");
         // Read as inputs, the one element type whose fields cover every line below.
         const elements = /** @type {NodeListOf<HTMLInputElement>} */ (
           document.querySelectorAll("*")

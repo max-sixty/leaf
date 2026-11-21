@@ -14,8 +14,8 @@ the tree (`pinned_copy`):
 - `evals/<case>/` holds what an instruction case hands its child
   (`leaf_dev.commands.eval.run`).
 
-`leaf-assets.json` pins one commit of the asset repository. Downloads land under .tmp,
-which both local builds and CI may discard and reconstruct.
+`.config/leaf-assets.json` pins one commit of the asset repository. Downloads land
+under .tmp, which both local builds and CI may discard and reconstruct.
 
 Every reader calls `pinned_assets()`, which fetches on a miss; `leaf-dev setup` warms
 the cache. A writer stages its files in a clone of the revision its checkout pins, so
@@ -27,7 +27,7 @@ which GitHub renders without a build, names the pinned commit. Staging and refus
 publication leave Leaf's consumers unchanged.
 
 The head's history is a line and every pin is a commit on it, so in a merge conflict
-over `leaf-assets.json`, take the later `revision`: it holds both branches' files.
+over `.config/leaf-assets.json`, take the later `revision`: it holds both branches' files.
 Where both branches published the same file, the later pin holds the later
 publication's copy, so publish that file again from the merged tree.
 """
@@ -42,7 +42,7 @@ from pathlib import Path, PurePosixPath
 
 from leaf_dev import ROOT
 
-LOCK = "leaf-assets.json"
+LOCK = ".config/leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
 README = ROOT / "README.md"
 
@@ -116,19 +116,19 @@ def pinned_assets(root: Path = ROOT) -> Path:
     return target
 
 
-def assets_lock(path: Path) -> Path | None:
-    """The pin governing `path`: the `leaf-assets.json` of the checkout holding it, or
-    None outside any checkout that pins assets, such as a scratch source."""
-    return next((up / LOCK for up in path.parents if (up / LOCK).is_file()), None)
+def assets_checkout(path: Path) -> Path | None:
+    """The checkout holding `path` whose `LOCK` pins its assets, or None outside any
+    checkout that pins assets, such as a scratch source."""
+    return next((up for up in path.parents if (up / LOCK).is_file()), None)
 
 
 def pinned_copy(path: Path) -> Path | None:
     """Where the pinned assets hold `path`, a path in a checkout that keeps its bytes
     there. The copy never changes under a pin, so its pin is what a watcher follows."""
-    lock = assets_lock(path)
-    if lock is None:
+    checkout = assets_checkout(path)
+    if checkout is None:
         return None
-    return pinned_assets(lock.parent) / path.relative_to(lock.parent)
+    return pinned_assets(checkout) / path.relative_to(checkout)
 
 
 def run(*args: str, cwd: Path) -> str:

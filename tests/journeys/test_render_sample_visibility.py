@@ -8,8 +8,8 @@ from render_harness import (
 
 from journeys.test_render_read_state import (
     _expect_news,
+    _leaf,
     _message_body,
-    _on_me_mark,
     _open_first_unread,
     _read_by_the_sample,
     _sample_reading_page,
@@ -34,7 +34,7 @@ def test_narrowing_a_partially_clipped_sample_does_not_acknowledge_hidden_words(
         "#clip iframe { min-width: 900px; }",
     )
     page.locator("#clip").evaluate("clip => clip.style.width = '250px'")
-    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    _leaf(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
     # The sample's panel stands at its frame's foot, so the clip is scrolled to show
     # the message's lines, cut at the narrow clip's right edge.
@@ -95,7 +95,7 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
         "#read-practice { min-width: 950px; }",
     )
     open_threads(page)
-    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    _leaf(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
     bottom = _message_body(child).evaluate(
         "body => body.getBoundingClientRect().bottom"

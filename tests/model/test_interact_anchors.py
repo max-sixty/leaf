@@ -834,6 +834,8 @@ def test_quote_preservation_reads_restated_body_at_the_candidate_revision(page_d
         if thread["id"] == root["id"]
     )
     assert thread["anchor"] == {"section": "note"}
+    # The words the thread is about stay readable once the page no longer shows them.
+    assert thread["rewritten_from"]["quote"] == "Alpha"
 
 
 def test_a_stamp_detaches_a_reopened_quote_without_a_surviving_section(page_dir):
@@ -1061,8 +1063,8 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
     """An undone reaction is a mark taken back: no thread fold shows it, so a reply
-    naming it would open a thread with no root. Neither detaching nor moving it
-    lands."""
+    naming it would open a thread with no root. The append door refuses both
+    detaching and moving it."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     root = append_carried_log_record(
@@ -1093,7 +1095,7 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stdout).code == "no-anchor"
+    assert refused_on(detached.stdout).code == "withdrawn-parent"
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -1110,6 +1112,22 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
     )
     assert moved.exit_code != 0
     assert refused_on(moved.stdout).code == "withdrawn-parent"
+
+    titled = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Shorter flow",
+            "--text",
+            "Name the withdrawn mark's thread.",
+        ],
+    )
+    assert titled.exit_code != 0
+    assert refused_on(titled.stdout).code == "withdrawn-parent"
 
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):

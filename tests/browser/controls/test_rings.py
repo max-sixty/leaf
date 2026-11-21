@@ -173,7 +173,12 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     page.keyboard.press("Tab")
     panel = page.locator(f"#{ident}")
     expect(panel).to_be_focused()
-    page.keyboard.press("PageDown")
+    # Scrolled by a wheel rather than a key: Chromium drops a key's smooth scroll when
+    # the frame that starts it runs longer than the scroll's animation, as a loaded
+    # machine's can, and the compositor times a wheel's scroll itself.
+    box = panel.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, box["height"])
     page.wait_for_function(
         "id => document.getElementById(id).scrollTop > 100", arg=ident
     )

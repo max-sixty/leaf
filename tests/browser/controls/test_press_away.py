@@ -19,6 +19,7 @@ from render_harness import (
 from browser.drafts.test_reply_sessions import open_reply
 from browser.margin.test_pins import FOLDING_PAGE
 from leaf import event_log as events_model
+from leaf_dev.browser import open_on_me
 
 PHONE = {
     "viewport": {"width": 390, "height": 844},
@@ -71,9 +72,8 @@ def drag(page, start, end):
 
 def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
-    on_me = page.locator(".lf-fp-on-user")
     outside = centre(page.locator("h1"))
-    on_me.click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     view = page.locator(".lf-fp-view:not([data-lf-leaving])")
     # A drag that ends in the view, as a selection overshooting into it does, began on
@@ -86,11 +86,11 @@ def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     panel_settled(page, view="queue")
     tap(page, outside)
     panel_settled(page, open=False)
-    on_me.click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.mouse.click(*outside)
     panel_settled(page, open=False)
-    on_me.click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

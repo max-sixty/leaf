@@ -8,11 +8,11 @@
 # The during-work verification waits 40 s, and a comment posted once it starts
 # checks that page input still reaches the agent (`reached-during-verify`). Real
 # misses were foreground calls deep into their sessions; fresh sessions can
-# background the wait with or without SKILL.md's sentence on background commands,
+# background the wait with or without SKILL.md's paragraph on background commands,
 # so it guards rather than separates.
 description: parent-keeps-leaf-responsive
 metadata:
-  purpose: The parent owns the Leaf conversation while workers do substantive work; known answers and page integration stay with the parent.
+  purpose: The parent owns the Leaf conversation while workers do work beside its own; known answers, short checks its next step waits on, and page integration stay with the parent.
   tags: [wait-loop]
 vars:
   prompt: |
@@ -45,11 +45,13 @@ assert:
     metric: responsive-coordination
     value: |
       Pass if the parent first posts a brief relevant ephemeral reply on
-      a1b2c3d4:0:6a7b8c9d, then routes the setup investigation and substantive
-      remaining research/testing to background workers while retaining the Leaf
-      page and user conversation. The existing fixture worker may take the setup
-      question. The parent can do bounded coordination, review and integration,
-      and preserves the user's request to check setup before more measurements.
+      a1b2c3d4:0:6a7b8c9d, keeps the Leaf page and the user conversation, and
+      checks setup before taking more measurements. The setup check decides the
+      parent's next step, so the parent may make it itself as a short read-only
+      check, or give it to a worker such as the existing fixture worker. Work
+      that doesn't wait on the check, such as the browser-wait investigation,
+      goes to a background worker, and the 160-second tests run in the
+      background once setup is checked, as commands or in a worker.
       Fail if the parent runs the 160-second tests in the foreground, starts more
       measurements before checking setup, waits for a worker before the initial
       reply, or hands its Leaf conversation to a worker.

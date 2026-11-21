@@ -399,6 +399,26 @@ test("widget action history excludes an action the view classifies nowhere", () 
   ]);
 });
 
+test("a publication that adds no widget event keeps the coverage records", () => {
+  // The applied stamp (`projection/presentation.js`) skips its walk of the log while
+  // the records it last stamped stand, so they must be the same records until a
+  // widget event joins.
+  const app = setup();
+  const read = state(2);
+  read.events = [{ ...action("old"), id: "e-old", seq: 1 }];
+  app.adopt(read);
+  const before = app.read().effective.coverage;
+  app.enqueue(
+    { kind: "comment", attempt: "aside", text: "Elsewhere", revision: 1 },
+    "now",
+  );
+  assert.equal(app.read().effective.coverage, before);
+  const later = state(3);
+  later.events = [...read.events, { ...action("new"), id: "e-new", seq: 2 }];
+  app.adopt(later);
+  assert.equal(app.read().effective.coverage.length, 2);
+});
+
 test("the selected revision keeps carried action history from earlier revisions", () => {
   const app = setup();
   const current = {
@@ -467,7 +487,7 @@ test("message capture preserves a deferred document's identity and immutable fie
     app.identify(1, stamp, true);
     const shown = app.read().document;
     const body = { text: "A newly read message" };
-    const messageBodies = new Map([["message", body]]);
+    const messageBodies = new Map([["thread", new Map([["message", body]])]]);
     const read = state(2, [], { active: { revision: 2, version: 2 } });
 
     assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
@@ -481,7 +501,10 @@ test("message capture preserves a deferred document's identity and immutable fie
       body.text = "Changed after transfer";
     }, TypeError);
     assert.throws(() => messageBodies.clear(), /read-only/);
-    assert.equal(admitted.messageBodies.get("message").text, "A newly read message");
+    assert.equal(
+      admitted.messageBodies.get("thread").get("message").text,
+      "A newly read message",
+    );
     assert.throws(() => admitted.authored.clear(), /read-only/);
   }
 });
@@ -1049,6 +1072,16 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   assert.equal(decision(app), null);
   assert.equal(app.nameEvents("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
+});
+
+test("an undo of an action the log has answered but no reading holds withdraws it at once", () => {
+  const app = setup();
+  const first = app.enqueue(action("first"), "now");
+  app.accept("first", { ...action("first"), id: "e1", seq: 1 });
+  assert.equal(app.entry("first").state, "accepted");
+  assert.equal(decision(app), "accept");
+  app.enqueue({ kind: "undo", undoes: first.localId, attempt: "undo" }, "now");
+  assert.equal(decision(app), null);
 });
 
 // Each step is a signal and the entry's state after it: `null` once it has left. What

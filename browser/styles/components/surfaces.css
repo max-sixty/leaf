@@ -94,17 +94,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   white-space: normal;
   --lf-block-frame: 1;
 }
-/* The box sets `white-space: normal`, so the source inside it restores preformatting,
-   and outranks the reading sheet's print wrap by specificity until it answers paper
-   itself. */
 .lf-error pre {
   margin: 8px 0 0;
-  white-space: pre;
-}
-@media print {
-  .lf-error pre {
-    white-space: pre-wrap;
-  }
 }
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
@@ -140,18 +131,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :host {
   --lf-external-icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22black%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5%22/%3E%3C/svg%3E");
 }
+/* The mark after a link that leaves the page, on the page and in a field
+   (composing/field-editor.js, `ExternalMark`). It is the padding of an empty inline box
+   at the link's end. Line breaks fall between characters, and an empty inline box
+   adds none, so the mark stays on the line of the link's last character; an
+   inline-block would allow a break on each side of it (CSS Text 3, "Line Breaking
+   Details"). The icon is centred in the box, which is as tall as the link's font. Its
+   height applies only in a link that lays out its contents as a flex or grid
+   container, which makes the mark a block. The second, transparent mask layer stops
+   WebKit painting the box's background where the icon doesn't reach. */
 a[data-lf-external]::after,
-.lf-external-mark {
+::part(lf-external-mark)::after {
   content: "";
-  display: inline-block;
-  width: 0.75em;
-  height: 0.75em;
   margin-inline-start: 0.24em;
-  vertical-align: 0.03em;
+  padding-inline-start: 0.75em;
+  height: 0.75em;
   background: currentColor;
-  mask: var(--lf-external-icon) center / contain no-repeat;
-  user-select: none;
-  -webkit-user-select: none;
+  mask:
+    var(--lf-external-icon) center / 0.75em no-repeat,
+    linear-gradient(transparent, transparent);
 }
 /* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against.
  * Without it, a chip that opens a section and a badge that counts something are the
@@ -287,7 +285,11 @@ a[data-lf-external]::after,
    standing while it shows. Focus alone (`data-lf-mark="focus"`) is the box's focus
    ring rather than a mark, so it stands at no weight, as the focus floor above does:
    the box's own focus treatment wins, an author's outline or a carrier's such as a
-   ring overlay. */
+   ring overlay. The user chose this: a page's `:focus { outline: none }` or decorative
+   outline leaves a focused commentable box without Leaf's ring, as an author's outline
+   replaces the browser's own focus ring on any control. Focus alone at `!important`
+   fails: it overrides the author's focus outline and a ring overlay's `outline: none`,
+   which draws a second ring outside the overlay's clipping box. */
 :where([data-lf-aimed]),
 :where([data-lf-traced]),
 :where([data-lf-proxied]),
@@ -518,7 +520,7 @@ a[data-lf-external]::after,
   ):not(path, rect, circle, ellipse, line, polyline, polygon):not(
     :has(:is(path, rect, circle, ellipse, line, polyline, polygon):not(defs *))
   ) {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   outline-style: solid !important;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
@@ -703,21 +705,30 @@ button.lf-inline-action,
 summary {
   align-content: center;
 }
-/* --lf-entry-floor under every field, beside --lf-aim-floor under every aim. iOS Safari zooms
-   the page onto a text field set under 16px as the field takes focus, and leaves the page
+/* --lf-entry-floor under each of Leaf's own fields: its composers (`leaf-text`), and
+   every field in its chrome or offered by a widget (`.lf-ui`). iOS Safari zooms the
+   page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
    panning sideways across a page wider than the screen. The zoom answers the field's
-   computed size, so the floor outranks every face a field is given — the layer's own
-   13px find box and 14px response field among them — and 1em keeps a field no smaller
-   than the type around it. The query gates the rule rather than leaving it to the token,
-   because at a zero floor the rule would still pull every field to its surroundings.
-   A radio or checkbox takes no typing, so iOS doesn't zoom onto it, and its mark keeps
-   the size of its label's type (controls.css, `.lf-choice`). */
+   computed size, so the floor outranks every face Leaf gives a field — its 13px find
+   box and 14px response field among them — and 1em keeps a field no smaller than the
+   type around it. A field the page wrote takes the floor only from the default face
+   (control-face.css), so the size its author gives it stands. The query gates the rule
+   rather than leaving it to the token, because at a zero floor the rule would still
+   pull each field to its surroundings. A radio or checkbox takes no typing, so iOS
+   doesn't zoom onto it, and its mark keeps the size of its label's type (controls.css,
+   `.lf-choice`). */
 @media (pointer: coarse) {
-  input:not([type="radio"], [type="checkbox"]),
-  textarea,
   leaf-text,
-  select {
+  .lf-chrome input:not([type="radio"], [type="checkbox"]),
+  .lf-chrome textarea,
+  .lf-chrome select,
+  .lf-ui input:not([type="radio"], [type="checkbox"]),
+  .lf-ui textarea,
+  .lf-ui select,
+  input.lf-ui:not([type="radio"], [type="checkbox"]),
+  textarea.lf-ui,
+  select.lf-ui {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }
@@ -793,9 +804,9 @@ summary {
 }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
-/* An open progress group's border overhangs the transcript's end by
-   `--lf-group-ring-end`, so a transcript that scrolls keeps at least that much room
-   there (`--lf-transcript-room`, annotation-chrome.css). */
+/* An open summary's region overhangs the transcript's end by `--lf-group-ring-end`,
+   so a transcript that scrolls keeps at least that much room there
+   (`--lf-transcript-room`, annotation-chrome.css). */
 :root,
 .lf-page-thread,
 .lf-fab-bar {
@@ -807,6 +818,13 @@ summary {
      the next message, a checkpoint, the working step or the reply box: far more than a
      head's gap to its words, so each head reads with the message under it. */
   --lf-msg-gap: 24px;
+  /* How far a summary's region stands inside the conversation's start edge, so its
+     words stand at the conversation's inset. At its end it reaches past the words by
+     `--lf-group-ring-end`. */
+  --lf-summary-edge: 3px;
+  /* The room a thread's own controls take beside the line they stand on: a head's
+     height, or a finger's width under one. */
+  --lf-thread-action-room: max(var(--lf-msg-head-height), var(--lf-aim-floor));
   /* A message's controls, symbols as tall as the thread's own, one group at its
      head's end (controls.css). */
   --lf-msg-control-size: var(--lf-icon-action-face);
@@ -830,7 +848,6 @@ summary {
   position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline, --lf-thread-message-controls;
-  --lf-thread-action-room: max(var(--lf-msg-head-height), var(--lf-aim-floor));
   --lf-thread-notice-room: var(--lf-msg-head-height);
 }
 
@@ -847,7 +864,7 @@ summary {
   inherits: false;
   initial-value: 0;
 }
-/* A message and a progress run's face arrive in one tint (messages.js, `arrivalTint`). */
+/* A message and a step's face arrive in one tint (messages.js, `arrivalTint`). */
 .lf-msg,
 .lf-thread-working {
   --lf-msg-rest-ground: transparent;
@@ -861,7 +878,7 @@ summary {
 .lf-msg {
   margin: var(--lf-msg-gap) 0 0;
 }
-.lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
+.lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;
 }
 /* Every message header holds the same control-height row, including sticky margin
@@ -969,41 +986,26 @@ summary {
   white-space: nowrap;
 }
 /* A long name is cut at 40% of its head, which leaves its time and receipt room, and a
-   short one stands whole in a narrow head up to 5em.
-
-   Every word on a head's line stands on one baseline. The head centres each of its
-   boxes separately. The time, a receipt and a notice of news are each a line in the
-   head's face, but the name is set larger, and larger text centred on its own line
-   sits with its baseline lower, here by about a pixel. So the name's box takes its
-   line from a strut, a zero-width character in the head's face, rather than from the
-   name's own face (`line-height: 0`), and the name stands on the strut's baseline.
-   Each engine places a baseline alike in boxes of the same line and face, so the
-   name's meets the others' exactly. The strut opens only the first line, so the name
-   keeps to one line. Its box clips only sideways, since its line is shorter than the
-   name's face and clipping it would cut accents.
-
-   Rejected: aligning the head's boxes by baseline, which puts the words at the top of
-   the head, taller than their line, rather than centred on it; and a strut in the
-   metadata on the name's line, which left the notice of news, centred beside the
-   head, a pixel or more above the rest. */
+   short one stands whole in a narrow head up to 5em. The head centres each of its
+   boxes on its line, so the name, set larger than the time beside it, stands its
+   baseline a little lower than the time's, a gap Leaf leaves (browser/AGENTS.md,
+   "Words share a baseline by layout alone"). Rejected: aligning the head's boxes by
+   baseline. Alone, it stands the words at the top of the head, which is taller than
+   their line; with `flex-wrap: wrap` and `align-content: center` it keeps them
+   centred, but a narrow head then wraps its time below the name. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
   max-inline-size: max(40%, 5em);
   min-width: 0;
-  overflow: clip visible;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: var(--lf-font-name);
-  line-height: 0;
   color: var(--lf-ink);
-  &::before {
-    content: "\200b" / "";
-    font: var(--lf-font-small);
-  }
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
-   closed (thread/transcript.js). One disclosure beside that context controls the
-   entire range. Open, the covered messages follow it at their own inner gap. */
+   closed (thread/transcript.js). One disclosure at its head controls the entire
+   range. Open, the covered messages follow it at their own inner gap. */
 .lf-thread-checkpoint {
   margin-block: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
@@ -1020,40 +1022,53 @@ summary {
 .lf-thread-transcript > .lf-msg[hidden="until-found"] {
   margin-block: 0;
 }
-/* A border groups an open fold's messages without changing their headers or giving
-   progress a separate background. It is drawn around them rather than taking room,
-   so opening a group moves none of their words: an answer folding the progress a
-   reader is on keeps it open in place (held-news.js). It spans siblings, from the
+.lf-summary-checkpoint {
+  padding: 8px calc(var(--lf-thread-text-inset) - var(--lf-summary-edge));
+  margin-inline: calc(var(--lf-summary-edge) - var(--lf-thread-text-inset))
+    calc(-1 * var(--lf-group-ring-end));
+  border-radius: var(--lf-r);
+  background: var(--lf-settled-tint);
+}
+/* Open, the region takes in the messages the summary folds: the fill stands under
+   them, and each stands on the tint as its own ground, so a head stuck at a card's top
+   keeps it. A message keeps its box and so its lines: a summary arriving open over the
+   message the reader is on moves none of its words. The fill spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
-   thread content outside the scrolling transcript. Collapsed disclosures stay inline. */
+   thread content outside the scrolling transcript. Under them, it needs the transcript
+   to be the stacking context it paints in. */
+.lf-thread-transcript:has(> .lf-thread-checkpoint[data-lf-expanded="true"]) {
+  isolation: isolate;
+}
 .lf-thread-checkpoint[data-lf-expanded="true"]::before {
   content: "";
   position: absolute;
-  inset-block-start: calc(anchor(var(--lf-fold-head) start) - 7px);
-  inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 7px);
-  inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
+  z-index: -1;
+  inset-block-start: anchor(var(--lf-fold-head) start);
+  inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 8px);
+  inset-inline-start: calc(
+    anchor(var(--lf-fold-head) start) + var(--lf-summary-edge) -
+      var(--lf-thread-text-inset)
+  );
   inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
-  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
+  background: var(--lf-settled-tint);
   pointer-events: none;
 }
-.lf-summary-checkpoint {
-  padding-block: 4px;
+.lf-thread-transcript > .lf-msg[data-lf-summarized] {
+  --lf-ground: var(--lf-settled-tint);
+  --lf-msg-rest-ground: var(--lf-settled-tint);
 }
-/* Keep the context label readable when the disclosure needs another line. */
+/* The press at the summary's head stands in a message time's quiet face, which it
+   takes as words among others do (controls.css, the inline face). */
 .lf-summary-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-/* The label keeps the status face. The sender's face, or its weight at this size, wraps it
-   beside a margin card's actions, in the room Next unread's words leave. */
-.lf-summary-label {
-  min-width: 0;
-  overflow-wrap: anywhere;
   color: var(--lf-muted);
   font: var(--lf-font-status);
+}
+/* The name the agent gave the range, leading its words. */
+.lf-summary-label {
+  color: var(--lf-ink);
+  font-weight: 600;
 }
 .lf-summary-text {
   color: var(--lf-ink-2);
@@ -1067,8 +1082,8 @@ summary {
 .lf-summary-text > :last-child {
   margin-bottom: 0;
 }
-/* A thread's disclosure, an inline press (controls.css): a progress run's "N steps" in
-   its message's head, and a retained quote's Full quote (floating-panel.js). */
+/* A thread's disclosure, an inline press (controls.css): a summary's "N earlier
+   messages" at its head. */
 .lf-thread-disclosure {
   display: inline-flex;
   align-items: center;
@@ -1078,30 +1093,8 @@ summary {
   flex-shrink: 0;
   padding: 4px 0;
 }
-/* Progress belongs to the completing reply's metadata, or to the face of a run no
-   reply folds, with no summary row. Flex wrapping keeps its complete label and hit
-   target at narrow widths. */
-.lf-msg-head:has(> .lf-summary-expand),
-.lf-thread-working-head:has(> .lf-summary-expand) {
-  flex-wrap: wrap;
-  overflow: visible;
-  white-space: normal;
-  row-gap: 0;
-}
-:is(.lf-msg-head, .lf-thread-working-head) > .lf-thread-disclosure {
-  padding-block: 0;
-}
-/* The age can change without a gesture; keep its progress control at the row end. */
-:is(.lf-msg-head, .lf-thread-working-head) > .lf-progress-expand {
-  margin-inline-start: auto;
-}
-.lf-summary-required {
-  margin-top: 6px;
-  color: var(--lf-turn-ink);
-  font: var(--lf-font-heading);
-}
-/* A progress run's face, the working message among them: its latest step, where it
-   was said (thread/transcript.js). It takes a message's head and body faces, but its
+/* A step's face, the working message among them: the step, where it was said
+   (thread/transcript.js). It takes a message's head and body faces, but its
    words stay dim, and while the work runs a sheen passes over them, as over a title
    being generated, so a step reads as work under way rather than as a reply. Its words
    wrap as a message's do, so the whole step shows however narrow the surface. Its
@@ -1168,13 +1161,12 @@ summary {
   }
 }
 /* Held news and header words spend separate retained allocations. A receipt may
-   change inside its metadata box, but cannot grow underneath the notice. The box
-   clips only sideways, so a name's accents above its line still show (above). */
+   change inside its metadata box, but cannot grow underneath the notice. */
 .lf-msg-head > .lf-held-header-item {
   flex: 0 0 var(--lf-held-header-width);
   max-inline-size: var(--lf-held-header-width);
   box-sizing: border-box;
-  overflow: clip visible;
+  overflow: hidden;
 }
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;
@@ -1363,24 +1355,33 @@ button.lf-thread-news {
 .lf-msg-head .lf-msg-failure {
   color: var(--lf-warn-ink);
 }
-/* What an answer leaves standing reads beside its time like a receipt. */
-.lf-msg-head .lf-msg-leaves {
+/* What an answer leaves standing reads beside its time like a receipt. A to-do's word
+   is a press in the head's ink instead (thread/messages.js, `#leavesWord`). The press
+   clips its words rather than hiding their overflow, since a box that hides it
+   scrolls, and focus scrolled its words up out of the head's line. */
+.lf-msg-head span.lf-msg-leaves {
   color: var(--lf-ink-2);
 }
+.lf-msg-head button.lf-msg-leaves {
+  overflow: clip;
+}
 /* A quote of the words a thread is about, where its container asks for one, as the
-   floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
-   chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. Only the quoted words stand behind the
-   rule, which with the quiet ink says they are quoted, so they take no marks. Leaf's
-   words about them form a label over the rule in the status face: first a status word
-   in Leaf's italic (voice.js) where the page no longer reads as the quote does, such as
-   a passage a revision took out of the latest version, which a finger reads as a
-   pointer does (`quoteReading`), then where they stand (`anchorPlace`,
-   thread/messages.js). A thread on a place with no quoted words draws the label alone.
-   The words stand over the thread's messages in three lines, the whole on Full quote,
-   its press above the words it grows. The head only says what the thread is about,
-   since the container's way to the words, as the panel's Show on page, goes there: it
-   takes no press, no aim's room and no title. The rule stands on the thread's edge, and
+   floating panel's view does, or where the page no longer reads as the quote does
+   (thread-card.js, `#drawQuote`). The panel and a margin card stand in the chrome and a
+   thread drawn by a package's reader stands in the page, so the face is stated here,
+   where every surface reads it. Only the quoted words stand behind the rule, which
+   with the quiet ink says they are quoted, so they take no marks. Leaf's words about
+   them form a label over the rule in the status face: first a status word in Leaf's
+   italic (voice.js) where the page no longer reads as the quote does, such as a
+   passage a revision took out of the latest version, which a finger reads as a pointer
+   does (`quoteReading`), then where they stand (`anchorPlace`, thread/messages.js),
+   which a margin card's bracket already shows. A thread on a place with no quoted
+   words draws the label alone.
+   The words stand over the thread's messages in three lines. Where three lines cut
+   words the page no longer shows, the label is the press that opens them whole, above
+   the words it grows. The head only says what the thread is about, since the
+   container's way to the words, as the panel's Show on page, goes there: it takes no
+   other press, no aim's room and no title. The rule stands on the thread's edge, and
    the words and the label start on its text. */
 .lf-quote-label {
   margin: 0;
@@ -1414,19 +1415,24 @@ button.lf-thread-news {
   display: block;
   overflow: visible;
 }
-/* Full quote, an inline press (controls.css) at the quote's size, its disclosure's
-   marker before its word. Its reach (the aim floor, above) lies inside the scroller
-   holding the thread, as the panel's view, which clips what passes its 8px top
-   padding, so under a finger it stands low enough for the reach above it. */
-.lf-thread-quote-head > .lf-quote-expand {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+/* The label as the press that opens the quote, an inline press (controls.css) in the
+   label's quiet face (`data-lf-hint`). Its box starts on the quote's rule and its
+   disclosure arrow stands the arrow's usual gap before its words, so the words keep
+   the quote's edge whether or not the label takes a press, and its ring and reach take
+   in the arrow, which a panel's narrower inset stands just past the rule. Its
+   reach (the aim floor, above) lies inside the scroller holding the thread, as the
+   panel's view, which clips what passes its 8px top padding, so under a finger a label
+   that can take the press stands low enough for the reach above it. */
+.lf-quote-label[data-lf-opens] {
   margin-block-start: max(0px, (var(--lf-aim-floor) - 1lh) / 2 - 8px);
-  min-height: 0;
-  padding: 0;
 }
-.lf-thread-quote-head > .lf-quote-expand::before {
-  inline-size: 1em;
-  text-align: center;
+.lf-quote-label > .lf-quote-expand {
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+  padding-inline-start: var(--lf-thread-text-inset);
+  text-align: start;
+}
+.lf-quote-label > .lf-quote-expand::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--lf-thread-text-inset) - 0.9em);
 }

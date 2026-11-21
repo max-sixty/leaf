@@ -8,19 +8,32 @@
    which a writer of the box's end asks first. And how a move to a box's end meets a
    glide already headed there (`scrollToEnd`): the owners that keep a box at its end
    move it there at every fit, and a jump there cut the glide following an answer into
-   sight. */
+   sight. And that a glide lands on its goal in a box that stands only at whole pixels,
+   so `u` pressed after `d` has landed takes the box back to its top. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
   aimScroll,
+  glideTo,
   readerScroll,
   scrollGoal,
   scrollsFor,
   scrollToEnd,
   stopGlide,
 } from "/runtime/scrolling.js";
+
+// The frames a glide asks for run when a test says, at the time it gives.
+/** @type {FrameRequestCallback[]} */
+let asked = [];
+globalThis.requestAnimationFrame = (callback) => asked.push(callback);
+/** @param {number} at */
+const frameAt = async (at) => {
+  const callbacks = asked;
+  asked = [];
+  for (const callback of callbacks) await callback(at);
+};
 
 test("the browser scrolls for a wheel, and for a scroll key a control leaves it", () => {
   const button = document.createElement("button");
@@ -168,5 +181,39 @@ test("a move to the end leaves a glide headed there going, and turns it to a new
   stopGlide(box);
   scrollToEnd(box);
   assert.equal(box.scrollTop, 800, "with no glide under way, the move is instant");
+  box.remove();
+});
+
+test("a glide lands on its goal in a box that stands at whole pixels", async () => {
+  // A box 268px tall over content 488px tall, which the browser scrolls only to whole
+  // pixels, as Chrome does at one device pixel to the CSS pixel.
+  const box = document.createElement("div");
+  document.body.append(box);
+  let top = 0;
+  Object.defineProperties(box, {
+    scrollTop: { get: () => top },
+    scrollHeight: { get: () => 488 },
+    clientHeight: { get: () => 268 },
+  });
+  box.scrollTo = ({ top: to = top }) => {
+    top = Math.round(Math.min(Math.max(to, 0), 220));
+  };
+  // A page of the threads view measures 159.7px, so `d` heads for 159.7, and a frame
+  // late in its glide leaves the box at 160, within a pixel of that goal.
+  const page = 159.7;
+  await frameAt(performance.now());
+  let start = performance.now();
+  glideTo(box, scrollGoal(box) + page);
+  await frameAt(start + 0.95 * 140);
+  await frameAt(start + 1000);
+  assert.equal(box.scrollTop, 160);
+  // `u` pressed once `d` has landed heads a page back from where the box stands, and a
+  // frame late in its glide leaves the box at 1.
+  start = performance.now();
+  glideTo(box, scrollGoal(box) - page);
+  await frameAt(start + 0.85 * 140);
+  await frameAt(start + 1000);
+  assert.equal(box.scrollTop, 0, "u left the box short of its top");
+  stopGlide(box);
   box.remove();
 });

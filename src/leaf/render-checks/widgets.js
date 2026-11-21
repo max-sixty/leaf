@@ -128,11 +128,9 @@ export const invalidVisualProviders = (declarations) =>
 //
 // A record of a verb only a thread can post (no version carries a thread's markup, so
 // none could honor it) or of which way this tab last left a disclosure (which no
-// version carries at all) has no consumer, and the one reader that does see such an
-// attribute reads it wrong: shallowSigs excludes exactly the attributes no version can
-// assert, and its exclusion list is the runtime's own paint — so a widget writing
-// beside it is counted as state the author wrote, in the reading `page check --render`
-// uses to decide whether a version overrules the user.
+// version carries at all) has no consumer. It is advice for the module's author: an
+// attribute that changes when the complete state is drawn again is the replay check's
+// to report (`relativeReplays`), and one that holds still breaks no reading.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
@@ -187,7 +185,7 @@ export function undeclaredAttrs(declarations) {
 // pass's `says` already skips a settled holder's slots, so asking it whether the
 // retired words are gone would let the decision answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
-// elementById marks across, which is why the holders are found through OPEN_ROOTS
+// elementById marks across, which is why the holders are found through openRoots
 // too — and the chrome test: a declared label is the page's words, so a
 // settled slot still showing one is still showing words. The visibility guards are
 // COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes

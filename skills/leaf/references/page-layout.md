@@ -54,8 +54,8 @@ so its items keep their top margins level.
 
 ## A page of parts
 
-Write one `lf-parts` in a `main` that carries no Layout, and give each `lf-part` one
-child carrying that part's Layout:
+Write one set of parts, such as `lf-parts`, in a `main` that carries no Layout, and give
+each part one child carrying that part's Layout:
 
 ```html
 <main>
@@ -75,7 +75,8 @@ child carrying that part's Layout:
 
 The page's `header` is the only element in `main` besides the parts. It appears at the
 top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
-under its label. Each part takes the rest of the width from the top of the window, so
+under its label and the state of the obligations it holds under that, as a queue's list
+marks them. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
 outline.
@@ -192,8 +193,8 @@ ends so the panel does not cover their last lines. The `header` and `footer` tak
 their content's height and the body takes the rest. Keep shared context concise enough
 to leave the working regions usable; place region-specific explanation with its subject.
 
-The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
-grid of panes:
+The body is one pane, such as `lf-pane`, a widget that lays out its own regions, or
+the page's own grid of panes:
 
 ```html
 <main class="layout-workspace density-working">
@@ -250,7 +251,8 @@ sidebar page, such as a dashboard, it also sets the title at working size and st
 the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
-one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
+a list of the items beside the one it opens, such as one `lf-tabs list="side"` with an
+`lf-tab` per item, and put a tally of what is left, such as an `lf-tally` with `next`,
 where the reader looks for the queue's state, such as the header. The list marks each
 tab's open obligations and the tally counts what is left, so write no script or count
 of your own, and don't state the count in prose or chips. Each item's `summary` shows under its label, so the user can choose an item

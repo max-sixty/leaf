@@ -2507,7 +2507,7 @@ export class Trace extends LeafElement {
             ${ref(this.#tree)}
             @toggle=${() => this.#draw()}
           >
-            <summary>Saved elements</summary>
+            <summary class="lf-disclosure-marker">Saved elements</summary>
             <p class="lf-trace-tree-clock">
               ${
                 tree

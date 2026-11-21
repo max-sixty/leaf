@@ -296,7 +296,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the obligation, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -322,7 +322,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -343,28 +343,22 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     expect(marks.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
-    # Home and End reach the ends, as in every other list of rows.
+    # Home and End reach the ends, as in every other list of rows. The options stand
+    # whole around the ring, so their steps say no position, and the On Me walk that
+    # brought the user here goes on saying theirs.
     page.keyboard.press("Home")
     expect(marks.first).to_be_focused()
-    expect_walk_position(page, "Option 1 of 2")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.keyboard.press("End")
     expect(marks.nth(1)).to_be_focused()
-    expect_walk_position(page, "Option 2 of 2")
+    expect_walk_position(page, "1 of 4 waiting on me")
 
     with sending(page, "the numbered pick"):
         page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("selected", "")
-    # The pick's notice takes the panel's seat for passing words, and focus never left
-    # the second option, so the walk's reading stands behind it rather than retiring.
+    # The pick's notice takes the panel's seat for passing words.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
-    )
-    assert (
-        page.evaluate(
-            """async () => (await window.__lfCheckApi())
-                .walkPosition()?.text"""
-        )
-        == "Option 2 of 2"
     )
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -377,7 +371,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     """A rejected reveal neither advances nor marks the existing obligation walk."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
         """async () => {
           const {widgetController} = await window.__lfWidgetApi();
@@ -403,7 +397,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     )
     page.wait_for_function("window.obligationRevealRejected === true")
     rendered(page)
-    assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
+    assert walk_position(page)["text"] == "1 of 4 waiting on me"
     expect(page.locator("#live-question-decision")).to_be_focused()
     reported_browser_errors(page, "leaf: Presentation failed: obligation reveal probe")
     round_trip(page)
@@ -414,7 +408,7 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseObligationReveal = resolve; });
@@ -434,16 +428,16 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseObligationReveal()")
     page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
-    assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Options")
+    assert (position or {}).get("text") in (None, "1 of 4 waiting on me")
 
 
 def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
@@ -1474,13 +1468,14 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):
     """An obligation in a reply sits in a thread about a page question. Located in the
-    reply's obligation keeps that location whether or not it is answered: the thread leads to
-    its page obligation only from a node inside no obligation, so a user back on the answered option
-    does not have the page obligation's ring and digits. A contributed control for a widget in
-    the reply stands where that widget does: in no obligation, it stands where the thread's
-    view does, at the page obligation the thread is about, which wears the ring and takes
-    the digits, and `m` from it steps on from that obligation to the question in the reply
-    rather than from behind every obligation on the page."""
+    reply's obligation keeps that location whether or not it is answered, so a user back
+    on the answered option does not have the page obligation's ring and digits. A
+    contributed control for a widget in the reply stands where that widget does: in no
+    obligation, it stands where the thread's view does, at the page obligation the thread
+    is about. While the reply's question is open, the control is in it, as the whole view
+    is, so that question wears the ring and takes the digits, and `m` from it steps on
+    past it. Once it is answered, the thread asks nothing, and the page question wears
+    the ring and takes the digits."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1533,14 +1528,15 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
         )
         == "cache-ask"
     ), "a control on a widget in a reply does not stand where its thread is about"
-    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("m")
-    expect(page.locator("#follow-ask")).to_be_focused()
+    expect(page.locator("#ship-ask")).to_be_focused()
+    open_panel_thread(page, about_obligation)
     option = page.locator("#follow-yes")
     option.click()
     expect(option).to_have_attribute("selected", "")
-    # Back on the answered option, the user is located in the reply's question. Answering moves
-    # focus to the message, which is inside no obligation and so does stand at the page question.
+    # Back on the answered option, the user is located in the reply's question.
     round_trip(page)
     option.locator(".lf-pick").focus()
     expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
@@ -1548,16 +1544,101 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("selected", "")
 
-    # From the control on the reply's widget, which stands at the page question, its digit
-    # answers it, and the answered obligation keeps its ring there: the control is a
-    # review route to it, as an On card is.
+    # That digit took the pick back, so from the control on the reply's widget the
+    # reply's question, open again, wears the ring and takes the digits.
+    expect(option).not_to_have_attribute("selected", "")
     contributed.focus()
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(option).to_have_attribute("selected", "")
+
+    # Answered, the thread asks nothing, and the control stands at the page question: its
+    # digit answers it, and the answered obligation keeps its ring there: the control is a
+    # review route to it, as an On card is.
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
+    expect(page.locator("#follow-yes")).to_have_attribute("selected", "")
     expect(contributed).to_be_focused()
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+
+
+def test_a_thread_takes_the_digits_of_the_questions_it_asks_in_turn(browser, serve):
+    """A thread whose agent's latest message asks questions is in the first still open:
+    `t` lands on the thread, that question wears the ring and its options their digits,
+    and a digit picks one there, leaving the question an earlier message asked alone and
+    the user on the thread. The thread then moves on to the next, as a form does, and
+    the panel's view of the thread answers it too. Once both are answered the thread asks
+    nothing, so a further digit revises neither answer."""
+    source = leaf_page(
+        "Release charts",
+        '<section id="release"><h2 id="release-h">The release page</h2>'
+        "<p>It draws ten charts as images.</p></section>",
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "id": "ask",
+            "anchor": {"section": "release"},
+            "text": "Should the charts stay images?\n\n"
+            '<lf-options id="first"><lf-option id="first-keep">Keep them</lf-option>'
+            '<lf-option id="first-inline">Inline them</lf-option></lf-options>',
+        },
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "id": "why",
+            "parent": "ask",
+            "text": "What would inlining take?",
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": "ask",
+            "responds": "why",
+            "text": "A script the release page's session runs. Who should run it?\n\n"
+            '<lf-options id="second"><lf-option id="second-send">Its session</lf-option>'
+            '<lf-option id="second-here">This session</lf-option></lf-options>\n\n'
+            "And when?\n\n"
+            '<lf-options id="third"><lf-option id="third-now">Now</lf-option>'
+            '<lf-option id="third-later">After the release</lf-option></lf-options>',
+        },
+    ]
+    page = open_page(browser, serve(source, events=events))
+    page.keyboard.press("t")
+    thread = page.locator(f'{CARD} .lf-page-thread[data-lf-thread="ask"]')
+    expect(thread).to_be_focused()
+    expect(page.locator("#second")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#second-here .lf-key-badge")).to_have_text("2")
+    page.keyboard.press("2")
+    expect(page.locator("#second-here")).to_have_attribute("selected", "")
+    round_trip(page)
+    expect(page.locator("#first lf-option[selected]")).to_have_count(0)
+    expect(thread).to_be_focused()
+    expect(page.locator("#third")).to_have_attribute("data-lf-obligation", "1")
+
+    # The panel's view of the thread draws its reply row apart from its messages, and a
+    # digit from that row's Dictate answers the same question.
+    open_panel_thread(page, "ask")
+    expect(panel_field(page)).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-field .lf-compose-dictate")).to_be_focused()
+    page.keyboard.press("1")
+    expect(page.locator("#third-now")).to_have_attribute("selected", "")
+    round_trip(page)
+    page.keyboard.press("2")
+    round_trip(page)
+    expect(page.locator("lf-option[selected]")).to_have_count(2)
+    expect(page.locator("#second-here")).to_have_attribute("selected", "")
+    expect(page.locator("#third-now")).to_have_attribute("selected", "")
 
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(

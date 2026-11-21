@@ -1,15 +1,12 @@
 """Browser tests of the widgets a page declares, one module per widget family or shared
 widget mechanism, and the page sources and helpers more than one module uses."""
 
-import re
-
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
     close_panel_menu,
     leaf_page,
     open_page,
-    panel_field,
     panel_menu,
 )
 
@@ -17,11 +14,10 @@ from leaf import data as data_model
 
 
 def expect_walk_says(page, words):
-    """Wait for a walk's position, such as "Hunk 2 of 3", to be said where the panel
-    says what passes: in its empty field's place (floating-panel.js), as a notice is."""
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile(re.escape(words))
-    )
+    """Wait for a walk's position, such as "Hunk 2 of 3", to be heard: a step announces
+    it whether or not the panel's field shows it, which it does only while the list
+    runs past the window (walk-declaration.js, `beginWalk`)."""
+    expect(page.locator(".lf-live")).to_contain_text(words)
 
 
 def expect_accept_all(page, count):

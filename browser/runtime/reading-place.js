@@ -78,7 +78,7 @@ import {
   stickyHolder,
 } from "./geometry.js";
 import { scrollAxes } from "./element-axes.js";
-import { LAYOUT } from "./widget-upgrade.js";
+import { layoutsChanged } from "./widget-upgrade.js";
 import {
   composedParentNode,
   drawn,
@@ -86,6 +86,11 @@ import {
   isHTML,
   skipped,
   skipper,
+  inUi,
+  renderedOrder,
+  renderedParent,
+  under,
+  upFrom,
 } from "./shadow-tree.js";
 import {
   blockAt,
@@ -93,7 +98,7 @@ import {
   HEADING,
   inChrome,
   pageDocument,
-  keptWithReading,
+  readsDocument,
   pageRuns,
   quoteFrom,
   rangeOf,
@@ -126,7 +131,6 @@ import {
   placeKept,
   scrollToEnd,
 } from "./scrolling.js";
-import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js";
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
@@ -141,6 +145,7 @@ import {
 } from "./scroll-containers.js";
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
+import { keptEach } from "./kept.js";
 
 /** @typedef {import("./passages.js").Segment} Segment
  * @typedef {import("./passages.js").BlockRun} BlockRun
@@ -276,19 +281,13 @@ const textEnvelope = (block, segments, range) => {
  * @typedef {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>}} BlockIndex
  * @typedef {{frames: WeakMap<Element, Frame>, shown: ShownRuns | null, index: BlockIndex | null}} Kept */
 // The layout, the runs shown and their blocks hold the page's nodes, so they are kept with
-// the page's reading (passages.js, `keptWithReading`) and go with it: a revision that
+// the page's reading (passages.js, `readsDocument`) and go with it: a revision that
 // removes a block leaves none of them holding it.
-/** @returns {Kept} */
-const kept = () =>
-  keptWithReading(pageDocument(), kept, () => ({
-    frames: new WeakMap(),
-    shown: null,
-    index: null,
-  }));
-let layouts = 0;
-document.addEventListener(LAYOUT, () => {
-  layouts += 1;
+const keptWithPage = keptEach((/** @type {Element} */ page) => {
+  readsDocument(page);
+  return /** @type {Kept} */ ({ frames: new WeakMap(), shown: null, index: null });
 });
+const kept = () => keptWithPage(pageDocument());
 /** @type {WeakMap<object, number>} */
 const ids = new WeakMap();
 let lastId = 0;
@@ -484,7 +483,7 @@ function runsIn(box, band, range) {
   }
   /** @type {Member[]} */
   const found = [];
-  const page = [key, layouts, innerWidth, innerHeight].join(" ");
+  const page = [key, layoutsChanged(), innerWidth, innerHeight].join(" ");
   const across = {
     top: band.top,
     bottom: band.bottom,

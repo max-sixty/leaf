@@ -318,5 +318,5 @@ export async function contractTypes(root, { events, served, verb, widget }) {
   const registry = JSON.parse(
     await readFile(new URL("browser/runtime/kernel-registry.json", root), "utf8"),
   );
-  return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}export type WidgetDeclaration = ${typeOf(widget)};\n${await packageDataTypes(root)}`;
+  return `/* Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}export type WidgetDeclaration = ${typeOf(widget)};\n${await packageDataTypes(root)}`;
 }

@@ -20,6 +20,7 @@ import {
   markPagePresented,
   markPageUpgraded,
   whenArrived,
+  arrivalsOutstanding,
   pageReadiness,
   settlePageInterface,
   afterPresentation,
@@ -90,7 +91,7 @@ import {
   declareThreadKeys,
   landIn,
   landInThread,
-  returnToThread,
+  landSent,
   scrollThreadIntoView,
   currentLocationThread,
 } from "./runtime/thread/landing.js";
@@ -185,7 +186,8 @@ async function boot() {
   // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
   // checks can inspect either distribution without turning it into a package API. These
   // scene readings answer different questions: which readiness fact the page has yet to state
-  // (`pageReadiness`), whether its counted queue or complete finite preparation has
+  // (`pageReadiness`), how many arrivals it has yet to land (`arrivalsOutstanding`),
+  // whether its counted queue or complete finite preparation has
   // settled (`renderingState`), and which native layers expose reading and controls.
   // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
   // widget preparation tracing at each declaration and its settlement.
@@ -194,6 +196,7 @@ async function boot() {
   );
   if (validationEntry) {
     validationEntry.lfReadiness = pageReadiness;
+    validationEntry.lfArrivalsOutstanding = arrivalsOutstanding;
     validationEntry.lfRenderingState = renderingState;
     validationEntry.lfObserveQueuedWork = observeQueuedWork;
     validationEntry.lfObserveWidgetPreparations = observePreparations;
@@ -259,11 +262,12 @@ async function boot() {
   let floatingPanel;
   const navigation = createNavigation({
     placedAt: (id) => anchorPlacement.placedAt(id),
+    savedAt: (context) => anchorPlacement.savedAt(context),
+    showDraft: (context) => writingResume.showDraft(context),
     threadDestinations: {
       openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
       threadAtCurrentLocation: (node) =>
         app.threadDestinations.threadAtCurrentLocation(node),
-      threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
     },
   });
 
@@ -359,6 +363,7 @@ async function boot() {
     labelAnchor: anchorLabel,
     invalidateThread: () => app.refreshThread(),
     invalidatePageGeometry: pageGeometry.invalidate,
+    placement: anchorPlacement,
     messageReferenceRoot: chromeRoot,
     draftQuote: composerQuote,
     focused,
@@ -397,6 +402,7 @@ async function boot() {
 
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
+    showTodo: (todo) => floatingPanel?.showTodo(todo),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
     goToObligation: (record) => queueWalk.goToObligation(record),
     createEngagement,
@@ -428,7 +434,7 @@ async function boot() {
       finishPlacement: () => responseSurface?.finishPlacement(),
     },
     landInThread,
-    landSent: returnToThread,
+    landSent,
     registerReactSurface: (...args) => reactions.registerReactSurface(...args),
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
@@ -488,13 +494,13 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
+    threadLanding: anchorTravel.threadLanding,
     repaint,
   });
   const queueWalk = createQueueWalk({
     arriveAtRecord: items.arriveAtRecord,
     arriveAtThread: navigation.arriveAtThread,
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
-    placementVersion: anchorPlacement.placementVersion,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     announce,
@@ -559,7 +565,7 @@ async function boot() {
     responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
     revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
     createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-    landSent: returnToThread,
+    landSent,
     wireInput: inputs.wireInput,
     drawingEdits,
   });
@@ -714,8 +720,11 @@ async function boot() {
   };
 
   if (!offlineInteractive) {
+    // A served page's bootstrap adopted the chrome's sheet for the first paint, with the
+    // panel's row it stands there (bootstrap.js, `standRow`); it keeps its place after
+    // the annotations' sheets.
     document.adoptedStyleSheets = [
-      ...document.adoptedStyleSheets,
+      ...document.adoptedStyleSheets.filter((sheet) => sheet !== chromeSheet),
       ...annotationSheets,
       chromeSheet,
       marksSheet,

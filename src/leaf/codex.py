@@ -33,9 +33,9 @@ finds its envelope. A batch whose page is gone, or whose events no longer match 
 page, is retired without writing (`delivery.receive_batch`).
 
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
-complete envelope as one line of JSON, or its pointer where Codex wouldn't show it
-whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn accepts it
-(`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
+complete envelope as a JSON block (`json_block`), or its pointer where Codex wouldn't
+show it whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn
+accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
 runs (`Harness.later_turn_takes_input`): the turn ends on its own answer, and the
 adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
@@ -130,6 +130,7 @@ from .delivery import (
     validate_delivery_id,
 )
 from .harness import CodexHarness, Harness
+from .json_block import json_block
 from .refusals import Refused
 from .registry.schema import aware_instant
 from .service import (
@@ -2235,11 +2236,7 @@ def offer_hook_delivery(
             return None, expected
         path, record = pending
         prepared = offer_delivery(path, record, transport=HookTurn(expected["turn"]))
-        context = json.dumps(
-            reader_envelope(prepared.payload),
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        context = json_block(reader_envelope(prepared.payload))
         return (
             context if CodexHarness.fits_hook_context(context) else prepared.prompt
         ), expected

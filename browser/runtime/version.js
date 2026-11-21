@@ -36,7 +36,7 @@
  * Composition defers a reload or a patch that would discard an active native editor
  * or change a selected passage/comment's complete authored anchor scope. Runtime
  * chrome stays outside the authored patch and follows its own editor continuation.
- * Unresolved delivery and an open version menu defer either install.
+ * Unresolved delivery defers either install.
  * Ending composition releases its hold on the next heartbeat; Open latest, which the
  * floating panel's field offers at its end while it says the page is an older version,
  * and the leaf's menu's row for the latest, explicitly release that hold.
@@ -185,7 +185,7 @@ import { rememberAuthoredParents, stageAuthoredStates } from "./projection/autho
 import { foldWidgetStates, obligationValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
-  commitWidgetDescriptors,
+  bindWidgetDescriptors,
   quoted,
   stageWidgetDescriptors,
 } from "./widget-descriptors.js";
@@ -196,7 +196,7 @@ import {
   reindexPassageOwners,
   rememberPassageParts,
 } from "./widget-loader.js";
-import { byRenderedOrder, under } from "./shadow.js";
+import { byRenderedOrder, under } from "./shadow-tree.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { replaceEntry } from "./history.js";
 import {
@@ -513,7 +513,8 @@ registerPageControl({
 registerPageControl({
   key: "latest",
   rank: PAGE_CONTROL_RANK.latest,
-  label: () => versionsReading().latest.label,
+  // Read only while offered, when the latest reading has words.
+  label: () => versionsReading().latest.label ?? "",
   offered: () => versionsReading().latest.news,
   disabled: () => versionsReading().latest.disabled,
   urgent: "new",
@@ -1485,11 +1486,15 @@ export async function showComparison(base) {
   commitDiff(diff);
   diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
+  // A notice about the comparison, which the page field's standing words say as it
+  // starts ("5 changes since v2", floating-panel.js, `standing`), so it shows where
+  // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
     n
       ? `${counted(n, "change")} since ${base.name}`
       : `No text changes since ${base.name}`,
+    { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
 // A base's document and the server's projection of it at the log this tab has applied,
@@ -1531,10 +1536,11 @@ export async function changesSince(base) {
   return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
 }
 // A press that ends a comparison says so, as `o` does when it hides annotations, so a
-// screen reader hears the marks go rather than keeping the comparison's count.
+// screen reader hears the marks go rather than keeping the comparison's count; the page
+// field's standing words go with it, so it shows where they don't.
 export const endComparison = () => {
   setDiff(false);
-  notice("Changes hidden");
+  notice("Changes hidden", { about: "comparison", stands: () => !comparisonBase() });
 };
 // A press names one stamped version, so pressing the current one again is the way off
 // it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is
@@ -1597,7 +1603,7 @@ async function authoredDocument(url) {
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
   return authoredMarkup(doc);
 }
-// Repeated comparisons of the same immutable revision share its document fetch.
+// Preparing an activation of the same immutable revision again shares its document fetch.
 /** @type {Map<number, Promise<Document>>} */
 const revisionDocuments = new Map();
 /** @param {import("../types/contract.js").ServedRevision} revision */
@@ -2065,7 +2071,7 @@ export function createVersionController({
         // custom element. The publisher still holds the outgoing document until the
         // patch and matching server reading are admitted together, so this descriptor
         // cannot borrow the old widget's semantic state during preparation.
-        commitWidgetDescriptors({ bindings });
+        bindWidgetDescriptors(bindings);
         formatDeclaredMarkdown(arriving);
         prepaintDeclaredFiles(arriving);
         arrived.push(arriving);
@@ -2137,16 +2143,6 @@ export function createVersionController({
       );
     for (const [id, descriptor] of prior.descriptors)
       if (descriptor.document.kind === "thread") descriptors.set(id, descriptor);
-    const retired = new Set(
-      [...prior.descriptors]
-        .filter(
-          ([id, descriptor]) =>
-            descriptor.document.kind === "page" &&
-            !sourceDescriptors.descriptors.has(id),
-        )
-        .map(([id]) => id),
-    );
-    commitWidgetDescriptors({ bindings: [] }, retired);
     return {
       document: {
         ...prior,
@@ -2194,8 +2190,8 @@ export function createVersionController({
   // `_named_layer`); only one this Leaf can no longer admit input against is refused
   // instead, and the refusal's probe of the document source reloads it at once
   // (layer-client.js, `sourceMovedOn`).
-  // Whether the move happens now is asked at the commit: an unresolved delivery,
-  // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
+  // Whether the move happens now is asked at the commit: an unresolved delivery or
+  // `midComposition` defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced or by a load that failed, after
   // which the lit chip asks for a new press.
   /** @param {import("../types/contract.js").ServedReading} state */

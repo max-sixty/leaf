@@ -65,7 +65,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     fraction = page.locator("#t-feeders > .work-progress")
     expect(fraction).to_contain_text("1/2 done")
     # Nothing waits on the user.
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -88,7 +90,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The visible status line follows the reported attribute, so a user listening
     # hears the current state too.
     assert "review" in task.aria_snapshot()
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     # A second report supersedes the first — absolute values fold — and the
     # progress fraction recounts across the tree.
@@ -102,7 +106,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -339,13 +345,13 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
-    # Event ids and authored element ids belong to different identity spaces. Give
-    # the thread and widget the same spelling so only the typed target can separate
-    # their reports; a bare id or target lookup by store would merge them.
+    # A page refuses an element id its log already gives an event, so the thread
+    # takes its own id. A thread target spelled as the widget's id still reads none
+    # of the widget's reports, and a bare id is refused rather than guessed at.
     thread = append_carried_log_record(
         d,
         {
-            "id": "ag-wren",
+            "id": "c-wren",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -474,7 +480,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {clockValue, projectionRegionsPresented, readApplicationPresentation} =
+          const {projectionRegionsPresented, readApplicationPresentation} =
             await window.__lfCheckApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
           const owner = document.getElementById('ag-wren');
@@ -483,7 +489,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           customElements.define('lf-report-proof', class extends api.LeafElement {
             render() {
               if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return noChange;
-              clockValue(() => window.__proofClock);
+              api.clockValue(() => window.__proofClock);
               window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
               return noChange;
             }

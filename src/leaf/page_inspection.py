@@ -10,11 +10,13 @@ from page CSS. Page-owned widget implementations are listed from captured
 provenance. JavaScript bytes include executable inline scripts and captured files,
 including downloads; no byte count implies execution. JavaScript is not parsed for
 strings that might become CSS. Words are the page's text reading
-(`passages.page_passages`), counted only in blocks of a sentence or more, so a table
-of short cells, a heading or code costs nothing, while a table cell that holds
-paragraphs counts as they would. They split into those a reader sees on arrival and
-those a closed `<details>` or `hidden` holds, so collapsed supporting material, such
-as a quoted source, costs the shown count nothing.
+(`passages.page_passages`), counted in blocks of a sentence or more, so a table
+of short cells, a heading or code costs those counts nothing, while a table cell that
+holds paragraphs counts as they would. They split into those a reader sees on arrival
+and those a closed `<details>` or `hidden` holds, so collapsed supporting material,
+such as a quoted source, costs the shown count nothing. The words a reader sees on
+arrival in shorter blocks, such as headings, labels and short cells, are counted
+apart, so a page of tables shows its size beside its prose.
 
 This is a static source inventory, not network transfer or CSS coverage. Styles made
 by JavaScript, including widget template strings, are outside it. Browser views
@@ -77,17 +79,19 @@ def _css_counts(css: str, *, inline=False) -> dict:
 
 
 # A block shorter than a short sentence, such as a heading, a label or a table cell
-# holding a value, is scanned rather than read, so its words aren't counted.
+# holding a value, is scanned rather than read, so its words count apart.
 _SENTENCE = 12
 
 
 def _words(artifact: RevisionArtifact) -> dict:
     """The words of the page's text reading that sit in blocks of a sentence or more:
     `shown` on arrival, and `collapsed` in a closed `<details>`, other than its
-    `<summary>`, or under `hidden`."""
+    `<summary>`, or under `hidden`; and `scanned`, those on arrival in shorter
+    blocks."""
     markup = artifact.html.decode("utf-8")
 
-    def prose(*, arrival: bool) -> int:
+    def prose(*, arrival: bool) -> tuple[int, int]:
+        """The words in blocks of a sentence or more, and those in shorter blocks."""
         document = SourceDocument(markup)
         # Code is the subject shown as it is, so it isn't counted. A widget's content
         # keeps its own reading, since a `<pre>` there can hold its data or Markdown body.
@@ -109,15 +113,17 @@ def _words(artifact: RevisionArtifact) -> dict:
                     child.extract()
         reading = page_passages(document, artifact.registry)
         cuts = [0, *(cut + 1 for cut in sorted(reading.breaks)), len(reading.text) + 1]
-        counts = (len(reading.text[a : b - 1].split()) for a, b in pairwise(cuts))
-        return sum(count for count in counts if count >= _SENTENCE)
+        counts = [len(reading.text[a : b - 1].split()) for a, b in pairwise(cuts)]
+        read = sum(count for count in counts if count >= _SENTENCE)
+        return read, sum(counts) - read
 
-    shown = prose(arrival=True)
+    shown, scanned = prose(arrival=True)
     return {
         "shown": shown,
-        "collapsed": prose(arrival=False) - shown,
+        "collapsed": prose(arrival=False)[0] - shown,
+        "scanned": scanned,
         "coverage": [
-            f"Words in blocks of {_SENTENCE} or more, such as paragraphs and table cells or list items that hold sentences; a heading, label or short cell is scanned, not read, and isn't counted.",
+            f"shown and collapsed count words in blocks of {_SENTENCE} or more, such as paragraphs and table cells or list items that hold sentences; scanned counts the words shown on arrival in shorter blocks, such as headings, labels and short cells.",
             "Code in a <pre> isn't counted, nor are a widget's drawn labels and data notation.",
             "A widget that hides content, such as a tab set's other tabs, counts it as shown.",
         ],
@@ -152,8 +158,10 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 "owner": owner,
                 "documents": documents,
                 **_css_counts(css, inline=kind == "inline"),
+                # The person reading About this page reads what the sheet holds,
+                # not the guarantee a refusal tells the agent it keeps.
                 "syntax_errors": [
-                    finding.json()
+                    finding.json() | {"text": finding.said}
                     for finding in css_syntax_errors(
                         css, f"{path}:{line}", kind == "inline"
                     )
@@ -420,7 +428,7 @@ def cmd_inspect(
                 },
                 "words": {
                     key: report["words"][key] - baseline["words"][key]
-                    for key in ("shown", "collapsed")
+                    for key in ("shown", "collapsed", "scanned")
                 },
                 "coverage": "Source changes only. Browser observations are not subtracted across rendering environments or interaction states.",
             }

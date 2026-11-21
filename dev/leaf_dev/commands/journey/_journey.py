@@ -3,7 +3,7 @@ release ask every target answers, and for a harness target, its isolation and th
 terminal typing into its session. `run.py` names the targets and runs one.
 
 The user tells the agent that a release passed its deployment checks, asking it to
-record that on the board. How the page records it is the agent's call, as with a
+record that on the page. How the page records it is the agent's call, as with a
 real user's request; this `release` step requires a reply and a published revision
 that names the release. Every target gets the same ask and the same checks.
 
@@ -66,8 +66,7 @@ all of it: the user's end (`userEnd`), the `case`, `comment` for the release ask
 `steps` for each step's duration and its comments' timings, and the code version
 the journey ran. A comment whose step held a permission prompt the user answered
 says so (`approved`), since the prompt held the session for as long as it stood. A
-comment a fork of the conversation decided on carries the fork's outcome, time and
-tokens (`fork`).
+comment a line fork ran on carries that fork's outcome, time and tokens (`fork`).
 
 A failure receipt ends the journey on the first ask
 (`worker/README.md` owns that contract).
@@ -77,6 +76,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -106,7 +106,7 @@ from leaf.service import claim_is_active, page_claim
 from leaf.state import session_live, session_record, turn_open
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
-from leaf_dev import ROOT
+from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     PAYLOAD,
     PageClient,
@@ -116,15 +116,6 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.browser import PANEL, WINDOWS
-from leaf_dev.commands.site.verify import (
-    await_presentation,
-    capture_script_responses,
-    check,
-    load_presented,
-    read_state,
-    said,
-    startup_profile,
-)
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.page_timings import Records, page_timings
 from leaf_dev.review_scenario import (
@@ -138,7 +129,15 @@ from leaf_dev.review_scenario import (
     require,
     settled,
 )
-from leaf_dev.startup import startup_reading
+from leaf_dev.startup import startup_profile, startup_reading
+from leaf_dev.website import (
+    await_presentation,
+    capture_script_responses,
+    check,
+    load_presented,
+    read_state,
+    said,
+)
 
 # A turn's wait ends at `TURN_PATIENCE` unless the page says a turn is still working on
 # the comment, which holds it to `TURN_LIMIT`. `TURN_LIMIT` bounds the whole pass, so
@@ -187,8 +186,7 @@ def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
     checkout so runs from every worktree accumulate. CI's samples stay in
     `publish-site`'s run logs."""
-    state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
-    return Path(state) / "leaf-dev" / "journey.jsonl"
+    return state_home() / "journey.jsonl"
 
 
 class Session(NamedTuple):
@@ -359,12 +357,38 @@ def check_turn_answered(
     return published, answer
 
 
+# The words a release's name is drawn from: short, common and distinct, so a model
+# copies a pair of them as it would any two words.
+RELEASE_WORDS = (
+    "amber", "birch", "cedar", "coral", "delta", "ember", "fern", "flint",
+    "harbor", "heron", "iris", "juniper", "lantern", "maple", "meadow", "nectar",
+    "orchid", "otter", "pebble", "quartz", "raven", "river", "saffron", "summit",
+    "thistle", "tundra", "valley", "walnut", "willow", "yarrow", "zephyr", "zinnia",
+)  # fmt: skip
+
+
+def release_name() -> str:
+    """A name for the release one journey run asks about: two distinct words drawn
+    at random, such as `heron-quartz`, so each run, a rerun of the same release
+    included, asks for a name no earlier run's board holds. The maintainer chose a
+    word pair over the release's hash, which a hosted model can miscopy by one
+    character, even at git's seven; any shorter or looser hash check would widen the
+    same check again. The agent's casing of the words is its own (`names_release`)."""
+    return "-".join(random.sample(RELEASE_WORDS, 2))
+
+
+def names_release(text: str, marker: str) -> bool:
+    """Whether `text` names the release `marker`, in any case: an agent may capitalize
+    a name, and the theme may uppercase the eyebrow or heading that shows it."""
+    return marker.casefold() in text.casefold()
+
+
 def release_ask(marker: str) -> str:
     """What the user tells the agent: release `marker` passed its checks. It says what
     happened and leaves how the page shows it to the agent, as a user would, so the
     journey times the agent's own way of working rather than a scripted edit."""
     return (
-        f"Release {marker} passed its deployment checks. Record that on the board, "
+        f"Release {marker} passed its deployment checks. Record that on the page, "
         "and tell me when it's done."
     )
 
@@ -373,9 +397,9 @@ def board_names_release(html: str, marker: str) -> bool:
     """Read board text and widget labels, excluding release-scoped resource URLs."""
     body = SourceDocument(html).tree.select_one("body")
     return body is not None and (
-        marker in body.to_text()
+        names_release(body.to_text(), marker)
         or any(
-            marker in (element.attrs.get("label") or "")
+            names_release(str(element.attrs.get("label") or ""), marker)
             for element in body.find_all(True)
         )
     )
@@ -586,7 +610,7 @@ def open_news(page: Page, thread: str) -> None:
 def shown_reply(page: Page, answer: dict) -> dict | None:
     """When the page first showed the user `answer`, and by which sign, as the page
     itself recorded it however the journey was occupied then
-    (`site/verify_browser.js`), or None where it has not."""
+    (`leaf_dev/website.js`), or None where it has not."""
     return page.evaluate(
         "window.__leafVerifier.replyShownAt",
         {"thread": answer["parent"], "id": answer["id"]},
@@ -626,12 +650,11 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     reading of the ask; a harness's user breaks its reply down once the session
     ends (`User.sample`).
 
-    The page check finds the release's short hash in the authored board markup:
-    where on the board the agent records it is the agent's call. The hash is git's
-    seven characters, the length an agent abbreviates a longer one to, so a copy of
-    the asked hash and its own short form of it both contain it.
+    The ask names the release by a name chosen once for this run (`release_name`),
+    which the page check finds in the authored board markup and the reload in the
+    rendered page: where on the page the agent records it is the agent's call.
     """
-    marker = version[:7]
+    marker = release_name()
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
@@ -1216,8 +1239,6 @@ class BrowserEnd:
                 f"{url} reached revision {shown} but did not finish presenting it, "
                 f"with its status reading ‘{status}’",
             )
-            # `inner_text` applies the theme's text-transform, so a release recorded in
-            # an uppercase eyebrow or panel heading reads `35B3657`. Compare ignoring case.
             # The page is body less Leaf's own elements (passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"
@@ -1225,7 +1246,7 @@ class BrowserEnd:
                 ".map((el) => el.innerText).join('\\n')"
             )
             check(
-                marker.casefold() in rendered.casefold(),
+                names_release(rendered, marker),
                 f"{url} rendered a page that never names ‘{marker}’, which the agent's "
                 "published revision did",
             )
@@ -1346,16 +1367,15 @@ class User:
         return deployment_answer(self.events(), self.ids[name]) is not None
 
     def fork(self, name: str) -> dict | None:
-        """The record of the last line fork of the session's conversation that decided
-        on step `name`'s comment, if one has: a working fork's start and end are
-        records of their own (`step`), which this leaves out."""
+        """The record of the last line fork that ran on step `name`'s comment, if one
+        has."""
         if self.forks is None:
             return None
         return next(
             (
                 record
                 for record in reversed(self.forks())
-                if self.ids[name] in record["inputs"] and "step" not in record
+                if self.ids[name] in record["inputs"]
             ),
             None,
         )
@@ -1383,7 +1403,7 @@ class User:
 
     def timing(self, name: str) -> str:
         """When step `name`'s comment was picked up and answered, after its
-        admission (`input_rows`), and what a fork that decided on it did."""
+        admission (`input_rows`), and what a line fork that ran on it did."""
         milestones = self.end.timings()[self.ids[name]]["milestones"]
         fork = self.fork(name)
         return (
@@ -1401,7 +1421,7 @@ class User:
         """The journey's reading: the user's end, the release ask's, and each step's
         duration and the timings of the comments it sent (`end.reading`), each marked
         with the permission prompts answered during its step. Where the journey runs
-        the session, each comment also carries what a fork that decided on it did,
+        the session, each comment also carries what a line fork that ran on it did,
         and its reply's breakdown as `input_rows` reads it with the session's whole
         record, read here: the call that replied ends after the reply does, and a
         record read while the session writes it can end in a partial line."""
@@ -1414,7 +1434,7 @@ class User:
             )
 
         def replied(name: str) -> dict:
-            """What a fork that decided on step `name`'s comment did, and where the
+            """What a line fork that ran on step `name`'s comment did, and where the
             session's reply to it went."""
             fork = self.fork(name)
             reading: dict[str, dict | None] = (
@@ -1468,9 +1488,9 @@ FORK_TOKENS = (
 
 
 def fork_summary(record: dict) -> str:
-    """A fork's `fork_outcome` record as a step prints it: what the fork did, in how
-    long, on how many tokens, and the working line it posted as it handed the
-    thread over, or Leaf's reason where Leaf handed it."""
+    """A line fork's `fork_outcome` record as a step prints it: what came of it, in how
+    long, on how many tokens, why no line went in where none did, and the line the
+    fork wrote where it answered."""
     usage = record.get("usage") or {}
     tokens = ", ".join(
         f"{usage[key]} {name}" for key, name in FORK_TOKENS if key in usage
@@ -1480,7 +1500,7 @@ def fork_summary(record: dict) -> str:
         + (f" after {record['elapsedMs']:.0f} ms" if "elapsedMs" in record else "")
         + (f" on {tokens} tokens" if tokens else "")
         + (f": {record['why']}" if "why" in record else "")
-        + (f': "{record["text"]}"' if "line" in record else "")
+        + (f': "{record["text"]}"' if "text" in record else "")
     )
 
 

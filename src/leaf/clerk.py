@@ -31,10 +31,9 @@ Four principles, the user's, bound what the fork may do:
   second entity on the page.
 - The agent stays sovereign. The agent hears each record at its next step, with its
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
-  wrote. Leaf opens no thread whose title a thread the agent opened on the page to
-  ask something already has. It shows the fork the questions On Me no longer holds,
-  answered or closed, each with its id, so the fork doesn't
-  word one anew and asks one again under its id. It writes no record once a turn
+  wrote. Leaf shows the fork the questions On Me no longer holds, answered or
+  closed, each with its id, so the fork doesn't word one anew and asks one again
+  under its id. It writes no record once a turn
   has opened since the fork read the conversation (`basis`), since that turn's
   agent, or the user who opened it, has the newer reading. A finding still
   reaches the agent then, naming the turn it came from, since the agent judges
@@ -91,11 +90,12 @@ material.
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
 the answer it must give (`ANSWER`), and what Leaf does with that answer
-(`apply_answer`). A harness only makes the fork and carries the two halves (`cmd_fork`):
-Claude Code's hooks module calls `$.model.fork` from `turn.complete`
-(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork` (ephemeral)
-and Pi's extension by resending its session, each handing the answer back the same way;
-neither does yet.
+(`apply_answer`). A harness only makes the fork and carries the two halves: Claude
+Code's hooks module reports each main-loop turn the model answered (`turn_ended`),
+makes the fork Leaf answers with, and reports its answer (`checked`), as it carries
+every instruction (`carrier.py`). Codex would fork with App Server's `thread/fork`
+(ephemeral) and Pi's extension by resending its session, each handing the answer back
+the same way; neither does yet.
 
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
@@ -132,9 +132,11 @@ The fork asks a question again as the agent would, under its id in its thread,
 rather than asking a second one beside it, as the user asked: a fork that opens every
 ask in a new thread, and sees neither a question the user closed nor any way to ask
 it again, opens a second thread on the same subject when the agent restates the step
-only in chat. A new question on an old subject still opens a thread of its own. The
-title check above is needed too: without it the fork asks again, in a new thread
-under the same title, a question the agent withdrew as already asked on the page.
+only in chat. A new question on an old subject still opens a thread of its own. Leaf
+drops no ask for its title, as the user decided: matching it against the threads the
+agent opened to ask dropped, telling no one, a new question that shared an old
+one's title, while the ended questions the fork sees with their ids already keep it
+from wording a withdrawn one anew.
 
 The user asked for the routes a question asked well takes, a widget that asks or a
 thread, rather than an ask written as a to-do on the user titled from the chat line,
@@ -173,8 +175,8 @@ lines: the questions stay On Me and `leaf page state` lists them, but the agent 
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
-A line queued with `wake` tells the session of work it now owes, such as a to-do a
-fork opened (`forks.ended`) or a finding Leaf changed nothing for. Until a hook has
+A line queued with `wake` tells the session of work it now owes, such as a finding
+Leaf changed nothing for. Until a hook has
 printed it, the watch between turns wakes the session for it once the turn has closed
 (`waking`, `session.watch_between_turns`), and a session no watch follows is nudged
 (`presence.nudge_unwatched`). The turn that ends a stretch of work is the one most
@@ -185,10 +187,9 @@ the agent, so their lines wait for its next step.
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time, and the main thread's
-request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
-cuts the conversation; a turn-end fork reads it to `row`), whose `effort` the fork
-thinks at. A fork that failed, or
+why it wrote no records, with the fork's tokens and time, and what it resent of the
+main thread's conversation (`resends` in `hooks/claude-code.ts`, which says where a
+replay cuts it), whose `effort` the fork thinks at. A fork that failed, or
 gave an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
 `$.model.fork` exchange, only its token counts in the debug log, so this record is
 what a later replay or audit scores against what the agent did next.
@@ -200,7 +201,7 @@ own last request.
 The fork thinks at the session's own effort, and the check's reference asks it to
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
 documentation suggests for a quick side job. Asking for `low` effort instead can cost
-a rewrite of the conversation to the cache (`runFork` in `hooks/claude-code.ts` says
+a rewrite of the conversation to the cache (`carrier.fork` says
 when), and a fork at xhigh asked to answer straight away does as well as a low fork
 on the turn-end cases. The fork runs off the turn's path, but the sooner it answers, the
 less often a turn opened meanwhile drops its asks (`basis`).
@@ -239,7 +240,11 @@ REFERENCE = REFERENCES / "turn-end-check.md"
 # which action asks for permission and which is a step, what a question holds, how
 # HTML in a message draws, when it asks with a choice, how a message reads in a
 # thread's narrow card, what it links, where a correction to an unanswered reply
-# goes, and the reply a thread is owed once the work it discusses is done.
+# goes, and the reply a thread is owed once the work it discusses is done. The fork
+# opens no file, so it can't follow a pointer in one of these paragraphs to another
+# reference: what it needs to write the message is in the paragraph, or in the example
+# right after it, which it gets with the paragraph and which shows the markup, such
+# as `recommended` on the option the agent advises.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
     ("conversation-loop.md", "For an action you take once the user agrees"),
@@ -349,25 +354,23 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one as each fork "
-        "of the conversation takes a thread and as its run ends (`forks`). Each says "
-        "whether it wakes the session (`wake`): a line that tells it of work it now "
-        "owes wakes it while it is idle, until a hook has printed the line. A line "
-        "that tells of an agent's running turn names it (`turn`), and leaves the "
-        "queue unheard once that turn ends (`unqueue`).",
+        "clerk wrote and each finding it passes on (`clerk`), and one for each "
+        "summary a summary fork wrote or left to the agent (`summary_fork`). Each "
+        "says whether it wakes the session (`wake`): a "
+        "line that tells it of work it now owes wakes it while it is idle, until a "
+        "hook has printed the line.",
         object_schema(
             {
                 "lines": {
                     "type": "array",
                     "items": object_schema(
                         {"line": STRING, "wake": {"type": "boolean"}},
-                        {"turn": STRING},
                     ),
                 }
             }
         ),
     ),
-    since=44,
+    since=52,
 )
 
 # The words that open the fork's question, which the replay and the transcript carry.
@@ -513,18 +516,22 @@ def _block(facts: dict) -> str:
 
 def guidance() -> list[str]:
     """The agent's guidance the fork follows (`GUIDANCE`), each paragraph as the
-    agent reads it."""
+    agent reads it, with its example."""
     return [reference_paragraph(*passage) for passage in GUIDANCE]
 
 
 def reference_paragraph(name: str, opening: str) -> str:
-    """The paragraph of the skill's reference `name` that opens with `opening`, as
-    the agent reads it, for a fork that follows the agent's guidance."""
+    """The paragraph of the skill's reference `name` that opens with `opening`, with
+    any fenced example right after it, as the agent reads it, for a fork that follows
+    the agent's guidance."""
     text = (REFERENCES / name).read_text()
     start = text.find(f"\n\n{opening}") + 2
     if start < 2:
         raise ValueError(f"{name} has no paragraph opening {opening!r}")
     end = text.find("\n\n", start)
+    while end >= 0 and text.startswith("```", end + 2):
+        closed = text.find("\n```", text.find("\n", end + 2))
+        end = text.find("\n\n", closed + 4)
     return text[start:] if end < 0 else text[start:end]
 
 
@@ -567,27 +574,77 @@ def basis(session_id: str) -> dict | None:
     return record and {"turn": record["turn"], "opened": record["turn_opened"]}
 
 
-def cmd_fork(session_id: str, payload: dict) -> dict | None:
-    """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
-    with neither `answer` nor `failed` in `payload`, the `question`; with either,
-    `take_answer`, and the fork's `usage`, `elapsed_ms` and `request`
-    where the harness gives them."""
-    if not session_id:
+def turn_ended(session_id: str) -> dict | None:
+    """Leaf's answer to the end of a main-loop turn the model answered
+    (`carrier.step`): the fork to make with the turn-end check's question, where the
+    session holds a page. Its basis is the turn the fork reads (`basis`), which its
+    answer comes back with (`checked`)."""
+    import uuid
+
+    from .carrier import fork
+
+    asked = question(session_id)
+    if asked is None:
         return None
-    if "answer" in payload or "failed" in payload:
-        run = {
-            "usage": payload.get("usage"),
-            "elapsedMs": payload.get("elapsed_ms"),
-            "request": payload.get("request"),
-            "failed": payload.get("failed"),
-        }
-        return take_answer(
+    basis = {"kind": "check", **(asked["basis"] or {})}
+    return {"do": [fork(f"check:{uuid.uuid4().hex}", asked["prompt"], basis)]}
+
+
+def checked(session_id: str, payload: dict) -> dict:
+    """What Leaf wrote and told from the turn-end check's fork as the module reports
+    it (`carrier.step`): its `answer`, or why there is none (`failed`), with its
+    `usage`, `elapsed_ms` and what it resent of the main thread's conversation
+    (`resent`, noted as `request`) where the harness gives them (`take_answer`), and a
+    line for the module's debug log saying what came of it. An answer `ANSWER` refuses
+    writes nothing, and says why (`refused`)."""
+    from .refusals import Refused
+
+    basis = payload["basis"]
+    asked = (
+        {"turn": basis["turn"], "opened": basis["opened"]} if "turn" in basis else None
+    )
+    run = {
+        "usage": payload.get("usage"),
+        "elapsedMs": payload.get("elapsed_ms"),
+        "request": payload.get("resent"),
+        "failed": payload.get("failed"),
+    }
+    text = payload.get("answer")
+    try:
+        applied = take_answer(
             session_id,
-            payload.get("answer"),
-            payload.get("basis"),
+            text,
+            asked,
             {name: value for name, value in run.items() if value is not None},
         )
-    return question(session_id)
+    except Refused as error:
+        return {
+            "wrote": [],
+            "changed": [],
+            "told": [],
+            "refused": str(error),
+            "log": f"the clerk wrote nothing: {error}",
+        }
+    if text is None:
+        return {**applied, "log": f"the clerk's fork gave no answer ({run['failed']})"}
+    counts = [
+        f"{len(applied[part])} {noun}{'' if len(applied[part]) == 1 else 's'}"
+        for part, noun in (
+            ("wrote", "record"),
+            ("changed", "passage"),
+            ("told", "line"),
+        )
+    ]
+    dropped = (
+        f", and wrote no records on a page where {applied['dropped']}"
+        if applied.get("dropped")
+        else ""
+    )
+    return {
+        **applied,
+        "log": f"the clerk wrote {counts[0]}, changed {counts[1]} and told the agent "
+        f"{counts[2]}{dropped}",
+    }
 
 
 def question(session_id: str) -> dict | None:
@@ -798,66 +855,45 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     the line, which the agent owes, hands the agent the ask and why, so it asks the
     user itself. One that asks an earlier question `again` asks it in its
     thread (`ask_again`), which the message reopens if it was closed; any other opens
-    a thread of its own, none whose title a thread the agent opened there to ask
-    something already has. Where Leaf can't ask the question again, as where its
+    a thread of its own. Where Leaf can't ask the question again, as where its
     thread owes the user a reply, the ask is taken as one naming none."""
     from .findings import Rejected
     from .registry.storage import require_registry
-    from .thread import fit_title, widget_asks
-    from .thread_context import thread_structure
+    from .thread import fit_title
     from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
-    # The asks the agent made there, by title: the threads it opened to ask
-    # something, in words or with a widget that asks.
-    drawing = thread_structure(page.events).fragments
-    asked_in = {
-        event["title"].casefold()
-        for event in page.events
-        if event["kind"] == "comment"
-        and event["author"] == "agent"
-        and "title" in event
-        and (event.get("obligation") or widget_asks(drawing.get(event["id"]), registry))
-    }
     for item in asks:
         title, text = fit_title(item["title"]), item["text"]
         passage, again = item["passage"].strip(), item["again"].strip()
         ask = (page_dir, page, title, text, passage, again, identity, registry)
         try:
             checked_text(page_dir, text, html=True)
-            record = _ask_one(*ask, asked_in)
+            record = _ask_one(*ask)
         except Rejected as error:
             yield None, _unasked(str(page_dir), title, text, error)
             continue
-        if record is not None:
-            yield record, _told(str(page_dir), title, text, passage, record, again)
+        yield record, _told(str(page_dir), title, text, passage, record, again)
 
 
-def _ask_one(
-    page_dir, page, title, text, passage, again, identity, registry, asked_in
-) -> dict | None:
+def _ask_one(page_dir, page, title, text, passage, again, identity, registry) -> dict:
     """The message putting one ask On Me: in the thread of the question it asks
     `again` where Leaf can ask it there, and otherwise in a thread of its own, on
-    `passage` where the page shows it once, unless the agent opened one to ask
-    something under its title (`asked_in`), where there is none. A refusal of its
-    HTML reaches the caller from either thread (`_ask`)."""
+    `passage` where the page shows it once. A refusal of its HTML reaches the caller
+    from either thread (`_ask`)."""
     from .findings import Rejected
     from .thread import ask_again, drawn_markup, markup_asks
 
     if again and (record := ask_again(page, again, text, identity)):
         return record
-    if title.casefold() in asked_in:
-        return None
     asks = markup_asks(drawn_markup(text), registry)
     put = (page_dir, page, title, text, identity, not asks)
     try:
-        record = _put(*put, passage)
+        return _put(*put, passage)
     except Rejected:
         if not passage:
             raise
-        record = _put(*put, "")
-    asked_in.add(title.casefold())
-    return record
+        return _put(*put, "")
 
 
 def _found(
@@ -1095,46 +1131,21 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
-def queue(
-    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
-) -> None:
+def queue(session_id: str, lines: list[str], *, wake: bool = False) -> None:
     """Queue `lines` for the session's next step (`queued`), lines that wake an idle
-    session where they tell it of work it now owes (`wake`, `waking`); lines that
-    tell of the agent turn `turn` while it runs leave the queue unheard once it
-    ends (`unqueue`)."""
+    session where they tell it of work it now owes (`wake`, `waking`)."""
     if lines:
         with flocked(session_lock_path(session_id)):
-            _append(session_id, lines, wake=wake, turn=turn)
+            _append(session_id, lines, wake=wake)
 
 
-def _append(
-    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
-) -> None:
+def _append(session_id: str, lines: list[str], *, wake: bool = False) -> None:
     """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
-        added = [
-            {"line": line, "wake": wake, **({"turn": turn} if turn else {})}
-            for line in lines
-        ]
+        added = [{"line": line, "wake": wake} for line in lines]
         QUEUED.write(path, {"lines": [*held["lines"], *added]})
-
-
-def unqueue(session_id: str, turns: set[str]) -> None:
-    """Take off the queue, unheard, the lines that tell of the agent turns `turns`,
-    which have ended: a fork's take, which tells the session to leave the thread to
-    the fork, no longer holds once the fork's end is the line it hears."""
-    path = session_file(session_id, QUEUED.kind)
-    with flocked(session_lock_path(session_id)):
-        held = QUEUED.read(path) or {"lines": []}
-        kept = [entry for entry in held["lines"] if entry.get("turn") not in turns]
-        if len(kept) == len(held["lines"]):
-            return
-        if kept:
-            QUEUED.write(path, {"lines": kept})
-        else:
-            path.unlink(missing_ok=True)
 
 
 def _put(page_dir, page, title, text, identity, obligation, passage) -> dict:
@@ -1223,8 +1234,7 @@ def _held(session_id: str) -> list[dict]:
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk and from forks that took a
-    thread's work."""
+    """What the session's next step hears from the clerk and from line forks."""
     return [held["line"] for held in _held(session_id)]
 
 
@@ -1236,8 +1246,7 @@ def waking(session_id: str) -> list[str]:
 
 def heard(session_id: str, lines: list[str]) -> None:
     """Take `lines`, which a hook handed the agent, off the queue, each once; lines
-    queued since stay for the next step, and a line taken off meanwhile
-    (`unqueue`) is no longer there to take."""
+    queued since stay for the next step."""
     if not lines:
         return
     path = session_file(session_id, QUEUED.kind)

@@ -90,17 +90,15 @@ import {
   stuckShift,
 } from "../geometry.js";
 import {
-  composedParentNode,
-  renderedParent,
-  renderedUnder,
-  upFrom,
-} from "../shadow.js";
-import {
   eachRenderedChild,
   eachRenderedElement,
   isText,
   skipped,
   skipper,
+  composedParentNode,
+  renderedParent,
+  renderedUnder,
+  upFrom,
 } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
@@ -124,6 +122,7 @@ import { layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { offerActionElement } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
+import { registry } from "../registry.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
@@ -296,13 +295,18 @@ export const THREAD_CARD = "lf-margin-preview";
 // The selector names a held row or the part inside it that holds it (`heldRows`), so
 // one query over the layer finds them all without asking `:has()` of every row.
 const ROW = ".lf-margin-cluster";
-const HELD = `${ROW}:is(:hover, :focus-within, [data-lf-options-expanded]), ${ROW} :is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HOLDS_ROW = ":is(:hover, :focus-within, [data-lf-options-expanded])";
+const HOLDS_PART = `:is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `${ROW}${HOLDS_ROW}, ${ROW} ${HOLDS_PART}`;
 /** @param {Layer} layer */
 const heldRows = (layer) =>
   new Set(
     [...layer.projection.querySelectorAll(HELD)].map((part) => part.closest(ROW)),
   );
 let pending = 0;
+// The rows the last pass held (`layoutMountedRows`), which `letGo` asks after.
+/** @type {ReturnType<typeof heldRows>} */
+let heldAtPass = new Set();
 
 // What the last pass read to seat each row it can seat again without reading: the row's
 // read, its home before any push, a pin's prepared seats and cover, and the band of the
@@ -490,8 +494,7 @@ function scrollSources(node) {
 // A row takes a carrier only where the root lane can't carry it. Layout moves the root
 // lane in the task that scrolls the document, but a carrier only as the next frame
 // renders, so until then a script reading the row's box or hit-testing it finds it where
-// it stood (`paintedBox`; notes/browser-support.md, "A cached `elementFromPoint` answer
-// in Chromium"). Painting and the user's presses are right either way, so what the root
+// it stood (`paintedBox`). Painting and the user's presses are right either way, so what the root
 // lane buys is a row scripts, Playwright's actions and probes find where it is drawn.
 // Rejected: a carrier anchored to every passage's words, which in
 // Chromium and WebKit also carried a row through a transform moving its words while the
@@ -679,16 +682,18 @@ function passageBlock(words, target) {
 // at its right edge (`pinSeating`): a passage's level with its line, the block's own
 // above its top-right corner. `at` is the box holding a passage's words, or the
 // target of a row about the block itself: preformatted where it keeps its spaces and
-// doesn't wrap its lines, since wrapped lines reach that edge however long they are.
+// either doesn't wrap its lines or stands in a <pre>, whose lines the reading face
+// wraps only where they run past the block (reading.css, `pre`). Other text that keeps
+// its spaces and wraps, as a quoted message might, reaches that edge on every line.
 // The answer is the nearest block from `at` out, cut by every box around it, its own
 // clip included; null for text that isn't preformatted, which takes prose seats.
 /** @param {Element | null} at @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
 function preformattedBlock(at, bands, stop) {
-  const style = at && getComputedStyle(at);
+  if (!at) return null;
+  const style = getComputedStyle(at);
   if (
-    !style ||
     !/^(preserve|break-spaces)$/.test(style.whiteSpaceCollapse) ||
-    style.textWrapMode !== "nowrap"
+    (style.textWrapMode !== "nowrap" && !at.closest("pre"))
   )
     return null;
   while (at && /^(inline|contents)$/.test(getComputedStyle(at).display))
@@ -781,14 +786,14 @@ function heardFaces(records) {
   });
 }
 const faces = new MutationObserver(heardFaces);
-// Whether a restyled face measures another size than its row was seated at, dropping the
-// record of each that does.
+// Whether a restyled face measures another size than its row was seated at, or belongs
+// to a row the last pass held that is held no longer, dropping the record of each.
 function resizedFaces() {
   let resized = false;
   for (const row of restyled) {
     if (!rows.has(row)) continue;
     const face = seatedFaces.get(row);
-    if (face) {
+    if (face && !letGo(row)) {
       const { width, height } = row.getBoundingClientRect();
       if (width === face.width && height === face.height) continue;
     }
@@ -798,6 +803,16 @@ function resizedFaces() {
   restyled.clear();
   return resized;
 }
+// Whether a row the last pass held, as an open card or options hold one, is held no
+// longer. A held row keeps no record and stands where it stood, as a row since gone
+// pushed it, so a pass seats it afresh beside its target. The attribute that lets it go
+// changes the row's own face but no size, so `resizedFaces` asks it of that row, in the
+// rendering of the gesture that let it go, rather than leaving the row at its old seat
+// until some later change takes it there with no input. Another row's change asks it of
+// no held row, so it moves no row the user isn't acting on.
+/** @param {HTMLElement} row */
+const letGo = (row) =>
+  heldAtPass.has(row) && !row.matches(HOLDS_ROW) && !row.querySelector(HOLDS_PART);
 // Takes in the face records a pass would otherwise drop with its own (`heardFaces`).
 function takeFaceRecords() {
   heardFaces(faces.takeRecords());
@@ -1918,6 +1933,7 @@ function layoutMountedRows(layer) {
   const { scrollX: windowX, scrollY: windowY } = window;
   // A row the user holds is read afresh, so it is seated from where it stands.
   const holding = heldRows(layer);
+  heldAtPass = holding;
   /** @param {HTMLElement} row */
   const keptSeating = (row) => (holding.has(row) ? null : seatings.get(row));
   /** @type {Map<HTMLElement, Seating>} */
@@ -1957,21 +1973,37 @@ function layoutMountedRows(layer) {
   // of its boxes resize meanwhile.
   const geometry = new Set(seatings.size ? wantedGeometry : []);
   const parents = new Set();
+  // What a picture draws (a tag declaring `visual`) is the picture's to report as it
+  // moves (visual-parts.js, `update`), and the picture may draw it afresh inside a size
+  // delivery (lf-chart.js), where a box the layer watched leaving the page is a
+  // ResizeObserver loop error. So a row standing by a part of a picture has the
+  // picture's box watched, and those around it, never a box the picture draws.
   /** @param {Element} target */
   function observeGeometry(target) {
+    /** @type {Element[]} */
+    let boxes = [];
+    /** @type {ParentNode[]} */
+    let around = [];
     /** @type {Element | null} */
     let at = target;
     for (; at && at !== pageScroller; at = renderedParent(at)) {
       if (at instanceof Element) {
-        geometry.add(at);
+        if (registry[at.localName]?.visual) {
+          boxes = [];
+          around = [];
+        }
+        boxes.push(at);
         // Scroll and slot changes stay in their shadow tree. A slotted target's
         // own root is the document; the rendered walk reaches the roots that
         // actually move and clip it, and re-arms them after a slot or parent move.
         const root = at.getRootNode();
         if (root instanceof ShadowRoot) hearTargetChanges(root);
       }
-      const parent = at.parentNode;
-      if (!parent || parents.has(parent)) continue;
+      if (at.parentNode) around.push(at.parentNode);
+    }
+    for (const box of boxes) geometry.add(box);
+    for (const parent of around) {
+      if (parents.has(parent)) continue;
       parents.add(parent);
       for (const sibling of parent.children ?? [])
         if (!inChrome(sibling)) geometry.add(sibling);

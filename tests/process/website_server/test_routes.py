@@ -30,8 +30,8 @@ from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from leaf_dev.commands.journey import _journey as journey
-from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.page_fixtures import example_media
+from leaf_dev.website import activation_url
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -303,9 +303,10 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     if published_revision:
-        manifest["pages"]["/examples/decision"]["states"] = {
-            "1": "/_leaf/state/decision--r1.json"
-        }
+        assert website_server.activate_source(published).revision == 1
+        manifest["pages"]["/examples/decision"]["revisions"] = [
+            revision_path(published, 1).stem
+        ]
     manifest_path.write_text(json.dumps(manifest))
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, harness)
@@ -456,9 +457,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "private, max-age=31536000, immutable"
         )
 
-        raw_view, _ = get(
-            verify_site.activation_url(f"{root}/examples/decision/", state)
-        )
+        raw_view, _ = get(activation_url(f"{root}/examples/decision/", state))
         view = json.loads(raw_view)
         revision = state["active"]["revision"]
         assert view["document"]["revision"] == revision
@@ -596,10 +595,10 @@ def test_an_answer_to_a_held_reading_addresses_a_new_revision_at_the_page_root(
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):
-    """What a user posting into a draining rollout gets back.
+    """What a user posting under another layer than their container's gets back.
 
-    A container carries the layer of the image it runs, so a session allocated on a
-    previous image answers a newer generation with its own rather than with state.
+    A container carries the layer of the image it runs, so it answers another
+    generation with its own rather than with state.
     The website deploy gate reads that answer, so it has to be the shape it names.
     """
     site = tmp_path / "site"
@@ -647,7 +646,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     page = manifest["pages"]["/examples/decision"]
-    page["states"] = {"1": "unused"}
+    page["revisions"] = [revision_path(published, 1).stem]
     manifest_path.write_text(json.dumps(manifest))
     release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
     # A revision a session saved after the release is the container's, never the
@@ -681,7 +680,6 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
             assert headers["Access-Control-Allow-Origin"] == "*"
         registry, headers = get(f"{root}{release}/registry.json")
         assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
-        assert headers["Leaf-Release"] == manifest["release"]
         for missing in (
             f"{release}/api/state",
             f"{page['assets']}/revisions/r9-x/a.js",

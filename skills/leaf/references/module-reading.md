@@ -10,8 +10,10 @@ comments read them; `textContent` also returns words a widget generated that pas
 leave out. For text to copy or send, `says(element, {format: "lines"})` keeps rendered
 block boundaries, explicit line breaks and preformatted whitespace. Read a connected
 element so its computed styles supply these boundaries; a closed popover is supported.
-Inline values stay in their sentence, and ordinary HTML source indentation collapses. To
-name one of the widget's own parts, use `named(element)`, which returns only the words
+Inline values stay in their sentence, and ordinary HTML source indentation collapses.
+`phrasing(element)` says whether an element stands within a line of words, as HTML's
+phrasing content and a widget declaring `inline` do, rather than starting a block.
+To name one of the widget's own parts, use `named(element)`, which returns only the words
 the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
 `<pre>` body with `bodyText(this)`, which trims leading blank lines and trailing
 whitespace. A widget that also declares an input

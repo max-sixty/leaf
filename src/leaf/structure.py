@@ -12,7 +12,7 @@ import turbohtml
 from .findings import Finding
 from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
-from .schema import ASSETS, EVENT_ID, MEDIA_DIR
+from .schema import ASSETS, MEDIA_DIR
 
 UTF8_BOM = "\ufeff"
 
@@ -572,11 +572,6 @@ class SourceDocument:
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
 
     @property
-    def event_shaped_ids(self) -> list:
-        """Ids in the log's own event-id shape (see id_errors)."""
-        return sorted({i for i in self.all_ids if re.fullmatch(EVENT_ID, i)})
-
-    @property
     def spaced_ids(self) -> list:
         """Ids holding ASCII whitespace, which HTML forbids in one (see id_errors)."""
         return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
@@ -592,7 +587,10 @@ class Authoring:
         # The content node of each of the document's lf-* records, by the record.
         self._nodes_of = {}
         self.errors = []
-        self.unclosed = []  # source elements whose required end tag is absent
+        # Where the parser repaired the markup: a non-void element written
+        # self-closing, and a source element whose required end tag is absent.
+        self.self_closing = []
+        self.unclosed = []
         # {attrs, parent, position, early_head} per external asset. Applicability and
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
@@ -712,7 +710,7 @@ class Authoring:
             if error.code == "non-void-html-element-start-tag-with-trailing-solidus":
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
-                self.errors.append(
+                self.self_closing.append(
                     Finding("self-closing", f"<{tag}>", {"line": error.line})
                 )
 

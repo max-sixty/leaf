@@ -85,9 +85,9 @@ Fix it and post again. Where Leaf has no browser, the failure reaches you instea
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
 wall there. The user should take in at a glance what a message tells them and what it
 asks of them. A message is generally a sentence or two; where it has several points,
-such as the options a question weighs, give each a short paragraph or item, and a
-question a line of its own. The page carries the work. Record a decision, result,
-or deferred work on the page and link it from the reply with a fragment link such as
+give each a short paragraph or item, and a question a paragraph of its own. The page
+carries the work. Record a decision, result, or deferred work on the page and link it
+from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
 opens any tab or group hiding it. The thread already reaches the passage or section it
 is on, as a card beside it or by Show on page in the panel, so a link to it takes the
@@ -200,14 +200,17 @@ finished work.
 
 When a message asks the user to choose among answers you can list, such as which of two
 ways to proceed, whether to take an action or whether a step they took worked, you can
-send the answers in the message as an `<lf-options id="…">` holding an
-`<lf-option id="…">` for each. Picking an option is generally quicker and easier for
-the user than typing a reply, so a choice usually serves them better than answers
-listed in words. The user answers with a press in the thread, and the `lf-options`
-waits on them until they do, so the message takes no `--obligation`, which the command
-refuses beside it. The message's text asks the question and gives your reason, so the
-`lf-options` needs no heading or group round it. Title each option by what choosing it
-does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
+send the answers in the message in a widget that asks, such as an `<lf-options id="…">`
+holding an `<lf-option id="…">` for each. Picking an option is generally quicker and
+easier for the user than typing a reply, so a choice usually serves them better than
+answers listed in words. The user answers with a press in the thread, and the choice
+waits on them until they do, so the message takes no `--obligation`: beside the choice
+it would keep the message on their On Me list after they pick, as the command notes.
+The text holds the question, what is true of every option and your
+reason; each card holds what is true of its option alone, such as what choosing it
+does and costs. The choice needs no heading or group round it. Title each option by
+what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
+question holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'
@@ -236,14 +239,17 @@ leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
 It does not answer the update, so a turn whose final message is the answer still
-posts that message. On an update you owe it starts the update, and
-its text becomes your line in Leaf's panel status, so keep it to one line
+posts that message. On an update you owe it starts the update. Posted on the same
+reference after an answer that opened a to-do, or on the to-do's own message, it
+starts that to-do. Its text becomes your line in Leaf's panel status, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 
-The thread shows the latest progress as one dim working message where you posted it,
-Progress never counts as unread. Your next ordinary reply replaces the preceding
-progress.
+The thread shows your latest progress as one dim working message where you posted
+it, and progress never counts as unread. Your next message in the thread replaces it,
+progress included, but progress the user has written after stays until your next
+reply. Where nothing in the thread before it still waits on your answer, it also goes
+when your turn ends.
 Progress carries only text;
 questions, to-dos, HTML, anchor moves and failure receipts each need a reply of
 their own.
@@ -268,10 +274,10 @@ into that reply with `leaf thread edit` rather than a new reply, so the user ret
 to the current answer rather than to messages that correct one another. Keep new
 replies for news the user is waiting on, such as a result you promised, and for
 answering a delivered update, which an edit does not answer. Where you already
-posted such a correction as a new reply, fold it and the reply it corrects into one
-current answer with `leaf thread summarize <page> --from <earlier-reply> --through
-<correction> --text "<the current answer>"`, widening the range where Leaf names a
-wider one ("Summarize a long discussion").
+posted such a correction as a new reply, fold it and the reply it corrects under one
+summary that gives the answer as it now stands, as short as any summary ("Summarize a
+long discussion"): `leaf thread summarize <page> --from <earlier-reply> --through
+<correction> --text "<the current answer>"`.
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,
@@ -288,9 +294,9 @@ leaf thread resolve <page> <message>
 
 Each thread in `leaf page state <page>` and `leaf page state <page> <message>`
 lists under `unread` your messages the user has not read in their current wording. A
-message counts as read once its whole body has been on screen, once the user marks
-the thread read, or once they act in the thread after it: reply, react, answer a
-widget, resolve or reopen. `leaf thread edit` makes a message unread again. Unread
+message counts as read once its whole body, or the whole of a summary folding it, has
+been on screen, once the user marks the thread read, or once they act in the thread
+after it: reply, react, answer a widget, resolve or reopen. `leaf thread edit` makes a message unread again. Unread
 does not change whose turn it is: an unread message needs no follow-up, and a read
 one is not an answer.
 
@@ -299,18 +305,26 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range, starting and
-ending on spoken messages rather than reactions. Leave out messages whose wording
-still matters to the current exchange. A range may take in summaries already in the
-thread, and the new summary replaces them. Take them in, as the hint does, so the
-user reads one account of the earlier discussion rather than a row of summaries. No
-message but the thread's first may stay unsummarized above any summary. Leaf refuses
-a range that would leave one there, a fold without prose included, and names a wider
-range it accepts; write that summary to cover the added messages too.
+with `leaf page state <page> <message>` and choose a contiguous range yourself,
+starting and ending on spoken messages rather than reactions.
 
-A summary gives the range's decisions, reasoning, and open questions in Markdown
-prose, written from the original messages rather than only from the summaries it
-replaces.
+Fold what compresses most: settled detail and finished exchanges, whose outcome a
+few sentences carry. Keep in full the messages whose wording still matters
+to the current exchange, such as the question a kept answer replies to, or an opening
+message whose words still frame the thread. A folded message that still asks
+something of the user stays on their On Me list, and going to it there opens the
+fold; where they need its words or its widget to answer, keep it in full or say in
+the summary what it asks. A range may take in summaries already in the thread, and
+the new summary replaces every one it overlaps, whole. Take them in, as the hint does, so the user reads one
+account of the earlier discussion rather than a row of summaries.
+
+A summary is what the user reads in place of the messages it folds, and they open
+those only for detail, so a summary helps only when it is much shorter than they are:
+a few sentences, usually under sixty words, saying where the range landed. Give each
+decision with its reason in a clause, the answer that now stands where a later
+message corrected an earlier one, and what is still open. Write it from the original
+messages rather than only from the summaries it replaces, and leave the steps that led
+there, and the detail, to the originals.
 
 Put the range's outcomes in the page too, and write the summary:
 
@@ -325,9 +339,13 @@ To fold messages
 without a summary, pass an empty `--text`:
 
 ```bash
-leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --text ''
 ```
 
-Editing a message inside a summary with prose, or the user taking back a message
-the thread held when you wrote it, cancels that summary, so stale prose cannot hide
-the change; a fold without prose stays.
+Either form takes `--label <name>` where the range has a name worth giving it; the
+thread shows the name in bold ahead of the summary's words.
+
+The user rewriting a message inside a summary, or taking back a message the thread
+held when you wrote it, cancels that summary, words or label, so it cannot hide their
+change. Your own edit leaves the summary standing, and `thread edit` names it, so
+summarize the range again where your edit changes what the summary reports.

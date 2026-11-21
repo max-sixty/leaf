@@ -14,6 +14,7 @@ from interact_support import (
     STATED_TIMEOUT,
     acknowledged_through,
     append_carried_log_record,
+    inlined,
     record_claim,
 )
 from model.test_hook_registration import _registered_hook_command
@@ -63,7 +64,7 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     output = json.loads(answered.stdout)
     assert output["hookSpecificOutput"]["hookEventName"] == event
     context = output["hookSpecificOutput"]["additionalContext"]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
     if event == "PostToolBatch":
         claim_record_2 = service_model.page_claim(claimed)

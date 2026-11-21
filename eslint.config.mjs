@@ -84,6 +84,7 @@ const browserGlobals = Object.fromEntries(
     "HTMLSelectElement",
     "HTMLSpanElement",
     "HTMLTemplateElement",
+    "HTMLTextAreaElement",
     "HTMLVideoElement",
     "Headers",
     "Highlight",
@@ -1400,6 +1401,7 @@ export default [
   {
     files: [
       "*.mjs",
+      ".config/*.mjs",
       ".github/scripts/*.mjs",
       "build/**/*.mjs",
       "worker/*.mjs",
@@ -1515,17 +1517,13 @@ export default [
     languageOptions: { globals: browserGlobals },
   },
   {
-    files: [
-      "dev/leaf_dev/startup.js",
-      "dev/leaf_dev/painted.js",
-      "dev/leaf_dev/commands/stills_baselines.js",
-    ],
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: ["dev/leaf_dev/commands/site/verify_browser.js", "dev/leaf_dev/painted.js"],
+    files: ["dev/leaf_dev/website.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-restricted-syntax": [

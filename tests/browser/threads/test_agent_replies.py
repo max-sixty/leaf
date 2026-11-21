@@ -51,6 +51,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -173,7 +174,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "Remove the old heading",
         )
     page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
+    mark = page.locator(".lf-fp-leaf")
     expect_on_me(page, 1)
     mark.click()
     row = page.locator('.lf-fp-on-item[data-lf-list="you"]')
@@ -531,7 +532,7 @@ def test_an_idle_card_replaces_progress_with_the_answer(
     page = open_page(browser, url)
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
-    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
+    expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
     if streamed:
         stream_reply(serve.page_dir, root, "Recording the release now.")
         told(page)
@@ -562,9 +563,8 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     browser, serve, request
 ):
     """While the agent works, its progress shows as one dim working message above the
-    reply box, not as replies: each step replaces the last, nothing counts unread, and
-    the earlier steps stay out of sight. The answer takes the working message's place
-    and the earlier steps remain hidden."""
+    reply box, not as replies: each step replaces the last and nothing counts unread.
+    The answer takes the working message's place."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
@@ -582,14 +582,13 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
-    # The comment's card on the agent's list says the agent's last step on it, as the
+    # The comment's line on the agent's list says the agent's last step on it, as the
     # page's status does, rather than only that it is working.
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
-    card.locator(".lf-fp-on-line").click()
-    expect(card.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+    expect(card.locator(".lf-fp-on-line .lf-fp-running")).to_have_text(
         "Trying a lighter weight."
     )
     # Nothing counts unread.
@@ -617,8 +616,8 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(line.locator(".lf-thread-working-words")).to_have_text(
         "Trying a lighter weight"
     )
-    # The working line is actual agent feedback even while each underlying progress
-    # MessageView is folded. It uses the input's exact workflow identity, not the
+    # The working line is actual agent feedback, though no step has a MessageView.
+    # It uses the input's exact workflow identity, not the
     # thread parent, and carries no copy of the agent's words in diagnostics. A later
     # acknowledged gesture flushes every observation made before it.
     with page.expect_response(
@@ -692,12 +691,10 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(thread.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-lf-event="{step["id"]}"]')).to_be_hidden()
-    expect(
-        thread.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)
 
-    # A second session can post progress after the first session answered. It has
-    # no owed input's workflow, so its own message supplies both author and time.
+    # A second session can post a step on a follow-up the first hasn't taken up; the
+    # face says who wrote it and when, from the step's own message.
+    append_user_reply(serve.page_dir, root, "And in the dark theme?")
     proactive = thread_model.post_reply(
         serve.page_dir,
         {"parent": root},
@@ -709,7 +706,6 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(line.locator(".lf-thread-working-head b")).to_have_text("Claude")
     expect(line.locator("time")).to_have_attribute("datetime", proactive["ts"])
     expect(line.locator("time")).not_to_be_empty()
-    expect(line).not_to_have_attribute("data-lf-live", "")
 
 
 # Only "scrolls" is watched for shifts: on the short page the draft moves with no input,
@@ -815,7 +811,7 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
 def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     browser, serve, request
 ):
-    """The first words of a streamed answer hide progress without a disclosure."""
+    """The first words of a streamed answer end the step before them."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -836,13 +832,10 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
     streamed = thread.locator(".lf-msg[data-lf-author=agent]").last
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
-    expect(thread.locator(f'.lf-msg[data-lf-event="{step["id"]}"]')).to_be_hidden()
-    expect(
-        thread.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)
+    expect(thread.locator(f'.lf-msg[data-lf-event="{step["id"]}"]')).to_have_count(0)
 
-    # Failure restores the progress status only when the held stream gives way to
-    # its failure receipt, so progress cannot reappear beside the retained stream.
+    # The failure receipt, an agent message too, ends the step: neither the held
+    # stream nor the receipt it gives way to brings it back.
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Keep this draft")
     failure = thread_model.post_reply(
         serve.page_dir,
@@ -860,12 +853,13 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     expect(
         thread.locator(f'.lf-msg[data-lf-event="{failure["id"]}"] .lf-msg-failure')
     ).to_have_text("Not answered")
-    expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)
 
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the obligation is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open, and a promise
+    reads On it while its work runs, as the to-do does everywhere else."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -895,11 +889,38 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         head = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-msg-head')
         expect(head.locator(".lf-msg-leaves")).to_have_text(words)
 
-    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    # The promise's word opens On Codex at its to-do with the card open: the keys land
+    # on the to-do's line, and a pointer opens the same card.
+    word = page.locator(card_of(promised)).locator(
+        f'.lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-leaves'
+    )
+    expect(word).to_have_accessible_name("Still to do, Open in On Codex")
+    key = json.dumps(["todo", promise["id"]], separators=(",", ":"))
+    item = page.locator(f".lf-fp-view .lf-fp-on-item[data-lf-key='{key}']")
+    word.focus()
+    page.keyboard.press("Enter")
+    expect(item).to_have_attribute("data-lf-open", "")
+    expect(item.locator(".lf-fp-on-line")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(item).not_to_have_attribute("data-lf-open", "")
+    word.click()
+    expect(item).to_have_attribute("data-lf-open", "")
+
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": promised, "responds": promised},
+        "rebuilding the banner",
+        ephemeral=True,
+        identity=codex,
+    )
     told(page)
     head = page.locator(
         f'.lf-margin-preview .lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-head'
     )
+    expect(head.locator(".lf-msg-leaves")).to_have_text("On it")
+
+    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    told(page)
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
 
 
@@ -1022,9 +1043,8 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-lf-event="{receipt["id"]}"]')
-    expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
-        "Checking the south pair"
-    )
+    # The receipt, an agent message, ends the step before it.
+    expect(page.locator("#cd-q .lf-thread-working")).to_have_count(0)
     expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
     assert inline.get_attribute("data-lf-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
@@ -1188,108 +1208,26 @@ TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg[data-lf-author=
 
 # The run's height above the user's message: the steps `ids` names, as they show, and
 # its face.
-RUN_HEIGHT = """([thread, message, ids]) => [...thread.querySelectorAll(
-  ['.lf-thread-working', ...ids.map(id => `.lf-msg[data-lf-event="${id}"]`)].join())]
-  .filter(node => node.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING)
-  .reduce((sum, node) => sum + node.getBoundingClientRect().height, 0)"""
-
-
-def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, serve):
-    """Until an answer arrives, progress before a user's message offers its earlier
-    steps itself, and they stay as the user leaves them, shown or hidden. A rewrite of
-    the step it shows draws at once while the user stands on its toggle in the thread,
-    as news in the thread the user is in does: the toggle stays where it stood, the
-    page scrolling away what grows above it, and the user's message below moves by the
-    run's growth alone. It doesn't wait behind the thread's notice ("1 message
-    edited")."""
+def test_a_thread_shows_only_the_agent_s_newest_step_where_it_was_said(browser, serve):
+    """Of the agent's steps in a row, a thread shows only the newest, as its working
+    message where the step was said, with no disclosure offering the steps before it.
+    A message of the user's after it leaves it standing above that message."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
-    steps = [
+    for text in ("Reading the jobs.", "Comparing the frost dates."):
         thread_model.post_reply(
             serve.page_dir, {"parent": root, "responds": root}, text, ephemeral=True
         )
-        for text in ("Reading the jobs.", "Comparing the frost dates.")
-    ]
-    asked = append_user_reply(serve.page_dir, root, "And the camera?")
-    thread_model.post_reply(
-        serve.page_dir,
-        {"responds": asked["id"]},
-        "Checking the camera.",
-        ephemeral=True,
-    )
+    append_user_reply(serve.page_dir, root, "And the camera?")
     page = open_page(browser, url)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
-    first = thread.locator(f'.lf-msg[data-lf-event="{steps[0]["id"]}"]')
-    expect(first).to_be_hidden()
-    show = thread.get_by_role("button", name="Show 2 progress messages", exact=True)
-    hide = thread.get_by_role("button", name="Hide 2 progress messages", exact=True)
-    show.press("Enter")
-    expect(first).to_be_visible()
-    hide.press("Enter")
-    expect(first).to_be_hidden()
-    expect(show).to_be_focused()
-
+    face = thread.locator(".lf-thread-working")
     message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
-
-    def rewrite(text, toggle):
-        rendered(page)
-        handles = [
-            thread.element_handle(),
-            message.element_handle(),
-            [step["id"] for step in steps],
-        ]
-        stood = toggle.bounding_box()
-        was = message.bounding_box()["y"]
-        run = page.evaluate(RUN_HEIGHT, handles)
-        scroll = page.evaluate("document.scrollingElement.scrollTop")
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "edit",
-                "author": "agent",
-                "agent": "Codex",
-                "session": "pytest",
-                "message": steps[1]["id"],
-                "text": text,
-            },
-        )
-        told(page)
-        # The working message says a step without its closing full stop.
-        expect(thread.locator(".lf-thread-working").first).to_contain_text(
-            text.rstrip(".")
-        )
-        rendered(page)
-        expect(thread.locator(".lf-thread-news")).to_have_count(0)
-        expect(toggle).to_be_focused()
-        assert toggle.bounding_box() == pytest.approx(stood, abs=0.5)
-        grew = page.evaluate(RUN_HEIGHT, handles) - run
-        scrolled = page.evaluate("document.scrollingElement.scrollTop") - scroll
-        assert message.bounding_box()["y"] - was == pytest.approx(
-            grew - scrolled, abs=0.5
-        )
-
-    rewrite(
-        "Comparing the frost dates for the mounts, the bird bath and the camera, "
-        "and what each one needs before it can start.",
-        show,
-    )
-    expect(first).to_be_hidden()
-
-    # Opened, the run shows the step itself above its face. A rewrite of it keeps the
-    # steps shown, and the page scrolls the step's growth above the toggle away. The
-    # toggle stands clear of the floating panel at the window's foot, where it would be
-    # out of the user's sight and so held for nobody (user-place.js, `holdUserPlace`).
-    show.press("Enter")
-    expect(first).to_be_visible()
-    resized(page, 390, 540)
-    hide.evaluate("t => scrollBy(0, t.getBoundingClientRect().top - innerHeight / 3)")
-    rewrite(
-        "Comparing the frost dates for the mounts, the bird bath and the camera, what "
-        "each one needs before it can start, and which of them can wait for spring.",
-        hide,
-    )
-    expect(first).to_be_visible()
+    expect(face).to_have_count(1)
+    expect(face).to_contain_text("Comparing the frost dates")
+    assert face.bounding_box()["y"] < message.bounding_box()["y"]
+    expect(thread.locator(".lf-summary-expand")).to_have_count(0)
 
 
 def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(

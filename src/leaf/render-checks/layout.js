@@ -835,8 +835,7 @@ export function squeezedTables() {
       ? wordsOutside(box)
       : null;
   const tables = [...page.querySelectorAll("table")].filter(scrolls);
-  const found = [];
-  if (!tables.length) return found;
+  if (!tables.length) return [];
   // Each table's columns by left edge, each with its cells, before the probe.
   /** @typedef {{heading: string | null, head: boolean, width: number, first: Element, wraps: boolean}} TableColumn */
   /** @type {Map<HTMLTableElement, TableColumn[]>} */
@@ -885,6 +884,7 @@ export function squeezedTables() {
     for (const column of columns)
       column.wraps = column.first.getBoundingClientRect().width > column.width + 1;
   probe.remove();
+  const found = [];
   for (const [table, columns] of read) {
     if (!columns.some((c) => c.wraps)) continue;
     found.push({

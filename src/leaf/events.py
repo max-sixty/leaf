@@ -730,9 +730,9 @@ def owed_turns(thread: dict) -> list[dict]:
     The user's resolve takes a thread off their list and settles nothing the agent
     owes in it. A request made before it stays owed, and the reply that answers it
     reopens the thread, so the result returns to where the user asked for it. The
-    user chose this on 2026-11-14 over a resolve that dropped the request, which
-    lost the result of work they had asked for and then tidied away; cancelling a
-    request takes their words. Every other closing answers for the thread: the
+    user chose this over a resolve that dropped the request, which lost the result
+    of work they had asked for and then tidied away; cancelling a request takes
+    their words. Every other closing answers for the thread: the
     agent's own resolve, which says the thread wants no answer, and the user's
     answer on a widget whose `resolves` names the thread, the decision the agent
     offered them there. From such a closing until the thread reopens it owes

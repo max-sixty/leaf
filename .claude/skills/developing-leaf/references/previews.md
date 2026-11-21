@@ -34,10 +34,11 @@ Comments inside a live sample stay in that sample.
 
 ## Compare checkout versions
 
-`uv run leaf-dev preview <example> --base` serves the merge-base runtime beside this
-checkout, in the foreground as a preview runs; `--help` lists the flags. Keep the
-default shared source for a runtime change, pass `--authored` when the authored content
-changed, and pass `--user` only when the URLs go to the user.
+`uv run leaf-dev preview <example> --base` serves the merge base's runtime beside this
+checkout's; `--help` lists the flags. For
+a runtime change, keep the default, in which both versions read this checkout's
+authored source. Pass `--authored` when the authored content changed, so the base reads
+its own, and pass `--user` only when the URLs go to the user.
 
 For a change that can alter browser startup, compare served previews for a runtime
 change, and `leaf-dev site verify website-worker` for site delivery, Worker routing or

@@ -31,10 +31,11 @@ those routes leave. A reviewer's brief gives the task and the candidate and asks
 that pass before any code review. An agent that has driven, measured or read the
 change sees the screen through that work and misses flaws a first look catches; a
 fresh agent given only the captures and the user's request, and asked what looks
-wrong, is one way to get that look. The `/ui-sweep` pass (`../ui-sweep/SKILL.md`) a
-theme or shared-control change gets follows its "Review a design system" section, and
-its "External review" section says when to use the optional review skills from outside
-Leaf that `references/external-ui-skills.md` names.
+wrong, is one way to get that look. A theme or shared-control change also gets a
+`/ui-sweep` pass (`../ui-sweep/SKILL.md`), which follows that skill's "Review a design
+system" section. This skill's `references/external-ui-skills.md` lists optional review
+skills from outside Leaf, such as visual critique and motion review, and `/ui-sweep`'s
+"External review" section says how to choose among them.
 
 ## Checks and guidance for the authoring agent
 
@@ -108,10 +109,11 @@ reached by interaction, including focus states where layout can cover a focus ri
 Where no state reaches a surface the change touches, add one to `STATES` as the
 `dev/leaf_dev/states.py` header says, rather than driving the surface by hand.
 
-Some `leaf-dev` commands capture one surface in each case of a list they keep, such as
-`placement cards` for thread-card placement and `words` for what the panel says after
-each press; `leaf-dev --help` names each command's subject. For a change to a surface
-one of them covers, read that command's module header and run it with `--base` too.
+Some `leaf-dev` commands run one surface through every case in a list they keep, such
+as `placement cards` for where thread cards stand and `words` for what the panel says
+after each key press; `leaf-dev --help` gives each command's subject. For a change to a
+surface one of them covers, run that command with `--base`, and read its module header
+for how to judge the output.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
@@ -135,8 +137,9 @@ change touches, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
-To compare this checkout with its merge base, as for a change that can alter browser
-startup, read `references/previews.md`, "Compare checkout versions".
+To serve this checkout beside its merge base, for an interaction-only change or one
+that can alter browser startup, read `references/previews.md`, "Compare checkout
+versions".
 
 ## Author or revise a page
 

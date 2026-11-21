@@ -882,14 +882,15 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 )
 
 
-# Places longer than a card shows: a log of long lines, a paragraph and a list whose first
-# item each run past what a card holds.
+# Places longer than a card shows: a log of long lines, a paragraph, a table of more rows
+# than a card holds and a list whose first item each run past what a card holds.
 LONG_LINE = "x" * 300
 CUT_PAGE = leaf_page(
     "Places that run on",
     """
-<p><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>
-and <a id="to-items" href="#items">the items</a></p>
+<p><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>,
+<a id="to-table" href="#table">the table</a> and <a id="to-items" href="#items">the
+items</a></p>
 <pre id="log">"""
     + "\n".join(f"L{n} {LONG_LINE}" for n in range(1, 41))
     + """</pre>
@@ -899,6 +900,9 @@ and <a id="to-items" href="#items">the items</a></p>
 <ul id="items"><li>"""
     + " ".join(["A first item that runs on and on."] * 30)
     + """</li><li>Second.</li></ul>
+<table id="table"><thead><tr><th>Session</th><th>Room</th></tr></thead><tbody>"""
+    + "".join(f"<tr><td>Row {n}</td><td>Workshop hall</td></tr>" for n in range(1, 21))
+    + """</tbody></table>
 """,
 )
 
@@ -907,7 +911,11 @@ and <a id="to-items" href="#items">the items</a></p>
 def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
     """A card reads no more of a place than it shows, and says so where the place runs
     on: a log of long lines shows its first four lines whole and then an ellipsis, and a
-    paragraph and a list's first item longer than the card holds end in one."""
+    paragraph and a list's first item longer than the card holds end in one. A table
+    cut short shows its first rows, after a card that ended in a clamp as well: the
+    card draws each place into the elements the last one used, and a clamp holds back
+    none of a table's rows, so the fit reads the lines a block shows off its box, not
+    off the count the clamp was given."""
     page = open_page(request.getfixturevalue(engine), serve(CUT_PAGE))
     preview = page.locator(PREVIEW)
 
@@ -924,14 +932,18 @@ def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
     assert lines[-1].endswith("…"), lines[-1][-20:]
     card("#to-prose")
     assert preview.locator(".lf-place-text").inner_text().endswith("…")
+    card("#to-table")
+    assert preview.locator(".lf-place-cell").first.inner_text() == "Session"
     card("#to-items")
     assert preview.locator(".lf-place-item").first.inner_text().endswith("…")
 
 
+# The links stand well above the places they lead to, so a preview below the last lines
+# of links has room for its name and its first part clear of the first place's summary.
 DRAWN_PAGE = leaf_page(
     "What a place draws",
     """
-<p id="lede"><a id="to-closed" href="#closed">a closed disclosure</a>,
+<p id="lede" style="margin-block-end: 5em"><a id="to-closed" href="#closed">a closed disclosure</a>,
 <a id="to-held" href="#held">a block holding one</a>,
 <a id="to-spans" href="#spans">a paragraph with hidden words</a>,
 <a id="to-titled" href="#titled">a section with a hidden word in its title</a>,
@@ -1103,16 +1115,17 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
 def test_an_entry_holding_several_threads_says_each(engine, request, serve):
     """A margin entry holding several threads is named by their count and gives every
     thread a line of its name and where it stands, as the card a press opens lists
-    them all."""
+    them all. The names are short enough that each thread's line stays one line, so
+    the room beside the entry holds all four."""
     url = serve(PANEL_PAGE)
     for n in range(1, 5):
-        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+        panel_comment(serve.page_dir, f"Question {n}?", {"section": "lede"})
     page = open_page(request.getfixturevalue(engine), url)
     entry = page.locator('[data-lf-margin-for="lede"] > .lf-margin-marker')
     parts = preview_parts(entry)
     assert parts[0] == "4 threads", parts
     assert [part.split(" · ")[0] for part in parts[1:]] == [
-        f"Question {n} on the lede?" for n in range(1, 5)
+        f"Question {n}?" for n in range(1, 5)
     ], parts
 
 

@@ -457,23 +457,22 @@
   --lf-raise-3-drop: 12px;
   --lf-raise-3-blur: 36px;
   --lf-raise-3: 0 var(--lf-raise-3-drop) var(--lf-raise-3-blur) var(--lf-shade);
-  /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
-     --lf-raise-1. Its stylesheets live wherever the control does, often in a shadow tree
-     or a package and on a pseudo-element no shared class reaches, so the face is
-     tokens they name; each keeps its own placement. --lf-font-tip is derived from the
-     ladder, so it is declared with the other derived tokens (below). */
-  --lf-tip-bg: var(--lf-ink);
-  --lf-tip-ink: var(--lf-paper);
-  /* Its edge: a hairline ring, none where the inverse ground sets it off the page, and
-     its height. */
-  --lf-tip-ring: transparent;
-  --lf-tip-lift: var(--lf-raise-1);
-  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's colour
-     drawn halfway to the tooltip's ink, which holds it clear of that ground at 4.8:1 or
-     more in either scheme, where the paper's turn ink would sink into it. */
-  --lf-tip-turn-ink: color-mix(in srgb, var(--lf-turn) 50%, var(--lf-tip-ink));
-  --lf-tip-pad: 4px 7px;
-  --lf-tip-r: var(--lf-r-s);
+  /* A tooltip's face, the one every preview wears (chrome.css, `.lf-preview-face`): the
+     face of a popover Leaf opens over the page (controls.css, `.lf-popover`), its raised
+     ground and ink, a hairline ring, a control's corners and the popover's lift. The
+     user chose it over the inverse face, which on a dark page was the brightest thing
+     on screen, and over a dark ground in both schemes. On a light page it stands off the
+     page by its ring and lift alone. --lf-font-tip is derived from the ladder, so it is
+     declared with the other derived tokens (below). */
+  --lf-tip-bg: var(--lf-card);
+  --lf-tip-ink: var(--lf-ink);
+  --lf-tip-ring: var(--lf-border);
+  --lf-tip-lift: var(--lf-raise-2);
+  --lf-tip-turn-ink: var(--lf-turn-ink);
+  /* Room enough that a preview of several lines, such as a thread's, reads as a
+     passage rather than a label. */
+  --lf-tip-pad: 6px 10px;
+  --lf-tip-r: var(--lf-r);
   /* The weight of its name, and of the heads in a block it quotes. */
   --lf-tip-strong: 600;
   /* Inline code's ground is a step from the paper it sits on, not the white code
@@ -938,8 +937,9 @@
   /* A region's name in small capitals (`.lf-label` adds the capitals and their
      tracking), set close, since capitals have no descenders. */
   --lf-font-label: 600 var(--lf-t-6) / 1.3 var(--lf-sans);
-  /* A tooltip's words, a weight up to hold on its inked ground. */
-  --lf-font-tip: 500 var(--lf-t-6) / 1.2 var(--lf-sans);
+  /* A tooltip's words, a weight up from the page's, as the user chose, with lines 1.4
+     apart to go with its room. */
+  --lf-font-tip: 500 var(--lf-t-6) / 1.4 var(--lf-sans);
   --lf-font-chip: var(--lf-t-6) / var(--lf-chip-lh) var(--lf-sans); /* a small fact (above) */
   --lf-font-count: 600 var(--lf-t-7) / 1 var(--lf-sans); /* a number on a mark */
   /* A tooltip's second line, a status under a drawing, or a chart's axes. */

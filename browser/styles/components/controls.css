@@ -266,7 +266,9 @@ svg[data-lf-icon] {
    whole thread. An open rewrite's Discard and Save take the thread's place past the
    gap (response.css), so the rule leaves with it. It stands past the head's end rather
    than its controls', since a card short of room for a held notice of news lets them
-   run past the head into that gap (thread-card.js, `#fitLineNews`). */
+   run past the head into that gap (thread-card.js, `#fitLineNews`). A margin card
+   ends both sets of controls its symbol end further in (`--lf-margin-symbol-end`,
+   annotation-chrome.css), so the rule moves in with them. */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )
@@ -278,7 +280,9 @@ svg[data-lf-icon] {
   &::after {
     content: "";
     position: absolute;
-    inset-inline-start: calc(100% + var(--lf-sp-2) / 2);
+    inset-inline-start: calc(
+      100% + var(--lf-sp-2) / 2 - var(--lf-margin-symbol-end, 0px)
+    );
     inset-block-start: 50%;
     translate: -50% -50%;
     inline-size: 1px;

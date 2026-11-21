@@ -2117,7 +2117,6 @@ export function createFloatingPanel({
   }
   let writtenBand = 0;
   let bandFrame = 0;
-  let coveredColumns = "";
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
@@ -2136,12 +2135,7 @@ export function createFloatingPanel({
       .split(/\s+/)
       .map(Number.parseFloat);
     const band = atLayoutPrecision(Math.max(rest, reach + clear));
-    // A fold moves the box sideways at the height it had, which changes the room it
-    // leaves the columns beside it (`shownWindow`, `across`) though not the band.
-    const columns = box.height > 0 ? `${box.left} ${box.right}` : "";
-    const moved = columns !== coveredColumns;
-    coveredColumns = columns;
-    if (stateFootBand(band) || moved) {
+    if (stateFootBand(band)) {
       // This runs in the box's size delivery, which may write only what no one observes
       // (page-layout.js). The root's style is a page attribute the margin hears, and its
       // pass places an open thread card in the same delivery, resizing a box shallower

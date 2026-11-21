@@ -796,10 +796,8 @@
       & > aside {
         z-index: 1;
       }
-      /* The element sets its own height (toc.css), so the track is as tall as it. */
       & > aside > .layout-track {
         overflow: visible;
-        max-block-size: none;
         --lf-track-spine: 1;
       }
       & > .layout-column {

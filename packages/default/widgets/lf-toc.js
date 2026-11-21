@@ -15,13 +15,9 @@ import { sectionMarks } from "./toc-marks.js";
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
- * the document's origin to make room for type. The map runs down its stuck track to
- * the window's foot (toc.css), short of the floating panel's band only where the panel
- * stands across the map's columns, labels included: the module reads that from the
- * room Leaf's chrome leaves where the panel comes to rest (`shownWindow`) whenever it
- * may change (`watchRoom`), and states it on the map (`data-lf-panel-clear`). The
- * labels keep their measure while faded out, so revealing them neither moves the map
- * nor refits it.
+ * the document's origin to make room for type. The map fills its stuck track
+ * (toc.css). The labels keep their measure while faded out, so revealing them neither
+ * moves the map nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as
@@ -34,9 +30,9 @@ import { sectionMarks } from "./toc-marks.js";
  * scrolls only its own contents and usually stands at its scroll end, so an outline
  * that read it marked the last section as current at every scroll.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
- * document; the window's resize and the panel's clearance changing the map's own height
- * measure it again; a widget whose view rearranges descendants without changing its own
- * size emits the shared layout signal. The map
+ * document, and the height of the track the rows are laid into, which the page's chrome
+ * can shorten without the document moving at all; a widget whose view rearranges
+ * descendants without changing its own size emits the shared layout signal. The map
  * writes only to itself, never the main box it observes, and never the track either. The
  * in-flow outline is a native disclosure; paper and the margin expose the same links.
  * The native node owns the in-flow open choice. While margin or paper hides its
@@ -81,9 +77,7 @@ import {
   scrollerFor,
   scrollIntoView,
   scrollLimit,
-  shownWindow,
   sizeObserver,
-  watchRoom,
   whileConnected,
   named,
   focused,
@@ -258,11 +252,8 @@ customElements.define(
       document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
       matchMedia("print").addEventListener("change", this.#onPresentation, { signal });
-      const stopRoom = watchRoom(this.#schedulePanelRoom);
-      this.#schedulePanelRoom();
       this.#scheduleMeasure();
       return () => {
-        stopRoom();
         watching.disconnect();
         renamed.disconnect();
         this.#observers = null;
@@ -273,22 +264,6 @@ customElements.define(
     }
 
     #scheduleMeasure = frameFor(this, () => this.#measure());
-
-    // Whether the floating panel stands clear of the map's columns, labels included, so
-    // the map runs on through the panel's band to the window's foot (toc.css), and is
-    // measured again at its new height.
-    #schedulePanelRoom = frameFor(this, () => {
-      const { left, right } = this.#nav.getBoundingClientRect();
-      const { bottom } = shownWindow({
-        across: { left, right },
-        viewport: "layout",
-        rest: true,
-      });
-      const clear = bottom >= document.documentElement.clientHeight;
-      if (clear === this.hasAttribute("data-lf-panel-clear")) return;
-      this.toggleAttribute("data-lf-panel-clear", clear);
-      this.#scheduleMeasure();
-    });
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;

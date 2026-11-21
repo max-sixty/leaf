@@ -16,7 +16,6 @@ from typing import NamedTuple
 from .contract import (
     MODULES,
     complete_declarations,
-    gathering,
     is_element_name,
     module_paths,
     registry_error,
@@ -45,7 +44,7 @@ def compose_page_registry(
     validated, such as the active revision's: a composition of the same two is not
     validated again. The layer arrives stamped, so a composition is stamped
     (`registry.layer.stamp_composition`) where it is validated or declares anything
-    over the layer, before its examples are validated.
+    over the layer.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
@@ -88,7 +87,6 @@ def compose_page_registry(
         # then, and a module file can go while its declaration stands.
         validate_modules(registry, source)
     if fresh or page_declarations:
-        # Examples validate against the vocabulary as pages read it, stamped.
         stamp_composition(registry)
     declaration_sources = {
         f"$data.contracts.{name}": (
@@ -98,17 +96,6 @@ def compose_page_registry(
         )
         for name in registry.get("$data", {}).get("contracts", {})
     }
-    # Each example is validated independently, so one refusal names every problem
-    # among them (`contract.gathering`).
-    with gathering() as unit:
-        if fresh and page_declarations:
-            # Example validation consumes source/instance readers which themselves
-            # load page registries. Import it after those owners have finished
-            # initializing.
-            from leaf.validation.composition import validate_registry_examples
-
-            with unit():
-                validate_registry_examples(registry, source)
     for tag in registry:
         if is_element_name(tag):
             declaration_sources[tag] = "page" if tag in page_declarations else "layer"

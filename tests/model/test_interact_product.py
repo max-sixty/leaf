@@ -396,8 +396,8 @@ def test_registry_examples_validate(page_dir):
         tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
     assert (
-        validation_model.validate_registry_examples(registry, "vendored registry")
-        is registry
+        validation_model.declaration_advice(registry, registry, "vendored registry")
+        == []
     )
 
 
@@ -411,8 +411,10 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     )
 
     assert (
-        validation_model.validate_registry_examples(registry, "independent examples")
-        is registry
+        validation_model.declaration_advice(
+            {"lf-diff": {}, "lf-code": {}}, registry, "independent examples"
+        )
+        == []
     )
 
 

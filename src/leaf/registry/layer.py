@@ -3,12 +3,14 @@ merged into one vocabulary, and the facts stamped into it that its readers read.
 
 Composing validates nothing; `registry.validation` does. A reader of a page reads its
 layer's vocabulary merged and stamped, and Leaf validates the vocabulary wherever it
-composes the layer's files (`layer._composition`)."""
+composes the layer's files (`layer._composition`). A layer's restatement of a kernel
+fact is ignored (`merge_layer_declarations`), and `kernel_fact_advice` names it to
+the layer's author."""
 
 import json
 from pathlib import Path
 
-from leaf.findings import note
+from leaf.findings import Finding
 from leaf.state import KERNEL_REGISTRY
 
 from .contract import (
@@ -55,15 +57,8 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             merged[name] = entry
             continue
         if name in KERNEL_FACTS:
-            if _canonical(entry) != _canonical(earlier):
-                note(registry_finding("fixed-kernel-fact", name=name))
             continue
         if name == "$events":
-            # Only the kernel's own value passes, compared as JSON so that `true` or
-            # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
-            for key in entry.keys() - LAYER_OWNED_EVENTS:
-                if _canonical(entry[key]) != _canonical(earlier.get(key)):
-                    note(registry_finding("fixed-events", key=key))
             entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
@@ -76,6 +71,27 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
 
 def _canonical(value) -> str:
     return json.dumps(value, sort_keys=True)
+
+
+def kernel_fact_advice(declarations: dict, path) -> list[Finding]:
+    """Each kernel fact, or `$events` member a layer may not restate, that one layer's
+    `declarations` give another value than the kernel's, naming the file `path`. The
+    merge keeps the kernel's whatever the layer says, so this advises the layer's
+    author rather than refusing the layer. Values compare as JSON, so that `true` or
+    `1.0` is not taken for a protocol of 1."""
+    kernel = read_registry_declarations(KERNEL_REGISTRY)
+    found = [
+        registry_finding("fixed-kernel-fact", path, name=name)
+        for name in sorted(declarations.keys() & KERNEL_FACTS)
+        if name in kernel and _canonical(declarations[name]) != _canonical(kernel[name])
+    ]
+    events = declarations.get("$events") or {}
+    found += (
+        registry_finding("fixed-events", path, key=key)
+        for key in sorted(events.keys() - LAYER_OWNED_EVENTS)
+        if _canonical(events[key]) != _canonical(kernel["$events"].get(key))
+    )
+    return found
 
 
 def merged_registry(packages: list[Path]) -> tuple[dict, str]:

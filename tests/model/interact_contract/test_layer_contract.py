@@ -282,10 +282,13 @@ def test_init_advises_on_instructions_for_a_kind_no_batch_carries(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"$events": events}))
 
-    noted = init_notes(page_dir)
-    assert {(f.code, f.severity, f.values["key"]) for f in noted} == {
-        ("undeclared-event-kind", "advice", next(iter(events)))
-    }
+    [advice] = init_notes(page_dir)
+    assert (advice.code, advice.severity, advice.values["key"]) == (
+        "undeclared-event-kind",
+        "advice",
+        next(iter(events)),
+    )
+    assert advice.values["registry"] == str(overlay / "registry.json")
 
 
 @pytest.mark.parametrize("path", [("verbs", "decide", "unit")], ids="-".join)

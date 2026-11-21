@@ -263,9 +263,10 @@ def browser_check(
 def message_check(page_dir: Path, kind: str, markup: str) -> None:
     """Run a message's markup once, as a page of its own (`page_code.message_page`),
     where it places a widget only a browser can judge, and refuse it on every error
-    that run reports, as plain `page check` refuses a page. Takes the page's current
+    that run reports, as plain `page check` fails a page. Takes the page's current
     layer, the one the thread will draw the message with. Where the host has no
-    browser the message posts unrun, and reports any failure when its thread draws."""
+    browser, or the browser fails before it reads the message, the message posts
+    unrun, and reports any failure when its thread draws."""
     from leaf.files import latest_revision
     from leaf.findings import Rejected, note
     from leaf.registry.storage import read_page_registry
@@ -304,10 +305,11 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
         page_dir, document, revision, url="/", artifact=artifact
     )
     ran = browser_check(page_dir, snapshot, page_code=True, render=False)
+    # What explains a failure without deciding one, such as a request that failed,
+    # and a run the browser couldn't finish, which posts the message as a host with
+    # no browser does, go beside the result.
+    note(*(f for f in ran.findings() if not f.refuses))
     if ran.status:
-        # What explains a failure without deciding one, such as a request that
-        # failed, goes beside the refusal.
-        note(*(f for f in ran.findings() if not f.refuses))
         raise Rejected(
             [f for f in ran.findings() if f.refuses],
             f"the HTML in the {kind} doesn't draw",

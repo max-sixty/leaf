@@ -17,6 +17,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     command_findings,
+    command_notes,
     delivered,
     freeze_events,
     obligations_on_user,
@@ -325,8 +326,14 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     ]
     assert ("todo", todo["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
     outline = page_dir.parent / "plan.json"
+    # A step that skips a level reads one level below the step before it, so the plan
+    # is written and the command says where the step went.
+    outline.write_text(json.dumps([{"depth": 1, "title": "Too deep", "state": "open"}]))
+    [skipped] = command_notes("task", "plan", page_dir, "--file", outline)
+    assert (skipped.code, skipped.severity) == ("plan-depth", "advice")
+    [step] = state_json(page_dir)["plan"]["steps"]
+    assert (step["title"], step["steps"]) == ("Too deep", [])
     for steps, code in (
-        ([{"depth": 1, "title": "Too deep", "state": "open"}], "plan-depth"),
         ([{"depth": 0, "item": "no-such-item"}], "unknown-plan-item"),
         (
             [{"depth": depth, "title": "Deep", "state": "open"} for depth in range(10)],

@@ -24,10 +24,11 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
-from leaf.findings import Rejected, noted
+from leaf.findings import Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
+from leaf.validation import composition as composition_model
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -154,8 +155,10 @@ def test_a_data_source_attribute_not_declared_a_string_is_advice(page_dir, chang
     registry = vocabulary(page_dir)
     change(registry["lf-test-data"])
 
-    with noted() as said:
-        registry_validation.validate_registry(registry, "test registry")
+    registry_validation.validate_registry(registry, "test registry")
+    said = composition_model.declaration_advice(
+        {"lf-test-data": registry["lf-test-data"]}, registry, "test registry"
+    )
     assert [(f.code, f.at, f.severity) for f in said] == [
         ("data-source", "<lf-test-data>", "advice")
     ]
@@ -204,8 +207,10 @@ def test_a_measured_input_joins_its_source_to_one_run_receipt(
     registry = vocabulary(page_dir)
     change(registry["lf-num"])
 
-    with noted() as said:
-        registry_validation.validate_registry(registry, "test registry")
+    registry_validation.validate_registry(registry, "test registry")
+    said = composition_model.declaration_advice(
+        {"lf-num": registry["lf-num"]}, registry, "test registry"
+    )
     [advice] = found(said, code, "<lf-num>", **values)
     assert advice.severity == "advice"
 

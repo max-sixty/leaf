@@ -2267,6 +2267,18 @@ def test_check_advises_one_main_for_a_layout(page_dir):
         assert advice.severity == "advice"
 
 
+def test_check_requires_an_explicit_body_for_delivery_and_export(page_dir):
+    """Delivery and export insert into the page's one explicit `<body>`, so a page
+    without one is refused before it activates."""
+    source = PAGE.replace("<body>", "").replace("</body>", "")
+    (page_dir / "index.html").write_text(source)
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 1
+    assert found(findings, "body-count", tags=0)
+
+
 def test_check_requires_an_explicit_head_for_delivery(page_dir):
     """Delivery has one validated insertion point for its generated head."""
     source = PAGE.replace("<head>", "").replace("</head>", "")

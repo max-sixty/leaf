@@ -344,13 +344,14 @@ def open_thread(
     revision, anchor = current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
+    twice = []
     if markup := drawn_markup(body):
         publication = revision_publication(page_dir, revision)
         fragment = check_markup(
             page_dir, "comment", markup, events, publication=publication
         )
         if obligation:
-            note(*second_request(asking_widget(fragment, publication.registry)))
+            twice = second_request(asking_widget(fragment, publication.registry))
     event = {
         "kind": "comment",
         "author": "agent",
@@ -364,7 +365,10 @@ def open_thread(
         event["anchor"] = anchor
     if title is not None:
         event["title"] = title
-    return append_admitted(page, event)[0]
+    record = append_admitted(page, event)[0]
+    # Said once the message stands, which a later gate could still refuse.
+    note(*twice)
+    return record
 
 
 def ask_again(
@@ -996,11 +1000,10 @@ def _compose_and_append(
             thread=thread_id,
         )
     asking = asking_widget(fragment, publication.registry) if markup else None
-    if explicit_obligation:
-        note(*second_request(asking))
+    twice = second_request(asking) if explicit_obligation else []
     # An answer that declares nothing must ask with a widget in its text. Explicit
     # obligations need no widget: the message is their source.
-    elif asks_back and asking is None:
+    if asks_back and not explicit_obligation and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
     if ephemeral:
@@ -1039,6 +1042,8 @@ def _compose_and_append(
             )
     else:
         record, _ = append_admitted(page, event)
+    # Said once the message stands, which a later gate could still refuse.
+    note(*twice)
     if title is not None:
         # A thread keeps the first title it was given (`events.build_threads`), so
         # the agent hears which one stands. Admission has refused a reply whose

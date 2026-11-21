@@ -68,17 +68,8 @@ from leaf.validation.source import check_source
 SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
-OBSTACLES = {
-    "sideways-refusal": (
-        "the render gate refuses a page that scrolls sideways, so a table wider than a"
-        " narrow window, which the open web lets the page scroll to, is refused"
-    ),
-}
-KNOWN = {
-    "dashboard": {
-        "sideways-refusal": {"page-scrolls "},
-    },
-}
+OBSTACLES: dict[str, str] = {}
+KNOWN: dict[str, dict[str, set[str]]] = {}
 
 # A page that builds content after it loads says it has finished as a page does to
 # assistive technology: no region of it is still busy.

@@ -35,18 +35,15 @@ from leaf.thread_context import (
 from leaf.validation.instances import (
     inert_allocation_advice,
     instance_errors,
-    pane_advice,
     question_errors,
     reference_errors,
     suggestion_errors,
-    unnamed_card_advice,
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
     document_declaration_errors,
     id_errors,
-    language_advice,
-    markdown_advice,
+    markup_advice,
     page_boundary_errors,
     structure_errors,
     unanswered_media,
@@ -124,8 +121,6 @@ def _instance_errors(
     errors = instance_errors(parser, registry)
     errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
-    errors.extend(pane_advice(parser, registry))
-    errors.extend(unnamed_card_advice(parser, registry))
     errors.extend(
         reference_errors(
             parser.lf_elements,
@@ -296,14 +291,22 @@ def moved_threads(
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     """What `page check` and the first reply on a revision
     (`thread._revision_advice`) advise beside what `check_source` found: the
-    source's non-blocking drift, and a live server running another Leaf
+    source's non-blocking drift, what the page's own declarations advise
+    (`composition.layer_advice`), and a live server running another Leaf
     (`server.another_leaf_serving`). It is read apart from the check, which every
     reply and activation runs, because judging the page's recorded data can take a
     cold process about 200 ms on a large page."""
+    from .composition import layer_advice
+
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [
         *checked.notes,
+        *(
+            layer_advice([page_dir / "page"], checked.registry)
+            if checked.registry is not None
+            else ()
+        ),
         *measurement_lag(parser.lf_elements, checked.registry or {}, stored_data),
         *(
             Finding(
@@ -314,8 +317,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
             if "error" in reading
         ),
         *unpointable_blocks(parser),
-        *language_advice(parser),
-        *markdown_advice(parser),
+        *markup_advice(parser),
         *another_leaf_serving(page_dir),
     ]
 

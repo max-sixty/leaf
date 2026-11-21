@@ -499,11 +499,11 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
 def swept_faults(samples) -> list[Finding]:
     """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
     clipped controls and covered words across the gate's geometry samples, with the
-    widths each run spans and what it reads at the narrowest. Each refuses the version,
-    since a control cut off at 400px is as far out of reach as one cut off at 540px,
-    except scrollbar clearance, a broken flow track chain and a declared breakout's
-    containment, which are advice: the author decides how much clearance to leave and whether a holder
-    should share the document's wider tracks.
+    widths each run spans and what it reads at the narrowest. Whether each fails the
+    check is its code's (`findings._TEXT`): a control cut off at 400px is as far out
+    of reach as one cut off at 540px, while a page that scrolls sideways, a box set past
+    the column or its frame, and scrollbar clearance leave every word in reach, so the
+    author decides them.
 
     `samples` are (width, `geometryReading`) pairs, two at the desktop's width, read as
     the page loaded and again in the sweep (`version._render_version_attempt`). A fault any

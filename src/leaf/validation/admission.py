@@ -27,15 +27,14 @@ from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
-    pane_advice,
     reference_errors,
     thread_markup_contract_errors,
-    unnamed_card_advice,
 )
 from .markup import (
     document_declaration_errors,
     fragment_style_errors,
     id_errors,
+    markup_advice,
     text_media_errors,
 )
 
@@ -372,6 +371,5 @@ def _message_stages(
         *sample_errors(page_dir, page, events, frag, registry, contracts),
         *uncaptured_sample_errors(page_dir, frag),
         *document_drops(frag),
-        *pane_advice(frag, registry),
-        *unnamed_card_advice(frag, registry),
+        *markup_advice(frag),
     ]

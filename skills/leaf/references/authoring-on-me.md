@@ -98,7 +98,8 @@ group`, such as `lf-group`) holding the question and its case, with an id and a
 prose around it. The group draws none of its label, so give it the heading the page
 needs, as for any part of the page. The label's words are the question's words on On Me and in the
 answer you receive; Leaf reads the region and its name from that markup, so
-`page check` refuses a widget that asks with no group round it.
+`page check` names a widget that asks with no group round it, which On Me then names by
+the widget's own words.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a

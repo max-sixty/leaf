@@ -166,10 +166,10 @@ through `shownAnswer` ([module-reading.md, "Reading obligations and the On
 lists"](module-reading.md#reading-obligations-and-the-on-lists)), which sends the
 widget's own command, so the log holds one answer whichever view the user changed it
 in. The append door refuses a position move of a view. `page check` advises on
-markup that puts a view apart from its widget's authored answer, which the view
-moves when the page draws, on owners that all hold a value, leaving nowhere for an
-answer that names none, and on an owner value the widget can't answer, which takes
-no drop.
+three things in a view's markup: a view standing apart from its widget's authored
+answer, which the page moves to that answer when it draws; owners that all hold a
+value, which leave nowhere for an answer that names none; and an owner value the
+widget can't answer, which takes no drop.
 
 ## Instance input contracts
 

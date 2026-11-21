@@ -2,7 +2,7 @@
 
 from jsonschema.exceptions import SchemaError
 
-from leaf.findings import note
+from leaf.findings import Finding
 from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
 
 from .contract import (
@@ -117,6 +117,49 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
     return isinstance(schema, dict) and schema.get("type") == kind
 
 
+def widget_advice(tag: str, entry: dict, path) -> list[Finding]:
+    """What one element declaration, read with its defaults written in, advises
+    its author, each finding naming the file `path`: a data input's source attribute
+    not declared a string, which `leaf data`'s own grammar still checks; a measured
+    input whose source or run receipt an instance may leave out, so that instance is
+    never compared with its source's latest run; and a widget that asks with no
+    string `id` declared, which each instance's own check still requires."""
+    properties = entry["attributes"].get("properties", {})
+    required = set(entry["attributes"].get("required", []))
+    found = []
+    for input_name, spec in entry.get("inputs", {}).items():
+        source_attr = spec.get("source")
+        if source_attr and not _typed(properties, source_attr, "string"):
+            found.append(
+                registry_finding(
+                    "data-source", path, tag, input=input_name, attr=source_attr
+                )
+            )
+        if (run_attr := spec.get("measured")) is None:
+            continue
+        if source_attr not in required:
+            found.append(
+                registry_finding(
+                    "measured-source", path, tag, input=input_name, attr=source_attr
+                )
+            )
+        run_schema = properties.get(run_attr)
+        if not (
+            run_attr in required
+            and isinstance(run_schema, dict)
+            and run_schema.get("type") == "string"
+            and run_schema.get("minLength", 0) >= 1
+        ):
+            found.append(
+                registry_finding(
+                    "measured-run", path, tag, input=input_name, attr=run_attr
+                )
+            )
+    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
+        found.append(registry_finding("addressable-id", path, tag, key="awaits"))
+    return found
+
+
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> dict:
@@ -150,16 +193,9 @@ def _validate_widget_structure(
             )
     for input_name, spec in entry.get("inputs", {}).items():
         contract = spec["contract"]
-        source_attr = spec.get("source")
         if contract not in data["contracts"]:
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
-            )
-        if source_attr and not _typed(properties, source_attr, "string"):
-            note(
-                registry_finding(
-                    "data-source", path, tag, input=input_name, attr=source_attr
-                )
             )
     for output_name, spec in entry.get("outputs", {}).items():
         if spec["contract"] not in data["contracts"]:
@@ -178,33 +214,6 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
             )
-    # A measured input joins the source's current run to the receipt the authored
-    # value was written with, so every element names both.
-    for input_name, spec in entry.get("inputs", {}).items():
-        run_attr = spec.get("measured")
-        if run_attr is None:
-            continue
-        source_attr = spec.get("source")
-        if source_attr not in required:
-            note(
-                registry_finding(
-                    "measured-source", path, tag, input=input_name, attr=source_attr
-                )
-            )
-        run_schema = properties.get(run_attr)
-        if not (
-            run_attr in required
-            and isinstance(run_schema, dict)
-            and run_schema.get("type") == "string"
-            and run_schema.get("minLength", 0) >= 1
-        ):
-            note(
-                registry_finding(
-                    "measured-run", path, tag, input=input_name, attr=run_attr
-                )
-            )
-    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
-        note(registry_finding("addressable-id", path, tag, key="awaits"))
     for key in ATTRIBUTE_FACTS:
         declared = entry.get(key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)

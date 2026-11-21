@@ -38,12 +38,14 @@ A record compares by all of these, so two readings of one fault in one place are
 finding and the same fault at another width is another.
 
 Whether a finding refuses is decided by its code, once, beside its words. A code
-refuses only where `_TEXT` names the guarantee its refusal keeps (`_refuses`); every
-other code is advice, which leaves the decision to the author. `severity`, `error` or
-`advice`, reads that declaration. A refusal's words end with its guarantee, so the
-agent learns what the refusal protects. Codes that protect the same thing, such as
-the registry's, the capture's and the event door's, name one guarantee, written once.
-`Rejected` raises only findings whose code refuses.
+refuses only where `_TEXT` names the guarantee it keeps: `_refuses` for a check that
+refuses its input, such as a page's source or an event, and `_fails` for the
+browser's reading of a page, which fails the check while the page is still served.
+Every other code is advice, which leaves the decision to the author. `severity`,
+`error` or `advice`, reads that declaration. A refusal's words end with its
+guarantee, so the agent learns what the refusal protects. Codes that protect the same
+thing, such as the registry's, the capture's and the event door's, name one
+guarantee, written once. `Rejected` raises only findings whose code refuses.
 
 The maintainer chose this, following root `AGENTS.md`, "Leaf's role": Leaf refuses
 only input that would break a guarantee whatever the agent meant, so each refusal
@@ -55,8 +57,7 @@ refuse at one door and advise at another.
 
 import json
 import sys
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from leaf.refusals import Refused
@@ -80,14 +81,15 @@ class Finding:
     def __str__(self) -> str:
         said = _TEXT[self.code]
         if isinstance(said, _Refuses):
-            return f"{self.said} (refused so that {said.keeps})"
+            return f"{self.said} ({said.how} {said.keeps})"
         return self.said
 
     @property
     def said(self) -> str:
-        """The finding's words with where it was read, without the guarantee a
-        refusal keeps: what another finding that lists this one, and the person whose
-        gesture it refused, read."""
+        """The finding's words, with the widths and sample it was read at, and
+        without the guarantee its refusal keeps. Another finding that lists this one
+        shows these words, and so does the browser, to the person whose gesture was
+        refused."""
         text = _words(self)
         if self.widths is not None:
             low, high = self.widths
@@ -97,7 +99,8 @@ class Finding:
 
     @property
     def refuses(self) -> bool:
-        """Whether the finding's code refuses what the check read (`_refuses`)."""
+        """Whether the finding's code refuses what the check read or fails the check
+        (`_refuses`, `_fails`), as its `severity` says `error`."""
         return isinstance(_TEXT[self.code], _Refuses)
 
     @property
@@ -185,18 +188,6 @@ def with_held(record: dict) -> dict:
     }
 
 
-@contextmanager
-def noted() -> Generator[list[Finding]]:
-    """Collect what the code under it notes rather than saying it, for a caller that
-    keeps the notes, as a cache of a check's result does, and says them itself."""
-    global _held
-    outer, _held = _held, []
-    try:
-        yield _held
-    finally:
-        _held = outer
-
-
 def note(*found: Finding) -> None:
     """Say each finding beside a command's result: in the `findings` of the record
     it prints (`with_held`), or as a JSON line on stderr where none will print. A
@@ -217,20 +208,32 @@ def element_at(tag: str, id: str = "") -> str:
 
 @dataclass(frozen=True, slots=True)
 class _Refuses:
-    """A refusing code's words, and the guarantee its refusal keeps (`keeps`): a
-    clause completing "refused so that", saying what the user or a reader of the page
-    relies on."""
+    """A refusing code's words, the guarantee it keeps (`keeps`), a clause saying
+    what the user or a reader of the page relies on, and how its words introduce that
+    guarantee (`how`): "refused so that" where the check refuses the input, as a
+    page's source or an event, or "fails the check so that" where it reads a page
+    the browser drew, which is served all the same, and fails the check that read
+    it."""
 
     words: Callable[[str, dict], str]
     keeps: str
+    how: str
 
 
 def _refuses(keeps: str, words: Callable[[str, dict], str]) -> _Refuses:
     """The words of a code that refuses what its check read, to keep `keeps`."""
-    return _Refuses(words, keeps)
+    return _Refuses(words, keeps, "refused so that")
 
 
-# The guarantees refusing codes keep (`_refuses`), each written once.
+def _fails(keeps: str, words: Callable[[str, dict], str]) -> _Refuses:
+    """The words of a code that fails the browser's check of a page, to keep `keeps`:
+    `page check --render` and `package check --render` exit 1, the page's server
+    wakes the agent with its reading, and a message drawing it is refused, while the
+    page itself is served."""
+    return _Refuses(words, keeps, "fails the check so that")
+
+
+# The guarantees refusing codes keep (`_refuses`, `_fails`), each written once.
 _SHOWS = "the user sees what the agent wrote"
 _SERVES = "every page Leaf activates can be served and loads its runtime"
 _ONE_ID = "each id names one element for comments and commands to reach"
@@ -241,8 +244,9 @@ _REFERS = "each reference a widget makes reaches the element it names"
 _DATA = "each widget reads the data its markup names, in its declared contract"
 _VIEWS = "each view the user moves changes the answer it shows"
 _UNSTYLED = "the page looks as its source says, whatever its threads hold"
-_ASKS = "On Me names each question by the words that ask it"
-_ADMITS = "the log holds only events every reader reads one way"
+_OPENS = "each live sample opens from the template its id names"
+_LAYS_OUT = "Leaf and the page lay out each allocation as one of the values it takes"
+_ADMITS = "each logged event fits its kind and names only what the page holds"
 _OWN_VOICE = "each writer's words and decisions come only from that writer"
 _AS_SEEN = "a gesture changes only what its sender saw when making it"
 _TAKEN_BACK = "what the user took back stays taken back"
@@ -260,13 +264,12 @@ _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
 _PUBLISHES = "a reply reaches the user with the page edits saved before it"
 _PASSAGE = "each comment anchors to the one passage its quote or id names"
-_FAILED = "the user hears an update failed only once no answer is coming"
-_VERSION_ANSWERS = "a page decision is answered by the version that records it"
+_RESERVED = "each update gets one answer, from the writer that reserved it"
+_VERSION_ANSWERS = "a decision on the page is answered by the version that writes it in"
 _IN_THREAD = "what a message asks, promises or changes stays shown in its thread"
 _PLAIN = "a command does only what its arguments plainly say"
 _HELD = "a thread sent from a widget stays shown in that widget"
 _ENDED = "a to-do's recorded outcome stays as its first end gave it"
-_AGENTS_OWN = "the agent's messages and promises stay until the agent changes them"
 _ONCE = "each gesture is taken back once, and the agent hears of it once"
 _UNDONE = "an undo the page accepts changes what the user sees"
 _READ_AS_WRITTEN = "the user's recorded decisions are read as they were written"
@@ -274,16 +277,12 @@ _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
 _NEWER = "the user's newer message stays owed until the agent answers it"
-_SEATED = "a to-do stands beside a live widget the user can see"
 _REACHES = "the user can see and reach everything the page draws"
-_FITS = "the page fits every window width without scrolling sideways"
 _MARKS = "each comment marks and reaches the element or part it anchors to"
 _WORKS = "the user sees the page's widgets and scripts work as written"
 _STATE = "each widget shows the state the log records"
 _COMMENTS = "the user can comment on every word the page shows outside a control"
 _QUOTES = "a comment's quote resolves to the words the page shows"
-_STARTS = "the page the user opens starts, answers and shows the log's state"
-_READ = "a check passes only a page it read"
 _EXAMPLES = "each widget's worked example draws for the authors who copy it"
 _COMPOSES = "every page that selects the package composes into a layer Leaf serves"
 
@@ -616,7 +615,7 @@ _MOVE_UNDER_PAGE = (
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said.
 _TEXT = {
-    "invalid-output": _refuses(
+    "invalid-output": _fails(
         _DATA,
         lambda at, v: (
             f"{at} ("
@@ -638,13 +637,13 @@ _TEXT = {
         ),
     ),
     # What the browser's console and the page's window reported.
-    "console-error": _refuses(
+    "console-error": _fails(
         _WORKS, lambda at, v: f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
     ),
     "console-warning": lambda at, v: f"warning: {v['text']}",
-    "page-exception": _refuses(_WORKS, lambda at, v: v["text"]),
-    "window-error": _refuses(_WORKS, lambda at, v: f"window error: {v['text']}"),
-    "resize-loop": _refuses(
+    "page-exception": _fails(_WORKS, lambda at, v: v["text"]),
+    "window-error": _fails(_WORKS, lambda at, v: f"window error: {v['text']}"),
+    "resize-loop": _fails(
         _WORKS,
         lambda at, v: (
             f"window error: {v['text']}"
@@ -702,58 +701,50 @@ _TEXT = {
         + (f" after a {v['input']}" if v["input"] else " without input")
     ),
     # The gate's own run, where it could not read the page.
-    "gate-failed": _refuses(
-        _READ,
-        lambda at, v: (
-            f"the browser gate failed while running its probe module: {v['error']}"
-        ),
+    "gate-failed": lambda at, v: (
+        f"the browser gate failed while running its probe module: {v['error']}"
     ),
-    "probe-failed": _refuses(
-        _READ,
-        lambda at, v: (
-            f"the browser probe module failed: {v['error']}"
-            + (" — " + _explained(v["console"]) if v.get("console") else "")
-        ),
+    "probe-failed": lambda at, v: (
+        f"the browser probe module failed: {v['error']}"
+        + (" — " + _explained(v["console"]) if v.get("console") else "")
     ),
-    "reading-overran": _refuses(
-        _STARTS,
+    "reading-overran": _fails(
+        _SERVES,
         lambda at, v: (
             f"the render check gave up on this version after {v['seconds'] // 60} minutes"
             " without finishing a reading of it; a page script that never stops, such as"
             " a loop that starts after load, keeps a reading running"
         ),
     ),
-    "no-runtime": _refuses(
-        _STARTS,
+    "no-runtime": _fails(
+        _SERVES,
         lambda at, v: (
             "the runtime never injected its chrome — "
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
-    "never-upgraded": _refuses(
-        _STARTS,
+    "never-upgraded": _fails(
+        _SERVES,
         lambda at, v: (
             "the widget layer never finished upgrading — "
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
-    "server-stopped": _refuses(
-        _READ, lambda at, v: f"the server stopped answering: {v['error']}"
-    ),
-    "not-ready": _refuses(_STARTS, lambda at, v: v["error"]),
+    "server-stopped": lambda at, v: f"the server stopped answering: {v['error']}",
+    "not-ready": _fails(_SERVES, lambda at, v: v["error"]),
     "never-settled": lambda at, v: (
         f"the page never stopped moving ({', '.join(v['moving'])}), so the check"
         " read it in motion"
     ),
     # Widgets and their modules.
-    "visual-parts": _refuses(
+    "visual-parts": _fails(
         _MARKS,
         lambda at, v: (
             f"{at} declares addressable visual parts but its module "
             + "; ".join(_visual_problem(problem) for problem in v["problems"])
         ),
     ),
-    "invalid-paint": _refuses(
+    "invalid-paint": _fails(
         _WORKS,
         lambda at, v: (
             f"{at} renders {v['property']}={v['value']!r} on <{v['element']}>"
@@ -761,18 +752,18 @@ _TEXT = {
             + f", but that value does not resolve to valid {v['property']}"
         ),
     ),
-    "missing-upgrades": _refuses(
+    "missing-upgrades": _fails(
         _WORKS,
         lambda at, v: (
             "upgraded widgets did not define their elements: "
             + ", ".join(f"<{tag}>" for tag in v["tags"])
         ),
     ),
-    "tiny-boxes": _refuses(
+    "tiny-boxes": _fails(
         _WORKS,
         lambda at, v: f"widgets rendered with no usable size: {_json(v['boxes'])}",
     ),
-    "unmarkable": _refuses(
+    "unmarkable": _fails(
         _MARKS,
         lambda at, v: (
             f"{at} shows {v['w']}x{v['h']}px of words, but neither it nor anything"
@@ -788,13 +779,13 @@ _TEXT = {
             else ""
         )
     ),
-    "verbatim": _refuses(_QUOTES, _verbatim),
+    "verbatim": _fails(_QUOTES, _verbatim),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (`verbs`) if a version is meant to carry"
         " it, or write the state on the chrome the module built"
     ),
-    "settlement-mark": _refuses(
+    "settlement-mark": _fails(
         _STATE,
         lambda at, v: (
             f"{at} has data-lf-state={_json(v['mark'])} where the log records "
@@ -803,22 +794,22 @@ _TEXT = {
             " log"
         ),
     ),
-    "retired-slot": _refuses(
-        _COMMENTS,
+    "retired-slot": _fails(
+        _STATE,
         lambda at, v: (
             f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
             f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
             " widget's own styles or module must be showing it"
         ),
     ),
-    "render-threw": _refuses(
+    "render-threw": _fails(
         _STATE,
         lambda at, v: (
             f"{at} render() threw when the complete state was rendered a second time:"
             f" {v['error']}"
         ),
     ),
-    "relative-render": _refuses(
+    "relative-render": _fails(
         _STATE,
         lambda at, v: (
             f"{at} render() is relative — rendering the same complete state changed"
@@ -827,9 +818,7 @@ _TEXT = {
         ),
     ),
     # Geometry, read across the width sweep.
-    "page-scrolls": _refuses(
-        _FITS, lambda at, v: f"the page scrolls sideways by {v['past']}px"
-    ),
+    "page-scrolls": lambda at, v: f"the page scrolls sideways by {v['past']}px",
     "outside-part": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
     ),
@@ -855,27 +844,27 @@ _TEXT = {
     "past-room": lambda at, v: (
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
     ),
-    "over-margin": _refuses(
+    "over-margin": _fails(
         _REACHES,
         lambda at, v: (
             f"{at} grows into the margin and is drawn over {v['marginContent']}, which already"
             " sits there; that side of the page has no free room for it"
         ),
     ),
-    "clipped-out": _refuses(
+    "clipped-out": _fails(
         _REACHES,
         lambda at, v: (
             f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
         ),
     ),
-    "clipped-content": _refuses(_REACHES, _clipped_content),
+    "clipped-content": _fails(_REACHES, _clipped_content),
     "scrollbar-clearance": lambda at, v: (
         f"{at} leaves {v['clear']}px below its {v['content']} for a"
         f" {v['required']:g}px horizontal overlay scrollbar; avoid the horizontal"
         " overflow or reserve room below the content so reaching for the bar does"
         " not cover it"
     ),
-    "clipped-control": _refuses(
+    "clipped-control": _fails(
         _REACHES,
         lambda at, v: (
             f"the control .{v['control'].split()[0]}"
@@ -884,7 +873,7 @@ _TEXT = {
             " can scroll to reach it"
         ),
     ),
-    "chrome-words": _refuses(
+    "chrome-words": _fails(
         _COMMENTS,
         lambda at, v: (
             f"{at} puts {_json(v['words'])} under .lf-ui, where no comment can reach it"
@@ -903,14 +892,14 @@ _TEXT = {
         f"code styled {_json(v['style'])} reads at {v['ratio']:.1f}:1 against the"
         " block it is set on"
     ),
-    "covered-words": _refuses(
+    "covered-words": _fails(
         _REACHES,
         lambda at, v: (
             f"{at} draws {_json(v['words'])} in the same place as {v['under']}'s"
             f" {_json(v['covered'])}"
         ),
     ),
-    "under-panel": _refuses(
+    "under-panel": _fails(
         _REACHES,
         lambda at, v: (
             f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
@@ -956,8 +945,8 @@ _TEXT = {
         " (authoring-evidence.md, Interactive and visual evidence)"
     ),
     # The page's own code, run once in the browser.
-    "page-report": _refuses(_WORKS, lambda at, v: v["text"]),
-    "browser-error": _refuses(_READ, lambda at, v: v["error"]),
+    "page-report": _fails(_WORKS, lambda at, v: v["text"]),
+    "browser-error": lambda at, v: v["error"],
     "request-failed": lambda at, v: (
         f"Browser request failed ({v['kind']}, {v['error']}) in {v['frame']}:"
         f" {v['url']}"
@@ -972,11 +961,11 @@ _TEXT = {
         _SERVES, lambda at, v: f"no {v['path']}; write index.html first"
     ),
     "not-utf8": _refuses(
-        _SHOWS, lambda at, v: f"{v['path']} is not UTF-8: {v['error']}"
+        _SERVES, lambda at, v: f"{v['path']} is not UTF-8: {v['error']}"
     ),
     # A sample's initial history, read from the JSON script its template names.
     "sample-source-both": _refuses(
-        _SHOWS,
+        _SAMPLED,
         lambda at, v: "use either data-sample-events or data-sample-threads, not both",
     ),
     "sample-script": _fixture(
@@ -1013,10 +1002,16 @@ _TEXT = {
             " html heads"
         ),
     ),
+    "body-count": _refuses(
+        _SERVES,
+        lambda at, v: (
+            f"the page must have one explicit <body>; found {v['tags']} body tags"
+        ),
+    ),
     "main-count": lambda at, v: (
         "a Layout arranges only one <main> directly under <body>; found"
-        f" {v['bodies']} bodies, {v['mains']} mains, and {v['direct']} direct body"
-        " mains, so the page draws as the browser lays out its body"
+        f" {v['mains']} mains, and {v['direct']} directly under <body>, so the page"
+        " draws as the browser lays out its body"
     ),
     "unclosed": _refuses(
         _SHOWS,
@@ -1042,14 +1037,14 @@ _TEXT = {
         ),
     ),
     "noscript": _refuses(
-        _SHOWS,
+        _QUOTES,
         lambda at, v: (
-            f"{at} at line {v['line']}: the browser renders none of its content; write it"
-            " plainly or leave it out"
+            f"{at} at line {v['line']}: the browser renders none of its content; write"
+            " it plainly or leave it out"
         ),
     ),
     "unnamed-sample": _refuses(
-        _SHOWS,
+        _OPENS,
         lambda at, v: f"<template data-sample> at line {v['line']}: needs a stable id",
     ),
     "document-declaration": _refuses(
@@ -1060,7 +1055,7 @@ _TEXT = {
         ),
     ),
     "allocation-value": _refuses(
-        _SHOWS,
+        _LAYS_OUT,
         lambda at, v: (
             f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
             + (
@@ -1087,7 +1082,7 @@ _TEXT = {
         }[v["holds"]]
     ),
     "css-syntax": _refuses(
-        _SERVES,
+        _CAPTURED,
         lambda at, v: (
             f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
         ),
@@ -1128,7 +1123,7 @@ _TEXT = {
         lambda at, v: f"ids in the runtime's own lf- namespace: {_json(v['ids'])}",
     ),
     "event-shaped-ids": _refuses(
-        _NAMES,
+        _ONE_ID,
         lambda at, v: (
             "ids shaped like the event ids the log mints (eight hex digits):"
             f" {_json(v['ids'])}"
@@ -1247,14 +1242,12 @@ _TEXT = {
         _DECIDES,
         lambda at, v: f"{_line(at, v)}: a matching {v['role']} instance requires an id",
     ),
-    "ungrouped-question": _refuses(
-        _ASKS,
-        lambda at, v: (
-            f"{_line(at, v)}: asks the user, but no group holds its question; write its"
-            " premise and this widget in "
-            + " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
-            + ", its label asking the question"
-        ),
+    "ungrouped-question": lambda at, v: (
+        f"{_line(at, v)}: asks the user, but no group holds its question, so On Me"
+        " and the agent name it by the widget's own words; write its premise and this"
+        " widget in "
+        + " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
+        + ", its label asking the question"
     ),
     "repeated-key": _refuses(
         _DECIDES,
@@ -1971,7 +1964,7 @@ _TEXT = {
     # The package check's refusal.
     "package": _refuses(_COMPOSES, lambda at, v: v["text"]),
     # The widget quality report, for a widget's author.
-    "unreadable-examples": _refuses(
+    "unreadable-examples": _fails(
         _EXAMPLES, lambda at, v: f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
@@ -2261,7 +2254,7 @@ _TEXT = {
     # An undo (`events.UndoReading`): `undoes` names the gesture, `target` its kind.
     "unknown-undo": _refuses(_NAMES, lambda at, v: f"unknown undoes {v['undoes']!r}"),
     "foreign-gesture": _refuses(
-        _AGENTS_OWN,
+        _OWN_VOICE,
         lambda at, v: f"{v['target']} {v['undoes']} is not the user's own gesture",
     ),
     "withdrawn-gesture": _refuses(
@@ -2288,26 +2281,10 @@ _TEXT = {
     "not-an-element": _refuses(
         _NAMES, lambda at, v: f"{v['element']!r} is not an element on this page"
     ),
-    "hidden-widget": _refuses(
-        _SEATED,
-        lambda at, v: (
-            f"{v['widget']} no longer shows on the page: a decision in the log retired it"
-            " or left it empty; open the to-do on another element or on `page`"
-        ),
-    ),
-    "quoted-seat": _refuses(
-        _SEATED,
-        lambda at, v: (
-            f"{v['widget']} is quoted exhibit content, not a live page widget"
-        ),
-    ),
-    "plan-depth": _refuses(
-        _SHOWS,
-        lambda at, v: (
-            f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
-            " step before it; the first step is at depth 0 and each step is at most one"
-            " deeper than the one above"
-        ),
+    "plan-depth": lambda at, v: (
+        f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
+        " step before it, so the plan shows it one level below that step; the first"
+        " step is at depth 0 and each is at most one deeper than the one above"
     ),
     "unknown-plan-item": _refuses(
         _NAMES,
@@ -2511,7 +2488,7 @@ _TEXT = {
         f" doesn't give; {v['answer']} answers it"
     ),
     "reserved-answer": _refuses(
-        _FAILED,
+        _RESERVED,
         lambda at, v: (
             f"event {v['event']!r} is answered by this turn's messages; "
             + (
@@ -2610,12 +2587,14 @@ def _words(finding: Finding) -> str:
 
 
 class Rejected(Refused):
-    """A refusal of what a check found: the words list the findings under `heading`,
-    or are the findings' own where there is none, and `findings` keeps the records
-    for a reader that wants the facts. Each finding's code refuses (`_refuses`), so
-    a check refuses only with a guarantee to name. A browser shows the person whose
-    gesture one finding refuses its `_USER` words, where its code has them, and
-    otherwise the words without the guarantee (`Finding.said`)."""
+    """A refusal of what a check found. Its words list the findings under
+    `heading`, or are the findings' own words where there is none, and `findings`
+    keeps their records for a reader that wants the facts.
+
+    Every finding's code refuses or fails a check (`_refuses`, `_fails`), so a check
+    refuses only with a guarantee to name. The person whose gesture was refused reads
+    a finding's `_USER` words where its code has them, and otherwise its words
+    without the guarantee (`Finding.said`)."""
 
     def __init__(self, findings: list[Finding], heading: str | None = None):
         findings = list(findings)

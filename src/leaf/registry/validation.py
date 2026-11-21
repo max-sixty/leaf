@@ -9,7 +9,7 @@ import turbohtml
 from jmespath.exceptions import JMESPathError
 from jsonschema.exceptions import SchemaError
 
-from leaf.findings import Finding, note, noted
+from leaf.findings import Finding
 from leaf.schema import (
     IDIOM_SCHEMA,
     LAYER_FACTS,
@@ -39,26 +39,24 @@ from .widgets import (
 # first. Validation is a pure function of the vocabulary, `source` naming it only in a
 # rejection, and every page selecting one layer composes the same one: the suite's
 # pages, a site build's examples, and a harness's pages each validated it anew, about a
-# tenth of a second apiece for the bundled packages. Each keeps what its validation
-# advised, which names the source it was first read from.
-_VALIDATED: dict[bytes, tuple[Finding, ...]] = {}
+# tenth of a second apiece for the bundled packages.
+_VALIDATED: dict[bytes, None] = {}
 _VALIDATED_LIMIT = 16
 
 
 def validate_registry(registry: dict, source) -> dict:
     """Validate one complete vocabulary, refusing with the first problem in each
-    independent unit (`contract.gathering`), and noting what it advises."""
+    independent unit (`contract.gathering`)."""
     key = hashlib.blake2b(
         json.dumps(registry, sort_keys=True, separators=(",", ":")).encode(),
         digest_size=16,
     ).digest()
-    if (advice := _VALIDATED.get(key)) is None:
-        with noted() as said:
-            _validate(registry, source)
-        advice = _VALIDATED[key] = tuple(said)
-        while len(_VALIDATED) > _VALIDATED_LIMIT:
-            _VALIDATED.pop(next(iter(_VALIDATED)), None)
-    note(*advice)
+    if key in _VALIDATED:
+        return registry
+    _validate(registry, source)
+    _VALIDATED[key] = None
+    while len(_VALIDATED) > _VALIDATED_LIMIT:
+        _VALIDATED.pop(next(iter(_VALIDATED)), None)
     return registry
 
 
@@ -100,15 +98,12 @@ def validate_layer_declarations(registry: dict, path) -> None:
     independently, and the refusal names the first problem in each
     (`contract.gathering`)."""
     events = registry["$events"]
-    # A layer instructs only the kinds there are: events of a declared kind, and the
-    # answers the kernel's own `answering` instructs.
-    declared = {"handling": sorted(events["kinds"]), "answering": answer_kinds()}
     probe = turbohtml.parse("<p></p>").find("p")
     with gathering() as unit:
         for key in ("handling", "answering"):
             for kind, clauses in events[key].items():
                 with unit():
-                    _validate_event_clauses(key, kind, clauses, declared[key], path)
+                    _validate_event_clauses(key, kind, clauses, path)
         # Validate every selector, because it remains an authored vocabulary identity.
         for selector, entry in registry.items():
             if selector.startswith("$") or is_element_name(selector):
@@ -122,13 +117,33 @@ def validate_layer_declarations(registry: dict, path) -> None:
                 _validate_data_contract(contract, declaration, path)
 
 
-def _validate_event_clauses(key: str, kind: str, clauses, declared, path) -> None:
-    if kind not in declared:
-        note(
-            registry_finding(
-                "undeclared-event-kind", path, key=key, kind=kind, declared=declared
-            )
+def event_clause_advice(declarations: dict, registry: dict, path) -> list[Finding]:
+    """Each `$events` clause one layer's `declarations` give for a kind of event, or
+    an answer, that the composed `registry` doesn't have: no delivery carries it, and
+    a package may be written for a newer Leaf's kind, so it advises the layer's
+    author, naming the file `path`."""
+    declared = _instructed_kinds(registry)
+    events = declarations.get("$events") or {}
+    return [
+        registry_finding(
+            "undeclared-event-kind", path, key=key, kind=kind, declared=declared[key]
         )
+        for key in ("handling", "answering")
+        for kind in events.get(key) or {}
+        if kind not in declared[key]
+    ]
+
+
+def _instructed_kinds(registry: dict) -> dict[str, list[str]]:
+    """The kinds a layer may instruct: events of a declared kind, and the answers the
+    kernel's own `answering` instructs."""
+    return {
+        "handling": sorted(registry["$events"]["kinds"]),
+        "answering": answer_kinds(),
+    }
+
+
+def _validate_event_clauses(key: str, kind: str, clauses, path) -> None:
     for clause in clauses:
         if "when" not in clause:
             continue

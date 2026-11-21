@@ -163,15 +163,19 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert len({finding, finding.but(values={})}) == 1
     with pytest.raises(ValueError):
         Finding("no-such-code")
-    # A refusing code's words end with the guarantee its declaration names, and
-    # only such a code refuses.
-    scrolls = Finding("page-scrolls", values={"past": 12})
-    assert (scrolls.severity, str(scrolls)) == (
+    # A refusing code's words end with the guarantee its declaration names: input
+    # a check refuses, or a page the browser's check fails. Only such a code refuses.
+    upgrades = Finding("missing-upgrades", values={"tags": ["lf-x"]})
+    assert (upgrades.severity, str(upgrades)) == (
         "error",
-        "the page scrolls sideways by 12px (refused so that the page fits every"
-        " window width without scrolling sideways)",
+        "upgraded widgets did not define their elements: <lf-x> (fails the check so"
+        " that the user sees the page's widgets and scripts work as written)",
     )
-    assert scrolls.said == "the page scrolls sideways by 12px"
+    assert upgrades.said == "upgraded widgets did not define their elements: <lf-x>"
+    duplicate = Finding("duplicate-ids", values={"ids": ["a"]})
+    assert str(duplicate).endswith(
+        "(refused so that each id names one element for comments and commands to reach)"
+    )
     with pytest.raises(ValueError):
         Rejected([finding])
 
@@ -303,7 +307,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     notice = Finding("resize-loop", values={"text": "ResizeObserver loop completed"})
     error = Finding("console-error", values={"text": "first attempt"})
     later = Finding("console-error", values={"text": "later"})
-    failed = Finding("probe-failed", values={"error": "probe failed"})
+    failed = Finding("page-exception", values={"text": "confirming attempt"})
     first = Finding(
         "grows-with-content",
         "<lf-x id=a>",

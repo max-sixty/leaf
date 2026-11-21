@@ -559,8 +559,9 @@ def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Findin
 
 
 def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Every instance check that needs only the registry, no id namespace, so a new
-    check of that kind reaches page source and message markup alike."""
+    """Every instance check that needs only the registry, no id namespace, what it
+    refuses and what it advises, so a new check of that kind reaches page source and
+    message markup alike."""
     lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
@@ -568,6 +569,8 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
         + shown_errors(document, registry)
+        + pane_advice(document, registry)
+        + unnamed_card_advice(document, registry)
     )
 
 

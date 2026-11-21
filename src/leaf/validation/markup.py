@@ -126,11 +126,22 @@ def markdown_advice(parser: SourceDocument) -> list[Finding]:
             if isinstance(child, dict):
                 visit(child)
 
+    # A fragment, as a message's HTML, holds text between its top-level elements.
     for node in parser.authoring.content:
-        visit(node)
+        if isinstance(node, dict):
+            visit(node)
     if not elements:
         return []
     return [Finding("literal-markdown", values={"elements": elements})]
+
+
+def markup_advice(parser) -> list[Finding]:
+    """The advice a page's source and a message's HTML both take, which reads only
+    the markup: a class naming a language Leaf doesn't colour (`language_advice`),
+    and Markdown an HTML element shows as typed (`markdown_advice`). Which blocks a
+    comment can aim at (`unpointable_blocks`) and where an allocation holds
+    (`instances.inert_allocation_advice`) are a page's alone."""
+    return [*language_advice(parser), *markdown_advice(parser)]
 
 
 def id_errors(parser) -> list[Finding]:
@@ -236,7 +247,9 @@ def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
 
 
 def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
-    """Delivery needs explicit head/body wrappers and one direct main Layout box."""
+    """Delivery and export need explicit head and body wrappers, which refuse, and a
+    Layout arranges the one `main` directly under `body`, which a page may leave out
+    or double, so its count is advice."""
     errors = []
     direct_heads = [
         line for line, is_direct in parser.authoring.head_elements if is_direct
@@ -256,17 +269,16 @@ def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
                 },
             )
         )
+    if len(parser.authoring.body_lines) != 1:
+        errors.append(
+            Finding("body-count", values={"tags": len(parser.authoring.body_lines)})
+        )
     direct = [line for line, is_direct in parser.authoring.main_elements if is_direct]
-    if (
-        len(parser.authoring.body_lines) != 1
-        or len(parser.authoring.main_elements) != 1
-        or len(direct) != 1
-    ):
+    if len(parser.authoring.main_elements) != 1 or len(direct) != 1:
         errors.append(
             Finding(
                 "main-count",
                 values={
-                    "bodies": len(parser.authoring.body_lines),
                     "mains": len(parser.authoring.main_elements),
                     "direct": len(direct),
                 },

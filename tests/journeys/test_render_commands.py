@@ -73,10 +73,15 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert ok.returncode == 0, ok.stdout + ok.stderr
     assert json.loads(ok.stdout)["browser"]["browser"] == "Chrome"
 
-    # A vw width slips the static lint (which counts only px) and overflows only
-    # in a layout engine.
+    # A box that cuts off its own words passes the static lint, and only a layout
+    # engine sees the words it loses.
     (d / "index.html").write_text(
-        LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
+        LONG_PAGE.replace(
+            "</main>",
+            "<div id='short-box' style='height: 3rem; overflow: hidden'>"
+            "<p>First of three.</p><p>Second of three.</p><p>Third of three.</p>"
+            "</div>\n</main>",
+        )
     )
     broken = gate()
     assert broken.returncode == 1, broken.stderr
@@ -84,9 +89,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert report["status"] == 1
     assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
     assert report["browser"]["browser"] == "Chrome"
-    [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
-    assert scrolls["widths"] == [360, 1920], report
-    assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
+    [cut] = [f for f in report["findings"] if f["code"] == "clipped-content"]
+    assert cut["widths"] == [360, 1920], report
+    assert cut["severity"] == "error" and cut["values"]["down"] > 0, cut
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}

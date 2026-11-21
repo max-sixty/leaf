@@ -578,6 +578,23 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     ] == [("css-syntax", "Unmatched ]")]
 
 
+def test_a_message_takes_the_advice_its_markup_draws_on_a_page(page_dir):
+    """The advice that reads only markup reaches a message's HTML as it reaches a
+    page's source: a code block naming a language Leaf doesn't colour posts, and its
+    command says so beside it."""
+    published(page_dir)
+    noted = command_notes(
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        'Run:\n\n<pre><code class="language-nope">go</code></pre>',
+    )
+    assert [(f.code, f.values["language"]) for f in noted] == [
+        ("uncoloured-language", "nope")
+    ]
+
+
 def test_a_dropped_declaration_is_advice(page_dir):
     """A declaration a browser drops is one delivery's reader reads whole, so it
     refuses nothing of Leaf's: the check reports it beside a passing result, and a

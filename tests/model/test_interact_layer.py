@@ -3898,7 +3898,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        original_init(page_dir, selected, theme=theme)
+        return original_init(page_dir, selected, theme=theme)
 
     def initialize():
         try:
@@ -4655,9 +4655,11 @@ def test_package_init_widget_cannot_overwrite_a_member_created_during_init(
     assert (package / "registry.json").read_bytes() == before_registry
 
 
-def test_package_init_widget_checks_its_candidate(tmp_path, monkeypatch):
-    """`package init --widget` validates the declaration it writes, and says where
-    its example is one a page could not hold."""
+def test_package_init_widget_writes_a_candidate_whose_example_package_check_names(
+    tmp_path, monkeypatch
+):
+    """`package init --widget` validates the declaration it writes, and an example a
+    page could not hold is the author's to fix, which `package check` names."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
     declaration = element_declaration("lf-risk-note", upgrade=True)
@@ -4666,12 +4668,12 @@ def test_package_init_widget_checks_its_candidate(tmp_path, monkeypatch):
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    [advice] = command_notes(
-        "package", "init", str(package), "--widget", "lf-risk-note"
+    assert (
+        command_notes("package", "init", str(package), "--widget", "lf-risk-note") == []
     )
+    status, [advice] = package_findings(package)
 
-    assert (advice.code, advice.at) == ("invalid-example", "<lf-risk-note>")
-    assert (package / "registry.json").exists()
+    assert (status, advice.code, advice.at) == (0, "invalid-example", "<lf-risk-note>")
 
 
 @pytest.mark.parametrize(

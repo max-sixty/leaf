@@ -306,14 +306,14 @@ def test_one_check_advises_on_each_example_a_page_could_not_hold(page_dir):
     status, findings = check_findings(page_dir)
 
     assert status == 0
-    assert {
-        (finding.code, finding.at, finding.severity)
+    assert [
+        (finding.code, finding.at, finding.values["registry"])
         for finding in findings
         if "registry" in finding.values
-    } == {
-        ("invalid-example", "<lf-gamma>", "advice"),
-        ("invalid-example", "<lf-delta>", "advice"),
-    }
+    ] == [
+        ("invalid-example", "<lf-gamma>", str(page_dir / "page" / "registry.json")),
+        ("invalid-example", "<lf-delta>", str(page_dir / "page" / "registry.json")),
+    ]
 
 
 @pytest.mark.parametrize(

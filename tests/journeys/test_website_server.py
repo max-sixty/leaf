@@ -30,6 +30,64 @@ from leaf_dev import website
 from leaf_dev.browser import PANEL_THREAD
 
 
+_RECORDER = r"""
+(() => {
+  const frames = [];
+  const log = [];
+  window.__lf6609 = { frames, log };
+  const name = (n) => n.nodeType !== 1 ? n.nodeName :
+    n.localName + (n.className && typeof n.className === "string" ? "." + n.className.trim().split(/\s+/).join(".") : "") +
+    (n.dataset?.lfFace ? `[face=${n.dataset.lfFace}]` : "") + (n.id ? "#" + n.id : "");
+  const box = (n) => {
+    const r = n.getBoundingClientRect();
+    const s = getComputedStyle(n);
+    let t = `${name(n)} ${Math.round(r.top)}+${Math.round(r.height)}`;
+    if (s.translate !== "none") t += ` tr=${s.translate}`;
+    if (s.transform !== "none") t += ` tf=${s.transform}`;
+    if (n.hidden || s.display === "none") t += " hidden";
+    return t;
+  };
+  for (const kind of ["keydown", "pointerdown", "input", "focusin"])
+    addEventListener(kind, (e) => log.push([performance.now(), "input", kind, name(e.target)]), true);
+  let last = "";
+  let observed = null;
+  const tick = () => {
+    const panel = document.querySelector("leaf-floating-panel");
+    if (panel) {
+      if (observed !== panel) {
+        observed = panel;
+        new MutationObserver((records) => {
+          const now = performance.now();
+          for (const m of records)
+            log.push([now, "mut", name(m.target),
+              [...m.addedNodes].map(name), [...m.removedNodes].map(name)]);
+        }).observe(panel, { childList: true, subtree: true });
+      }
+      const rows = [box(panel)];
+      const messages = panel.querySelector(".lf-fp-messages");
+      if (messages) rows.push(`scroll=${messages.scrollTop}/${messages.scrollHeight}/${messages.clientHeight}`);
+      const walk = (n, depth) => {
+        for (const c of n.children) {
+          if (c.localName === "svg" || c.localName === "template") continue;
+          rows.push("  ".repeat(depth) + box(c));
+          if (depth < 14 && !c.matches(".lf-msg-text, .lf-thread-working-words, leaf-text, .lf-fp-head")) walk(c, depth + 1);
+        }
+      };
+      walk(panel.shadowRoot ?? panel, 1);
+      const text = rows.join("\n");
+      if (text !== last) {
+        frames.push([performance.now(), text]);
+        last = text;
+        if (frames.length > 4000) frames.splice(0, 1000);
+      }
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+})();
+"""
+
+
 @pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     browser, serve, read_elsewhere, request
@@ -43,6 +101,24 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     page_dir = serve.page_dir
     page = open_page(browser, url)
     website.observe_startup(page)
+    page.add_init_script(_RECORDER)
+
+    def dump_frames():
+        import json
+        from render_harness import ROOT
+
+        if page.is_closed():
+            return
+        record = page.evaluate("window.__lf6609")
+        out = ROOT / ".tmp/test-results/screens"
+        out.mkdir(parents=True, exist_ok=True)
+        with open(out / f"frames-{request.node.callspec.id}.txt", "w") as f:
+            for at, *rest in record["log"]:
+                f.write(f"LOG {at:.1f} {json.dumps(rest)}\n")
+            for at, text in record["frames"]:
+                f.write(f"FRAME {at:.1f}\n{text}\n")
+
+    request.addfinalizer(dump_frames)
     page.reload()
     told(page)
     box = page_comment(page)

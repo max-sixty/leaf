@@ -488,8 +488,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
     in every engine. The checkpoint groups its messages for assistive technology by
     `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
-    words stay selected. Standing on that toggle, the user is in the thread, so the
-    edit that retracts the summary draws at once."""
+    words stay selected. Standing on that toggle, the user is in the thread, so their
+    rewrite of a folded message, which retracts the summary, draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -499,7 +499,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
     )
     worded = append_agent_reply(serve.page_dir, root, "The mounts take an hour.")
-    edited = append_agent_reply(serve.page_dir, root, "The camera takes two.")
+    edited = append_user_reply(serve.page_dir, root, "The camera takes two.")
     append_user_reply(serve.page_dir, root, "Keep the latest visible.")
 
     page = open_page(request.getfixturevalue(engine), url)
@@ -569,9 +569,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": edited["id"],
             "text": "The camera takes three.",
         },

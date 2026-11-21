@@ -70,10 +70,8 @@ where a choice depends on a purpose or intent the code can't tell you:
   `AGENTS.md` states, such as losing the user's selection or typed words, is a
   defect to fix. Listing it as a call the maintainer may reverse doesn't make it
   a call.
-- **Taking a feature away.** Propose the removal as "Regular maintenance" says.
-  The maintainer builds features ahead of their use, so a record of little use on
-  their own pages isn't enough: rest the proposal on a test of the feature itself,
-  such as an honest attempt to place it in an example.
+- **Taking a feature away.** "Regular maintenance" says what a proposal to remove
+  one rests on.
 - **Lifting a restriction.** A restriction Leaf imposes, such as a content
   security policy, a validator's refusal, an import allowlist or a markup limit,
   doesn't decide whether a feature is allowed. When one blocks a feature, don't
@@ -169,6 +167,10 @@ test for the reported case proves only that case. A second special case, a calle
 repeating its callee's rule, a guard enforcing a rule the code never states, or a
 flag passed down a stack to reach one use suggests that the boundary those pieces of
 code share is still unsettled.
+
+Where a simple change ends the defect, make it. A larger change that would also
+save work nobody has measured as a cost adds a mechanism that no user benefits
+from ("Weigh what a change adds").
 
 Don't add another patch on top of existing ones. A change that fixes the symptom
 and leaves the code harder to maintain doesn't go in, even with the real fix
@@ -557,8 +559,12 @@ makes Leaf harder to develop than it is worth:
   own module, such as a package, a widget or a `leaf-dev` command, costs little
   beyond its own files; remove it only when it is large and unused. Keep anything
   users would notice losing, including Leaf's interface guarantees. Taking a feature
-  away is the maintainer's call, so propose the removal with what users lose and what
-  it deletes, measured as `/developing-leaf`'s "Measure a removal" says.
+  away is the maintainer's call ("The maintainer decides"), so propose the removal
+  with what users lose and what it deletes, measured as `/developing-leaf`'s "Measure
+  a removal" says. The maintainer builds features ahead of their use, so little use
+  on the maintainer's own pages doesn't show that a feature is unused: rest the
+  proposal on a test of the feature itself, such as an honest attempt to place it in
+  an example.
 - **Code that chooses for the agent.** Code can settle a choice the agent could make
   by refusing it, by overriding what the agent wrote, by reading a meaning off the
   form of the agent's act rather than its declaration, or by binding the agent to a

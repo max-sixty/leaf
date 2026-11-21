@@ -258,8 +258,9 @@
   /* A draft's attached pictures (response.css, `.lf-composer-media`): how tall one
      stands at most, enough to tell a pasted screenshot by its content, which 56px was
      not; and how far they stand clear of the edge they meet as it is drawn, wherever a
-     surface places them. The floating panel holds room for them from both while a view
-     is open (floating-panel.css), so they are named here rather than on the shelf. */
+     surface places them. While a view is open the floating panel sizes the band it
+     opens for them from both (floating-panel.css), so they are named here rather than
+     on the shelf. */
   --lf-media-h: 120px;
   --lf-media-gap: 8px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,

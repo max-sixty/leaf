@@ -1010,11 +1010,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // The arrival generation prevents an image reaching another draft when the floating
     // composer moves to another passage before its bytes reach the server.
     // Attaching is the user coming back to the box, as an edit is. The upload and the
-    // thumbnail it ends in are still the rendering of the gesture that attached them
-    // (rendering.js, `holdRendering`), so what the thumbnail moves moves as the user's
-    // change. Taken as news, it would carry an open thread's messages in the floating
-    // panel up from where they stood, behind the band its view rises for, so the
-    // message being answered would vanish until the ride ends (box-motion.js).
+    // thumbnail it ends in belong to the rendering of the gesture that attached them
+    // (rendering.js, `holdRendering`), so the box moves for the thumbnail as for the
+    // user's own change rather than for news (box-motion.js, "Whose change it is").
     sync.addMedia = /** @param {readonly Blob[]} images */ async (images) => {
       if (images.length) passErrorsAt(ta);
       if (!images.length || sending || uploading || held()) return false;
@@ -1025,7 +1023,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         return false;
       }
       rememberWriting(ta);
-      const attached = holdRendering();
       uploading = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
@@ -1035,6 +1032,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
       );
       const attachedAt = arrivals;
+      const attached = holdRendering();
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
         if (!paths.every((path) => path !== null)) return false;

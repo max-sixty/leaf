@@ -484,13 +484,13 @@
      starts. So attaching neither grows the box nor moves a word, in the page's field,
      an open thread's reply and the comment box seated in the field's place
      (`.lf-fp-response`) alike, one of which shows at a time. With no view open the
-     row's top is the panel's, so the shelf hangs over the panel. With a view open the
-     row stands a band below the view, the shelf's tallest picture and its gap on
-     either side, and the shelf stands in it, covering neither the view nor the box. The
-     panel grows by the band; where it already reaches the window's top, the view gives
-     the band up at its top and keeps its foot (scrolling.js, `keepFoot`), so the
-     message being answered stays in view. A shorter picture stands at the band's foot,
-     by the box.
+     row's top is the panel's, so the shelf hangs over the panel. With a view open, and
+     the editors holding the shelf showing, which a search hides, the row stands a band
+     below the view, the shelf's tallest picture and its gap on either side, and the
+     shelf stands in it, covering neither the view nor the box. The panel grows by the
+     band; where it already reaches the window's top, the view gives the band up at its
+     top and keeps its foot (scrolling.js, `keepFoot`), so the message being answered
+     stays in view. A shorter picture stands at the band's foot, by the box.
 
      The user chose the band, which matches the page's field, over four others: the
      shelf hanging over the view's head, which kept the thread still but stood the
@@ -515,7 +515,9 @@
     anchor-name: --lf-fp-field;
   }
   .lf-floating-panel[data-lf-open]
-    .lf-fp-row:has(> .lf-fp-field .lf-composer-media:not([hidden])) {
+    .lf-fp-row:has(
+      > .lf-fp-field > .lf-fp-editors:not([hidden]) .lf-composer-media:not([hidden])
+    ) {
     margin-block-start: calc(var(--lf-media-h) + 2 * var(--lf-media-gap));
   }
   /* The shelf's padding holds its pictures' shadows and removal reach (response.css),

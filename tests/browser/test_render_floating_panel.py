@@ -5553,7 +5553,7 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     """An image pasted into the page's field hangs just over the panel's top edge from
     its start edge, outside its box, so attaching grows the panel by nothing and leaves
     the field its width; its thumbnail is the paste's result, so no notice says it was
-    added."""
+    added. A view opening gives it a band over the box, which a search closes."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     card = page.locator(".lf-fp-card")
@@ -5567,6 +5567,16 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     assert tile["y"] + tile["height"] <= before["y"], (tile, before)
     assert tile["x"] == pytest.approx(before["x"], abs=1), (tile, before)
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
+    # With a view open the panel opens a band for the picture, and closes it while a
+    # search takes the field's place and so hides the picture.
+    open_threads(page)
+    row = page.locator(".lf-fp-row")
+    expect(shelf).to_be_visible()
+    expect(row).not_to_have_css("margin-top", "0px")
+    page.get_by_role("button", name="Find a thread or message").click()
+    expect(page.locator("input.lf-fp-search")).to_be_visible()
+    expect(shelf).to_be_hidden()
+    expect(row).to_have_css("margin-top", "0px")
 
 
 def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box(

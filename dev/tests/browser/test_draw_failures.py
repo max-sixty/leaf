@@ -1,4 +1,4 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 import json
 import subprocess
@@ -7,19 +7,24 @@ from conftest import LEAF_COMMAND
 
 from leaf_dev import draw_failures
 
-# A control whose value lies outside its range, which plain `page check` leaves
+# A preset whose value its field can't hold, which plain `page check` leaves
 # undrawn, and a thread message whose chart body throws, which it never opens.
 PAGE = """<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Control</title></head>
 <body>
 <main>
-<h1>Control page</h1>
+<lf-group id="control" label="Control page">
+<h1 id="control-h">Control page</h1>
 <lf-playground id="pg">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="40" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-preview><p>Preview</p></lf-playground-preview>
+  <aside><label id="radius">Corner radius <input type="range" name="radius" min="0" max="24" value="12"></label></aside>
+  <lf-playground-preset id="preset-wide" label="Wide">
+    <lf-playground-setting for="radius" value="40"></lf-playground-setting>
+  </lf-playground-preset>
+  <p>Preview</p>
   <lf-playground-output>Radius {radius}</lf-playground-output>
 </lf-playground>
+</lf-group>
 </main>
 </body>
 </html>
@@ -32,8 +37,8 @@ MESSAGE = {
     "agent": "Claude",
     "session": "control",
     "revision": 1,
-    "text": "Which fix first?",
-    "markup": '<lf-chart id="bad"><pre>{marks: [Plot.lineY([1, 2, 3], {x: nosuchvar})]}</pre></lf-chart>',
+    "text": "Which fix first?\n\n"
+    '<lf-chart id="bad">\n<pre>{marks: [Plot.lineY([1, 2, 3], {x: nosuchvar})]}</pre></lf-chart>',
     "id": "c58f503e",
     "attention": False,
     "ts": "2026-10-24T22:04:00.076-07:00",
@@ -80,7 +85,7 @@ def test_grader_reports_widgets_plain_check_passes(
         "lf-chart",
     }, found["final"]
     assert any(
-        "control radius has a value outside its range" in failure["text"]
+        "preset Wide sets radius to 40, which it can't hold" in failure["text"]
         for failure in found["final"]
     )
     assert found["placed"]["messages"] == [["lf-chart"]]

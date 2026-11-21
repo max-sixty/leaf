@@ -1,14 +1,13 @@
-# From session e8a66e47, whose design-review page put its main item, a playground
-# sketching a redesigned panel, in a column page as a breakout between the review's
-# prose, so the playground's edges matched nothing above it and the review pushed it
-# down. The user wanted the playground to lead, with the review split out. Claude Code:
-# base 0/9 across three runs (c20bf406f twice, c71562813 once), every page a column;
-# head 9/9, each a workspace whose first page tab is the playground's lf-ask.
-# Those historical scores used an exact workspace/tab structure. The current rubric
-# judges the leading usable playground and access to supporting reading.
+# A session's design-review page put its main item, a playground sketching a
+# redesigned panel, in a column page as a breakout between the review's prose, so the
+# playground's edges matched nothing above it and the review pushed it down. The user
+# wanted the playground to lead, with the review split out. The rubric judges the
+# leading usable playground and access to supporting reading, not an exact
+# workspace/tab structure. The case is a probe given a page with its packages.
 description: surface-page-takes-the-window
 metadata:
   purpose: "Arranging a page: the proposed panel leads as a usable playground, with its supporting review easy to reach."
+  page: [playground]
   tags:
     - layout
     - playground
@@ -21,16 +20,14 @@ vars:
     - A playground sketching the proposed panel at desktop size, where the user
       switches it between its three sizes (folded, row, expanded), tunes its surface
       (paper, lifted, ink), corner radius and width, and submits the look to build.
-    - What is wrong with today's panel: five problems, each with its screenshot
-      (`/media/today-1.png` to `/media/today-5.png`) and a sentence.
+    - What is wrong with today's panel: five problems, each a sentence with room
+      for its screenshot, which the user will add.
     - What three comparable products do, a short paragraph each.
     - The proposal's reasoning: eight bullet points on the sizes, the status line,
       the menu and the motion.
 
-    Read references/page-authoring.md and ../../packages/playground/instructions/author.md
-    relative to the leaf skill's base directory. The page directory is not reachable from
-    here, so reply with the complete `index.html`, with a placeholder element for the
-    sketch inside the playground's preview, rather than writing a file.
+    A placeholder element can stand for the panel sketch inside the playground's
+    preview.
 assert:
   - type: llm-rubric
     metric: main-surface-and-reading
@@ -42,5 +39,5 @@ assert:
       down the page before the user can try it, if the stage is a cramped illustration
       that cannot show the requested desktop panel, or if supporting reading is omitted.
       Judge the resulting presentation, not a particular Layout class, placement of
-      lf-ask, tab/part structure or data-width attribute. A brief premise or navigation
+      question section, tab/part structure or data-width attribute. A brief premise or navigation
       above the playground does not displace it as the main activity.

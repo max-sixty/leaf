@@ -200,6 +200,24 @@ export function shownBand(el) {
   };
 }
 
+// A box of text in `node` stretched across its line's leading, half the gap between
+// the line's height and the box's on each side, so a paragraph's lines meet with no gap
+// between them and whatever stands on a line holds every point of its height.
+/** @param {Box} rect @param {Node} node @returns {Box} */
+export function lined(rect, node) {
+  const holder = node instanceof Element ? node : node.parentElement;
+  const pitch = holder ? parseFloat(getComputedStyle(holder).lineHeight) : NaN;
+  const half = Number.isFinite(pitch)
+    ? Math.max(0, (pitch - (rect.bottom - rect.top)) / 2)
+    : 0;
+  return {
+    left: rect.left,
+    right: rect.right,
+    top: rect.top - half,
+    bottom: rect.bottom + half,
+  };
+}
+
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less the
@@ -625,24 +643,31 @@ export function shownBox(el) {
 // one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
 // where it can be seen.
 //
-// The runtime's own chrome leaves by name rather than on that test. Area read as though
-// it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
-// a span with no width, so the apparatus fell out on its own. The line saying how many
-// comments a block holds is clipped to a pixel and has one — so a decision that had been
-// commented on wore its ring on the runtime's word about the page rather than on the
-// page, and the pixel it hung from moves the first time a comment lands. That question is
+// The runtime's own chrome leaves by name rather than on that test. Area only seems to
+// do the job, by luck: a suggestion hangs its controls off
+// a span with no width, so the apparatus falls out on its own. The line saying how many
+// comments a block holds is clipped to a pixel and has one — so a decision that has been
+// commented on would wear its ring on the runtime's word about the page rather than on the
+// page, and the pixel it hangs from moves the first time a comment lands. That question is
 // already asked, declared labels and all, and it is the one the anchor pass puts
 // to a text node — so what a mark hangs on and what a quote may name cannot come apart.
 // Bounded at the element, for the reason given where the question is stated: a widget an
 // agent sent stands inside the panel, and asked about the page instead it would have no
 // child of its own left to fall back to.
-/** @param {Element} el @returns {Element[]} */
-export function shownParts(el) {
+//
+// A box with no area may hold content the browser skips, as a closed tab's panel does.
+// A reading of what is drawn now leaves that content out (`leaveSkipped`) rather than
+// read its boxes, which lays it out to answer: Firefox can take hundreds of milliseconds
+// to lay out a closed tab's panel holding a text document of several megabytes.
+// A mark that must stand once the content is drawn reads it, and pays (shadow-tree.js,
+// `skipped`).
+/** @param {Element} el @param {{leaveSkipped?: boolean}} [options] @returns {Element[]} */
+export function shownParts(el, { leaveSkipped = false } = {}) {
   const r = el.getBoundingClientRect();
   if (r.width && r.height) return [el];
   return [...el.children]
-    .filter((child) => !uiInside(child, el))
-    .flatMap((child) => shownParts(child));
+    .filter((child) => !uiInside(child, el) && !(leaveSkipped && skipped(child)))
+    .flatMap((child) => shownParts(child, { leaveSkipped }));
 }
 // The box an element's shown parts cover together: a mark hung on the element stands at
 // its corner, so a comment on one shape of a drawing stands on that shape rather than at
@@ -684,24 +709,26 @@ export function shownRect(item, clips) {
 // since a pinch zoom's visual viewport is a pan across the page and not a clip, and read
 // with its sides a message wider than the zoomed view was never seen whole across, and
 // never counted read. `item` is an element or a Range, and `box` the extent asked about,
-// the item's own by default, or wider, as a focus ring's room is.
-/** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] */
-export function seenRect(item, clips, box = placeBox(item)) {
+// the item's own by default, or wider, as a focus ring's room is. `rest` reads the
+// covers where they come to rest (`coverBoxes`), for a key that acts on the page as
+// its motion will leave it.
+/** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] @param {boolean} [rest] */
+export function seenRect(item, clips, box = placeBox(item), rest = false) {
   const holder = placeHolder(item);
   // What clips a box only cuts it, so a box the visible viewport's height doesn't reach
   // shows nothing in front of the user, and its walk goes unread.
   const { offsetTop, height } = visualViewport;
   if (!holder || box.bottom <= offsetTop || box.top >= offsetTop + height) return null;
   const shown = clippedPlace(item, clips, box);
-  return shown ? inFront(shown, holder) : null;
+  return shown ? inFront(shown, holder, rest) : null;
 }
 // What of `box`, already cut by every box clipping `item`, is in front of the user: its
 // part within the visible viewport's height, less the boxes the chrome covers
 // (`uncovered`), or null where none of it is. `seenRect` reads every item through it,
 // and a box with no element of its own, a search match's line, asks it directly
 // (key-badge-placement.js, `clearPart`).
-/** @param {Box} box @param {Node} item */
-export function inFront(box, item) {
+/** @param {Box} box @param {Node} item @param {boolean} [rest] */
+export function inFront(box, item, rest = false) {
   const { offsetTop, height } = visualViewport;
   return uncovered(
     {
@@ -711,6 +738,7 @@ export function inFront(box, item) {
       bottom: Math.min(box.bottom, offsetTop + height),
     },
     item,
+    rest,
   );
 }
 // The span `top` to `bottom` less what a cover in its columns takes: everything from the
@@ -812,8 +840,8 @@ export function frameView(frame, within) {
 // scroll, a shadow stage's included (`watchScrolls`); a resize; the visual viewport,
 // which a soft keyboard or a pinch-pan moves without either; a native layer opening or
 // closing, which changes what a modal admits (`watchLayerChanges`); and chrome the room
-// is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
-// that stops watching.
+// is measured against changing the box it covers, which its owner announces
+// (`ROOM_MOVED`). Returns the call that stops watching.
 const ROOM_MOVED = "lf-room-moved";
 /** @param {EventTarget} [target] */
 export const announceRoom = (target = document) =>

@@ -1,5 +1,4 @@
-/* Thread presentation across page seats, widget outlets, the primary reader and the
-   margin.
+/* Thread presentation across widget outlets, the primary reader and the margin.
 
    This owner receives records and narrow view capabilities. It never reads delivery,
    assembles protocol events, or imports state application. It reads the published fold
@@ -25,14 +24,10 @@ import { threadState, readThreads } from "./state.js";
 import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
 import { surfaceFocusTarget } from "./surfaces.js";
-import {
-  renderSeats,
-  beginThreadSeats,
-  commitThreadSeats,
-  retainThreadSeats,
-} from "./inline.js";
+import { beginThreadSeats, commitThreadSeats, retainThreadSeats } from "./inline.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
+import { draftAnchor, draftsReading } from "../drafts.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -52,11 +47,10 @@ function renderHolds(threads) {
 
 /** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */
 /** @typedef {import("../semantic-state.js").Resume} Resume */
-/** @param {{inlineView: import("./thread-card.js").ThreadCommands,
- * surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
+/** @param {{surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
  * finishPlacement: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["finishPlacement"]}},
  * anchorPlacement: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>,
- * anchorPaint: Pick<ReturnType<typeof import("../annotation-overlay/anchor-paint.js").createAnchorPaint>, "paint"> | null,
+ * anchorPaint: Pick<ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>, "paint">,
  * anchorControls: Pick<ReturnType<typeof import("../anchor-controls.js").createAnchorControls>, "render" | "withholdVisualActions">,
  * drawingPaint: Pick<ReturnType<typeof import("../composing/drawing-ink.js").createDrawingInk>, "paint">,
  * pageGeometry: Pick<ReturnType<typeof import("../page-geometry.js").createPageGeometry>, "pageShifted">,
@@ -70,7 +64,6 @@ function renderHolds(threads) {
  * marginCommitted: () => unknown,
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "begin" | "present" | "abort">}} dependencies */
 export function createThreadPresentation({
-  inlineView,
   surfaceView,
   anchorPlacement,
   anchorPaint,
@@ -144,7 +137,6 @@ export function createThreadPresentation({
     try {
       const { all: threads } = threadState();
       const collection = readThreads();
-      const listed = collection.threads;
       const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
       const readTargets = () => {
@@ -152,9 +144,13 @@ export function createThreadPresentation({
           threads,
           draft: readDraft(),
           actionAnchor: activeActionAnchor(),
+          saved: draftsReading().flatMap((saved) => {
+            const anchor = draftAnchor(saved);
+            return anchor ? [{ context: saved.context, anchor }] : [];
+          }),
         });
         if (anchors) {
-          anchorPaint?.paint(anchors);
+          anchorPaint.paint(anchors);
           anchorControls.render(anchors);
         }
         drawingPaint.paint();
@@ -169,7 +165,6 @@ export function createThreadPresentation({
       /** @param {Awaited<ReturnType<PrimaryReader["prepare"]>>} primaryCandidate */
       const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
-        renderSeats(listed, inlineView);
         // Capture every core message age before yielding to a package.
         // Their shared clock refreshes this whole presentation, including its outlets.
         // Register the cohort's commit before yielding: its synchronous writes belong

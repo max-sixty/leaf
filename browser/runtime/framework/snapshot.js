@@ -21,6 +21,12 @@
  * dependency tracking. Derivations read their supplied immutable root, and subscriber
  * callbacks run untracked so notifying a consumer cannot make its reads dependencies
  * of the publisher.
+ *
+ * A reader of a collection still learns which of its members changed by walking the
+ * whole collection and comparing each member by identity, as the annotation inventory
+ * (`keptEntry`) and the margin's render (`drawnFrom`) do on every pass. Not yet built:
+ * sharing already decides member by member which ones it kept, and handing readers
+ * the members it didn't keep would let each reader work in proportion to the change.
  */
 import {
   computed,
@@ -345,11 +351,20 @@ export function createApplicationPublisher(initial) {
      * @returns {SnapshotReading<Immutable<T>>}
      */
     select(derive, from) {
-      /** @type {unknown} */
+      /** @type {Immutable<T>} */
       let prior;
+      // What `derive` answered last, which `prior` holds shared. A derivation that
+      // answers it again, as one keeping its reading while its inputs hold still does,
+      // has changed nothing, so its contents are not compared again.
+      /** @type {T | undefined} */
+      let derived;
       const selected = computed(() => {
         const value = from ? from.read() : /** @type {F} */ (root.value);
-        return signalUntracked(() => (prior = immutable(share(prior, derive(value)))));
+        return signalUntracked(() => {
+          const next = derive(value);
+          if (next !== derived) prior = immutable(share(prior, (derived = next)));
+          return prior;
+        });
       });
       /** @type {SnapshotReading<Immutable<T>>} */
       const reading = Object.freeze({

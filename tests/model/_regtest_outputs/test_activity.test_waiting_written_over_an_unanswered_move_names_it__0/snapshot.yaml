@@ -11,15 +11,15 @@ before reply:
     id: event-2
     attention: false
     seq: 2
-  note:
-    - code: page-open-owes
-      severity: advice
-      values:
-        answers: ["`leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait <page>` delivers for event-1"]
-      text: >-
-        1 user update with no answer (`leaf thread reply <answer.ref>` with the
-        `answer.ref` that `leaf wait <page>` delivers for event-1); opening the
-        page does not answer them
+    findings:
+      - code: page-open-owes
+        severity: advice
+        values:
+          answers: ["`leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait <page>` delivers for event-1"]
+        text: >-
+          1 user update with no answer (`leaf thread reply <answer.ref>` with the
+          `answer.ref` that `leaf wait <page>` delivers for event-1); opening the
+          page does not answer them
 
 after reply:
   exit: 0
@@ -32,4 +32,3 @@ after reply:
     id: event-4
     attention: false
     seq: 4
-  note: []

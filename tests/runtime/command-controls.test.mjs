@@ -370,8 +370,8 @@ test("a command owns its native button across availability, replacement and reco
   owner.remove();
 });
 
-// A new thread card's Resolve, focused and pressed by a key in the same task, did
-// nothing until a paint had wired it.
+// A new thread card's Resolve, focused and pressed by a key in the same task, would do
+// nothing if only a paint wired it.
 test("a button declared on itself activates before its declaration is painted", () => {
   const control = document.createElement("button");
   document.body.append(control);
@@ -384,8 +384,8 @@ test("a button declared on itself activates before its declaration is painted", 
   control.remove();
 });
 
-// A recording's play button stands in chrome while its scope is projected onto the
-// video, which a widget can stage after the page's last paint (video-controls.js).
+// A button standing in chrome can belong to a scope projected onto another element,
+// which a widget can stage after the page's last paint.
 test("a button a projected scope names activates before its declaration is painted", () => {
   const owner = document.createElement("div");
   const control = document.createElement("button");
@@ -409,8 +409,8 @@ test("a button a projected scope names activates before its declaration is paint
 });
 
 // A widget that withdraws its keys and repaints the whole register in the same task
-// left its button running the withdrawn command: the full paint read only the elements
-// still declaring, and the withdrawn one had already left them.
+// would leave its button running the withdrawn command if the full paint read only the
+// elements still declaring, which the withdrawn one has already left.
 test("a withdrawn command leaves its button even when a full paint follows", () => {
   const owner = document.createElement("section");
   const control = document.createElement("button");
@@ -450,7 +450,8 @@ function slottedHost(name = "", inner = document.createElement("div")) {
 }
 
 // Each slotted host is both its parent's child and its slot's assigned element: a walk
-// taking both steps visited the innermost host once per path, doubling with each level.
+// taking both steps would visit the innermost host once per path, doubling with each
+// level.
 test("the scopes inside a widget are found once each, however deep its slots nest", () => {
   const depth = 16;
   const { host: outer } = slottedHost();
@@ -469,8 +470,8 @@ test("the scopes inside a widget are found once each, however deep its slots nes
   }
   document.body.append(outer);
   const slotReads = { count: 0 };
-  const read = window.HTMLSlotElement.prototype.assignedElements;
-  window.HTMLSlotElement.prototype.assignedElements = function (...args) {
+  const read = window.HTMLSlotElement.prototype.assignedNodes;
+  window.HTMLSlotElement.prototype.assignedNodes = function (...args) {
     slotReads.count++;
     return read.apply(this, args);
   };
@@ -482,7 +483,7 @@ test("the scopes inside a widget are found once each, however deep its slots nes
     // At most one reading of each slot's assignment.
     assert.ok(slotReads.count <= depth + 1, `${slotReads.count} slot readings`);
   } finally {
-    window.HTMLSlotElement.prototype.assignedElements = read;
+    window.HTMLSlotElement.prototype.assignedNodes = read;
     outer.remove();
   }
 });
@@ -1964,7 +1965,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   ]);
   reflectFirstScopes();
   control.focus();
-  const hints = createCommandHints({ presentedControl: () => null });
+  const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
@@ -2053,7 +2054,7 @@ test("an earlier route keeps its face under a later route's face in another shad
   ]);
   reflectFirstScopes();
   first.focus();
-  const hints = createCommandHints({ presentedControl: () => null });
+  const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.deepEqual(
@@ -2515,9 +2516,8 @@ test("a chosen contribution offer retains its exact reading across a later updat
   }
 });
 
-// A focus move reads again the keys whose rows ask where the user is, and only those:
-// on a page of five hundred sections a Tab once read every widget's keys and every
-// command button again, though only the widgets it moved between asked.
+// A focus move reads again the keys whose rows ask where the user is, and only those,
+// not every widget's keys and every command button.
 test("a focus move reads again only the keys and buttons that ask where the user is", () => {
   const asking = document.createElement("section");
   const still = document.createElement("section");

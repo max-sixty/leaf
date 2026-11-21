@@ -36,16 +36,24 @@ default acts on what they can't see (`controller.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens
-in capture. Leaf reads printed letters before the page's listeners, and other keys when
-they reach its listener on `document`. A key aimed inside `body` whose default is
-already prevented by then is the page's, and Leaf takes no step for it
-(`controller.js`).
+in capture. Leaf reads a printed letter in capture, before the page's listeners, and,
+while Go-to or reactions are armed, every key they answer. A widget whose ARIA pattern
+types ahead, such as a menu, a tree or a select-only combobox, keeps the letters and
+digits typed while focus is in it, as a text field and a select keep theirs
+(`text-entry.js`). Leaf reads every other key on the root element: after the listeners
+on the focused control and on each element around it, the page's own among them, and
+before the page's listeners on the document and the window, which hear only a key Leaf
+leaves. A key aimed inside `body` whose default is already prevented there is the
+page's, and Leaf takes no step for it. A row that `waits`, as Escape letting go of a
+control in the page, is read last, on the window, after every listener the page has,
+and only if none prevented the key (`controller.js`).
 
 ## Escape
 
 Escape closes one step of the current interaction and lands the user on that step's
-parent. Both depend only on what is open now, so a surface opened by pointer or Tab
-closes the same way as one opened by its key. The focused control's own step comes
+parent. Both depend on what is open now, never on the route that opened it, so a
+surface opened by pointer or Tab closes the same way as one opened by its key; only a
+stance and a view of the floating panel are also ordered by which came last. The focused control's own step comes
 first, then steps inside the focused surface, then the surface itself, then steps
 outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
 keep the browser's order. A close request, such as Android's back gesture, takes the
@@ -63,17 +71,19 @@ same step, through its row's `keep` where `run` would throw away unsent words
   focus handed back as it closes or as Escape backs the user out (`return`), costs no
   Escape, and one put away stays away until the user aims again, whatever a widget
   declares meanwhile.
-- Draw and Design are page modes; surfaces opened inside them close first.
+- Draw and Design are page modes; surfaces opened inside them close first, and a
+  stance entered over a view of the floating panel ends before the view closes, so
+  Escape takes whichever of the two came last.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
   opened from the floating panel's menu returns to the panel.
-- After Send, a reply box keeps the caret for the next message, in a card, a seat and
-  the panel's field alike (`thread/replies.js`), and so does a box that stays open for
-  more messages such as a widget's thread box (`x-thread-seat`). A thread's first
-  comment leaves focus on the thread's card or title, never on the page.
+- Send leaves a reply box or a first comment's box for its thread, as Escape from the
+  box does, and so does a rewrite's Save: the thread's card, seat or panel view, never
+  the box and never the page (`thread/landing.js`, `landSent`). `c` or Enter on the
+  thread opens the box again.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.
@@ -101,7 +111,9 @@ on its row; every other command leaves the control it was pressed on where it st
 screen (`bindings.js`). A surface
 may reuse a page key for the same intent with a nearer destination. While the user is
 on an obligation, or its margin or thread representative, core forwards only the
-widget's declared `contextKeys`, and widgets assign their own `1`–`9`.
+widget's declared `contextKeys`, and widgets assign their own `1`–`9`. A thread's
+view represents the question still open that the agent's latest message in it asks,
+before the one the thread is about (`current-target.js`, `questionAsked`).
 
 ## Touch routes
 
@@ -113,8 +125,9 @@ between matches, a drawing's composer can undo a stroke, and the page's field ca
 comment on selected words. Page scope rows therefore have no touch labels: each row
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker and Draw mode. The panel
-offers the innermost active stance's exit as Close at its field's end, or one ✕ while
-the field says something else. Either leaves the stance even where Escape would first
+offers the innermost active stance's exit as one ✕ before its leaf, named beside it,
+and as Close with `esc` at its field's end while Escape would take the stance off. The ✕
+leaves the stance even where Escape would first
 close something inside it or take back a typed hint letter. The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.
@@ -127,7 +140,8 @@ said. A state says its word on the surface that holds it (`quoteReading`), a pan
 row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
 whatever previews, a control's word and keys among it, shows its preview to a finger
 holding it. The hold reads and its release presses nothing, while a tap still presses,
-so a finger can read without acting (`preview.js`).
+so a finger reads without acting and without sliding off, which on touch often scrolls
+instead (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the
@@ -135,6 +149,13 @@ words. Suggest and reactions share an anchored Other responses picker, reached b
 (in one, Tab nests the item, `nestItems` in `composing/field-editor.js`), or the
 contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
+
+A comment box that offers a second send, as one standing in a widget's outlet whose
+`lfHold` names it does (`composing/surface.js`, `fabHoldAt`), leaves Tab its native
+order and opens no picker by it. The second send is a press of its own beside the
+primary action, and Tab is its keyboard route: from the field it reaches the primary
+action, then the ⋯ while the field is empty, then the second send. The ⋯ still opens
+the picker there.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the
 row's press restores the focus, caret and selection the floating panel saved as the

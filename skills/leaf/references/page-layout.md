@@ -27,15 +27,11 @@ Keep the page's
 title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
 beside it with the page's own CSS, such as a grid on `body`.
 
-A site header the page fixes at the window's top, or makes sticky in `body` before
-`main` (a banner may stand above it) or at the start of `main`, needs no landing room of
-its own when it spans the middle of the column and reaches less than halfway down the
-window: Leaf lands links below it, and its own marks and controls pass under it
-(`module-scroll-and-motion.md`, "Headers over the document"). A header taller than that,
-as on a phone held sideways, or a sticky header further into `main` or inside a section,
-isn't read that way, so give its targets `scroll-margin-top`. A `scroll-margin-top` the
-page gives a target replaces the room Leaf leaves above it; a `scroll-padding-top` on
-the page's root has no effect.
+A site header the page fixes or makes sticky at the window's top covers what scrolls
+under it, and Leaf doesn't look for it. So give every element with an `id` a
+`scroll-margin-top` a little taller than the header, such as
+`[id] { scroll-margin-top: 4.5rem; }`, so a link or a walk lands its target below the
+header. A `scroll-padding-top` on the page's root has no effect.
 
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
@@ -48,7 +44,7 @@ the reading measure, on a column page too.
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,
 narrow its grid track or cap its blocks in the page's `<style>`, such as
-`#queue > lf-tab > * { max-inline-size: var(--wide); }`.
+`#queue > lf-tab > * { max-inline-size: var(--lf-wide); }`.
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
@@ -58,8 +54,8 @@ so its items keep their top margins level.
 
 ## A page of parts
 
-Write one `lf-parts` in a `main` that carries no Layout, and give each `lf-part` one
-child carrying that part's Layout:
+Write one set of parts, such as `lf-parts`, in a `main` that carries no Layout, and give
+each part one child carrying that part's Layout:
 
 ```html
 <main>
@@ -79,24 +75,33 @@ child carrying that part's Layout:
 
 The page's `header` is the only element in `main` besides the parts. It appears at the
 top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
-under its label. Each part takes the rest of the width from the top of the window, so
+under its label and the state of the obligations it holds under that, as a queue's list
+marks them. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
 outline.
+
+Where text can't say what a list entry should show, such as a file's name in code type
+over a coloured diffstat, open the part, or a tab in any list, with a `<template>`
+holding that markup. The list shows it in place of the label and summary, which stay
+the name and description everything else reads. Keep links and controls out of it,
+since the entry is itself a control.
 
 ## Document flow
 
 A `layout-column` is ordinary block flow at the reading measure, centered, with the
 space on both sides available to exhibits. Its blocks' margins collapse and a float
-stands beside the prose, as on any page. Group a nested section with
-`class="layout-flow"` when its children should share that space. Ordinary wrappers
-contain their children: a list, callout or custom grid does not grant a nested exhibit
-room outside its own box. The same `data-width` contract applies at every level.
+stands beside the prose, as on any page. A `section`, `article` or `details` shares
+that space with what it holds, at any depth, so an exhibit in it breaks out as one
+standing in the column does, unless it carries a Layout, such as `layout-tiles`, which
+arranges what it holds. Other wrappers contain their children: a `div`, list,
+callout or custom grid does not grant a nested exhibit room outside its own box. The
+same `data-width` contract applies at every level.
 
 ```html
 <main class="layout-column">
   <h1>…</h1>
-  <section id="evidence" class="layout-flow">
+  <section id="evidence">
     <h2>…</h2>
     <p>…</p>
     <lf-diff id="changes">…</lf-diff>
@@ -104,10 +109,40 @@ room outside its own box. The same `data-width` contract applies at every level.
 </main>
 ```
 
-Give a tab set `class="layout-flow"` when it should share the document's space
-without a frame. Each panel is either another `layout-flow` or its own Layout.
-Omit the class for a framed tab set inside a section or another panel; its panels
-stay ordinary boxes too. Placement alone never chooses a set's visual flow.
+A section that draws a frame of its own, such as a border or a tint, still shares the
+space: its frame widens with a wide block in it, which runs over the frame's border
+and padding. To keep the block inside the frame, draw the frame on a `div`; to widen
+the frame and keep its padding, put `data-width` on the frame.
+
+Give a tab set `flow="page"` when it should share the document's space without a
+frame; its panels share it too. Omit it for a framed tab set inside a section or
+another panel, whose panels use the room inside the frame. Placement alone never
+chooses a set's visual flow.
+
+To hang a short note in the margin beside the passage it qualifies, float it there
+with the page's own CSS, as Tufte CSS sets sidenotes, and write it just before that
+passage so their tops line up. Below the window width at which the margin holds it,
+the column's width plus twice the note's room, it stands in the column instead:
+
+```css
+.sidenote {
+  float: inline-end;
+  clear: inline-end;
+  inline-size: 12rem;
+  margin-inline-end: -14rem;
+}
+@media (width < 75rem) {
+  .sidenote {
+    float: none;
+    inline-size: auto;
+    margin-inline-end: 0;
+  }
+}
+```
+
+Leaf's comment markers stand in the same margin and don't avoid a note. Where notes
+fill it, give the margin to them with `data-rail="none"` on `body`, so each marker
+stands on its passage instead.
 
 ## A sidebar page
 
@@ -141,7 +176,7 @@ layout; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
-and after it when they should follow the body. Set `--aside` on the Layout to a
+and after it when they should follow the body. Set `--lf-aside` on the Layout to a
 length or share, such as `20rem` or `25%`, to choose its width; its contents fit that
 width. The default dashboard shares are two thirds body and one third sidebar.
 
@@ -149,23 +184,6 @@ Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
 Style its blocks by their classes or ids, or as `.layout-track > p`.
-
-Add `layout-notes` to the `layout-column` that should leave room beside its
-prose for notes, such as `<main class="layout-column layout-notes">`. This is an
-optional arrangement: an unmarked column stays centered, and its notes wrap
-within the room it has. An independent nested column chooses its own arrangement.
-
-Group a short note with the passage it accompanies in `layout-note`:
-
-```html
-<div class="layout-note">
-  <p>…</p>
-  <aside class="note" id="qualification">…</aside>
-</div>
-```
-
-The note stands beside the passage when the row has room, then follows it when
-narrow. The next exhibit follows the whole row, so it cannot cover the note.
 
 ## A workspace
 
@@ -175,8 +193,8 @@ ends so the panel does not cover their last lines. The `header` and `footer` tak
 their content's height and the body takes the rest. Keep shared context concise enough
 to leave the working regions usable; place region-specific explanation with its subject.
 
-The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
-grid of panes:
+The body is one pane, such as `lf-pane`, a widget that lays out its own regions, or
+the page's own grid of panes:
 
 ```html
 <main class="layout-workspace density-working">
@@ -203,6 +221,22 @@ grid of panes:
 }
 ```
 
+A widget that asks, such as a playground, stands in its question's group
+(`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
+heading asks the question, the group's label asks it too:
+
+```html
+<main class="layout-workspace density-working">
+  <header>
+    <h1>Which latency window should checkout alert on?</h1>
+    <p>…</p>
+  </header>
+  <lf-group id="tune" label="Which latency window should checkout alert on?">
+    <lf-playground id="tune-config">…</lf-playground>
+  </lf-group>
+</main>
+```
+
 Keep enough space to read each region's evidence and reach its decision. Readers often
 open a workspace on a laptop, in a window about 720px tall, so aim to keep each
 region's decision in view at that height. Stacked panes share the remaining height
@@ -217,7 +251,8 @@ sidebar page, such as a dashboard, it also sets the title at working size and st
 the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
-one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
+a list of the items beside the one it opens, such as one `lf-tabs list="side"` with an
+`lf-tab` per item, and put a tally of what is left, such as an `lf-tally` with `next`,
 where the reader looks for the queue's state, such as the header. The list marks each
 tab's open obligations and the tally counts what is left, so write no script or count
 of your own, and don't state the count in prose or chips. Each item's `summary` shows under its label, so the user can choose an item
@@ -243,7 +278,7 @@ downward, follows the newest entry while the user is at the end. The box takes t
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
 It clips at its sides too, with no room there, so a control that starts a line in it,
 such as a link, a summary or a field, loses that side of its focus ring. Give a bounded
-box that holds such a control `padding-inline: var(--sp-2)`.
+box that holds such a control `padding-inline: var(--lf-sp-2)`.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
@@ -254,23 +289,23 @@ column and sidebar pages:
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff, a table of a few more columns or a row of three option
   cards. The block starts at the prose's start edge, the left in a left-to-right page,
-  and extends toward its end edge to `--wide`, as far as the window allows.
+  and extends toward its end edge to `--lf-wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block widens when it is a child of `layout-column`, `layout-flow` or `lf-ask`, whose
-blocks stand in the flow around it, so its words stay on the column beside a wider one.
-A framed holder, such as a callout, needs its own `data-width` to widen; its children
-use the room inside it. A wide child alone does not widen its holder.
+A block widens when it is a child of the `layout-column`, or of a `section`,
+`article` or `details` in its flow, whose blocks stand in the flow around it,
+so its words stay on the column beside a wider one. A framed holder, such as a
+callout, needs its own `data-width` to widen; its children use the room inside it. A
+wide child alone does not widen its holder. Write a box that arranges its own
+contents, such as a grid of cards, as a `div`, which keeps them inside it.
 Under the reading face a table scrolls sideways when needed; a page without the face
 gives a table that can outgrow its width a box of its own that scrolls sideways
-(`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
-wrappers that should share the document's space, not on boxes that arrange their
-own contents.
+(`page-authoring.md`, "Markup").
 
-A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
+A widget whose entry declares `height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
 its own height, such as `lf-diagram`, reserves nothing, so content below it moves
 when it draws unless you set `data-height`. A diagram lays itself out for its width,
@@ -296,10 +331,11 @@ comment there shows as a pin on its block.
 
 ## Page-owned annotations
 
-By default Leaf draws comment markers, passage highlights and threads over the page.
+By default Leaf draws comment markers and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
 its own layout; comments, On Me obligations, Undo and live revisions still work, and comments open
-in the Leaf panel. To show conversations in the page's own layout, register a
+in the Leaf panel. Leaf still marks commented words on such a page: pointing at them
+previews their thread, and a press opens it. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.
 
@@ -310,21 +346,45 @@ buttons widgets build as well as the page's own. Give each rule a selector that 
 what it means to style, such as a class on your own controls or a widget's id before
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
-as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
-on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+as `button:hover`, an `!important` declaration or a rule in a cascade layer of the
+page's own reaches them too, so name your own content in it.
+
+A CSS reset clears the margins, borders and faces of every element, the controls
+Leaf's widgets build among them. Put one in a cascade layer named `reset`, as in
+`@layer reset { … }`. Leaf ranks that layer below its own and below the page's
+theme, so the reset applies wherever neither says anything, and Leaf's widgets,
+panel and thread cards keep their faces. A framework that keeps its reset in a
+layer of another name, as Tailwind keeps preflight in `base` beside the element
+rules its author writes there, outranks Leaf's faces from it: import or rename the
+reset into `reset`, and leave the author's rules where they are.
+
+A page whose framework has design tokens hands Leaf three of them, so
+what Leaf draws takes the framework's colours:
+
+```css
+:root {
+  --lf-paper: var(--background);
+  --lf-ink: var(--foreground);
+  --lf-accent: var(--primary);
+}
+```
+
+Every custom property of Leaf's starts with `--lf-`, so a framework's own `--accent`
+or `--muted` changes nothing Leaf draws.
+
+A token such as `--lf-accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--lf-paper` on `[part~="card"]`, changes only that
 surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
-A native control you write keeps the browser's default face until it takes Leaf's,
-by the same name Leaf's own controls wear: `class="lf-btn"`, `class="lf-btn lf-commit"`
-for the committing action, `class="lf-field"` for a text input or select, and
-`<label class="lf-choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`) for a radio or checkbox. A rule naming one of these classes
-restyles Leaf's controls too, so arrange your own by a class or id of yours. A control
-drawn for the task, such as a stack of layer tiles or a curve's handles, is the page's
-own design (`page-authoring.md`, "Style the page").
+On a page that takes a theme, the buttons, fields and choices you write in plain HTML
+wear the faces of Leaf's own controls; the vocabulary's `button` and `input, select`
+entries say how to write each. Any rule of yours outranks that face, so a
+control drawn for the task, such as a stack of layer tiles or a curve's handles, takes
+the page's own design (`page-authoring.md`, "Style the page"), and
+`--lf-reading-face: initial` on a box leaves the controls in it the browser's, as on a
+page that takes no theme.
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
@@ -366,22 +426,6 @@ would lose that reservation. Use `display: grid` for a full-width message. For a
 counter, an invisible representative widest value can share the cell with the
 changing value; `font-variant-numeric: tabular-nums` equalizes digit widths but does
 not reserve space for additional digits.
-
-For concise, one-line text, Leaf's `data-room` shorthand holds representative widest
-strings, separated by newlines; its only child holds the current text. Its CSS reserves
-that space from first paint:
-
-```html
-<span role="status" data-room="Ready&#10;Saving changes…&#10;Saved"
-  ><span>Ready</span></span
->
-```
-
-Change the child's text, keeping the wrapper. The wrapper fits its container; text
-past that width is ellipsized, while its DOM text and accessible name stay whole.
-Use this for short feedback, with longer results and error details in readable content
-outside the controls' changing labels. Such content can grow; arrange it so the controls
-the reader needs next remain reachable.
 
 ## Activity from several contributors
 

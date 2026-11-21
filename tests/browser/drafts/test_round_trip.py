@@ -229,8 +229,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     ]
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignInlineText, sentenceUnits} = await window.__lfCheckApi();
-          const {alignText} = await window.__lfWidgetApi();
+          const {alignInlineText, alignText, sentenceUnits} = await window.__lfCheckApi();
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -355,11 +354,11 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
 def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve):
     """The round trip above, differing in one fact: the agent has acknowledged the
     actions before v2 publishes. That is the ordinary case — the agent writes a
-    version *because* it was handed the user's edits — and it used to be the
-    one that lost them: replay stopped at the handoff cursor, on the premise
-    that a version written after seeing an action encodes it. Nothing checks that
-    premise, so a version that quietly omits the state re-emitted the widget as
-    untouched and the user's work vanished with no error anywhere.
+    version *because* it was handed the user's edits — and it is the one that
+    loses them if replay stops at the handoff cursor, on the premise that a
+    version written after seeing an action encodes it. Nothing checks that
+    premise, so a version that quietly omits the state would re-emit the widget as
+    untouched and the user's work would vanish with no error anywhere.
 
     Acknowledgement is not assent. Only the next version's markup can say what the
     agent did with an edit, and until it says otherwise the log is what the user
@@ -410,7 +409,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
     """`leaf thread create` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
-    used to drift — the file holds words the page stopped showing — so write the anchor
+    could drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
     replaced are refused at the CLI, because posted they would detach in front of the
     user."""

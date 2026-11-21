@@ -6,7 +6,7 @@
    state, or delivery state. Authored snapshots have the same shape captured by
    projection/authored.js: a map from widget id to `{state, specs}`. */
 
-import { keptReadings } from "../kept.js";
+import { keptEach } from "../kept.js";
 
 /** @typedef {import("../../types/domain.js").ProjectionEntry} ProjectionEntry */
 /** @typedef {import("../../types/domain.js").ClassifiedEntry} ClassifiedEntry */
@@ -297,52 +297,35 @@ export function rankAt({ value, ranks }, container, index, unit) {
 // above), so each container lists its units by rank once every placement in force is
 // in. `projection.py`'s `folded_positions` is the server's reading of the same rule.
 //
-// A reader made by `widgetStateReader` keeps each widget's folded state (`kept.js`)
-// and folds it again only where its authored state or an entry in force on it has
-// changed, so every widget nothing touched keeps the very state it had, and a reader
-// of one, such as a thread holding a frozen widget, can tell it unchanged by identity.
+// Each widget's folded state is kept (`kept.js`) by its authored state and the entries
+// in force on it, so every widget nothing touched keeps the very state it had, and a
+// reader of one, such as a thread holding a widget, can tell it unchanged by identity.
 /** @typedef {{state: import("../../types/domain.js").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../types/domain.js").ActionSpec>}} FoldedWidget */
-export function widgetStateReader() {
-  /** @type {ReturnType<typeof keptReadings<FoldedWidget>>} */
-  const folded = keptReadings();
-  /** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
-  return function foldWidgetStates(authoredSnapshots, projection) {
-    /** @type {Map<string, ProjectionEntry[]>} */
-    const inForce = new Map();
-    for (const entry of [...projection.desired.values()].sort(compareProjected)) {
-      const entries = inForce.get(entry.e.widget);
-      if (entries) entries.push(entry);
-      else inForce.set(entry.e.widget, [entry]);
-    }
-    /** @type {Map<string, FoldedWidget>} */
-    const states = new Map();
-    for (const [id, authored] of authoredSnapshots) {
-      const entries = inForce.get(id) ?? [];
-      states.set(
-        id,
-        folded.read(
-          id,
-          [
-            authored,
-            ...entries.flatMap((entry) => [
-              entry.e,
-              entry.unit,
-              entry.spec,
-              entry.absorbed,
-              entry.value,
-            ]),
-          ],
-          () => foldWidget(authored, entries),
-        ),
-      );
-    }
-    folded.done();
-    return states;
-  };
+/** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
+export function foldWidgetStates(authoredSnapshots, projection) {
+  /** @type {Map<string, ProjectionEntry[]>} */
+  const inForce = new Map();
+  for (const entry of [...projection.desired.values()].sort(compareProjected)) {
+    const entries = inForce.get(entry.e.widget);
+    if (entries) entries.push(entry);
+    else inForce.set(entry.e.widget, [entry]);
+  }
+  /** @type {Map<string, FoldedWidget>} */
+  const states = new Map();
+  for (const [id, authored] of authoredSnapshots)
+    states.set(id, foldedWidget(authored, inForce.get(id) ?? NO_ENTRIES));
+  return states;
 }
+/** @type {readonly ProjectionEntry[]} */
+const NO_ENTRIES = Object.freeze([]);
 
 // One widget's state: its authored state with each entry in force on it applied, in
 // the order the projection ranks them.
+const foldedWidget = keptEach(
+  /** @param {AuthoredMap extends ReadonlyMap<string, infer W> ? W : never} authored
+   * @param {readonly ProjectionEntry[]} entries */
+  (authored, entries) => foldWidget(authored, [...entries]),
+);
 /** @param {AuthoredMap extends ReadonlyMap<string, infer W> ? W : never} authored
  * @param {ProjectionEntry[]} entries @returns {FoldedWidget} */
 function foldWidget(authored, entries) {
@@ -385,11 +368,6 @@ function foldWidget(authored, entries) {
       for (const ids of Object.values(position.value)) ids.sort(byRank(position.ranks));
   return { state, entries, specs: authored.specs };
 }
-
-// One folding with nothing kept from an earlier one.
-/** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
-export const foldWidgetStates = (authoredSnapshots, projection) =>
-  widgetStateReader()(authoredSnapshots, projection);
 
 /* An obligation reads its value from the same complete fold as its widget. Completion
    can make an empty recorded value an answer, but cannot invent custom state after

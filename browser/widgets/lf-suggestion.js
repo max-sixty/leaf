@@ -18,21 +18,21 @@
  * That owner renders and places the resulting entries, in the rail or as a pin, and
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
+import { nothing } from "/vendor/lit.js";
 import {
-  alignText,
   commandScope,
   commandsChanged,
-  foldBlock,
   keeps,
   LeafElement,
   contributionEntry,
   failSoft,
-  nothing,
   quoted,
   registerContribution,
   says,
 } from "/runtime/widget-api.js";
+import { foldBlock } from "../runtime/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
+import { alignText } from "../runtime/text-alignment.js";
 import { shownParts } from "../runtime/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
@@ -59,12 +59,12 @@ const FACE = {
 // The two highlights are registered once and shared. A suggestion's ranges arrive
 // and leave through `arriving` and `leaving`, applied together in a microtask at the
 // end of the task, so the paint still lands before the next frame. In Firefox a
-// highlight changed one range at a time costs more the larger it is: it walks the
-// list to delete a range, and an add made as each suggestion upgraded grew with the
-// highlight too. So applying each suggestion's ranges as it came, like rebuilding
-// both highlights from every suggestion for each one, cost the square of the ranges
-// when a page upgraded or removed many suggestions. A removal rebuilds each
-// highlight once from the ranges it keeps, as lf-text-document.js's `unpaint` does.
+// highlight's delete costs more the larger the highlight is, since it walks the list
+// to find the range; an add doesn't. So taking each suggestion's ranges off as it
+// left, like rebuilding both highlights from every suggestion for each one, would
+// cost the square of the ranges when a page removed or upgraded many suggestions. A
+// removal rebuilds each highlight once from the ranges it keeps, as
+// lf-text-document.js's `unpaint` does.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
 /** @type {Map<Element, Range[]>} */
 const emphasized = new Map(); // suggestion element → its ranges in either highlight
@@ -394,7 +394,7 @@ customElements.define(
       return before || after || this.id;
     }
 
-    // The page's blanket answer (x-awaits.all) calls the deciding verb by name.
+    // The page's blanket answer (`awaits.all`) calls the deciding verb by name.
     /** @param {Outcome} outcome */
     decide(outcome) {
       return this.#decide(outcome);

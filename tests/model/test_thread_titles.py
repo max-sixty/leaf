@@ -15,7 +15,6 @@ from interact_support import (
     Prose,
     append_carried_log_record,
     append_command,
-    claude_code_module,
     record_claim,
     stamp,
     wait_for,
@@ -29,7 +28,9 @@ from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import interaction_log as interaction_model
 from leaf import state as cleanup_model
+from leaf.json_block import json_block
 from leaf.thread import fit_title
+from leaf_dev.claude_code_module import claude_code_module
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {
@@ -447,7 +448,9 @@ def test_a_claude_code_completion_that_gets_no_answer_says_why(page_dir, monkeyp
     with pytest.raises(TimeoutError):
         generate("Pick", page_dir, schema=thread_titles.OUTPUT_SCHEMA, instructions="")
     assert list(requests.parent.glob(requests.name)) == []
-    completions.cmd_reply("s1", {"completion": "a" * 32, "text": "{}"})
+    completions.replied(
+        "s1", {"basis": {"kind": "completion", "completion": "a" * 32}, "text": "{}"}
+    )
     assert list(requests.parent.glob(requests.name)) == []
 
 
@@ -639,7 +642,7 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     argv = call["argv"]
     # Pi has no answer schema, so the system prompt carries it.
     assert call["system_prompt"].startswith(thread_titles.INSTRUCTIONS + "\n\n")
-    assert json.dumps(thread_titles.OUTPUT_SCHEMA) in call["system_prompt"]
+    assert json_block(thread_titles.OUTPUT_SCHEMA) in call["system_prompt"]
     # Pi's hooks are extensions, Leaf's own among them.
     for switch in ("--print", "--no-session", "--no-tools", "--no-extensions"):
         assert switch in argv

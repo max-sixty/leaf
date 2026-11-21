@@ -8,7 +8,7 @@ assets, whose catalog then names the new stills (`leaf_dev.docs`), then publishe
 asset commit and moves Leaf's exact pin. Host pages are not part of the captured
 scene.
 
-    uv run leaf-dev site previews    (or `wt refresh-previews`)
+    uv run leaf-dev site previews
 """
 
 import io
@@ -19,6 +19,7 @@ import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 import click
 from PIL import Image
@@ -28,9 +29,10 @@ import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
-from leaf_dev.commands.site import build as site_build
+from leaf_dev.commands.site import _build as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
+from leaf_dev.website import SITE
 
 WINDOW = Window((1120, 700))
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
@@ -48,24 +50,19 @@ def serve_examples(site: Path) -> Generator[str]:
     # As in the demo recorder, the host's open pages are not part of the scene.
     # Isolate their discovery before serving so `All leaves` cannot change the
     # captured chrome or expose the host's page titles.
-    previous_state_home = os.environ.get("XDG_STATE_HOME")
-    with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
-        os.environ["XDG_STATE_HOME"] = state_home
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home,
+        patch.dict(os.environ, XDG_STATE_HOME=state_home),
+    ):
+        server = LeafHTTPServer(("127.0.0.1", 0), leaf_website.site_endpoint(site))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
         try:
-            server = LeafHTTPServer(("127.0.0.1", 0), leaf_website.site_endpoint(site))
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                yield f"http://127.0.0.1:{server.server_address[1]}"
-            finally:
-                server.shutdown()
-                thread.join()
-                server.server_close()
+            yield f"http://127.0.0.1:{server.server_address[1]}"
         finally:
-            if previous_state_home is None:
-                os.environ.pop("XDG_STATE_HOME")
-            else:
-                os.environ["XDG_STATE_HOME"] = previous_state_home
+            server.shutdown()
+            thread.join()
+            server.server_close()
 
 
 def require_capture_fonts(page: Page) -> None:
@@ -77,11 +74,15 @@ def require_capture_fonts(page: Page) -> None:
         document = session.send("DOM.getDocument")["root"]["nodeId"]
         missing = {}
         for selector, required in REQUIRED_FONTS.items():
-            node = session.send(
-                "DOM.querySelector", {"nodeId": document, "selector": selector}
-            )["nodeId"]
+            # Chrome reports the fonts of a node's own text, and the words may stand
+            # in an element inside the one the selector names.
+            nodes = session.send(
+                "DOM.querySelectorAll",
+                {"nodeId": document, "selector": f"{selector}, {selector} *"},
+            )["nodeIds"]
             actual = {
                 font["familyName"]
+                for node in nodes
                 for font in session.send(
                     "CSS.getPlatformFontsForNode", {"nodeId": node}
                 )["fonts"]
@@ -147,11 +148,7 @@ def refresh_previews() -> None:
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
-        site_build.build(
-            site_build.OUT,
-            site_build.prepared_leaf(site_build.OUT),
-            assets=checkout.path,
-        )
+        site_build.build_site(SITE, assets=checkout)
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")
     click.echo(f"✓ {len(catalog_sources())} previews")

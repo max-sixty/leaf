@@ -775,15 +775,16 @@ class TaskConnection:
             while not self.stop_event.is_set():
                 try:
                     self._connect()
-                    failures = 0
                 # This is the connection thread's recovery boundary: nothing it reads may
-                # take the process down, and a lost connection is retried.
+                # take the process down, and a lost connection is retried. A drop from a
+                # connection that came up starts the retry ladder again.
                 except Exception as error:
+                    came_up = self.connected.is_set()
                     self._disconnect_turns()
                     if not self.started:
                         self.ready.put(error)
                         return
-                    failures += 1
+                    failures = 1 if came_up else failures + 1
                     if failures == 1:
                         print(
                             f"Codex App Server stream retry: {error}",
@@ -1017,8 +1018,8 @@ def run_adapter(
                     )
                 time.sleep(retry_delay(failures))
                 continue
+            failures = 0
             if recovered:
-                failures = 0
                 continue
 
             mark = watch.mark()

@@ -92,10 +92,12 @@
   // (passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
   // first fault names the page and is said once more as `lf-startup-fault`, which a
   // served page's bootstrap answers by saying the page has a problem where it is the
-  // page's own, and otherwise by waiting for a server that can start the page
-  // (bootstrap.js); an export has no server to wait for. A later fault only takes the
-  // mark off where it is incomplete. The first is the earliest evidence and a later one
-  // is often its consequence; the bootstrap's report keeps the first as well.
+  // page's own, and otherwise by asking its server for the page again where it is
+  // incomplete, and by waiting for a server that can start the page (bootstrap.js);
+  // an export has no server to wait for. A later fault only takes the mark off where
+  // it is incomplete, which the bootstrap reads when it acts. The first is the
+  // earliest evidence and a later one is often its consequence; the bootstrap's
+  // report keeps the first as well.
   /** @param {string} reason @param {boolean} incomplete @param {unknown} [error] @param {boolean} [page] */
   const fault = (reason, incomplete, error = null, page = false) =>
     window.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
@@ -125,7 +127,7 @@
             }
           : null;
       window.dispatchEvent(
-        new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
+        new CustomEvent("lf-startup-fault", { detail: { reason, page } }),
       );
     });
   window.addEventListener(
@@ -164,19 +166,20 @@
   );
 
   // Which page this document is, as the prefix of what the browser tab keeps for it.
-  // Two leaf pages on one origin is what needs it: web storage is the origin's, so the
-  // reading position a user left on one example was handed back on the next, at an
-  // offset that meant nothing there. Read off the root the server declares in the
-  // canonical link, a draft typed on the live root is the draft on each of its version
-  // addresses. "" where that root is the origin's own, so a server serving one page
-  // keeps every key unprefixed; an export, which has no server and no link, is its own
-  // address. The runtime's stores read it from here (storage.js).
+  // Web storage is the origin's, and an origin holds more than one page: the reading
+  // position a user left on one example was handed back on the next, at an offset that
+  // meant nothing there. A local server, whose port another page's server takes once it
+  // stops, declares its page on the root (http.py, `_delivery`). Elsewhere it is read
+  // off the root the server declares in the canonical link, so a draft typed on the
+  // live root is the draft on each of its version addresses; "" where that root is the
+  // origin's own. An export, which has no server and no link, is its own address. The
+  // runtime's stores read it from here (storage.js).
   const canonical = /** @type {HTMLLinkElement | null} */ (
     document.querySelector('link[rel="canonical"][data-lf-runtime]')
   );
   const rootPath = canonical ? new URL(canonical.href).pathname : location.pathname;
-  const scope = rootPath === "/" ? "" : rootPath;
-  root.dataset.lfPageScope = scope;
+  root.dataset.lfPageScope ??= rootPath === "/" ? "" : rootPath;
+  const scope = root.dataset.lfPageScope;
 
   // Tab memory has one storage policy, including before the module graph starts.
   // Widgets and later controllers read the same values.
@@ -488,6 +491,35 @@
       userStore.set(quickKey, String(on));
       document.dispatchEvent(new CustomEvent("lf-keyboard-preference"));
     },
+  };
+
+  // The layer's constructed stylesheets (stylesheets.js), from the text every delivery
+  // carries in its head (`delivery_sheets` in revision_delivery.py), with no request
+  // and no await. Whoever asks first builds them, once the head holds that text: a
+  // served page's bootstrap as `body` arrives, which adopts the chrome's so the panel's
+  // row it stands there paints styled (bootstrap.js), else the runtime as it loads.
+  /** @type {ReturnType<Window["lfSheets"]> | null} */
+  let sheets = null;
+  window.lfSheets = () => {
+    if (sheets) return sheets;
+    const delivery = document.querySelector(
+      'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
+    );
+    if (!delivery) throw new Error("The document has no runtime stylesheets");
+    /** @type {{chrome: string, marks: string, annotations?: string}} */
+    const text = JSON.parse(delivery.textContent);
+    /** @param {string} rules */
+    const constructed = (rules) => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(rules);
+      return sheet;
+    };
+    sheets = {
+      chrome: constructed(text.chrome),
+      marks: constructed(text.marks),
+      annotations: text.annotations ? [constructed(text.annotations)] : [],
+    };
+    return sheets;
   };
 
   // The floating panel (floating-panel.js) is the page's chrome. The reader's one

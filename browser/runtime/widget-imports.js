@@ -22,17 +22,18 @@ export function registeredTags(scope, registry) {
 
 /** @param {Scope} scope @param {Registry} registry */
 export function widgetImports(scope, registry) {
-  const modules = [];
   const tags = registeredTags(scope, registry);
-  for (const tag of tags) {
-    const entry = registry[tag];
-    if (entry?.["x-upgrade"]) modules.push(tag);
-  }
+  // The module each tag has, which composition derives from the layer's files
+  // (`$modules`, Python's `registry.contract.MODULES`).
+  const held = /** @type {Record<string, string>} */ (
+    /** @type {Record<string, unknown>} */ (registry).$modules ?? {}
+  );
+  const modules = tags.filter((tag) => Object.hasOwn(held, tag));
   const shadow = tags.some(
     (tag) =>
-      registry[tag]?.["x-shadow"] ||
-      Object.values(registry[tag]?.["x-state"] ?? {}).some(
-        (state) => state.creates && registry[state.creates.child]?.["x-shadow"],
+      registry[tag]?.shadow ||
+      Object.values(registry[tag]?.verbs ?? {}).some(
+        (state) => state.creates && registry[state.creates.child]?.shadow,
       ),
   );
   return { modules, shadow };

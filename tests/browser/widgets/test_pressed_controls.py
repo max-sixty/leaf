@@ -4,9 +4,11 @@ The rule is `browser/AGENTS.md`'s: a gesture draws its own result in the task th
 handles it, and a disabled control, spinner or delivery status is not that result. A
 widget that keeps its own record of a send in flight breaks it twice: the control under
 the pointer flickers to a busy cursor or a disabled face for one round trip, and a
-second press in that window is swallowed. Four bundled widgets once did both, each
-found by hand, so this presses every control in every bundled package's worked
-examples (`widget_quality.served_examples`) with the server's answer held."""
+second press in that window is swallowed. So this presses every control in every
+bundled package's worked examples (`widget_quality.served_examples`) with the server's
+answer held."""
+
+from render_harness import Traffic, round_trip
 
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
@@ -97,7 +99,7 @@ UNDER_POINTER = f"""([x, y, index]) => {{
 }}"""
 
 # The tab's unresolved gestures by attempt and kind, read through the check entry, and
-# whether each records only what the user hasn't sent (`$state.unsent`), as a
+# whether each records only what the user hasn't sent (`$verbs.unsent`), as a
 # playground's settings: a press that set them, pressed again while they stand, has
 # nothing new to record.
 UNRESOLVED = """async () => {
@@ -106,24 +108,17 @@ UNRESOLVED = """async () => {
   const api = await import(new URL('runtime/check-api.js', boot));
   const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget), 'x-state')?.[event.action]
+    declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);
 }"""
 
-# Whether every send has its outcome, by the runtime's own traffic ledger
-# (runtime/traffic.js).
-DELIVERED = """() => {
-  const traffic = document.documentElement.dataset.lfTraffic;
-  return !traffic || !JSON.parse(traffic).pending.length;
-}"""
-
 # Controls no worked example shows, by package directory: a `multiple` group's Done.
 STATES = {
-    "default": """<lf-options id="pressed-many" choose multiple>
-  <lf-option id="pressed-first"><strong>Cache the parsed config</strong></lf-option>
-  <lf-option id="pressed-second"><strong>Parse it lazily</strong></lf-option>
+    "default": """<lf-options id="pressed-many" multiple>
+  <lf-option id="pressed-first" label="Cache the parsed config"><strong>Cache the parsed config</strong></lf-option>
+  <lf-option id="pressed-second" label="Parse it lazily"><strong>Parse it lazily</strong></lf-option>
 </lf-options>""",
 }
 
@@ -131,7 +126,7 @@ STATES = {
 # directory, so a sweep that finds none anywhere else has lost its controls.
 UNPRESSABLE = {"diagram", "file-tree", "motion", "visual-review"}
 
-# The widgets whose presses once flickered, which the sweep must reach sending.
+# The widgets whose presses could flicker, which the sweep must reach sending.
 REACHED = {"lf-playground", "lf-options", "lf-suggestion"}
 
 
@@ -139,8 +134,8 @@ def _example_pages(package):
     composition = compose_layer(checked_layer_inputs(package_layer_inputs(package)))
     tags = own_tags(package)
     pages = [
-        (layout, SourceDocument(html), data)
-        for layout, html, data in example_pages(composition.vocabulary.registry, tags)
+        (layout, SourceDocument(html))
+        for layout, html in example_pages(composition.vocabulary.registry, tags)
         if layout == "column"
     ]
     if state := STATES.get(package.name):
@@ -152,7 +147,6 @@ def _example_pages(package):
                     "<!doctype html>\n<html lang='en'><head><title>States</title>"
                     f"</head><body>{opening}{state}{closing}</body></html>"
                 ),
-                {},
             )
         )
     return tags, pages
@@ -161,6 +155,7 @@ def _example_pages(package):
 def open_served(browser, url):
     """The page a Leaf server serves at `url`, ready to be pressed."""
     page = browser.new_page(viewport=RENDER_VIEWPORT)
+    page.lf_traffic = Traffic(page)
     page.goto(url)
     wait_until_ready(page, served(page, url, "/api/state").json())
     rendered(page)
@@ -247,7 +242,7 @@ def press_each_control(page, within, restore=None):
             route.continue_()
         held.clear()
         page.unroute("**/api/event")
-        page.wait_for_function(DELIVERED)
+        round_trip(page)
         rendered(page)
         # A face the answer keeps is the press's own result, such as the next
         # thread a Resolve moves on to; one it takes away again was a flicker.

@@ -1,16 +1,14 @@
-# From Codex session 01a0fec0-dd0e-7f01-896f-f4f9e7264b5b: a before/after
-# cue comparison offered the same four whole treatments as presets and a choice
-# control, after reading the playground instructions. The cold generation prompt
-# passed both arms; this case resumes from the duplicated draft before handoff.
-# On b5d0ad501, the final draft replay passed 0/2 baseline and 2/2 head runs
-# across Claude Code and Codex. Both baseline runs kept a separate choice control;
-# Claude also duplicated it with candidate buttons. Both head runs selected
-# the examples directly. This measures repeated selection surfaces, including
-# the preset/control duplication in the recorded draft.
+# A Codex session's before/after cue comparison offered the same four whole
+# treatments as presets and a choice control, after reading the playground
+# instructions. A cold generation prompt doesn't reproduce it, so this case resumes
+# from the duplicated draft before handoff. A failing answer keeps a separate choice
+# control, or duplicates it with candidate buttons. This measures repeated selection
+# surfaces, including the preset/control duplication in the recorded draft.
 description: playground-choice-has-one-surface
 metadata:
   purpose: "Playground: each design decision has one selection surface; presets
     compose independently adjustable parameters."
+  page: [playground]
   tags:
     - playground
 vars:
@@ -30,16 +28,15 @@ vars:
     You can use placeholders for the child templates. A page-local Show all
     comparison-view control operates the same inspection state in every sample.
 
-    The first draft wraps those samples in lf-playground-preview, inside this
+    The first draft writes those samples in the playground's preview, beside this
     configuration:
       <lf-playground id="explorer" submit-label="Use this treatment">
-        <lf-playground-control id="treatment" name="treatment" label="Treatment to build"
-          kind="choice" value="selector">
-          <lf-playground-choice id="treatment-current" value="current" label="Current"></lf-playground-choice>
-          <lf-playground-choice id="treatment-selector" value="selector" label="Red/green selector"></lf-playground-choice>
-          <lf-playground-choice id="treatment-edge" value="edge" label="Colored edge"></lf-playground-choice>
-          <lf-playground-choice id="treatment-badge" value="badge" label="Image badge"></lf-playground-choice>
-        </lf-playground-control>
+        <aside><fieldset id="treatment"><legend>Treatment to build</legend>
+          <label id="treatment-current"><input type="radio" name="treatment" value="current" /> Current</label>
+          <label id="treatment-selector"><input type="radio" name="treatment" value="selector" checked /> Red/green selector</label>
+          <label id="treatment-edge"><input type="radio" name="treatment" value="edge" /> Colored edge</label>
+          <label id="treatment-badge"><input type="radio" name="treatment" value="badge" /> Image badge</label>
+        </fieldset></aside>
         <lf-playground-preset id="preset-current" label="Current">
           <lf-playground-setting for="treatment" value="current"></lf-playground-setting>
         </lf-playground-preset>
@@ -52,20 +49,18 @@ vars:
         <lf-playground-preset id="preset-image-badge" label="Image badge">
           <lf-playground-setting for="treatment" value="badge"></lf-playground-setting>
         </lf-playground-preset>
-        <lf-playground-preview>...inspection controls and four samples...</lf-playground-preview>
+        ...inspection controls and four samples...
         <lf-playground-output>Apply the
-          <lf-playground-value for="treatment"></lf-playground-value> treatment to
+          <output for="treatment"></output> treatment to
           Leaf's lf-shot comparison. Preserve its comparison views, divider,
           keyboard controls, and unambiguous frame labels. Show the
           result in light and dark themes at desktop and phone widths.
         </lf-playground-output>
       </lf-playground>
 
-    Finish the draft for handoff so the user can try the candidates and choose
-    which treatment to implement. Use the installed leaf:leaf skill and read
-    ../../packages/playground/instructions/author.md relative to its base directory.
-    The page directory is not reachable here, so reply with the HTML and any
-    page module needed for the choice and implementation request.
+    Write the page from that draft and finish it for handoff, so the user can try
+    the candidates and choose which treatment to implement. Placeholders can stand
+    for the samples' bodies.
 assert:
   - type: llm-rubric
     metric: one-selection-surface

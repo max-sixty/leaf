@@ -11,13 +11,12 @@ import os
 import shlex
 import subprocess
 import sys
-from typing import get_args
 
 import click
 
 from leaf.state import flocked, state_home
 from leaf_dev import ROOT
-from leaf_dev.leaf_assets import RevisionKey, pinned_assets
+from leaf_dev.leaf_assets import pinned_assets
 
 
 def run(*command: str) -> None:
@@ -36,8 +35,7 @@ def setup() -> None:
     lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         with flocked(lock):
-            for revision_key in get_args(RevisionKey):
-                click.echo(f"✓ {pinned_assets(revision_key=revision_key)}")
+            click.echo(f"✓ {pinned_assets()}")
             run(
                 "uv",
                 "run",

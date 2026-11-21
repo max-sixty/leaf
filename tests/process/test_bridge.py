@@ -1,5 +1,6 @@
 """Claude Code's sandboxed commands, run outside its sandbox by Leaf's bridge."""
 
+import contextlib
 import io
 import json
 import os
@@ -7,6 +8,8 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
 from conftest import LEAF_COMMAND
@@ -68,9 +71,10 @@ def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
 @pytest.mark.usefixtures("bridged")
 def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
     """The command reads the stdin it was given, and its stdout, stderr and exit
-    status come back apart."""
+    status come back apart. A hook leaves stdout to its harness's answer, so it
+    refuses on stderr."""
     refused = subprocess.run(
-        [LAUNCHER, "data", "set", str(page_dir), "source"],
+        [LAUNCHER, "hook", "--harness", "claude-code"],
         input="{",
         capture_output=True,
         text=True,
@@ -78,7 +82,7 @@ def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
     )
     assert refused.returncode == 1
     assert refused.stdout == ""
-    assert "invalid JSON (Expecting property name" in refused.stderr
+    assert "Expecting property name" in json.loads(refused.stderr)["error"]
 
 
 @pytest.mark.usefixtures("bridged")
@@ -111,7 +115,7 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(page_dir):
             check=False,
         )
     assert refused.returncode == 1
-    assert "no JSON given" in refused.stderr
+    assert "no JSON given" in refused.stdout
 
 
 @pytest.mark.usefixtures("bridged")
@@ -131,7 +135,7 @@ def test_a_bridged_command_reads_a_socket_stdin_it_names(page_dir):
             check=False,
         )
     assert read.returncode == 1
-    assert "invalid JSON (Expecting property name" in read.stderr
+    assert "invalid JSON (Expecting property name" in read.stdout
 
 
 def test_a_background_job_keeps_the_bridge_while_the_job_stands(
@@ -216,6 +220,183 @@ def test_a_bridged_command_runs_on_the_interpreter_of_the_copy_that_sent_it(
     monkeypatch.setattr("sys.executable", str(interpreter))
     assert bridge_model.run(["--version"]) == 3
     assert capfd.readouterr().out == f"{interpreter} -I -m leaf --version\n"
+
+
+def test_a_bridged_command_waits_for_a_slow_bridge_while_it_holds_the_lease(
+    tmp_path, monkeypatch, capfd
+):
+    """The hook returns once it has started the bridge, which on a loaded machine
+    may take longer to publish its address than any count of polls allows. The
+    client waits while the bridge holds its lease, so the command runs.
+
+    The bridge starts only once the client has polled past the old budget of
+    `REFUSALS` polls, so the order holds however the processes are scheduled."""
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    python = sys.executable
+    release = tmp_path / "release"
+    # A bridge never released gives up after the suite's deadline, which drops
+    # its lease, so the client fails rather than waiting forever.
+    held_python = tmp_path / "python"
+    held_python.write_text(
+        "#!/bin/sh\n"
+        f"deadline=$(( $(date +%s) + {STATED_TIMEOUT} ))\n"
+        f'while [ ! -e "{release}" ]; do\n'
+        '  [ "$(date +%s)" -lt "$deadline" ] || { echo never released >&2; exit 1; }\n'
+        "  sleep 0.01\n"
+        "done\n"
+        f'exec "{python}" "$@"\n'
+    )
+    held_python.chmod(0o755)
+    monkeypatch.setattr("sys.executable", str(held_python))
+    bridge_model.ensure("slow", {"pid": os.getpid()})
+    monkeypatch.setattr("sys.executable", python)
+    monkeypatch.setattr(bridge_model, "POLL_SECONDS", 0.001)
+    polls = 0
+    released_at = None
+    held = bridge_model.lock_is_held
+
+    def counting(path):
+        nonlocal polls, released_at
+        polls += 1
+        if released_at is None and polls > bridge_model.REFUSALS:
+            release.touch()
+            released_at = time.monotonic()
+        if released_at is not None and time.monotonic() - released_at > STATED_TIMEOUT:
+            message = "the released bridge never published its address"
+            raise AssertionError(message)
+        return held(path)
+
+    monkeypatch.setattr(bridge_model, "lock_is_held", counting)
+    assert bridge_model.run(["--version"]) == 0, capfd.readouterr().err
+    assert released_at is not None
+    assert capfd.readouterr().out
+
+
+@pytest.mark.parametrize("published", ["absent", "closed", "occupied"])
+def test_a_bridged_command_fails_at_once_where_no_bridge_runs(
+    monkeypatch, capfd, published
+):
+    """With no bridge holding the lease, an address absent or left by a bridge
+    since gone gets no answer however long the client waits, so it says at once
+    that no bridge runs rather than blaming the sandbox's network rule. It never
+    contacts a gone bridge's address, whose port another listener may now hold
+    without answering."""
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    bridge_model.bridge_path("json").parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.ExitStack() as stack:
+        listener = stack.enter_context(socket.socket())
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+        contacted = threading.Event()
+        if published == "occupied":
+            listener.listen()
+
+            def answer_nothing() -> None:
+                # A client that sent its request gets the connection closed
+                # unanswered, so a regression fails here rather than hanging.
+                with contextlib.suppress(OSError):
+                    connection, _ = listener.accept()
+                    contacted.set()
+                    connection.close()
+
+            threading.Thread(target=answer_nothing, daemon=True).start()
+        else:
+            listener.close()
+        if published != "absent":
+            bridge_model.ADDRESS.write(
+                bridge_model.bridge_path("json"),
+                {"port": port, "token": "t", "pid": 1},
+            )
+        monkeypatch.setattr(bridge_model, "POLL_SECONDS", STATED_TIMEOUT)
+        assert bridge_model.run(["--version"]) == 1
+        assert not contacted.is_set()
+    error = capfd.readouterr().err
+    assert "no Leaf bridge is running" in error
+    assert "127.0.0.1" not in error
+
+
+def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
+    monkeypatch,
+):
+    """A hook that finds the bridge's lease held returns, and its session's client
+    then asks whether a bridge runs. Where the hook registered just after the
+    bridge's sweep found no session left, the bridge goes on serving with its lease
+    held, so that client is never told no bridge runs while this one serves it.
+    Once the session ends, the bridge releases its lease."""
+    from leaf.leases import take_lease
+
+    bridge_model.bridge_path("sessions").mkdir(parents=True)
+    lock = bridge_model.bridge_path("lock")
+    lease = take_lease(lock)
+    assert lease is not None
+    monkeypatch.setattr(bridge_model, "SWEEP_SECONDS", 0)
+    sweep = bridge_model.live_sessions
+    release = bridge_model.release_lease
+    sweeps = 0
+    released = False
+
+    def sweep_then_register() -> bool:
+        nonlocal sweeps
+        sweeps += 1
+        if sweeps == 1:
+            # The sweep finds no session; a hook registers before the bridge acts.
+            assert not sweep()
+            bridge_model.ensure("late", {"pid": os.getpid()})
+            assert bridge_model.lock_is_held(lock)
+            return False
+        if sweeps == 3:
+            # The late session ends, so the bridge may retire.
+            for entry in bridge_model.bridge_path("sessions").glob("*.json"):
+                entry.unlink()
+        return sweep()
+
+    def release_unserved(held) -> None:
+        nonlocal released
+        assert not sweep(), "the lease was released while a session it serves lives"
+        released = True
+        release(held)
+
+    monkeypatch.setattr(bridge_model, "live_sessions", sweep_then_register)
+    monkeypatch.setattr(bridge_model, "release_lease", release_unserved)
+    bridge_model.retire(lease, set())
+    assert released
+    assert not bridge_model.lock_is_held(lock)
+
+
+def test_a_hook_that_finds_a_new_bridge_starting_gets_no_gone_bridges_address(
+    monkeypatch,
+):
+    """A gone bridge left its address, and a hook takes the lease to start the
+    next bridge. A second hook that registers as soon as the first lets the
+    registrations' lock go finds the lease held and returns, so its client may
+    read the address at once; it finds none, rather than the gone bridge's, whose
+    port another listener may now hold."""
+    bridge_model.bridge_path("json").parent.mkdir(parents=True, exist_ok=True)
+    bridge_model.ADDRESS.write(
+        bridge_model.bridge_path("json"), {"port": 1, "token": "t", "pid": 1}
+    )
+    sessions_lock = bridge_model.bridge_path("sessions.lock")
+    locked = bridge_model.flocked
+    seen = []
+
+    @contextlib.contextmanager
+    def then_second_hook(path, **kwargs):
+        with locked(path, **kwargs):
+            yield
+        if path == sessions_lock and not seen:
+            seen.append(None)
+            bridge_model.ensure("second", {"pid": os.getpid()})
+            # The second hook's client asks whether a bridge runs, then reads
+            # its address.
+            assert bridge_model.lock_is_held(bridge_model.bridge_path("lock"))
+            seen[0] = bridge_model.ADDRESS.read(bridge_model.bridge_path("json"))
+
+    monkeypatch.setattr(bridge_model, "flocked", then_second_hook)
+    monkeypatch.setattr(bridge_model.subprocess, "Popen", lambda *a, **k: None)
+    bridge_model.ensure("first", {"pid": os.getpid()})
+    assert seen == [None]
 
 
 def test_each_process_of_a_session_keeps_the_bridge(dead_pid):

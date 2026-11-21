@@ -1,27 +1,24 @@
-# From session 2f10f4a1, whose user found three option cards set `across` in an
-# lf-ask "quite thin" at 1728px: `across` shares the group's width, the question keeps
-# the 720px column, so each card got 229px and its four-word title broke in two. None
-# of the six pages before it that set cards across gave the group a `data-width`.
-# The fix is guidance: the lf-options entry says a card of words reads at about 18rem,
-# so a row of three needs `data-width="wide"`. The subject is pointed at the entries
-# that state it, so the case measures whether an author who reads them follows it, not
-# whether ordinary use finds them. Base a2773d828 set `data-width` on the row in 1 of 4
-# Claude Code runs, and the entry stating the rule in 4 of 4; every run set `across`.
+# A session's user found three option cards set `across` in a question's lf-group "quite thin"
+# at 1728px: `across` shares the group's width, the question keeps the 720px column,
+# so each card got 229px and its four-word title broke in two. Other pages that set
+# cards across gave the group no `data-width` either.
+# The fix is guidance: the lf-options entry says a card of words reads at about
+# 18rem, so a row of three needs `data-width="wide"`. The case is a probe given a
+# page with its packages.
 description: option-cards-take-their-width
 metadata:
   purpose:
     "Asks: a row of option cards set side by side takes the width its cards need to
     read, rather than a share of the reading column too small for a card's title."
+  page: []
   tags:
     - asks
 vars:
   prompt: |
-    You are writing a Leaf page that reviews the shared build cache's settings, one
-    section per setting, each ending in a question for the user. The user said
-    earlier that they compare options most easily side by side. Read
-    `references/authoring-on-me.md` and the `lf-ask`, `lf-options` and `lf-option`
-    entries in `../../packages/default/registry.json` relative to the skill's base
-    directory, then write the section for this item.
+    Write a Leaf page that reviews the shared build cache's settings, one section
+    per setting, each ending in a question for the user. The user said earlier that
+    they compare options most easily side by side. Start with the section for this
+    item; the other settings come later.
 
     Your notes:
     - Item #4: the cache evicts every entry older than 7 days. CI's hit rate falls
@@ -33,9 +30,6 @@ vars:
       - evict the least recently used entries once the cache reaches 480 GB,
         whatever their age;
       - keep the 7-day rule, as today.
-
-    The page directory is not reachable from here, so reply with the section's HTML
-    fragment rather than writing a file.
 assert:
   - type: llm-rubric
     metric: row-takes-its-width

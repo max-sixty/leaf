@@ -24,7 +24,7 @@ import {
 import { reachingNow } from "./control-keys.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder, under } from "../shadow.js";
+import { renderedUnder, under } from "../shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
 import { inlineStyle, keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
@@ -105,12 +105,32 @@ function hintRoutes(available) {
   return gathered;
 }
 
-/** @param {{presentedControl: (control: Element) => Element | null}} options */
+/** The keys the hints label `control` with from where the user is, each as its chip
+ * spells it: a face lent beside or inside it, as an option's digit, or a corner chip. A
+ * touch screen gets none (`advertisesKeys`). Read from the dispatcher's reading rather
+ * than the paint, which lands a frame after the focus move that reaches them, so a
+ * preview shown on that move already counts them as its target's chips (preview.js).
+ * A chip the paint withholds, for want of a free corner or while a scroll settles, is
+ * still counted, so a preview leaves its key unsaid there too.
+ * @param {Element} control @returns {string[]} */
+export const drawnKeys = (control) =>
+  advertisesKeys()
+    ? hintRoutes(reachingNow().available)
+        .filter((route) => route.control === control)
+        .map(({ binding }) => spell(binding))
+    : [];
+
+/** @param {{presentedControl: (control: Element) => Element}} options */
 export function createCommandHints({ presentedControl }) {
   let mounted = false;
   let hasRoutes = false;
   /** @type {Map<BindingBadge, LentFace>} */
   const wornBindingBadges = new Map();
+  // TODO(#5194): this hit test is 28 of a Tab's 30, about 1.8 ms at 256 sections.
+  // Leaving what stands over a lent face to paint order deleted 56 lines in a prototype:
+  // a thread card or a pin covers the control as well as its face, so only a face under
+  // the page's own content, such as a sticky bar, would go unseen instead of becoming a
+  // corner chip.
   /** @param {Element} bindingBadge @param {Element} control @param {import("../rect.js").Box} visible @param {ReadonlySet<Element>} lent */
   function exposedBindingBadge(bindingBadge, control, visible, lent) {
     const whole = bindingBadge.getBoundingClientRect();
@@ -310,7 +330,7 @@ export function createCommandHints({ presentedControl }) {
     const placed = [];
     for (const { binding, control, bindingBadge } of visualRoutes) {
       if (bindingBadge && worn.has(bindingBadge)) continue;
-      const presented = presentedControl(control) ?? control;
+      const presented = presentedControl(control);
       if (!presented.checkVisibility()) continue;
       const face = bindingBadge && faceBoxes.get(bindingBadge);
       const corner = face

@@ -27,6 +27,7 @@ from render_cases_navigation import (
     wait_for_pending_mark,
 )
 from render_harness import (
+    CHROME_ROOT,
     INLINE_PAGE,
     PANEL,
     RELEASE_FOCUS,
@@ -81,16 +82,27 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     )
     assert len(set(colours)) >= 4, colours
     page.emulate_media(color_scheme="dark")
+    # Compared as painted: an engine can write the same colour in two forms, as
+    # Firefox writes the cue's transparent end `color(srgb 0 0 0 / 0)` and the
+    # transparent rest `rgba(0, 0, 0, 0)`.
     fills = cue_target.evaluate(
         """async node => {
+          const context = document.createElement('canvas')
+            .getContext('2d', {willReadFrequently: true});
+          const painted = () => {
+            context.clearRect(0, 0, 1, 1);
+            context.fillStyle = getComputedStyle(node).backgroundColor;
+            context.fillRect(0, 0, 1, 1);
+            return [...context.getImageData(0, 0, 1, 1).data];
+          };
           const cue = node.getAnimations()[0];
           cue.effect.updateTiming({fill: 'forwards'});
           cue.currentTime = cue.effect.getComputedTiming().endTime;
           await new Promise(requestAnimationFrame);
-          const end = getComputedStyle(node).backgroundColor;
+          const end = painted();
           cue.cancel();
           await new Promise(requestAnimationFrame);
-          return {end, rest: getComputedStyle(node).backgroundColor};
+          return {end, rest: painted()};
         }"""
     )
     assert fills["end"] == fills["rest"], fills
@@ -127,7 +139,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     expect(row).to_have_count(1)
     row.scroll_into_view_if_needed()
     widget.evaluate("""host => {
-      host.style.setProperty('--mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
+      host.style.setProperty('--lf-mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
     }""")
     backgrounds = []
     for scheme in ("light", "dark"):
@@ -153,7 +165,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
             return colour;
           };
           return {
-            inks: {comment: ink('--mark-ink-text'), draft: ink('--mark-pending-text')},
+            inks: {comment: ink('--lf-mark-ink-text'), draft: ink('--lf-mark-pending-text')},
             ...Object.fromEntries(names.map(name => [name, read(token, name)])),
           };
         }""")
@@ -292,7 +304,7 @@ def test_marked_words_are_seen_and_told_apart(request, serve, engine):
     and each state a gesture puts it in is the answer to that gesture: the words the
     pointer rests on, those of the thread the user opened, and those their draft is on.
 
-    The wash alone can't be that notice: --mark composites to 1.13:1 over the light
+    The wash alone can't be that notice: --lf-mark composites to 1.13:1 over the light
     paper, and no alpha of its hue reaches 1.5:1. So the words take the mark's ink, and
     each state's paint, read off the drawn page in both schemes, is seen against the
     words' own colour, keeps its words legible on its ground, and differs from every
@@ -385,7 +397,7 @@ SCHEMED_PAGE = leaf_page(
 </section>
 """,
     head="""<style>
-.dark-panel { color-scheme: dark; background: var(--paper); color: var(--ink); }
+.dark-panel { color-scheme: dark; background: var(--lf-paper); color: var(--lf-ink); }
 </style>""",
 )
 SCHEMED_PASSAGES = {
@@ -439,7 +451,7 @@ OWN_COLOURS_PAGE = leaf_page(
 <h1 id="t">Own colours</h1>
 <p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
 <p id="kept">A line of prose someone reacted to with a token.</p>
-<lf-text-document id="doc" language="python" label="steps.py"><pre>{_STEPS}</pre></lf-text-document>
+<lf-text-document id="doc" label="steps.py"><pre><code class="language-python">{_STEPS}</code></pre></lf-text-document>
 """,
 )
 OWN_COLOURS = {
@@ -497,6 +509,9 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
     )
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
+        # WebKit can screenshot the words before it paints a newly registered syntax
+        # colour or the scheme's colours, so read them after a rendering update.
+        rendered(page)
         owed = {"string": _drawn(page, UNMARKED_STRING)[1]}
         shown = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         for name, (_, words, own) in shown.items():
@@ -506,7 +521,9 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
             )
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
-        expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+        expect(page.locator(CHROME_ROOT)).to_have_attribute(
+            "data-lf-annotations-hidden", ""
+        )
         hidden = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         for name, (_, words, own) in hidden.items():
             assert _apart(words, owed.get(name, own)) < SEEN_APART, (
@@ -534,10 +551,13 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
-        expect(page.locator("html")).not_to_have_attribute(
-            "data-lf-annotations", "hidden"
+        expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+            "data-lf-annotations-hidden", re.compile(".*")
         )
         page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+        # The highlight is registered at once, but WebKit can screenshot the link before
+        # it paints the re-registered mark, so read it after a rendering update.
+        rendered(page)
         again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         assert all(
             _apart(again[name][1], shown[name][1]) < SEEN_APART for name in shown
@@ -1137,7 +1157,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == token_colour(page, "--accent")
+        and mark["color"] == token_colour(page, "--lf-accent")
     )
 
 
@@ -1180,7 +1200,10 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
         "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = '';"
         " copy.removeAttribute('data-lf-proxied'); p.replaceWith(copy); }"
     )
-    expect_comment_notes(page, "#p1[data-redrawn]", 1)
+    rendered(page)
+    assert note.evaluate(
+        "note => document.getElementById('p1').ariaDetailsElements?.includes(note)"
+    )
     expect(note).to_be_focused()
     assert _ring_round(page, "#p1[data-redrawn]")
 
@@ -1220,8 +1243,7 @@ def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
           }
         }"""
     )
-    expect_comment_notes(page, "#p1[data-redrawn]", 1)
-    expect_comment_notes(page, "#p2[data-redrawn]", 1)
+    rendered(page)
     assert page.evaluate(
         """() => [...document.querySelectorAll('.lf-mark-note')].map((note) =>
           [...document.querySelectorAll('[aria-details]')].filter(
@@ -1234,6 +1256,42 @@ def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
           document.getElementById('p1').ariaDetailsElements.includes(window.__lfNote)"""
     )
     assert _ring_round(page, "#p1[data-redrawn]")
+
+
+def test_a_note_follows_its_words_into_another_block_while_their_first_stays(
+    browser, serve
+):
+    """A script that moves a commented passage's words into another block, leaving the
+    block they stood in on the page, takes the note with them: the block that now holds
+    the words names it, and the block they left names none."""
+    url = serve(NOTED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Moves on.",
+            "anchor": {"quote": "to land in it."},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('p1').firstChild;
+          const moved = text.splitText(text.data.indexOf('to land in it.'));
+          document.getElementById('p2').append(moved);
+        }"""
+    )
+    rendered(page)
+    assert page.evaluate(
+        """() => [...document.querySelectorAll('.lf-mark-note')].map((note) =>
+          [...document.querySelectorAll('[aria-details]')].filter(
+            (block) => block.isConnected && block.ariaDetailsElements?.includes(note),
+          ).map((block) => block.id),
+        )"""
+    ) == [["p2"]]
 
 
 def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
@@ -1281,9 +1339,13 @@ def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):
     )
     told(page)
     expect(page.locator("#p2")).to_be_attached()
-    page.wait_for_function(
-        """() => document.getElementById('p1').ariaDetailsElements
-            ?.map((el) => el.id || el.textContent).join('|') === 'p2|1 comment'"""
+    rendered(page)
+    assert (
+        page.evaluate(
+            """() => document.getElementById('p1').ariaDetailsElements
+              ?.map((el) => el.id || el.textContent).join('|')"""
+        )
+        == "p2|1 comment"
     )
 
 

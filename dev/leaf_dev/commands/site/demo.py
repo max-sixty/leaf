@@ -57,6 +57,7 @@ from leaf_dev.browser import (
     settle,
     tab,
 )
+from leaf_dev.claude_code_module import claude_code_module
 from leaf_dev.leaf_assets import publish, stage
 from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
@@ -97,7 +98,7 @@ def board_markup(board: dict[str, list[str]]) -> str:
     return "\n".join(
         f'  <lf-column id="{column}" label="{label}">\n'
         + "".join(
-            f'    <lf-card id="{card}"><strong>{CARDS[card]}</strong></lf-card>\n'
+            f'    <lf-card id="{card}" label="{CARDS[card]}"><strong>{CARDS[card]}</strong></lf-card>\n'
             for card in board[column]
         )
         + "  </lf-column>"
@@ -118,7 +119,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
         order = folded_positions(
             "punch-list",
             "move",
-            registry["lf-board"]["x-state"]["move"]["record"],
+            registry["lf-board"]["verbs"]["move"]["record"],
             AuthoredOrders(document.document.by_id, registry),
             document.projection,
         )
@@ -150,13 +151,15 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <html lang="en">
 <head>
 <title>Migration plan</title>
-<style>#demo-metrics dl {{ margin: 0; padding: var(--sp-3); border: 1px solid var(--rule); }} #demo-metrics dt {{ color: var(--muted); font: 500 var(--t-6)/1.3 var(--sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--t-2)/1.3 var(--sans); }} #demo-metrics dd small {{ font-size: var(--t-6); }}</style>
+<style>#demo-metrics dl {{ margin: 0; padding: var(--lf-sp-3); border: 1px solid var(--lf-rule); }} #demo-metrics dt {{ color: var(--lf-muted); font: 500 var(--lf-t-6)/1.3 var(--lf-sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--lf-t-2)/1.3 var(--lf-sans); }} #demo-metrics dd small {{ font-size: var(--lf-t-6); }}</style>
 </head>
 <body>
 <main class="layout-column">
 <header id="top">
-<p class="eyebrow">demo · migration rehearsal</p>
+<hgroup>
+<p>demo · migration rehearsal</p>
 <h1>Migrating billing to the new service</h1>
+</hgroup>
 <p class="lede" id="demo-lede">The rehearsal is running now. This page follows each
 new version as the checks finish.</p>
 </header>
@@ -169,7 +172,7 @@ new version as the checks finish.</p>
 
 <section id="phases">
 <h2>Phases</h2>
-<ol class="steps">
+<ol>
   <li id="p1">Dual-write to old and new stores behind a flag.</li>
   <li id="p2">{phase_two}</li>
   <li id="p3">Use an online traffic swap, then retire the old store.</li>
@@ -201,14 +204,14 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
-<lf-ask id="migration-approval-decision">
-<h2>Approve the migration plan?</h2>
+<lf-group id="migration-approval-decision" label="Approve the migration plan?">
+<h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
-<lf-options id="migration-approval" choose>
-<lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
-<lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
+<lf-options id="migration-approval">
+<lf-option id="migration-hold" label="Hold the rollout"><strong>Hold the rollout</strong></lf-option>
+<lf-option id="migration-approve" label="Approve the plan"><strong>Approve the plan</strong></lf-option>
 </lf-options>
-</lf-ask>
+</lf-group>
 </main>
 </body>
 </html>
@@ -246,8 +249,9 @@ class DemoWaiter:
         )
 
     def receive(self) -> list[dict]:
-        """The user events of one delivery. A wait that ends without them has said
-        why on stderr, so the failure carries it."""
+        """The user events of one delivery. A wait that ends without them says why
+        in its `findings`, and stderr holds anything else it printed, so the failure
+        carries both."""
         stdout, stderr = self.process.communicate(timeout=10)
         harness = session_harness()
         hooked = harness is not None and harness.hooks_carry()
@@ -266,7 +270,7 @@ class DemoWaiter:
         if len(batches) != 1 or not batches[0]["events"]:
             raise RuntimeError(
                 f"the demo waiter exited {self.process.returncode} without one batch "
-                f"of user events\n{stderr}".rstrip()
+                f"of user events\n{stdout}{stderr}".rstrip()
             )
         if not hooked:
             subprocess.run(
@@ -304,13 +308,16 @@ def wait_for_listening(page: Page, client: PageClient) -> dict:
 
 # The interaction rows a page server writes as its request for a thread's title ends.
 TITLE_ENDS = ("thread_title_generated", "thread_title_failed", "thread_title_skipped")
+# The title the demo's thread is given. The recording's session is its own, so no
+# hooks module answers its model requests; the recorder stands in for one, as it
+# stands in for the agent, and gives the scene the same title every run.
+DEMO_TITLE = "Keeping the backfill online"
 
 
 def wait_for_title(page_dir: Path) -> None:
-    """Wait until the page server has written the title the harness's model gave the
-    demo's one thread (`thread_titles.name_admitted_thread`), or fail with what its
-    request recorded. The model words the title afresh each run. A request ends by its
-    last retry for rate limits plus one request's time."""
+    """Wait until the page server has written the demo's one thread's title
+    (`thread_titles.name_admitted_thread`), or fail with what its request recorded. A
+    request ends by its last retry for rate limits plus one request's time."""
     patience = thread_titles.RETRY_FOR + inference.TIMEOUT
     deadline = time.monotonic() + patience
     # The reader keeps its own gap rows under any type filter.
@@ -508,6 +515,9 @@ def record_demo(output: Path | None) -> None:
     with (
         tempfile.TemporaryDirectory(prefix="leaf-demo-") as scratch,
         demo_session(Path(scratch)),
+        claude_code_module(
+            os.environ["CLAUDE_CODE_SESSION_ID"], json.dumps({"title": DEMO_TITLE})
+        ),
     ):
         recording = Path(scratch) / "demo"
         recording.mkdir()

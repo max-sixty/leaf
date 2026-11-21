@@ -33,9 +33,9 @@ finds its envelope. A batch whose page is gone, or whose events no longer match 
 page, is retired without writing (`delivery.receive_batch`).
 
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
-complete envelope as one line of JSON, or its pointer where Codex wouldn't show it
-whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn accepts it
-(`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
+complete envelope as a JSON block (`json_block`), or its pointer where Codex wouldn't
+show it whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn
+accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
 runs (`Harness.later_turn_takes_input`): the turn ends on its own answer, and the
 adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
@@ -81,8 +81,8 @@ draft withheld, so Stop lets the turn end on its own answer rather than continui
 it over the update. As the turn ends it releases the reservation,
 and a completed joined turn's final message is refused, so `TurnFold.commit`
 offers the update again as a correction (`prepare_reply_correction`), answered in
-a turn of its own. Rejected: queueing each delivery with `thread/queue/add`
-(#3357, reverted), which put every delivery in the transcript as a user message.
+a turn of its own. Rejected: queueing each delivery with `thread/queue/add`, which
+puts every delivery in the transcript as a user message.
 
 Codex's hooks import this module between steps and before Stop
 (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
@@ -118,7 +118,6 @@ from .delivery import (
     batch_refs,
     current_responses,
     deliverable,
-    delivery_path,
     delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
@@ -131,6 +130,7 @@ from .delivery import (
     validate_delivery_id,
 )
 from .harness import CodexHarness, Harness
+from .json_block import json_block
 from .refusals import Refused
 from .registry.schema import aware_instant
 from .service import (
@@ -967,13 +967,8 @@ class AppServerEvents:
 
     @staticmethod
     def final_text(turn: dict) -> str:
-        """Return a completed turn's reply: its final answer, or nothing for a turn
-        with none, whatever its opening said."""
-        return "\n\n".join(_final_answer(turn))
-
-    @staticmethod
-    def reply_so_far(turn: dict) -> str:
-        """Return the reply a still-running turn has written."""
+        """Return the reply a turn, running or completed, has written: its final
+        answer, or nothing for a turn with none, whatever its opening said."""
         return "\n\n".join(_final_answer(turn))
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
@@ -1422,7 +1417,7 @@ class TurnFold:
         elif self.reply_stream is not None:
             # An opening the turn completed while nobody was reading posts now.
             self.reply_stream.open(self.events.said_opening())
-            self.reply_stream.restore(self.events.reply_so_far(turn))
+            self.reply_stream.restore(self.events.final_text(turn))
 
     def absorb(self, message: dict) -> dict | None:
         """Fold one notification into this turn's readings, and put them on the page."""
@@ -2048,14 +2043,11 @@ class PreparedDelivery:
 
 
 def _readdress_record(path: Path) -> Path:
-    """Give a collecting record a fresh identity after a delivery collision."""
-    while True:
-        candidate = new_delivery_id()
-        replacement = path.with_name(f"{candidate}.json")
-        if replacement.exists() or delivery_path(candidate).exists():
-            continue
-        path.replace(replacement)
-        return replacement
+    """Give a collecting record a fresh identity where its id's envelope already
+    holds other input."""
+    replacement = path.with_name(f"{new_delivery_id()}.json")
+    path.replace(replacement)
+    return replacement
 
 
 @dataclass(frozen=True)
@@ -2145,11 +2137,7 @@ def append_batch(
     """Append fresh events to the task's one collecting record."""
     current = _collecting_record(session_id)
     if current is None:
-        while True:
-            delivery_id = new_delivery_id()
-            path = record_path(session_id, delivery_id)
-            if not path.exists() and not delivery_path(delivery_id).exists():
-                break
+        path = record_path(session_id, new_delivery_id())
         path.parent.mkdir(parents=True, exist_ok=True)
         record = Collecting(time.time(), ())
     else:
@@ -2248,11 +2236,7 @@ def offer_hook_delivery(
             return None, expected
         path, record = pending
         prepared = offer_delivery(path, record, transport=HookTurn(expected["turn"]))
-        context = json.dumps(
-            reader_envelope(prepared.payload),
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        context = json_block(reader_envelope(prepared.payload))
         return (
             context if CodexHarness.fits_hook_context(context) else prepared.prompt
         ), expected
@@ -2429,14 +2413,18 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
                 only_if_unclaimed=False,
                 claimed_session=session_id,
             )
+        # The failed pickup names every input the receipt passes, as every receipt's
+        # pickup does, so input the cursor passed that no pickup names is input a
+        # holder kept from the main thread (`delivery.deliverable`). On an input the
+        # failure answer settled it changes nothing: only an action still owed reads
+        # a failed pickup (`workflows`).
         with (
             PageTransaction(page_dir) as page,
             receive_batch(page, batch, session_id=session_id) as events,
         ):
-            owed = current_responses(page_dir, page.events)
             record_pickup(
                 page,
-                [event for event in events if event["id"] in owed],
+                list(events),
                 phase="failed",
                 session=session_id,
                 failure=UNCONFIRMED_DELIVERY,

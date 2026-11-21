@@ -28,31 +28,28 @@
         </p>
       </section>
 
-      <section id="approach">
-        <lf-ask id="approach-decision">
-          <h2>How should traffic move to the new index?</h2>
-          <p id="approach-premise">
-            Every approach keeps the old index until the new one has served a full day.
-            I recommend the alias swap, because it is the fastest and the rehearsal
-            shows the new index keeps up.
-          </p>
-          <lf-options id="rollout" choose>
-            <lf-option id="opt-alias-swap"
-              ><small class="tag ok">recommended</small
-              ><strong>Alias swap</strong> Point the search alias at the new index in
-              one step.</lf-option
-            >
-            <lf-option id="opt-shadow"
-              ><strong>Shadow reads first</strong> Send a copy of every query to the new
-              index for a day, then swap.</lf-option
-            >
-            <lf-option id="opt-per-tenant"
-              ><strong>Tenant by tenant</strong> Move tenants to the new index in groups
-              of ten.</lf-option
-            >
-          </lf-options>
-        </lf-ask>
-      </section>
+      <lf-group id="approach" label="How should traffic move to the new index?">
+        <h2 id="approach-h">How should traffic move to the new index?</h2>
+        <p id="approach-premise">
+          Every approach keeps the old index until the new one has served a full day. I
+          recommend the alias swap, because it is the fastest and the rehearsal shows
+          the new index keeps up.
+        </p>
+        <lf-options id="rollout">
+          <lf-option id="opt-alias-swap" label="Alias swap" recommended
+            ><strong>Alias swap</strong> Point the search alias at the new index in one
+            step.</lf-option
+          >
+          <lf-option id="opt-shadow" label="Shadow reads first"
+            ><strong>Shadow reads first</strong> Send a copy of every query to the new
+            index for a day, then swap.</lf-option
+          >
+          <lf-option id="opt-per-tenant" label="Tenant by tenant"
+            ><strong>Tenant by tenant</strong> Move tenants to the new index in groups
+            of ten.</lf-option
+          >
+        </lf-options>
+      </lf-group>
     </main>
   </body>
 </html>

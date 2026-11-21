@@ -12,7 +12,6 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
-    claude_code_module,
     fetch,
     publish,
     read_page_data,
@@ -23,9 +22,11 @@ from websockets.exceptions import WebSocketException
 from leaf import event_log, inference
 from leaf.hosting import TemporaryPageServer
 from leaf.http import PageEndpoint
+from leaf.json_block import json_block
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.revision_artifact import read_revision
+from leaf_dev.claude_code_module import claude_code_module
 
 SCHEMA = {
     "type": "object",
@@ -70,7 +71,7 @@ def test_llm_uses_claimants_login_and_host_model_without_persisting(
     # The completion takes no answer schema, so the system prompt carries it after
     # the widget's instructions.
     system = asked["request"]["system"]
-    assert system.startswith("Be concise") and system.endswith(json.dumps(SCHEMA))
+    assert system.startswith("Be concise") and system.endswith(json_block(SCHEMA))
     status, answer = infer(server, REQUEST | {"schema": {"type": "array"}})
     assert status == 502, answer
     assert "not of type 'array'" in answer["error"]
@@ -213,7 +214,7 @@ def test_llm_on_a_pi_page_validates_the_answer_against_the_schema(
     [call] = [json.loads(line) for line in record.read_text().splitlines()]
     assert call["stdin"] == REQUEST["input"]
     assert call["system_prompt"].startswith("Be concise\n\n")
-    assert json.dumps(SCHEMA) in call["system_prompt"]
+    assert json_block(SCHEMA) in call["system_prompt"]
     assert "--no-tools" in call["argv"]
 
     for prose in ("Sure! Here is a headline: From Pi", '{"title": "From Pi"}'):

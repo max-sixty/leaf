@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { assignRows } from "/runtime/time-axis.js";
 import {
   render as timelineView,
@@ -93,6 +93,16 @@ test("Steps visit starts in order: ties share a step and a span's end is no step
     [4200, ["a-write"]],
   ]);
   assert.equal(drawing.rows.length, steps.length);
+  // Bare lanes share the list's one column, which needs no head.
+  assert.equal(
+    drawing.chart.parentElement.querySelector(".lf-timeline-steps-head"),
+    null,
+  );
+  const [cell, ...others] = drawing.rows[0].querySelectorAll(".lf-timeline-step-cell");
+  assert.deepEqual(others, []);
+  assert.equal(cell.getAttribute("style"), null);
+  assert.equal(cell.dataset.lfQuiet, undefined);
+  assert.equal(cell.textContent, "A: a-readStore: store-start");
 });
 
 test("A step paints what came before as done and leaves later events open", () => {
@@ -191,13 +201,54 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
     .toSorted((a, b) => a[0] - b[0])
     .map(([, text]) => text);
   assert.deepEqual(rows, ["Before", "A", "B", "After", "A", "B"]);
-  // A step's row names each run once, before the first of its events.
+  // The step list names each run once, over its column, and a row puts each run's
+  // events in that run's column, its name a word for listeners.
   assert.deepEqual(
-    [...drawing.rows[0].querySelectorAll(".lf-timeline-step-event")].map(
-      (event) => event.textContent,
+    [...drawing.chart.parentElement.querySelectorAll(".lf-timeline-steps-run")].map(
+      (head) => [head.style.gridColumn, head.textContent],
     ),
-    ["Before · A: before-write", "B: before-start", "After · A: after-write"],
+    [
+      ["2", "Before"],
+      ["3", "After"],
+    ],
   );
+  const cells = (row) =>
+    [...row.querySelectorAll(".lf-timeline-step-cell")].map((cell) => [
+      cell.style.gridColumn,
+      cell.dataset.lfQuiet,
+      [...cell.querySelectorAll(".lf-timeline-step-event")].map(
+        (event) => event.textContent,
+      ),
+    ]);
+  assert.deepEqual(cells(drawing.rows[0]), [
+    ["2", "Before", ["A: before-write", "B: before-start"]],
+    ["3", "After", ["A: after-write"]],
+  ]);
+  assert.deepEqual(cells(drawing.rows[2]), [["3", "After", ["B: after-done"]]]);
+});
+
+test("The step list names a run or lane by its short form, and the chart by its label", () => {
+  const drawing = timeline(
+    `<lf-run label="Before the fix" abbr="Before">` +
+      `<lf-lane label="Main thread" abbr="M"><lf-event id="short-busy" label="Busy" at="0"></lf-event></lf-lane>` +
+      `<lf-lane label="Fork"><lf-event id="short-work" label="Works" at="0"></lf-event></lf-lane>` +
+      `</lf-run>`,
+  );
+  const view = drawing.chart.parentElement;
+  assert.deepEqual(
+    [...drawing.chart.querySelectorAll(".lf-timeline-run, .lf-timeline-name")].map(
+      (name) => name.textContent,
+    ),
+    ["Before the fix", "Main thread", "Fork"],
+  );
+  assert.equal(view.querySelector(".lf-timeline-steps-run").textContent, "Before");
+  // Listeners hear a short form's label instead.
+  const [short, full] = drawing.rows[0].querySelectorAll(".lf-timeline-step-lane");
+  assert.equal(short.dataset.lfQuiet, "Main thread");
+  assert.equal(short.querySelector('[aria-hidden="true"]').textContent, "M");
+  assert.equal(short.textContent, "M: ");
+  assert.equal(full.dataset.lfQuiet, undefined);
+  assert.equal(full.textContent, "Fork: ");
 });
 
 test("A run with no lanes keeps its heading, and a lane beside runs is reported", () => {

@@ -6,7 +6,11 @@ depending on a remote speech service or replacing a browser API.
 """
 
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_OBLIGATION_LAYER, SEATED_OBLIGATION_WIDGETS
+from render_cases_interaction import (
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
+    open_seat_box,
+)
 from render_harness import (
     leaf_page,
     open_page,
@@ -29,7 +33,9 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
                 "Comment dictation",
                 '<h1 id="title">Weekend service</h1>'
                 '<p id="passage">The shuttle runs every hour on Sunday.</p>'
-                '<lf-verdict id="proposal" asks>Should the shuttle run earlier?</lf-verdict>',
+                '<lf-group id="proposal-q" label="Should the shuttle run earlier?">'
+                '<lf-verdict id="proposal" asks>Should the shuttle run earlier?'
+                "</lf-verdict></lf-group>",
             ),
             layer_registry=SEATED_OBLIGATION_LAYER,
             layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -88,7 +94,8 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
     panel_field(page).press("Escape")
 
     # A widget's first message and its continuing reply use the same composer.
-    first = page.locator("#proposal > .lf-thread-seat > .lf-say")
+    seat, _box = open_seat_box(page, "#proposal")
+    first = seat.locator(".lf-fab-bar")
     field = enter_words(first, "An earlier shuttle would help.")
     with sending(page, "widget comment"):
         field.press("Enter")

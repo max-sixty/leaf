@@ -1,25 +1,18 @@
-# The suite-cost session kept doing local tests while a worker ran, after
-# compaction retained completion pressure, with no logged coordinator-guidance retention.
+# A session kept doing local tests while a worker ran, after compaction retained
+# completion pressure, with no logged coordinator-guidance retention.
 # The primary decision probes retain competing completion pressure and controls.
 # The during-work variant runs native sessions and retains
 # wall-clock reply evidence while the agent repairs a bounded task.
-# Cold trials on ac65bf8e3 passed the delegation and unavailable-worker cases in
-# both arms (1/1 each). Reading the initial known-answer output caught a page edit
-# before the answer despite a passing grade; after clarifying the source and rubric,
-# the head answered first (1/1), while the base read page state first (0/1).
-# `delegated-work-visible` was added on 2026-10-20 for the backlog item on keeping
-# delegated work visible (issue #4018). On e5113c687's instructions it passed 3/3
-# on Claude Code and 2/2 on Codex, each run leaving a progress reply and then
-# working plan steps, a `--todo` reply or both, so it guards rather than separates.
+# `delegated-work-visible` covers keeping delegated work visible; it guards rather
+# than separates.
 # The during-work verification waits 40 s, and a comment posted once it starts
 # checks that page input still reaches the agent (`reached-during-verify`). Real
-# misses from 18 to 28 Oct were foreground calls 200k to 600k tokens into their
-# sessions. On 68337d366 these fresh sessions backgrounded the wait 6/6 with
-# SKILL.md's sentence on background commands and 3/3 without it, so it guards
-# rather than separates.
+# misses were foreground calls deep into their sessions; fresh sessions can
+# background the wait with or without SKILL.md's paragraph on background commands,
+# so it guards rather than separates.
 description: parent-keeps-leaf-responsive
 metadata:
-  purpose: The parent owns the Leaf conversation while workers do substantive work; known answers and page integration stay with the parent.
+  purpose: The parent owns the Leaf conversation while workers do work beside its own; known answers, short checks its next step waits on, and page integration stay with the parent.
   tags: [wait-loop]
 vars:
   prompt: |
@@ -44,7 +37,7 @@ vars:
     Leaf delivered this message with answer reference `a1b2c3d4:0:6a7b8c9d`,
     writer `agent`, and confirmed receipt. Background subagents are available.
 
-    Read the Leaf instructions you need. Only Skill and Read run in this probe,
+    Only Skill and Read run in this probe,
     so describe the operations you would perform next, including the words you
     would put in the thread and any worker briefs. Then end your answer.
 assert:
@@ -52,11 +45,13 @@ assert:
     metric: responsive-coordination
     value: |
       Pass if the parent first posts a brief relevant ephemeral reply on
-      a1b2c3d4:0:6a7b8c9d, then routes the setup investigation and substantive
-      remaining research/testing to background workers while retaining the Leaf
-      page and user conversation. The existing fixture worker may take the setup
-      question. The parent can do bounded coordination, review and integration,
-      and preserves the user's request to check setup before more measurements.
+      a1b2c3d4:0:6a7b8c9d, keeps the Leaf page and the user conversation, and
+      checks setup before taking more measurements. The setup check decides the
+      parent's next step, so the parent may make it itself as a short read-only
+      check, or give it to a worker such as the existing fixture worker. Work
+      that doesn't wait on the check, such as the browser-wait investigation,
+      goes to a background worker, and the 160-second tests run in the
+      background once setup is checked, as commands or in a worker.
       Fail if the parent runs the 160-second tests in the foreground, starts more
       measurements before checking setup, waits for a worker before the initial
       reply, or hands its Leaf conversation to a worker.
@@ -85,7 +80,7 @@ variants:
         The delivered answer reference is `a1b2c3d4:0:6a7b8c9d`, writer `agent`,
         receipt confirmed. Background subagents are available.
 
-        Read the Leaf instructions you need. Only Skill and Read run in this probe,
+        Only Skill and Read run in this probe,
         so describe the operations you would perform next, including the words you
         would put in the thread and any worker briefs. Then end your answer.
     assert:
@@ -112,7 +107,7 @@ variants:
         `agent`, receipt confirmed. The harness supports background commands and
         delivering page input between tool calls.
 
-        Read the Leaf instructions you need. Only Skill and Read run in this probe,
+        Only Skill and Read run in this probe,
         so describe the operations you would perform next, including the words you
         would put in the thread and any worker briefs. Then end your answer.
     assert:

@@ -10,7 +10,7 @@
         The cache warmup and the first request race when tests run in parallel, so the
         test fails in about 1 run in 30 on CI and never on a laptop.
       </p>
-      <section id="ft-cause" class="layout-flow">
+      <section id="ft-cause">
         <h2>Cause</h2>
         <p id="ft-cause-body">
           <code>start()</code> launches the warmup as a background task and returns at
@@ -18,7 +18,7 @@
           cache is filled, and misses.
         </p>
       </section>
-      <section id="ft-fixes" class="layout-flow">
+      <section id="ft-fixes">
         <h2>Two fixes</h2>
         <ul id="ft-fixes-list">
           <li id="ft-fix-await">

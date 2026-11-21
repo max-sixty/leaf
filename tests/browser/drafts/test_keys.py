@@ -2,6 +2,7 @@
 alone, keys typed into Leaf's fields staying out of the page's listeners, the reading
 keys' steps, and the comparison's one door."""
 
+import math
 import re
 
 import pytest
@@ -87,14 +88,14 @@ def test_registered_control_keys_activate_once(browser, serve):
     mark = page.locator("#opts .lf-pick").first
     mark.focus()
     page.keyboard.press(" ")
-    expect(page.locator("#opts > lf-option[chosen]")).to_have_count(1)
-    chosen = page.locator("#opts > lf-option[chosen]").get_attribute("id")
+    expect(page.locator("#opts > lf-option[selected]")).to_have_count(1)
+    chosen = page.locator("#opts > lf-option[selected]").get_attribute("id")
     mark.evaluate("""el => {
         for (let i = 0; i < 5; i++)
             el.dispatchEvent(new KeyboardEvent('keydown',
                 {key: ' ', repeat: true, bubbles: true, cancelable: true}));
     }""")
-    expect(page.locator(f"#{chosen}[chosen]")).to_have_count(1)
+    expect(page.locator(f"#{chosen}[selected]")).to_have_count(1)
     # The mark paints its own press before the post answers, so the DOM leads the log:
     # read the file straight after and the first press's event may not be in it yet,
     # which reads exactly like a press that sent nothing. A press that sent nothing
@@ -270,8 +271,9 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve):
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
     ), "the page is too short for these steps to be told apart"
     # A callback's frame timestamp may predate performance.now() in the key handler.
-    # Make that browser timing deterministic: a negative first fraction used to write
-    # above the page, get clamped to zero, then cancel the glide as if the user moved.
+    # Make that browser timing deterministic: a negative first fraction that wrote
+    # above the page would get clamped to zero, then cancel the glide as if the user
+    # moved.
     page.evaluate(
         """downs => {
       const raf = requestAnimationFrame;
@@ -308,6 +310,11 @@ def reading_keys_walk(page, down, up):
         )
     )
 
+    def land(top):
+        """Where a glide aimed at `top` rests: every glide's goal is a whole pixel
+        (scrolling.js, `glideTo`), and each press adds its step to that goal."""
+        return math.floor(top + 0.5)
+
     def rests_at(act, expected):
         """Position after `act`, awaited at `expected` and handed to the assertion:
         the bounded wait consumes the arrival, and the assert is what speaks when
@@ -322,22 +329,21 @@ def reading_keys_walk(page, down, up):
             pass
         return page.evaluate("() => document.scrollingElement.scrollTop")
 
-    assert rests_at(lambda: page.keyboard.press(down), step) == pytest.approx(
-        step, abs=1
-    )
+    one = land(step)
+    assert rests_at(lambda: page.keyboard.press(down), one) == pytest.approx(one, abs=1)
 
     def twice():
         page.keyboard.down(down)
         page.keyboard.down(down)  # a held key emits a repeated keydown
         page.keyboard.up(down)
 
-    assert rests_at(twice, step * 3) == pytest.approx(step * 3, abs=1), (
+    three = land(land(one + step) + step)
+    assert rests_at(twice, three) == pytest.approx(three, abs=1), (
         "the second press measured from the glide in flight, so the two together "
         "moved less than their full distance"
     )
-    assert rests_at(lambda: page.keyboard.press(up), step * 2) == pytest.approx(
-        step * 2, abs=1
-    )
+    two = land(three - step)
+    assert rests_at(lambda: page.keyboard.press(up), two) == pytest.approx(two, abs=1)
 
     def taken():
         page.keyboard.press(down)
@@ -348,9 +354,9 @@ def reading_keys_walk(page, down, up):
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
         "the glide pressed on to its goal after the user took the box"
     )
-    assert rests_at(lambda: page.keyboard.press(down), 400 + step) == pytest.approx(
-        400 + step, abs=1
-    ), (
+    assert rests_at(
+        lambda: page.keyboard.press(down), land(400 + step)
+    ) == pytest.approx(land(400 + step), abs=1), (
         "the press after the user took the box measured from the goal the taking "
         "had cancelled rather than from where they left it"
     )
@@ -366,9 +372,9 @@ def reading_keys_walk(page, down, up):
     ) == pytest.approx(foot, abs=1)
     for _ in range(4):
         page.keyboard.press(down)  # nothing left to move, and nothing banked either
-    assert rests_at(lambda: page.keyboard.press(up), foot - step) == pytest.approx(
-        foot - step, abs=1
-    ), (
+    assert rests_at(
+        lambda: page.keyboard.press(up), land(foot - step)
+    ) == pytest.approx(land(foot - step), abs=1), (
         "presses at the foot of the page ran the destination past it, and reversing spent "
         "itself paying that back"
     )
@@ -458,12 +464,12 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
 
 
 def test_the_page_has_one_door_to_a_comparison(browser, serve):
-    """`=` marked what changed since the previous version from anywhere on the page, and
-    the case for it was that it named no version — "since the last one I saw" is a
-    question a user has without opening anything. Naming no version is also naming
-    nothing to check, and the two are not the same question: on a page that ships a
-    version whenever the work moves, a user back after a week got v(n-1) and no way to
-    see that they had. So the door is the menu, where every base says which one it is.
+    """A `=` that marks what changed since the previous version from anywhere on the
+    page has a case: it names no version — "since the last one I saw" is a question a
+    user has without opening anything. Naming no version is also naming nothing to
+    check, and the two are not the same question: on a page that ships a version
+    whenever the work moves, a user back after a week gets v(n-1) and no way to see
+    that they have. So the door is the menu, where every base says which one it is.
 
     Pressed rather than read off the table, on both sides: a key bound to nothing looks
     exactly like one that works in the command reference dialog, which is how the removal would go
@@ -491,6 +497,6 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
 
-    # The door, and it marks the same passage the key used to.
+    # The door, and it marks the same passage the key would.
     compare_with(page)
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))

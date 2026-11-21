@@ -1,5 +1,5 @@
 """Leaf's sheets set their words in the theme's type (tokens.css): every font size names
-one of its tokens, and the interface names one of its fonts (`--font-*`)."""
+one of its tokens, and the interface names one of its fonts (`--lf-font-*`)."""
 
 import re
 
@@ -17,19 +17,20 @@ from leaf.state import PLUGIN_ROOT
 # words by layout rather than with a line as tall as itself.
 #
 # Source a widget shows, such as a diff's lines, takes the code inputs themselves
-# (`--mono`, `--code-size`, `--code-line`), which are a source face's own values rather
+# (`--lf-mono`, `--lf-code-size`, `--lf-code-line`), which are a source face's own values rather
 # than a leading or size of the rule's. They are theme inputs a page may set on a
 # subtree, and they set the page's source rather than the interface's words, so no font
 # resolved at the root stands for them.
 OWN = {
     "font": lambda value: value == "inherit",
-    "font-family": lambda value: value in {"inherit", "var(--mono)"},
+    "font-family": lambda value: value in {"inherit", "var(--lf-mono)"},
     "font-size": lambda value: (
-        value in {"inherit", "0", "var(--code-size)", "max(var(--entry-floor), 1em)"}
+        value
+        in {"inherit", "0", "var(--lf-code-size)", "max(var(--lf-entry-floor), 1em)"}
     ),
-    "font-weight": lambda value: value in {"inherit", "400", "500", "600"},
+    "font-weight": lambda value: value in {"inherit", "bolder", "400", "500", "600"},
     "line-height": lambda value: (
-        value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--code-line)"}
+        value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--lf-code-line)"}
     ),
 }
 
@@ -87,15 +88,11 @@ def said(item):
 def test_every_rule_of_the_interface_names_a_declared_font():
     """A face Leaf's interface draws is one of a closed set, named where it is used.
 
-    The interface set each face where it stood, and drifted into near-duplicates: the
-    floating panel at 13px and 12px beside the chrome's 14px and 11.5px, a row's end a
-    pixel under whatever row held it, line heights from 1.2 to 1.5, weights of 450, 650
-    and 700. Each looked deliberate where it was written. A rule of the interface, one
-    that names an `lf-` element or class, now names a font, so a new face is a new font
-    in the theme's one list of them (styles/tokens.css), where it is seen beside the
-    others. The widgets' own faces had drifted the same way: a card, a note on a line
-    of source, a review and a playground's instruction each set the small sans on a
-    leading of 1.35, 1.5 or 1.55.
+    A face set where it stands, in the interface or a widget, drifts into
+    near-duplicates: sizes, line heights and weights a pixel or a step apart, each of
+    which looks deliberate where it was written. A rule of the interface, one that
+    names an `lf-` element or class, names a font, so a new face is a new font in the
+    theme's one list of them (styles/tokens.css), where it is seen beside the others.
 
     Asked of the source rather than of a rendered page, because that is where the face
     is chosen, and every sheet is read whether or not a page draws its rules: the
@@ -106,13 +103,13 @@ def test_every_rule_of_the_interface_names_a_declared_font():
         for _, item, _ in declarations(
             tinycss2.parse_stylesheet((ASSETS / "styles/tokens.css").read_text())
         )
-        if item.name.startswith("--font-")
+        if item.name.startswith("--lf-font-")
     }
-    assert {"--font-ui", "--font-small", "--font-message"} <= fonts, (
+    assert {"--lf-font-ui", "--lf-font-small", "--lf-font-message"} <= fonts, (
         f"tokens.css declares the fonts {sorted(fonts)}: this reading has stopped "
         f"finding them and the assertion below is about nothing"
     )
-    named = re.compile(r"var\((--font-[\w-]+)\)")
+    named = re.compile(r"var\((--lf-font-[\w-]+)\)")
 
     def names_a_font(item):
         font = named.fullmatch(said(item))
@@ -136,7 +133,7 @@ def test_every_rule_of_the_interface_names_a_declared_font():
                 own.append(f"{where} {' { '.join(context)} — {item.name}: {said(item)}")
     assert not own, (
         f"{len(own)} rules of the interface set a face of their own rather than naming "
-        f"a font (styles/tokens.css, `--font-*`):\n  " + "\n  ".join(own)
+        f"a font (styles/tokens.css, `--lf-font-*`):\n  " + "\n  ".join(own)
     )
 
 
@@ -233,8 +230,8 @@ def test_every_font_size_names_a_theme_token():
     set at it.
 
     A size names the theme when it names a custom property tokens.css declares. The
-    sizes there are the rungs (`--t-*`), the code size, the drawing sizes,
-    `--entry-floor` (the smallest size typed words take on a touch screen) and the fonts
+    sizes there are the rungs (`--lf-t-*`), the code size, the drawing sizes,
+    `--lf-entry-floor` (the smallest size typed words take on a touch screen) and the fonts
     built from them. The test doesn't tell those from the file's other properties, so a
     box's size used as a font size would pass, and it doesn't read a property tokens.css
     declares wherever it is set: those declarations, and a density's or theme's
@@ -267,43 +264,43 @@ def test_every_font_size_names_a_theme_token():
 
 def test_a_size_of_its_own_is_found_however_it_is_written():
     theme = """
-      :root { --t-5: 0.875rem; --sans: system-ui; --font-ui: var(--t-5) / 1.45 var(--sans); }
-      @media (pointer: coarse) { :root { --entry-floor: 16px; } }
+      :root { --lf-t-5: 0.875rem; --lf-sans: system-ui; --lf-font-ui: var(--lf-t-5) / 1.45 var(--lf-sans); }
+      @media (pointer: coarse) { :root { --lf-entry-floor: 16px; } }
     """
     follows = """
-      .rung { font-size: var(--t-5); }
-      .shorthand { font: 600 var(--t-5) / 20px var(--sans); }
-      .font { font: var(--font-ui); }
+      .rung { font-size: var(--lf-t-5); }
+      .shorthand { font: 600 var(--lf-t-5) / 20px var(--lf-sans); }
+      .font { font: var(--lf-font-ui); }
       .inherited { font-size: inherit; }
       .ratio code { font-size: 0.9em; }
       .percent { font-size: 82%; }
-      .floored { font-size: max(var(--entry-floor), 1em); }
-      .factor { font-size: calc(var(--t-5) * 1.2); }
+      .floored { font-size: max(var(--lf-entry-floor), 1em); }
+      .factor { font-size: calc(var(--lf-t-5) * 1.2); }
       .empty { font-size: 0; }
-      .widget { --widget-font: var(--t-5)/1.5 var(--sans); font: var(--widget-font); }
-      .dense { --t-5: 0.78125rem; }
+      .widget { --widget-font: var(--lf-t-5)/1.5 var(--lf-sans); font: var(--widget-font); }
+      .dense { --lf-t-5: 0.78125rem; }
     """
     own = """
       .pixels { font-size: 11px; }
-      .shorthand { font: 600 13px / 1.3 var(--sans); }
-      @media screen { .fluid { font-size: clamp(var(--t-5), 3.2cqi, var(--t-5)); } }
+      .shorthand { font: 600 13px / 1.3 var(--lf-sans); }
+      @media screen { .fluid { font-size: clamp(var(--lf-t-5), 3.2cqi, var(--lf-t-5)); } }
       .widget { --widget-size: 0.82rem; }
       .widget .text { font-size: var(--widget-size); }
       .bridge { --dependency-font-size-override: 13px; }
       .picked { font-size: smaller; }
       .undeclared { font-size: var(--nowhere); }
-      .fallback { font-size: var(--t-5, 12px); }
+      .fallback { font-size: var(--lf-t-5, 12px); }
       .system { font: menu; }
     """
     assert own_sizes({"follows.css": follows}, theme) == []
     assert own_sizes({"own.css": own}, theme) == [
         "own.css:2 .pixels — font-size: 11px",
-        "own.css:3 .shorthand — font: 600 13px / 1.3 var(--sans)",
-        "own.css:4 .fluid — font-size: clamp(var(--t-5), 3.2cqi, var(--t-5))",
+        "own.css:3 .shorthand — font: 600 13px / 1.3 var(--lf-sans)",
+        "own.css:4 .fluid — font-size: clamp(var(--lf-t-5), 3.2cqi, var(--lf-t-5))",
         "own.css:5 .widget — --widget-size: 0.82rem",
         "own.css:7 .bridge — --dependency-font-size-override: 13px",
         "own.css:8 .picked — font-size: smaller",
         "own.css:9 .undeclared — font-size: var(--nowhere)",
-        "own.css:10 .fallback — font-size: var(--t-5, 12px)",
+        "own.css:10 .fallback — font-size: var(--lf-t-5, 12px)",
         "own.css:11 .system — font: menu",
     ]

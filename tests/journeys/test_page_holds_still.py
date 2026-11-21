@@ -16,7 +16,11 @@ says how, and frames are held to that alone: the user's own scroll keeps the pla
 its path to the scroll's goal (`Place.travel`), a new thread drawn at once above it
 moves it by what the thread adds (what `Change.make` returns), and the dial's glide
 is passed over until it ends (`turn`). A case marked as failing expects only `Moved`,
-the verdict on where the place stood. Each case records what it measured (`moved`,
+the verdict on where the place stood: one the runtime gets wrong (`MOVES_ON_MAIN`), or
+one where a rule the user chose moves the place (`MOVES_BY_CHOICE`), so the choices
+that bound the guarantee are listed beside the cases that hold it. The places include
+a thread's two boxes over the page, its margin card and the floating panel's view of
+it (`floating_places`). Each case records what it measured (`moved`,
 `painted` and the rest) as JUnit properties, so a run's `--junitxml` holds the whole
 matrix.
 
@@ -39,6 +43,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    panel_settled,
     resized,
     scroll_settled,
     stamp_page,
@@ -49,7 +54,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import settle
+from leaf_dev.browser import go_to_threads, settle
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -161,9 +166,11 @@ def thread_page(serve):
     read = append_agent_reply(
         d, notes, "A short first paragraph.\n\nThe paragraph being read. " + WORDS * 2
     )["id"]
+    # The first two steps take a line each, so with `read` at the reading line the
+    # last message starts inside the window and the reply box below it.
     for n in range(4):
         user(notes, f"And then {n}?")
-        append_agent_reply(d, notes, f"Then step {n}. " + WORDS)
+        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
     user(long, "Show me the lines.")
     lines = append_agent_reply(d, long, LINES)["id"]
@@ -221,11 +228,17 @@ def diff_page(serve):
 
 
 def dial_page(serve, repeat=1):
-    """The detail example's incident report, with the words of the cause's first
-    paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds behind
-    the section's gist."""
-    source = named_source("detail").read_text()
-    start = source.index('<p id="detail-cause-1">') + len('<p id="detail-cause-1">')
+    """The incident report example without its chart, with the words of the cause's
+    first paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds
+    behind the section's gist. The places below were measured on the report's words
+    alone: the chart, a gist Skim keeps, moves where each line stands and which block
+    the browser anchors on."""
+    source = named_source("incident-report").read_text()
+    chart = source.index('<figure class="gist" id="incident-impact-chart">')
+    source = (
+        source[:chart] + source[source.index("</figure>", chart) + len("</figure>") :]
+    )
+    start = source.index('<p id="incident-cause-1">') + len('<p id="incident-cause-1">')
     end = source.index("</p>", start)
     words = " ".join([source[start:end]] * repeat)
     source = f"{source[:start]}<em>{words}</em>{source[end:]}"
@@ -286,9 +299,9 @@ DECISIONS_PAGE = leaf_page(
     + "</section>"
     + "".join(
         f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
-        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
-        f'<lf-options id="ways-{n}" choose><lf-option id="north-{n}">North</lf-option>'
-        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        f'<lf-group id="decide-{n}" label="Ask {n}: which way should part {n} go?"><h3 id="decide-{n}-h">Ask {n}: which way should part {n} go?</h3>'
+        f'<lf-options id="ways-{n}"><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-group></section>'
         for n in range(1, ASKS + 1)
     ),
 )
@@ -300,6 +313,34 @@ def decisions_page(serve):
     return Built(live_url(serve(DECISIONS_PAGE)), serve.page_dir, DECISIONS_PAGE)
 
 
+FLOATING_PAGE = leaf_page(
+    "Floating", '<h1 id="title">Floating</h1>' + paragraphs(0, 90)
+)
+
+
+def floating_page(serve):
+    """Ninety paragraphs, with two threads on words of the page, which the margin shows
+    as rows and opens as cards: `told`, where the agent spoke last, so its next message
+    is news, and `asked`, where the user did, so its next message is the answer they
+    wait for."""
+    url = serve(FLOATING_PAGE)
+    d = serve.page_dir
+
+    def turn(thread, author, text):
+        event = {"kind": "reply", "author": author, "parent": thread, "text": text}
+        if author == "agent":
+            return append_agent_reply(d, thread, text)["id"]
+        return append_carried_log_record(d, event)["id"]
+
+    told = panel_comment(d, "Does paragraph 20 hold?", {"section": "p-20"}, "agent")
+    turn(told, "user", "It does, I think.")
+    turn(told, "agent", "Good. " + WORDS)
+    asked = panel_comment(d, "Does paragraph 22 hold?", {"section": "p-22"}, "agent")
+    turn(asked, "agent", "It may. " + WORDS)
+    turn(asked, "user", "Which part of it?")
+    return Built(live_url(url), d, FLOATING_PAGE, {"told": told, "asked": asked})
+
+
 PAGES = {
     "thread": thread_page,
     "map": map_page,
@@ -309,6 +350,7 @@ PAGES = {
     "pane": pane_page,
     "queue": queue_page,
     "decisions": decisions_page,
+    "floating": floating_page,
 }
 
 # ---------------------------------------------------------------------------------
@@ -456,21 +498,24 @@ def put_pin(page, built):
     page.locator(PIN).first.hover()
 
 
-# The pin the thread the user works in stands at in the margin, by its seat's head.
-JOBS_PIN = '[data-lf-margin-for="jobs"] .lf-margin-marker'
+# Resolve at the head of the thread the user works in. The task seats the thread, so
+# the margin holds no pin for it.
+JOBS_RESOLVE = (
+    '.lf-page-thread[data-lf-thread="$jobs"] button[aria-label="Resolve thread"]'
+)
 
 
-def put_typing_pin(page, built):
-    """Type in the reply box, then rest the pointer on its thread's margin pin, in sight
+def put_typing_on_resolve(page, built):
+    """Type in the reply box, then rest the pointer on its thread's Resolve, in sight
     above it, as a user glancing at the thread does; focus stays in the box."""
     type_in_reply(page, built)
-    pin = page.locator(JOBS_PIN).first
-    assert pin.evaluate(
-        "(pin, box) => pin.getBoundingClientRect().bottom > 0"
-        " && pin.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
+    resolve = page.locator(ids_in(JOBS_RESOLVE, built))
+    assert resolve.evaluate(
+        "(resolve, box) => resolve.getBoundingClientRect().bottom > 0"
+        " && resolve.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
         page.locator(ids_in(reply_box("jobs"), built)).element_handle(),
-    ), "the pin doesn't stand in sight above the reply box"
-    pin.hover()
+    ), "Resolve doesn't stand in sight above the reply box"
+    resolve.hover()
 
 
 # Over the page's right edge, past the column: its background, no control and no words.
@@ -633,6 +678,14 @@ def put_reading_unfocused(page, built):
     nothing_focused(page)
 
 
+def put_reading_under_thread(page, built):
+    """Read a paragraph of the page two thirds down the window, under the threads of
+    the first plan, having focused nothing on the page: a reader who only reads."""
+    scroll_to(page, "#p-33", 600)
+    expect(page.locator(thread_of(built, "jobs"))).to_be_in_viewport()
+    nothing_focused(page)
+
+
 def put_diff_reading(page, built):
     """Read the diff's twenty-eighth new line at the reading line, having focused
     nothing on the page."""
@@ -674,7 +727,7 @@ GUTTER_COMMENT = f"""() => {{
 def put_dial(motion, at=900 * 0.25 - 10):
     def put(page, built):
         page.emulate_media(reduced_motion=motion)
-        scroll_to(page, "#detail-cause-1", at)
+        scroll_to(page, "#incident-cause-1", at)
 
     return put
 
@@ -684,9 +737,9 @@ def put_dial(motion, at=900 * 0.25 - 10):
 # on through the turn back to Read. Each is read as the box of its first word's first
 # letter, so the em's inline box and the gist's block compare line for line.
 DIAL_READING = """() => {
-  const em = document.querySelector('#detail-cause-1 em');
+  const em = document.querySelector('#incident-cause-1 em');
   if (!em.checkVisibility()) window.__lfDialFolded = true;
-  const read = window.__lfDialFolded ? document.getElementById('detail-cause-gist') : em;
+  const read = window.__lfDialFolded ? document.getElementById('incident-cause-gist') : em;
   const text = read.firstChild;
   const at = text.data.search(/\\S/);
   const range = document.createRange();
@@ -701,9 +754,9 @@ DIAL_READING = """() => {
 # own letters half a leading lower, 2.1-2.5px, a step below what the eye takes in
 # across a fold.
 DIAL_WORDS = """() => {
-  const em = document.querySelector('#detail-cause-1 em');
+  const em = document.querySelector('#incident-cause-1 em');
   if (!em.checkVisibility()) window.__lfDialFolded = true;
-  if (window.__lfDialFolded) return document.getElementById('detail-cause-gist');
+  if (window.__lfDialFolded) return document.getElementById('incident-cause-gist');
   if (window.__lfDialWords) return window.__lfDialWords;
   const {offsetNode: text, offset} = document.caretPositionFromPoint(
     em.parentElement.getBoundingClientRect().left + 1, innerHeight / 4);
@@ -729,7 +782,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -754,7 +807,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
@@ -771,6 +824,134 @@ def put_on_me_turned_back(page, built):
     card = cards.filter(has_text="Ask 6:")
     expect(card).to_be_in_viewport()
     card.hover()
+
+
+CARD = ".lf-margin-preview:not([hidden])"
+CARD_REPLY = f"{CARD} .lf-thread-reply leaf-text"
+CARD_RESOLVE = f'{CARD} button[aria-label="Resolve thread"]'
+CARD_SEND = f"{CARD} .lf-thread-reply .lf-compose-submit"
+PANEL_VIEW = '.lf-fp-view[data-lf-route="thread"]:not([data-lf-leaving])'
+PANEL_REPLY = ".lf-floating-panel .lf-thread-reply leaf-text"
+PANEL_RESOLVE = '.lf-floating-panel .lf-fp-head button[aria-label="Resolve thread"]'
+PANEL_SEND = ".lf-floating-panel .lf-compose-submit"
+
+
+def rest(page, on, tabbed):
+    """Rest the pointer on `on`, which Tab from the reply box focused first where
+    `tabbed`, or aside on no control."""
+    if tabbed:
+        page.keyboard.press("Tab")
+        expect(page.locator(on).first).to_be_focused()
+    if on:
+        page.locator(on).first.hover()
+    else:
+        page.mouse.move(*ASIDE)
+
+
+def open_card(page, built, thread):
+    """Open `thread`'s margin card by a click on its row's marker, its words a third of
+    the way down the window; the click leaves the caret in the card's reply box."""
+    section = {"told": "p-20", "asked": "p-22"}[thread]
+    scroll_to(page, f"#{section}", 300)
+    page.locator(f'[data-lf-margin-for="{section}"] .lf-margin-marker').first.click()
+    card = page.locator(CARD)
+    expect(
+        card.locator(f'.lf-page-thread[data-lf-thread="{built.ids[thread]}"]')
+    ).to_be_visible()
+    settle(page)
+    return card
+
+
+def put_card(thread, *, words=False, on=None, tabbed=False, left=False):
+    def put(page, built):
+        card = open_card(page, built, thread)
+        if words:
+            card.get_by_role("textbox", name="Reply", exact=True).click()
+            page.keyboard.type("Half a thought")
+        if left:
+            page.keyboard.press("Escape")
+            expect(card.locator(".lf-page-thread")).to_be_focused()
+        rest(page, on, tabbed)
+
+    return put
+
+
+def put_panel(thread, *, words=False, on=None, tabbed=False, left=False):
+    def put(page, built):
+        """Open `thread` in the floating panel from Threads."""
+        scroll_to(page, "#p-20", 300)
+        go_to_threads(page)
+        topic = {"told": "paragraph 20", "asked": "paragraph 22"}[thread]
+        page.locator(".lf-fp-thread", has_text=topic).click()
+        view = page.locator(PANEL_VIEW)
+        expect(view).to_be_visible()
+        panel_settled(page)
+        if words:
+            page.locator(PANEL_REPLY).click()
+            page.keyboard.type("Half a thought")
+        if left:
+            page.keyboard.press("Escape")
+            expect(view).to_be_focused()
+        rest(page, on, tabbed)
+
+    return put
+
+
+def floating_places():
+    """The places in a thread's two floating boxes, the margin card and the floating
+    panel's view: writing a reply, on Send with the reply written, the caret in the
+    empty reply box, on the thread itself, where a send and Escape from the box leave
+    the user, which waits at its reply box (thread/reply-landing.js, `standsAt`), and
+    the pointer resting on Resolve at the box's head, with and without words in the
+    reply box, in a thread whose next message is news (`told`) and in one whose next
+    message answers the user (`asked`)."""
+    for thread in ("told", "asked"):
+        for box, put, reply, resolve, send in (
+            ("card", put_card, CARD_REPLY, CARD_RESOLVE, CARD_SEND),
+            ("panel", put_panel, PANEL_REPLY, PANEL_RESOLVE, PANEL_SEND),
+        ):
+            yield Place(
+                f"{box}-typing-{thread}",
+                "floating",
+                put(thread, words=True),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-send-{thread}",
+                "floating",
+                put(thread, words=True, on=send, tabbed=True),
+                Found(send),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-caret-{thread}",
+                "floating",
+                put(thread),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-thread-{thread}",
+                "floating",
+                put(thread, left=True),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-resolve-{thread}",
+                "floating",
+                put(thread, on=resolve),
+                Found(resolve),
+                {"thread below": thread},
+            )
+            yield Place(
+                f"{box}-writing-on-resolve-{thread}",
+                "floating",
+                put(thread, words=True, on=resolve),
+                Found(resolve),
+                {"thread below": thread},
+            )
 
 
 PLACES = [
@@ -854,9 +1035,9 @@ PLACES = [
         {"thread above": "jobs"},
     ),
     Place(
-        "typing-pin",
+        "typing-on-resolve",
         "thread",
-        put_typing_pin,
+        put_typing_on_resolve,
         Found(reply_box("jobs")),
         {"thread above": "jobs"},
     ),
@@ -876,6 +1057,13 @@ PLACES = [
         put_reading_unfocused,
         Found('.lf-msg[data-lf-event="$read"] p', "being read"),
         {"paragraph above": "read"},
+    ),
+    Place(
+        "reading-under-thread",
+        "thread",
+        put_reading_under_thread,
+        Found("#p-33"),
+        {"thread above": "jobs"},
     ),
     Place(
         "reading-lines",
@@ -934,7 +1122,7 @@ PLACES = [
         "dial",
         put_dial("no-preference"),
         DIAL_READING,
-        {"dial": None, "glided": "detail-impact-gist"},
+        {"dial": None, "glided": "incident-impact-gist"},
     ),
     Place("dial-reduced", "dial", put_dial("reduce"), DIAL_READING, {"dial": None}),
     Place(
@@ -959,6 +1147,7 @@ PLACES = [
         Found(".lf-fp-on-item", "Ask 6:"),
         {"ask above": "ask-0"},
     ),
+    *floating_places(),
 ]
 
 # ---------------------------------------------------------------------------------
@@ -1079,8 +1268,10 @@ def reply(side):
             lambda: page.wait_for_function(
                 """([selector, count]) => {
                   const thread = document.querySelector(selector);
+                  const shown = (news) => news && news.checkVisibility();
                   return thread.querySelectorAll('.lf-msg').length > count
-                    || thread.querySelector('.lf-thread-news');
+                    || shown(thread.querySelector('.lf-thread-news'))
+                    || shown(document.querySelector('.lf-fp-news-outlet .lf-thread-news'));
                 }""",
                 arg=[selector, count],
             ),
@@ -1095,7 +1286,8 @@ def note_news(page, built, inside):
     notice, which says what reached the place."""
     built.notes["news"] = page.evaluate(
         """(selector) => document.querySelector(selector)
-          .closest('.lf-page-thread').querySelector('.lf-thread-news')
+          .closest('.lf-page-thread').querySelector('.lf-thread-news')?.checkVisibility()
+          || document.querySelector('.lf-fp-news-outlet .lf-thread-news')?.checkVisibility()
           ? 'held' : 'drawn'""",
         inside,
     )
@@ -1354,7 +1546,7 @@ def turn(page, label):
     "Controls stay where the user aims"), so the frames from the press until it ends
     are marked `gliding` (`ARM`) and the place's check passes over them; the frame it
     ends in and every one after are held to the place."""
-    depth = page.get_by_role("radio", name=label, exact=True)
+    depth = page.get_by_role("radio", name=re.compile(rf"^{label} \d+ min$"))
     box = depth.bounding_box()
     page.evaluate("() => { window.__lfPlaceRecord.turning = true; }")
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -1367,11 +1559,11 @@ def turn(page, label):
 def dial_turn(page, built, target, place):
     """Skim, which folds the paragraph read behind its section's gist, then Read."""
     turn(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
     settle(page)
     checkpoint(page, "skimmed")
     turn(page, "Read")
-    expect(page.locator("#detail-cause-1")).to_be_visible()
+    expect(page.locator("#incident-cause-1")).to_be_visible()
 
 
 LATE_IMAGE = (
@@ -1399,7 +1591,7 @@ def grown_after_glide(page, built, target, place):
     )
     holding(page, held, 1, "the image's load")
     turn(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
     settle(page)
     checkpoint(page, "skimmed")
     held[0].fulfill(status=200, content_type="image/svg+xml", body=LATE_IMAGE)
@@ -1557,7 +1749,7 @@ DIFF_READING = (
 )
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
-    "the glide; Chromium held it before #5397"
+    "the glide"
 )
 
 # The cases the runtime fails today, with what each measured: a fix flips one to a
@@ -1586,6 +1778,58 @@ MOVES_ON_MAIN = {
 }
 
 
+# The cases where the place moves because the user chose the rule that moves it: the
+# rule's owner records the choice, and a change of mind there flips the case to a pass,
+# whose strict mark then fails until its entry goes.
+EMPTY_REPLY = (
+    "a card grows down past the empty reply box an opening left the caret in, or the "
+    "thread a send left the user on, 239px, so the answer shows under the words read "
+    "(thread-preview.js, the user's choices)"
+)
+# News that grows a thread's box may carry its secondary controls from under a resting
+# pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
+# "News moves what the reader reads only in the thread they are in").
+SECONDARY = " (browser/AGENTS.md, the user's choice)"
+RESOLVE_IN_PANEL = (
+    "the panel's view grows from its top edge for the answer the user waits for and "
+    "carries Resolve 216px up from under the pointer resting on it, where a message's "
+    "pencil then stands" + SECONDARY
+)
+RESOLVE_ON_CARD = (
+    "the card lifts beside its subject for the reply and carries Resolve 93-93.5px up "
+    "from under the pointer resting on it, where a reply's reaction press then stands"
+    + SECONDARY
+)
+RESOLVE_OVER_WORDS = (
+    "the card holds its foot under the words in its reply box, grows up for the reply "
+    "and carries Resolve 284-284.5px up from under the pointer resting on it"
+    + SECONDARY
+)
+MOVES_BY_CHOICE = {
+    **{
+        f"card-{place}-{thread}-reply-above-{engine}": EMPTY_REPLY
+        for place in ("caret", "thread")
+        for thread in ("told", "asked")
+        for engine in ENGINES.values()
+    },
+    **{
+        f"panel-{place}-asked-reply-below-{engine}": RESOLVE_IN_PANEL
+        for place in ("resolve", "writing-on-resolve")
+        for engine in ENGINES.values()
+    },
+    **{
+        f"card-resolve-{thread}-reply-below-{engine}": RESOLVE_ON_CARD
+        for thread in ("told", "asked")
+        for engine in ENGINES.values()
+    },
+    **{
+        f"card-writing-on-resolve-{thread}-reply-below-{engine}": RESOLVE_OVER_WORDS
+        for thread in ("told", "asked")
+        for engine in ENGINES.values()
+    },
+}
+
+
 def cases():
     for place in PLACES:
         for change in CHANGES:
@@ -1593,7 +1837,7 @@ def cases():
                 continue
             for fixture, engine in ENGINES.items():
                 case = f"{place.name}-{change.name}-{engine}"
-                reason = MOVES_ON_MAIN.get(case)
+                reason = MOVES_ON_MAIN.get(case) or MOVES_BY_CHOICE.get(case)
                 marks = (
                     [pytest.mark.xfail(strict=True, raises=Moved, reason=reason)]
                     if reason

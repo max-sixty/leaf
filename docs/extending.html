@@ -13,48 +13,48 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
       .package-next {
-        margin-top: var(--sp-4);
+        margin-top: var(--lf-sp-4);
       }
       .package-next dt {
-        margin-top: var(--sp-2);
+        margin-top: var(--lf-sp-2);
       }
       .package-next dd {
-        color: var(--ink-2);
+        color: var(--lf-ink-2);
       }
       .package-catalog {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-3);
-        margin-block: var(--sp-4);
+        gap: var(--lf-sp-3);
+        margin-block: var(--lf-sp-4);
       }
       .package-card {
         display: block;
-        padding: var(--sp-4);
-        border: 1px solid var(--border-2);
-        border-radius: var(--r);
+        padding: var(--lf-sp-4);
+        border: 1px solid var(--lf-border);
+        border-radius: var(--lf-r);
         color: inherit;
         text-decoration: none;
       }
       .package-card strong,
       .package-card span {
         display: block;
-        margin-bottom: var(--sp-2);
+        margin-bottom: var(--lf-sp-2);
       }
       .package-card strong {
-        font: 600 var(--t-3) / 1.25 var(--serif);
+        font: 600 var(--lf-t-3) / 1.25 var(--lf-serif);
       }
       .package-card span {
-        color: var(--ink-2);
+        color: var(--lf-ink-2);
       }
       .package-card em {
-        color: var(--accent);
-        font: 600 var(--t-6) / 1.4 var(--sans);
+        color: var(--lf-accent);
+        font: 600 var(--lf-t-6) / 1.4 var(--lf-sans);
         font-style: normal;
         letter-spacing: 0.035em;
         text-transform: uppercase;
       }
       .package-card:is(:hover, [data-lf-focus]) {
-        border-color: var(--accent);
+        border-color: var(--lf-accent);
       }
       @media (max-width: 640px) {
         .package-catalog {
@@ -68,7 +68,7 @@
       .try {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-        gap: var(--sp-4);
+        gap: var(--lf-sp-4);
         align-items: center;
         --lf-holds-edge: 1;
       }
@@ -80,12 +80,12 @@
         display: grid;
         grid-template-columns: auto 1fr;
         align-items: center;
-        gap: 2px var(--sp-2);
+        gap: 2px var(--lf-sp-2);
         padding: 8px 12px;
         border: 1px solid var(--band);
-        border-radius: var(--r);
+        border-radius: var(--lf-r);
         background: var(--band-tint);
-        font: var(--t-5) / 1.45 var(--sans);
+        font: var(--lf-t-5) / 1.45 var(--lf-sans);
         cursor: pointer;
       }
       .try-rules .try-decl {
@@ -93,16 +93,16 @@
         justify-self: start;
       }
       .try-rules label.page {
-        --band: var(--accent);
-        --band-tint: var(--accent-tint);
+        --band: var(--lf-accent);
+        --band-tint: var(--lf-accent-tint);
       }
       .try-rules label.pkg {
-        --band: var(--ok);
-        --band-tint: var(--ok-tint);
+        --band: var(--lf-ok);
+        --band-tint: var(--lf-ok-tint);
       }
       .try-rules label:has(input:not(:checked)) {
         --band-tint: transparent;
-        color: var(--muted);
+        color: var(--lf-muted);
       }
       .try-rules label:has(input:not(:checked)) .try-decl {
         text-decoration: line-through;
@@ -118,23 +118,23 @@
         accent-color: var(--band);
       }
       .try-stage {
-        padding: var(--sp-4);
-        border: 1px dashed var(--rule);
-        border-radius: var(--r);
+        padding: var(--lf-sp-4);
+        border: 1px dashed var(--lf-rule);
+        border-radius: var(--lf-r);
       }
       .try-card {
         padding: var(--try-pad, 0px);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--try-tint, var(--field));
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--try-tint, var(--lf-field));
       }
       .try-says {
         margin: 0;
         padding: 6px 10px;
-        border: 1px solid var(--rule);
-        border-radius: calc(var(--r) / 2);
-        background: var(--paper);
-        font: var(--t-5) / 1.45 var(--sans);
+        border: 1px solid var(--lf-rule);
+        border-radius: calc(var(--lf-r) / 2);
+        background: var(--lf-paper);
+        font: var(--lf-t-5) / 1.45 var(--lf-sans);
       }
       .try-says::before {
         content: var(--try-says, "No rule sets the padding, so it is 0.");
@@ -142,20 +142,20 @@
       @layer lf-base {
         #styles-try:has(#try-widget:checked) .card.featured {
           --try-pad: 8px;
-          --try-tint: var(--ok-tint);
+          --try-tint: var(--lf-ok-tint);
           --try-says: "Padding 8px, from the widget's package";
         }
       }
       @layer lf-overrides {
         #styles-try:has(#try-theme:checked) .card {
           --try-pad: 18px;
-          --try-tint: var(--ok-tint);
+          --try-tint: var(--lf-ok-tint);
           --try-says: "Padding 18px, from the theme package";
         }
       }
       #styles-try:has(#try-page:checked) .card {
         --try-pad: 32px;
-        --try-tint: color-mix(in srgb, var(--accent) 28%, var(--paper));
+        --try-tint: color-mix(in srgb, var(--lf-accent) 28%, var(--lf-paper));
         --try-says: "Padding 32px, from the page's <style>";
       }
 
@@ -165,7 +165,7 @@
       .developer-galleries {
         margin-block: 96px 80px;
         padding-top: 36px;
-        border-top: 1px solid var(--border-2);
+        border-top: 1px solid var(--lf-border);
         --lf-block-frame: 1;
       }
       .developer-galleries-copy > p:last-of-type {
@@ -177,7 +177,7 @@
         gap: 24px;
         align-items: center;
         padding: 18px 0;
-        border-top: 1px solid var(--border-2);
+        border-top: 1px solid var(--lf-border);
         color: inherit;
         text-decoration: none;
       }
@@ -185,26 +185,26 @@
         margin-top: 24px;
       }
       .developer-gallery-link:last-of-type {
-        border-bottom: 1px solid var(--border-2);
+        border-bottom: 1px solid var(--lf-border);
       }
       .developer-gallery-link strong,
       .developer-gallery-description {
         display: block;
       }
       .developer-gallery-link strong {
-        font: 600 var(--t-3) / 1.25 var(--serif);
+        font: 600 var(--lf-t-3) / 1.25 var(--lf-serif);
         letter-spacing: -0.008em;
       }
       .developer-gallery-description {
         max-width: 52ch;
         margin-top: 5px;
-        color: var(--ink-2);
-        font-size: var(--t-5);
+        color: var(--lf-ink-2);
+        font-size: var(--lf-t-5);
         line-height: 1.5;
       }
       .developer-gallery-open {
-        color: var(--accent);
-        font: 600 var(--t-6) / 1.4 var(--sans);
+        color: var(--lf-accent);
+        font: 600 var(--lf-t-6) / 1.4 var(--lf-sans);
         letter-spacing: 0.035em;
         text-transform: uppercase;
       }
@@ -217,8 +217,8 @@
         transform: translate(2px, -2px);
       }
       .developer-gallery-link[data-lf-focus-visible] {
-        outline: var(--focus-ring);
-        outline-offset: var(--focus-ring-gap);
+        outline: var(--lf-focus-ring);
+        outline-offset: var(--lf-focus-ring-gap);
       }
       .reference-index {
         display: flex;
@@ -226,7 +226,7 @@
         gap: 6px 20px;
         margin: 18px 0 40px;
         padding: 14px 0;
-        border-block: 1px solid var(--rule);
+        border-block: 1px solid var(--lf-rule);
         --lf-block-frame: 1;
       }
       .reference-index a {
@@ -239,24 +239,33 @@
         padding: 0;
         overflow-wrap: normal;
         background: none;
-        font-size: var(--t-5);
+        font-size: var(--lf-t-5);
         white-space: nowrap;
       }
       .reference-entry {
         display: grid;
         grid-template-columns: 9rem minmax(0, 1fr);
-        gap: var(--sp-3);
+        gap: var(--lf-sp-3);
         margin: 0;
         padding: 18px 0;
-        border-bottom: 1px solid var(--rule);
+        border-bottom: 1px solid var(--lf-rule);
         scroll-margin-top: 18px;
       }
-      .reference-entry h3 {
+      .reference-section {
+        margin: 40px 0 0;
+      }
+      .reference-section-intro {
+        margin: 6px 0 0;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--lf-rule);
+        color: var(--lf-ink-2);
+      }
+      .reference-entry h4 {
         margin: 0;
-        font-size: var(--t-4);
+        font-size: var(--lf-t-4);
         line-height: 1.6;
       }
-      .reference-entry h3 code {
+      .reference-entry h4 code {
         overflow-wrap: normal;
         font-size: 84%;
         white-space: nowrap;
@@ -273,26 +282,26 @@
       }
       .reference-more > summary {
         width: max-content;
-        color: var(--accent);
-        font: 500 var(--t-5) / 1.5 var(--sans);
+        color: var(--lf-accent);
+        font: 500 var(--lf-t-5) / 1.5 var(--lf-sans);
       }
       .reference-more > p {
         margin: 8px 0 0;
-        color: var(--ink-2);
+        color: var(--lf-ink-2);
       }
       .reference-entry:target {
-        border-bottom-color: var(--accent);
+        border-bottom-color: var(--lf-accent);
       }
-      .reference-entry:target h3 code {
-        color: var(--accent);
+      .reference-entry:target h4 code {
+        color: var(--lf-accent);
       }
       @media screen and (max-width: 640px) {
         .reference-index {
-          column-gap: var(--sp-3);
+          column-gap: var(--lf-sp-3);
         }
         .reference-entry {
           grid-template-columns: minmax(0, 1fr);
-          gap: var(--sp-1);
+          gap: var(--lf-sp-1);
         }
       }
       /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
@@ -313,13 +322,13 @@
       }
       .panels figcaption,
       figure.fig figcaption {
-        font: 14px/1.45 var(--sans);
-        color: var(--muted);
+        font: 14px/1.45 var(--lf-sans);
+        color: var(--lf-muted);
         margin-top: 10px;
       }
       .panels figcaption strong,
       figure.fig figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
@@ -339,28 +348,28 @@
          svg.drawing idiom: the rail, a surface drawn over the page, an
          attribute's outline, a split that lands somewhere new, and a scroll thumb. */
       svg.drawing .rail {
-        fill: var(--accent-tint);
+        fill: var(--lf-accent-tint);
       }
       svg.drawing .over {
-        fill: var(--paper);
+        fill: var(--lf-paper);
         fill-opacity: 0.92;
-        stroke: var(--accent);
+        stroke: var(--lf-accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
       svg.drawing .attr {
         fill: none;
-        stroke: var(--ok);
+        stroke: var(--lf-ok);
         stroke-width: 1.5;
         stroke-dasharray: 2 3;
       }
       svg.drawing .split {
-        stroke: var(--danger);
+        stroke: var(--lf-danger);
         stroke-width: 1.2;
         stroke-dasharray: 4 3;
       }
       svg.drawing .thumb {
-        fill: var(--muted);
+        fill: var(--lf-muted);
         opacity: 0.6;
       }
 
@@ -376,7 +385,7 @@
 
       .layout-scope {
         display: block;
-        color: var(--muted);
+        color: var(--lf-muted);
       }
     </style>
   </head>
@@ -385,8 +394,10 @@
       <nav class="sitenav" aria-label="Site"></nav>
 
       <header id="top">
-        <p class="eyebrow">extending</p>
-        <h1>Extending Leaf</h1>
+        <hgroup>
+          <p>extending</p>
+          <h1>Extending Leaf</h1>
+        </hgroup>
         <p class="lede" id="lede">
           A page is ordinary HTML that Leaf's widgets, themes and layouts extend, and
           packages add reusable widgets, themes and behavior to Leaf. Their contracts
@@ -402,8 +413,8 @@
         </p>
       </header>
 
-      <lf-tabs id="extensions" class="layout-flow">
-        <lf-tab id="pages" label="Pages" class="layout-flow"
+      <lf-tabs id="extensions" flow="page">
+        <lf-tab id="pages" label="Pages"
           ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
@@ -421,7 +432,7 @@
             what a page can hold and how it takes a theme, and Layout covers which
             layout fits the work.
           </p>
-          <section id="pages-parts" class="layout-flow">
+          <section id="pages-parts">
             <h2>Parts of a page</h2>
             <p id="scaffold">
               The agent writes an HTML document containing the page's title,
@@ -430,19 +441,17 @@
               The browser runtime supplies the commenting and collaboration interface.
               Authors build the content with these tools, starting with ordinary HTML:
             </p>
-            <ol class="steps" id="page-sources">
+            <ol id="page-sources">
               <li id="src-html">
                 <strong>Ordinary HTML.</strong> Leaf's reading theme, which a page takes
-                by default, styles headings, paragraphs, tables, code, and
-                <code>details</code> without requiring CSS classes. These elements
-                provide most of a page's content.
+                by default, styles headings, an <code>hgroup</code>'s label above its
+                heading, paragraphs, tables, code, and <code>details</code> without
+                requiring CSS classes. These elements provide most of a page's content.
               </li>
               <li id="src-idioms">
                 <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.eyebrow</code>,
-                <code>.lede</code>, <code>.callout</code>, <code>aside.note</code> in a
-                <code>layout-note</code> row for a margin note, and
-                <code>ol.steps</code> for a numbered sequence like this list.
+                presentation patterns, including <code>.lede</code> and
+                <code>.callout</code>.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -475,7 +484,7 @@
               defines module and dependency rules.
             </p>
           </section>
-          <section id="widgets" class="layout-flow">
+          <section id="widgets">
             <h2>Widgets</h2>
             <p id="dogfood">
               These examples are interactive parts of this page. Their choices, card
@@ -483,8 +492,8 @@
               nothing, so On Me stays empty. Each activity feed shows the same page
               history, including actions in other examples.
             </p>
-            <figure id="options-demo">
-              <h3>Example page: a release review</h3>
+            <figure id="options-demo" role="group" aria-labelledby="options-demo-h">
+              <h3 id="options-demo-h">Example page: a release review</h3>
               <p id="options-practice">
                 Choose a rollout audience, then one follow-up job. Open
                 <strong>Show activity</strong> to inspect both selections. Choose
@@ -498,23 +507,22 @@
                 interactive
               >
                 <p>Start with canary clients; expand after the error rate settles.</p>
-                <lf-options id="spec-options" choose>
-                  <lf-option id="so-rewrite"
-                    ><small class="tag ok">recommended</small>
+                <lf-options id="spec-options">
+                  <lf-option id="so-rewrite" label="Canary clients" recommended>
                     <strong>Canary clients</strong> Start with a small group and compare
                     its error rate before expanding.</lf-option
                   >
-                  <lf-option id="so-shim"
+                  <lf-option id="so-shim" label="All clients"
                     ><strong>All clients</strong> Enable the release for everyone once
                     the checks pass.</lf-option
                   >
-                  <lf-option id="so-stage"
+                  <lf-option id="so-stage" label="Hold the release"
                     ><strong>Hold the release</strong> Gather more evidence before
                     enabling it for any clients.</lf-option
                   >
                 </lf-options>
                 <h3>Which job should start first?</h3>
-                <lf-options id="spec-jobs" choose>
+                <lf-options id="spec-jobs">
                   <lf-option id="sj-backfill">Prepare the rollback flag</lf-option>
                   <lf-option id="sj-contract">Add a concurrency test</lf-option>
                   <lf-option id="sj-fallback"
@@ -529,7 +537,7 @@
                 labels render as rows. The content determines the presentation. A row
                 can link to a section that explains the choice. Clicking an option
                 immediately shows the selection and records it for the agent. A later
-                revision preserves that choice. The group also offers an empty option
+                revision preserves that choice. The options also include an empty one
                 for an answer the author did not list.
               </figcaption>
             </figure>
@@ -547,21 +555,21 @@
               <lf-sample id="spec-board-frame" label="Practice: board" interactive>
                 <lf-board id="spec-board">
                   <lf-column id="sb-incoming" label="Incoming">
-                    <lf-card id="sc-flaky"
+                    <lf-card id="sc-flaky" label="Flaky auth test"
                       ><strong>Flaky auth test</strong> Fails one run in twenty on CI
                       only.</lf-card
                     >
-                    <lf-card id="sc-contrast"
+                    <lf-card id="sc-contrast" label="Dark-mode contrast pass"
                       ><strong>Dark-mode contrast pass</strong></lf-card
                     >
                   </lf-column>
                   <lf-column id="sb-sprint" label="This week">
-                    <lf-card id="sc-ratelimit"
+                    <lf-card id="sc-ratelimit" label="Rate-limit the export"
                       ><strong>Rate-limit the export</strong></lf-card
                     >
                   </lf-column>
                   <lf-column id="sb-done" label="Done">
-                    <lf-card id="sc-tokens"
+                    <lf-card id="sc-tokens" label="Tokenize the palette"
                       ><strong>Tokenize the palette</strong></lf-card
                     >
                   </lf-column>
@@ -581,18 +589,18 @@
               <a href="/examples/">examples gallery</a> opens complete pages using them.
             </p>
           </section>
-          <section id="asking" class="layout-flow">
+          <section id="asking">
             <h2>Asking the user</h2>
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
-              declaring <a href="#x-awaits"><code>x-awaits</code></a> in its registry
-              entry, which names the actions that answer it. To ask about content that
-              asks nothing, such as a paragraph or a chart, or to leave the user a step
-              such as trying a build, the agent opens a thread on that content or the
-              page with a message sent with <code>--obligation</code>, and the user’s
-              reply answers it. Nothing goes On Me that neither a widget nor a thread
-              answers, so no item carries a generic Done, and Leaf adds no answer to a
-              widget beyond those the widget declares.
+              declaring <a href="#awaits"><code>awaits</code></a> in its registry entry,
+              which names the actions that answer it. To ask about content that asks
+              nothing, such as a paragraph or a chart, or to leave the user a step such
+              as trying a build, the agent opens a thread on that content or the page
+              with a message sent with <code>--obligation</code>, and the user’s reply
+              answers it. Nothing goes On Me that neither a widget nor a thread answers,
+              so no item carries a generic Done, and Leaf adds no answer to a widget
+              beyond those the widget declares.
             </p>
             <p id="asking-lists">
               Each ask joins the user's On Me list until the widget or thread that asks
@@ -620,7 +628,7 @@
               <code>leaf page check</code> reports when its source has changed.
             </p>
           </section>
-          <section id="styles-overrides" class="layout-flow">
+          <section id="styles-overrides">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               The user chooses the visual direction. A theme supplies shared colors,
@@ -675,11 +683,11 @@ flowchart TD
                 <tbody>
                   <tr id="recipe-face">
                     <td>Leaf's colors</td>
-                    <td><code>:root { --accent: teal; }</code></td>
+                    <td><code>:root { --lf-accent: teal; }</code></td>
                   </tr>
                   <tr id="recipe-layout">
                     <td>A Layout's width</td>
-                    <td><code>:root { --col: 46rem; }</code></td>
+                    <td><code>:root { --lf-col: 46rem; }</code></td>
                   </tr>
                   <tr id="recipe-widget">
                     <td>A widget</td>
@@ -694,16 +702,17 @@ flowchart TD
                 </tbody>
               </table>
               <p id="styles-controls">
-                A Layout reads tokens such as <code>--col</code>,
-                <code>--sidebar</code> and <code>--page-pad-start</code>, and any other
-                rule changes it too, such as <code>main { padding-top: 28px; }</code>.
+                A Layout reads tokens such as <code>--lf-col</code>,
+                <code>--lf-sidebar</code> and <code>--lf-page-pad-start</code>, and any
+                other rule changes it too, such as
+                <code>main { padding-top: 28px; }</code>.
               </p>
               <p id="styles-controls-leaf">
                 A bare <code>button</code> or <code>input</code> rule styles every one
                 in the document, the controls a widget builds included, so name the
                 widget to aim a rule at its controls. Leaf’s panel and thread cards keep
                 their own look against a rule as light as one class, and inherit theme
-                inputs such as <code>--accent</code> and <code>--sans</code> from
+                inputs such as <code>--lf-accent</code> and <code>--lf-sans</code> from
                 <code>:root</code>.
               </p>
             </details>
@@ -713,7 +722,7 @@ flowchart TD
               <a href="#styles-contract">the CSS tab's contract</a>.
             </p>
           </section></lf-tab
-        ><lf-tab id="layout" label="Layout" class="layout-flow"
+        ><lf-tab id="layout" label="Layout"
           ><details class="topic-outline" id="layout-outline">
             <summary>In this topic</summary>
             <nav aria-label="Layout sections">
@@ -728,7 +737,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="layouts" class="layout-flow">
+          <section id="layouts">
             <h2>Layouts</h2>
             <p id="layouts-lede">
               Leaf supplies page layouts and a layout for blocks within a page. A
@@ -1169,7 +1178,7 @@ flowchart TD
               its own grid when the supplied layouts do not fit.
             </p>
           </section>
-          <section id="column" class="layout-flow">
+          <section id="column">
             <h2>The reading column</h2>
             <p id="column-measure">
               On a <code>layout-column</code> page, headings, paragraphs, lists, and
@@ -1197,7 +1206,7 @@ flowchart TD
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
-                outer page margins and space for margin notes and controls.
+                outer page margins and space for Leaf's margin controls.
               </li>
             </ul>
             <p id="column-widths-declared">
@@ -1273,18 +1282,18 @@ flowchart TD
                 body scrolls when both fit beside each other.
               </li>
               <li id="margin-sidenotes">
-                <strong>Sidenotes</strong>, each an <code>aside.note</code> paired with
-                its passage in a <code>layout-note</code> row, on the right when the row
-                has enough room.
+                <strong>Sidenotes</strong>, which the page floats into the right margin
+                with its own CSS. The rail's markers don't avoid them, so a page of
+                sidenotes gives the margin to them with <code>data-rail="none"</code> on
+                <code>body</code>.
               </li>
             </ul>
             <p id="margins-narrow">
               The browser places these compositions as soon as the HTML arrives. In a
-              narrow window, the sidebar stacks in source order and each note follows
-              its passage. Notes never shift the reading column.
+              narrow window, the sidebar stacks in source order.
             </p>
           </section>
-          <section id="sidebar-page" class="layout-flow">
+          <section id="sidebar-page">
             <h2>Sidebar pages</h2>
             <p id="sidebar-page-what">
               <code>layout-sidebar</code> on <code>main</code> places the header across
@@ -1317,7 +1326,7 @@ flowchart TD
               <a href="/examples/command-hub/">Command hub</a>.
             </p>
           </section>
-          <section id="workspace" class="layout-flow">
+          <section id="workspace">
             <h2>Workspace</h2>
             <p id="workspace-what">
               <code>layout-workspace</code> fits the page to the window above Leaf's
@@ -1617,7 +1626,7 @@ flowchart TD
               <a href="/examples/alert-review/">Alert review</a>.
             </p>
           </section>
-          <section id="tiles" class="layout-flow">
+          <section id="tiles">
             <h2>Tiles</h2>
             <p id="tiles-what">
               <code>layout-tiles</code> arranges an element's children in equal cells at
@@ -1629,7 +1638,7 @@ flowchart TD
               <code>dd</code>.
             </p>
           </section>
-          <section id="page-tabs" class="layout-flow">
+          <section id="page-tabs">
             <h2>Tabs and parts</h2>
             <p id="page-tabs-what">
               An <code>lf-tabs</code> at the top of a page creates tabs like the ones on
@@ -1651,7 +1660,7 @@ flowchart TD
               gives the markup.
             </p>
           </section>
-          <section id="narrow" class="layout-flow">
+          <section id="narrow">
             <h2>Narrow windows</h2>
             <p id="narrow-what">
               In a narrow window, page regions stack vertically in HTML order. Margin
@@ -1716,7 +1725,7 @@ flowchart TD
               </figcaption>
             </figure>
           </section></lf-tab
-        ><lf-tab id="contracts" label="Contracts" class="layout-flow"
+        ><lf-tab id="contracts" label="Contracts"
           ><details class="topic-outline" id="contracts-outline">
             <summary>In this topic</summary>
             <nav aria-label="Contracts sections">
@@ -1727,7 +1736,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="responsibilities" class="layout-flow">
+          <section id="responsibilities">
             <h2>Who is responsible for what</h2>
             <p id="responsibilities-lede">
               The user sets the goal and preferences. The author composes the page;
@@ -1839,9 +1848,9 @@ flowchart TD
               declarations and rendered behavior.
             </p>
           </section>
-          <section id="boundaries" class="layout-flow">
+          <section id="boundaries">
             <h2>Choose the extension boundary</h2>
-            <ol class="steps">
+            <ol>
               <li id="extend-page">
                 <strong>One page.</strong> Semantic HTML, existing Leaf elements, a
                 page-local <code>&lt;style&gt;</code>, and inline SVG shape one
@@ -1860,7 +1869,7 @@ flowchart TD
               </li>
             </ol>
           </section>
-          <section id="layer" class="layout-flow">
+          <section id="layer">
             <h2>Package interfaces</h2>
             <p>
               Packages connect through declared inputs, outputs and actions. A release
@@ -1958,7 +1967,7 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="build-package" label="Build a package" class="layout-flow"
+        <lf-tab id="build-package" label="Build a package"
           ><details class="topic-outline" id="build-outline">
             <summary>In this topic</summary>
             <nav aria-label="Build a package sections">
@@ -1970,7 +1979,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="start" class="layout-flow">
+          <section id="start">
             <h2>Build a package with two files</h2>
             <p>Create a package in the project, then check the empty composition:</p>
             <pre
@@ -2027,7 +2036,7 @@ packages/callout/
               shown inline for an obligation.
             </p>
           </section>
-          <section id="theme" class="layout-flow">
+          <section id="theme">
             <h2>Style the element</h2>
             <p>
               A package's <code>defaults.css</code> joins Leaf's existing cascade as
@@ -2036,10 +2045,10 @@ packages/callout/
             </p>
             <pre id="callout-theme"><code class="language-css">lf-callout {
   display: block;
-  padding: var(--sp-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--field);
+  padding: var(--lf-sp-3);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
+  background: var(--lf-field);
   --lf-block-frame: 1;
 }</code></pre>
             <p>
@@ -2049,13 +2058,13 @@ packages/callout/
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
                 >style contract</a
               >
-              distinguishes theme inputs such as <code>--accent</code> from layout
+              distinguishes theme inputs such as <code>--lf-accent</code> from layout
               declarations, runtime outputs, and vendor bridges. The
               <a href="#styles-contract">CSS contract</a> explains how widget, theme and
               control sheets compose.
             </p>
           </section>
-          <section id="widget" class="layout-flow">
+          <section id="widget">
             <h2>Declare the element</h2>
             <p>The page will author the callout as ordinary readable markup:</p>
             <pre
@@ -2065,37 +2074,37 @@ packages/callout/
   Writes pause for about two minutes.
 &lt;/lf-callout&gt;</code></pre>
             <p>
-              Its complete <code>registry.json</code> entry validates the attributes and
-              tells Leaf that the body is prose. <code>x-example</code> is the sample an
-              author queries with the entry:
+              Its complete <code>registry.json</code> entry validates the attributes.
+              <code>example</code> is the sample an author queries with the entry:
             </p>
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "markup",
-    "x-upgrade": false,
-    "x-example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
+    "example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
             <p>
-              <code>x-content</code> and <code>x-upgrade</code> are the two Leaf
-              declarations every widget requires. The ordinary JSON Schema fields
-              validate its attributes, and Leaf adds the grammar an
+              <code>attributes</code> is a JSON Schema of the element's attributes, and
+              the entry needs no other Leaf declaration: the body is the author's markup
+              unless <code>content</code> says otherwise. Leaf adds the grammar an
               <code>id</code> follows; <code>description</code> and
-              <code>x-example</code> make the merged registry useful to an author.
+              <code>example</code> make the merged registry useful to an author.
             </p>
             <p>
-              The <a href="#keys">registry-key reference</a> lists every
-              <code>x-*</code> declaration. A CSS-only widget stops here.
+              The <a href="#keys">registry-key reference</a> lists every other fact a
+              declaration can state, in sections by what it is about. A CSS-only widget
+              stops here.
             </p>
           </section>
-          <section id="check" class="layout-flow">
+          <section id="check">
             <h2>Compose and check the page</h2>
             <pre
               id="package-check-command"
@@ -2117,13 +2126,12 @@ $ leaf page check PAGE --render</code></pre>
             <dl class="package-next">
               <dt><a href="#keys">Registry keys</a></dt>
               <dd>
-                The generated reference for declarations such as <code>x-data</code> and
-                <code>x-state</code>.
+                The generated reference for declarations such as
+                <code>inputs</code> and <code>verbs</code>.
               </dd>
               <dt><a href="/how-it-works/#event-log">Event log</a></dt>
               <dd>
-                How a widget's <code>x-state</code> verbs become logged events and
-                folded state.
+                How a widget's <code>verbs</code> become logged events and folded state.
               </dd>
               <dt>
                 <a
@@ -2144,7 +2152,7 @@ $ leaf page check PAGE --render</code></pre>
             </dl>
           </section></lf-tab
         >
-        <lf-tab id="css" label="CSS" class="layout-flow"
+        <lf-tab id="css" label="CSS"
           ><details class="topic-outline" id="css-outline">
             <summary>In this topic</summary>
             <nav aria-label="CSS sections">
@@ -2156,7 +2164,7 @@ $ leaf page check PAGE --render</code></pre>
               </ul>
             </nav>
           </details>
-          <section id="styles-contract" class="layout-flow">
+          <section id="styles-contract">
             <h2>CSS contracts</h2>
             <p id="styles-contract-lede">
               Widget packages style their own elements; theme packages supply
@@ -2260,7 +2268,9 @@ flowchart TD
               <p>
                 A page’s unlayered rules come first. Leaf’s panel, cards and marks are
                 also unlayered and appear later, winning a tie. The page’s own
-                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them.
+                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them,
+                except one named <code>reset</code>, which Leaf ranks below its own so a
+                page’s reset leaves Leaf’s controls their frames.
               </p>
               <table>
                 <thead>
@@ -2300,7 +2310,7 @@ flowchart TD
               </table>
               <p>
                 Page rules and Layouts stop at the shadow root. Inherited inputs such as
-                <code>--accent</code> cross it. A widget can also expose a part for
+                <code>--lf-accent</code> cross it. A widget can also expose a part for
                 styling with <code>::part</code>.
               </p>
             </details>
@@ -2394,8 +2404,8 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="packages" label="Packages" class="layout-flow"
-          ><section id="bundled" class="layout-flow">
+        <lf-tab id="packages" label="Packages"
+          ><section id="bundled">
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
@@ -2512,25 +2522,19 @@ flowchart TD
                 >
                 <em>Read instructions</em>
               </a>
-              <a
-                class="package-card"
-                data-package="deck"
-                href="https://github.com/max-sixty/leaf/blob/main/packages/deck/instructions/author.md"
-              >
+              <a class="package-card" data-package="deck" href="/examples/catch-up/">
                 <strong>Deck</strong>
                 <span>Work through a pile of decisions one card at a time.</span>
-                <em>Read instructions</em>
+                <em>Open page ↗</em>
               </a>
               <a
                 class="package-card"
                 data-package="detail"
-                href="https://github.com/max-sixty/leaf/blob/main/packages/detail/instructions/author.md"
+                href="/examples/incident-report/"
               >
                 <strong>Detail</strong>
-                <span
-                  >Turn a page from each section's gist to every closed detail.</span
-                >
-                <em>Read instructions</em>
+                <span>Turn a page from its gists to every closed detail.</span>
+                <em>Open page ↗</em>
               </a>
               <a
                 class="package-card"
@@ -2554,13 +2558,15 @@ flowchart TD
             </p>
           </section>
           <section
-            class="developer-galleries layout-flow"
+            class="developer-galleries"
             id="developer-galleries"
             aria-labelledby="developer-galleries-title"
           >
             <div class="developer-galleries-copy">
-              <p class="eyebrow">developer tools</p>
-              <h2 id="developer-galleries-title">Inspect the product</h2>
+              <hgroup>
+                <p>developer tools</p>
+                <h2 id="developer-galleries-title">Inspect the product</h2>
+              </hgroup>
               <p>
                 These developer pages are for debugging Leaf itself. The core product
                 gallery keeps Leaf’s controls and its core interactions on one page;
@@ -2602,14 +2608,15 @@ flowchart TD
             </div>
           </section></lf-tab
         >
-        <lf-tab id="registry-keys" label="Registry keys" class="layout-flow"
-          ><section id="keys" class="layout-flow">
+        <lf-tab id="registry-keys" label="Registry keys"
+          ><section id="keys">
             <h2>Registry keys</h2>
             <p id="keys-lede">
-              An element declaration begins as JSON Schema. Its <code>x-*</code> keys
-              tell Leaf how the element reads, renders, changes, and joins the
-              collaboration loop. The index jumps to a key's summary, and a longer
-              contract opens in place.
+              An element declaration holds the JSON Schema of its attributes. Its other
+              keys tell Leaf how the element reads, renders, changes, and joins the
+              collaboration loop, for the parts of Leaf that read it without running the
+              widget's module, listed in sections by what each is about. The index jumps
+              to a key's summary, and a longer contract opens in place.
             </p>
             <p id="keys-source">
               This reference is generated from the registry's <code>$keys</code>, the

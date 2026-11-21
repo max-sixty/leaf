@@ -6,14 +6,14 @@
 lf-draft {
   display: block;
   --lf-draft-inset: 14px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
   padding: 10px var(--lf-draft-inset);
   margin: 12px 0;
-  background: var(--card);
-  font-size: max(var(--entry-floor), 1em);
+  background: var(--lf-card);
+  font-size: max(var(--lf-entry-floor), 1em);
   /* The frame wears its editor's ring, inside its edge (base.css, "Where it stands"). */
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 @media screen {
   lf-draft {
@@ -29,10 +29,12 @@ lf-draft {
 lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
+.lf-draft-body > :first-child,
+lf-draft > .lf-markdown-body > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
+.lf-draft-body > :last-child,
+lf-draft > .lf-markdown-body > :last-child {
   margin-bottom: 0;
 }
 /* The shared source primitive owns fallback presentation, which a draft's source
@@ -78,13 +80,13 @@ lf-draft > pre {
     grid-area: 1 / 1;
   }
   lf-draft:has(.lf-draft-edit) {
-    border-color: var(--muted);
+    border-color: var(--lf-muted);
   }
   lf-draft > .lf-draft-edit {
     --lf-focus-box: lf-draft;
   }
   lf-draft[data-lf-control-focus-visible] {
-    outline: var(--focus-ring);
+    outline: var(--lf-focus-ring);
     --lf-wears-ring: 1;
   }
   lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
@@ -94,11 +96,11 @@ lf-draft > pre {
      code block's lone Copy takes, inside the box's top-right corner: Edit and Copy at
      rest, Save, Discard and Copy while editing, Copy keeping the last seat, and a
      refused save's status before them. A pointer sees it while over the box or a key
-     is in it, and the open editor and a draft that asks for an edit (`needed`) always,
+     is in it, and the open editor and a draft that asks for an edit (`required`) always,
      since there Edit is the way to answer. While it shows it covers the first line's
      last words, the editor's too: the user chose one seat for every block's marks
-     over keeping the edited line clear (31 October 2026), when it stood on the top
-     border. A finger sees it always, so it stands on the bottom border there: in the
+     over keeping the edited line clear by standing the toolbar on the top border. A
+     finger sees it always, so it stands on the bottom border there: in the
      corner, its finger-wide reach would take every press meant for the first line's
      end. */
   .lf-draft-tools {
@@ -113,14 +115,14 @@ lf-draft > pre {
   .lf-draft-status {
     align-self: center;
     padding-inline: 6px 2px;
-    color: var(--danger-ink);
-    font: var(--font-ui);
+    color: var(--lf-danger-ink);
+    font: var(--lf-font-ui);
     white-space: nowrap;
   }
   .lf-draft-status:empty {
     display: none;
   }
-  lf-draft:is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit))
+  lf-draft:is(:hover, [data-lf-focus-within], [required], :has(> .lf-draft-edit))
     .lf-draft-tools {
     opacity: 1;
   }
@@ -129,7 +131,7 @@ lf-draft > pre {
      the caret there rather than pressing Discard. */
   @media (hover: none) {
     lf-draft {
-      padding-block-end: max(10px, var(--aim-floor) / 2);
+      padding-block-end: max(10px, var(--lf-aim-floor) / 2);
     }
     .lf-draft-tools {
       inset-block: auto 0;

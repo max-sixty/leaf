@@ -87,7 +87,7 @@ def named_source(name: str, *, root: Path = ROOT) -> Path:
         names = sorted({path.stem for path in sources})
         raise ValueError(f"no source named {name}; available: {', '.join(names)}")
     if found[0] == root / CORPUS:
-        from leaf_dev.commands.generate.corpus import generate
+        from leaf_dev.corpus import generate
 
         return generate(root)
     return found[0]
@@ -131,7 +131,8 @@ def document_metadata(source: Path) -> tuple[str, str]:
 
 
 # An authored source's companions, named beside it whether or not it has each
-# (examples/AGENTS.md): its seeded history, its data values, and its page-owned files.
+# (examples/AGENTS.md): its seeded history, its data values, its page-owned files, and
+# the files it binds for editing with the map naming each one's binding.
 def seed_log(source: Path) -> Path:
     return source.with_suffix(".jsonl")
 
@@ -142,6 +143,28 @@ def data_file(source: Path) -> Path:
 
 def page_files(source: Path) -> Path:
     return source.with_suffix(".page")
+
+
+def bound_files(source: Path) -> Path:
+    return source.with_suffix(".files")
+
+
+def bindings_file(source: Path) -> Path:
+    return source.with_suffix(".files.json")
+
+
+def file_bindings(source: Path) -> dict[str, str]:
+    """Each binding the example's editors name, by its file's path under the
+    `.files/` companion, from the `.files.json` beside it; nothing without one."""
+    companion = bindings_file(source)
+    if not companion.exists():
+        return {}
+    bindings = json.loads(companion.read_text(encoding="utf-8"))
+    files = bound_files(source)
+    for binding, path in bindings.items():
+        if not (files / path).is_file():
+            raise ValueError(f"{companion}: {binding} names {path}, not in {files}")
+    return bindings
 
 
 # A prior version ships under the source directory's versions/, so a builder's

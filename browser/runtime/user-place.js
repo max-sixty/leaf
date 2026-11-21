@@ -11,7 +11,7 @@
    helps it by keeping the nodes it doesn't change, since a
    node it replaces is an anchor lost: neither engine anchors again, so whatever grew
    above moves the reader by its full height (dom-children.js, `setRenderedChildren`,
-   for a message's words; `x-patch: members` for a widget a revision edits inside). A
+   for a message's words; a module's `lfPatch` for a widget a revision edits inside). A
    revision restores the reader's landmark after anchoring as well (version.js), which
    also returns them where a patch moved what they read between scrollers or into a
    closed disclosure.
@@ -33,12 +33,12 @@
      the paragraph began above the window (lf-dial.js).
    A reader who focused nothing is anchoring's to keep, by the first block in view.
    Rejected: holding the reading line for every reader, which kept a diff's line still
-   as five rows joined above it (100px on main) but moved what it left alone: words
-   above the line stood at -55px where anchoring left them at 45px, and a drag
+   as five rows joined above it but moved what it left alone: words
+   above the line went out of view where anchoring kept them in it, and a drag
    selecting them ran on through the rows that joined; a pointer resting over a second
-   column made that column's line the place and moved the first column's words from
-   234px to 134px; and a press inside an embedded frame, which the page hears nothing
-   of, left the keep to move what it opened by 140px.
+   column made that column's line the place and moved the first column's words; and a
+   press inside an embedded frame, which the page hears nothing
+   of, left the keep to move what it opened.
    `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
    once the change has drawn, scrolls it, or what `standIn(node)` names once the change
    hid or removed it, back there. The change itself scrolls nothing. A forced layout
@@ -47,12 +47,12 @@
    nothing once a scroll was chosen since. Rejected: the hold inside every surface's
    focus hold, which had to guess whether each re-render answered the user's own input
    and whether each box followed its scroller's flow, and guessed wrong for a widget's
-   own landing in a shadow tree (87px) and for Send in its editor (132px). A revision
+   own landing in a shadow tree and for Send in its editor. A revision
    takes no hold: after its landmark restore, the hold put back what it read where it
-   stood and undid the restore (82px off a line the restore had kept), and before it,
+   stood and undid the restore, and before it,
    the restore undid the hold.
 
-   The user chose this on 2026-11-04 over a keeper wrapped around every re-render,
+   The user chose this over a keeper wrapped around every re-render,
    accepting that a re-render that replaces the very element they read can move them
    by what grew above it. Rejected: that keeper, which recorded every item on screen
    under the identity it was rendered with, handed the place to a replacement drawn
@@ -99,7 +99,7 @@ import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On me
+// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On Me
 // card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
 // matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */
@@ -127,14 +127,18 @@ const boxStoodAt = (node) => {
 // there, so a key pressed on the way is meant for the stop. `g g` carries a control
 // mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
 // is still on screen, and acts from where `g g` lands (reading-place.js,
-// `landingPlace`). The user chose this on 2026-11-14. Rejected: judging a node still on
+// `landingPlace`). The user chose this, as the one rule for every key
+// pressed during a glide, which tests/journeys/navigation/test_reading_place.py holds
+// each glide and key to. A key whose work goes to a reader that can't ask where the
+// glides land, the browser's answer to Tab or PageDown or a placement, lands them first
+// (scrolling.js, `landGlides`). Rejected: judging a node still on
 // screen as the place, which opened a comment box on the control and let the glide
 // carry it off screen with focus in it, and moved Tab on from the control as though
 // the glide had not run; and counting every glide that carries focus, which took the
 // page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
-// Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
+// Tab there: the user chose this. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
 // every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
 // `stuckBox`). Its
@@ -332,20 +336,35 @@ const placeOf = (node) => {
   const [scroller] = scrollersOf(place);
   return scroller && !stuckBox(place, scroller) ? place : null;
 };
-// The caret a click on a focused container's words leaves, where it lies in what the
-// container shows outside the box it stands at: the letter after it, which the keep
-// holds as it holds words at the reading line. A message the user clicked in a thread
-// is where they stand, though the thread waits at its reply box, so it stays as a
-// message above it grows or an answer joins below it, and the box moves. A caret in
-// the box, or in a field the user types in, is the box's or field's to hold, since
-// typing and a send rewrite the words the range holds.
+// The words a click on a focused container left the caret in, outside the box it
+// stands at. A message the user clicked in a thread is where they stand, though the
+// thread waits at its reply box. A caret in the box, or in a field the user types in,
+// is the box's or field's, since typing and a send rewrite the words there.
+/** @param {Element} node */
+const caretWords = (node) => {
+  const text = getSelection()?.focusNode;
+  return text instanceof Text &&
+    text.length &&
+    node.contains(text) &&
+    !boxStoodAt(node)?.contains(text)
+    ? text
+    : null;
+};
+// Where the user on `node` stands: on the words a click there left the caret in, else at
+// the box `node` stands at, as a user on a thread, where a send leaves them, waits at its
+// reply box, else on `node` itself.
+/** @param {Element} node @returns {Element} */
+export const standingAt = (node) =>
+  caretWords(node)?.parentElement ?? boxStoodAt(node) ?? node;
+// The caret a click on a focused container's words leaves (`caretWords`), where it lies
+// in what the container shows: the letter after it, which the keep holds as it holds
+// words at the reading line, so the message stays as a message above it grows or an
+// answer joins below it, and the box moves.
 /** @param {Element} node @returns {Range | null} */
 const caretPlace = (node) => {
+  const text = caretWords(node);
   const selection = getSelection();
-  const text = selection?.focusNode;
-  if (!selection || !(text instanceof Text) || !text.length || !node.contains(text))
-    return null;
-  if (boxStoodAt(node)?.contains(text)) return null;
+  if (!text || !selection) return null;
   const at = Math.min(selection.focusOffset, text.length - 1);
   const caret = document.createRange();
   caret.setStart(text, at);

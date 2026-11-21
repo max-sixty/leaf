@@ -5,13 +5,15 @@
    versions were observed, not a second account of what the page currently means.
 
    The agent's activity is no news here: the page's status says it in the same seat a
-   notice would take, and page-status.js announces a change of its kind. Removed on 26
-   October 2026: "Claude active on this page", which stood for four seconds in front of
-   the status line that named the agent's work.
+   notice would take, and page-status.js announces a change of its kind. Rejected:
+   "Claude active on this page", which stands for four seconds in front of
+   the status line that names the agent's work.
 
    New agent content is the server's `unread` reading, the same one the floating panel
    paints: a version is news the first time this tab sees it unread, and
-   never once the user has taken it in, here or in another tab. What the user has
+   never once the user has taken it in, here or in another tab, nor once this tab has
+   seen it read. An undo of the resolve or reply that marked a message read makes it
+   unread again (read_state.py), but nothing arrived. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it.
@@ -19,7 +21,7 @@
    On Me emptying is news, in the words its empty view says, whoever emptied it: the
    user's last answer, one from another tab, or a revision that took the last
    obligation away. The list is the one the panel's badge counts (queue-api.js,
-   `onUserCount`). The user asked on 5 November 2026 to be told when they finish
+   `onUserCount`). The user asked to be told when they finish
    what waits on them, taking words over a flash of the panel's colour for now. */
 import { moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
@@ -149,6 +151,9 @@ export function observeSemanticNews(prior, reading) {
       });
     observed.content.add(version);
   }
+  for (const thread of reading.thread.threads)
+    for (const message of thread.msgs)
+      if (message.content_version) observed.content.add(message.content_version);
   for (const failure of failures.values()) {
     if (!first && !observed.failures.has(failure.key))
       news.push({

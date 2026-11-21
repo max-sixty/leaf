@@ -398,15 +398,13 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(reject).to_be_focused()
-    # The walk says where it stands in the panel's empty field.
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Action 2 of 2")
+    # The entries stand side by side, so the step declares no walk for the panel to say.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
     )
     page.keyboard.press("ArrowLeft")
     expect(accept).to_be_focused()
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Action 1 of 2")
-    )
     page.locator("#after-margin-entries").focus()
 
     page.evaluate(

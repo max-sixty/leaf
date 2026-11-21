@@ -23,7 +23,7 @@ into the log. A fold is only worth what its premise is worth, and a premise
 assembled beside the door can be one the product would never have accepted: an
 action naming a widget the page has not got, a `holds` on a widget that does
 not take one, a coordinate written by hand rather than derived. Each of those
-now raises `EventRefused` instead of folding.
+raises `EventRefused` instead of folding.
 
 Every value the server would read from a file is a literal in this module, so a
 reading it returns is caused by the markup and the log the test wrote and by
@@ -57,7 +57,6 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
-    "kept_back": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
@@ -68,11 +67,13 @@ UNCLAIMED = {
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
-    "agent_turns": {},
     "input_wakes": False,
-    "fork_lane": None,
     "session_cwd": None,
 }
+
+# The page whose memory keeps the readings a fold names (`served_state.tail`). It is
+# no directory, since a fold reads none.
+FOLDED_PAGE = Path("folded-page")
 
 # The Layouts that shape `main` (layouts.css), and None for a `main` with none.
 PAGE_LAYOUTS = ("column", "sidebar", "workspace", None)
@@ -162,7 +163,7 @@ def served_reading(
         _fold(documents, events, registry=registry, presence=presence, data=data),
         view_revision=view_revision,
     ).state
-    sent = answer(state, held, "model")
+    sent = answer(state, held, FOLDED_PAGE)
     assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
     return sent
 
@@ -184,7 +185,7 @@ def served_answer(
     state = PageStateService(Path(), source=_FoldedPage(folded)).page_state(
         view_revision
     )
-    sent = answer(state, None, "model")
+    sent = answer(state, None, FOLDED_PAGE)
     assert (error := served_state_error(sent, "answer")) is None, error
     return sent
 

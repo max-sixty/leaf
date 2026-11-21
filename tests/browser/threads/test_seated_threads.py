@@ -925,6 +925,9 @@ def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
         close.focus()
         expect(close).to_be_focused()
     else:
+        # `told` waits only for the state, and the margin row it brought stays hidden,
+        # so unfocusable, until layout places it (annotation-theme.css).
+        expect(marker).to_be_visible()
         marker.focus()
         expect(marker).to_be_focused()
     data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)

@@ -825,16 +825,6 @@ plain page holding two radios of one name, the first checked and focused, whose
 capturing `keydown` listener on the document blurs the focused element: the gap is
 closed when ArrowDown leaves the first radio checked.
 
-### A stuck sticky anchor in Firefox
-
-An anchored margin row, highlight, aim or floating card can disappear or stay
-at its target's unstuck position while the target is sticky. Playwright Firefox
-155 ignored the stuck offset on 2026-10-14; Chromium 153, Chrome 155 and WebKit
-26.6 placed the box on the stuck target. `browser/runtime/css-anchors.js`
-accepts this gap; Threads and the Page Map keep controls reachable.
-Recheck a fixed box anchored to a sticky header after its scroller passes the
-header's initial position, comparing their rectangle tops.
-
 ### A stuck sticky box bounces with the page
 
 Firefox on macOS bounced a sticky column with trackpad overscroll on

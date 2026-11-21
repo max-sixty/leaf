@@ -23,6 +23,7 @@ import base64
 import gzip
 import hashlib
 import json
+import os
 import select
 import shutil
 import subprocess
@@ -213,6 +214,20 @@ def load_presented(
     return failures, response
 
 
+def write_fully(fd: int, data: bytes) -> None:
+    """Write all of `data` to `fd`, waiting whenever the pipe behind it is full.
+
+    Playwright's Node driver shares this process's stderr and makes the pipe
+    non-blocking, so one large write to it can stop partway with `BlockingIOError`.
+    """
+    view = memoryview(data)
+    while view:
+        try:
+            view = view[os.write(fd, view) :]
+        except BlockingIOError:
+            select.select([], [fd], [])
+
+
 @contextmanager
 def capture_script_responses(page: Page):
     """Keep the reload's actual script responses if its verification fails.
@@ -269,12 +284,11 @@ def capture_script_responses(page: Page):
                     encoded[start : start + 4096]
                     for start in range(0, len(encoded), 4096)
                 ]
-        print(
-            json.dumps(
-                {"scriptResponses": [script for script, _ in scripts]}, indent=2
-            ),
-            file=sys.stderr,
+        evidence = json.dumps(
+            {"scriptResponses": [script for script, _ in scripts]}, indent=2
         )
+        sys.stderr.flush()
+        write_fully(sys.stderr.fileno(), f"{evidence}\n".encode())
         raise
     finally:
         page.remove_listener("requestfinished", finished)
@@ -450,7 +464,8 @@ def logged(log: Path) -> Generator[IO[str]]:
             yield output
         except BaseException:
             output.flush()
-            sys.stderr.write(log.read_text())
+            sys.stderr.flush()
+            write_fully(sys.stderr.fileno(), log.read_bytes())
             raise
 
 

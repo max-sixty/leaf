@@ -119,7 +119,7 @@ own unlayered CSS outranks them and restyles its widgets by restating a token su
 text colour of its own sets `--lf-paper` and `--lf-ink` to them, from which the
 widgets' neutral colours step (`package-themes.md`, "Theme tokens").
 
-Defaults, a widget's own and a package's element rules and idioms, go in `defaults.css`,
+Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
 below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-overrides`,
 `lf-state`. A shared shadow sheet precedes its document-only sheet; later selected

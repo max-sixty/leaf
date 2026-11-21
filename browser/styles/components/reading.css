@@ -248,8 +248,8 @@
  * field's label over its box does. It is a component rather than part of the face, so
  * it holds in a widget's slotted content, which a declared shadow tree keeps out of
  * the face (`:host`, above). It reaches only Leaf's own class: a page's `dl.facts`
- * keeps the layout its author wrote, and the `dl.facts` idiom gives its own the same
- * one where the page wears the face (packages/default/styles/idioms.css). */
+ * keeps the layout its author wrote, and the reading theme gives its own the same
+ * one (packages/reading/defaults.css). */
 dl.lf-facts {
   display: grid;
   grid-template-columns: fit-content(40%) minmax(0, 1fr);

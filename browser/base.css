@@ -8,7 +8,7 @@
  * interface and widgets read (styles/tokens.css, imported above), the faces of Leaf's
  * own controls and marks, and the few
  * element rules that keep a guarantee, each saying which. The reading look, the
- * element defaults a document reads in and its own idioms, is the bundled `reading` theme
+ * element and idiom defaults a document reads in, is the bundled `reading` theme
  * (packages/reading), which a page takes by default; a page that takes none starts
  * from the browser's defaults and these tokens.
  *

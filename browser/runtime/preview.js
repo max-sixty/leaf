@@ -333,11 +333,12 @@ import {
   clippedContents,
   clippedRect,
   drawsText,
+  lined,
   shownParts,
   shownWindow,
   visualViewport,
 } from "./geometry.js";
-import { hasArea } from "./rect.js";
+import { hasArea, holds } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
@@ -1216,10 +1217,6 @@ const EDGE = 8;
 const GAP = { line: 6, box: 11, hold: 27 };
 const REACH = 23;
 
-/** @param {Box} box @param {number} x @param {number} y */
-const holds = (box, x, y) =>
-  x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
-
 // The nearest HTML element with a box of its own at or around `el`: a `display:
 // contents` element's first shown part, and a shape in a drawing's HTML host.
 /** @param {Element} el @returns {HTMLElement | null} */
@@ -1570,8 +1567,15 @@ function stand(record, reading, standing, aim = false) {
       Math.max(0, Math.min(height, at.room, towardSubject(at))),
     );
     if (reach < least) return reach;
-    const own = target instanceof Range ? box : holder.getBoundingClientRect();
-    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder, own)));
+    const room =
+      target instanceof Range
+        ? clearRoom(at, reach, holder, null, {
+            ...lined(box, target.startContainer),
+            left: -Infinity,
+            right: Infinity,
+          })
+        : clearRoom(at, reach, holder, holder.getBoundingClientRect(), null);
+    return Math.min(reach, atLayoutPrecision(room));
   };
   /** @type {Placement | null} */
   let chosen = null;
@@ -1697,9 +1701,12 @@ function stand(record, reading, standing, aim = false) {
 // holder or what it holds, which are no other control, so it is not tested, as most of
 // a preview standing over a chart is not, which bounds its cost. A range's holder, the
 // element holding its words, holds other ranges on its other lines, as a paragraph does
-// other threads' marks, so for a range only its own line (`own`) goes untested.
-/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box} own */
-function clearRoom(at, reach, holder, own) {
+// other threads' marks, so for a range nothing is left untested (`own` is null). Only a
+// mark on its own line (`line`), across its leading (geometry.js, `lined`) and its whole
+// width, goes untested, since there the mark is the preview's own or one beside it; a
+// control there, as a button in a deep leading just below the words, is still tested.
+/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box | null} own @param {Box | null} line */
+function clearRoom(at, reach, holder, own, line) {
   const around = new Set(climb(holder));
   // The boxes around `holder` a press acts on (`targetAt`).
   /** @type {Set<Element>} */
@@ -1718,8 +1725,9 @@ function clearRoom(at, reach, holder, own) {
     const y = down ? at.from + off : at.from - off;
     let edge = Infinity;
     for (const x of across) {
-      if (holds(own, x, y)) continue;
-      const hit = targetAt(x, y, holder, around, taking);
+      if (own && holds(own, x, y)) continue;
+      const marks = !line || !holds(line, x, y);
+      const hit = targetAt(x, y, holder, around, taking, marks);
       if (!hit) continue;
       edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
     }
@@ -1790,8 +1798,8 @@ export function declareRanges(at) {
 // it (`taking`), as a card a press opens around a chart is. Rejected: counting every
 // box around it that takes the pointer, so inside `lf-toc`, drawn across the
 // column, no side holds a line and a row's preview stands over the next row.
-/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @returns {Box | null} */
-function targetAt(x, y, holder, around, taking) {
+/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @param {boolean} marks whether to ask the ranges' owners @returns {Box | null} */
+function targetAt(x, y, holder, around, taking, marks) {
   const hit = hitAt(x, y);
   if (!hit) return null;
   for (const at of climb(hit)) {
@@ -1800,6 +1808,7 @@ function targetAt(x, y, holder, around, taking) {
     if (!around.has(at) && keepsAccess(at))
       return renderedUnder(at, holder) ? null : at.getBoundingClientRect();
   }
+  if (!marks) return null;
   for (const owner of rangeOwners) {
     const box = owner(x, y, hit);
     if (box) return box;

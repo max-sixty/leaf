@@ -137,10 +137,12 @@ export const ACTIONS = {
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
   // The next steps the floating panel's field offers at its end (floating-panel.js,
-  // `noticePress`): after a Resolve, and at rest while On Me lists anything
-  // (`pageOffer`), in the title case the user asked for.
+  // `noticePress`): after a Resolve, at rest while On Me lists anything
+  // (`pageOffer`), and after a box put words away (drafts.js, `noticeDraftKept`), in
+  // the title case the user asked for.
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
+  "resume-writing": { name: "Resume writing", icon: "edit" },
   "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },

@@ -11,6 +11,7 @@ from interact_support import (
     check,
     check_findings,
     command_findings,
+    command_notes,
     found,
     published,
     styled,
@@ -580,7 +581,8 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
 def test_a_dropped_declaration_is_advice(page_dir):
     """A declaration a browser drops is one delivery's reader reads whole, so it
     refuses nothing of Leaf's: the check reports it beside a passing result, and a
-    message carrying it is admitted (`styles.DROPPED_SEVERITY`)."""
+    message carrying it is admitted with the same advice beside the command's result
+    (`styles.DROPPED_SEVERITY`)."""
     (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
     status, findings = check_findings(page_dir)
     [dropped] = found(findings, "css-dropped")
@@ -591,10 +593,10 @@ def test_a_dropped_declaration_is_advice(page_dir):
     )
     (page_dir / "index.html").write_text(PAGE)
     published(page_dir)
-    refused = command_findings(
+    noted = command_notes(
         "thread", "create", page_dir, "--text", f"Try:\n\n{published_markup}"
     )
-    assert refused == []
+    assert [(f.code, f.severity) for f in noted] == [("css-dropped", "advice")]
 
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():

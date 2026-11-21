@@ -32,7 +32,7 @@ from .thread_context import (
     thread_names,
     thread_structure,
 )
-from .validation.admission import message_markup_errors
+from .validation.admission import message_markup_findings
 from .validation.markup import text_media_errors
 
 
@@ -200,7 +200,7 @@ def initial_sample_events(
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )
-                if errors := message_markup_errors(
+                found = message_markup_findings(
                     page_dir,
                     fragment,
                     events,
@@ -215,7 +215,8 @@ def initial_sample_events(
                         event.get("parent", event.get("message"))
                     ),
                     replacing=event.get("message"),
-                ):
+                )
+                if errors := [f for f in found if f.severity == "error"]:
                     raise _refused(
                         "fixture-markup",
                         reference,

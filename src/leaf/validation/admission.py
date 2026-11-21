@@ -1,6 +1,7 @@
 """What an agent's writer hands in: message bodies, the HTML in them, and the ids it
 names."""
 
+from collections.abc import Iterator
 from collections.abc import Set as AbstractSet
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
-from leaf.findings import Finding, Rejected
+from leaf.findings import Finding, Rejected, note
 from leaf.passages import JOINS_WORDS_TAGS, SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
@@ -26,8 +27,10 @@ from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
+    pane_advice,
     reference_errors,
     thread_markup_contract_errors,
+    unnamed_card_advice,
 )
 from .markup import (
     document_declaration_errors,
@@ -159,7 +162,9 @@ def check_markup(
     Markdown can still point at a file, which `checked_text` asks about wherever a
     body arrives. `thread` is the thread a reply or an edit joins; a
     comment opens one whose id is not yet assigned. `replacing` names the message an
-    edit rewrites, whose own ids the markup may keep. Refuses with what's wrong.
+    edit rewrites, whose own ids the markup may keep. Refuses with what's wrong, and
+    notes beside the command's result what the check advises, as `page check` reports
+    it beside a page that passes (`findings.note`).
 
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
@@ -172,7 +177,7 @@ def check_markup(
     extra_errors = data_binding_errors(
         page_dir, registry, [(frag, f"incoming {kind} markup")]
     )
-    if errors := message_markup_errors(
+    found = message_markup_findings(
         page_dir,
         frag,
         events,
@@ -183,10 +188,12 @@ def check_markup(
         read_contracts(page_dir),
         thread,
         replacing=replacing,
-    ):
+    )
+    if errors := [finding for finding in found if finding.severity == "error"]:
         raise Rejected(
             errors, f"the HTML in the {kind} doesn't validate{drawn(markup, errors)}"
         )
+    note(*found)
     return frag
 
 
@@ -258,7 +265,7 @@ def split_preformatted(frag: SourceDocument) -> list[Finding]:
     return findings
 
 
-def message_markup_errors(
+def message_markup_findings(
     page_dir: Path,
     frag: SourceDocument,
     events: list,
@@ -280,29 +287,60 @@ def message_markup_errors(
     `replacing` the message an edit rewrites: its markup leaves the page as this
     takes its place, and an id any of its wordings held is its own to keep
     (`thread_context.thread_structure`). Each stage reads only a fragment the stages
-    before it accept, so it gives the first stage's findings, or none.
+    before it accept, so the gate gives the findings of the first stage that refuses
+    the fragment, or where none does, what every stage advises.
     """
-    if split := split_preformatted(frag):
-        return split
-    if errs := (
+    advice = []
+    for found in _message_stages(
+        page_dir,
+        frag,
+        events,
+        registry,
+        page,
+        prior_ids,
+        extra_errors,
+        contracts,
+        thread_id,
+        replacing,
+    ):
+        if any(finding.severity == "error" for finding in found):
+            return found
+        advice += found
+    return advice
+
+
+def _message_stages(
+    page_dir: Path,
+    frag: SourceDocument,
+    events: list,
+    registry: dict,
+    page: SourceDocument,
+    prior_ids: AbstractSet[str],
+    extra_errors: list[Finding],
+    contracts: dict,
+    thread_id: str | None,
+    replacing: str | None,
+) -> Iterator[list[Finding]]:
+    """The findings of each stage of `message_markup_findings`, in order, each read
+    only once the gate asks for it."""
+    yield split_preformatted(frag)
+    yield (
         thread_markup_contract_errors(frag, registry)
         + extra_errors
         + fragment_style_errors(frag)
         + document_declaration_errors(frag)
         + uncaptured_errors(frag, page_dir)
-    ):
-        return errs
-    if names := id_errors(frag):
-        return names
+    )
+    yield id_errors(frag)
     thread = thread_structure(events)
     held = {
         identity for identity, message in thread.holders.items() if message != replacing
     }
-    if clash := sorted(frag.ids & (prior_ids | page.ids | held)):
-        return [Finding("ids-taken", values={"ids": clash})]
+    clash = sorted(frag.ids & (prior_ids | page.ids | held))
+    yield [Finding("ids-taken", values={"ids": clash})] if clash else []
     replaced = thread.fragments.get(replacing)
     standing = thread.ids - replaced.ids if replaced else thread.ids
-    if reference_errs := reference_errors(
+    yield reference_errors(
         frag.lf_elements,
         registry,
         page.ids | standing | frag.ids,
@@ -312,31 +350,28 @@ def message_markup_errors(
             **frag.by_id,
         },
         thread_ids=thread_ids(events),
-    ):
-        return reference_errs
+    )
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.
-    if looping := sorted(
+    looping = sorted(
         sample["attrs"].get("id", "<unnamed>")
         for sample in frag.samples
         if thread_id in sample["attrs"].get("data-sample-threads", "").split()
-    ):
-        return [
-            Finding("sample-loop", values={"samples": looping, "thread": thread_id})
-        ]
+    )
+    yield (
+        [Finding("sample-loop", values={"samples": looping, "thread": thread_id})]
+        if looping
+        else []
+    )
     # A live sample's child is a page of its own, built from this message once it is
     # logged. Imported here because checking a child calls this gate back for each
     # fixture message in its history.
     from .source import sample_errors, uncaptured_sample_errors
 
-    # A message has no check to report a lesser finding beside, such as a dropped
-    # declaration (`styles.DROPPED_SEVERITY`), so only a refusal is returned.
-    return [
-        error
-        for error in [
-            *sample_errors(page_dir, page, events, frag, registry, contracts),
-            *uncaptured_sample_errors(page_dir, frag),
-            *document_drops(frag),
-        ]
-        if error.severity == "error"
+    yield [
+        *sample_errors(page_dir, page, events, frag, registry, contracts),
+        *uncaptured_sample_errors(page_dir, frag),
+        *document_drops(frag),
+        *pane_advice(frag, registry),
+        *unnamed_card_advice(frag, registry),
     ]

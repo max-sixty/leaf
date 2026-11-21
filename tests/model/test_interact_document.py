@@ -40,6 +40,7 @@ from interact_support import (
     check,
     check_findings,
     command_findings,
+    command_notes,
     comment,
     declare_data_input,
     declare_on_page,
@@ -95,7 +96,7 @@ from leaf.runtime_selection import executing
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import message_markup_errors
+from leaf.validation.admission import message_markup_findings
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -1771,17 +1772,14 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
 
 def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     """A pane whose children aren't a header, one body and a footer, in that order,
-    still passes, and `page check` says what its grid does with each."""
-    version = page_dir / "index.html"
-    version.write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            """<h2>Plan</h2>
-<lf-pane id="queue" label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
+    still passes, and `page check` says what its grid does with each. A message
+    holding the same panes is admitted, and its command says the same beside its
+    result."""
+    panes = """<lf-pane id="queue" label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
 <lf-pane id="detail" label="Detail"><p>First</p><p>Split</p></lf-pane>
-<lf-pane id="loose" label="Loose">Loose text</lf-pane>""",
-        )
-    )
+<lf-pane id="loose" label="Loose">Loose text</lf-pane>"""
+    version = page_dir / "index.html"
+    version.write_text(PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{panes}"))
     status, findings = check_findings(page_dir)
     assert status == 0
     assert found(findings, "pane-header-first", "<lf-pane>", line=10)
@@ -1790,6 +1788,17 @@ def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
         (f.values["line"], f.values["body"]) for f in found(findings, "pane-body")
     ] == [(11, ["p", "p"]), (12, ["#text"])]
     assert {f.severity for f in findings if f.code.startswith("pane-")} == {"advice"}
+
+    version.write_text(PAGE)
+    publish(page_dir)
+    noted = command_notes(
+        "thread", "create", page_dir, "--text", f"Panes:\n\n<div>\n{panes}\n</div>"
+    )
+    assert [(f.code, f.values["line"]) for f in noted] == [
+        ("pane-header-first", 3),
+        ("pane-body", 4),
+        ("pane-body", 5),
+    ]
 
 
 def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
@@ -1939,7 +1948,7 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     page = structure_model.SourceDocument(PAGE)
 
     def errors(source):
-        return message_markup_errors(
+        return message_markup_findings(
             page_dir,
             structure_model.SourceDocument(source),
             events_model.read_events(page_dir),

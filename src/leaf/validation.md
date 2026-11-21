@@ -9,7 +9,7 @@ directly:
   check`, activation, `page stamp` and `page init` all run ("Static validation");
 - the HTML in an agent's message at `admission.check_markup`, which applies the same
   structure and vocabulary checks to the markup the message draws
-  (`passages.message_markup`);
+  (`passages.message_markup`) and notes its advice beside the command's result;
 - a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
   `page init`, `page check`, serving and export, but not reading the page
   ([layer-registry.md](layer-registry.md));

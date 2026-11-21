@@ -24,6 +24,7 @@ from interact_support import (
     append_command,
     check,
     check_findings,
+    command_notes,
     comment,
     fetch,
     found,
@@ -628,24 +629,24 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
     )
 
 
-def test_a_reply_admits_an_option_that_leads_with_a_strong_and_no_label(
-    tmp_path, initialized_page
-):
+def test_a_message_admits_an_option_that_leads_with_a_strong_and_no_label(page_dir):
     """An option with no `label` that leads with a <strong> is a compact option the
-    registry allows. `page check` advises a `label` for it on a page, but a message has no
-    channel for advice, so its admission takes the option as written."""
-    page_dir = initialized_page(tmp_path / "page", ())
-    check_markup(
+    registry allows. A message holding it is admitted as written, and its command
+    advises a `label` beside its result, as `page check` does on a page."""
+    published(page_dir)
+    noted = command_notes(
+        "thread",
+        "create",
         page_dir,
-        "reply",
-        '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+        "--text",
+        '<lf-group id="ask" label="Which?">\n<h2 id="ask-h">Which?</h2>'
         '<lf-options id="pick"><lf-option id="a"><strong>A</strong> first.</lf-option>'
         '<lf-option id="b"><strong>B</strong> second.</lf-option></lf-options></lf-group>',
-        [],
-        publication=revision_publication(
-            page_dir, files_model.latest_revision(page_dir)
-        ),
     )
+    assert [(f.code, f.at) for f in noted] == [
+        ("unnamed-card", "<lf-option id=a>"),
+        ("unnamed-card", "<lf-option id=b>"),
+    ]
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):

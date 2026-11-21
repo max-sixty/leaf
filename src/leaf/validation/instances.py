@@ -472,9 +472,7 @@ def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """Each pane (`reading-role: pane`) whose direct children aren't an optional header,
     one body element and an optional footer, in that order, with what its grid does with
     them (`base.css`, "A pane is one task region"). Advice, since a pane holding a
-    `<script>`, or blocks a script shows one at a time, works as it is. A message has
-    no channel for advice beside its admission (`admission.message_markup_errors`), so
-    this reads only a page's documents."""
+    `<script>`, or blocks a script shows one at a time, works as it is."""
     findings = []
     for rec in document.lf_elements:
         role = registry.get(rec["tag"], {}).get("reading-role")
@@ -538,8 +536,7 @@ def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Findin
     before any words of its own, whatever elements come first. The <strong> is a title
     only the page shows, so Leaf names the widget by all its words, and an option draws
     as a bare label of bold words. Advice, since bold words may open a label's own
-    words. A message has no channel for advice beside its admission
-    (`admission.message_markup_errors`), so this reads only a page's documents."""
+    words."""
     findings = []
     for rec in document.lf_elements:
         properties = (registry.get(rec["tag"]) or {}).get("attributes", {})

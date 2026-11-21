@@ -3,11 +3,11 @@
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
 import { closestAcross, renderedUnder } from "./shadow-tree.js";
-import { html, render } from "/runtime/framework.js";
+import { html, render, untracked } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
-import { agentName } from "./semantic-state.js";
+import { agentName, readPart } from "./semantic-state.js";
 import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
@@ -195,12 +195,31 @@ export function contributionEntrySource(control) {
 
 // Agent workflow is projection state. One claim gets one shared arrival window so the
 // independently rendered Margin and Page Map carriers join rather than replay its pulse.
+// The window lasts while a published workflow holds the claim: the first paint after
+// the workflows change drops each claim none of them holds, so the page keeps arrivals
+// only for unsettled updates, and a claim that comes back arrives anew.
 /** @type {WeakMap<Element, AgentDescription>} */
 const agentWorkflowDescriptions = new WeakMap();
 /** @type {Map<string, number>} */
 const claimArrivals = new Map();
 /** @type {WeakMap<Element, string>} */
 const controlArrivals = new WeakMap();
+const publishedWorkflows = readPart((root) => root.effective.workflows);
+// The published workflows the kept claims were last checked against.
+/** @type {ReturnType<typeof publishedWorkflows> | null} */
+let claimsChecked = null;
+/** @param {import("./framework/application.js").Workflow} receipt */
+const claimOf = (receipt) =>
+  JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
+function dropSettledClaims() {
+  // A control's paint follows its own receipt, not every workflow's.
+  const workflows = untracked(publishedWorkflows);
+  if (workflows === claimsChecked) return;
+  claimsChecked = workflows;
+  const held = new Set(workflows.map(claimOf));
+  for (const claim of claimArrivals.keys())
+    if (!held.has(claim)) claimArrivals.delete(claim);
+}
 /** @param {Element} control */
 function agentWorkflowDescription(control) {
   let reading = agentWorkflowDescriptions.get(control);
@@ -219,11 +238,13 @@ function agentWorkflowDescription(control) {
 
 /** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt */
 function syncAgentArrival(control, receipt) {
+  dropSettledClaims();
   if (!receipt || progressFace(receipt) !== "working") {
     control.removeAttribute("data-lf-agent-arrival");
+    controlArrivals.delete(control);
     return;
   }
-  const claim = JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
+  const claim = claimOf(receipt);
   let began = claimArrivals.get(claim);
   if (began === undefined) {
     began = performance.now();
@@ -472,11 +493,7 @@ export function presentContributionEntry(control, offered, options = {}) {
       counted || options.unread
         ? html`<span class="lf-badges" aria-hidden="true"
             >${options.unread ? html`<span class="lf-unread-dot"></span>` : null}${
-              counted
-                ? html`<span class="lf-margin-count lf-badge-count"
-                    >${record.count}</span
-                  >`
-                : null
+              counted ? html`<span class="lf-badge-count">${record.count}</span>` : null
             }</span
           >`
         : null

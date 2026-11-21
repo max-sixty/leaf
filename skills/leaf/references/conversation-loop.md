@@ -128,37 +128,44 @@ answer to it. The stamped version that records a widget answer takes it in witho
 
 ## Long-running work
 
-Follow the parent and worker roles in the main skill's "Stay responsive" section.
-New input reaches you between your own operations, so leave workers running while
-you follow the harness's delivery loop. When a worker reports, review and integrate
-its result, put it on the page, move finished work out of the open work
-(`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
-that asked, linking to the result.
+Follow the main skill's "Stay responsive" section while workers run. When a worker
+reports, review and integrate its result, put it on the page, move finished work out
+of the open work (`authoring-revisions.md`, "Keep the current page current"), and
+reply in the thread that asked, linking to the result.
 
 Work that needs its own conversation with the user belongs in its own session, with
 its own page.
 
-Decisions built from a worker's report tend to keep the report's shape, and the
-brief sets that shape. When the user will decide on what a worker finds, such as an
-audit's candidates, ask it for each decision's material rather than a record of each
-finding: the question the finding raises, each option titled by the result the user
-would get for that finding (not a kind of change shared by every finding, such as
-Remove), and each result shown as the user would meet it, such as a capture of the
-interface with the change applied beside today's, or a request the service would
-then refuse (`authoring-on-me.md`, "What a question holds").
+Pages and decisions built from a worker's report tend to keep the report's shape, and
+the brief sets that shape. Ask a worker to return, with each finding, the material it
+rests on: the cases behind a count, each with how it was counted, or the lines of
+code, quoted or in files it names (`page-authoring.md`, "Show what a claim rests
+on"). When the user will decide on what a worker finds, such as an audit's
+candidates, ask it for each decision's material rather than a record of each finding:
+the question the finding raises, each option titled by the result the user would get
+for that finding (not a kind of change shared by every finding, such as Remove), and
+each result shown as the user would meet it, such as a capture of the interface with
+the change applied beside today's, or a request the service would then refuse
+(`authoring-on-me.md`, "What a question holds").
 
-A start lasts only for the turn that wrote it.
-Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so
-start the one that best describes what is running. While a worker produces an
-update's answer, start that update before you end your turn; the Stop hook lets a
-turn end over an update it started. In the next turn, start the item again or answer
-it.
+Each item you start shows its line where the user looks for that work: in its
+thread, in On <your name>, and in the panel's status while it is the newest start. So start every item whose work is running, a worker's included, rather
+than the one that best describes your own step. A start goes stale after about 15
+minutes without a new line, and once your session stops working: your turn has
+ended and your harness reports no agent of yours still working in the background.
+While a worker produces an update's answer, start that update before you end your
+turn. The start holds the update through your later turns while your harness reports
+agents of yours working in the background, as Claude Code does, so leave it to the
+worker; once nothing holds it, Leaf names it in your next turn: answer it or start it
+again.
 
 For work that outlasts the turn, such as a worker's build, a wait on CI, or a change
-you promise for the next version, answer the thread with a to-do:
+you promise for the next version, answer the thread with a to-do, and while its work
+runs, say on the same reference what is running:
 
 ```bash
-leaf thread reply <answer.ref> --todo "<what you owe>" --text "<what is under way>"
+leaf thread reply <answer.ref> --todo "<what you owe>" --text "<your answer>"
+leaf thread reply <answer.ref> --ephemeral --text "<what is running>"
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
@@ -169,9 +176,11 @@ such a promise too; a `--done` reply would tell the user nothing more is coming.
 holding a decision the user put off until other work lands: while the to-do stays open,
 the decision their thread is about stays off On Me, and ending the to-do puts it back.
 
-The panel's status says what you are doing only for an item you have started, so while
-the to-do's work runs in your turn, such as a worker you wait on, start the to-do under
-the reply's id.
+The progress line starts the to-do, so the user sees it under your reply and in On
+<your name> while the work runs, rather than a promise that reads the same whether or
+not anything is moving. Post it again as the work moves to its next step. When a worker
+does the work, put the page and the reference in its brief, and have it post its line
+there as it starts each step.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done --text "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page
@@ -236,7 +245,8 @@ or an issue filed.
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On Me. A message that asks a
 new question whose answers you can list usually asks with a widget in it instead
-(`threads.md`, "Ask for a pick"); the command refuses both together. Progress and
+(`threads.md`, "Ask for a pick"); with both, the message asks twice, as the
+command notes. Progress and
 information that need no response create no obligation.
 
 Obligation ids are `message:<message>` for an explicit message request,

@@ -15,15 +15,11 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    LONG_PAGE,
-    all_pages_offered,
     clocked,
     dwelt,
     leaf_page,
     long_press,
     open_page,
-    panel_settled,
-    panel_view,
     put_preview_away,
     tab_onto,
     told,
@@ -32,33 +28,35 @@ from render_harness import (
 from leaf.render_checks import rendered
 
 
-def test_a_focus_preview_on_a_link_elsewhere_keeps_its_new_tab_description(
-    browser, serve, live_leaf
-):
-    """An All pages row opens its page in a new tab and says so as its description. A
-    focus preview on it adds to that description while it stands, rather than the link's
-    own treatment writing over it, and the row says only that once the preview goes."""
-    live_leaf("second", "A second leaf")
-    live_leaf("other", "The other leaf")
-    page = open_page(browser, serve(LONG_PAGE))
-    all_pages_offered(page)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    panel_settled(page, view="leaves")
-    rows = page.locator(f"{panel_view('leaves')} a.lf-fp-page")
-    expect(rows.nth(1)).to_have_accessible_description("opens in a new tab")
-    tab_onto(rows.nth(1))
+def test_a_focus_preview_adds_to_a_link_s_own_description(browser, serve):
+    """A link whose author describes it keeps that description. A focus preview on it
+    adds its words to the description while it stands, rather than writing over the
+    author's, and the link says only its own once the preview goes."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "described link",
+                '<p>Read <a id="to-end" href="#end" aria-describedby="note">the end'
+                '</a>.</p><span id="note" hidden>the decision</span>'
+                '<div style="height: 1600px"></div><h2 id="end">End</h2><p>Done.</p>',
+            )
+        ),
+    )
+    link = page.locator("#to-end")
+    expect(link).to_have_accessible_description("the decision")
+    tab_onto(link)
     preview = page.locator(PREVIEW)
     expect(preview).to_be_visible()
     rendered(page)
     # Element references, which Playwright's accessible description doesn't follow.
-    described = rows.nth(1).evaluate(
-        "row => (row.ariaDescribedByElements ?? []).map((el) => el.textContent)"
+    described = link.evaluate(
+        "link => (link.ariaDescribedByElements ?? []).map((el) => el.textContent)"
     )
-    assert described == ["opens in a new tab", preview.text_content()]
+    assert described == ["the decision", preview.text_content()]
     put_preview_away(page)
     rendered(page)
-    expect(rows.nth(1)).to_have_accessible_description("opens in a new tab")
+    expect(link).to_have_accessible_description("the decision")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -149,6 +147,13 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     expect(preview.locator(".lf-place-item:not([data-lf-chosen])")).to_have_text(
         "At the door"
     )
+    # Each option stands on a line of its own.
+    chosen, other = (
+        preview.locator(f".lf-place-item{which}").bounding_box()
+        for which in ("[data-lf-chosen]", ":not([data-lf-chosen])")
+    )
+    assert chosen and other, (chosen, other)
+    assert abs(other["y"] - chosen["y"]) >= chosen["height"] - 0.5, (chosen, other)
     page.locator("#to-site").hover()
     expect(preview).to_be_hidden()
 
@@ -221,7 +226,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
           const words = document.createElement('span');
           words.className = 'lf-ui';
           words.textContent = 'COPY CONTROL';
-          document.querySelector('#code > span').after(words);
+          document.querySelector('#code span[style]').after(words);
         }"""
     )
     preview = page.locator(PREVIEW)

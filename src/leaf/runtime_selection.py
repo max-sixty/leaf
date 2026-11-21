@@ -49,7 +49,9 @@ from .layer import (
     LayerComposition,
     composed_sheets,
     files_identity,
+    forget_layers,
     layer_inputs,
+    package_files,
     stylesheet,
 )
 from .registry.storage import revision_vocabulary, selected
@@ -243,6 +245,16 @@ def serving_runtime() -> ServingRuntime:
     return read_runtime()
 
 
+def forget_tree() -> None:
+    """Drop what this process holds of its tree, the runtime it serves and the layers
+    it composed (`layer.forget_layers`), so the next server it starts reads the tree as
+    it stands. Only a process between servers drops them, as a preview does when it
+    replaces its own: a server still running would answer with bytes it did not start
+    with."""
+    serving_runtime.cache_clear()
+    forget_layers()
+
+
 def execution_identity(artifact: RevisionArtifact) -> str:
     """The identity of every byte the artifact's execution serves (`executing`)."""
     return executing(artifact).identity
@@ -323,8 +335,6 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     ).removeprefix("sha256:")[:16]
     # Samples re-compose in their own directory. Keep just the local package
     # copies this selection needs, using the same file inventory as page init.
-    from .vendoring import package_files
-
     names = with_theme(tuple(record["packages"]), record["theme"])
     copies = {
         root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(

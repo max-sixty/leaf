@@ -1,6 +1,3 @@
-<!-- @noformat -->
-<!-- Table padding exceeds the harness's 30,000-character single-read limit. -->
-
 # Leaf glossary
 
 The canonical names for the page a user sees and operates. Use them in element
@@ -31,7 +28,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (stage `sending`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
-| **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
+| **Threads** | The On view's tab in Leaf's panel, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
 The user is talking with the agent, and the page is where that conversation happens,
@@ -71,8 +68,8 @@ and places too, since the interface's upright face would read as the agent's.
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
-for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose on
-16 November 2026 over “Ready” alone.
+for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose
+over “Ready” alone.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On Me**, **my change**, and commands such as
@@ -168,10 +165,10 @@ behavior. A compound widget may own reading regions without being a pane.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container after `body` |
-| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On Me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
-| **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the On view on the leaf's menu, or unfolds a folded panel |
+| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the comment field and, at its end, the leaf. While a search or stance is active, the ✕ that ends it stands between them. A **folded** panel shows only the leaf in the window's corner |
+| **Leaf** | The mark at the row's end, coloured by the agent's state, with the count of what waits on the user and a dot when a thread has an unread reply; a press opens the On view on the tab those marks point at: the leaf's menu while an error waits unseen there, else On Me while anything waits on the user, else Threads while a thread has news, else the menu. A press on a folded leaf unfolds the panel |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as Draw mode or an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position, and Reply with its key at its end while that key enters the field. While a stance such as Draw mode stands, the field takes no words and the row's mode chip names the stance in a word (**Draw**) beside its ✕. Its words read dim, and a passing notice a step brighter |
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
@@ -223,9 +220,9 @@ its link's preview counts them.
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
-| **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On Me list (`m`), the changes a version comparison marks, each a run of changed blocks (`h`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
+| **Walk** | Stepping in order through one kind of destination: open threads and the drafts Threads lists (`t`), the user's On Me list (`m`), the changes a version comparison marks, each a run of changed blocks (`h`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
 | **Obligation** | What a widget or an agent's message waits on the user for, or what an update the user handed over is owed (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`). On the page, only its source answers it, through the widget's own actions or a reply in the thread; the agent ends a thread question the user answered elsewhere by resolving its thread. A thread is never one |
-| **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. A row names its obligation by the widget's word (`word`, or its module's `lfWord()`) |
+| **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. Its By kind grouping names an obligation by the widget's word (`word`, or its module's `lfWord()`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Work the agent owes until it ends (`todo` in the protocol) |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |

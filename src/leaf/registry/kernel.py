@@ -4,7 +4,8 @@ Every `$events` member but `handling` and `answering` is the transport contract 
 layer can change (`layer.merge_layer_declarations`), `$passages` is how a page reads
 as text, `$marks` the declarations painted for stylesheets, `$names` the widget and
 attribute name grammars, and `$authored` the page-wide declarations `page check` holds
-an author to. A layer that declares any of these differently is refused. All are read
+an author to. A layer that declares any of these differently is told the layer's
+value has no effect (`layer.kernel_fact_advice`). All are read
 from the running Leaf's kernel registry, which the browser reads too
 (`runtime/kernel-facts.js`), rather than from a page's composed vocabulary, which may
 be another Leaf's at the same `protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module

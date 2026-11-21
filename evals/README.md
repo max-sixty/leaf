@@ -415,11 +415,17 @@ this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
 Authoring cases and complete tasks keep their evidence (prompts, native traces,
-page directories) under `.tmp/eval/<run>/samples/`, one directory per sample named
-by its case, and each sample's `metadata.work` names its directory. Original runtime
-arms are retained under `arms/` for later live grading. A judged sample's screenshots
-are under `screenshots/`, in a directory of the same name. `results.json` there
-holds the whole run.
+page directories) under `.tmp/eval/<run>/samples/`, one directory per sample, and
+each sample's `metadata.work` names its directory. Original runtime arms are retained
+under `arms/` for later live grading. A judged sample's screenshots are under
+`screenshots/`, in a directory of the same name. `results.json` there holds the whole
+run.
+
+`.tmp/eval/<run>` is a link to the run, which lives in `$XDG_STATE_HOME/leaf-dev/eval/`.
+The paths agents read and the records keep are in that directory, so they don't name
+the branch, and samples and arms take random names, so they don't name the case or
+arm either (`commands/eval/run.py` says why). The next `eval run` deletes a stored
+run whose link is gone, so removing a worktree removes its runs.
 
 ### Recorded execution data
 
@@ -464,10 +470,11 @@ skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
 read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
 and one that grades what the
 agent would do asks for the commands it would run. They may also ask the arm's Leaf
-what a page's packages tell an author: Claude Code runs `leaf page instructions` and
-`leaf page vocabulary`, and Codex runs any `leaf` command through the plugin's `leaf`
-tool. A case that declares `metadata.page`, the packages its page takes beside the
-defaults (`[]` for none), gives its probe that page, initialized, and the prompt names
+what a page's packages tell an author and which packages it could select: Claude Code
+runs `leaf page instructions`, `leaf page vocabulary` and `leaf package list`, and
+Codex runs any `leaf` command through the plugin's `leaf` tool. A case that declares
+`metadata.page`, the packages its page takes beside the defaults (`[]` for none),
+gives its probe that page, initialized, and the prompt names
 it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
@@ -484,6 +491,9 @@ arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
+`metadata.installed` lists package directories, relative to the repository, that
+`leaf package install` adds to that Leaf state before the agent starts, as packages
+the user installed on the machine.
 Declaring `html` in `metadata.conditions` adds the plain HTML control, which gets
 the same prompt without the Leaf skill prefix, an empty directory and the headless
 Chrome path; its `page-valid` means the page loaded without script errors. A
@@ -503,7 +513,10 @@ captures with registered page media, including cropped or marked images. Its
 `exact_inputs` records computed source matches, leaving visual comparison to
 transformed images. The judge can read only copied images under the run's
 screenshot tree; the assertion
-supplies authored HTML to identify the references, without the author's trace.
+supplies authored HTML to identify the references, without the author's trace. A
+widget bound to a data source, such as a patch view, draws text the HTML doesn't hold,
+so a rubric about that text passes `metadata.page_data`, each bound source's value by
+id, beside the HTML in its `transform`, as `findings-show-their-cases` does.
 
 Use authoring cases for media preparation and checking or repairing rendering. Keep
 source and reading probes for decisions that need no rendered page: those whose rules
@@ -544,8 +557,9 @@ text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
 tasks use one JavaScript assertion to pass the final live judge's verdict through
 the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
-`arrangement_eval` copies pinned assets under `evals/<task>/` to the same relative
-path in each author's isolated workspace, as short authoring cases do.
+A task's pinned assets are copied to the root of the agent's working directory
+(`arms.stage_task_files`), so `evals/<task>/captures/before.png` reaches the agent as
+`captures/before.png`, and the task's prompt names it by that path.
 
 Python prepares fixtures, drives live chat turns or user input through the page,
 and extracts evidence. Complete authoring tasks have only two execution
@@ -563,14 +577,14 @@ judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it
 `metadata.authoring` and `metadata.executor` select distinct execution modes;
 declaring both on a case, including through inherited variant metadata, is an error.
 
-| Executor           | Runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision; a scenario's `revision` then changes what the page is for, and `request` names another task whose request it starts from. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, comparison screenshots and author accounting. One final live judge checks the outcome against its decision and revision starting points. `--from --judge pair` compares saved samples.                                                                                                                                                          |
-| `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                                                                                                                                                                                                                                                                                                           |
-| `delivery_eval`    | Comments posted between turns and mid-turn through the shared live session. `parent-keeps-leaf-responsive/during-work` adds a repair task and consecutive comments. The response-times query retains exact first feedback, answers and missing observations at a fixed cutoff. The fixture checks the retained repair; semantic rubrics judge answers and the published result. A completed addressed reply checks thread closure separately from task correctness and page content. Native parent and worker traces are retained by the session.                                                                                                                                                                                                                       |
-| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Queries the adapter's private page diagnostics for native turn status, the opening and final reply updates actually published, and follower completion after cleanup. Retains exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                                                                                                                                                                                                               |
-| `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `fork_eval`        | Replays Leaf's conversation forks on short constructed conversations: `turn-end-check/*` for the clerk's turn-end check, `line-fork/*` for a kept-back thread's working line. The arm's Leaf builds the page and session and writes the question; `claude -p --resume` answers it from the rendered transcript; the arm's Leaf takes the answer, and the score reads what it took, so an answer it refuses fails either fork. Turn-end items are matched to labels by the words they rest on, a labelled edit must remove the stale words from the page, and the text judge reads every item and change; the judge reads the working line a reply fork posted, and its judgment of who should do the work is checked against the case's `work` label. Claude Code only. |
+| Executor           | Runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision; a scenario's `revision` then changes what the page is for, and `request` names another task whose request it starts from. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, comparison screenshots and author accounting. One final live judge checks the outcome against its decision and revision starting points. `--from --judge pair` compares saved samples.                                                                                                                                                                                                                                               |
+| `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `delivery_eval`    | Comments posted between turns and mid-turn through the shared live session. `parent-keeps-leaf-responsive/during-work` adds a repair task and consecutive comments. The response-times query retains exact first feedback, answers and missing observations at a fixed cutoff. The fixture checks the retained repair; semantic rubrics judge answers and the published result. A completed addressed reply checks thread closure separately from task correctness and page content. Native parent and worker traces are retained by the session.                                                                                                                                                                                                                                                                                                            |
+| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Queries the adapter's private page diagnostics for native turn status, the opening and final reply updates actually published, and follower completion after cleanup. Retains exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                                                                                                                                                                                                                                                                                                    |
+| `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `fork_eval`        | Replays Leaf's conversation forks on short constructed conversations: `turn-end-check/*` for the clerk's turn-end check, `line-fork/*` for the line fork's working line on a thread message, `summary-fork` for the fork beside it that summarizes a long thread. The arm's Leaf builds the page and session and writes the question; `claude -p --resume` answers it from the rendered transcript; the arm's Leaf takes the answer, and the score reads what it took, so an answer it refuses fails either fork. Turn-end items are matched to labels by the words they rest on, a labelled edit must remove the stale words from the page, and the text judge reads every item and change; the judge reads the working line the line fork posted, the only answer a line fork gives, so that reading is the full score of any line case. Claude Code only. |
 
 The responsiveness workload uses the same stream session as other live evals.
 It does not force native compaction: that required a separate interactive driver,
@@ -640,5 +654,4 @@ the website.
 Benchmark runs are development experiments, not release gates. Run a selected
 case when changing its behavior, inspect its saved pages and judge evidence, and
 repair mistakes in that loop. Keep only a couple of no-model smoke tests for the
-provider wiring in `dev/tests`; these and other `leaf-dev` tests run explicitly,
-outside product PR CI.
+provider wiring in `dev/tests` (`dev/AGENTS.md`, "Tests", says where they run).

@@ -121,9 +121,17 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file's stamp, by binding, which moves when the file may have: an editor reads its file only when this stamp does.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and its stamp, which moves when the file may have, so an editor reads its file only when this stamp does.",
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "stamp": { "type": "string" }
+            },
+            "required": ["label", "stamp"],
+            "additionalProperties": false
+          }
         },
         "status": {
           "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
@@ -199,22 +207,6 @@
         "turn_takes_input": {
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
-        },
-        "agent_turns": {
-          "description": "The turns of the agents the claimant's session runs beside its main thread, line turns and working forks', that are open and not yet lapsed or that the page's log names, by turn id: its role, the agent's id in its harness, or null until the harness starts it, when each opened and was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "role": { "enum": ["line", "fork"] },
-              "agent": { "type": ["string", "null"] },
-              "opened": { "type": "string" },
-              "renewed": { "type": "string" },
-              "closed": { "type": ["string", "null"] }
-            },
-            "required": ["role", "agent", "opened", "renewed", "closed"],
-            "additionalProperties": false
-          }
         },
         "input_wakes": {
           "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
@@ -315,7 +307,6 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
-        "agent_turns",
         "input_wakes",
         "session_cwd",
         "activity",
@@ -592,7 +583,7 @@
           ]
         },
         "started_by": {
-          "description": "The starts that take the update in hand, which the Stop hook reads.",
+          "description": "The starts that take the update in hand, from which the hooks read whether one holds it now (`activity.in_hand`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -600,14 +591,15 @@
               "item": { "type": "string" },
               "session": { "type": ["string", "null"] },
               "turn": { "type": ["string", "null"] },
-              "seq": { "type": "integer" }
+              "seq": { "type": "integer" },
+              "ts": { "type": "string" }
             },
-            "required": ["item", "session", "turn", "seq"],
+            "required": ["item", "session", "turn", "seq", "ts"],
             "additionalProperties": false
           }
         },
         "at_work": {
-          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`holding.Holding.forked`).",
+          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a progress message of the agent's, such as a line fork's working line, came after its input in a thread that still waits on it (`served_state.work.lined`).",
           "type": "boolean"
         },
         "thread": {
@@ -1412,8 +1404,8 @@
             },
             "content_version": { "type": "string" },
             "completed_by": {
-              "description": "The ordinary or provisional reply that supersedes this progress message. Hide it only while that reply is presented.",
-              "type": "string"
+              "description": "What ended this progress message (`served_state.thread.progress_ends`): the agent message that superseded it, provisional or durable, which hides it only while that message is presented, or null where the turn that wrote it ended.",
+              "type": ["string", "null"]
             },
             "edited": { "$ref": "#/$defs/MessageEdited" },
             "withdrawn": { "$ref": "#/$defs/MessageWithdrawn" }
@@ -1552,7 +1544,7 @@
           "type": ["string", "null"]
         },
         "summaries": {
-          "description": "The thread's current summaries (`events.active_summaries`); `protected` lists the covered messages a summary must not hide.",
+          "description": "The thread's current summaries (`events.active_summaries`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -1563,19 +1555,9 @@
               "through": { "type": "string" },
               "covers": { "type": "array", "items": { "type": "string" } },
               "text": { "type": "string" },
-              "label": { "type": "string" },
-              "protected": { "type": "array", "items": { "type": "string" } }
+              "label": { "type": "string" }
             },
-            "required": [
-              "id",
-              "seq",
-              "from",
-              "through",
-              "covers",
-              "text",
-              "label",
-              "protected"
-            ],
+            "required": ["id", "seq", "from", "through", "covers", "text"],
             "additionalProperties": false
           }
         },
@@ -1867,12 +1849,20 @@
       "required": ["page_key", "url", "title", "session_cwd", "activity"]
     },
     "NewsAnswer": {
-      "description": "The answer `GET /api/news` gives (`http.PageEndpoint._news`): three readings the tab follows apart. `reading` names the page's own reading, the one an `/api/state` answer carries; `pages` names the list `/api/pages` answers (`presence.pages_reading`), or is null while no other page is live, and moves on its own, so another page's change never asks the tab to read this page's state again; `drafts` is the version of the user's drafts `/api/drafts` answers (`drafts.py`), which a keystroke moves without moving the page's reading.",
+      "description": "The answer `GET /api/news` gives (`http.PageEndpoint._news`): three readings the tab follows apart. `reading` names the page's own reading, the one an `/api/state` answer carries; `pages` names the list `/api/pages` answers (`presence.pages_reading`), or is null while no other page is live, and moves on its own, so another page's change never asks the tab to read this page's state again; `drafts` names the store of the user's drafts `/api/drafts` answers and its version (`drafts.py`), which a keystroke moves without moving the page's reading.",
       "type": "object",
       "properties": {
         "reading": { "type": "string" },
         "pages": { "type": ["string", "null"] },
-        "drafts": { "type": "integer", "minimum": 0 }
+        "drafts": {
+          "type": "object",
+          "properties": {
+            "store": { "type": "string" },
+            "version": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["store", "version"],
+          "additionalProperties": false
+        }
       },
       "required": ["reading", "pages", "drafts"],
       "additionalProperties": false
@@ -1891,16 +1881,17 @@
       "additionalProperties": false
     },
     "DraftsAnswer": {
-      "description": "The answer `GET /api/drafts` gives, and what a served document carries of it (`lf-drafts`): every draft the user is writing on the page, by its context, with the store's version. A sent or put-away draft is absent.",
+      "description": "The answer `GET /api/drafts` gives, and what a served document carries of it (`lf-drafts`): every draft the user is writing on the page, by its context, with the store's identity and version. A sent or put-away draft is absent.",
       "type": "object",
       "properties": {
+        "store": { "type": "string" },
         "version": { "type": "integer", "minimum": 0 },
         "drafts": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/Draft" }
         }
       },
-      "required": ["version", "drafts"],
+      "required": ["store", "version", "drafts"],
       "additionalProperties": false
     },
     "DraftWriteAnswer": {
@@ -1908,10 +1899,11 @@
       "type": "object",
       "properties": {
         "written": { "type": "boolean" },
+        "store": { "type": "string" },
         "version": { "type": "integer", "minimum": 0 },
         "record": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Draft" }] }
       },
-      "required": ["written", "version", "record"],
+      "required": ["written", "store", "version", "record"],
       "additionalProperties": false
     },
     "PagesAnswer": {

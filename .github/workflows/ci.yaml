@@ -9,8 +9,11 @@ name: ci
 # - the daily schedule and a manual dispatch run every product test, and their summary lists
 #   the tests over their directory's budget; `test-macos` runs them on macOS too.
 #   The daily schedule also runs the benchmark (`bench`), whose readings gate
-#   nothing.
-# Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
+#   nothing;
+# - a dispatch given `flake` runs only `test-macos`, which runs `leaf-dev suite flake`
+#   with those arguments in place of the suite.
+# The daily schedule also runs the developer-tool tests in dev/tests, which no other
+# event runs.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -19,6 +22,9 @@ on:
   schedule:
     - cron: "47 10 * * *"
   workflow_dispatch:
+    inputs:
+      flake:
+        description: Arguments for `leaf-dev suite flake` to run on macOS in place of the suite
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, and the next merge must not end a
@@ -31,6 +37,7 @@ concurrency:
 
 jobs:
   test:
+    if: ${{ !inputs.flake }}
     concurrency:
       # One push suite at a time: it holds a runner for over an hour, and GitHub's
       # concurrency pool is per-account, shared with the other repos here. A running
@@ -216,6 +223,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  # The developer-tool tests (dev/AGENTS.md, "Tests"), daily only, on a runner of
+  # their own. A step that overruns fails, where the six-hour job deadline would
+  # cancel the run and never summon tend.
+  dev-tests:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: 🧪 Python developer-tool tests
+        timeout-minutes: 60
+        run: uv run pytest dev/tests -n 3 -v
+      - name: 🧪 Eval harness smoke tests
+        if: ${{ !cancelled() }}
+        run: pnpm run test:evals
+
   # The daily benchmark: `leaf-dev bench` on its generated pages, in the browser and
   # on the server, on a runner of its own so the suite's tests don't share its cores.
   # No reading passes or fails anything (tests/AGENTS.md, "Results do not depend on
@@ -322,13 +345,35 @@ jobs:
   # daily schedule and a dispatch run it, since it adds a runner for as long as the
   # nightly suite takes, and a failure turns the run red for tend like `test`'s. The
   # Linux job's gates, website checks and profiles are platform-independent or
-  # Linux-only, so this job runs the suite alone.
+  # Linux-only, so this job runs the suite alone. A failure only this job shows is
+  # reproduced here too, by a dispatch on a branch that names its tests in `flake`
+  # (tests/AGENTS.md, "Races"), so nobody edits this file to probe one.
   test-macos:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
     steps:
+      # The runner's DHCP server answers a new client but not a renewal, so the runner
+      # drops its address when each one-hour lease ends and takes the same one back a
+      # few seconds later. Chromium answers the change by failing every loopback load
+      # still waiting for a socket with net::ERR_NETWORK_CHANGED, and the test that was
+      # loading fails. Setting the leased address, router and DNS server by hand keeps
+      # the interface unchanged for the rest of the job. Every value is read from the
+      # lease before any is set, since setting the address ends the lease and
+      # `ipconfig getoption` answers nothing for it afterwards.
+      - name: Hold the runner's network address
+        run: |
+          interface=$(route -n get default | awk '/interface:/ {print $2}')
+          service=$(networksetup -listnetworkserviceorder | awk -v device="$interface" '/^\([0-9]+\) / {sub(/^\([0-9]+\) /, ""); name=$0} index($0, "Device: " device ")") {print name}')
+          address=$(ipconfig getifaddr "$interface")
+          mask=$(ipconfig getoption "$interface" subnet_mask)
+          router=$(ipconfig getoption "$interface" router)
+          dns=$(ipconfig getoption "$interface" domain_name_server)
+          sudo networksetup -setmanual "$service" "$address" "$mask" "$router"
+          sudo networksetup -setdnsservers "$service" "$dns"
+          until [ "$(ipconfig getifaddr "$interface")" = "$address" ]; do sleep 1; done
+
       - name: 📂 Checkout code
         uses: actions/checkout@v7
 
@@ -349,6 +394,7 @@ jobs:
       # depend on speed (tests/AGENTS.md, "Waits"); the suite can take as long at four
       # workers as at two.
       - name: 🧪 Python tests
+        if: ${{ !inputs.flake }}
         shell: bash
         run: |
           mkdir -p .tmp/test-results
@@ -356,11 +402,22 @@ jobs:
             pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
+      # `flake` holds `leaf-dev suite flake`'s arguments (its `--help` says what each
+      # does), which xargs splits as a shell would, quotes included, without running a
+      # shell. The step's log ends with each test's count per outcome and every
+      # failure's message, and the artifact holds each copy's log and its failing
+      # pages' pictures.
+      - name: Run the named tests as copies under load
+        if: ${{ inputs.flake }}
+        env:
+          FLAKE: ${{ inputs.flake }}
+        run: printf '%s' "$FLAKE" | xargs uv run leaf-dev suite flake
+
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/
+          path: ${{ inputs.flake && '.tmp/flake/' || '.tmp/test-results/' }}
           if-no-files-found: ignore
           retention-days: 30

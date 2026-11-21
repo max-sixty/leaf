@@ -8,7 +8,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
+from browser.test_render_commands import (
+    FILM_DECLARATION,
+    FILM_PAGE,
+    no_browser,
+    unnamed_browser,
+)
 from conftest import LEAF_COMMAND
 from interact_support import (
     append_carried_log_record,
@@ -73,10 +78,15 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert ok.returncode == 0, ok.stdout + ok.stderr
     assert json.loads(ok.stdout)["browser"]["browser"] == "Chrome"
 
-    # A vw width slips the static lint (which counts only px) and overflows only
-    # in a layout engine.
+    # A box that cuts off its own words passes the static lint, and only a layout
+    # engine sees the words it loses.
     (d / "index.html").write_text(
-        LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
+        LONG_PAGE.replace(
+            "</main>",
+            "<div id='short-box' style='height: 3rem; overflow: hidden'>"
+            "<p>First of three.</p><p>Second of three.</p><p>Third of three.</p>"
+            "</div>\n</main>",
+        )
     )
     broken = gate()
     assert broken.returncode == 1, broken.stderr
@@ -84,9 +94,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert report["status"] == 1
     assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
     assert report["browser"]["browser"] == "Chrome"
-    [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
-    assert scrolls["widths"] == [360, 1920], report
-    assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
+    [cut] = [f for f in report["findings"] if f["code"] == "clipped-content"]
+    assert cut["widths"] == [360, 1920], report
+    assert cut["severity"] == "error" and cut["values"]["down"] > 0, cut
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
@@ -272,7 +282,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         env=named,
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr
-    unavailable = json.loads(checked.stdout)["browser"]["unavailable"]
+    unavailable = no_browser(json.loads(checked.stdout))
     assert unavailable.startswith("no browser launched: ")
     assert "LEAF_BROWSER_EXECUTABLE" in unavailable and str(missing) in unavailable
     assert "Chrome did not launch" not in unavailable
@@ -286,7 +296,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
             env=unnamed_browser() | {variable: str(missing)},
         )
         assert answered.returncode == 0, answered.stdout + answered.stderr
-        unavailable = json.loads(answered.stdout)["browser"]["unavailable"]
+        unavailable = no_browser(json.loads(answered.stdout))
         assert variable in unavailable and str(missing) in unavailable
         assert "LEAF_BROWSER_EXECUTABLE" not in unavailable
 
@@ -469,8 +479,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
         assert ran.returncode == status, ran.stdout + ran.stderr
         return json.loads(ran.stdout)
 
-    no_browser = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
-    assert no_browser["browser"] is None
+    unbrowsed = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert unbrowsed["browser"] is None
 
     (d / "index.html").write_text(FILM_PAGE)
     broken = check(1, LEAF_BROWSER_EXECUTABLE=headless_shell)
@@ -490,7 +500,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
 
     unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
     assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])
-    assert unrun["browser"]["unavailable"].startswith("no browser launched: ")
+    assert no_browser(unrun).startswith("no browser launched: ")
 
     (d / "page" / "film.js").write_text(
         "export const paint = (el, step) =>\n"
@@ -527,7 +537,6 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 
 
@@ -950,7 +959,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     # and a page that cannot start is read no further. A page that refuses never
     # upgrades, so a reading that missed the refusal would wait out each page's
     # deadline, shortened here.
-    monkeypatch.setattr(render_gate_scheme, "HANDOVER_DEADLINE_MS", 20_000)
+    monkeypatch.setattr(render_checks_model, "HANDOVER_DEADLINE_MS", 20_000)
     routed = RoutedBrowser(fail_helper=True)
     folded = []
     reading = render_gate_model.render_version(routed, url, page_code=folded)

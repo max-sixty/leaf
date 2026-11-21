@@ -9,11 +9,10 @@ import {
 } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
 import { watchHeadingLinks } from "./heading-links.js";
-import { watchVideos } from "./video-controls.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring, upgrades } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { revealLayer, admitResponse, sameLayer } from "./layer-client.js";
+import { revealLayer, sameLayer } from "./layer-client.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -22,10 +21,7 @@ import {
   whenWidgetsPresented,
 } from "./semantic-state.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import {
-  commitWidgetDescriptors,
-  stageWidgetDescriptors,
-} from "./widget-descriptors.js";
+import { bindWidgetDescriptors, stageWidgetDescriptors } from "./widget-descriptors.js";
 import {
   fencePassageParts,
   verbatimBoundaryIdentity,
@@ -199,7 +195,6 @@ async function installDocument(scope) {
     watchQuietWords();
     watchCodeBlocks();
     watchHeadingLinks();
-    watchVideos();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
@@ -252,8 +247,10 @@ async function settle(presentation, scope, arrived, presented) {
 
 /** @param {import("./version.js").InitialDocument} captured */
 export async function prepareDocument(captured) {
+  // A revision asset, whose headers may be cached from an earlier release
+  // (`admitResponse`). The initial state read answers for the server, and the
+  // registry's own `$layer` for its layer.
   const response = await fetch(registryUrl());
-  if (!admitResponse(response)) return false;
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   adoptRegistry(await response.json());
@@ -273,13 +270,12 @@ export async function prepareDocument(captured) {
     authored: new Map([...prior.authored, ...authored]),
     descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
   });
-  commitWidgetDescriptors({
-    ...descriptors,
-    bindings: descriptors.bindings.map(({ element, descriptor }) => ({
+  bindWidgetDescriptors(
+    descriptors.bindings.map(({ element, descriptor }) => ({
       element: original(element),
       descriptor,
     })),
-  });
+  );
   return true;
 }
 

@@ -1,9 +1,10 @@
 """Registry-declared markup instance validation."""
 
 import re
-from dataclasses import replace
+from collections.abc import Callable, Iterable
 
 from leaf.findings import Finding, element_at
+from leaf.gesture_words import element_name
 from leaf.obligations import group_tags, shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -20,7 +21,14 @@ from leaf.registry.schema import json_validator, schema_reading
 from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
-from .markup import found_at, structure_errors
+from .markup import (
+    document_declaration_errors,
+    found_at,
+    id_errors,
+    markup_advice,
+    repair_errors,
+    structure_errors,
+)
 
 _GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
@@ -37,16 +45,15 @@ def member_holders(rec: dict, registry: dict):
         yield node
 
 
-def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
-    """Registry-derived errors shared by admission and `page init`."""
-    errors = fragment_errors(parser, registry)
+def message_settlement_advice(parser, registry: dict) -> list[Finding]:
+    """Each widget in a message's markup whose decision retires part of it, as a
+    suggestion's does, which no version writes into the page (`message-settlement`)."""
     settled = retirement_slots(registry)
-    errors.extend(
+    return [
         found_at("message-settlement", rec)
         for rec in parser.lf_elements
         if rec["tag"] in settled
-    )
-    return errors
+    ]
 
 
 def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
@@ -206,19 +213,22 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 
 def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each widget a page asks with stands in a named group (`obligations.widget_groups`):
-    the group is the question, the region On Me selects and the ring draws round, and
-    its `label` is the question's words on On Me and in what the agent hears. Leaf reads
-    both from the author's markup and infers neither, so a widget no group holds names no
-    question (`ungrouped-question`, one finding a widget); the registry requires the
-    group's id and label. A widget with words of its own needs no group: one set among
-    words (`inline`) is named by them, and one asking about each record of its data
-    (`awaits.records`) by each record's label. A message's widget needs none either,
-    since the message names what it asks, so only a page's documents are checked."""
+    """Each widget a page asks with has a question to show on On Me: the label of the
+    named group round it (`obligations.widget_groups`), else the widget's own `label`
+    (`gesture_words.element_name`), the words On Me lists and the agent hears. Leaf
+    reads both from the author's markup and infers neither. A question with no words,
+    as where neither the widget nor a group round it has a label that isn't blank, is
+    refused (`unnamed-question`). One named by its widget alone stands outside the
+    region On Me selects and the ring draws round, so its premise is out of view
+    (`ungrouped-question`, advice). A widget with words of its own needs no group: one
+    set among words (`inline`) is named by them, and one asking about each record of
+    its data (`awaits.records`) by each record's label. A message's widget needs none
+    either, since the message names what it asks, so only a page's documents are
+    checked."""
     # A widget inside SVG keeps its exact source rather than a node, and so is no
     # widget the walk reads.
     groups = {
-        id(node): group
+        id(node): (node, group)
         for node, group in widget_groups(document.authoring.content, registry)
     }
     errors = []
@@ -226,20 +236,27 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         entry = registry.get(rec["tag"]) or {}
         awaits = entry.get("awaits")
         if (
-            awaits is not None
-            and not entry.get("inline")
-            and "records" not in awaits
-            and matches_when(rec["attrs"], awaits.get("when"))
-            and not shown_in(rec, registry)
-            and groups.get(id(document.authoring.node_of(rec)), False) is None
+            awaits is None
+            or entry.get("inline")
+            or "records" in awaits
+            or not matches_when(rec["attrs"], awaits.get("when"))
+            or shown_in(rec, registry)
+            or (walked := groups.get(id(document.authoring.node_of(rec)))) is None
         ):
-            errors.append(
-                Finding(
-                    "ungrouped-question",
-                    element_at(rec["tag"], rec["attrs"].get("id", "")),
-                    {"line": rec["line"], "groups": group_tags(registry)},
-                )
-            )
+            continue
+        node, group = walked
+        values = {"line": rec["line"], "groups": group_tags(registry)}
+        if not element_name(group or node, registry):
+            code = "unnamed-question"
+            if group is not None:
+                values["group"] = element_at(group["tag"], group["attrs"].get("id", ""))
+        elif group is None:
+            code = "ungrouped-question"
+        else:
+            continue
+        errors.append(
+            Finding(code, element_at(rec["tag"], rec["attrs"].get("id", "")), values)
+        )
     return errors
 
 
@@ -472,9 +489,7 @@ def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """Each pane (`reading-role: pane`) whose direct children aren't an optional header,
     one body element and an optional footer, in that order, with what its grid does with
     them (`base.css`, "A pane is one task region"). Advice, since a pane holding a
-    `<script>`, or blocks a script shows one at a time, works as it is. A message has
-    no channel for advice beside its admission (`admission.message_markup_errors`), so
-    this reads only a page's documents."""
+    `<script>`, or blocks a script shows one at a time, works as it is."""
     findings = []
     for rec in document.lf_elements:
         role = registry.get(rec["tag"], {}).get("reading-role")
@@ -492,7 +507,7 @@ def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
         body = [child for child in direct if child not in {"header", "footer"}]
         if len(body) > 1 or body == ["#text"]:
             findings.append(found_at("pane-body", rec, role=role, body=body))
-    return [replace(finding, severity="advice") for finding in findings]
+    return findings
 
 
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
@@ -527,18 +542,17 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
                         "value": item["value"],
                         "holds": holds,
                     },
-                    severity="advice",
                 )
             )
     return findings
 
 
 def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each widget that takes its name in `label` but has none, and leads with a
-    <strong> past any chips, as options and board cards were written before they took
-    `label`. The <strong> is a title only the page shows, so Leaf names the widget by
-    all its words, and an option draws as a bare label of bold words. Advice, since bold
-    words may open a label's own words."""
+    """Each widget that takes its name in `label` but has none, and holds a <strong>
+    before any words of its own, whatever elements come first. The <strong> is a title
+    only the page shows, so Leaf names the widget by all its words, and an option draws
+    as a bare label of bold words. Advice, since bold words may open a label's own
+    words."""
     findings = []
     for rec in document.lf_elements:
         properties = (registry.get(rec["tag"]) or {}).get("attributes", {})
@@ -556,7 +570,6 @@ def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Findin
                         "unnamed-card",
                         element_at(rec["tag"], rec["attrs"].get("id", "")),
                         {"line": rec["line"]},
-                        severity="advice",
                     )
                 )
                 break
@@ -564,8 +577,9 @@ def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Findin
 
 
 def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Every instance check that needs only the registry, no id namespace, so a new
-    check of that kind reaches page source and message markup alike."""
+    """Every instance check that needs only the registry, no id namespace, what it
+    refuses and what it advises, so a new check of that kind reaches page source and
+    message markup alike."""
     lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
@@ -573,14 +587,36 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
         + shown_errors(document, registry)
+        + pane_advice(document, registry)
         + unnamed_card_advice(document, registry)
     )
 
 
-def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
-    """Structural, then registry, validation of an HTML fragment: the discussion-side
-    analog of `page check`. A fragment the HTML parser had to repair gets only the
-    repair's findings, since the widget checks would read the repaired tree: a
-    `<pre>` that closes the paragraph Markdown drew around a one-line `<lf-code>`
-    leaves that widget with no body."""
-    return structure_errors(parser) or instance_errors(parser, registry)
+def markup_findings(
+    document: SourceDocument,
+    registry: dict | None,
+    own: Callable[[], Iterable[Finding]] = tuple,
+) -> list[Finding]:
+    """What every gate finds in one authored document, a page's source, a sample's
+    child, a message's HTML or a registry example alike, reading only its markup and
+    the registry it is checked under (None where none composes): what refuses it and
+    what it advises, so a new check of that kind reaches each. `own` gives the gate's
+    own checks of the document, such as its id namespace and the references into it.
+
+    A document the HTML parser had to repair gets only the parser's findings, and
+    neither these checks nor the gate's run, since each would read the repaired tree:
+    a `<pre>` that closes the paragraph Markdown drew around a one-line `<lf-code>`
+    leaves that widget with no body. The sheets delivery rewrites are read once for a
+    document and its samples (`revision_artifact.document_drops`), so they are each
+    gate's whole document's to read."""
+    structural = structure_errors(document)
+    if repair_errors(document):
+        return structural
+    return [
+        *structural,
+        *document_declaration_errors(document),
+        *id_errors(document),
+        *(instance_errors(document, registry) if registry is not None else ()),
+        *markup_advice(document),
+        *own(),
+    ]

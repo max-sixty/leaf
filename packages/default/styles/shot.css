@@ -39,9 +39,13 @@ lf-shot {
    the shot. Neither the shot nor the frame holds the gutter itself: a box's `width`
    includes its own gutter, so the frame would take its ratio from the wider width, and
    the shot's container would be narrower than the drawn shot's, choosing the narrow
-   toolbar's height just above its breakpoint. Firefox gives a pseudo-element's gutter a
-   classic scrollbar's width even where its scrollbars overlay, so there the frame holds
-   a little less than it draws. */
+   toolbar's height just above its breakpoint. The empty box takes the stage's gutter
+   wherever the two compute the same `scrollbar-width`, with classic or overlay
+   scrollbars. A rule that matches every element, such as `* { scrollbar-width: none }`,
+   sets the stage's and not the box's, since the box is a pseudo-element. Playwright's
+   headless Firefox adds that rule to every page, so where its scrollbars are classic,
+   as on Linux, the held frame is two classic gutters narrower than the frame Slider
+   fits, and shorter wherever its width sets its height. */
 @media screen {
   @scope (html[data-lf-interactive]) {
     lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined) {

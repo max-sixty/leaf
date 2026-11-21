@@ -1061,8 +1061,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_ink = resolved_color("--lf-ink-2")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
-    expected_label_ink = resolved_color("--lf-paper")
-    expected_label_background = resolved_color("--lf-ink")
+    expected_label_ink = resolved_color("--lf-tip-ink")
+    expected_label_background = resolved_color("--lf-tip-bg")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at
@@ -1128,18 +1128,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(drawn).to_have_css("background-color", expected_label_background)
         expect(drawn).to_have_css("color", expected_label_ink)
         expect(label).to_have_text(f"{phase}{context}")
-        # A rectangular trace uses the same outside stroke as target focus, on the
-        # region's perimeter, in the trace's quiet ink, cut to brackets.
+        # A rectangular trace uses the same stroke as target focus, where the box says
+        # its marks stand (a joined option group, which draws its own frame, on that
+        # frame), in the trace's quiet ink, cut to brackets.
         mark = traced.evaluate(MARK)
-        region = page.evaluate(
-            "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-focus-region-gap'))"
+        stands_at = traced.evaluate(
+            "box => parseFloat(getComputedStyle(box).getPropertyValue('--lf-ring-at'))"
         )
         leader = page.evaluate(
             "() => getComputedStyle(document.querySelector('.lf-margin-cluster'),"
             " '::before').content"
         )
-        assert mark and mark["offset"] == region, (mark, region)
+        assert mark and mark["offset"] == stands_at == 0, (mark, stands_at)
         assert (mark["style"], mark["width"], mark["color"], mark["brackets"]) == (
             "solid",
             2,

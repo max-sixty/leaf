@@ -21,6 +21,7 @@ from render_harness import (
     is_problem,
     latest_press,
     leaf_page,
+    open_latest,
     open_page,
     open_threads,
     page_comment,
@@ -41,6 +42,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import wait_until_ready
+from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -191,6 +193,10 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # had followed by then would come down to whether a state read landed between the
     # two presses. The keyboard route leaves the composer open through both.
     page.locator(".lf-fp-leaf").press("Enter")
+    # The draft the composer holds marks the leaf, which so opens Threads; the Menu tab
+    # turns the view to the menu, by key too.
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
+    panel_tab(page, "Menu").press("Enter")
     expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
     page.locator('.lf-fp-item[data-lf-row="versions"]').press("Enter")
     rows = page.locator(panel_view("versions")).locator(".lf-fp-version")
@@ -498,7 +504,9 @@ def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_com
         expect(page.locator("#wt-line")).to_have_text(
             "The cutover has not started yet."
         )
-        latest.click()
+        # The caret in the comment leaves the field's end no press; its run is a
+        # finger's press there, which shows its word alone.
+        open_latest(page)
         wait_for_revision(page, 2)
         expect(page.locator("#wt-line")).to_have_text(
             "The cutover finished on Tuesday."

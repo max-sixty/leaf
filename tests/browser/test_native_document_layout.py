@@ -278,6 +278,73 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
     assert moved["moved"] == pytest.approx(0, abs=0.5), moved
 
 
+@pytest.mark.parametrize("shell", ["body", "part"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
+    request, serve, engine, shell
+):
+    """A sidebar page's stuck track stays where it sticks to the document's end, even
+    one running on through the panel's room at the window's foot, as the contents map
+    does, so its start stays in view through the last of the scroll. That holds for a
+    sidebar that is `main` and for one that is a part's. A footer, the sidebar's or one
+    the page writes after the sidebar, stops the track, so it never stands over the
+    footer."""
+    follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    regions = (
+        f'<aside id="route"><div class="layout-track" id="track">{follow_ups}</div>'
+        f'</aside><div id="body">{body}</div>'
+    )
+    head = """<style>#track {
+      max-block-size: calc(var(--lf-track-room) + var(--lf-foot-room))
+    }</style>"""
+    source = (
+        leaf_page("sidebar track end", regions, layout="sidebar", head=head)
+        if shell == "body"
+        else leaf_page(
+            "sidebar track end",
+            '<header><h1>Release review</h1></header><lf-parts id="parts">'
+            '<lf-part id="plan" label="Plan">'
+            f'<div class="layout-sidebar">{regions}</div></lf-part></lf-parts>',
+            layout=None,
+            head=head,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 600)
+    stood = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const track = document.getElementById('track');
+      const sidebar = track.closest('.layout-sidebar');
+      const atEnd = async () => {
+        scrollTo(0, document.scrollingElement.scrollHeight);
+        await frame();
+        return track.getBoundingClientRect();
+      };
+      const stops = async (place) => {
+        const footer = document.createElement('footer');
+        footer.textContent = 'Reviewed in March.';
+        place(footer);
+        const {bottom} = await atEnd();
+        // Firefox lays the two edges out a rounding error apart.
+        const stopped = bottom <= footer.getBoundingClientRect().top + 0.5;
+        footer.remove();
+        return stopped;
+      };
+      scrollTo(0, 1500);
+      await frame();
+      const {top: mid, bottom} = track.getBoundingClientRect();
+      return {mid, end: (await atEnd()).top, bottom, window: innerHeight,
+              after: await stops((footer) => sidebar.after(footer)),
+              inSidebar: await stops((footer) => sidebar.append(footer))};
+    }""")
+    # The track runs past the panel's room at the window's foot, which is 72px.
+    assert stood["bottom"] > stood["window"] - 72, stood
+    assert stood["end"] == pytest.approx(stood["mid"], abs=0.5), stood
+    assert stood["after"], stood
+    assert stood["inSidebar"], stood
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction

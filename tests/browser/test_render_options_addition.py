@@ -18,6 +18,7 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
+    RELEASE_FOCUS,
     consume_browser_errors,
     example_media,
     expect_error_waits_in_menu,
@@ -26,7 +27,9 @@ from render_harness import (
     http_error_console,
     open_page,
     open_threads,
+    rendered,
     round_trip,
+    select,
     sending,
     shown,
     stored_draft_text,
@@ -372,6 +375,22 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     expect(added).to_have_attribute("selected", "")
 
 
+def test_a_keyboard_press_on_add_leaves_the_user_in_the_field(browser, serve):
+    """A box that stays to take more, as the add field does, keeps the user in it when
+    they press its send control from the keyboard, as Enter does, rather than on the
+    control, where the next letters would fall on nothing."""
+    page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    write(field, "Ask the neighbours first")
+    send = form.locator(".lf-compose-submit")
+    send.focus()
+    with sending(page, "the keyboard-pressed add"):
+        page.keyboard.press("Space")
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
+    expect(field).to_be_focused()
+
+
 PASTE_IMAGE = """(textarea, encoded) => {
   const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
   const transfer = new DataTransfer();
@@ -555,6 +574,57 @@ def test_a_closed_group_answers_only_from_its_options(browser, serve):
     # Nor does it keep the field's number: Done takes the one after the last option.
     page.keyboard.press("m")
     expect(page.locator("#jobs > lf-options-done .lf-key-badge")).to_have_text("4")
+
+
+def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
+    """Firefox, asked for the contents of a selection a drag carried through the add
+    field's shadow root, copies the Document itself and upgrades and connects the
+    widgets it copies there before it throws. A highlighter extension asks that of every
+    selection the user makes. The copy stays markup: a copied group that set up would
+    build its add field there, whose style sheet that document refuses, and the page
+    would report the refusal to the agent.
+
+    Firefox copies the Document only where the field's editor, an editable node, has
+    built; past the textarea an unvisited field holds, it clones the range alone. So
+    the user visits the field before the drag."""
+    page = open_page(firefox_browser, serve(OBLIGATION_PAGE))
+    field = page.locator("#bracket > .lf-another leaf-text")
+    field.focus()
+    rendered(page)
+    page.evaluate(RELEASE_FOCUS)
+    # The extension's reading of the selection, which it makes as the drag ends.
+    page.evaluate("""() => {
+      window.copies = [];
+      document.addEventListener("mouseup", () => {
+        try {
+          getSelection().getRangeAt(0).cloneContents();
+          copies.push("cloned");
+        } catch (error) {
+          copies.push(error.name);
+        }
+      });
+    }""")
+    page.locator("#bracket-decision").scroll_into_view_if_needed()
+    # From inside an option's words to over the field, where Firefox has moved the
+    # selection into the field's shadow root by the time the drag ends.
+    start = page.locator("#br-steel").evaluate("""option => {
+      const text = [...option.childNodes].find((node) => node.data?.includes("drop-in"));
+      const range = document.createRange();
+      range.setStart(text, text.data.indexOf("drop-in"));
+      range.setEnd(text, text.data.indexOf("drop-in") + 1);
+      const box = range.getBoundingClientRect();
+      return [box.x, box.y + box.height / 2];
+    }""")
+    box = field.bounding_box()
+    select(page, start, (box["x"] + 230, box["y"] + box["height"] / 2), steps=15)
+    # The throw says Firefox still copies the Document, so the drag reached the copy this
+    # guards.
+    page.wait_for_function("copies.length")
+    assert page.evaluate("copies") == ["HierarchyRequestError"], (
+        "Firefox now clones the range alone: drop `inWindowDocument` from "
+        "widget-upgrade.js and leaf-element.js, and this test"
+    )
+    rendered(page)
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

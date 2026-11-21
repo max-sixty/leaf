@@ -45,7 +45,6 @@ from render_harness import (
     compare_with,
     expect_obligations_answered,
     expect_panel_offers,
-    expect_panel_says,
     hold_selection,
     holding,
     leaf_page,
@@ -122,7 +121,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const control = document.querySelector(".lf-fp-on-user");
+        const control = document.querySelector(".lf-fp-leaf");
         control.setAttribute("aria-busy", "true");
         const runtimeAnimation = control.getAnimations()[0];
         return {
@@ -302,10 +301,13 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
     page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press("ArrowUp")
     expect(page.locator("#opt-strict .lf-pick")).to_be_focused()
-    expect_panel_says(page, "Option 2 of 3")
+    # The options stand whole around the ring, so a step says no position.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
+    )
     page.keyboard.press("ArrowDown")
     expect(page.locator("#opt-bearer .lf-pick")).to_be_focused()
-    expect_panel_says(page, "Option 3 of 3")
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer")).to_have_attribute("selected", "")
     round_trip(page)
@@ -403,14 +405,14 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     }""")
     added.locator(".lf-pick").focus()
     # Add-and-select records add then choose: undo the pick before its addition.
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(added).not_to_have_attribute("selected", "")
     expect(added.locator(".lf-pick")).to_be_focused()
     assert added.evaluate("""option => option === window.addedOption &&
         [...option.querySelector('.lf-option-words').childNodes].every(
             (node, index) => node === window.addedWords[index])""")
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(added).to_have_count(0)
 
@@ -722,6 +724,63 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     assert all(reading["contrast"] >= 3 for reading in readings), readings
 
 
+PICKED_REFERENCES_PAGE = leaf_page(
+    "Picked references",
+    """<h1>Follow-up</h1>
+<lf-group id="live-q" label="What next?"><lf-options id="live">
+  <lf-option id="live-ship" for="stall" selected>Ship with the resend.</lf-option>
+  <lf-option id="live-hold" for="plan">Hold for the vendor.</lf-option>
+</lf-options></lf-group>
+<lf-group id="done-q" label="Which build?"><lf-options id="done" settled>
+  <lf-option id="done-ship" for="stall" selected>The patched build.</lf-option>
+  <lf-option id="done-hold" for="plan">The current build.</lf-option>
+</lf-options></lf-group>
+<section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
+<section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
+</section>""",
+)
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_a_picked_options_muted_words_stay_aa_under_the_pointer(
+    browser, serve, color_scheme
+):
+    """A picked option's § reference is muted ink, which `tokens.css` holds at 4.5:1
+    on every ground the layer paints; the pointer resting on the pick, in a live
+    joined cell or an opened settled group, leaves it there."""
+    page = open_page(browser, serve(PICKED_REFERENCES_PAGE), color_scheme=color_scheme)
+    page.locator("#done .lf-settled").click()
+    contrast = """option => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d', {willReadFrequently: true});
+      const rgb = color => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      };
+      const luminance = color => rgb(color)
+        .map(channel => channel / 255)
+        .map(channel => channel <= .04045
+          ? channel / 12.92
+          : ((channel + .055) / 1.055) ** 2.4)
+        .reduce((sum, channel, index) =>
+          sum + channel * [.2126, .7152, .0722][index], 0);
+      const words = getComputedStyle(option.querySelector('.lf-ref')).color;
+      const ground = getComputedStyle(option).backgroundColor;
+      const [light, dark] = [luminance(words), luminance(ground)].sort((a, b) => b - a);
+      return {words, ground, contrast: (light + .05) / (dark + .05)};
+    }"""
+    for option in ("#live-ship", "#done-ship"):
+        target = page.locator(option)
+        expect(target).to_have_attribute("selected", "")
+        target.hover()
+        reading = target.evaluate(contrast)
+        assert reading["contrast"] >= 4.5, (option, reading)
+    page.mouse.move(0, 0)
+
+
 def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
     browser, serve, subtests
 ):
@@ -873,18 +932,22 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         # Keep hover labels clear of the pixels whose ring thickness is measured.
         page.locator("h1").click()
         rendered(page)
-        # Painted on a canvas, since the settled colours compute in the oklab their
-        # steps are written in, not as rgb().
-        ok, tint = page.evaluate(
+        # The ring's colour and the picked cell's ground, painted on a canvas, since they
+        # compute in the oklab their steps are written in, not as rgb().
+        ok, ground = page.evaluate(
             """() => {
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
-                 return ['--lf-settled', '--lf-settled-tint'].map(name => {
-                   const probe = document.body.appendChild(document.createElement('i'));
-                   probe.style.color = `var(${name})`;
-                   context.fillStyle = getComputedStyle(probe).color;
+                 const probe = document.body.appendChild(document.createElement('i'));
+                 probe.style.color = 'var(--lf-settled)';
+                 const paints = [
+                   getComputedStyle(probe).color,
+                   getComputedStyle(document.querySelector('#c-redis')).backgroundColor,
+                 ];
+                 probe.remove();
+                 return paints.map(paint => {
+                   context.fillStyle = paint;
                    context.fillRect(0, 0, 1, 1);
-                   probe.remove();
                    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
                  });
                }"""
@@ -898,7 +961,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             # A pixel is the ring's where it stands nearer the ring than half the way to
             # the cell's ground, so the edge pixel the ring mostly covers counts.
             inked = [
-                distance(px, ok) < distance(tint, ok) / 2 for px in rgb_pixels(shot)
+                distance(px, ok) < distance(ground, ok) / 2 for px in rgb_pixels(shot)
             ]
 
             # The ring's two edges along this line: from each of the cell's edges, which
@@ -1264,28 +1327,33 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # inert check below the prose. It needs the strip a live header state doesn't.
     assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
-    # Standalone cards also answer with a wash, while quoted cards remain inert.
-    # Both chosen and unchosen states keep their geometry under the pointer.
+    # Standalone cards also answer with a wash, while quoted cards remain inert. A
+    # chosen card keeps its picked ground under the pointer, live or quoted, since a
+    # wash over it would take its muted words below AA. Both keep their geometry.
     page.locator("#live-settled .lf-settled").click()
-    for quiet, live, card in (
-        ("#q-bearer", "#l-bearer", "plain"),
-        ("#q-lax", "#l-lax", "chosen"),
-    ):
-        page.locator(live).scroll_into_view_if_needed()
-        # Scrolling can put this card beneath the previous hover's pointer.
+    page.locator("#l-bearer").scroll_into_view_if_needed()
+    # Scrolling can put this card beneath the previous hover's pointer.
+    page.mouse.move(0, 0)
+    live_box = page.locator("#l-bearer").bounding_box()
+    live_rest = page.locator("#l-bearer").evaluate(css)
+    page.locator("#l-bearer").hover()
+    expect(page.locator("#l-bearer")).not_to_have_css(prop, live_rest)
+    assert page.locator("#l-bearer").bounding_box() == live_box
+    quiet_rest = page.locator("#q-bearer").evaluate(css)
+    page.locator("#q-bearer").hover()
+    expect(page.locator("#l-bearer")).to_have_css(prop, live_rest)
+    assert page.locator("#q-bearer").evaluate(css) == quiet_rest, (
+        f"a quoted plain card answers the pointer: "
+        f"{page.locator('#q-bearer').evaluate(css)} against {quiet_rest} at rest"
+    )
+    for chosen in ("#l-lax", "#q-lax"):
+        page.locator(chosen).scroll_into_view_if_needed()
         page.mouse.move(0, 0)
-        live_box = page.locator(live).bounding_box()
-        live_rest = page.locator(live).evaluate(css)
-        page.locator(live).hover()
-        expect(page.locator(live)).not_to_have_css(prop, live_rest)
-        assert page.locator(live).bounding_box() == live_box
-        quiet_rest = page.locator(quiet).evaluate(css)
-        page.locator(quiet).hover()
-        expect(page.locator(live)).to_have_css(prop, live_rest)
-        assert page.locator(quiet).evaluate(css) == quiet_rest, (
-            f"a quoted {card} card answers the pointer: "
-            f"{page.locator(quiet).evaluate(css)} against {quiet_rest} at rest"
-        )
+        box = page.locator(chosen).bounding_box()
+        rest = page.locator(chosen).evaluate(css)
+        page.locator(chosen).hover()
+        assert page.locator(chosen).evaluate(css) == rest, chosen
+        assert page.locator(chosen).bounding_box() == box, chosen
 
 
 def test_one_band_says_where_the_user_is_located(browser, serve):
@@ -2191,7 +2259,8 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
-    """A work-bearing block inside an option does not turn its margin entry into a pick."""
+    """A block holding the agent's work inside an option does not turn its margin entry
+    into a pick."""
     layer = tmp_path / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(
@@ -2206,7 +2275,6 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                         "additionalProperties": False,
                     },
                     "content": "markup",
-                    "work": True,
                 }
             }
         )

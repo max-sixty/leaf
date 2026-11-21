@@ -24,7 +24,7 @@ import { shownBox } from "../geometry.js";
 import { skipped } from "../shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
-import { intersect, union } from "../rect.js";
+import { holds, intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
 import { paintSet } from "../target-paint-geometry.js";
 import {
@@ -49,7 +49,7 @@ import {
 } from "../keyboard/key-sequence.js";
 import { announce, notice } from "../notifications.js";
 import { keeps } from "../keeps.js";
-import { beginWalk, walkPosition } from "../walk-position.js";
+import { beginWalk, walkPosition, walkPositionLabel } from "../walk-position.js";
 
 import {
   allButCommandReference,
@@ -142,6 +142,12 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @property {() => unknown} armChanged
  * @property {(reading: {input: typeof pageSearchInput, controls: readonly HTMLElement[], open: boolean}) => unknown} searchInPanel
  */
+// A letter or digit, which a word runs on through.
+const WORD = /[\p{L}\p{N}]/u;
+// Words ended as a sentence, where they don't end in a stop or an ellipsis of their own.
+/** @param {string} words */
+const sentence = (words) => (/[.!?…]$/u.test(words) ? words : `${words}.`);
+
 /** @param {TargetPickerOptions} options */
 export function createTargetPicker({
   scrollToPassage,
@@ -167,7 +173,7 @@ export function createTargetPicker({
   // that arrives with no key, as a paste does, offers the arrows all the same.
   /** @type {import("@preact/signals-core").Signal<Match[]>} */
   const matches = signal([]);
-  /** @type {object | null} */
+  /** @type {number | null} */
   let matchesIn = null; // the page reading `matches` were found in (`pageReadingVersion`)
   let matchesFor = ""; // the query they match
   let active = -1;
@@ -633,21 +639,34 @@ export function createTargetPicker({
     presentSearchStatus();
     showMatch();
     const query = searchQuery();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
-    announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(selected)}.`,
-    );
+    const said =
+      beginWalk("page-search", "Match", () => matchWalkPosition(query)) ?? matchPlace();
+    announce(`${said}: ${sentence(matchDescription(selected))}`);
     repaint();
   }
 
+  // The match in the words around it. A match inside a word, as "the" in "rather",
+  // joins its neighbours with no space put between, so it reads back as the word; one
+  // at a text node's edge is parted by a space, as words in separate nodes most often
+  // are.
   /** @param {Match} segments */
   function matchDescription(segments) {
     const { before, after } = contextAround(
       readingHolding(segments[0]?.node ?? document.body),
       segments,
     );
+    const first = segments[0];
+    const last = segments.at(-1);
+    const inWord = /** @param {string | undefined} a @param {string | undefined} b */ (
+      a,
+      b,
+    ) => Boolean(a && b && WORD.test(a) && WORD.test(b));
+    const joinsBefore =
+      first && inWord(first.node.data[first.start - 1], first.node.data[first.start]);
+    const joinsAfter =
+      last && inWord(last.node.data[last.end - 1], last.node.data[last.end]);
     const phrase = quoteFrom(segments);
-    return `${before ? `…${before} ` : ""}${phrase}${after ? ` ${after}…` : ""}`;
+    return `${before ? `…${before}${joinsBefore ? "" : " "}` : ""}${phrase}${after ? `${joinsAfter ? "" : " "}${after}…` : ""}`;
   }
 
   /** @param {PickerTarget} candidate */
@@ -663,14 +682,13 @@ export function createTargetPicker({
     settle();
     const segments = matches.value[active];
     if (!segments) return;
-    const quote = quoteFrom(segments);
     repeatedSearch = { query: searchQuery(), index: active };
     // Closing the prompt transfers the match to a native selection. Its position stays
     // live until that selection is left, just as a subsequent n/N landing does.
     setTargetPicker(false);
-    landOnMatch(segments, repeatedSearch.query);
+    const said = landOnMatch(segments, repeatedSearch.query);
     announce(
-      `Selected match: ${quote}. ${
+      `${said}: ${sentence(matchDescription(segments))} Selected. ${
         coarsePointer.matches || !bindingEnabled("c")
           ? "A press on the comment field comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
@@ -685,8 +703,13 @@ export function createTargetPicker({
     const last = segments.at(-1);
     if (first && last) selectEnds([first.node, first.start], [last.node, last.end]);
     updateFab();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    return (
+      beginWalk("page-search", "Match", () => matchWalkPosition(query)) ?? matchPlace()
+    );
   }
+  // The active match's place, for a listener where the walk can't place the match it
+  // landed on, as where the selection that should hold it holds other words.
+  const matchPlace = () => walkPositionLabel("Match", active + 1, matches.value.length);
 
   /** @param {import("../keyboard/bindings.js").Step} direction */
   function repeatSearch(direction) {
@@ -710,10 +733,8 @@ export function createTargetPicker({
     active = found.indexOf(selected);
     repetition.index = active;
     showMatch();
-    landOnMatch(selected, repetition.query);
-    announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(selected)}.`,
-    );
+    const said = landOnMatch(selected, repetition.query);
+    announce(`${said}: ${sentence(matchDescription(selected))}`);
   }
 
   function back() {
@@ -738,7 +759,6 @@ export function createTargetPicker({
   /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
   const hintOptions = {
     layer: hintRoot,
-    walk: "target-picker",
     read: visibleTargets,
     identity: hintElement,
     layout: (candidates, { current }) =>
@@ -898,6 +918,7 @@ export function createTargetPicker({
   /** @type {import("../keyboard/bindings.js").Scope} */
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
+    says: "Select",
     escape: "inner",
     at: () => pickerMode.value === "hints",
     // The page owns search, even when target hints are standing over it. Exempt the
@@ -987,12 +1008,7 @@ export function createTargetPicker({
     const { clientX: x, clientY: y } = ev;
     return segmentPieces(segments).some(
       ({ block, lines }) =>
-        block &&
-        path.includes(block) &&
-        lines.some(
-          (rect) =>
-            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
-        ),
+        block && path.includes(block) && lines.some((rect) => holds(rect, x, y)),
     );
   }
   /** @param {MouseEvent} ev */
@@ -1053,7 +1069,6 @@ export function createTargetPicker({
     choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
     targetPickerOpen,
-    openTargetPicker,
     closeTargetPicker,
     mount,
   };

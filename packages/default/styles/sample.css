@@ -65,11 +65,9 @@
  * what separates a sample from the prose around it is its own 18px, stated once.
  *
  * The trim that declaration buys is the layer's (base.css), and the reach is the direct
- * children, which is what a selector has. Nothing about the note is stated here, though
- * it is a child on a live page (lf-sample.js writes it first) and a pseudo-element
- * on one carrying no script: the trim asks for the first child the page itself put
- * there, so both arrangements come out the same and the exhibit's first block is what
- * it lands on.
+ * children, which is what a selector has. Nothing about the note is stated here: it is
+ * a pseudo-element, not a child, so the trim lands on the first child the page itself
+ * put there, the exhibit's first block.
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. A box that stands in that position and has one declares the frame itself,

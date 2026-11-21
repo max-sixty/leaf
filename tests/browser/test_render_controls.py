@@ -92,10 +92,10 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
         resized(page, width, 900)
         expect(entry).to_have_attribute("data-lf-place", place)
         badges = entry.locator(".lf-margin-marker > .lf-badges")
-        expect(badges.locator(".lf-margin-count")).to_have_text("12")
+        expect(badges.locator(".lf-badge-count")).to_have_text("12")
         expect(badges.locator(".lf-unread-dot")).to_be_visible()
         assert _whole_and_apart(
-            badges.locator(".lf-margin-count"), badges.locator(".lf-unread-dot")
+            badges.locator(".lf-badge-count"), badges.locator(".lf-unread-dot")
         )
 
     resized(page, 1440, 900)
@@ -109,6 +109,81 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
     for mark in marks:
         expect(mark).to_be_visible()
     assert _whole_and_apart(*marks)
+
+
+def _dot_places(browser, serve, events, counted):
+    """How far each control's dot stands from the left end of its badges' row, on a
+    page whose controls show a count or none: the margin entry for `answered` in the
+    rail and as a pin, and the folded leaf. Each reading finds the row and its dot in
+    one call, since the runtime redraws an entry's badges."""
+    source = leaf_page(
+        "Dots", '<p id="answered">Answers wait here.</p><p id="asked">A question.</p>'
+    )
+    page = open_page(browser, serve(source, events=events))
+    offset = """([row, dot]) => {
+      const badges = document.querySelector(row);
+      const left = badges.querySelector(dot).getBoundingClientRect().left;
+      return Math.round(left - badges.getBoundingClientRect().left);
+    }"""
+    entry = page.locator('[data-lf-margin-for="answered"]')
+    row = '[data-lf-margin-for="answered"] .lf-margin-marker > .lf-badges'
+    places = {}
+    for width, place in ((1440, "rail"), (700, "pin")):
+        resized(page, width, 900)
+        expect(entry).to_have_attribute("data-lf-place", place)
+        expect(entry.locator(".lf-badge-count")).to_have_count(int(counted))
+        places[place] = page.evaluate(offset, [row, ".lf-unread-dot"])
+
+    resized(page, 1440, 900)
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
+    panel_settled(page, open=False)
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge:visible")).to_have_count(int(counted))
+    places["leaf"] = page.evaluate(
+        offset, [".lf-fp-leaf > .lf-badges", ".lf-fp-news-dot"]
+    )
+    return places
+
+
+def test_a_control_s_dot_keeps_its_corner_whether_a_count_shows(browser, serve):
+    """A control's dot stands where it stood without a count once a count shows beside
+    it: a margin entry's unread dot beside its count of threads, in the rail and as a
+    pin, and the folded leaf's news dot beside its count of what is On me (`.lf-badges`,
+    controls.css)."""
+    answer = {
+        "kind": "comment",
+        "author": "agent",
+        "agent": "Claude",
+        "revision": 1,
+        "text": "One answer.",
+        "anchor": {"section": "answered"},
+    }
+    asked = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "id": "q",
+        "text": "Which comes first?",
+        "anchor": {"section": "asked"},
+    }
+    owed = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "revision": 1,
+        "parent": "q",
+        "responds": "q",
+        "obligation": True,
+        "text": "The hatch or the window?",
+    }
+    alone = _dot_places(browser, serve, [answer], counted=False)
+    beside = _dot_places(
+        browser,
+        serve,
+        [answer, {**answer, "text": "Another answer."}, asked, owed],
+        counted=True,
+    )
+    assert beside == alone
 
 
 @pytest.mark.parametrize("width", [390])

@@ -303,9 +303,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
         "report",
         "activation",
     ]
-    assert "verbs" not in registry_storage.load_registry(page_dir)["lf-test-task"].get(
-        "state", {}
-    )
+    assert "verbs" not in registry_storage.load_registry(page_dir)["lf-test-task"]
 
 
 @pytest.mark.parametrize("in_sample", [False, True])

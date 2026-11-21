@@ -12,17 +12,7 @@
  * time and time since native activity without cancelling a slow conversation.
  */
 import { createHash } from "node:crypto";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  writeFile,
-  appendFile,
-  copyFile,
-  symlink,
-  access,
-  rm,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, appendFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { stream } from "@earendil-works/pi-ai/api/openai-codex-responses";
@@ -30,6 +20,7 @@ import { normalizeContext } from "@earendil-works/pi-ai";
 import { chromium } from "playwright";
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { python } from "../../dev/leaf_dev/arms.mjs";
 
 // A run that spent its browser operations or model turns. It ends the run as a budget
 // limit, which grading reports apart from a harness failure.
@@ -121,6 +112,10 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
     const captures = [];
     async function snapshot() {
       const controls = await page.evaluate(() => {
+        // An earlier snapshot's indexes name elements this one may not list, so clear
+        // them before numbering, or an old and a new control share an index.
+        for (const el of document.querySelectorAll("[data-eval-control]"))
+          el.removeAttribute("data-eval-control");
         // Read as inputs, the one element type whose fields cover every line below.
         const elements = /** @type {NodeListOf<HTMLInputElement>} */ (
           document.querySelectorAll("*")
@@ -371,39 +366,27 @@ async function codexModel(config, content, browser, record) {
 async function claudeModel(config, content, browser, record, evidenceDir) {
   const isolated = await mkdtemp(path.join(tmpdir(), "leaf-ui-reader-"));
   try {
-    const home = path.join(isolated, "home"),
-      cwd = path.join(isolated, "cwd");
-    await mkdir(home, { mode: 0o700 });
+    const cwd = path.join(isolated, "cwd");
     await mkdir(cwd);
-    const keychains = path.join(homedir(), "Library", "Keychains");
-    try {
-      await access(keychains);
-      await mkdir(path.join(home, "Library"));
-      await symlink(keychains, path.join(home, "Library", "Keychains"));
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    const hostClaude = process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), ".claude");
-    try {
-      await access(path.join(hostClaude, ".credentials.json"));
-      await mkdir(path.join(home, ".claude"), { recursive: true });
-      await copyFile(
-        path.join(hostClaude, ".credentials.json"),
-        path.join(home, ".claude", ".credentials.json"),
-      );
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(
-        ([key]) =>
-          !key.startsWith("CLAUDE") &&
-          !key.startsWith("CODEX") &&
-          !key.startsWith("ANTHROPIC_") &&
-          !["OPENAI_API_KEY", "CODEX_API_KEY"].includes(key),
-      ),
+    // The login home and environment every Claude Code child of leaf-dev runs in
+    // (`arms.claude_home`, `arms.claude_environment`), less the ambient API keys a
+    // local-login run must not bill.
+    const env = python(
+      "-c",
+      `
+import json, sys
+from pathlib import Path
+from leaf_dev.arms import claude_environment, claude_home
+print(json.dumps(claude_environment(claude_home(Path(sys.argv[1])))))
+`,
+      path.join(isolated, "home"),
     );
-    Object.assign(env, { HOME: home, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" });
+    for (const key of Object.keys(env))
+      if (
+        key.startsWith("ANTHROPIC_") ||
+        ["OPENAI_API_KEY", "CODEX_API_KEY"].includes(key)
+      )
+        delete env[key];
     const abortController = new AbortController();
     let budgetError = null;
     const mcpServers = browser

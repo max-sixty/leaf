@@ -28,7 +28,6 @@ from leaf import files as files_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
@@ -263,18 +262,6 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
             "<lf-local>",
         ),
         (
-            json.dumps(
-                {
-                    "lf-local": {
-                        **element_declaration("lf-local"),
-                        "example": '<lf-local id="bad" unknown="bad">Example</lf-local>',
-                    }
-                }
-            ),
-            "invalid-example",
-            "<lf-local>",
-        ),
-        (
             json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)}),
             "needs-module",
             "<lf-local>",
@@ -296,6 +283,37 @@ def test_page_registry_rejects_invalid_authored_contracts(
 
 def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
     return {**element_declaration(tag, upgrade=upgrade), **keys}
+
+
+def test_one_check_advises_on_each_example_a_page_could_not_hold(page_dir):
+    """An example is documentation no reader the user relies on needs valid, so
+    `page check` passes a page whose declarations' examples break and names each, by
+    the first refusal a page holding it would meet."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-gamma": _faulty(
+                    "lf-gamma", example='<lf-gamma id="g" tone="x">G</lf-gamma>'
+                ),
+                "lf-delta": _faulty(
+                    "lf-delta", example='<lf-delta id="d" tone="x">D</lf-delta>'
+                ),
+            }
+        )
+    )
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 0
+    assert [
+        (finding.code, finding.at, finding.values["registry"])
+        for finding in findings
+        if "registry" in finding.values
+    ] == [
+        ("invalid-example", "<lf-gamma>", str(page_dir / "page" / "registry.json")),
+        ("invalid-example", "<lf-delta>", str(page_dir / "page" / "registry.json")),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -345,24 +363,6 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 ("requires", "<lf-eps>"),
                 ("needs-module", "<lf-delta>"),
             ],
-        ),
-        # Each example, once the vocabulary holds.
-        (
-            {
-                "lf-gamma": _faulty(
-                    "lf-gamma",
-                    **{
-                        "example": '<lf-gamma id="g" tone="x">G</lf-gamma>',
-                    },
-                ),
-                "lf-delta": _faulty(
-                    "lf-delta",
-                    **{
-                        "example": '<lf-delta id="d" tone="x">D</lf-delta>',
-                    },
-                ),
-            },
-            [("invalid-example", "<lf-gamma>"), ("invalid-example", "<lf-delta>")],
         ),
     ],
 )
@@ -608,58 +608,6 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
 
     assert refused.error is None and refused.created
     assert refused.revision == revision + 1
-
-
-def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
-    """A pick logged before admission recorded its state operation, in the payload
-    shape of its day, folds as absent: `leaf page state` reads on with the current
-    pick in force instead of failing on the old record."""
-    source = PAGE.replace(
-        "</section>",
-        '<lf-options id="picks"><lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></section>',
-    )
-    (page_dir / "index.html").write_text(source)
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    current = append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": revision,
-            "widget": "picks",
-            "action": "choose",
-            "detail": {"value": ["first"]},
-        },
-    )
-    # The shape a runtime before recorded state operations logged a pick in.
-    earlier = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "picks",
-        "action": "choose",
-        "detail": {"options": ["second"]},
-        "author": "user",
-        "id": "earlier-pick",
-        "meaning": {
-            "scope": "page",
-            "unit": "picks",
-            "depends": ["picks", "second"],
-            "answer": None,
-        },
-        "attention": True,
-        "ts": "2026-10-06T20:14:37.092-07:00",
-    }
-    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
-        log.write(json.dumps(earlier) + "\n")
-
-    out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-
-    assert out.exit_code == 0, out.output
-    assert [(s["widget"], s["detail"]) for s in json.loads(out.stdout)["state"]] == [
-        ("picks", current["detail"])
-    ]
 
 
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):

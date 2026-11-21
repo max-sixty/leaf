@@ -10,7 +10,6 @@
  * describe both.
  */
 
-import { type OutboundHandlerContext } from "@cloudflare/containers";
 import * as z from "zod/mini";
 
 import { errorName, leafAgentLog } from "./agent";
@@ -52,15 +51,12 @@ function jsonValue(text: string | null): unknown {
   }
 }
 
-function modelRequestFields(
-  request: Request,
-  context: OutboundHandlerContext,
-): ModelRequestFields {
+function modelRequestFields(request: Request, containerId: string): ModelRequestFields {
   const metadata = turnMetadata.parse(
     jsonValue(request.headers.get("x-codex-turn-metadata")),
   );
   return {
-    containerId: context.containerId,
+    containerId,
     modelRequestId: crypto.randomUUID(),
     requestKind: metadata.request_kind,
     threadId: metadata.thread_id,
@@ -171,20 +167,20 @@ function observeModelBody(
 export async function proxyModelRequest(
   request: Request,
   env: Env,
-  ctx: OutboundHandlerContext,
+  containerId: string,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.method !== "POST" || url.pathname !== "/v1/responses") {
     return new Response("blocked website agent request", { status: 403 });
   }
   const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-    key: `model:${ctx.containerId}`,
+    key: `model:${containerId}`,
   });
   if (!capacity.success) {
     return new Response("website agent model limit reached", { status: 429 });
   }
   const started = Date.now();
-  const modelRequest = modelRequestFields(request, ctx);
+  const modelRequest = modelRequestFields(request, containerId);
   modelLog("model_request_started", modelRequest);
   const headers = new Headers(request.headers);
   headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);

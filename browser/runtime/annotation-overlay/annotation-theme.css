@@ -81,12 +81,19 @@
   .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) {
   visibility: hidden;
 }
-/* A pin's count stands on its left, over the block it is about: at the window's edge one
- * on the right would stand past the window. Its dot keeps the right corner
- * (`.lf-badges`, controls.css). */
+/* A pin is smaller than a rail entry, its glyph 2px nearer each corner, so its badges
+ * (`.lf-badges`, controls.css) stand 2px further out and leave the glyph whole. Its
+ * count stands on its left, over the block it is about: at the window's edge one on
+ * the right would stand past the window. Its dot keeps the right corner. */
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges {
+  margin: -2px -2px 0;
+}
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-badges::after,
 .lf-margin-cluster[data-lf-place="pin"] .lf-badges > .lf-badge-count {
   order: -1;
-  margin-inline: calc(-1 * var(--lf-badge-reach)) auto;
+}
+.lf-margin-cluster[data-lf-place="pin"] .lf-badges > .lf-badge-count {
+  margin-inline: calc(-1 * var(--lf-badge-reach)) 0;
 }
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the

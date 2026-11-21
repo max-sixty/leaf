@@ -1254,6 +1254,196 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
 
 
 @pytest.mark.parametrize(
+    "fault, key, protected",
+    [
+        ("", False, False),
+        ("", True, False),
+        ("part_at_once", False, False),
+        ("unstanding", False, True),
+        ("unstanding", True, True),
+        ("from_below", False, True),
+        ("past_its_place", False, True),
+        ("past_its_place", True, True),
+        ("overshoot", False, True),
+        ("overshoot", True, True),
+    ],
+)
+def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, protected):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, may draw the step news's append growth takes as travel: a ResizeObserver
+    delivery no input owns begins a carry that draws the standing port's head where it
+    was and slides it to where its rise puts it, or draws part of the step at once, as
+    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    of a step the port may not take still fails, as does one that draws the head below
+    where it was, past where its rise puts it, or past it on the way. A key pressed
+    elsewhere while the carry runs changes none of that, though it starts a new run:
+    the carry of the step the port may not take holds the head where it was until
+    then."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            "<style>@property --carry { syntax: '<length>+'; inherits: false;"
+            " initial-value: 0px 0px; }</style>"
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><header id="row"><button id="head">Close</button></header>'
+            '<div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section>'
+            '<button id="elsewhere" style="position:fixed;top:0;left:0">Elsewhere</button>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = port.getBoundingClientRect().height;
+              const grew = height !== null && now > height;
+              height = now;
+              if (!grew) return;
+              const { fault, key } = document.body.dataset;
+              const from = { part_at_once: 20, from_below: 80 }[fault] ?? 40;
+              const to = fault === 'past_its_place' ? -20 : 0;
+              const keyframes = {
+                overshoot: [{ '--carry': '0px 40px' }, { '--carry': '0px -20px', offset: 0.6 },
+                  { '--carry': '0px 0px' }],
+                unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
+                  { '--carry': '0px 0px' }],
+              }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
+              window.carries = [row, port].map((part) => {
+                part.style.translate = 'var(--carry)';
+                return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
+              });
+            }).observe(port);
+            </script></body>"""
+        )
+    )
+    if fault == "unstanding":
+        page.locator("#port").evaluate("node => node.removeAttribute('data-lf-rises')")
+    page.evaluate(
+        "arm => Object.assign(document.body.dataset, arm)",
+        {"fault": fault, **({"key": "1"} if key else {})},
+    )
+    page.locator("#elsewhere").focus()
+    paint(page)
+    page.evaluate(
+        """() => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+        }"""
+    )
+    if key:
+        page.wait_for_function("window.carries?.[0]?.currentTime > 400")
+        page.keyboard.press("Shift")
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if not protected:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
+
+
+@pytest.mark.parametrize("rides", [False, True], ids=["alone", "with-the-stream"])
+def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
+    """News adds a line to a port standing on its foot, which rises to hold it. Carried
+    in alone from 60 px below, the new line slides on its own, and fails. Carried with
+    the line already there by the distance the rise moved that one, as box-motion.js
+    carries a stream's new turn with the turns above it, it rides that line's carry."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = port.getBoundingClientRect().height;
+              const grew = height !== null && now > height;
+              height = now;
+              if (!grew) return;
+              const parts = document.body.dataset.rides
+                ? [...source.children] : [source.lastElementChild];
+              const from = document.body.dataset.rides ? 40 : 60;
+              window.carries = parts.map((part) => part.animate(
+                [{ translate: `0px ${from}px` }, { translate: '0px 0px' }],
+                { duration: 300 }));
+            }).observe(port);
+            </script></body>"""
+        )
+    )
+    if rides:
+        page.evaluate("() => { document.body.dataset.rides = '1'; }")
+    paint(page)
+    page.evaluate(
+        """() => {
+          const next = document.createElement('p');
+          next.id = 'news';
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+        }"""
+    )
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if rides:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "p#news"), errors
+
+
+def test_a_box_s_height_tween_is_no_carry(browser):
+    """A ResizeObserver that tweens a wrapper's height to its content's new height, as
+    an auto-height disclosure does, carries the line below with it: news moved that
+    line, and no carry draws its way back, so it fails as it would at once."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div id="wrap" style="overflow:hidden"><div id="source">'
+            '<p style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<p id="after" style="margin:0">Reading below.</p>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = source.getBoundingClientRect().height;
+              if (height !== null && now !== height)
+                window.tween = wrap.animate(
+                  [{ height: `${height}px` }, { height: `${now}px` }], { duration: 300 });
+              height = now;
+            }).observe(source);
+            </script></body>"""
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """() => document.getElementById('source').append(
+          Object.assign(document.createElement('p'), {style: 'margin:0;height:40px'}))"""
+    )
+    page.wait_for_function("window.tween?.playState === 'finished'")
+    paint(page)
+    judge_watches()
+    errors = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(errors, "p#after"), errors
+
+
+@pytest.mark.parametrize(
     "fault, protected",
     [
         ("", None),
@@ -4475,6 +4665,111 @@ motion.pause();motion.currentTime=150;
         ), motions
 
 
+@pytest.mark.parametrize("ending", ["finish", "cancel"])
+def test_a_replayed_animation_reports_no_ending_of_its_earlier_run(browser, ending):
+    """Replaying an ended effect reuses its Animation. A finding during the replay
+    reports the replay's beginning and no ending, never the earlier run's."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button><button id="end">End</button>
+<button id="replay">Replay</button>
+<div id="panel" style="margin-left:350px">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+const hold = () => { motion.pause(); motion.currentTime = 150; };
+start.onclick = () => {
+  window.motion = panel.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
+    {duration:1000,fill:'both'});
+  hold();
+};
+end.onclick = () => motion[end.dataset.how]();
+replay.onclick = () => { motion.play(); hold(); };
+</script></body>""")
+    )
+    page.locator("#end").evaluate("(end, how) => (end.dataset.how = how)", ending)
+    paint(page)
+    for control in ("#start", "#end", "#replay"):
+        page.locator(control).click()
+        paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """() => {
+          control.style.marginLeft = '55px';
+          motion.currentTime = 800;
+          trigger.style.left = '40px';
+        }"""
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    finding = next(
+        error for error in errors if is_problem(error, moved_within("button#control"))
+    )
+    motions = [
+        animation
+        for comparison in shift_evidence(finding)["comparisons"]
+        for animation in comparison["animations"]
+        if within(animation["target"], "div#panel")
+    ]
+    assert motions, finding
+    assert all(
+        motion["began"] is not None and motion["ended"] is None for motion in motions
+    ), motions
+
+
+def test_an_owned_animation_that_ended_unsampled_reports_no_ending(browser):
+    """A press can retain a CSS animation before any frame samples it. If the
+    animation is gone by the next sample, the finding still lists it, with neither
+    a beginning nor an ending recorded."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@keyframes slide { from { translate: -200px 0px } to { translate: 0px 0px } }
+.sliding { animation: slide 1s }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+start.onpointerdown = () => panel.classList.add('sliding');
+start.onpointerup = () => panel.classList.remove('sliding');
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    # Move before a checkpoint retires the press's rendering, which keeps the
+    # animation it retained.
+    page.wait_for_function("!window.lfInputRenderingOpen()")
+    page.evaluate(
+        """() => {
+          control.style.marginLeft = '55px';
+          trigger.style.left = '40px';
+        }"""
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    finding = next(
+        error for error in errors if is_problem(error, moved_within("button#control"))
+    )
+    motions = [
+        animation
+        for comparison in shift_evidence(finding)["comparisons"]
+        for animation in comparison["animations"]
+        if within(animation["target"], "div#panel")
+    ]
+    assert motions, finding
+    assert all(
+        motion["owned"] and motion["began"] is None and motion["ended"] is None
+        for motion in motions
+    ), motions
+
+
 @pytest.mark.parametrize(
     "fault,finish",
     [
@@ -4711,6 +5006,45 @@ motion.pause();motion.currentTime=150;
     errors = take_browser_errors(page)
     assert names_move(errors, "p#trigger"), errors
     assert names_move(errors, "button#control") == fault, errors
+
+
+# Leaf's preview, warm, moves to the next target the pointer reaches by closing and
+# showing again in one task, so no frame reads it gone.
+@pytest.mark.parametrize("reopened", [True, False])
+def test_a_popover_shown_again_by_another_anchor_arrives_there(browser, reopened):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+#tip { position:fixed;inset:auto;margin:0;position-anchor:auto;
+  left:anchor(left);top:anchor(bottom) }</style><body style="margin:0">
+<button id="first" style="position:absolute;left:100px;top:100px">First</button>
+<button id="second" style="position:absolute;left:300px;top:100px">Second</button>
+<div id="tip" popover=manual><button id="control">Attached control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>tip.showPopover({source: first})</script></body>""")
+    )
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    before = page.locator("#control").bounding_box()
+    page.evaluate(
+        """(reopened) => {
+          if (reopened) {
+            tip.hidePopover();
+            tip.showPopover({source: second});
+          } else tip.style.marginLeft = '200px';
+          trigger.style.left = '40px';
+        }""",
+        reopened,
+    )
+    paint(page)
+    after = page.locator("#control").bounding_box()
+    assert after["x"] - before["x"] == pytest.approx(200)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") != reopened, errors
 
 
 def test_immediate_native_opening_and_typing(browser):

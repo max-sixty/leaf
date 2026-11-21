@@ -10,7 +10,6 @@ from render_cases_navigation import source_revision
 from render_harness import (
     example_media,
     expect_on_me,
-    expect_panel_says,
     leaf_page,
     open_page,
     resized,
@@ -21,6 +20,7 @@ from render_harness import (
     undo,
 )
 
+from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf.render_checks import rendered
 from leaf_dev.example_data import named_source
@@ -39,11 +39,12 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget.locator('.lf-vr-case-button[aria-current="true"]').click()
     page.keyboard.press("n")
     expect(case).not_to_have_attribute("data-lf-datum", first)
-    # The walk says where it stands among the cases, as every walk does.
-    expect_panel_says(page, "Case 2 of")
+    # The queue beside the case lists the cases, its first and last rows in view in
+    # this window, and marks the one shown, so the step says no position of its own.
+    expect_walk_position(page, None)
     page.keyboard.press("Shift+n")
     expect(case).to_have_attribute("data-lf-datum", first)
-    expect_panel_says(page, "Case 1 of")
+    expect_walk_position(page, None)
     with sending(page, "approve the selected comparison"):
         page.keyboard.press("a")
     expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()
@@ -75,7 +76,7 @@ def test_on_me_materializes_a_reply_review_at_its_requested_case(browser, serve)
         },
     )
     page = open_page(browser, url)
-    count = page.locator(".lf-fp-on-user")
+    count = page.locator(".lf-fp-leaf")
     expect_on_me(page, 6)
     count.click()
     card = page.locator(

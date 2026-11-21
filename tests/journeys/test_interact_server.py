@@ -1015,9 +1015,10 @@ def test_a_start_serves_the_page_with_its_own_leaf(page_dir, persistent_server):
         first.wait(timeout=STATED_TIMEOUT)
 
         # A page selecting a package this Leaf doesn't have, as a newer Leaf's might.
+        # The record is replaced in one step, as `page init` writes it, since the
+        # server goes on reading it and must never find it missing.
         record = layer_record(page_dir)
         assert record is not None
-        (page_dir / schema_model.LAYER_FILE).unlink()
         LAYER.write(
             page_dir / schema_model.LAYER_FILE, {**record, "packages": ["absent"]}
         )

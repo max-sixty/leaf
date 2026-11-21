@@ -281,7 +281,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     )
     told(page)
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
-    expect(thread.locator(".lf-margin-count")).to_have_text("2")
+    expect(thread.locator(".lf-badge-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(thread).to_have_attribute("aria-expanded", "true")
@@ -531,6 +531,51 @@ def test_a_card_open_across_a_revision_opens_where_its_passage_stands(
         expect(card).to_be_hidden()
 
 
+REWORDED_PAGE = leaf_page(
+    "words a revision rewords",
+    """
+  <section id="plan">
+    <h2>Plan</h2>
+    <p>Manual review first. Then a staged rollout.</p>
+  </section>
+""",
+)
+
+
+def test_a_card_quotes_the_words_a_revision_rewrote_at_its_top(browser, serve):
+    """A card's bracket marks the words its thread is about, so the card quotes none,
+    until a revision rewrites them and leaves the thread on their section. The bracket
+    then marks the whole section, so the card quotes the words at its top, marked as
+    changed, over its actions and the opening message's head beside them."""
+    comment = _comment_on("plan", quote="Manual review first.")
+    page = open_page(browser, live_url(serve(REWORDED_PAGE, events=[comment])))
+    resized(page, 1440, 900)
+    assert open_where_the_user_stands(page, "plan") is True
+    card = page.locator(".lf-margin-preview")
+    head = card.locator(".lf-thread-quote-head")
+    expect(card.locator(".lf-msg").first).to_be_visible()
+    expect(head).to_be_hidden()
+
+    stamp_page(
+        serve.page_dir,
+        REWORDED_PAGE.replace("Manual review first.", "Automatic review first."),
+        "Reword the plan",
+    )
+    wait_for_revision(page, 2)
+    expect(card).to_be_hidden()
+    assert open_where_the_user_stands(page, "plan") is True
+    # The bracket says where the words stood, so the label names no place.
+    expect(head.locator(".lf-quote-label")).to_have_text("Changed")
+    expect(head.locator(".lf-thread-quote")).to_have_text("Manual review first.")
+    rendered(page)
+    actions = card.locator(".lf-margin-thread-controls").bounding_box()
+    quote = head.bounding_box()
+    opening = card.locator(".lf-msg").first.locator(".lf-msg-head").bounding_box()
+    assert actions and quote and opening
+    assert quote["y"] + quote["height"] <= actions["y"]
+    assert opening["y"] == pytest.approx(actions["y"], abs=1)
+
+
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(
@@ -561,7 +606,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
-    expect(marker.locator(".lf-margin-count")).to_have_count(0)
+    expect(marker.locator(".lf-badge-count")).to_have_count(0)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, "))
     expect(marker).not_to_have_attribute("title", re.compile(".+"))
     more = marker.locator("xpath=..").locator(":scope > .lf-margin-more")
@@ -584,7 +629,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     preview = page.locator(".lf-margin-preview")
     marker.focus()
     expect(preview).to_be_hidden()
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
@@ -714,18 +759,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     # Editing the reply between them can move the document to reveal its caret.
     before_walk = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Home")
-    # The panel's empty field says where the walk stands.
-    position = panel_field(page)
-    expect(position).to_have_attribute("placeholder", re.compile(r"^Marker 1 of \d+"))
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_walk
-    said = re.search(r"Marker 1 of (\d+)", position.get_attribute("placeholder"))
-    assert said is not None
-    total = int(said.group(1))
-    assert total > 1, said.group(0)
     first = page.locator(":focus").get_attribute("aria-label")
     page.keyboard.press("ArrowDown")
-    expect(position).to_have_attribute(
-        "placeholder", re.compile(rf"^Marker 2 of {total}\b")
+    expect(page.locator(":focus")).not_to_have_attribute("aria-label", first)
+    # The walk is over the markers in view, so it declares no walk for the panel to say.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_walk
     assert page.evaluate("() => document.activeElement.matches('.lf-margin-marker')")
@@ -1518,7 +1559,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         },
     )
     told(page)
-    expect(marker.locator(".lf-margin-count")).to_have_text("2")
+    expect(marker.locator(".lf-badge-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(page.locator(".lf-margin-thread")).not_to_contain_text(

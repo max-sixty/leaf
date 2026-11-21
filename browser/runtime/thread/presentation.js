@@ -27,6 +27,7 @@ import { surfaceFocusTarget } from "./surfaces.js";
 import { beginThreadSeats, commitThreadSeats, retainThreadSeats } from "./inline.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
+import { draftAnchor, draftsReading } from "../drafts.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
@@ -143,6 +144,10 @@ export function createThreadPresentation({
           threads,
           draft: readDraft(),
           actionAnchor: activeActionAnchor(),
+          saved: draftsReading().flatMap((saved) => {
+            const anchor = draftAnchor(saved);
+            return anchor ? [{ context: saved.context, anchor }] : [];
+          }),
         });
         if (anchors) {
           anchorPaint.paint(anchors);

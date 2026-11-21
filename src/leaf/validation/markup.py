@@ -71,12 +71,78 @@ def language_advice(parser) -> list[Finding]:
                 "language": name,
                 "names": sorted(set(COLOURED_LANGUAGES.values())),
             },
-            severity="advice",
         )
         for tag, line, name in parser.authoring.code_languages
         if name not in COLOURED_LANGUAGES
         and (name != FORMULA_LANGUAGE or tag != "code")
     ]
+
+
+# HTML's elements whose text shows as written: code, and text that no markup inside
+# could format, as an option's or the title's.
+LITERAL_TEXT_TAGS = frozenset(
+    {"code", "pre", "kbd", "samp", "script", "style", "textarea", "title", "option"}
+)
+
+
+def markdown_advice(parser: SourceDocument) -> list[Finding]:
+    """Each element whose own text Leaf's Markdown, as a message reads it, would format
+    as a code span, `**` bold or a link, outside the elements whose text
+    shows as written (`LITERAL_TEXT_TAGS`). HTML reads no Markdown, so the page shows
+    the backticks, asterisks and brackets. Agents write Markdown in chat and in every
+    thread message, and carry text from Markdown sources, such as an issue's title or
+    a subagent's report, into a page's HTML, where nothing else in their path reports
+    the syntax left showing. `*` and `_` emphasis is left out, since paths, globs and
+    error text use those marks in their own sense. Advice, since the author may mean
+    the syntax as text, which the words say how to mark.
+
+    This reads the page's words for something other than quoting, anchoring or
+    showing them, an exception to root `AGENTS.md`'s "Read what the page states". It
+    decides no fact Leaf holds about the page and changes nothing the page does."""
+
+    def formats(text: str) -> bool:
+        # Each construct spells one of these, and most text holds none, which saves
+        # the parse.
+        if "`" not in text and "**" not in text and "](" not in text:
+            return False
+        return any(
+            token.type == "code_inline"
+            or (token.type == "strong_open" and token.markup == "**")
+            or (
+                token.type == "link_open"
+                and token.markup not in {"linkify", "autolink"}
+            )
+            for token in markdown_dialect(True).parseInline(text)[0].children or ()
+        )
+
+    elements = []
+
+    def visit(node: dict) -> None:
+        if node["tag"] in LITERAL_TEXT_TAGS:
+            return
+        if any(isinstance(child, str) and formats(child) for child in node["content"]):
+            elements.append({"tag": node["tag"], "line": node["line"]})
+        for child in node["content"]:
+            if isinstance(child, dict):
+                visit(child)
+
+    # A fragment, as a message's HTML, holds text between its top-level elements.
+    for node in parser.authoring.content:
+        if isinstance(node, dict):
+            visit(node)
+    if not elements:
+        return []
+    return [Finding("literal-markdown", values={"elements": elements})]
+
+
+def markup_advice(parser) -> list[Finding]:
+    """The advice any authored markup takes that reads only the markup
+    (`instances.markup_findings`): a class naming a language Leaf doesn't colour
+    (`language_advice`), and Markdown an HTML element shows as typed
+    (`markdown_advice`). Which blocks a comment can aim at (`unpointable_blocks`) and
+    where an allocation holds (`instances.inert_allocation_advice`) are a page's
+    alone."""
+    return [*language_advice(parser), *markdown_advice(parser)]
 
 
 def id_errors(parser) -> list[Finding]:
@@ -99,12 +165,6 @@ def id_errors(parser) -> list[Finding]:
     # them, so an authored id there redirects the reference to the page.
     if parser.reserved_ids:
         errors.append(Finding("reserved-ids", values={"ids": parser.reserved_ids}))
-    # A command's ID names a widget or a message, whichever the page holds; the log
-    # mints message ids in this shape, so an authored one could name both.
-    if parser.event_shaped_ids:
-        errors.append(
-            Finding("event-shaped-ids", values={"ids": parser.event_shaped_ids})
-        )
     return errors + reserved_marker_errors(parser)
 
 
@@ -155,20 +215,27 @@ def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
             {"tag": block["tag"], "line": block["line"], **extra}
         )
     return [
-        Finding(code, values={"elements": elements}, severity="advice")
-        for code, elements in found.items()
+        Finding(code, values={"elements": elements}) for code, elements in found.items()
     ]
 
 
-def structure_errors(parser: SourceDocument) -> list[Finding]:
-    """Structural complaints and source elements missing a required end tag."""
-    errors = list(parser.authoring.errors)
+def repair_errors(parser: SourceDocument) -> list[Finding]:
+    """Where the HTML parser had to repair the markup, so the tree it read is not the
+    one written: a non-void element written self-closing (`self-closing`), and source
+    elements missing a required end tag (`unclosed`)."""
+    errors = list(parser.authoring.self_closing)
     if parser.authoring.unclosed:
         elements = [
             {"tag": tag, "line": line} for tag, line in parser.authoring.unclosed
         ]
         errors.append(Finding("unclosed", values={"elements": elements}))
     return errors
+
+
+def structure_errors(parser: SourceDocument) -> list[Finding]:
+    """The parser's complaints about the markup: an unnamed sample, a `<noscript>`,
+    and its repairs (`repair_errors`)."""
+    return [*parser.authoring.errors, *repair_errors(parser)]
 
 
 def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
@@ -183,7 +250,9 @@ def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
 
 
 def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
-    """Delivery needs explicit head/body wrappers and one direct main Layout box."""
+    """Delivery and export need explicit head and body wrappers, which refuse, and a
+    Layout arranges the one `main` directly under `body`, which a page may leave out
+    or double, so its count is advice."""
     errors = []
     direct_heads = [
         line for line, is_direct in parser.authoring.head_elements if is_direct
@@ -203,17 +272,16 @@ def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
                 },
             )
         )
+    if len(parser.authoring.body_lines) != 1:
+        errors.append(
+            Finding("body-count", values={"tags": len(parser.authoring.body_lines)})
+        )
     direct = [line for line, is_direct in parser.authoring.main_elements if is_direct]
-    if (
-        len(parser.authoring.body_lines) != 1
-        or len(parser.authoring.main_elements) != 1
-        or len(direct) != 1
-    ):
+    if len(parser.authoring.main_elements) != 1 or len(direct) != 1:
         errors.append(
             Finding(
                 "main-count",
                 values={
-                    "bodies": len(parser.authoring.body_lines),
                     "mains": len(parser.authoring.main_elements),
                     "direct": len(direct),
                 },

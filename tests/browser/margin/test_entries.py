@@ -10,6 +10,7 @@ from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
+from render_cases_widgets import chart_markup
 from render_harness import (
     PREVIEW,
     cursor_over,
@@ -156,7 +157,8 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     browser, serve, annotations
 ):
     """The shared control says its name as its preview wherever a page seats it, and the
-    keyboard reads it at once."""
+    keyboard reads it at once and takes it away as it leaves, here for the panel's
+    field, which previews nothing."""
     source = leaf_page(
         "Inline names",
         '<button id="before">Before</button> <button id="inline">Read</button>',
@@ -179,7 +181,7 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     expect(control).not_to_be_focused()
-    expect(preview).not_to_have_text("Read inline name")
+    expect(preview).to_be_hidden()
 
 
 def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
@@ -456,7 +458,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     resized(page, 1280, 900)
     marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
     icon = marker.locator(":scope > .lf-margin-entry-icon")
-    badge = marker.locator(":scope > .lf-badges > .lf-margin-count")
+    badge = marker.locator(":scope > .lf-badges > .lf-badge-count")
     icon.evaluate("node => { window.__heldMarginEntryIcon = node; }")
     badge.evaluate("node => { window.__heldMarginEntryBadge = node; }")
     marker.evaluate(
@@ -932,7 +934,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         reject.press("Enter")
     expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "reject")
     with sending(page, "undo the suggestion rejection"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     with sending(page, "accept the suggestion from its pin"):
         accept.click()
     expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "accept")
@@ -1114,6 +1116,144 @@ def test_a_row_leaving_renames_the_focused_row_after_it(browser, serve):
     assert re.search(r"\b2 of 2\b", last.get_attribute("aria-label") or ""), (
         last.get_attribute("aria-label")
     )
+
+
+WEEKS = """{
+  ariaLabel: "Sessions by week, rising from 4,100 to 9,300",
+  x: {label: "week"},
+  y: {label: "sessions"},
+  marks: [
+    Plot.dot(
+      [4100, 5200, 8412, 9300].map((sessions, i) => ({week: i + 1, sessions})),
+      {x: "week", y: "sessions"},
+    ),
+  ],
+}"""
+PICTURE_PARTS_PAGE = leaf_page(
+    "parts of pictures",
+    '<h1 id="t">Parts</h1>'
+    + chart_markup("weeks", WEEKS).replace("<lf-chart ", '<lf-chart data-height="220" ')
+    + '<lf-diagram id="flow" parts="all"><pre>\ngraph LR\n'
+    "  S[Start request] --> H[Handle request] --> U[Result]\n</pre></lf-diagram>",
+)
+
+
+def test_threads_on_two_parts_of_a_picture_stand_an_entry_each_tracing_its_part(
+    browser, serve
+):
+    """Threads on two points of a chart, and on two nodes of a diagram, stand a margin
+    entry each, named by its part as the comment box names it, and pointing at one
+    traces that part alone rather than the picture: the ring round the chart's point,
+    which the chart finds by its datum, and the node the diagram lists."""
+    parts = {
+        "weeks": ("point:0;x=2;y=5200", "point:0;x=3;y=8412"),
+        "flow": ("node:S", "node:U"),
+    }
+    url = serve(
+        PICTURE_PARTS_PAGE,
+        events=[
+            {**_comment_on(picture), "anchor": {"section": picture, "visual": visual}}
+            for picture, visuals in parts.items()
+            for visual in visuals
+        ],
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    expect(page.locator("#weeks svg[role=img]")).to_be_visible()
+    margins_laid_out(page)
+    third_dot = page.locator("#weeks svg[role=img] [data-lf-part=dot] circle").nth(2)
+    traced = page.locator("[data-lf-traced]")
+    for picture, word, names, hovered, part in (
+        (
+            "weeks",
+            "chart",
+            ["week 2, sessions 5,200", "week 3, sessions 8,412"],
+            "week 3, sessions 8,412",
+            page.locator("#weeks .lf-chart-marks > :not(.lf-chart-aim)"),
+        ),
+        (
+            "flow",
+            "diagram",
+            ["Start request", "Result"],
+            "Result",
+            page.locator('#flow g[data-id="U"]'),
+        ),
+    ):
+        markers = page.locator(
+            f'.lf-margin-cluster[data-lf-margin-for="{picture}"] .lf-margin-marker'
+        )
+        expect(markers).to_have_count(2)
+        assert sorted(
+            markers.evaluate_all("nodes => nodes.map((n) => n.ariaLabel)")
+        ) == sorted(f"Thread, {word} · {name}" for name in names)
+        markers.and_(page.locator(f'[aria-label="Thread, {word} · {hovered}"]')).hover()
+        expect(traced).to_have_count(1)
+        assert traced.evaluate(
+            "(node, parts) => parts.includes(node)", part.element_handles()
+        ), picture
+        if picture == "weeks":
+            # Of the rings round the two commented points, the one round week 3.
+            ring, dot = traced.bounding_box(), third_dot.bounding_box()
+            assert ring and dot
+            assert ring["x"] + ring["width"] / 2 == pytest.approx(
+                dot["x"] + dot["width"] / 2, abs=1
+            )
+            assert ring["y"] + ring["height"] / 2 == pytest.approx(
+                dot["y"] + dot["height"] / 2, abs=1
+            )
+        page.mouse.move(2, 2)
+        expect(traced).to_have_count(0)
+
+
+def test_a_draft_on_a_chart_s_point_traces_the_point_after_the_chart_draws_again(
+    browser, serve
+):
+    """A comment the user put away unsent on a chart's point has a margin entry of its
+    own, which traces the point, and still traces it once the chart has drawn itself
+    again for a narrower box, though no thread on the page names the chart."""
+    page = open_page(browser, serve(PICTURE_PARTS_PAGE))
+    resized(page, 1440, 900)
+    chart = page.locator("#weeks")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    dot = chart.locator("svg[role=img] [data-lf-part=dot] circle").nth(2)
+
+    def middle(locator):
+        box = locator.bounding_box()
+        assert box
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    x, y = middle(dot)
+    page.mouse.move(x - 2, y - 2)
+    page.mouse.move(x, y)
+    page.keyboard.down("Alt")
+    page.mouse.click(x, y)
+    page.keyboard.up("Alt")
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    page.keyboard.type("Why the jump?")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    marker = page.locator('[data-lf-margin-for="weeks"] .lf-margin-marker')
+    expect(marker).to_have_count(1)
+    traced = page.locator("[data-lf-traced]")
+
+    def traces_the_dot():
+        marker.hover()
+        expect(traced).to_have_count(1)
+        assert traced.evaluate("node => Boolean(node.closest('.lf-chart-marks'))")
+        assert middle(traced) == pytest.approx(middle(dot), abs=1)
+        page.mouse.move(2, 2)
+        expect(traced).to_have_count(0)
+
+    traces_the_dot()
+    drawn = chart.evaluate("el => el.drawn")
+    # The chart's box narrows with the window as it was, as when a pane beside it opens.
+    chart.evaluate("el => { el.style.width = '500px'; }")
+    page.wait_for_function(
+        "(drawn) => document.getElementById('weeks').drawn !== drawn", arg=drawn
+    )
+    rendered(page)
+    traces_the_dot()
 
 
 def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(

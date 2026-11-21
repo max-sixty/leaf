@@ -17,6 +17,7 @@ from interact_support import (
     available_loopback_port,
     declared,
     fixture_service,
+    inlined,
     read_record,
     record_claim,
     serving,
@@ -168,13 +169,12 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)
     assert claim is not None and claim["turn"] == "resumed"
-    opening, envelope, *rest = json.loads(capsys.readouterr().out)[
-        "hookSpecificOutput"
-    ]["additionalContext"].split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [left["id"]]
-    assert hook_transport_model.ATTENTION_OPENING not in rest
+    assert hook_transport_model.ATTENTION_OPENING not in context
 
 
 def test_a_prompt_takes_back_a_page_whose_server_outlived_its_session(claimed, capsys):

@@ -19,6 +19,7 @@ import json
 import re
 from pathlib import Path
 
+from leaf.event_log import read_events
 from leaf.thread_context import logged_fragment
 from leaf_dev.authoring_eval import leaf_command
 
@@ -36,6 +37,7 @@ FAILED = {
     "page-exception",
     "page-report",
     "render-threw",
+    "thread-not-drawn",
     "window-error",
 }
 TAG = re.compile(r"<(lf-[a-z0-9-]+)")
@@ -73,13 +75,11 @@ def failures(document: dict | None) -> list[dict]:
 def placed(page: Path) -> dict:
     """The widget tags in the final page and in each message's markup."""
     html = (page / "index.html").read_text() if (page / "index.html").is_file() else ""
-    messages = []
-    log = page / "events.jsonl"
-    if log.is_file():
-        for line in log.read_text().splitlines():
-            event = json.loads(line)
-            if logged_fragment(event):
-                messages.append(sorted(set(TAG.findall(event["text"]))))
+    messages = [
+        sorted(set(TAG.findall(event["text"])))
+        for event in read_events(page)
+        if logged_fragment(event)
+    ]
     return {"page": sorted(set(TAG.findall(html))), "messages": messages}
 
 

@@ -1,4 +1,4 @@
-/* @noformat Generated from node_modules/@awesome.me/webawesome/dist/styles/native.css by build/styles.mjs. */
+/* Generated from node_modules/@awesome.me/webawesome/dist/styles/native.css by build/styles.mjs. */
 
 /* Region "Checkboxes + Radios" */
 :where(.lf-choice) > :where(input[type="checkbox"]), :where(.lf-choice) > :where(input[type="radio"]) {

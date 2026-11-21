@@ -1177,6 +1177,12 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve, source, tag):
     consume_browser_errors(page, f'<{tag} id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
+        const kept = (pre) => {
+          pre.style.whiteSpace = 'pre';
+          const width = pre.scrollWidth;
+          pre.style.removeProperty('white-space');
+          return width;
+        };
         const bad = document.getElementById('bad');
         const box = (bad.shadowRoot ?? bad).querySelector('.lf-error');
         const column = document.querySelector('main > h1').getBoundingClientRect();
@@ -1184,8 +1190,9 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve, source, tag):
                  box: box ? box.getBoundingClientRect().width : 0,
                  widget: document.getElementById('bad').getBoundingClientRect().width,
                  // What the box would be floored at if nothing said otherwise: the
-                 // source is a `pre`, so its longest line is its minimum width.
-                 source: box ? box.querySelector('pre').scrollWidth : 0,
+                 // source's longest line, the minimum width of a `pre` that keeps its
+                 // lines, as a shadow stage's does; the page's own wraps them.
+                 source: box ? kept(box.querySelector('pre')) : 0,
                  column: column.width };
     }""")
     assert at["failed"], "the fixture must fail to render, or this proves nothing"

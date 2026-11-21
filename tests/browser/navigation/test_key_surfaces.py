@@ -31,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
     """Even overlapping identical words give the polite region two arrivals."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.evaluate(
         """async () => {
           window.__lfLiveNode = document.querySelector('.lf-live');
@@ -274,7 +274,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     page.keyboard.press("Escape")
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
 
     expect(page_comment(page)).not_to_have_attribute("placeholder", re.compile(r" c$"))
     expect(badge).to_have_count(0)

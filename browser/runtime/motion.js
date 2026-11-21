@@ -116,16 +116,35 @@ export const motionTime = (property, on = document.documentElement) => {
 export const motionEasing = (property, on = document.documentElement) =>
   token(property, on);
 
-// A message's arrival tint, and the cue on a tab a walk revealed.
+// How long the tint that marks an arrival or a change lasts (`backgroundFlash`).
 export const flashDuration = () => motionTime("--lf-motion-flash");
 // Independently rendered carriers join the same finite agent-work arrival window.
 export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
 
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
-// so hover, theme changes and transparent surfaces never snap back when it ends.
+// so hover, theme changes and transparent surfaces never snap back when it ends. A box
+// drawn inside the element that paints a background of its own, such as an option's
+// row, would cover the element's tint, so it takes the tint too, and the whole element
+// reads as one tinted box. Theirs end with the element's, which is the one returned.
 /** @param {Element} el @param {number} ms */
 export function backgroundFlash(el, ms) {
-  return motion(el, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
+  /** @param {Element} box */
+  const tint = (box) =>
+    motion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
+  const own = tint(el);
+  if (!own) return own;
+  const grounds = [...el.querySelectorAll("*")]
+    .filter(
+      (box) =>
+        box.checkVisibility() &&
+        getComputedStyle(box).backgroundColor !== "rgba(0, 0, 0, 0)",
+    )
+    .map(tint);
+  own.finished.then(
+    () => grounds.forEach((one) => one?.finish()),
+    () => grounds.forEach((one) => one?.cancel()),
+  );
+  return own;
 }
 
 // How long room takes to go back. Long enough that the eye can follow a paragraph's
@@ -144,7 +163,7 @@ export const returnDuration = () => motionTime("--lf-motion-return");
 // the effect. `display` keeps an already-retired slot drawn until its pixels finish;
 // semantic retirement is still true from the first frame.
 // Clip without creating a scroller, so a folding thread's title stays sticky to its list.
-// Where intrinsic interpolation is missing (Firefox, WebKit), `auto` would jump
+// Where intrinsic interpolation is missing (Firefox), `auto` would jump
 // discretely half way. There the effect first holds the block at `auto`, reads that
 // height and restarts from it in pixels, all before the next frame. The pixels live
 // only in the effect's keyframes, so content that changes mid-fold keeps the starting

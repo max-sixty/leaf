@@ -47,6 +47,14 @@ def unnamed_browser():
     return os.environ | dict.fromkeys(browser_model.VARIABLES, "")
 
 
+def no_browser(report: dict) -> str:
+    """Why no browser read the page, as the check's one `no-browser` finding says."""
+    [why] = [
+        f["values"]["error"] for f in report["findings"] if f["code"] == "no-browser"
+    ]
+    return why
+
+
 def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
     """Driver startup failures become an unavailable render check, before a reader runs."""
     serve(LONG_PAGE)
@@ -62,7 +70,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         assert report["status"] == 0
         assert report["browser"]["asked"] == ["render check"]
         assert report["browser"]["ran"] == []
-        unavailable = report["browser"]["unavailable"]
+        unavailable = no_browser(report)
         assert "Playwright's driver did not start: " in unavailable
         assert reason in unavailable
 

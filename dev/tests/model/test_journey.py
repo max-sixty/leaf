@@ -20,11 +20,14 @@ from playwright.sync_api import Page as BrowserPage
 
 from leaf import harness
 from leaf.harness import NUDGE_WORDS
-from leaf.hook_transport import INLINE_OPENING
+from leaf.hook_transport import inline_context
 from leaf.interaction_log import read_interactions
-from leaf_dev import ROOT, journey_claude_code, journey_pi
+from leaf_dev import ROOT
+from leaf_dev.commands.journey import _claude_code as journey_claude_code
+from leaf_dev.commands.journey import _journey as journey
+from leaf_dev.commands.journey import _pi as journey_pi
 from leaf_dev.commands.journey import chart as journey_chart
-from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.journey import run as journey_run
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import (
     LEAF_WAKE,
@@ -111,6 +114,9 @@ def test_release_publication_requires_the_marker_in_board_markup():
     )
     assert end.names(active, marker)
     request.html = f'<main><lf-column label="Release {marker}"></lf-column></main>'
+    assert end.names(active, marker)
+    # The agent's casing of the release's name is its own.
+    request.html = f"<main><h2>Release {marker.upper()} passed</h2></main>"
     assert end.names(active, marker)
 
 
@@ -299,10 +305,10 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
     }
 
 
-def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
-    """A comment a fork of the conversation decided on carries the fork's outcome,
-    time and tokens beside the breakdown of the session's reply, whether the fork
-    posted a working line as it handed the thread over or Leaf handed it."""
+def test_a_comment_a_line_fork_ran_on_keeps_the_forks_record(tmp_path):
+    """A comment a line fork ran on carries the fork's outcome, time and tokens
+    beside the breakdown of the session's reply, whether its line went in or Leaf
+    dropped it."""
     events = [
         {
             "kind": "comment",
@@ -355,7 +361,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_outcome",
             "thread": "c1",
             "inputs": ["c1"],
-            "outcome": "hand_over",
+            "outcome": "posted",
             "text": "Looking at how it is served.",
             "line": "w1",
             "elapsedMs": 3200.0,
@@ -367,8 +373,9 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_outcome",
             "thread": "c2",
             "inputs": ["c2"],
-            "outcome": "hand_over",
-            "why": "it asks for a change",
+            "outcome": "dropped",
+            "why": "the agent spoke in the thread, or a turn joined its round, first",
+            "text": "Renaming it.",
             "elapsedMs": 2100.0,
         },
     ]
@@ -380,32 +387,37 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
     terminal.session = "s"
     end = journey.HttpEnd("http://127.0.0.1:1/?t=t", page, time.sleep)
     user = journey.User(end, "v", lambda: events, terminal, lambda: forks)
-    for name, comment in (("fork-idle", "c1"), ("fork-work", "c2")):
+    for name, comment in (("mid-turn", "c1"), ("ending", "c2")):
         profile = journey.AgentProfile()
         profile.event_ids = [comment]
         user.ids[name], user.profiles[name] = comment, profile
         user.sent.append(name)
-    assert user.timing("fork-idle") == (
-        "`fork-idle` picked up after 20.0 s, answered after 4.0 s; a fork's hand_over "
+    assert user.timing("mid-turn") == (
+        "`mid-turn` picked up after 20.0 s, answered after 4.0 s; a fork's posted "
         'after 3200 ms on 12 in, 80 out, 9000 cache read tokens: "Looking at how it '
         'is served."'
+    )
+    assert user.timing("ending") == (
+        "`ending` picked up after 10.0 s, answered after 20.0 s; a fork's dropped "
+        "after 2100 ms: the agent spoke in the thread, or a turn joined its round, "
+        'first: "Renaming it."'
     )
     user.passed("forks", time.monotonic())
 
     [step] = user.sample()["steps"]
-    answered, handed = step["comments"]["fork-idle"], step["comments"]["fork-work"]
-    assert answered["fork"] == {
-        "outcome": "hand_over",
+    lined, dropped = step["comments"]["mid-turn"], step["comments"]["ending"]
+    assert lined["fork"] == {
+        "outcome": "posted",
         "elapsedMs": 3200.0,
         "usage": usage,
     }
-    assert answered["reply"] is not None
-    assert handed["fork"] == {
-        "outcome": "hand_over",
-        "why": "it asks for a change",
+    assert lined["reply"] is not None
+    assert dropped["fork"] == {
+        "outcome": "dropped",
+        "why": "the agent spoke in the thread, or a turn joined its round, first",
         "elapsedMs": 2100.0,
     }
-    assert handed["reply"] is not None
+    assert dropped["reply"] is not None
 
 
 PROMPT = """
@@ -583,7 +595,7 @@ def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():
             "attachment": {
                 "type": "hook_additional_context",
                 "hookEvent": "UserPromptSubmit",
-                "content": [INLINE_OPENING + "\n" + json.dumps(delivery)],
+                "content": [inline_context(delivery)],
             },
         },
     ]
@@ -1026,7 +1038,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     assert after == {"ms": 2000, "calls": []}
 
 
-def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
+def test_the_release_ask_over_http_is_the_shared_check(tmp_path, monkeypatch):
     """Over HTTP the release ask is posted as the page's tab posts one, and the same
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
@@ -1039,6 +1051,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     state, page = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page)
     version = "abcd1234" + "0" * 32
+    # The run chooses the release's name once; this one is held for the check.
+    monkeypatch.setattr(journey, "release_name", lambda: "summit-maple")
     agent = {"agent": "The agent", "session": "journey-release"}
     paused = []
 
@@ -1052,7 +1066,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         index = page / "index.html"
         index.write_text(
             index.read_text().replace(
-                "</main>", "<p>Release abcd1234 passed.</p></main>"
+                "</main>",
+                "<p>Release summit-maple passed.</p></main>",
             )
         )
         run_leaf(
@@ -1072,7 +1087,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
         step = post(url, "ending")
     assert reading["change"] == {
-        "marker": "abcd123",
+        "marker": "summit-maple",
         "revision": 2,
         "reply": "Recorded.",
     }
@@ -1082,6 +1097,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     [asked] = [
         e for e in read_events(page) if e.get("attempt") == "journey-step-release"
     ]
+    # The ask carries the name the run chose, which the check then required.
+    assert asked["text"] == journey.release_ask("summit-maple")
     assert "anchor" not in asked or asked["anchor"].get("section") is None
     [anchored] = [e for e in read_events(page) if e["id"] == step]
     assert anchored["anchor"]["section"] == "triage-why"
@@ -1102,7 +1119,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview, forks, fork_work):
+    def target_session(browser, target, release, *, sandbox, preview):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
@@ -1124,15 +1141,15 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
         monkeypatch.setattr(end, "close", lambda: None)
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
-    monkeypatch.setattr(journey, "headless_shell", headless_shell)
-    monkeypatch.setattr(journey, "target_session", target_session)
-    monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
+    monkeypatch.setattr(journey_run, "headless_shell", headless_shell)
+    monkeypatch.setattr(journey_run, "target_session", target_session)
+    monkeypatch.setattr(journey_run, "samples_path", lambda: Path(os.devnull))
     runner = CliRunner()
-    result = runner.invoke(journey.journey, ["claude-code"])
+    result = runner.invoke(journey_run.journey, ["claude-code"])
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([], [None])
     assert json.loads(result.stdout)["userEnd"] == "http"
-    result = runner.invoke(journey.journey, ["claude-code", "--browser"])
+    result = runner.invoke(journey_run.journey, ["claude-code", "--browser"])
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"

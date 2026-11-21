@@ -44,24 +44,36 @@ def media_name(data: bytes, suffix: str) -> str:
     return hashlib.sha256(data).hexdigest()[:MEDIA_DIGEST] + suffix.lower()
 
 
-def _store_media(page_dir: Path, data: bytes, suffix: str) -> str:
+def write_media(directory: Path, data: bytes, suffix: str) -> str:
+    """Write `data` into the media directory `directory` under its name
+    (`media_name`), unless it holds them already, and return the name. A name that
+    holds other bytes is a digest collision, refused. A page's own media goes through
+    `cmd_media`, which serializes this with the page's other transitions."""
     name = media_name(data, suffix)
-    media_dir = page_dir / MEDIA_DIR
-    target = media_dir / name
+    target = directory / name
+    directory.mkdir(exist_ok=True)
+    if target.exists() or target.is_symlink():
+        if target.is_symlink() or not target.is_file() or target.read_bytes() != data:
+            raise RuntimeError(f"media digest collision at {target}")
+    else:
+        replace_files([(target, data, False)])
+    return name
+
+
+def require_media_type(path: Path) -> None:
+    """Refuse `path` unless its suffix is a media type Leaf serves."""
+    if path.suffix.lower() not in MEDIA_TYPES:
+        raise Refused(
+            f"{path}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
+        )
+
+
+def _store_media(page_dir: Path, data: bytes, suffix: str) -> str:
     # The short digest is the public format already carried by page histories. Serialize
     # its compare-and-write with every other page transition so even a collision can
     # never change what an existing public name means.
     with PageTransaction(page_dir):
-        media_dir.mkdir(exist_ok=True)
-        if target.exists() or target.is_symlink():
-            if (
-                target.is_symlink()
-                or not target.is_file()
-                or target.read_bytes() != data
-            ):
-                raise RuntimeError(f"media digest collision at {target}")
-        else:
-            replace_files([(target, data, False)])
+        name = write_media(page_dir / MEDIA_DIR, data, suffix)
     return f"/{MEDIA_DIR}/{name}"
 
 
@@ -90,10 +102,7 @@ def cmd_media(page_dir: Path, files: list) -> list[dict]:
     copy of it, which is what makes the version history cheap to keep."""
     out = []
     for src in files:
-        if src.suffix.lower() not in MEDIA_TYPES:
-            raise Refused(
-                f"{src}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
-            )
+        require_media_type(src)
         data = src.read_bytes()
         path = _store_media(page_dir, data, src.suffix)
         out.append({"path": path, "source": str(src)})

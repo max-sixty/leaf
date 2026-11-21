@@ -51,12 +51,14 @@ from leaf_dev.arms import (
     now,
     observed_sum,
     pages,
+    phase_traces,
     read_page_state,
     read_trace,
     resumed,
     run_agent,
     run_leaf,
     scratch,
+    stage_task_files,
     trace_result,
     trace_summary,
 )
@@ -77,7 +79,6 @@ from leaf_dev.eval_user import (
     comment_on_passage,
     decide,
 )
-from leaf_dev.leaf_assets import pinned_copy
 
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
@@ -402,10 +403,7 @@ def author(run: Run, cwd: Path) -> None:
     window once the page is handed over (`open_as_user`), not the fixed one the
     harness pins for its own checks (`arms.environment`)."""
     cwd.mkdir(parents=True, exist_ok=True)
-    task = CASES[run.subject].request
-    fixtures = pinned_copy(TASKS / task)
-    if fixtures is not None and fixtures.is_dir():
-        shutil.copytree(fixtures, cwd / "evals" / task)
+    stage_task_files(CASES[run.subject].request, cwd)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -677,7 +675,7 @@ def judge_pages(
             command = [
                 "/usr/bin/env",
                 *(f"{key}={value}" for key, value in variables.items()),
-                *cli(),
+                *cli(cwd),
             ]
             addresses = {}
             restorations = {}
@@ -805,19 +803,6 @@ Task and criterion:
         return {"error": str(error), "metadata": {"evidence": str(evidence)}}
 
 
-def call_api(prompt: str, options: dict, context: dict) -> dict:
-    """Promptfoo's live judge provider for the final and predecision pages."""
-    request = context["vars"]
-    return judge_pages(
-        request["pages"],
-        request["widths"],
-        prompt,
-        request["schema"],
-        Path(request["evidence"]),
-        handovers=request.get("handovers"),
-    )
-
-
 def capture(run: Run) -> dict[int, dict]:
     """Report the final page and, when applicable, its decision controls."""
     return {
@@ -837,19 +822,6 @@ def comment_answer(run: Run, reply: str, page: Path) -> str:
     return "\n\n".join(
         f"{answer.get('title', '')}\n{answer['text']}".strip() for answer in answers
     )
-
-
-def phase_traces(trace: list[dict]) -> dict[int, list[dict]]:
-    """The session's records split at the harness's `eval_phase` marks."""
-    split: dict[int, list[dict]] = {}
-    current = None
-    for record in trace:
-        if record.get("type") == "eval_phase":
-            current = record["phase"]
-            split[current] = []
-        elif current is not None:
-            split[current].append(record)
-    return split
 
 
 def replies(trace: list[dict]) -> str:
@@ -992,7 +964,11 @@ def execute_scenario(
     except Exception as error:
         failure = "".join(traceback.format_exception(error))
     trace = read_trace(work / "stream.jsonl")
-    split = phase_traces(trace)
+    split = {
+        records[0]["phase"]: records
+        for records in phase_traces(trace)
+        if records[0].get("type") == "eval_phase"
+    }
     order = list(phases(case))
     session = dict(
         zip(

@@ -398,14 +398,44 @@ const bundles = {
       // exhaust the measurement loop as each newly rendered line corrects that guess.
       // Compare against the oracle's measured line length, with its five-column
       // floor, so sub-character resizes accumulate until they warrant a measurement.
+      //
+      // CodeMirror scroll walk: the view finds the boxes that scroll an editor by
+      // walking up from it until `body`, and takes the window where it finds none. A
+      // drag selection scrolls the nearest one on each axis while the pointer stands
+      // past its edge, and the view's measure keeps the nearest vertical one at its
+      // end, if it stood there, as the editor changes height. No scroll outside a box
+      // fixed to the window moves the words inside it, so the walk ends at such a box
+      // and takes it for each axis it found no scroller on. That box doesn't scroll, so
+      // the page stays still under every editor in Leaf's chrome, each of which stands
+      // in one. A fixed box whose containing block is an ancestor, as a transform or
+      // paint containment makes one, has that ancestor for its `offsetParent` and
+      // moves with that ancestor's scrollers, so the walk passes it. Walking on from
+      // the chrome, which stands after `body` (runtime/chrome.js), the walk would reach
+      // the root, whose own box moves up as the page scrolls: a press whose pointer
+      // drifted a pixel would read the pointer as far below that box and scroll the
+      // page to its end. Ending the walk at the root would give these editors the
+      // window, which a drag at the window's foot would scroll, and which the measure
+      // would scroll by the height a draft gives up at the page's end.
+      // CodeMirror 6.43.15.
       {
         file: /@codemirror\/view\/dist\/index\.js$/,
         edit: (source) =>
           seam(
-            source,
-            "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth",
-            "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1",
-            "CodeMirror wrapping measurement",
+            seam(
+              source,
+              "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth",
+              "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1",
+              "CodeMirror wrapping measurement",
+            ),
+            "                x = cur;\n            cur = cur.assignedSlot || cur.parentNode;",
+            `                x = cur;
+            if (getComputedStyle(cur).position == "fixed" && !cur.offsetParent) {
+                y = y || cur;
+                if (getX) x = x || cur;
+                break;
+            }
+            cur = cur.assignedSlot || cur.parentNode;`,
+            "CodeMirror scroll walk",
           ),
       },
       // CodeMirror's style-mod provider expands its selectors and mounts its sheets,
@@ -432,17 +462,24 @@ const bundles = {
   }),
 
   // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package; their state/view/language
+  // and autocomplete live in this optional package, and each language the editor
+  // highlights beyond the core's Markdown in a module of its own, loaded when a file
+  // of it opens (file-editor's editor.js). Their state/view/language and Lezer
   // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities.
+  // CodeMirror identities: a second Lezer tree would read none of the core's node
+  // props, and a language parsed with it would highlight nothing.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: [input("entries/file-editor/entry.mjs")],
+    entryPoints: {
+      "extensions.esm": input("entries/file-editor/entry.mjs"),
+      "codemirror-yaml.esm": input("entries/file-editor/yaml.mjs"),
+    },
+    outdir: packageVendor("file-editor"),
     platform: "browser",
     target: "es2022",
     plugins: [
       bindTo(
-        /^(?:@codemirror\/(?:state|view|language)|@lezer\/highlight)$/,
+        /^(?:@codemirror\/(?:state|view|language)|@lezer\/(?:highlight|common))$/,
         "/vendor/codemirror.esm.js",
       ),
     ],
@@ -721,6 +758,21 @@ const bundles = {
             "return preservedScrollTop === currentScrollTop ? null : preservedScrollTop;",
             "return Math.abs(preservedScrollTop - currentScrollTop) < 1 ? null : preservedScrollTop;",
             "Trees preserved scroll-target comparison",
+          ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
+        // The viewport's clamp compares the box's scrollTop with a maximum computed
+        // from the same fractional measure. At the list's end Chrome holds the box at
+        // 1039 while the maximum comes out at 1038.94, so every scroll event and
+        // model change there would write a scroll that moves nothing. A box within a
+        // pixel of the maximum already stands at it.
+        edit: (source) =>
+          seam(
+            source,
+            "if (scrollElement.scrollTop > maxScrollTop) scrollElement.scrollTop = maxScrollTop;",
+            "if (scrollElement.scrollTop - maxScrollTop >= 1) scrollElement.scrollTop = maxScrollTop;",
+            "Trees viewport clamp",
           ),
       },
       {

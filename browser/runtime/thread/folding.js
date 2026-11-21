@@ -13,24 +13,23 @@
    user where they pressed draws the same card as a seat and names none either; a route
    to the thread asks the primary first. The log
    refusing the gesture takes the way back
-   here, while the user has not acted since; undo.js keeps the reader for `z` and the
-   notice's Undo (`retainGesture`), and the landing arms `z` to take the gesture in
-   one press (`landedAway`).
+   here, while the user has not acted since; undo.js keeps the reader for ⌘Z and the
+   notice's Undo (`retainGesture`).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
    user away from the thread and leave nothing on screen to say it was resolved, and
    offers the press that matters most next (`nextStep`). After a Resolve that is the
    next open thread, `t`'s press, while one stands open; after a Reopen, or a Resolve
-   that left none open, it is the press that takes the settlement back, as `z` would
-   (undo.js, `offerUndo`). The user chose Next thread over Undo there; `z` and the
+   that left none open, it is the press that takes the settlement back, as ⌘Z would
+   (undo.js, `offerUndo`). The user chose Next thread over Undo there; ⌘Z and the
    menu's Undo still take the Resolve back. The notice goes when the log refuses the
    settlement or it is taken back, so its press never acts for a settlement that no
-   longer stands. It names the thread by its name, as `z` does and every surface that
+   longer stands. It names the thread by its name, as ⌘Z does and every surface that
    names a thread (`threadName`): "Resolved the thread" would stand under the next
    thread a panel's Resolve moves the user on to, and read as that thread's (the user's
-   choice). Rejected: the words the thread is about, while `z` names it by its name. A
+   choice). Rejected: the words the thread is about, while ⌘Z names it by its name. A
    Resolve that leaves no thread open says that instead, "All threads resolved": with
-   none left there is no next thread for the words to be read as, `z` still names the
+   none left there is no next thread for the words to be read as, ⌘Z still names the
    thread it takes back, and the user asked for the field to mark the moment. The words
    are Threads' own: "All done" would speak for On Me and the agent's list too, which
    may still hold something, and Done is what an On list and a to-do call what left them
@@ -74,7 +73,7 @@ const nextStep = (resolving, undo) =>
  * reader?: import("../undo.js").Reader,
  * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
- * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "landedAway" | "offerUndo" | "retainGesture" | "returnToThread">,
+ * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "offerUndo" | "retainGesture" | "returnToThread">,
  * }} dependencies */
 export async function settleThread({
   parent,
@@ -102,7 +101,6 @@ export async function settleThread({
       ? `Resolved ${named}`
       : "All threads resolved";
   notice(said, { press: nextStep(!resolved, undo.offerUndo(attempt)) });
-  if (land) undo.landedAway(attempt);
   await landGesture({
     land,
     answer,

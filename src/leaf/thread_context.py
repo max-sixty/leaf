@@ -11,10 +11,8 @@ from leaf.events import (
     build_threads,
     conversation_turns,
     event_coordinate,
-    progress_completions,
     retractions,
     spoken_turns,
-    summary_range,
     taken_back,
 )
 from leaf.passages import enclosing_ids, holds_html, message_markup
@@ -112,9 +110,11 @@ def id_subject(
     A thread is named by its own id, any message in it, a widget in its
     markup, or any other event whose history it is part of
     (`thread_memberships`). An event on a page widget, an action or a worker's report,
-    names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
-    `validation.markup.id_errors` refuses an authored id in the shape the log mints,
-    and message markup and versions refuse each other's ids."""
+    names that widget, and an undo names what the gesture it withdraws named.
+    Versions and message markup refuse an id the log already gives an event
+    (`ids-taken-by-events`), and each other's ids, but the log mints a new event's id
+    clear only of other events' (`event_log.new_event_id`). So an id minted equal to
+    one a version already holds names both, and a widget on the page wins here."""
     if name in page_widgets:
         return {"kind": "widget", "id": name}
     names = thread_names(events)
@@ -452,7 +452,8 @@ def thread_digest(
     whole: bool = False,
 ) -> dict:
     """One thread as a reader away from the panel needs it: its current page
-    location or prior anchor when detached, who closed it, and what was said.
+    location, its prior anchor when detached or when a revision rewrote its words,
+    who closed it, and what was said.
 
     `omit` drops messages by log sequence, which is how a delivery carries the
     exchange its own events land in without printing them twice. `pin` keeps a
@@ -467,6 +468,7 @@ def thread_digest(
         "title": thread["title"],
         "anchor": thread["anchor"],
         "detached_from": thread["detached_from"],
+        "rewritten_from": thread["rewritten_from"],
         # Who closed it, or null for a thread still open — a thread an agent
         # closed is one the user may never have answered.
         "resolved": thread["resolved"] and thread["resolved"]["author"],
@@ -482,30 +484,25 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
     `summaries`, as `{"from", "through"}`, or None where none is worth suggesting.
 
     It keeps the newest exchange verbatim, and is offered for the earliest run of
-    uncovered messages before it that is long enough to suggest. Completed progress
-    is not drawn, so a run folds it; pending progress is still being said, so a run
-    stops at it. The hint spans that run and every summary in force among the older
+    uncovered messages before it that is long enough to suggest. A run passes over
+    progress, which the thread never draws as a message (`_gapless`).
+    The hint spans that run and every summary in force among the older
     messages, so a summary that follows it replaces them and the thread keeps one
     summary of its earlier discussion, rather than gaining one more beside the last
     each time a run grows long enough. A fold of progress alone counts too. Its ends
     are messages the thread still says, which a summary's own `from` may no longer
-    be once the user took that message back. The hint is the range admission takes
-    (`events.summary_range`), read as admission reads it, against the summaries that
-    stand once it replaces those it overlaps whole: widened over any message it
-    would leave in full above a summary. So following it is never refused, and a
-    short stretch a retired summary left above a later one doesn't stop every later
-    hint."""
+    be once the user took that message back. It is widened over any message it would
+    leave in full above a summary (`_gapless`), so a short stretch a retired summary
+    left above a later one doesn't stop every later hint. The agent chooses the range,
+    and may keep such a message in full where the user still needs its words."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
-    completed = progress_completions(thread)
     ids = [message["id"] for message in thread["msgs"]]
     at = {identity: index for index, identity in enumerate(ids)}
     runs = []
     run = []
     for message in thread["msgs"]:
-        if message["id"] in covered or (
-            message.get("ephemeral") and message["id"] not in completed
-        ):
+        if message["id"] in covered:
             if run:
                 runs.append(run)
                 run = []
@@ -541,12 +538,44 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
         for summary in summaries
         if not set(summary["covers"]).intersection(folded["covers"])
     ]
-    start, end = summary_range(thread, [*standing, folded], start, end)
+    start, end = _gapless(thread, [*standing, folded], start, end)
     return {"from": start, "through": end}
 
 
+def _gapless(thread: dict, summaries: list, start: str, end: str) -> tuple[str, str]:
+    """The range from `start` through `end`, where `summaries` are those in force once
+    it stands, widened over every message they leave in full above the last drawn
+    summary, apart from the opening message, which says what the thread is about.
+
+    A message counts where the panel draws it whole: a turn of the conversation no
+    summary covers (`conversation_turns`). Progress doesn't, since the panel draws at
+    most a thread's newest step, as its working message rather than a message a
+    summary folds (`events.progress_completions`), and a reaction is a mark on another
+    message. Only `covers` is read of each summary."""
+    covered = {identity for summary in summaries for identity in summary["covers"]}
+    spoken = spoken_turns(thread)
+    drawn = conversation_turns(thread)
+    last = max(
+        (at for at, message in enumerate(drawn) if message["id"] in covered),
+        default=0,
+    )
+    left = [
+        message["id"]
+        for message in drawn[:last]
+        if message["id"] != thread["id"] and message["id"] not in covered
+    ]
+    position = {message["id"]: at for at, message in enumerate(spoken)}
+    reach = [position[identity] for identity in (start, end, *left)]
+    return spoken[min(reach)]["id"], spoken[max(reach)]["id"]
+
+
 def batch_threads(
-    events: list, batch: list, within: dict, *, whole: bool = False
+    events: list,
+    batch: list,
+    within: dict,
+    *,
+    whole: bool = False,
+    beside_line: bool = False,
 ) -> list:
     """The threads a delivered batch lands in, with what was said before it.
 
@@ -583,8 +612,10 @@ def batch_threads(
     unseats one.
 
     `whole` carries every message and gesture, for a reader that can't page
-    through the rest, as a fork can't (`forks.line_prompt`)."""
-    from leaf.delivery import pickup_receipts
+    through the rest, as a fork can't (`forks.line_prompt`). `beside_line` says that
+    a follower lists line forks for the session the batch goes to (`forks.lane_up`),
+    each with a fork beside it that summarizes its thread (`summary_fork`)."""
+    from leaf.forks import unlined
 
     names = thread_names(events)
     structure = thread_structure(events)
@@ -624,11 +655,6 @@ def batch_threads(
     # action naming ids nothing in the envelope spells out, which is the defect
     # this whole reading exists to fix, surviving in the long-thread case.
     summaries_for = active_summaries(events, threads)
-    kept = {
-        identity
-        for receipt in pickup_receipts(events, phase="held")
-        for identity in receipt["events"]
-    }
     carried = []
     for t in named:
         if t not in threads:
@@ -641,11 +667,16 @@ def batch_threads(
         digest = thread_digest(threads[t], delivered, pin, whole=whole)
         summaries = summaries_for[t]
         digest["summaries"] = summaries
-        # A thread whose newest message in the batch Leaf kept back for a line fork
-        # is one a fork beside that line fork summarizes (`summary_fork`), so the
-        # hint is the fork's, and the session isn't asked to spend a step on it too.
-        newest = [event["id"] for event in batch if t in memberships[event["id"]]][-1]
-        if newest not in kept and (hint := summary_hint(threads[t], summaries)):
+        # A thread whose newest message in the batch came to a round that awaited a
+        # line (`forks.unlined`) is one a fork beside that round's line fork
+        # summarizes, so the hint is the fork's, and the session isn't asked to
+        # spend a step on it too.
+        newest = [event for event in batch if t in memberships[event["id"]]][-1]
+        forked = beside_line and any(
+            turn["id"] == newest["id"]
+            for turn in unlined(threads[t], through=newest["seq"])
+        )
+        if not forked and (hint := summary_hint(threads[t], summaries)):
             # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = hint
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)

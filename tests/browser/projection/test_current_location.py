@@ -568,8 +568,8 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     """A choosing lf-options that stands at its own source, as each does in a named
     group holding two questions (`obligations/place.js`), gives its location ring up to
     the row as a group's question does. If the choice kept its ring, a Tab in would
-    draw the choice's ring at the region's gap and the row's inside the frame, two
-    accent lines a few pixels apart for one fact."""
+    draw the choice's ring on its frame and the row's just inside it, two accent lines
+    for one fact."""
     page = open_page(
         browser,
         serve(
@@ -595,12 +595,8 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     expect(choice).to_have_attribute("data-lf-obligation", "1")
     expect(page.locator("#release")).not_to_have_attribute("data-lf-obligation", "1")
     assert choice.evaluate(LOCATION_RING)[0] == "solid"
-    # An arrival rings the choice at the region's gap, outside its frame.
-    arrived = choice.evaluate(
-        "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
-        "document.documentElement).getPropertyValue('--lf-focus-region-gap').trim()]"
-    )
-    assert arrived[0] == arrived[1], arrived
+    # An arrival rings the choice on its frame.
+    assert choice.evaluate("el => getComputedStyle(el).outlineOffset") == "0px"
 
     page.keyboard.press("Tab")
     expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
@@ -727,7 +723,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
@@ -861,7 +857,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     """On Me's card for an ask represents the ask, as an On row did: focusing the
     card rings the ask, and its digits answer it there."""
     page = open_page(browser, serve(STORE_ASK_PAGE))
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
     card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
     card.focus()

@@ -26,11 +26,17 @@ repos:
     rev: v2.16
     hooks:
       - id: vulture
-  # Keep the formatter version pinned: versions disagree about </pre> placement.
-  - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.9.6
+  # Keep the formatter version pinned: its releases change the layout they print.
+  # It skips the files it doesn't format and those `.oxfmtrc.jsonc` ignores.
+  - repo: local
     hooks:
-      - id: prettier
+      - id: oxfmt
+        name: oxfmt
+        language: node
+        additional_dependencies: [oxfmt@0.79.0]
+        entry: oxfmt --no-error-on-unmatched-pattern
+        types: [text]
+        require_serial: true
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v10.9.1
     hooks:
@@ -67,16 +73,16 @@ repos:
         name: dependency-cruiser
         language: node
         additional_dependencies: [dependency-cruiser@18.3.1]
-        entry: depcruise --output-type err browser/runtime
+        entry: depcruise --config .config/dependency-cruiser.mjs --output-type err browser/runtime
         pass_filenames: false
-        files: ^(browser/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
+        files: ^(browser/(leaf\.js|runtime/.*\.js)|\.config/dependency-cruiser\.mjs)$
       # JavaScript's vulture: the modules, exports and types nothing reads, and
-      # import cycles (`knip.config.js`). Whole-tree; files only wakes it.
+      # import cycles (`.config/knip.js`). Whole-tree; files only wakes it.
       - id: knip
         name: knip
         language: node
         additional_dependencies: [knip@6.44.1]
-        entry: knip --no-progress
+        entry: knip --config .config/knip.js --no-progress
         pass_filenames: false
         files: '\.(js|mjs|cjs|ts)$'
   - repo: https://github.com/adhtruong/mirrors-typos

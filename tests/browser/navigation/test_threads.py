@@ -32,7 +32,7 @@ from render_harness import (
     write,
 )
 
-from browser.navigation import READING_REGIONS_PAGE
+from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -456,6 +456,84 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
+def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
+    """A comment the user began and put away is a stop of the thread walk, in the page's
+    order among the open threads, as Threads lists the two together, a comment about a
+    passage of a paragraph holding a thread included. The walk opens the comment's box
+    on its words and stands the user on the box, not in it, so the next `t` walks on and
+    puts the box away, and `c` puts the caret after the words."""
+    url = serve(
+        leaf_page(
+            "drafts in the walk",
+            """
+<h1>Drafts in the walk</h1>
+<p id="first">The first paragraph takes a comment on the whole of it.</p>
+<p id="second">The second paragraph holds the open thread and a comment on a passage.</p>
+""",
+        ),
+        anchored=[("second", "open thread")],
+    )
+    page = open_page(browser, url)
+    field = page.locator(".lf-fab-input")
+    box = page.locator("#lf-composer .lf-compose-field")
+    page.locator("#first").click(modifiers=["Alt"])
+    write(field, "About the first.")
+    page.keyboard.press("Escape")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('second').firstChild;
+          const at = text.data.indexOf('a passage');
+          getSelection().setBaseAndExtent(text, at, text, at + 'a passage'.length);
+        }"""
+    )
+    page.keyboard.press("c")
+    write(field, "About the passage.")
+    page.keyboard.press("Escape")
+    # A press on the page starts the walk from what the window shows.
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(box).to_be_focused()
+    expect(field).to_have_js_property("value", "About the first.")
+    expect_walk_position(page, "1 of 3 threads and drafts")
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
+    page.keyboard.press("t")
+    expect(box).to_be_focused()
+    expect(field).to_have_js_property("value", "About the passage.")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "About the passage.")
+
+
+def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
+    browser, serve
+):
+    """A thread resolved with a reply still unsent is a stop of the walk, which opens it
+    where the reply's words wait, so `t` reaches every draft Threads lists."""
+    url = serve(
+        leaf_page(
+            "a resolved thread with a reply",
+            '<h1>Resolved</h1><p id="said">The thread on this paragraph is resolved.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="said"] .lf-margin-marker').click()
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    write(reply, "A reply left unsent.")
+    page.locator(".lf-margin-preview .lf-resolve").click()
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(page.locator(PANEL_THREAD)).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("leaf-text:focus")).to_have_js_property(
+        "value", "A reply left unsent."
+    )
+
+
 def test_the_thread_walk_reaches_a_thread_in_view_ahead_of_the_first_paragraph(
     browser, serve
 ):
@@ -547,7 +625,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 {lead}
 <div id="local">
   {"".join(f"<p>Local context line {i}.</p>" for i in range(16))}
-  <pre id="rail"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
+  <pre id="rail" style="white-space: pre"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
 </div>
 {tail}
 """,
@@ -1018,7 +1096,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 
 def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     """A send lands the new message in the open thread's view, whole where it fits and
-    its end where it does not, and leaves the user in the reply."""
+    its end where it does not, and leaves the user on the view."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Where should this explanation go?")
     page = open_page(browser, url)
@@ -1038,7 +1116,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         }""",
         arg=[view.element_handle(), message.element_handle()],
     )
-    expect(panel_field(page)).to_be_focused()
+    expect(view).to_be_focused()
 
     write(box, "Long reply. " * 90)
     box.press("Enter")
@@ -1054,7 +1132,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         }""",
         arg=[view.element_handle(), long_message.element_handle()],
     )
-    expect(panel_field(page)).to_be_focused()
+    expect(view).to_be_focused()
 
 
 def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):

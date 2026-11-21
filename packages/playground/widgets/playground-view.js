@@ -9,7 +9,8 @@
  * regions, presets and actions, and never a control or its label. The fields stand in
  * the one `<form>` the view draws around both, so a playground's radio groups are its
  * own, and a control that belongs to a form of its own, such as a candidate's or an
- * inspection setting's, is no field. The browser's value sanitization decides which
+ * inspection setting's, is no field, nor is one a widget in the preview generated
+ * (`data-lf-gen`), such as a motion study's transport. The browser's value sanitization decides which
  * values a field can hold. An `<output for="NAME">` shows field NAME's value.
  * Rejected: Leaf's own control tags, whose kind, bounds, step and unit the view copied
  * into the native inputs it drew, and whose values it checked again itself.
@@ -194,7 +195,11 @@ export function createPlayground(host) {
   /** @type {NodeListOf<FieldControl>} */
   const controls = host.querySelectorAll("input[name], select[name], textarea[name]");
   for (const control of controls) {
-    if (!member(control)) continue;
+    // A field control a widget in the preview generated, such as a motion study's
+    // scrubber, is that widget's inspection and no field, though it stands in the
+    // playground's form. A page's own submit or reset button, or an output, stays the
+    // page's wherever a script moves it, so the mark excludes only fields.
+    if (!member(control) || host.contains(control.closest("[data-lf-gen]"))) continue;
     if (control instanceof HTMLInputElement && UNHELD.has(control.type)) continue;
     if (!NAME.test(control.name))
       throw new Error(
@@ -355,7 +360,6 @@ export function createPlayground(host) {
     pageSubmit.replaceChildren();
     pageSubmit.dataset.lfRoom = submitRoom;
   }
-  const offline = Boolean(document.querySelector("script[data-lf-offline]"));
   const presetBar = () =>
     !presets.length
       ? nothing
@@ -498,8 +502,13 @@ export function createPlayground(host) {
       }
       return { attributes, properties };
     },
-    /** @param {{values?: Configuration, instruction?: string | null, chosen?: () => boolean}} [options] */
-    render({ values: next = defaults, instruction = null, chosen = () => false } = {}) {
+    /** @param {{values?: Configuration, instruction?: string | null, chosen?: () => boolean, unavailable?: string | null}} [options] */
+    render({
+      values: next = defaults,
+      instruction = null,
+      chosen = () => false,
+      unavailable = null,
+    } = {}) {
       // A field takes a value only where it differs from what the field last showed,
       // so the words being typed and a number being cleared stay as they are.
       for (const [name, each] of fields) {
@@ -570,9 +579,9 @@ export function createPlayground(host) {
             <div class="lf-playground-instruction-body">${output}</div>
           </div>
           ${
-            offline
+            unavailable
               ? html`<span class="lf-playground-unavailable" data-lf-gen="1"
-                  >Submission unavailable: no agent or server is available.</span
+                  >Submission unavailable: ${unavailable}.</span
                 >`
               : nothing
           }

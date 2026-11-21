@@ -229,7 +229,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     page.keyboard.press("Space")
     second.dispatch_event("click")
     page.keyboard.press("1")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("1")
+    expect(page.locator(".lf-held-key")).to_have_text("1")
     expect(page.locator("#yes")).not_to_have_attribute("selected", "")
     expect(page.locator("#no")).not_to_have_attribute("selected", "")
     assert posts == []
@@ -241,7 +241,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
             "aria-label", re.compile("Lost the connection")
         )
-        expect(page.locator(".lf-held-keys")).to_have_count(0)
+        expect(page.locator(".lf-held-key")).to_have_count(0)
         expect(first).to_have_attribute("aria-disabled", "true")
         first.focus()
         page.keyboard.press("1")
@@ -313,9 +313,8 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement} = await window.__lfWidgetApi();
+          const {LeafElement, clockValue} = await window.__lfWidgetApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
-          const {clockValue} = await window.__lfCheckApi();
           window.clockVersion = 0;
           const probes = [];
           for (const stage of ['read', 'paint', 'async']) {

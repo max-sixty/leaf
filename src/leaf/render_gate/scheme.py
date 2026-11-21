@@ -1,7 +1,6 @@
 """Lifecycle and trusted inputs for the page the render gate reads."""
 
 import re
-import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -14,7 +13,6 @@ from leaf.refusals import Refused
 from leaf.registry.contract import element_declarations
 from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import (
-    HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
     asked_again,
@@ -179,7 +177,7 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     ):
         return None
     if message.type == "warning" and warnings:
-        return Finding("console-warning", values=said, severity="advice")
+        return Finding("console-warning", values=said)
     if message.type != "error":
         return None
     return Finding("console-error", values=said)
@@ -210,12 +208,12 @@ def collect_page_exceptions(page, errors: list[Finding]) -> None:
     page.on("pageerror", lambda error: errors.append(exception_finding(error)))
 
 
-def collect_page_errors(page, errors: list[Finding]) -> None:
-    """Collect the page's console errors and native exceptions, from every document,
-    as findings."""
+def collect_page_errors(page, errors: list[Finding], *, warnings: bool = False) -> None:
+    """Collect the page's console errors, and its warnings with `warnings`, and its
+    native exceptions, from every document, as findings (`console_finding`)."""
 
     def heard(message):
-        if (error := console_finding(message, warnings=False)) is not None:
+        if (error := console_finding(message, warnings=warnings)) is not None:
             errors.append(error)
 
     page.on("console", heard)
@@ -265,6 +263,10 @@ def _render_page(
         (resize_notices if problem.code == "resize-loop" else errors).append(problem)
 
     def ended(found, notices=(), complete=False):
+        # An attempt that stops early says why with a finding that fails the check or
+        # leaves the page unread, which `render_version` keeps in place of a notice it
+        # can't confirm.
+        assert complete or any(f.refuses or f.unread for f in found), found
         close_render_page(page)
         return list(found), list(notices), complete
 
@@ -307,21 +309,13 @@ def _render_page(
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `page export` waits on for the same reason.
-    # Upgrade and readiness below are one handover, so they share its deadline: the
-    # upgrade is most of a heavy page's handover, and a probe's patience is not.
-    handover_ends = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
-
-    def handover_left() -> int:
-        # At least 1ms: Playwright reads a zero timeout as none.
-        return max(1, round((handover_ends - time.monotonic()) * 1000))
-
-    # A page that declares it cannot start, as one whose widget module failed to load
-    # does, upgrades nothing more, and nothing replaces the preview server that would
-    # reload it, so the declaration ends each wait as well.
+    # Upgrade and readiness below are one handover, so each waits as a handover does
+    # (`wait_until_ready`): the upgrade is most of a heavy page's handover, and a
+    # probe's patience is not. A page that declares it cannot start, as one whose widget
+    # module failed to load does, upgrades nothing more, and nothing replaces the
+    # preview server that would reload it, so the declaration ends each wait as well.
     try:
-        wait_until_ready(
-            page, through="upgraded", timeout_ms=handover_left(), fixed_server=True
-        )
+        wait_until_ready(page, through="upgraded", fixed_server=True)
     except PageNotReady as error:
         return never_ready(error, "never-upgraded")
     except PlaywrightError as error:
@@ -361,7 +355,7 @@ def _render_page(
         # The first line only: the rest is playwright's call log, which says
         # nothing about the page that a reader of this failure needs.
         stopped = Finding("server-stopped", values={"error": str(e).splitlines()[0]})
-        return ended([*errors, *resize_notices, stopped])
+        return ended([*errors, stopped])
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,
@@ -376,8 +370,8 @@ def _render_page(
     # page can show, so work it holds until the reader nears it starts first.
     unready = None
     try:
-        wait_until_ready(page, state, timeout_ms=handover_left(), fixed_server=True)
-        start_near_work(page, state, timeout_ms=handover_left(), fixed_server=True)
+        wait_until_ready(page, state, fixed_server=True)
+        start_near_work(page, state, fixed_server=True)
     except PageNotReady as error:
         unready = error
     if code is not None and page_code is not None:

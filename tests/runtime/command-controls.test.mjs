@@ -384,8 +384,8 @@ test("a button declared on itself activates before its declaration is painted", 
   control.remove();
 });
 
-// A recording's play button stands in chrome while its scope is projected onto the
-// video, which a widget can stage after the page's last paint (video-controls.js).
+// A button standing in chrome can belong to a scope projected onto another element,
+// which a widget can stage after the page's last paint.
 test("a button a projected scope names activates before its declaration is painted", () => {
   const owner = document.createElement("div");
   const control = document.createElement("button");

@@ -15,9 +15,12 @@ on.
 
 **Make the work concrete and playable.** Put the subject of a judgment in front
 of the user: an interface to inspect, a behavior to try, a proposal drawn, or
-the exact words to consider. Each view makes its purpose and available actions
-apparent. An action whose result the page can draw shows that result at once.
-Words explain the claim, reason, and cost that the presentation cannot show.
+the exact words to consider. Each claim about the work brings the material it
+rests on, such as the cases behind a count or the code and diff behind a change,
+a disclosure away when it is long. Each view makes its purpose and available
+actions apparent. An action whose result the page can draw shows that result at
+once. Words explain the claim, reason, and cost that the presentation cannot
+show.
 
 **Let the user work as directly as in a terminal.** Keep the page focused on
 engaging with the work. Every result a pointer reaches can also be reached by
@@ -46,8 +49,11 @@ fulfilled or explicitly ended with a reason.
 **Preserve the user’s attention and work.** Live revisions let the user keep
 reading, aiming, and writing. Incoming updates preserve their reading position
 and the controls they are using. Typed words and the editing position survive
-changes around them. Changes the user requests remain understandable as they
-happen. Speed serves the user when the page also keeps them oriented.
+changes around them. Leaf drops words the user typed only when it knows they no
+longer want them, as once they sent or cancelled them; where it can't be sure, it
+keeps the words where the user can find them, even on a rare path, and better
+still removes the cause of the doubt. Changes the user requests remain
+understandable as they happen. Speed serves the user when the page also keeps them oriented.
 
 **Keep the foundation small and extensible.** Leaf has a small core and default
 packages. Authors can compose pages, create widgets, and share packages;

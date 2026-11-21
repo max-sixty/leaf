@@ -817,7 +817,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
     with sending(page, "the withdrawal of the addressed action"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
 
@@ -827,7 +827,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(page.locator("#address-action lf-new")).to_be_hidden()
 
     with sending(page, "the withdrawal of the addressed rejection"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(action).to_be_visible()
 
     page.keyboard.press("g")
@@ -1252,7 +1252,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     told(page)
     expect(
         page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').locator(
-            ".lf-margin-count"
+            ".lf-badge-count"
         )
     ).to_have_text("10")
     expect(actions).to_have_count(13)

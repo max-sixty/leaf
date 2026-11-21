@@ -10,6 +10,7 @@ from leaf.data_contracts import (
     initial_data_document_readings,
     measurement_lag,
 )
+from leaf.event_log import logged_ids
 from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
@@ -34,19 +35,14 @@ from leaf.thread_context import (
 )
 from leaf.validation.instances import (
     inert_allocation_advice,
-    instance_errors,
-    pane_advice,
+    markup_findings,
     question_errors,
     reference_errors,
     suggestion_errors,
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
-    document_declaration_errors,
-    id_errors,
-    language_advice,
     page_boundary_errors,
-    structure_errors,
     unanswered_media,
     unpointable_blocks,
 )
@@ -64,10 +60,11 @@ class SourceCheck(NamedTuple):
 
     `reading` is the document under `registry` (none where the page has no
     vocabulary), read once for the whole check; the revision activation writes from
-    it adopts it (`revision_artifact.write_artifact`). `errors` holds what refuses
-    the source and `notes` what the check found at a lesser severity, which
-    `source_advice` reports. `advice` names the threads the revision would
-    relocate; `source_advice` reads the source's other drift."""
+    it adopts it (`revision_artifact.write_artifact`). `declarations` are the page's
+    own, which `registry` composes over its layer. `errors` holds what refuses the
+    source and `notes` what the check advises, which `source_advice` reports.
+    `advice` names the threads the revision would relocate; `source_advice` reads the
+    source's other drift."""
 
     reading: SourceReading
     registry: dict | None
@@ -77,6 +74,7 @@ class SourceCheck(NamedTuple):
     reanchors: dict | None = None
     revision: PredecessorReading = NO_PREDECESSOR
     notes: tuple[Finding, ...] = ()
+    declarations: dict | None = None
 
     @property
     def document(self) -> SourceDocument:
@@ -98,31 +96,20 @@ def _source_bytes(page_dir: Path) -> tuple[bytes, Finding | None]:
     return data, None
 
 
-def _document_errors(page_dir: Path, parser) -> list[Finding]:
-    """Validate the authored document shell before reading its vocabulary."""
-    errors = structure_errors(parser)
-    errors.extend(page_boundary_errors(parser))
-    errors.extend(authored_allocation_errors(parser))
-
-    errors.extend(document_declaration_errors(parser))
-
-    errors.extend(id_errors(parser))
-    return errors
-
-
-def _instance_errors(
+def _page_errors(
     events: list,
     parser,
     registry: dict | None,
     thread_ids: set[str],
 ) -> list[Finding]:
-    """Validate authored instances against their document's event and id namespace."""
+    """What a page's document alone is checked for beyond its markup
+    (`instances.markup_findings`): its shell and allocations, and its instances
+    against its event and id namespace."""
+    errors = [*page_boundary_errors(parser), *authored_allocation_errors(parser)]
     if registry is None:
-        return []
-    errors = instance_errors(parser, registry)
+        return errors
     errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
-    errors.extend(pane_advice(parser, registry))
     errors.extend(
         reference_errors(
             parser.lf_elements,
@@ -136,6 +123,8 @@ def _instance_errors(
     taken = sorted(parser.ids & thread_structure(events).holders.keys())
     if taken:
         errors.append(Finding("ids-taken-by-messages", values={"ids": taken}))
+    if logged := sorted(parser.ids & logged_ids(events)):
+        errors.append(Finding("ids-taken-by-events", values={"ids": logged}))
     return errors
 
 
@@ -148,11 +137,13 @@ def _authored_document_checks(
     the files it names are read once for the whole document: by the capture
     (`revision_artifact.capture_artifact`) and `check_source`'s `document_drops`,
     or for a message no capture reads, by its gate (`admission`)."""
-    errors = _document_errors(page_dir, document)
-    errors.extend(_instance_errors(events, document, registry, thread_ids))
-    if registry is not None:
-        errors.extend(data_document_errors(readings))
-    return errors
+
+    def own():
+        yield from _page_errors(events, document, registry, thread_ids)
+        if registry is not None:
+            yield from data_document_errors(readings)
+
+    return markup_findings(document, registry, own)
 
 
 def sample_errors(
@@ -279,7 +270,6 @@ def moved_threads(
                 "thread": thread,
                 "section": (event["anchor"] or {}).get("section"),
             },
-            severity="advice",
         )
         for thread, event in placed.items()
         if event["kind"] == "reanchor"
@@ -294,26 +284,36 @@ def moved_threads(
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     """What `page check` and the first reply on a revision
     (`thread._revision_advice`) advise beside what `check_source` found: the
-    source's non-blocking drift, and a live server running another Leaf
+    source's non-blocking drift, what the page's own declarations advise
+    (`composition.declaration_advice`), and a live server running another Leaf
     (`server.another_leaf_serving`). It is read apart from the check, which every
     reply and activation runs, because judging the page's recorded data can take a
     cold process about 200 ms on a large page."""
+    from .composition import declaration_advice
+
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [
         *checked.notes,
+        *(
+            declaration_advice(
+                checked.declarations,
+                checked.registry,
+                page_dir / "page" / "registry.json",
+            )
+            if checked.registry is not None and checked.declarations
+            else ()
+        ),
         *measurement_lag(parser.lf_elements, checked.registry or {}, stored_data),
         *(
             Finding(
                 "unreadable-data",
                 values={"source": source, "error": reading["error"]},
-                severity="advice",
             )
             for source, reading in stored_data["sources"].items()
             if "error" in reading
         ),
         *unpointable_blocks(parser),
-        *language_advice(parser),
         *another_leaf_serving(page_dir),
     ]
 
@@ -321,7 +321,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
 def check_source(page_dir: Path, events: list) -> SourceCheck:
     """Validate current source declarations and derive automatic anchor moves.
 
-    Each finding's severity decides whether it refuses the source (`errors`) or is
+    Each finding's code decides whether it refuses the source (`errors`) or is
     reported beside it (`notes`)."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
@@ -382,8 +382,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
             errors.extend(error.findings)
     errors.extend(document_drops(document))
     errors.extend(_page_file_drops(page_dir))
-    notes = tuple(error for error in errors if error.severity != "error")
-    errors = [error for error in errors if error.severity == "error"]
+    notes = tuple(error for error in errors if not error.refuses)
+    errors = [error for error in errors if error.refuses]
     if errors:
         artifact = None
     revision = predecessor_reading(page_dir, data, events, artifact)
@@ -391,5 +391,13 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         events, reading, revision, candidate_revision=revision.candidate
     )
     return SourceCheck(
-        reading, registry, errors, advice, artifact, reanchors, revision, notes
+        reading,
+        registry,
+        errors,
+        advice,
+        artifact,
+        reanchors,
+        revision,
+        notes,
+        page_registry.declarations if page_registry is not None else None,
     )

@@ -72,15 +72,19 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 
 - `drafts.json` — the user's unsent message drafts, each draft's latest generation by
   its context (`drafts.py`), which every tab and device showing the page reads and
-  writes. A tab hears it through its own version in `/api/news`, so no reading of the
-  page, activation or watcher counts it, and the agent never reads it. It outlives the
-  process serving it, as the log does.
+  writes. A tab hears it through its own store identity and version in `/api/news`,
+  so no reading of the page, activation or watcher counts it, and the agent never
+  reads it. It outlives the process serving it, as the log does. The identity is
+  minted when the file is created, so it follows the file: a server restart keeps it,
+  and a replaced file starts another store, whose versions say nothing of the first
+  one's. Within one identity the version never goes back.
 
 - `drafts.lock` — the lock serializing writes to `drafts.json`.
 
 - `files.json` — local text-file grants written by `leaf file bind PAGE ID PATH`
   (`file_bindings.py`). The bound files remain their own authority, outside revisions
-  and the log.
+  and the log. A bound file may live in the page directory, as an example's
+  `files/` does; its grant names it from there, so it moves with the directory.
 
 - `data/` — one publication per source, `<source>.json`, which `leaf data set` writes
   and `leaf data clear` removes (`data.py`). The page holds a source exactly while its

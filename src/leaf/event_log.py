@@ -11,12 +11,14 @@ import secrets
 import signal
 import sys
 import threading
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
 from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
+from leaf.page_memory import memo
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.state import (
@@ -91,9 +93,10 @@ def _matching_attempt(events: list[dict], event: dict) -> dict | None:
     return None
 
 
-def _event_id_exists(events: list[dict], event_id: str) -> bool:
-    """Whether this log already owns an event identity."""
-    return any(existing.get("id") == event_id for existing in events)
+def logged_ids(events: list[dict]) -> set[str]:
+    """Every event identity the log holds. A command's ID names a widget or a message
+    in one address space, so markup may not take one (`ids-taken-by-events`)."""
+    return {event["id"] for event in events if "id" in event}
 
 
 def new_event_id(events: list[dict]) -> str:
@@ -103,10 +106,29 @@ def new_event_id(events: list[dict]) -> str:
     from checking the held log, not their width; a harness pairs the id with its page.
     Admission allocates it before semantic folding and storage keeps that identity.
     """
+    taken = logged_ids(events)
     while True:
         candidate = secrets.token_hex(4)
-        if not _event_id_exists(events, candidate):
+        if candidate not in taken:
             return candidate
+
+
+def _end_last_line(f) -> None:
+    """End the log's last line, under its exclusive lease, before an append and
+    before a transaction reads the log (`service.PageTransaction`).
+
+    A crash can tear an append mid-line: SIGKILL under a buffered flush, a full
+    disk. The line discipline is the writer's, so the lease holder restores it.
+    Without this, the next event glues onto the torn fragment and one lost event
+    becomes an unreadable line mid-file. And a reader takes only whole lines
+    (`_Tail`), so a record the tear left complete but for its newline would stay
+    unread, and a retry of its attempt would be appended again."""
+    f.seek(0, os.SEEK_END)
+    if f.tell():
+        f.seek(-1, os.SEEK_END)
+        if f.read(1) != b"\n":
+            f.write(b"\n")
+            f.flush()
 
 
 def _append_event_unlocked(
@@ -118,20 +140,12 @@ def _append_event_unlocked(
     reads the log under this same lease before its gates, so two server threads
     cannot both observe an attempt's absence and append it twice."""
     if "id" in event:
-        if _event_id_exists(events, event["id"]):
+        if event["id"] in logged_ids(events):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
         event["id"] = new_event_id(events)
     event.setdefault("ts", now_iso())
-    # A crash can tear the previous append mid-line: SIGKILL under a buffered
-    # flush, a full disk. The line discipline is the writer's, so the writer
-    # restores it — without this, the next event glues onto the torn fragment
-    # and one lost event becomes an unreadable line mid-file.
-    f.seek(0, os.SEEK_END)
-    if f.tell():
-        f.seek(-1, os.SEEK_END)
-        if f.read(1) != b"\n":
-            f.write(b"\n")
+    _end_last_line(f)
     f.seek(0)
     seq = f.read().count(b"\n") + 1
     stored = event if context is None else {**event, "context": context}
@@ -227,17 +241,54 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
     return events
 
 
-# Each state read (`served_state.service.LivePage.events`) and each page transaction
-# (`service.PageTransaction.events`) parses the whole log again: in a profile of the
-# cards page `leaf-dev bench` generates, at 1,024 events, a fifth of an append and a
-# quarter of a state read. Not yet built: the page server keeps the parsed events
-# under the log's inode and length, and parses only the lines appended since, as
-# `_Tail` reads on from its place.
-def read_events(page_dir: Path) -> list:
-    path = page_dir / EVENTS_FILE
-    if not path.exists():
-        return []
-    return _parse_events(path.read_bytes())
+class _Read:
+    """The events one page's log holds and the attempts they were sent with, as this
+    process has read them so far, beside the place in the log they were read to."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.tail: _Tail | None = None
+        self.events: list[dict] = []
+        self.attempts: set[str] = set()
+
+    def read_on(self, log: Path) -> None:
+        """Read on to the end of `log`, under `lock`."""
+        self.tail = self.tail or _Tail(log)
+        try:
+            events = self.tail.read_on()
+        except FileNotFoundError:
+            # Another log from here on, read whole, or none.
+            self.tail, self.events, self.attempts = _Tail(log), [], set()
+            try:
+                events = self.tail.read_on()
+            except FileNotFoundError:
+                return
+        self.events += events
+        self.attempts.update(
+            event["attempt"] for event in events if event.get("attempt")
+        )
+
+
+@contextmanager
+def _read(page_dir: Path) -> Generator[_Read]:
+    """The page's kept reading of its log (`page_memory`), read on to the log's end
+    and held for the block."""
+    held = memo(page_dir, _Read)
+    with held.lock:
+        held.read_on(page_dir.resolve() / EVENTS_FILE)
+        yield held
+
+
+def read_events(page_dir: Path) -> list[dict]:
+    """Every event in the page's log, as application readings take them
+    (`_parse_events`), or none where the page has no log.
+
+    The page's memory keeps the events read so far, and each read parses only the
+    lines appended since (`_Tail`), so parsing costs what the log gained since the
+    last read, not its length. The list is the caller's, but every reader of the
+    page in this process shares its events, so none may change one in place."""
+    with _read(page_dir) as held:
+        return list(held.events)
 
 
 def read_stored_events(page_dir: Path) -> list[dict]:
@@ -297,31 +348,13 @@ class _Tail:
         return events
 
 
-# Each page's admitted attempts, as this process has read them so far.
-_ATTEMPTS: dict[Path, tuple[_Tail, set[str]]] = {}
-_ATTEMPTS_LOCK = threading.Lock()
-
-
 def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
     """Which of `attempts` the page's log holds an event sent with. The log keeps every
-    attempt it admitted, so an answer never lapses. The process keeps the attempts it
-    has read from each page's log and reads only what was appended since (`_Tail`), so
-    asking costs what the log gained since the last question, not its length."""
-    log = page_dir.resolve() / EVENTS_FILE
-    with _ATTEMPTS_LOCK:
-        tail, admitted = _ATTEMPTS.get(log.parent) or (_Tail(log), set())
-        try:
-            events = tail.read_on()
-        except FileNotFoundError:
-            # Another log from here on, read whole, or none.
-            tail, admitted = _Tail(log), set()
-            try:
-                events = tail.read_on()
-            except FileNotFoundError:
-                return set()
-        admitted.update(event["attempt"] for event in events if event.get("attempt"))
-        _ATTEMPTS[log.parent] = tail, admitted
-        return admitted.intersection(attempts)
+    attempt it admitted, so an answer never lapses. The page's memory keeps the
+    attempts beside the events read so far (`_read`), so asking, as each draft write
+    does, costs what the log gained since the last read, not its length."""
+    with _read(page_dir) as held:
+        return held.attempts.intersection(attempts)
 
 
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:

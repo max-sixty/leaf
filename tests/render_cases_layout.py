@@ -26,6 +26,7 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.browser import open_on_me
 
 CUSTOM_WIDGET_PAGE = leaf_page(
     "custom widget",
@@ -310,12 +311,17 @@ BARE_IDENTIFIERS_PAGE = prose_beside_identifiers(lambda name: name)
 # The honest third case with every line an author can write and no wrap: a token split
 # around an inline <code>, which is set smaller and stands 3px lower on the same line
 # (a reading of rect tops called it a wrap and told the author to write <code>); a
-# <br>; a newline under <pre>; loose words either side of a nested table. Each is a
-# line the author drew, and none stands shorter with soft wrapping off.
+# <br>; a newline under a <pre> that keeps its lines (the reading face wraps a <pre>
+# otherwise, and the squeezed cell would wrap its longer line on fonts as wide as
+# macOS's); loose words either side of a nested table. Each is a line the author
+# drew, and none stands shorter with soft wrapping off.
 AUTHORED_LINES_PAGE = (
     WIDE_TABLE_PAGE.replace("<td>value_number_7</td>", "<td>value <code>7</code></td>")
     .replace("<td>value_number_6</td>", "<td>value<br>six</td>")
-    .replace("<td>value_number_5</td>", "<td><pre>def go():\n    return 5</pre></td>")
+    .replace(
+        "<td>value_number_5</td>",
+        '<td><pre style="white-space: pre">def go():\n    return 5</pre></td>',
+    )
     .replace(
         "<td>value_number_4</td>",
         "<td>before <table><tr><td>four</td></tr></table> after</td>",
@@ -580,9 +586,12 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On Me view from its mark, or close it from the same seat, where
-    its ✕ stands while the view does, and wait for it to stand or go."""
-    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
+    """Open the panel's On Me view from the leaf, or close it by its ✕, and wait for it
+    to stand or go."""
+    if open:
+        open_on_me(page)
+    else:
+        page.locator(".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -713,15 +722,15 @@ CHROME_WATCH = f"""(sel) => {{
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
 # differently. The words ride along so `displaced` can tell a box whose own content
-# changed from one that was pushed. Read every dimension from the screen rectangle;
+# changed from one that was pushed. The edges stay fractional, so an edge that holds
+# still reads equal and one that moves by any amount reads moved. Read every edge from the screen rectangle;
 # ancestor movement and transforms are part of what the user sees, not an origin to
 # subtract. A rendered control carried beyond the viewport still moved.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => {
       if (!window.__lfRendered(n)) return null;
       const box = n.getBoundingClientRect();
-      return [Math.round(box.left), Math.round(box.top),
-              Math.round(box.width), Math.round(box.height),
+      return [box.left, box.top, box.right, box.bottom,
               (n.textContent || '').trim()];
     }); }"""
 
@@ -771,13 +780,13 @@ def displaced(before, boxes, news=False):
         if now is None:
             return False
         if news and was[4] != now[4]:
-            held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
+            held = was[0] == now[0] or was[2] == now[2]
             return not held or was[1] != now[1] or was[3] != now[3]
         return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, width, height)"
+        f"{[round(float(a - b), 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, right, bottom)"
         for name, was, now in zip(before["names"], before["boxes"], boxes, strict=True)
         if moved(was, now)
     ]

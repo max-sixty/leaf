@@ -30,6 +30,7 @@ paint lays out what a script would otherwise only mark once the registry loads o
 image once it decodes.
 """
 
+import base64
 import html
 import json
 import re
@@ -622,13 +623,25 @@ def delivery_sheets(
     absent in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
     `layer.chrome_restyle`). The browser constructs only the sheets this carrier
     actually holds.
+
+    The runtime's own chrome rules carry what they name inline, as data URLs: the
+    layer's mark, which the panel's leaf masks with, a package's replacement included.
+    A served page draws the panel's row from its first paint (bootstrap.js,
+    `standRow`), and a mask the browser fetched would arrive a frame or a round trip
+    after it. Inline, the leaf is drawn in that frame whoever first styles the row; a
+    preload of the mark missed when a script outside the page's own world, such as a
+    test driver's or an extension's, styled it first.
     """
 
-    def text(path):
+    def text(path, address=address):
         return rebase_css(resources[path].data.decode("utf-8"), path, address)
 
+    def inline(path):
+        resource = resources[unquote(path)]
+        return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
+
     sheets: dict = {
-        "chrome": text("/runtime/chrome.css") + text("/chrome.css"),
+        "chrome": text("/runtime/chrome.css", inline) + text("/chrome.css"),
         "marks": text("/runtime/marks.css"),
     }
     if annotation_mode(document) == "overlay":
@@ -683,8 +696,10 @@ class Delivery:
     # Embeds stylesheets in place of linking them: a stylesheet's CSS by its path.
     inline_stylesheet: Callable[[str], str] | None = None
     import_map: dict | None = None
-    # The runtime's own inline script. A document with one runs the layer, so it also
-    # carries the layer's adopted sheets (`delivery_sheets`) and the prepaint.
+    # The runtime's own inline script, with what it stands before the first paint, such
+    # as a served page's panel row (`http.page_delivery`). A document with one runs the
+    # layer, so it also carries the layer's adopted sheets (`delivery_sheets`) and the
+    # prepaint.
     runtime: str | None = None
     # The host's own head metadata, such as a published page's link card.
     head: str = ""

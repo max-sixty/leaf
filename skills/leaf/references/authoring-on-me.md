@@ -13,6 +13,9 @@ recalling the conversation or reading your notes. Say why the choice arises, wha
 option leads to in a case the user can picture, and what each costs, including the one
 you recommend, so they could reach your recommendation or turn it down for reasons the
 question gives. Where you can't yet say what an option does, find out before you ask.
+Beside each pull request, issue or commit the question mentions, say what that work is
+or does, in words the user already uses: title its thread “Merging #431, the retry for
+dropped uploads”, not “Merging #431”.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
@@ -42,7 +45,7 @@ beside the change, with a fault marked where it goes wrong, a wording as it woul
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
-at once, such as an `lf-shot` pair, stands in the question's group outside the
+at once, such as a before-and-after pair, stands in the question's group outside the
 options. Where the result spans several captures, such as several surfaces or states,
 line each capture up with its counterparts in the other options and name each surface
 or state once, so the reader compares one at a time down the options. The default is
@@ -89,24 +92,26 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 Make each question answerable where On Me takes the user: pressing `m` selects the
 whole question and brings its start to the top of the window, leaving earlier content
-out of view. Write each question as an `lf-group` holding the question and its case,
-with an id and a `label` that asks the question on its own, without leaning on the
+out of view. Write each question as a named group (an entry declaring `reading-role:
+group`, such as `lf-group`) holding the question and its case, with an id and a
+`label` that asks the question on its own, without leaning on the
 prose around it. The group draws none of its label, so give it the heading the page
 needs, as for any part of the page. The label's words are the question's words on On Me and in the
 answer you receive; Leaf reads the region and its name from that markup, so
-`page check` refuses a widget that asks with no group round it.
+`page check` refuses a widget that asks where no label names its question, and names
+one whose own label alone names it, which `m` selects without its premise.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a
 measured table. Shared evidence and its limits come before the answering control;
-optional detail follows it. Where a section shows a finding and then asks about it,
-that section is the group and its heading asks; a smaller group round only the heading
+optional detail follows it. Where the page shows a finding and then asks about it,
+the group holds the finding too and its label asks; a smaller group round only the heading
 and options, after the evidence, leaves the evidence outside what `m` selects. Each
 widget in the group that asks is its own question with its own answer.
 
 ```html
 <lf-group id="material-q" label="Which material for the housing?">
-  <h2 id="material-h">Which material for the housing?</h2>
+  <h2>Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
   <table id="material-weights">
     …
@@ -134,7 +139,7 @@ picture that links its original keeps the detail a click away.
 The `lf-options` and `lf-option` instructions give their markup and
 presentation, including when to set option cards side by side with `across`.
 
-## One answer in its section and on a board
+## One answer in its question and on a board
 
 When the user needs answers beside their cases and together on a board, keep one
 answer in both views. Read the `lf-board` instructions for composing those views.
@@ -150,7 +155,7 @@ action and the evidence the user needs in the question's heading and prose:
   id="publish-report-question"
   label="Publish this report to the team workspace?"
 >
-  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
+  <h2>Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep" label="Keep it private"
@@ -172,7 +177,7 @@ remain a working copy. A playground records its complete values together on subm
 edit and an options pick are independent answers. Choose a composition that keeps the
 approved wording or settings distinct from subsequent edits.
 
-The pick belongs to the `lf-options` and its id, `publish-report`, not to the section
+The pick belongs to the `lf-options` and its id, `publish-report`, not to the `lf-group`
 round it. Unrelated edits and page stamps keep it. If the action or evidence changes
 enough to invalidate the permission, explain the change and mark the `lf-options`
 `restated` before asking again (`authoring-revisions.md`, "Honor user state"). A new

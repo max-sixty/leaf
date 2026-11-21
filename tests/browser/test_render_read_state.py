@@ -13,7 +13,7 @@ from journeys.test_render_read_state import (
     _box_height,
     _expect_news,
     _first_unread,
-    _on_me_mark,
+    _leaf,
     _read_events,
     _said,
     _thread_row,
@@ -121,13 +121,15 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
 
 
 def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
-    """Content inside a message that scrolls on its own, like a long code line, is part
-    of what was shown; it does not hold the message unread."""
+    """Content inside a message that scrolls on its own, like a code block that keeps
+    its long line, is part of what was shown; it does not hold the message unread."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(
         serve.page_dir,
-        "Run this:\n\n```\n" + "leaf page state --json " * 40 + "\n```",
+        'Run this:\n\n<pre style="white-space: pre"><code>'
+        + "leaf page state --json " * 40
+        + "</code></pre>",
         author="agent",
     )
     page = open_page(browser, url)
@@ -295,11 +297,13 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     root = panel_comment(serve.page_dir, "An answer for the user.", author="agent")
     page = open_page(browser, url)
 
-    mark = _on_me_mark(page)
-    expect(mark).to_have_attribute("aria-label", "On Me, 1 thread with news")
-    expect(mark.locator(".lf-fp-news")).to_be_visible()
+    mark = _leaf(page)
+    expect(mark).to_have_attribute(
+        "aria-label", re.compile(r"^Threads · 1 thread with news · ")
+    )
+    expect(mark.locator(".lf-fp-news-dot")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
-    # With news waiting and nothing on the user, the mark opens Threads, where the
+    # With news waiting and nothing on the user, the leaf opens Threads, where the
     # thread holding it says so.
     mark.click()
     panel_settled(page, view="threads")
@@ -318,8 +322,8 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     ]
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(mark).to_have_attribute("aria-label", "On Me")
-    expect(mark.locator(".lf-fp-news")).to_be_hidden()
+    expect(mark).to_have_attribute("aria-label", re.compile(r"^Page menu · "))
+    expect(mark.locator(".lf-fp-news-dot")).to_be_hidden()
     assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()
     _expect_news(page, False)

@@ -91,9 +91,11 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
-    ON_ME_MARK,
     PANEL,
+    PANEL_SAYS,
     chromium_metrics,
+    on_tab,
+    open_menu,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -107,6 +109,7 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
 )
+from leaf_dev.panel_paint import ink_box
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -1234,11 +1237,11 @@ def ticked(page):
     page.wait_for_function("() => window.__lfTicked")
 
 
-# `z` is the one press whose subject is read rather than pointed at, so the dispatcher
+# ⌘Z is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under
 # the user and can be made the moment the paint is there; the paint arrives a turn
-# before the trip it was made on is over, so a `z` made on it is a press the dispatcher
+# before the trip it was made on is over, so a ⌘Z made on it is a press the dispatcher
 # refuses, and what the refusal leaves behind is the page an assertion on the un-undone
 # state would find anyway. A test cannot tell that from an undo that did the wrong thing:
 # it reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
@@ -1250,13 +1253,13 @@ def ticked(page):
 # moment it is made, and a `round_trip` that reads the counters before the browser has
 # reported the request is a wait on a page that has not started moving.
 def undo(page):
-    """Take the last gesture back, from the moment the dispatcher would take `z`."""
+    """Take the last gesture back, from the moment the dispatcher would take ⌘Z."""
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
     with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
 
 
 # Each command the dispatcher would run from the current location, by its id, with the
@@ -1330,7 +1333,7 @@ def fetch_whole_state(route, **fetch):
 
 
 # A tab a test holds stale is stale only while nothing reaches it: a state read brings
-# it the log, and a drafts read the server's drafts (runtime/drafts.js, `lookForDrafts`),
+# it the log, and a drafts read the server's drafts (runtime/drafts.js, `hearDrafts`),
 # so a stale view the assertions take their time reaching is a race a loaded runner
 # loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the
@@ -1413,6 +1416,12 @@ def stored_drafts(page) -> dict:
         "async () => (await window.__lfCheckApi()).draftsWaiting"
     )
     page.wait_for_function("waiting => waiting() === 0", arg=waiting)
+    return drafts_on_server(page)
+
+
+def drafts_on_server(page) -> dict:
+    """The drafts the page's server holds now, by context, whatever this tab has yet to
+    send, asked as `stored_drafts` asks."""
     origin = urlsplit(page.url)
     answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
     assert answer.ok, f"the server would not say what drafts it holds: {answer.status}"
@@ -1544,6 +1553,12 @@ def clean_browser(test=None):
     assert not problems, "\n".join(problems)
 
 
+# How Firefox words, in its console, a module import that did not complete.
+_MODULE_LOAD_FAILED = re.compile(
+    r'\[JavaScript Warning: "Loading failed for the module with source “([^”]+)”'
+)
+
+
 def _named_problems(captured):
     return [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
@@ -1650,7 +1665,13 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, and uncaught exceptions.
+    them: console warnings and errors, and uncaught exceptions. Firefox's warning that
+    a module failed to load counts where the network shows that module's load failing
+    too: its request failed other than by the browser's own cut (`NS_BINDING_ABORTED`),
+    or was answered with an error status. Leaving a document cuts off what it was
+    still loading, and as Firefox lets the document go it says each module import
+    there failed, the cut modules and those waiting on them, though no reader sees
+    any of it; the network shows no failure for those.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1674,8 +1695,22 @@ def watched(page, *, java_script_enabled=True):
     page.lf_errors = errors
     page.lf_java_script_enabled = java_script_enabled
 
+    # The modules whose loads failed in the network rather than by a cut, which only
+    # a Firefox page asks of (`_MODULE_LOAD_FAILED`).
+    failed_loads = set()
+
+    def request_failed(request):
+        if request.failure != "NS_BINDING_ABORTED":
+            failed_loads.add(request.url)
+
+    def responded(response):
+        if response.status >= 400:
+            failed_loads.add(response.url)
+
     def console_message(message):
-        if (problem := render_gate_model.console_finding(message)) is not None:
+        problem = render_gate_model.console_finding(message)
+        cut = _MODULE_LOAD_FAILED.match(message.text)
+        if problem is not None and (cut is None or cut[1] in failed_loads):
             errors.append(problem)
 
     def window_error(error):
@@ -1688,6 +1723,9 @@ def watched(page, *, java_script_enabled=True):
         else:
             errors.append(problem)
 
+    if page.context.browser.browser_type.name == "firefox":
+        page.on("requestfailed", request_failed)
+        page.on("response", responded)
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
@@ -1752,11 +1790,13 @@ def watch_sources(shifts: bool) -> str:
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test replaces the page's server or executable layer.
+    """Enclose a span in which the test replaces the page's document: a reload, or a
+    replacement of its server or executable layer, which reloads it.
 
-    A layer replacement reloads the document. WebKit reports even a caught fetch
-    rejection from the departing document as a native page exception while its
-    replacement is loading. A stopped server answers no fetch, and the words the
+    WebKit reports even a caught fetch rejection from the departing document as a
+    native page exception while its replacement is loading, and Firefox warns of each
+    module load the departing document still had running, such as the view checks a
+    page imports after it presents. A stopped server answers no fetch, and the words the
     failure arrives in depend on which fetch was in flight when it stopped: a bare
     `Failed to fetch`, a named module, a stack through the icon load, one of several
     `net::` codes. A reading written over
@@ -2030,15 +2070,30 @@ def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
     Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
-    Me (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
-    key that makes it the `kbd` after it."""
+    Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the key that
+    makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
+
+
+def stance_exit(page):
+    """The ✕ in the panel's row, before the leaf, that ends the stance standing, such as
+    Draw mode or the target picker, named by its `aria-label`, beside the mode chip that
+    names the stance (floating-panel.js, `fieldExit`)."""
+    return page.locator(".lf-fp-row > .lf-fp-exit")
 
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
     than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
     return field_press(page).filter(has_text="Open latest")
+
+
+def open_latest(page):
+    """Run what Open latest at the panel field's end runs, which moves no focus, for a
+    test whose caret stands in a box. There the press's keys type letters, so the end
+    shows a keyboard nothing (field-readings.js, `end`), and a finger's press on the
+    word it shows alone is the route that keeps the caret where it is."""
+    page.evaluate("async () => (await window.__lfCheckApi()).versionPicker.latest()")
 
 
 def open_latest_by_keys(page):
@@ -2186,7 +2241,7 @@ OPEN_THREAD_COUNT = """async () => {
 def expect_open_threads(page, count):
     """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
 
-    The count stands on the Threads tab, behind a press on the On Me mark, so this
+    The count stands on the Threads tab, behind a press on the leaf, so this
     reads it without one, leaving focus, the open view and any card as they are; where
     the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
     page.evaluate(OPEN_THREAD_COUNT)
@@ -2202,9 +2257,9 @@ def expect_open_threads(page, count):
 
 
 def expect_on_me(page, count):
-    """Wait until the panel counts `count` items waiting on the user. The folded leaf's
-    badge carries the count the On Me mark does, whatever view stands open, where the
-    mark gives its seat to the view's ✕, and whatever news its name goes on to say."""
+    """Wait until the panel counts `count` items waiting on the user. The leaf's badge
+    carries the count its row's count does, whatever view stands open and whatever news
+    its name goes on to say."""
     expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
 
 
@@ -2213,24 +2268,22 @@ def panel_menu(page, at=None, *, touch=False):
     opened over it: a group (`navigate`, `annotate`) or `versions`. Each press is a
     mouse's, or a finger's with `touch`.
 
-    The leaf opens the panel's view on the menu, the On view's first tab
-    (floating-panel.js, `VIEWS.menu`); a list it leads to opens as a view over it, whose
-    way back returns to the menu. A row's `data-lf-row` is its key among the page's
-    control rows (page-controls.js). The menu holds the rows it opened with while it
-    stands (floating-panel.js, `holdMenu`), a row news took away staying disabled and
-    one news offered waiting for the next opening, so a reading of it is a reading of
-    the moment it opened. A mouse's press on the leaf leaves the user in the menu's
-    search."""
-    host = page.locator(PANEL)
-    leaf = page.locator(".lf-fp-leaf")
-    if host.get_attribute("data-lf-rest") == "mark":
-        press_visible(page, leaf, touch=touch)
-        expect(host).to_have_attribute("data-lf-rest", "row")
-    if host.get_attribute("data-lf-open") != "menu":
-        back = page.locator(".lf-fp-head").get_by_role(
-            "button", name="Back to Menu", exact=True
-        )
-        press_visible(page, back if back.count() else leaf, touch=touch)
+    The menu is the On view's first tab (floating-panel.js, `VIEWS.menu`), which
+    `leaf_dev.browser.open_menu` reaches by the leaf and the Menu tab; a list the menu
+    leads to opens as a view over it, whose way back returns to the menu. A row's
+    `data-lf-row` is its key among the page's control rows (page-controls.js). The menu
+    holds the rows it opened with while it stands (floating-panel.js, `holdMenu`), a row
+    news took away staying disabled and one news offered waiting for the next opening,
+    so a reading of it is a reading of the moment it opened. A mouse's press on a leaf
+    that opens the menu leaves the user in the menu's search."""
+
+    def press(control):
+        # A view the leaf opened stands still before its tab is aimed at.
+        if page.locator(PANEL).get_attribute("data-lf-open"):
+            panel_settled(page)
+        press_visible(page, control, touch=touch)
+
+    open_menu(page, press=press)
     panel_settled(page, view="menu")
     menu = page.locator(panel_view("menu"))
     if at is None:
@@ -2253,9 +2306,9 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    On Me (`queue`) is the row's mark, standing while no view or stance does, and
-    Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
-    (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
+    On Me (`queue`) is the leaf where the leaf opens it, and otherwise, as Threads
+    (`threads`) always is, a tab at the foot of the On view the leaf opens
+    (`leaf_dev.browser.on_tab`). Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
@@ -2263,7 +2316,9 @@ def panel_control(page, key, at=None):
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
     if key == "queue":
-        control = page.locator(ON_ME_MARK)
+        leaf = page.locator(".lf-fp-leaf")
+        opens_on_me = (leaf.get_attribute("aria-label") or "").startswith("On Me ")
+        control = leaf if opens_on_me else on_tab(page, "On Me")
     elif key == "threads":
         control = threads_tab(page)
     else:
@@ -2310,22 +2365,6 @@ def page_comment(page):
     box.click()
     expect(box).to_be_focused()
     return box
-
-
-# The words in the panel's one seat for what passes, such as a notice or a walk's
-# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
-# open view, else the line over the field while it stands, else an error standing
-# over the field's words (composing/input.js), else the empty field's placeholder.
-PANEL_SAYS = """() => {
-  const peek = document.querySelector('.lf-fp-peek');
-  if (peek?.hasAttribute('data-lf-shown')) return peek.textContent.trim();
-  const line = document.querySelector('.lf-fp-context');
-  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
-  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
-  if (cover) return cover.textContent.trim();
-  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
-    ?? '';
-}"""
 
 
 def panel_says(page) -> str:
@@ -3027,6 +3066,50 @@ SHELL_BOX = """(() => {
 })()"""
 
 
+# A Range over `words` in an element's text, which may stand in several text nodes, as a
+# code block's boxed lines and colour tokens hold it: the first run, or the last where
+# `last` is true. A function, so a larger evaluate can embed it as `(WORDS_RANGE)(el, w)`.
+WORDS_RANGE = """(root, words, last = false) => {
+  const nodes = [];
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) nodes.push(node);
+  const text = nodes.map((node) => node.data).join('');
+  const start = last ? text.lastIndexOf(words) : text.indexOf(words);
+  if (start < 0) throw new Error(`no ${JSON.stringify(words)} in the element's text`);
+  const end = start + words.length;
+  const range = document.createRange();
+  let at = 0;
+  for (const node of nodes) {
+    const after = at + node.data.length;
+    if (start >= at && start < after) range.setStart(node, start - at);
+    if (end > at && end <= after) {
+      range.setEnd(node, end - at);
+      break;
+    }
+    at = after;
+  }
+  return range;
+}"""
+# The boxes of the words' lines, as a Range over one text node reads them: each text
+# node's own fragments, without the boxes of the elements the words run through.
+WORDS_RECTS = (
+    """(root, words, last = false) => {
+  const range = ("""
+    + WORDS_RANGE
+    + """)(root, words, last);
+  const rects = [];
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    if (!range.intersectsNode(node)) continue;
+    const part = document.createRange();
+    part.setStart(node, node === range.startContainer ? range.startOffset : 0);
+    part.setEnd(node, node === range.endContainer ? range.endOffset : node.length);
+    rects.push(...[...part.getClientRects()].filter((box) => box.width));
+  }
+  return rects;
+}"""
+)
+
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
@@ -3278,17 +3361,10 @@ FOLLOWER_MARK = "#00cc44"
 def marked_tops(image):
     """The topmost rows of `image` painted in `SUBJECT_MARK` and in `FOLLOWER_MARK`,
     each None where the frame shows none. Downsampled frames blend the marks' edges,
-    so each matches a range around its colour."""
-    pixels = image.load()
-    subject, follower = [], []
-    for y in range(image.height):
-        for x in range(image.width):
-            red, green, blue = pixels[x, y]
-            if red > 180 and green < 60 and blue < 130:
-                subject.append(y)
-            if green > 130 and red < 60 and blue < 130:
-                follower.append(y)
-    return (min(subject, default=None), min(follower, default=None))
+    so each matches a wide window of channels around its colour (`ink_box`)."""
+    windows = (((180, 256), (-1, 60), (-1, 130)), ((-1, 60), (130, 256), (-1, 130)))
+    boxes = [ink_box(image, window) for window in windows]
+    return tuple(None if box is None else box[1] for box in boxes)
 
 
 def assert_follows_in_every_frame(page, scroller):
@@ -3651,11 +3727,10 @@ def left_alone(page):
     page.evaluate(RELEASE_FOCUS)
     page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    # A passing notice stands in the panel's empty field, in the line over it once the
-    # field is written in, or in the leaf's peek (notifications.js).
+    # A passing notice stands in the panel's empty field or in the leaf's peek
+    # (notifications.js).
     notice = (
-        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-context[data-notice],"
-        " .lf-fp-peek[data-lf-shown])"
+        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-peek[data-lf-shown])"
     )
     while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"

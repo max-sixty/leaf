@@ -1,5 +1,6 @@
 """CLI, plugin payload, layer, and customization tests."""
 
+import gc
 import json
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import threading
 import tomllib
+import weakref
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +29,7 @@ from interact_support import (
     add_test_widget,
     available_loopback_port,
     command_findings,
+    command_notes,
     declare_on_page,
     element_declaration,
     fetch,
@@ -60,9 +63,11 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import page_memory
+from leaf import revision_artifact as artifact_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.page import page_instructions
@@ -74,6 +79,7 @@ from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf.thread import fit_title
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     authored_sources,
@@ -597,7 +603,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     for command, rejected_kind in (
         (
-            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "\n"],
             "reply",
         ),
         (
@@ -612,8 +618,32 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         )
         assert events_model.read_events(page_dir) == before
 
+    # A title too long or broken over lines breaks nothing, so it is fitted rather
+    # than refused, and the command says what the thread is named.
+    words = "Which store the cache should use,\nweighed by its write amplification and its recovery time"
+    posted = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "create",
+            str(page_dir),
+            "--text",
+            "and recovery?",
+            "--title",
+            words,
+        ],
+    )
+    assert posted.exit_code == 0, posted.output
+    fitted = json.loads(posted.output)
+    [cut] = fitted.pop("findings")
+    assert fitted == logged(fitted)
+    assert fitted["title"] == fit_title(words) and fitted["title"].endswith("…")
+    assert (cut["code"], cut["severity"]) == ("title-fitted", "advice")
+    assert repr(fitted["title"]) in cut["text"]
+
     # A reply's --title names only a thread nothing has named, so a name the harness
-    # gave the thread while the agent worked stands; edit renames one.
+    # gave the thread while the agent worked stands, and the reply says which name
+    # stands and that edit renames it.
     followed = runner.invoke(
         cli_model.cli,
         [
@@ -629,6 +659,9 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     )
     assert followed.exit_code == 0, followed.output
     [followed] = [json.loads(line) for line in followed.stdout.splitlines()]
+    [kept] = followed.pop("findings")
+    assert (kept["code"], kept["severity"]) == ("title-kept", "advice")
+    assert "'Storage'" in kept["text"] and "leaf thread edit" in kept["text"]
     assert followed == logged(followed)
     assert followed["parent"] == root
     assert [
@@ -2040,7 +2073,11 @@ def test_a_rule_s_subject_names_a_key():
     hash misses the bits the element's ancestors set. A key can match those bits on
     every row of a Leaf page and leave its rule matched in full, as
     `[data-lf-turn="user"]` alone can, where naming `.lf-margin-face` beside it lets
-    the filter reject the rule (Chromium 158)."""
+    the filter reject the rule (Chromium 158).
+
+    A subject a general sibling combinator (`~`) leads to also names an ancestor key,
+    or every element its key matches reads back over all its earlier siblings, which
+    costs a code block's thousands of token or line spans the square of their count."""
 
     def keys(compound):
         """The parts of the compound that name a key: a type, class, id or attribute,
@@ -2110,15 +2147,28 @@ def test_a_rule_s_subject_names_a_key():
         for each in (sheet, *layer_model.imported_sheets(sheet, root)):
             files.setdefault(each.resolve(), None)
     found = []
+    scans = []
     for sheet in files:
         where = sheet.relative_to(ROOT)
         for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
             subject = _split_top(selector, " >+~")[-1]
             if listed(subject) and not any(map(filtered, ancestors(selector))):
                 found.append(f"{where}: {selector}")
+            joins = re.findall(r"\s*([>+~])\s*|\s+", _strip_arguments(selector))
+            if (
+                joins
+                and joins[-1] == "~"
+                and not any(map(filtered, ancestors(selector)))
+            ):
+                scans.append(f"{where}: {selector}")
     assert not found, (
         "write each member of the list as a selector of its own, or name the key at "
         "no weight first, as `:where(.a):is(.a, .b[x])`:\n" + "\n".join(found)
+    )
+    assert not scans, (
+        "name the siblings' parent, as `.list > .lead ~ span`, so the rule passes over "
+        "an element elsewhere rather than reading back over its earlier siblings:\n"
+        + "\n".join(scans)
     )
 
 
@@ -2158,9 +2208,10 @@ def test_every_ring_stands_at_a_kind_of_box():
     change to a kind reaches every box of it, and so does every `outline-offset`, which
     otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
     marks a box draws round itself, which stand at their band's gap (`--lf-band-gap`),
-    itself read from `--lf-ring-at`."""
+    itself read from `--lf-ring-at`. Leaf's sheets spell the box's edge `0px`, one
+    spelling per kind."""
     kinds = {
-        "0",
+        "0px",
         "var(--lf-focus-region-gap)",
         "var(--lf-focus-ring-gap)",
         "var(--lf-focus-ring-inset)",
@@ -2592,41 +2643,65 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
 
 
 def test_every_token_a_sheet_reads_is_set_somewhere():
-    """A `var(--name)` with no fallback reads a property something sets: a sheet's
-    declaration or `@property`, or a module or delivery writing it by name. One nothing
-    sets makes its declaration invalid, so the property falls back to what it inherits or
-    its initial value, and the page shows no sign of it: a hover background that never
-    painted, an empty state with no padding, a size the scale has no step for."""
-    # Anything that names a property as a declaration, an `@property` or a string sets
-    # it, a vendored component's sheet included; what is read is Leaf's own sheets.
-    written, prefixes, reads = set(), set(), []
+    """A `var(--name)` with no fallback that Leaf's own sheets reach reads a property something
+    sets: a sheet's declaration or `@property`, or a module or delivery writing it by
+    name (`styles.set_properties`). `package check` holds a package's sheets to the same
+    reading (`packages.unset_properties`); this holds every bundled package's at once,
+    with each bundled package counted as setting what it sets."""
     sources = (
         schema_model.ASSETS,
         schema_model.BUNDLED_PACKAGES,
         Path(schema_model.__file__).parent,
     )
-    for source in sorted(path for root in sources for path in root.rglob("*")):
-        if source.suffix not in (".css", ".js", ".py"):
-            continue
-        text = source.read_text()
-        written |= set(re.findall(r"(--[\w-]+)\s*:", text))
-        written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
-        written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
-        prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
-        if source.suffix != ".css" or "vendor" in source.parts:
-            continue
-        for _conditions, _enclosing, selector, declarations in _style_rules(source):
-            reads += [
-                (name, f"{source.relative_to(schema_model.ASSETS.parent)}: {selector}")
-                for _property, value in declarations
-                for name in re.findall(r"var\(\s*(--[\w-]+)\s*\)", value)
-            ]
-    unset = sorted(
-        f"{where} reads {name}"
-        for name, where in set(reads)
-        if name not in written and not name.startswith(tuple(prefixes))
+    paths = sorted(path for root in sources for path in root.rglob("*"))
+    names, prefixes = styles_model.set_properties(
+        path.read_text() for path in paths if path.suffix in (".css", ".js", ".py")
     )
+    unset = sorted(
+        f"{path.relative_to(ROOT)}:{row} reads {name}"
+        for path in paths
+        if path.suffix == ".css" and "vendor" not in path.parts
+        for name, row in styles_model.unguarded_reads(
+            path.read_text(),
+            lambda name: name in names or name.startswith(prefixes),
+        )
+    )
+    assert len(paths) > 20, paths
     assert not unset, "a token nothing sets:\n" + "\n".join(unset)
+
+
+def test_package_check_advises_on_a_token_nothing_sets(tmp_path):
+    """A package sheet that reads a custom property nothing sets, as one written for a
+    token Leaf has renamed does, passes the check with advice naming the property and
+    its lines; a theme token, a fallback, a property the package sets and one an
+    `@supports` condition names, which tests syntax rather than reading it, and a
+    fallback read only when a set primary value is unset, pass quietly; a fallback
+    behind an unset primary value is read."""
+    package = tmp_path / "notebox"
+    package.mkdir()
+    (package / "defaults.css").write_text(
+        "lf-note-box {\n"
+        "  color: var(--muted);\n"
+        "  background: var(--lf-ground);\n"
+        "  border-color: var(--absent, currentColor);\n"
+        "  --own: 1px;\n"
+        "  border-width: var(--own);\n"
+        "  outline-color: var( --muted );\n"
+        "}\n"
+        "@supports (color: var(--probe)) {\n"
+        "  lf-note-box { color: var(--muted); }\n"
+        "}\n"
+        "p { --present: green; color: var(--present, var(--missing)); }\n"
+        "p { color: var(--absent, var(--muted)); }\n"
+    )
+
+    status, findings = package_findings(package)
+
+    assert status == 0
+    assert [(f.code, f.severity, f.values["property"]) for f in findings] == [
+        ("unset-property", "advice", "--muted")
+    ]
+    assert findings[0].values["rows"] == [2, 7, 10, 13]
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
@@ -2694,7 +2769,7 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
     holds. Only native controls and those carrying a face class receive it: a widget's
     apparatus marked `lf-ui`, such as diff line numbers, retains the component's own
-    typography.
+    typography. The default ends with the floor a typed field takes on a touch screen.
     """
     faces = [
         (sheet, selector)
@@ -2715,13 +2790,29 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
         *(f":where(:host {tag})" for tag in controls),
     ]
     control_ink = [":where(.lf-ui-face)"]
-    default = [(face_sheet, each) for each in (*control_face, *control_ink)]
+    control_floor = [
+        ':where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"]))',
+        ":where(:root body select:not(.lf-chrome *))",
+        ":where(:root body textarea:not(.lf-chrome *))",
+        ':where(:host input:not([type="checkbox"], [type="radio"]))',
+        ":where(:host select)",
+        ":where(:host textarea)",
+    ]
+    default = [
+        (face_sheet, each) for each in (*control_face, *control_ink, *control_floor)
+    ]
     assert faces[: len(default)] == default, faces[: len(default)]
     defaults = [
         face
         for face in faces
         if face[1]
-        in {".lf-ui-face", ":where(:root) .lf-ui-face", *control_face, *control_ink}
+        in {
+            ".lf-ui-face",
+            ":where(:root) .lf-ui-face",
+            *control_face,
+            *control_ink,
+            *control_floor,
+        }
     ]
     assert defaults == default, defaults
 
@@ -3057,7 +3148,7 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
     and sharing the CPU with every request behind them."""
     record = registry_storage.layer_record(page_dir)
     assert record is not None
-    layer_model._vocabularies.clear()
+    layer_model.forget_layers()
     requests: list[threading.Thread] = []
     composed = []
     compose = layer_model.compose_vocabulary
@@ -3098,6 +3189,119 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
 
     assert len(composed) == 1
     assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
+
+
+def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
+    tmp_path, monkeypatch
+):
+    """A layer that reads a page's own copy of a package is kept in the page's memory
+    beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
+    replaces that layer rather than keeping another beside it, so a process holds one
+    layer for the page however often its package is edited, and none once it drops
+    the page's memory. Forgetting the shared layers forgets it too."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "notes"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    page = tmp_path / "page"
+    kept = weakref.WeakSet()
+    for edit in range(3):
+        sheet = f".note {{ --edit: {edit}; }}"
+        (package / "defaults.css").write_text(sheet + "\n")
+        made = CliRunner().invoke(
+            cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
+        )
+        assert made.exit_code == 0, made.output
+        record = registry_storage.layer_record(page)
+        assert record is not None
+        layer = registry_storage.selected(record, page)
+        assert sheet in layer.files["/theme.css"].decode()
+        kept.add(layer)
+    del layer
+    gc.collect()
+    assert len(kept) == 1
+
+    # A process that forgets the tree it read, as a preview does between servers
+    # (`layer.forget_layers`), composes the page's layer again.
+    [before] = kept
+    layer_model.forget_layers()
+    after = registry_storage.selected(record, page)
+    assert after is not before
+    kept.add(after)
+    del before, after
+    gc.collect()
+    assert len(kept) == 1
+
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    gc.collect()
+    assert len(kept) == 0
+
+
+def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
+    tmp_path, monkeypatch
+):
+    """Pages that select the same packages read one layer vocabulary, held for the
+    process (`layer._held`). The vocabulary a page's revision is read in names the
+    page's generation, so it is the page's reading, kept in the page's memory
+    (`registry.storage._Revisions`): the page's revisions that declare the same share
+    one, a vocabulary composed over a replaced layer replaces the one before it, and
+    the shared layer keeps none of them once their pages' memories go."""
+    monkeypatch.chdir(tmp_path)
+    composed: list[weakref.ref] = []
+    compose = registry_storage._compose_revision
+
+    class Composition(list):
+        """A revision's composed vocabulary and its inputs, held weakly here, as a
+        tuple can't be."""
+
+    def watched(*args):
+        composition = Composition(compose(*args))
+        composed.append(weakref.ref(composition))
+        return composition
+
+    def kept() -> int:
+        gc.collect()
+        return sum(held() is not None for held in composed)
+
+    monkeypatch.setattr(registry_storage, "_compose_revision", watched)
+    pages = [tmp_path / f"page-{n}" for n in range(3)]
+    for page in pages:
+        page.mkdir()
+        made = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+        assert made.exit_code == 0, made.output
+        for version in ("first", "second"):
+            (page / "index.html").write_text(
+                "<!doctype html><html><head><title>t</title></head>"
+                f"<body><main><p>The {version} version.</p></main></body></html>"
+            )
+            activation = activate_source(page)
+            assert activation.error is None, activation.error
+    vocabularies = set()
+    for page in pages:
+        record = registry_storage.layer_record(page)
+        assert record is not None
+        vocabularies.add(registry_storage.selected_vocabulary(record, page))
+    assert len(vocabularies) == 1
+
+    def vocabulary(page, revision):
+        manifest = artifact_model.read_revision(page, revision).manifest
+        return registry_storage.revision_vocabulary(manifest, None, page)
+
+    for page in pages:
+        assert vocabulary(page, 1) is vocabulary(page, 2)
+    assert kept() == len(pages)
+
+    # A process that forgets the tree it read (`layer.forget_layers`) reads the
+    # page's revisions over the layer it composes again.
+    before = vocabulary(pages[0], 1)
+    layer_model.forget_layers()
+    assert vocabulary(pages[0], 1) is not before
+    assert kept() == len(pages)
+
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    assert kept() == 0
 
 
 @pytest.mark.parametrize(
@@ -3298,21 +3502,24 @@ def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     file's rules stand where its import stood, in the layer it asks for, and each file
     keeps its own EOF recovery. So an edit to any of them reaches the next composition,
     and the page asks for no import."""
-    (tmp_path / "parts").mkdir()
-    (tmp_path / "base.css").write_text(
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    kernel.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "parts").mkdir(parents=True)
+    (package / "defaults.css").write_text(
         '@import "./parts/open.css";\n'
         "@import url(parts/layered.css) layer(extra);\n"
         ".after { color: blue; }\n"
     )
-    (tmp_path / "parts/open.css").write_text(".open { color: red;")
-    (tmp_path / "parts/layered.css").write_text(".layered { color: green; }")
+    (package / "parts/open.css").write_text(".open { color: red;")
+    (package / "parts/layered.css").write_text(".layered { color: green; }")
 
-    composed = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
+    composed = layer_model.composed_sheets([kernel, package])["theme.css"].decode()
     assert "@import" not in composed
     # A reader that follows the layer's inputs, such as a live preview, follows them.
     assert {
-        (tmp_path / "parts" / name).resolve() for name in ("open.css", "layered.css")
-    } <= set(layer_model.input_paths([tmp_path]))
+        (package / "parts" / name).resolve() for name in ("open.css", "layered.css")
+    } <= set(layer_model.input_paths([package]))
 
     def shape(rule):
         """A style rule's selector, or an at-rule's prelude and the rules it holds."""
@@ -3351,13 +3558,17 @@ def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
 def test_sheets_that_import_each_other_are_refused_by_name(tmp_path):
     """A cycle of imports is refused naming its files, and a reader that follows the
     layer's inputs, as vendoring and a live preview do, still finishes and lists them."""
-    (tmp_path / "base.css").write_text('@import "a.css";\n')
-    (tmp_path / "a.css").write_text('@import "b.css";\n.a {}\n')
-    (tmp_path / "b.css").write_text('@import "a.css";\n.b {}\n')
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    kernel.mkdir()
+    package.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "defaults.css").write_text('@import "a.css";\n')
+    (package / "a.css").write_text('@import "b.css";\n.a {}\n')
+    (package / "b.css").write_text('@import "a.css";\n.b {}\n')
     with pytest.raises(Refused, match=r"a\.css -> .*b\.css -> .*a\.css"):
-        layer_model.composed_sheets([tmp_path])
-    assert {(tmp_path / name).resolve() for name in ("a.css", "b.css")} <= set(
-        layer_model.input_paths([tmp_path])
+        layer_model.composed_sheets([kernel, package])
+    assert {(package / name).resolve() for name in ("a.css", "b.css")} <= set(
+        layer_model.input_paths([package])
     )
 
 
@@ -3408,6 +3619,57 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
     assert layer_model.composed_sheets([schema_model.ASSETS, staged]) == (
         layer_model.composed_sheets([schema_model.ASSETS, package])
     )
+
+
+def test_a_reader_of_the_layer_inputs_lists_every_sheet_the_layer_reads(
+    tmp_path, monkeypatch
+):
+    """`input_paths` lists every sheet composing the layer reads, the kernel's own
+    included, so a guard on where the inputs stand and a live preview's watch see
+    each one."""
+    package = tmp_path / "split"
+    (package / "styles").mkdir(parents=True)
+    (package / "defaults.css").write_text('@import "./styles/part.css";\n')
+    (package / "styles/part.css").write_text(".split-part { color: green; }\n")
+    inputs = [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, package]
+    read = set()
+    real = layer_model._stylesheet
+
+    def reading(source, root, opened):
+        read.add(source.resolve())
+        return real(source, root, opened)
+
+    monkeypatch.setattr(layer_model, "_stylesheet", reading)
+    layer_model.composed_sheets(inputs)
+    layer_model.portable_sheet(inputs, ["lf-reader"])
+    assert (package / "styles/part.css").resolve() in read
+    assert read - set(layer_model.input_paths(inputs)) == set()
+
+
+def test_a_copy_of_a_package_keeps_the_sheets_its_sheets_import(tmp_path, monkeypatch):
+    """A package that splits a sheet with `@import` composes the same from a page's
+    copy of it, and from an installed one, as from its source. A page's copy that left
+    the imported file behind let `page init` pass and then refused every later read
+    of the page."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "split"
+    (package / "styles").mkdir(parents=True)
+    (package / "registry.json").write_text("{}")
+    (package / "defaults.css").write_text('@import "./styles/part.css";\n')
+    (package / "styles/part.css").write_text(".split-part { color: green; }\n")
+    source = layer_model.composed_sheets([schema_model.ASSETS, package])
+    assert b".split-part" in b"".join(source.values())
+
+    staged = tmp_path / "installed"
+    staged.mkdir()
+    packages_model.copy_package_contract(package, staged)
+    page = tmp_path / "page"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./split", str(page)]
+    )
+    assert result.exit_code == 0, result.output
+    for copy in (staged, page / "packages" / "split"):
+        assert layer_model.composed_sheets([schema_model.ASSETS, copy]) == source
 
 
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
@@ -3669,7 +3931,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        original_init(page_dir, selected, theme=theme)
+        return original_init(page_dir, selected, theme=theme)
 
     def initialize():
         try:
@@ -3850,16 +4112,15 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
             "duplicate-ids",
         ),
         ('<lf-toned-note id="lf-example">One</lf-toned-note>', "reserved-ids"),
-        (
-            '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
-            "spaced-ids",
-        ),
     ],
-    ids=["duplicate", "table-duplicate", "reserved", "spaced"],
+    ids=["duplicate", "table-duplicate", "reserved"],
 )
-def test_init_refuses_invalid_ids_in_a_registry_example(
+def test_init_advises_on_invalid_ids_in_a_registry_example(
     tmp_path, monkeypatch, example, code
 ):
+    """An example whose ids a page could not hold is documentation that misleads,
+    not a vocabulary that breaks, so `page init` composes the layer and names the
+    example and the refusal a page holding it would meet."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
@@ -3870,12 +4131,12 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    [refused] = command_findings(
+    [advice] = command_notes(
         "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
-    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
-    assert refused.values["finding"]["code"] == code
+    assert (advice.code, advice.at) == ("invalid-example", "<lf-toned-note>")
+    assert advice.values["finding"]["code"] == code
 
 
 def test_explicit_package_order_is_registry_file_and_theme_precedence(
@@ -4181,7 +4442,7 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     )
 
 
-def test_package_check_refuses_a_registry_example_that_violates_its_schema(
+def test_package_check_advises_on_a_registry_example_that_violates_its_schema(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
@@ -4197,11 +4458,11 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["attributes"]["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    status, [refused] = package_findings(".leaf")
-    assert status == 1
+    status, [advice] = package_findings(".leaf")
+    assert status == 0
 
-    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
-    example = Finding.loads(refused.values["finding"])
+    assert (advice.code, advice.at) == ("invalid-example", "<lf-toned-note>")
+    example = Finding.loads(advice.values["finding"])
     assert (example.code, example.values["keyword"]) == ("attribute-schema", "required")
     assert "'tone'" in example.values["reason"]
 
@@ -4427,7 +4688,11 @@ def test_package_init_widget_cannot_overwrite_a_member_created_during_init(
     assert (package / "registry.json").read_bytes() == before_registry
 
 
-def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monkeypatch):
+def test_package_init_widget_writes_a_candidate_whose_example_package_check_names(
+    tmp_path, monkeypatch
+):
+    """`package init --widget` validates the declaration it writes, and an example a
+    page could not hold is the author's to fix, which `package check` names."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
     declaration = element_declaration("lf-risk-note", upgrade=True)
@@ -4436,12 +4701,12 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    [refused] = command_findings(
-        "package", "init", str(package), "--widget", "lf-risk-note"
+    assert (
+        command_notes("package", "init", str(package), "--widget", "lf-risk-note") == []
     )
+    status, [advice] = package_findings(package)
 
-    assert (refused.code, refused.at) == ("invalid-example", "<lf-risk-note>")
-    assert not package.exists()
+    assert (status, advice.code, advice.at) == (0, "invalid-example", "<lf-risk-note>")
 
 
 @pytest.mark.parametrize(
@@ -4592,7 +4857,7 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
 
     assert result.exit_code == 1
     assert "unknown package 'solo'" in result.output
-    assert "run `leaf package install`" in result.output
+    assert "`leaf package list`" in result.output
     assert "use './solo'" in result.output
     assert not page.exists()
 
@@ -4986,9 +5251,12 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, and for a key that lets go
-    of focus the user can't see, and a bubble listener for other keys, after controls'
-    own handling; both use the same register.
+    shortcut characters, before nested libraries' typeahead, for a key that lets go
+    of focus the user can't see and for an armed Go-to's keys; a listener on the root
+    element for other keys, after controls' own handling and before the page's
+    listeners on the document and the window; and a listener on the window for a
+    row that waits, which a second, in capture, moves behind the window's other
+    listeners as each key arrives; all of them use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
@@ -5021,7 +5289,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         name = line.split(":")[0]
         by_file[name] = by_file.get(name, 0) + 1
     assert by_file == {
-        "controller.js": 2,
+        "controller.js": 4,
         "aim.js": 1,
         "bootstrap.js": 2,
         "document-inputs.js": 1,
@@ -5222,6 +5490,62 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
+
+
+def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
+    """`package list` names what `page init --package NAME` selects: an installed
+    package under a name of its own beside the bundled ones, described by the first
+    paragraph of its author instructions and its entries' descriptions, and an
+    installed package in place of the bundled one whose name it takes. `default`, on
+    every page already, and the theme `theme list` offers are not listed."""
+    team = tmp_path / "src" / "team-charts"
+    packages_model.cmd_package_init(team, "lf-trend")
+    (team / "instructions").mkdir(exist_ok=True)
+    (team / "instructions" / "author.md").write_text(
+        "## When to select it\n\n"
+        "Select this package for the analytics team's pages.\n"
+        "It charts in their house style.\n\n"
+        "Give every chart a label.\n"
+    )
+    diagram = tmp_path / "src" / "diagram"
+    packages_model.cmd_package_init(diagram)
+    for source in (team, diagram):
+        installed = CliRunner().invoke(
+            cli_model.cli, ["package", "install", str(source)]
+        )
+        assert installed.exit_code == 0, installed.output
+
+    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
+
+    assert listed.exit_code == 0, listed.output
+    packages = {each["name"]: each for each in json.loads(listed.output)["packages"]}
+    assert packages["team-charts"] == {
+        "name": "team-charts",
+        "installed": True,
+        "description": "Select this package for the analytics team's pages. "
+        "It charts in their house style.",
+        "entries": {
+            "lf-trend": packages_model.starter_element_declaration("lf-trend")[
+                "description"
+            ]
+        },
+    }
+    assert packages["diagram"]["installed"] is True
+    assert packages["diagram"]["entries"] == {}
+    assert packages["playwright"]["installed"] is False
+    assert "lf-trace" in packages["playwright"]["entries"]
+    assert "default" not in packages
+    assert "reading" not in packages
+
+
+def test_every_bundled_package_says_when_to_select_it():
+    """`package list` is where an author learns what each package is for, so each
+    bundled package's `author.md` opens with that paragraph."""
+    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
+
+    assert listed.exit_code == 0, listed.output
+    packages = json.loads(listed.output)["packages"]
+    assert [each["name"] for each in packages if not each["description"]] == []
 
 
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(

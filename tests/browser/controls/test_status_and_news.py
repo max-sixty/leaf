@@ -144,13 +144,13 @@ def test_the_neighbour_reading_detects_a_whole_row_moving_on_press(browser):
 
     page.locator("#move").click()
     assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
-        'button "Neighbour" moved by [32, 24, 0, 0] (left, top, width, height)'
+        'button "Neighbour" moved by [32.0, 24.0, 32.0, 24.0] (left, top, right, bottom)'
     ]
     # Moving beyond the viewport is displacement too, not hiding the control.
     page.locator("#move").click()
     assert page.get_by_role("button", name="Neighbour").bounding_box()["x"] > 800
     assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
-        'button "Neighbour" moved by [2000, 24, 0, 0] (left, top, width, height)'
+        'button "Neighbour" moved by [2000.0, 24.0, 2000.0, 24.0] (left, top, right, bottom)'
     ]
 
 
@@ -182,12 +182,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     url = serve(html, comments=9)
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
-    on_me = "document.querySelector('.lf-fp-on-user').getAttribute('aria-label')"
-    # What the mark counts, less the news its name goes on to say.
-    owing = f"{on_me}.split(', ')[0]"
+    leaf = "document.querySelector('.lf-fp-leaf')"
+    # What the leaf counts on its badge.
+    owing = f"{leaf}.querySelector('.lf-fp-badge').textContent"
     expect_open_threads(page, 9)
     page_at_rest(page)
-    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On Me: "))
+    owed = int(page.evaluate(f"() => {owing}"))
 
     def publish_v2():
         stamp_page(d, html, "two")
@@ -210,7 +210,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
 
     for what, drive, arrived in [
         (
-            "an agent's comment arrives, dotting the mark with news",
+            "an agent's comment arrives, dotting the leaf with news",
             lambda: append_carried_log_record(
                 d,
                 {
@@ -221,7 +221,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
                     "text": "A tenth.",
                 },
             ),
-            f"() => {on_me}.endsWith('1 thread with news')",
+            f"() => {leaf}.getAttribute('aria-label').includes('1 thread with news')",
         ),
         (
             "a new version is published",
@@ -232,12 +232,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {owing} === 'On Me: {owed - 2}'",
+            f"() => {owing} === '{owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {owing} === '{'On Me: ' + str(owed - 3) if owed > 3 else 'On Me'}'",
+            f"() => {owing} === '{str(owed - 3) if owed > 3 else ''}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)

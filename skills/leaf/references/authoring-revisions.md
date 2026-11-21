@@ -12,7 +12,8 @@ When `source.live` is false, `index.html` differs from the live revision and
 the rest of the output may be wrong until you do.
 
 `data_bindings` names each external data source and the widgets that read it; change a
-source's value with `leaf data set`.
+source's value with `leaf data set`. `files` names each file the page's editors edit, by
+its binding: the label the page shows and the path to write it at.
 
 Read the author instructions for the page's packages and the widgets you are revising
 (`page-authoring.md`, "Read the registry"). They own how each widget keeps the user's
@@ -45,9 +46,9 @@ the page got a number, a source or a unit wrong, or when work has landed, a deci
 has been made or a finding no longer holds, write the correct text directly and name
 the change in the version note.
 
-Use `lf-draft` for a passage whose wording belongs to the user. Their saved words stay
-in effect across revisions. Follow the `lf-draft` registry entry
-for its HTML.
+Put a passage whose wording belongs to the user in a draft they edit, such as
+`lf-draft`. Their saved words stay in effect across revisions. Follow its registry
+entry for its HTML.
 
 ## Honor user state
 

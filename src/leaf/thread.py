@@ -1,7 +1,8 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
 import json
-from dataclasses import dataclass, replace
+from collections.abc import Callable
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple, Never
@@ -16,7 +17,7 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import build_threads, is_answer, taken_back
+from leaf.events import active_summaries, build_threads, is_answer, taken_back
 from leaf.files import (
     latest_revision,
     require_revision,
@@ -105,18 +106,19 @@ def _attribute_written(attr: str, values: list) -> str:
     return f'`{attr}="{values[0]}"`'
 
 
-def refuse_second_request(asking: dict | None) -> None:
-    """A message asks once. `--obligation` beside a widget that asks would stay on
-    On Me after the user answers the widget, since only their words answer it."""
-    if asking is not None:
-        raise Rejected(
-            [
-                Finding(
-                    "obligation-beside-widget",
-                    values={"tag": asking["tag"], "id": asking["attrs"].get("id")},
-                )
-            ]
+def second_request(asking: dict | None) -> list[Finding]:
+    """What `--obligation` beside `asking`, a widget in the message that asks, does:
+    the message asks twice, and the obligation stays on On Me after the user answers
+    the widget, since only their words answer it. Advice, since the words may ask
+    something the widget doesn't."""
+    if asking is None:
+        return []
+    return [
+        Finding(
+            "obligation-beside-widget",
+            values={"tag": asking["tag"], "id": asking["attrs"].get("id")},
         )
+    ]
 
 
 def _unknown_message(page_dir: Path, events: list, name: str) -> Never:
@@ -302,6 +304,7 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
+    title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(body):
         from leaf.render_gate.command import message_check
@@ -341,13 +344,14 @@ def open_thread(
     revision, anchor = current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
+    twice = []
     if markup := drawn_markup(body):
         publication = revision_publication(page_dir, revision)
         fragment = check_markup(
             page_dir, "comment", markup, events, publication=publication
         )
         if obligation:
-            refuse_second_request(asking_widget(fragment, publication.registry))
+            twice = second_request(asking_widget(fragment, publication.registry))
     event = {
         "kind": "comment",
         "author": "agent",
@@ -361,7 +365,10 @@ def open_thread(
         event["anchor"] = anchor
     if title is not None:
         event["title"] = title
-    return append_admitted(page, event)[0]
+    record = append_admitted(page, event)[0]
+    # Said once the message stands, which a later gate could still refuse.
+    note(*twice)
+    return record
 
 
 def ask_again(
@@ -477,13 +484,15 @@ class Receipt:
     """A writer that answers only what is still owed: a harness's failure receipt,
     or the working line a line fork of the agent's conversation posts (`forks`). An
     update that no longer owes an answer takes none. With `only_if_unclaimed`, an
-    update some turn already picked up is left to the writer following that turn. A
-    receipt's progress, such as the working line a line fork posts as it hands a
-    thread to the session, takes nothing in hand: its writer is not the turn that
-    will answer, and a start would read as that turn's, renewing it and holding the
-    update at Working before the session has it."""
+    update some turn already picked up is left to the writer following that turn.
+    With `fence`, the receipt writes only while `fence` holds of the page under the
+    lock its append takes, as a line goes in only while its round still awaits it. A
+    receipt's progress, such as a line fork's working line, takes nothing in hand: its
+    writer is not the turn that will answer, and a start would read as that turn's,
+    renewing it and holding the update at Working before the session has it."""
 
     only_if_unclaimed: bool = False
+    fence: Callable[[PageTransaction], bool] | None = None
 
 
 Settlement = Refuse | ProviderFinal | Receipt
@@ -538,8 +547,9 @@ def post_reply(
 
     A ``responds`` that no longer names the update owed refuses an answer, which
     would mark an unread newer message answered (`superseded-reply`), with two
-    exceptions that post in the thread and answer nothing. Progress takes nothing
-    in hand, and the command notes what the log holds the event as. An answer that
+    exceptions that post in the thread and answer nothing. Progress takes in hand
+    the newest still-open to-do that an earlier answer to it opened, and otherwise
+    nothing, with a note of what the log holds the event as. An answer that
     declares nothing further, to an update whose earlier answer promised a to-do
     still open, is noted with the `leaf task end` that ends that to-do, so `--todo`
     and then `--done` on one reference both go in.
@@ -555,8 +565,7 @@ def post_reply(
 
     ``claimed_session`` names the session Leaf writes for, as a line fork's working
     message or a harness's failure receipt: Leaf's own write, which goes in as the
-    claimant's and says nothing beside it. A command's own write says which fork or
-    line fork holds the thread it writes in (`holding.authorize`).
+    claimant's and says nothing beside it.
 
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
@@ -564,12 +573,17 @@ def post_reply(
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry an obligation, a to-do, widgets, failure or
-    relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
-    update in hand with its text as the line (`todos.start_reading`), which is why that
-    text is one line: the update reads Working beside its thread and in the page's status, and
-    the user's message gets the agent's first words and its Working line from one
-    write. A `Receipt`'s progress takes nothing in hand.
+    relocation. Progress on work the agent owes says what it has in hand, so it also
+    takes that work in hand with its text as the line (`todos.start_reading`), which is
+    why that text is one line: the update it addresses while that is owed, or else the
+    to-do an answer opened, addressed by the update the answer answered or by the
+    to-do's own message. The work reads Working beside its thread and in the page's
+    status, so the user's message gets the agent's first words and its Working line
+    from one write, and a promise's thread and On <agent> row show the line its work
+    runs under. A `Receipt`'s progress takes nothing in hand.
     """
+    title = agent_title(title)
+    todo = agent_title(todo)
     text = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(text):
         from leaf.render_gate.command import message_check
@@ -596,28 +610,6 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
-        from .forks import page_holding
-        from .holding import authorize, owed_by
-
-        # A fork may answer only what its turn holds, and write in no thread
-        # another turn took, and an ended one nothing; it asks first, so a refused
-        # fork is never handed another turn's answer as the repeat of its own. The
-        # main thread writes anywhere, and hears of a fork it writes beside. Only an
-        # answer, which responds to a message, takes the thread.
-        holding = page_holding(page)
-        responds = address.get("responds")
-        thread = (
-            holding.found.names.get(address["parent"])
-            if address.get("parent")
-            else None
-        )
-        beside = authorize(
-            page,
-            holding,
-            posting_identity.get("session"),
-            [responds] if responds else [],
-            thread,
-        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events, attempt, address, ephemeral, failure is not None
@@ -655,14 +647,8 @@ def post_reply(
             detach=detach,
             title=title,
         )
-        if beside is not None and addressed.responds is not None:
-            # Whether the answer took the thread, by the reading once it is in: one to
-            # an older message, or to a widget in one, leaves a message the fork
-            # picked up waiting, and the thread with the fork.
-            took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
-            beside = replace(beside, values={**beside.values, "answers": took})
     if claimed_session is None:
-        note(*([beside] if beside is not None else []), *addressed.advice)
+        note(*addressed.advice)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -761,16 +747,22 @@ def _resolve_obligation(
     expected = responses.get(responds)
     if responds is not None and parent is None:
         if expected is None or expected["kind"] != "reply":
-            if isinstance(settlement, Receipt):
-                return None
-            held = logged_id(page_dir, events, responds, responses)
-            raise Rejected(
-                [Finding("unowed-reply", values={"event": responds, "held": held})]
-            )
+            # Only a receipt addresses an update by `responds` alone; every other
+            # writer names the reply's parent (`obligations.response_address`).
+            assert isinstance(settlement, Receipt)
+            return None
         parent = expected["parent"]
     assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
-    in_hand = None
+    # Progress on the message that opened a to-do still open takes that to-do in hand.
+    in_hand = (
+        address["parent"]
+        if responds is None
+        and ephemeral
+        and not isinstance(settlement, Receipt)
+        and any(todo["id"] == address["parent"] for todo in TodoReading(events).owed)
+        else None
+    )
     answers = None if ephemeral else responds
     advice: list[Finding] = []
     if responds is not None:
@@ -785,10 +777,13 @@ def _resolve_obligation(
                 held = logged_id(page_dir, events, responds, responses)
                 # The to-dos earlier answers to it opened that are still open.
                 opened = {reply["id"] for reply in successful_replies(events, responds)}
+                owed_todos = [
+                    todo for todo in TodoReading(events).owed if todo["id"] in opened
+                ]
                 promised = [
                     {"todo": todo["id"], "title": todo["title"]}
-                    for todo in TodoReading(events).owed
-                    if done and todo["id"] in opened
+                    for todo in owed_todos
+                    if done
                 ]
                 if not (ephemeral or promised):
                     found = {"event": responds, "parent": parent, "held": held}
@@ -798,16 +793,16 @@ def _resolve_obligation(
                     Finding(
                         "promised-todo",
                         values={"event": responds, "page": str(page_dir), **todo},
-                        severity="advice",
                     )
                     for todo in promised
                 ]
-                if ephemeral:
+                if ephemeral and owed_todos:
+                    in_hand = owed_todos[-1]["id"]
+                elif ephemeral:
                     advice.append(
                         Finding(
                             "superseded-progress",
                             values={"event": responds, "held": held},
-                            severity="advice",
                         )
                     )
         elif ephemeral and not isinstance(settlement, Receipt):
@@ -850,13 +845,14 @@ def _resolve_obligation(
                         "thread": thread_id,
                         "answer": answer_command(owed, page_dir),
                     },
-                    severity="advice",
                 )
             )
-    if (
-        isinstance(settlement, Receipt)
-        and settlement.only_if_unclaimed
-        and pickup_receipts(events, phase=None, input_id=responds)
+    if isinstance(settlement, Receipt) and (
+        (
+            settlement.only_if_unclaimed
+            and pickup_receipts(events, phase=None, input_id=responds)
+        )
+        or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
     return _Obligation(parent, thread_id, answers, in_hand, tuple(advice))
@@ -913,9 +909,9 @@ def _compose_and_append(
         current_thread = build_threads(events, active_enclosing(page_dir)).get(
             thread_id
         )
-        if current_thread is None:
-            raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
-        if current_thread["anchor"] is None:
+        # A thread the user took back whole is gone from the reading, and the
+        # append door refuses a reply into it (`withdrawn-parent`).
+        if current_thread is not None and current_thread["anchor"] is None:
             # Already where --detach would put it: activating the edit that removed
             # the passage, which any tab's poll may do first, detached it. The reply
             # lands without a transition, so the thread keeps the anchor it left.
@@ -1004,11 +1000,10 @@ def _compose_and_append(
             thread=thread_id,
         )
     asking = asking_widget(fragment, publication.registry) if markup else None
-    if explicit_obligation:
-        refuse_second_request(asking)
+    twice = second_request(asking) if explicit_obligation else []
     # An answer that declares nothing must ask with a widget in its text. Explicit
     # obligations need no widget: the message is their source.
-    elif asks_back and asking is None:
+    if asks_back and not explicit_obligation and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
     if ephemeral:
@@ -1018,8 +1013,8 @@ def _compose_and_append(
     from .state import acting_turn
 
     # The turn the reply's command acts in, which names the start it carries
-    # (`todos.start_reading`) and holds the messages it answers
-    # (`holding.refuse_unheld`).
+    # (`todos.start_reading`) and says whether the turn that wrote a progress
+    # message still runs (`activity.turn_runs`).
     if turn := acting_turn(page.claim, posting_identity.get("session")):
         event["turn"] = turn
     if explicit_obligation:
@@ -1047,6 +1042,15 @@ def _compose_and_append(
             )
     else:
         record, _ = append_admitted(page, event)
+    # Said once the message stands, which a later gate could still refuse.
+    note(*twice)
+    if title is not None:
+        # A thread keeps the first title it was given (`events.build_threads`), so
+        # the agent hears which one stands. Admission has refused a reply whose
+        # thread is taken back, so the thread is there to read.
+        standing = build_threads(events, active_enclosing(page_dir))[thread_id]["title"]
+        if standing not in (None, title):
+            note(Finding("title-kept", values={"title": standing}))
     return record, published
 
 
@@ -1179,15 +1183,32 @@ def _fail_markup_answer(
 
 
 def fit_title(words: str) -> str:
-    """`words` as a title a model wrote: on one line, and cut at a word to fit
-    `title_limit`, ending in an ellipsis where it was cut. A model can't count
-    characters, so Leaf fits its title rather than refusing it, which would leave
-    the thread untitled or drop the ask it names."""
+    """`words` as a thread title: on one line, and cut at a word to fit
+    `title_limit`, ending in an ellipsis where it was cut. Neither the agent nor a
+    model can count characters, and a long title breaks nothing, so Leaf fits a
+    title rather than refusing it, which would leave the thread untitled or drop the
+    message or ask it rides on."""
     title = " ".join(words.split())
     limit = title_limit()
     if len(title) <= limit:
         return title
     return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+
+def agent_title(words: str | None) -> str | None:
+    """The title the agent gave a command, fitted (`fit_title`), noting beside the
+    command's result the name a cut leaves."""
+    if words is None:
+        return None
+    title = fit_title(words)
+    if len(" ".join(words.split())) > title_limit():
+        note(
+            Finding(
+                "title-fitted",
+                values={"title": title, "limit": title_limit()},
+            )
+        )
+    return title
 
 
 def title_event(thread: str, title: str, identity: dict | None = None) -> dict:
@@ -1228,7 +1249,9 @@ def cmd_edit(
     message's does, under the revision the user is looking at, which the edit names
     as such a message does. Where the message
     holds a widget the user has acted on, the edit goes in and Leaf says what becomes
-    of their answer (`_answered_widgets`). Admission refuses a message another voice
+    of their answer (`_answered_widgets`). A summary folding the message stands, and
+    Leaf names it (`_folding_summaries`), since only the agent knows whether its
+    edit changes what the summary reports. Admission refuses a message another voice
     wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
     obligation. Under one lease, the rename is admitted before the edit is appended,
     so a refused title leaves the text unedited.
@@ -1237,6 +1260,7 @@ def cmd_edit(
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
+    title = agent_title(title)
     body = (
         checked_text(page_dir, text, html=True)
         if text is not None or title is None
@@ -1283,7 +1307,10 @@ def cmd_edit(
                     )
                     if revision is not None:
                         edit["revision"] = revision
-                answered = _answered_widgets(events, message, fragment)
+                answered = [
+                    *_answered_widgets(events, message, fragment),
+                    *_folding_summaries(page_dir, events, message),
+                ]
             records.append(append_admitted(page, edit)[0])
         if named is not None:
             records.append(append_admitted(page, named)[0])
@@ -1320,9 +1347,30 @@ def _answered_widgets(
             "edit-answered-widget",
             element_at(drawn.by_id[widget]["tag"], widget),
             {"message": message, "kept": ids <= kept},
-            severity="advice",
         )
         for widget, ids in rests.items()
+    ]
+
+
+def _folding_summaries(page_dir: Path, events: list, message: str) -> list[Finding]:
+    """The summary in force that folds `message`, as advice the agent reads after
+    editing it: the summary stands as written (`events.active_summaries`)."""
+    thread = thread_names(events).get(message)
+    if thread is None:
+        return []
+    threads = build_threads(events, active_enclosing(page_dir))
+    return [
+        Finding(
+            "edit-under-summary",
+            values={
+                "message": message,
+                "summary": summary["id"],
+                "from": summary["from"],
+                "through": summary["through"],
+            },
+        )
+        for summary in active_summaries(events, threads)[thread]
+        if message in summary["covers"]
     ]
 
 

@@ -54,6 +54,15 @@ lf-options {
   /* The width a row of its options needs, set only where the group lays them across, so
    * a group nested in an option does not inherit its holder's. */
   --lf-options-row-width: initial;
+  /* A picked row's or cell's ground: the card a step toward the settled colour, deeper
+   * than the aim's wash (below), so a pick still shows where the focus ring covers its
+   * ring and a digit takes its check, but no deeper than keeps the muted words an
+   * option holds, such as its mark's word and a § reference, at 4.5:1 on it
+   * (tokens.css, `--lf-muted`). Rejected: the settled tint, the chips' ground, which
+   * stands no deeper than the aim's wash and differs from it only in chroma, so over a
+   * whole card it reads as khaki on the reading theme's paper, and it hides the card's
+   * own chips. */
+  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 85%, var(--lf-settled));
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -196,13 +205,15 @@ lf-options:has(> lf-option:where([label])) {
     margin: 0;
   }
 }
-/* A card standing alone states its pick with the border it has, in the settled
- * colour (tokens.css, at `--lf-turn`). A row standing alone says it with a wash and a live
- * cell, joined or apart, with its fill (below), each ringed in the same colour inside
- * its edge: the tint alone is about 1.15:1 against the card in the dark palette. */
+/* A pick stands on the picked ground (above) in every form, edged in the settled
+ * colour, since the ground alone stands about 1.5:1 against the card: a card standing
+ * alone by the border it has, a row standing alone and a live cell, joined or apart, by
+ * a ring inside its edge (below). */
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option:where([label])) > lf-option[selected] {
+    --lf-ground: var(--lf-picked-ground);
     border-color: var(--lf-settled);
+    background: var(--lf-ground);
   }
 }
 /* The pick is the group's gesture (a click lands anywhere in the option), so its
@@ -243,8 +254,11 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--lf-sp-3);
     }
+    /* The card's content holds the state band's height before its mark arrives, as the
+     * mark's float holds it after, so a one-line card keeps its first box on upgrade. */
     & > lf-option {
       padding-bottom: var(--lf-option-pad-block);
+      min-block-size: var(--lf-card-state-height);
     }
     /* The field takes the card's inset and the state band's height, so the row keeps its
     * height when the add lands. */
@@ -566,22 +580,18 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       background-color: var(--lf-ground);
     }
     /* The aim wash: the cell under the pointer or the keyboard deepens toward the ink,
-     * which reads in both palettes. The fill is not transitioned, since the tokens
+     * which reads in both palettes. A pick keeps its ground: it already stands deeper
+     * than the wash, and washing it deeper would take its muted words below 4.5:1
+     * (tokens.css, `--lf-muted`). The fill is not transitioned, since the tokens
      * change when the palette flips and every cell would animate between them. */
-    & > lf-option:is(:hover, [data-lf-control-focus]) {
+    & > lf-option:not([selected]):is(:hover, [data-lf-control-focus]) {
       --lf-ground: color-mix(in srgb, var(--lf-fill) 92%, var(--lf-ink));
     }
-    /* The pick fills the cell with the settled tint and rings it in the settled colour
-     * inside its edge: the tint alone is about 1.15:1 against the card in the dark
-     * palette. */
+    /* The pick fills the cell with the picked ground and rings it inside its edge
+     * (above). */
     & > lf-option[selected] {
-      --lf-fill: var(--lf-settled-tint);
+      --lf-fill: var(--lf-picked-ground);
       box-shadow: inset 0 0 0 2px var(--lf-settled);
-    }
-    /* An ok chip on the chosen cell stands on the card's ground, or it loses its ground
-     * in the cell's tint. */
-    & > lf-option[selected] > .tag.ok {
-      background: var(--lf-card);
     }
     /* The control owns focus at row scale: the mark's ring stays off and the row draws
      * an inset ring (below). */
@@ -609,6 +619,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     background: var(--lf-rule);
     border: 1px solid var(--lf-border);
     border-radius: var(--lf-r);
+    /* The group draws its own edge, so its marks stand on it (tokens.css, "Where it
+     * stands"), the location ring where it asks alone in a message included. */
+    --lf-ring-at: 0px;
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
      * header inside an option (a diff's file header) off the window's top. */
     overflow: clip;
@@ -913,27 +926,26 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
     --lf-row-gap: var(--lf-sp-1);
   }
 }
-/* A row standing alone rounds its corners and washes its status; a joined row is a
- * cell and takes neither. */
+/* A row standing alone rounds its corners and takes its pick's ground and ring (above);
+ * a joined row is a cell and takes the cell's. */
 @container style(--lf-joined: 0) {
   lf-options:not(:has(> lf-option:where([label]))) > lf-option {
     border-radius: var(--lf-r);
   }
   lf-options:not(:has(> lf-option:where([label]))) > lf-option[selected] {
-    --lf-ground: var(--lf-settled-tint);
+    --lf-ground: var(--lf-picked-ground);
     background: var(--lf-ground);
     box-shadow: inset 0 0 0 2px var(--lf-settled);
   }
 }
-/* An opened settled group's option answers the pointer with a wash, without moving its
- * words. A live cell has its own aim wash (above). */
+/* An opened settled group's option answers the pointer with the aim's wash a live cell
+ * takes (above), without moving its words, and its pick keeps its ground as a live
+ * cell's does. */
 @media screen {
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
-    --lf-ground: var(--lf-chip);
+  lf-options[settled]:not(:where([data-lf-exhibit]) *)
+    > lf-option:not([selected]):hover {
+    --lf-ground: color-mix(in srgb, var(--lf-card) 92%, var(--lf-ink));
     background: var(--lf-ground);
-  }
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option[selected]:hover {
-    --lf-ground: color-mix(in srgb, var(--lf-settled-tint) 92%, var(--lf-ink));
   }
 }
 /* The reference floats to the end of the words' last line where it fits there and

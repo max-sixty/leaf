@@ -8,12 +8,12 @@ from browser.threads.test_media import DIAGRAM, DIAGRAM_SVG
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
-    field_press,
     holding,
     leaf_page,
     open_page,
     press_visible,
     resized,
+    stance_exit,
 )
 
 from leaf import event_log as events_model
@@ -214,9 +214,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     before_media = sorted((serve.page_dir / "media").glob("*"))
     surface = open_capture_area(page, touch=True)
     selection = surface.locator(".lf-region-selection")
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^Drag an area to capture")
-    )
+    expect(page.locator(".lf-fp-mode")).to_have_text("Capture")
     # The panel's row offers only the way out; lifting a drag attaches.
     expect(page.get_by_role("button", name="Attach capture", exact=True)).to_have_count(
         0
@@ -225,7 +223,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     rendered(page)
     expect(surface).to_be_visible()
     expect(selection).to_be_hidden()
-    field_press(page).filter(has_text="Close").tap()
+    stance_exit(page).tap()
     expect(surface).to_be_hidden()
     assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
         "a selection must consume its native touch gesture, including fling generation"

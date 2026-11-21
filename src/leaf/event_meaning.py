@@ -10,7 +10,6 @@ from functools import cached_property
 from leaf.events import event_document
 from leaf.obligations import answer_verbs, answering_action, replayed_attrs
 from leaf.projection import (
-    AuthoredOrders,
     page_reading,
     thread_markup_reading,
     with_action,
@@ -191,29 +190,8 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     if record is None:
         record = thread_structure(events).by_id[event["widget"]]
         scope = "thread"
-    entry = registry[record["tag"]]
     admitted = dict(event)
     admitted["meaning"] = state_meaning(event, record, registry, scope)
-    position = entry["verbs"][event["action"]].get("record") or {}
-    if position.get("kind") == "position":
-        # The authored units the rank lies among, in their order on the sending
-        # document: a later document that authors them differently has placed
-        # the unit itself (`projection.move_absorbed`).
-        #
-        # Every move records the container's whole authored order, so on a board of
-        # n cards the log grows by n ids a move, and each fold compares each moved
-        # unit's list with the current order. Moves made on one revision record the
-        # same list for one container. Not yet built: a fold compares once per
-        # revision and container rather than once per move; and, with a protocol
-        # bump, a move records no list, and readers take the order from the document
-        # the move was made on.
-        reading = (
-            readings.page(event["revision"]) if scope == "page" else readings.thread
-        )
-        byid = reading.document.by_id if scope == "page" else reading.by_id
-        admitted["meaning"]["among"] = AuthoredOrders(byid, registry).of(
-            event["widget"], position
-        )[event["detail"]["value"]]
     answers, closes = answer_meaning(sender, record, admitted, readings)
     if answers:
         admitted["meaning"]["answer"] = closes

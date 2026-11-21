@@ -70,6 +70,10 @@ interface LeafRootState {
   styles(node: ElementCSSInlineStyle): Set<string>;
 }
 
+/** What the keys the bootstrap holds while the page loads say: Leaf's words, with each
+ * key as its badge (`bootstrap.js`, `holdEarlyKeys`). */
+type HeldWords = readonly (string | { readonly key: string })[];
+
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
@@ -109,6 +113,12 @@ interface Window {
     finishEarlyContent(): void;
   };
   lfKeyboard: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** The layer's constructed stylesheets, built once by whoever asks first (prepaint.js). */
+  lfSheets(): {
+    chrome: CSSStyleSheet;
+    marks: CSSStyleSheet;
+    annotations: CSSStyleSheet[];
+  };
   /** The floating panel's resting size. */
   lfChrome: {
     /** `row` or `mark`. */
@@ -158,6 +168,7 @@ interface HTMLScriptElement {
   lfDocumentPort?: MessagePort;
   // The entry's scene readings, for render checks (`leaf.js`, `validationEntry`).
   lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
+  lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
   lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
   lfObserveQueuedWork?: typeof import("../runtime/queued-work.js").observeQueuedWork;
   lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;
@@ -221,6 +232,13 @@ interface DocumentEventMap {
       | { keys: KeyboardEvent[]; pause(): void; release(): void }
     )
   >;
+  /** The floating panel's offer of its field to say the bootstrap's held keys in, null
+   * once none are shown, and to take the words written in the served row's field
+   * (`bootstrap.js`, `floating-panel.js`). */
+  "lf-held-keys-seat": CustomEvent<{
+    show(words: HeldWords | null): void;
+    write(box: HTMLTextAreaElement): void;
+  }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<
@@ -348,7 +366,8 @@ interface Element {
     | import("../runtime/annotation-overlay/margin-cluster-view.js").MarginEntry
     | undefined;
   lfFirstSpilledOption?:
-    import("../runtime/annotation-overlay/margin-cluster-view.js").Item | undefined;
+    | import("../runtime/annotation-overlay/margin-cluster-view.js").Item
+    | undefined;
 }
 
 interface DocumentEventMap {
@@ -375,11 +394,6 @@ interface DocumentFragment {
 interface DocumentOrShadowRoot {
   // Chromium exposes this on ShadowRoot; other engines use the owner document.
   getSelection?(): Selection | null;
-}
-
-// Safari on iPhone supplies its native video player through this optional route.
-interface HTMLVideoElement {
-  webkitEnterFullscreen?: () => void;
 }
 
 interface Element {

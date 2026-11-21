@@ -130,6 +130,30 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
     assert page.evaluate(reading) == before
 
 
+def test_a_link_to_a_shape_in_an_authored_picture_puts_focus_on_it(browser, serve):
+    """A link to a shape an author named inside their own image is an arrival there,
+    as a link to any other element on the page is, though the image says its shapes
+    only as one picture."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A shape to point at",
+                """
+<h1>A shape to point at</h1>
+<p><a id="to-shape" href="#loop">See the loop</a></p>
+<svg role="img" aria-label="A loop beside a line" viewBox="0 0 200 80" width="200">
+  <circle id="loop" cx="40" cy="40" r="30" fill="none" stroke="currentColor"></circle>
+  <line x1="90" y1="40" x2="190" y2="40" stroke="currentColor"></line>
+</svg>
+""",
+            )
+        ),
+    )
+    page.locator("#to-shape").click()
+    expect(page.locator("#loop")).to_be_focused()
+
+
 def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
     """Back and Forward restore the place commands read, not just its pixels."""
     page = open_page(
@@ -2003,8 +2027,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    # Nothing is on the user, so the mark opens Threads, where the put-away draft waits.
-    page.locator(".lf-fp-on-user").tap()
+    # Nothing is on the user, so the leaf opens Threads, where the put-away draft waits.
+    page.locator(".lf-fp-leaf").tap()
     panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")

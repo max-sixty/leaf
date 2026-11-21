@@ -54,7 +54,7 @@ import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-upgrade.js";
-import { under } from "../../shadow.js";
+import { under } from "../../shadow-tree.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";

@@ -282,8 +282,9 @@ each instance and should require it in its schema: Leaf reports an instance with
 one as a failure of that widget and registers no surface for it.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them, drawing each
-thread as a card with its own frame, no wider than a margin card, so an outlet sets only
-where its cards stand and draws no frame of its own. An outlet you stop returning may
+thread as a card with its own frame that fills the outlet and stands on the ground the
+widget declares where it paints one (`--lf-ground`). So an outlet's box is the cards'
+shape, and the outlet draws no frame of its own. An outlet you stop returning may
 still hold the comment box the user is typing in, so remove outlets only in `onCommit`,
 which runs once this pass's placement takes effect, and keep returned ones in the
 document while redrawing around them. A widget that must remove a node holding outlets

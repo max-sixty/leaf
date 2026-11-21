@@ -752,10 +752,15 @@ summary {
 }
 /* A whole thread a widget seats in its own flow (`data-lf-thread-surface`,
    thread/surfaces.js) stands as a card in the margin card's face
-   (annotation-chrome.css, `.lf-margin-preview-card`): its frame, corners, paper and
-   inset, at most the card's measure, so a thread looks the same under a diff's line as
-   beside a paragraph. The card is the thread's one frame, as the margin card is, and
-   its words end as far inside it as they start. Focus within it paints no ground;
+   (annotation-chrome.css, `.lf-margin-preview-card`): its frame, corners and inset,
+   and the margin card's reply field and words (response.css), so a thread looks the
+   same under a diff's line as beside a paragraph. As the margin card takes the box
+   its placement gives and the ground of the page it stands on, a seated card fills the
+   box its outlet gives and stands on the ground its host declares (`--lf-ground`), so
+   any widget can seat it in whatever shape it has; the widget's sheet places the
+   outlet and draws nothing of the card. The card is the thread's one frame, as the
+   margin card is, and its words end as far inside it as they start. Focus within it
+   paints no ground;
    focus on the thread itself rings the card's edge, on a ring overlay
    (`.lf-ring-overlay`, above), whose ring comes after every row in tree order and so
    paints over the positioned ones without a z-index that would also lift it over the
@@ -764,18 +769,17 @@ summary {
    pixel until the fold ends. A seat's cards stand a gap apart; between live neighbors
    may stand the inert pixels of one folding away.
    Rejected: an unframed thread that wore a quiet ground and an inset ring while it
-   held focus, a frame drawn only on focus with the words running into its ring; and a
+   held focus, a frame drawn only on focus with the words running into its ring; a
    widget setting the thread's insets and measure in its own sheet, which drew the
-   thread differently in each widget. */
+   thread differently in each widget; and a card painted in the page's paper at the
+   margin card's measure, which stood on a diff's white code as a box of another
+   colour with the row's end empty beside it. */
 [data-lf-thread-surface] > .lf-page-thread,
 [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
-  max-inline-size: var(--lf-thread-card);
   padding: calc(var(--lf-comment-inset) + 1px);
   border-radius: var(--lf-r-l);
   box-shadow: inset 0 0 0 1px var(--lf-border);
-  --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
-  --lf-msg-text-end: var(--lf-thread-text-inset);
 }
 /* A forced palette drops shadows, so there the frame is an outline on the card's edge. */
 @media (forced-colors: active) {
@@ -784,6 +788,15 @@ summary {
     outline: 1px solid;
     outline-offset: 0px;
   }
+}
+/* However wide the box its host gives, each message keeps the width it has in a margin
+   card at the card's own width, so a reply wraps where it would beside a passage; its
+   head, and the thread's controls on it, keep the card's whole width. */
+[data-lf-thread-surface] .lf-msg-body {
+  max-inline-size: calc(
+    var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px) -
+      var(--lf-thread-text-inset)
+  );
 }
 .lf-page-thread::after {
   border-radius: inherit;

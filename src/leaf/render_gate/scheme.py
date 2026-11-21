@@ -263,6 +263,10 @@ def _render_page(
         (resize_notices if problem.code == "resize-loop" else errors).append(problem)
 
     def ended(found, notices=(), complete=False):
+        # An attempt that stops early says why with a finding that fails the check or
+        # leaves the page unread, which `render_version` keeps in place of a notice it
+        # can't confirm.
+        assert complete or any(f.refuses or f.unread for f in found), found
         close_render_page(page)
         return list(found), list(notices), complete
 

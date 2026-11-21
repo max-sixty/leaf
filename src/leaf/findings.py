@@ -779,7 +779,12 @@ _TEXT = {
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
-    "no-browser": _Unread(lambda at, v: v["error"]),
+    "no-browser": _Unread(
+        lambda at, v: (
+            f"{v['error']}; so what only a browser checks went unchecked here, and a"
+            " failure it would find shows only once a browser draws the page"
+        )
+    ),
     "server-stopped": _Unread(
         lambda at, v: (
             f"the preview server stopped answering before the browser finished"

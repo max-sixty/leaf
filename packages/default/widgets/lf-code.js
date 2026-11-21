@@ -51,9 +51,7 @@
  * So that a reader watching that widget sees the marked line beside it, the block glides
  * the line to the middle of the box that scrolls it when the line leaves view
  * (`scrollIntoView` bounded `within` that box). Where that box is the page, it moves
- * nothing. Brought in at the nearest edge at each line, rust-sort's film moved its
- * source pane 179 times in the minute its 453 steps play at the default speed. Three
- * rules bring that to 42 moves over the same minute:
+ * nothing. Three rules keep the box from moving at every line:
  *
  * - The middle leaves room for the lines that run next, so a loop runs in view rather
  *   than moving the box each time a line crosses its edge.
@@ -62,8 +60,7 @@
  *   out of view in this block again within two values, as it is going round a loop
  *   whose second line is out of view, or has stood on the line for `REST`. A playhead
  *   that had stood still that long before, as it does when the reader steps it, is
- *   followed at once. Followed, each such visit, 225 ms at the film's default speed,
- *   took the pane away and straight back.
+ *   followed at once.
  * - The reader's hand inside the box, a press, wheel, touch or key there, stops the
  *   following, so the box holds still while they read or scroll it, and their hand
  *   on the widget `for` names starts it again. Rejected: following again once a marked
@@ -104,8 +101,8 @@ import {
 } from "/runtime/portable-api.js";
 
 // How long a playhead stands on a line before the block counts it as resting there
-// (see the header): longer than the one-step visits rust-sort's film makes at its default
-// speed, 225 ms, and at 1×, 450 ms.
+// (see the header): longer than a playing animation's one-step visits, shorter than a
+// reader's pause between steps.
 const REST = 500;
 
 // Whether the blocks in each box still follow there, and the boxes each followed widget

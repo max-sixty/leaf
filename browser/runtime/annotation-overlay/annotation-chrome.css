@@ -859,46 +859,51 @@
      wrapped one rises under the name and time, which paint over it as the head paints
      over the words. A focused one stays in the stuck row, where the user can see what
      they hold. The metadata stands the head's whole height and clips them at its
-     edges, since the head leaves its own to its controls' reach. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg {
-    view-timeline: --lf-msg-exit block;
-    view-timeline-inset: 0px;
-    --lf-msg-annotation-exit: calc(2 * var(--lf-msg-head-height));
-  }
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
-    align-self: stretch;
-    align-items: center;
-    overflow: clip;
-  }
-  /* A flex item stacks by its z-index unpositioned, so the metadata leaves the head
-     to hold the unread dot. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta) {
-    z-index: 1;
-    background-color: var(--lf-msg-ground);
-  }
-  /* The name's ground spans the gap to the time, which a rising one would show. It
-     spans it as a transparent border, which the name's clip stops short of, so a
-     cut name's words never reach the time: the browser keeps a cut name's first
-     letter and draws the ellipsis after it, past the words' room, and with the gap
-     as padding that ellipsis stood flush against the time, "M…just now". */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
-    border-inline-end: var(--lf-sp-2) solid transparent;
-    margin-inline-end: calc(-1 * var(--lf-sp-2));
-  }
-  :is(
-    .lf-margin-thread
-      .lf-thread-transcript
-      .lf-msg-head
-      > :not(b, .lf-msg-meta, .lf-msg-control-room),
-    .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
-  ):not([data-lf-focus]) {
-    animation: lf-msg-annotation-exit linear both;
-    animation-timeline: --lf-msg-exit;
-    animation-range: exit-crossing 0px exit-crossing var(--lf-msg-annotation-exit);
-  }
-  @keyframes lf-msg-annotation-exit {
-    to {
-      translate: 0 calc(-1 * var(--lf-msg-annotation-exit));
+     edges, since the head leaves its own to its controls' reach. The rules wait
+     on view timelines: an engine that lacks them, as Firefox 157 did, would run
+     the animation on the document clock, whose filled end holds the annotations above
+     their row at rest, so it keeps them stuck with the name instead. */
+  @supports (animation-timeline: view()) {
+    .lf-margin-thread .lf-thread-transcript .lf-msg {
+      view-timeline: --lf-msg-exit block;
+      view-timeline-inset: 0px;
+      --lf-msg-annotation-exit: calc(2 * var(--lf-msg-head-height));
+    }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
+      align-self: stretch;
+      align-items: center;
+      overflow: clip;
+    }
+    /* A flex item stacks by its z-index unpositioned, so the metadata leaves the head
+       to hold the unread dot. */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta) {
+      z-index: 1;
+      background-color: var(--lf-msg-ground);
+    }
+    /* The name's ground spans the gap to the time, which a rising one would show. It
+       spans it as a transparent border, which the name's clip stops short of, so a
+       cut name's words never reach the time: the browser keeps a cut name's first
+       letter and draws the ellipsis after it, past the words' room, and with the gap
+       as padding that ellipsis stood flush against the time, "M…just now". */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
+      border-inline-end: var(--lf-sp-2) solid transparent;
+      margin-inline-end: calc(-1 * var(--lf-sp-2));
+    }
+    :is(
+      .lf-margin-thread
+        .lf-thread-transcript
+        .lf-msg-head
+        > :not(b, .lf-msg-meta, .lf-msg-control-room),
+      .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
+    ):not([data-lf-focus]) {
+      animation: lf-msg-annotation-exit linear both;
+      animation-timeline: --lf-msg-exit;
+      animation-range: exit-crossing 0px exit-crossing var(--lf-msg-annotation-exit);
+    }
+    @keyframes lf-msg-annotation-exit {
+      to {
+        translate: 0 calc(-1 * var(--lf-msg-annotation-exit));
+      }
     }
   }
   @media (forced-colors: active) {

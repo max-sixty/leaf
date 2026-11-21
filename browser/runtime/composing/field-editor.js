@@ -12,7 +12,7 @@
  * compartments are shared by every field's state, as a compartment names a slot in a
  * state's configuration rather than holding one.
  */
-import { externalMark as externalLinkMark, opensElsewhere } from "../declared-words.js";
+import { opensElsewhere } from "../declared-words.js";
 
 import { leafEditorView } from "../editor-view.js";
 import {
@@ -680,13 +680,19 @@ function fieldEditor(
       return false;
     }
   }
-  // The mark the page draws after a link that leaves it (declared-words.js).
+  // The mark after a link that leaves the page, which the page's rule draws through
+  // the part (surfaces.css). It stands before its position, where CodeMirror puts no
+  // buffer between it and the link's words, so it keeps to their line.
   class ExternalMark extends WidgetType {
     eq() {
       return true;
     }
     toDOM() {
-      return externalLinkMark();
+      const mark = document.createElement("span");
+      mark.className = "lf-ui lf-external-mark";
+      mark.setAttribute("part", "lf-external-mark");
+      mark.ariaHidden = "true";
+      return mark;
     }
   }
   const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });

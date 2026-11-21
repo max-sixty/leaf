@@ -322,16 +322,9 @@ sheet.replaceSync(`
      press on any drawn source does; Chromium's disabled box would take it and do
      nothing. */
   .task-list-item-checkbox { pointer-events: none; }
-  .lf-external-mark { --lf-external-em: 1em; color: var(--lf-accent); }
-  .lf-external-mark::after { content: "\\2060" / ""; font-size: 0; line-height: 0;
-    margin-inline-start: calc(0.24 * var(--lf-external-em));
-    padding-block-start: calc(0.75 * var(--lf-external-em));
-    padding-inline-start: calc(0.75 * var(--lf-external-em));
-    vertical-align: calc(0.03 * var(--lf-external-em));
-    background: currentColor;
-    mask: var(--lf-external-icon) center / 100% 100% no-repeat;
-    user-select: none;
-    -webkit-user-select: none; }
+  /* The mark after a link stands beside the link's words, not in them, so it takes
+     their colour here. */
+  .lf-external-mark { color: var(--lf-accent); }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
      (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
      where a fence's container or the draft ends it, where code shares its opening line

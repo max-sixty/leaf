@@ -609,13 +609,12 @@ const commandFor = (id) => commandMatching((command) => command.id === id, true)
 // reachable from the user's current scope, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
 // reference into another scope's declaration. This includes shadowing by native text entry
-// and modes, not only each row's own liveness. The key is spelled as a chip spells it,
-// or in `form`, as a listener hears it (bindings.js, `spokenBinding`).
-/** @param {Iterable<string>} ids @param {(binding: string) => string} [form] */
-export function activeCommandLabel(ids, form = spell) {
+// and modes, not only each row's own liveness.
+/** @param {Iterable<string>} ids */
+export function activeCommandLabel(ids) {
   const wanted = new Set(ids);
   const command = commandMatching((entry) => wanted.has(entry.id));
-  return command?.binding != null ? form(command.binding) : "";
+  return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
 // intrinsic key and an obligation alias can share a command id while only one is shadowed.

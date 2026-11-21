@@ -79,8 +79,8 @@ const waitingBackground = [];
 let userContext = false;
 // What the seat says, whether it shows, the press it offers, or null, and whether it is
 // news, which answers no gesture of the user's. A press is the action it is, what it
-// does, whether it still can, and the keys that would make it now, as the field's end
-// shows them and as a listener hears them, as a page command's press is made
+// does, whether it still can, the keys that would make it now, as the field's end
+// shows them, and its shortcut as a listener hears it, as a page command's press is made
 // (keyboard/control-keys.js, `commandPress`). Errors are no notices: they go through
 // errors.js, which keeps them until they are dealt with.
 /** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: Press | null, about: string | null, news: boolean}>>} */
@@ -117,7 +117,7 @@ const presentNotice = (message, visible, press = null, about = null, news = fals
 };
 
 // What a listener hears of a notice or an error: its words, then the press it offers
-// with the keys that would make it, which the field's end shows a reader.
+// with its shortcut, which the field's end shows a reader.
 /** @param {Words} msg @param {Press | null} press @returns {Words} */
 export function heard(msg, press) {
   if (!press) return msg;

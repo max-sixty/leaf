@@ -45,7 +45,6 @@ import {
   ariaBindings,
   bindings,
   commandEntries,
-  labelOf,
   spell,
   spokenBinding,
   word,
@@ -63,59 +62,59 @@ import { untracked } from "/runtime/framework.js";
 
 /** @param {import("./bindings.js").Scope | null | undefined} scope */
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
-// The presses that reach a row, each spelled as a key chip spells it: a step is one
-// press, so a label's own words never split into steps.
-/** @param {import("./bindings.js").Scope} scope @param {import("./bindings.js").Command} row */
-const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
 
 // The opening of the Go-to sequence, whose destinations' keys follow its own (`keysNow`).
 const GO_TO_OPEN = "navigation.go-to.open";
-// The row a scope binds to a command, and that scope. Resolved by command id rather than
-// by row identity: a scope may carry another owner's command as a row of its own — a `g`
-// destination wraps the declaration it stands for — and the shortcut the user presses is
-// the one that scope prefixes.
+// The scope that binds a command and the binding that makes it, a route's included.
+// Resolved by command id rather than by row identity: a scope may carry another owner's
+// command as a row of its own — a `g` destination wraps the declaration it stands for —
+// and the shortcut the user presses is the one that scope prefixes.
 /** @param {string} id */
-function commandRow(id) {
+function commandBound(id) {
   for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
     for (const row of scope?.rows ?? [])
-      if (row.id === id && bindings(row).length) return { scope, row };
+      for (const entry of commandEntries(row, bindings(row), {
+        includeUnavailable: true,
+      }))
+        if (entry.id === id && entry.binding !== undefined)
+          return { scope, binding: entry.binding };
   return null;
 }
 
-/** The complete shortcut one command advertises, each press a step as a key chip
- * spells it, for a presentation that draws a command as words with its keys
- * (page-controls.js, a row's `shortcut`). Empty for a command no key reaches. */
-/** @param {string} id */
-export function commandSteps(id) {
-  const found = commandRow(id);
-  return found ? stepsIn(found.scope, found.row) : [];
+/** The complete shortcut one command advertises, wherever the user is: the presses of
+ * the sequence its scope opens with, then its own key, a route's included. Each press is
+ * a step spelled as a key chip spells it, or in `form`, as a listener hears it. A
+ * presentation that draws a command as words with its keys reads it (page-controls.js,
+ * a row's `shortcut`). Empty for a command no key reaches.
+ * @param {string} id @param {(binding: string) => string} [form] */
+export function commandSteps(id, form = spell) {
+  const found = commandBound(id);
+  return found ? [...stepsBefore(found.scope), form(found.binding)] : [];
 }
 
-/** The keys that would make a page command's press now, as the dispatcher reads them:
- * its own key, a route's included (`activeCommandLabel`), else, for a destination of the
- * Go-to sequence, the sequence's steps while `g` would open it, as `g i` makes Resume
- * writing's. None with the caret in a box, where each is a letter typed. Each key is
- * spelled as a chip spells it, or in `form`, as a listener hears it (`commandPress`).
- * @param {string} id @param {(binding: string) => string} [form] */
-export function keysNow(id, form = spell) {
-  const key = activeCommandLabel([id], form);
+/** The keys that would make a page command's press from where the user is now, as the
+ * dispatcher reads them: its own key, a route's included (`activeCommandLabel`), else,
+ * for a destination of the Go-to sequence, its whole shortcut while `g` would open it,
+ * as `g i` makes Resume writing's. None with the caret in a box, where each is a letter
+ * typed.
+ * @param {string} id */
+export function keysNow(id) {
+  const key = activeCommandLabel([id]);
   if (key) return [key];
-  const found = commandRow(id);
-  const [binding] = found ? bindings(found.row) : [];
-  const before = found ? stepsBefore(found.scope) : [];
-  return binding && before.length && before[0] === activeCommandLabel([GO_TO_OPEN])
-    ? [...before, form(binding)]
-    : [];
+  const steps = commandSteps(id);
+  return steps.length > 1 && steps[0] === activeCommandLabel([GO_TO_OPEN]) ? steps : [];
 }
 
 /** A press of a page command, as a notice, an error or the floating panel's field offers
  * it (notifications.js, `Press`), given the action it is and the command whose key makes
  * the same press: what it does, which is that command's press unless `run` says
- * otherwise, whether it can still act, and the command's keys that would make it now
- * (`keysNow`), as the field's end shows them and as a listener hears them after the
- * notice's words. A listener is told the keys in their spoken form, a modifier named,
- * since a screen reader reads a chip's "D" as "d", and none where the page shows no
- * keys, on a touch screen (bindings.js, `advertisesKeys`).
+ * otherwise, whether it can still act, the keys that would make it from here
+ * (`keysNow`), which the field's end shows and follows as the user moves, and what a
+ * listener hears after the notice's words. A listener hears the command's whole
+ * shortcut wherever the caret is (`commandSteps`), since the words are said once and
+ * can't follow the caret as the field's end does. It hears the shortcut in its spoken
+ * form, a modifier named, since a screen reader reads a chip's "D" as "d", and hears
+ * none where the page shows no keys, on a touch screen (bindings.js, `advertisesKeys`).
  * @param {{action: string, command: string, run?: () => unknown, stands?: () => boolean}} press
  * @returns {import("../notifications.js").Press} */
 export const commandPress = ({
@@ -128,7 +127,8 @@ export const commandPress = ({
   run,
   stands,
   keys: () => keysNow(command),
-  spoken: () => (advertisesKeys() ? keysNow(command, spokenBinding).join(" ") : ""),
+  spoken: () =>
+    advertisesKeys() ? commandSteps(command, spokenBinding).join(" ") : "",
 });
 
 /** @typedef {{revision: number, available: ReturnType<typeof availableCommandRoutes>, controls: Map<Element, string[]>}} Reaching */

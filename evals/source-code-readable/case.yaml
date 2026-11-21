@@ -120,12 +120,15 @@ variants:
   # Tool-output reconstruction (#6323): a page whose earlier samples were plain
   # <pre class="sample"> blocks, and a report quoting a tool's JSON rows on one line,
   # cut down with "…". Authors copied the plain samples' class, named no language and
-  # packed several fields onto a line. The plain samples are what pulled them.
+  # packed several fields onto a line. The plain samples are what pulled them. A
+  # reader reads each of these two objects field by field, so its fields go on lines
+  # of their own; records-compared is the sibling where they don't.
   tool-output-json:
     metadata:
       purpose:
-        JSON a tool returned reads as coloured, one-field-per-line code even where the
-        page's other samples are plain text and the report quoted it packed.
+        JSON a tool returned reads as coloured code whose fields the reader can pick out,
+        even where the page's other samples are plain text and the report quoted it
+        packed.
     vars:
       prompt: |
         You are revising a Leaf page. Its lookup section holds a placeholder,
@@ -188,11 +191,52 @@ variants:
         metric: json-reads-as-code
         value: |
           The before and after rows each appear in a pre/code with class="language-json"
-          (natively or inside an lf-code), with at most one field per line and nested
-          objects indented, keeping every given value and each "…" exactly. Fail if
-          either row has no language class, uses the page's plain "sample" class without
-          a language, or keeps several fields on one line. The existing notice samples
-          may stay as they are.
+          (natively or inside an lf-code), keeping every given value and each "…"
+          exactly, and laid out so a reader can pick out each field: every top-level
+          field starts a line of its own, and nested objects are indented. A nested
+          object of two short scalar fields, such as the assignee's, may stay on one
+          line. Fail if either row has no language class, uses the page's plain "sample"
+          class without a language, puts two top-level fields on one line, or keeps a
+          larger nested object, such as the customer, on one line. The existing notice
+          samples may stay as they are.
+  # Sibling of tool-output-json where the reader compares records rather than reading
+  # one: five rows a tool returned with the same fields, where the bug is the type of
+  # one field in some rows. Spread one field per line, the rows stand as five blocks
+  # the reader has to cross-check; one row per line puts the field in a column.
+  records-compared:
+    metadata:
+      purpose:
+        JSON records the reader compares field by field stand one record per line, so
+        each field reads down a column.
+    vars:
+      prompt: |
+        You are writing a Leaf page for the user about a bug in our support agent's
+        `lookup` tool: some rows carry `open_days` as a string rather than a number, so
+        the agent's "older than a week" filter skips them. Tickets imported from the
+        chat and phone systems store it as text; you haven't fixed that yet. Write the
+        page's section that shows the bug in the tool's own output.
+
+        Your subagent's report quoted the tool's result for `tag:refund`, as the tool
+        returned it:
+
+        ```
+        [{"id":"T-48213","status":"waiting-on-customer","channel":"EMAIL","open_days":3},{"id":"T-48217","status":"open","channel":"CHAT","open_days":"1"},{"id":"T-48220","status":"open","channel":"EMAIL","open_days":12},{"id":"T-48231","status":"solved","channel":"PHONE","open_days":"0"},{"id":"T-48236","status":"open","channel":"CHAT","open_days":"9"}]
+        ```
+
+        The page directory is not reachable from here, so reply with the section HTML.
+    assert:
+      - type: llm-rubric
+        metric: records-line-up
+        value: |
+          All five rows appear with every value exact, including the quotes that make
+          three of the `open_days` values strings. Pass only if the reader can compare
+          `open_days` down the rows: each row stands on one line of its own, its fields
+          in the same order as the other rows' and lined up with them in columns, in a
+          code block as a JSON array or one object per line; or the rows form a table
+          with a column per field that keeps each value as the tool wrote it, quotes
+          included. Fail if any row is spread over several lines, such as one field per
+          line, if the rows' fields don't line up, or if a value is changed, dropped or
+          shown without the quotes that mark it a string.
   # Markdown excerpt reconstruction: a session's page principles-survey, whose "Two
   # rules before and after" section showed each rule's Markdown in <pre><code>. The
   # user asked why it wasn't rendered Markdown. Cold, authors can render the rules,

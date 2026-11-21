@@ -1,0 +1,94 @@
+# A suggestion shows the old wording beside the new and puts the pick on the user's
+# On Me list, which pays only where they might prefer to keep the old words. The
+# primary is a rewrite of the agent's own explanation, which the user has read and
+# asked to have cut down: nobody would keep the long version, so offering the rewrite
+# as a suggestion only adds a decision. published-wording is the sibling where the
+# user approved the words and will publish them under their name, so a rewrite they
+# didn't ask for is theirs to accept.
+description: suggestion-for-wording-the-user-keeps
+metadata:
+  purpose:
+    "Revisions: a rewrite of the agent's own explanation goes in directly; a rewrite of
+    wording the user might prefer to keep is offered as a suggestion."
+  page: []
+  tags:
+    - revisions
+vars:
+  prompt: |
+    You keep a Leaf page for the user on our CDN's caching, and they have read it. Its
+    section `cache-key` explains how the cache decides whether two requests share a
+    response; the question after it asks whether to drop `Accept-Encoding` from the
+    key. The user wrote in chat: "the cache-key section reads like a spec. Cut it to
+    what I need for the Accept-Encoding question."
+
+    The section as they read it:
+
+    ```html
+    <section id="cache-key">
+      <h2>How the cache key is built</h2>
+      <p id="cache-key-parts">
+        For each request, the edge derives a key from five inputs, evaluated in order:
+        the HTTP method, the normalised host (lowercased, port stripped when default),
+        the path after percent-decoding of unreserved characters, the query string with
+        every parameter matching <code>utm_*</code> removed and the rest sorted by name,
+        and the value of the <code>Accept-Encoding</code> request header as sent.
+      </p>
+      <p id="cache-key-cookies">
+        Cookies, <code>Authorization</code> and all other request headers are excluded
+        from the key. Responses carrying <code>Set-Cookie</code> are not stored.
+      </p>
+      <p id="cache-key-encoding">
+        Because <code>Accept-Encoding</code> is used verbatim, <code>gzip, br</code> and
+        <code>br, gzip</code> produce distinct keys, and so does every other spelling a
+        client sends. Last week's logs show 41 distinct values, which split the
+        homepage's entry 41 ways and hold its hit rate at 62%.
+      </p>
+    </section>
+    ```
+
+    Write the section as it goes into the page's next version, and what you tell the
+    user.
+assert:
+  - type: llm-rubric
+    metric: explanation-rewritten-directly
+    value: |
+      Pass only if the next version's `cache-key` section is the shortened text itself,
+      with no lf-suggestion in it. Judge only how the rewrite reaches the page, not
+      what the shortened section keeps. Fail if the shortened text is offered as an
+      lf-suggestion (an lf-old and lf-new pair), or the section keeps its old length.
+variants:
+  published-wording:
+    metadata:
+      purpose:
+        "Revisions: a rewrite of wording the user approved for publishing is offered as
+        a suggestion, so they can keep the approved words."
+    vars:
+      prompt: |
+        You keep a Leaf page for the user drafting the announcement of Pinboard 3.0,
+        which they will post under their name on the company blog on Thursday. They
+        approved its text yesterday. Reading it again, you think the second paragraph
+        buries the main change, offline mode, and you'd lead with it. The user hasn't
+        asked for changes.
+
+        The paragraph as they approved it:
+
+        ```html
+        <p id="announce-offline">
+          Pinboard 3.0 brings a refreshed sidebar, faster search across large boards,
+          and offline mode, so boards you've opened stay readable and editable without a
+          connection and sync when you're back online.
+        </p>
+        ```
+
+        Write the change as it goes into the page's next version, with any prose
+        around it.
+    assert:
+      - type: llm-rubric
+        metric: approved-wording-kept-as-choice
+        value: |
+          Pass only if the reworded paragraph is offered as an lf-suggestion that holds
+          the approved paragraph's words unchanged as its old side and the proposed
+          wording as its new side, so the user can keep what they approved. Judge the
+          choice to offer a suggestion, not the markup of its two sides, which `page
+          check` refuses when the author saves it. Fail if the paragraph is rewritten in
+          place, or the approved words are altered.

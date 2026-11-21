@@ -36,15 +36,15 @@ and external data.
 
 ## Revisions and user-owned words
 
-Write new content directly. Rewrite prose the user has already seen as an
-`lf-suggestion`, following its instructions for markup and linking a requested fix
-to its thread. Introduce the first suggestion in prose so the user knows they can
-comment on its new words too.
-
-A suggestion is for wording the user might prefer to keep. A correction is not: when
-the page got a number, a source or a unit wrong, or when work has landed, a decision
-has been made or a finding no longer holds, write the correct text directly and name
-the change in the version note.
+Write new content directly. A suggestion is for wording the user has seen and might
+prefer to keep, such as a passage they approved or will publish under their name. It
+shows the old words beside the new and lets the user pick. Write one as an
+`lf-suggestion`, following its instructions for markup and linking a requested fix to
+its thread, and introduce the first suggestion in prose so the user knows they can
+comment on its new words too. Make any other rewrite directly, such as a correction
+where the page got a number, a source or a unit wrong, or an update once work has
+landed, a decision has been made or a finding no longer holds, and name the change in
+the version note.
 
 Put a passage whose wording belongs to the user in a draft they edit, such as
 `lf-draft`. Their saved words stay in effect across revisions. Follow its registry

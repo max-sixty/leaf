@@ -1828,14 +1828,16 @@
   .lf-fp-plan-step > .lf-fp-plan-steps {
     grid-column: 2 / -1;
   }
-  /* A step's mark centres its symbol in a grid cell. Laid out as a word on a line,
-     the symbol would sit on the line's baseline, below the mark's centre. */
+  /* A step's mark is a line of its title tall and centres its symbol in a grid cell,
+     so the symbol centres on the title's first line, as the time at the step's end
+     stands on it, however many lines the title wraps to. Laid out as a word on a
+     line, the symbol would sit on the line's baseline, below the line's centre. */
   .lf-fp-plan-mark {
-    align-self: center;
+    align-self: start;
     display: grid;
     place-items: center;
     width: 16px;
-    height: 16px;
+    height: 1lh;
     color: var(--lf-quiet);
   }
   .lf-fp-plan-step[data-lf-state="open"] > .lf-fp-plan-mark::before {

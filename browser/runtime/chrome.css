@@ -815,7 +815,7 @@ html[data-lf-draw-mode] {
     min-height: 0;
     overflow-wrap: anywhere;
     overscroll-behavior: contain;
-    padding: var(--lf-focus-ring-room);
+    padding: var(--lf-focus-ring-room) var(--lf-inspection-inset);
     scroll-padding: var(--lf-focus-ring-room);
   }
   /* Each section of the report is a region of the dialog, named in the label font
@@ -842,10 +842,14 @@ html[data-lf-draw-mode] {
   .lf-inspection-body h3 {
     margin-block: 10px 2px;
   }
-  /* The title starts, and Close's ✕ stands, where the report's words do, inside the
-     room the report keeps for a focus ring. */
+  /* The report's words stand inside room that holds a focus ring and the symbols its
+     lines end with (controls.css, `--lf-symbol-inset`), and the title starts and
+     Close's ✕ ends on the same edges. */
+  .lf-inspection-dialog {
+    --lf-inspection-inset: max(var(--lf-focus-ring-room), var(--lf-symbol-inset));
+  }
   .lf-inspection-dialog > .lf-dialog-head {
-    padding-inline: var(--lf-focus-ring-room);
+    padding-inline: var(--lf-inspection-inset);
   }
   .lf-inspection-body details {
     margin-block: 10px;
@@ -859,7 +863,12 @@ html[data-lf-draw-mode] {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-  } /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
+  }
+  /* Copy's glyph ends on the report's edge, under Close's. */
+  .lf-copyable-head > .lf-icon-action {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
+  }
+  /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
      wraps rather than scrolling sideways, so it keeps no room under its last line for a
      scrollbar's track, as a code block does (reading.css). A value too long for the
      rest of its line, such as a fingerprint, moves whole to the next, so the reader can

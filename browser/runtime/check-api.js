@@ -38,7 +38,6 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
-  coverBoxes,
 } from "./geometry.js";
 export {
   drawnElements,

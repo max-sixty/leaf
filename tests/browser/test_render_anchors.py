@@ -3753,10 +3753,10 @@ def clearance_page(browser, serve, rail=True):
 
     def place_bottom(offset):
         return page.evaluate(
-            """offset => {
+            """async offset => {
               const scroller = document.scrollingElement;
               const destination = document.getElementById('destination');
-              const clear = parseFloat(getComputedStyle(scroller).scrollPaddingBottom);
+              const clear = (await window.__lfWidgetApi()).landingInsets(scroller).bottom;
               const before = destination.getBoundingClientRect();
               scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
               const after = destination.getBoundingClientRect();
@@ -3793,14 +3793,15 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     covered = place_bottom(clear["clear"] / 2)
     assert covered["bottom"] <= covered["viewport"]
     assert covered["bottom"] > covered["viewport"] - covered["clear"]
+    clear_band = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.keyboard.press("t")
     page.wait_for_function(
-        """() => {
-          const clear = parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingBottom);
-          return document.getElementById('destination').getBoundingClientRect().bottom
-            <= innerHeight - clear + .5;
-        }"""
+        """clear => document.getElementById('destination').getBoundingClientRect().bottom
+            <= innerHeight - clear + .5""",
+        arg=clear_band,
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") != pytest.approx(
         covered["scroll"], abs=1

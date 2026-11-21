@@ -234,10 +234,10 @@ export function lined(rect, node) {
 // directly.
 //
 // `landingBand` is where a landing may put something: the shown band less the
-// `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// The root states its band apart (`landingInsets`), which its padding copies but for
-// while a floating editor holds focus, when the browser's own caret reveal is given
-// none.
+// `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours,
+// and less the chrome standing across what it lands (`landingBand`'s header). The root
+// states its top apart (`landingInsets`), which its padding copies but for while a
+// floating editor holds focus, when the browser's own caret reveal is given none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. Scroll anchoring looks for the box it keeps still in the band the
@@ -570,8 +570,35 @@ function displaced(sticky, style, axis) {
   const own = origin + range.to("px").value - (fromStart ? 0 : box[size]);
   return { by: own - box[start], scroller };
 }
-/** @param {Element} scroller */
-export const landingBand = (scroller) => insetBand(scroller, landingInsets(scroller));
+// A scroller's landing band: its shown band less the room its landings keep at each
+// edge (`landingInsets`). The chrome at the window's foot takes no room from the page,
+// so a landing names the columns its destination stands in (`across`), and the band
+// keeps clear of the chrome only where a surface stands across them, as `shownWindow`
+// reads it. The root's band then ends at the foot band the panel states
+// (`stateFootBand`), and elsewhere a landing's room short of the window's foot, so a
+// destination beside the panel lands where it is. A scroller inside the page ends where
+// the root's does only where nothing outside it can carry it clear: the page doesn't
+// scroll, as in a workspace that fills the window, or the scroller stands stuck or fixed
+// in the window. Where the page carries it, the root's own band brings the destination
+// clear as it moves the scroller.
+/** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
+export const landingBand = (scroller, across = null) => {
+  const inset = landingInsets(scroller);
+  const root = document.documentElement;
+  const crossed =
+    !across || footBand === null
+      ? null
+      : coverBoxes(scroller).some((box) => overlapsAcross(box, across));
+  if (scroller === root && crossed === false)
+    inset.bottom =
+      Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) || 0;
+  const band = insetBand(scroller, inset);
+  if (!band || !crossed || scroller === root || footBand === null) return band;
+  if (root.scrollHeight - root.clientHeight > 1 && !stuckBox(scroller)) return band;
+  const foot = layoutWindow().bottom - footBand;
+  if (band.bottom > foot) band.bottom = Math.max(band.top, foot);
+  return band;
+};
 /** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
 function insetBand(scroller, inset) {
   const band = shownBand(scroller);
@@ -584,8 +611,8 @@ function insetBand(scroller, inset) {
   };
 }
 // The root's band at the window's foot, in pixels, which the floating panel states as
-// it writes the root's `scroll-padding-bottom` (floating-panel.js, `followBox`), or
-// null where no panel stands, as on an export. Returns whether the band changed.
+// its box changes height (floating-panel.js, `followBox`), or null where no panel
+// stands, as on an export. Returns whether the band changed.
 /** @type {number | null} */
 let footBand = null;
 /** @param {number} band */

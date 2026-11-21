@@ -677,18 +677,24 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     assert immediate["localXFits"], (
         f"the vertical scrollport also overflowed sideways: {immediate}"
     )
+    # The panel's band at the window's foot, which it states to Leaf's landings.
+    foot = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.wait_for_function(
-        """() => {
+        """foot => {
           const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
           if (!range) return false;
           const rect = range.getBoundingClientRect();
           // The middle of the room the page shows, between the window's head and the
-          // panel at its foot, which the root's scroll padding states.
+          // panel at its foot.
           const style = getComputedStyle(document.scrollingElement);
           const top = parseFloat(style.scrollPaddingTop);
-          const bottom = innerHeight - parseFloat(style.scrollPaddingBottom);
+          const bottom = innerHeight - foot;
           return Math.abs((rect.top + rect.bottom) / 2 - (top + bottom) / 2) < 2;
-        }"""
+        }""",
+        arg=foot,
     )
     trip = page.evaluate("() => window.lfPageTrip")
     assert trip and trip == sorted(trip), (

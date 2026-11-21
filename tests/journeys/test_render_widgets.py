@@ -408,8 +408,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still above the room
-    the floating panel keeps at the window's foot, through the document's end."""
+    The track sticks, so once the reader scrolls the map stands still through the
+    document's end."""
     source = leaf_page(
         "contents map",
         """
@@ -764,7 +764,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
     # Once its track sticks, the map stays put through the rest of its sidebar, its
-    # start in view where the sidebar ends and its foot above the panel's room.
+    # start in view where the sidebar ends and its foot above the sidebar's end padding,
+    # which leaves it clear of the panel's row.
     panel_box = page.locator(".lf-fp-card").bounding_box()
     assert panel_box is not None
     sidebar_end = page.locator("#route").evaluate(

@@ -197,9 +197,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.emulate_media(reduced_motion="reduce")
     assert page.evaluate(reading) == {"reduced": True, "scroll": "instant"}
     step = page.evaluate(
-        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"

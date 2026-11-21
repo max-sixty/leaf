@@ -1,7 +1,6 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import io
-import re
 
 from PIL import Image
 from playwright.sync_api import expect
@@ -13,7 +12,6 @@ from render_harness import (
     one_frame,
     open_page,
     primed,
-    regions_side_by_side,
     rendered,
     resized,
     rgb_pixels,
@@ -336,51 +334,10 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     consume_browser_errors(page, http_error_console(409))
 
 
-def test_picking_a_file_leaves_a_workspace_where_it_stands(browser, serve, tmp_path):
-    """The editor fills its pane to the window's foot, so opening another file in it
-    from the tree moves nothing on the page, though the page has room to scroll."""
-    for name in ("values", "alerts"):
-        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
-    url = serve(
-        leaf_page(
-            "Deploy files",
-            """<header><h1>Deploy files</h1></header>
-            <div id="regions">
-              <lf-pane id="files-pane" label="Files">
-                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
-              <lf-pane id="editor-pane" label="File">
-                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
-              </lf-pane>
-            </div>""",
-            head=regions_side_by_side("regions", "16rem 1fr"),
-            layout="workspace",
-        ),
-        packages=["file-editor", "file-tree"],
-    )
-    for name in ("values", "alerts"):
-        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
-    page = open_page(browser, live_url(url))
-    resized(page, 1200, 900)
-    editor = page.locator("lf-file-editor")
-    expect(
-        editor.get_by_role("textbox", name="File contents", exact=True)
-    ).to_contain_text("values.yaml")
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 300px"}))"""
-    )
-    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
-    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
-    expect(page).to_have_url(re.compile("#config:alerts$"))
-    scroll_settled(page)
-    assert page.evaluate("scrollY") == 0
-
-
 def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_path):
-    """An editor filling a pane at the window's foot keeps room there for the floating
-    panel at rest, and no more. With the panel opened over it by a draft of several
-    lines, opening a file from the tree scrolls the page until the editor's words clear
-    the panel, as a destination it covers is brought clear of it."""
+    """With the floating panel opened over an editor in a pane at the window's foot by
+    a draft of several lines, opening a file from the tree scrolls the page until the
+    editor clears the panel, as a destination it covers is brought clear of it."""
     for name in ("values", "alerts"):
         (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
     url = serve(
@@ -421,19 +378,18 @@ def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_
         page.keyboard.type(f"line {line}")
         page.keyboard.press("Shift+Enter")
     page.wait_for_function(
-        "parseFloat(document.documentElement.style.scrollPaddingBottom) > 200"
+        "innerHeight - document.querySelector('.lf-floating-panel .lf-fp-card')"
+        ".getBoundingClientRect().top > 200"
     )
     page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
     expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
     scroll_settled(page)
-    # The editor keeps its words above its foot by the room it reserved; the open
-    # panel's card starts where it covers the page.
-    panel_top, words_end = editor.evaluate("""host => {
+    # The open panel's card starts where it covers the page.
+    panel_top, editor_end = editor.evaluate("""host => {
       const card = document.querySelector(".lf-floating-panel .lf-fp-card");
-      const room = parseFloat(getComputedStyle(host).getPropertyValue("--lf-end-room"));
-      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom - room];
+      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom];
     }""")
-    assert words_end <= panel_top, (words_end, panel_top)
+    assert editor_end <= panel_top, (editor_end, panel_top)
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):

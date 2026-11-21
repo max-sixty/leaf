@@ -231,18 +231,16 @@ site-wide header, navigation or footer, can stand beside `main`, where comments,
 revisions and checks cover it as they cover `main`. Only `main` takes the Layout, so
 the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
 
-Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
-panel, and its head by `--lf-head-room`, the phone's status bar. A workspace `main`
-keeps that foot room inside its own regions instead, so content after it adds
-`padding-bottom: var(--lf-foot-room)` of its own. Set the page's ground in
+Leaf pads `body`'s head by `--lf-head-room`, the phone's status bar. Leaf's panel
+stands over the page's foot and takes no room, so lay the page out in the whole
+window. Set the page's ground in
 `--lf-paper`, which the theme paints the window in. A page that takes no theme
 paints its own ground on `html`, since `body` is a container, which keeps its own
 background off the window below a short page. It also sets `--lf-paper` and
 `--lf-ink` to its ground and text colours, so Leaf's panel, thread cards and
 widgets stand on that ground rather than the browser's white. A reset
 that zeroes `body`'s padding, or an app shell whose own box scrolls, puts
-`padding-top: var(--lf-head-room)` and `padding-bottom: var(--lf-foot-room)` on
-whatever scrolls. A box page CSS makes opaque,
+`padding-top: var(--lf-head-room)` on whatever scrolls. A box page CSS makes opaque,
 such as a sticky bar, uses `background: var(--lf-ground)` to match its containing
 surface; cards and playground previews set this property for their contents.
 `page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own

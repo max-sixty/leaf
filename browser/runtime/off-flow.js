@@ -94,12 +94,15 @@ onCurrentLocation((node, cause, left) => {
   }
 });
 
+// The surface floating over the page that holds `node`, or null where none does.
+/** @param {Element} node */
+export const floatingSurface = (node) =>
+  [...surfaces.values()].find(({ surface, floats }) => floats() && under(node, surface))
+    ?.surface ?? null;
+
 // Whether `node` stands in a surface floating over the page.
 /** @param {Element} node */
-export const offFlow = (node) =>
-  [...surfaces.values()].some(
-    ({ surface, floats }) => floats() && under(node, surface),
-  );
+export const offFlow = (node) => floatingSurface(node) !== null;
 
 // Bring back the surface holding `node`, where the window does not show all of it; a
 // node in flow needs nothing.

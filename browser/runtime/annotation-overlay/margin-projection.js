@@ -159,7 +159,7 @@ import { claimed } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
-import { createMarginBeacons } from "./margin-beacons.js";
+import { createWritingBeacon } from "./writing-beacon.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { alreadyShown } from "../landing-scroll.js";
@@ -237,9 +237,7 @@ export function createMarginProjection({
     "aria-label",
     "Changes, threads, items on me, delivery status, and activity",
   );
-  // Beneath the rows, each live thread's beacon at the window's edge.
-  const beacons = createMarginBeacons({ openPageThread, workflowReceipt });
-  nav.append(beacons.element, toolbar);
+  nav.append(toolbar);
 
   const card = createThreadPreview({
     inventory,
@@ -251,6 +249,8 @@ export function createMarginProjection({
     openInPanel,
     onClose: closedPreview,
   });
+  // At the window's edge, toward a comment box holding the caret that a scroll carried away.
+  createWritingBeacon();
   const preview = card.element;
   const previewOpen = card.isOpen;
   /** @type {Set<HTMLElement>} */
@@ -1258,7 +1258,6 @@ export function createMarginProjection({
     for (const [key, host] of hosts)
       if (!liveHosts.has(key)) {
         unregisterMarginRow(host);
-        beacons.retire(host);
         watchNear.unobserve(host.marker);
         nearRows.delete(host.marker);
         host.clear();
@@ -1368,7 +1367,6 @@ export function createMarginProjection({
         return;
       drawnFrom.set(host, { entry, expanded, forced, folded: isFolded, agent });
       drawnHosts.push(host);
-      beacons.present(host, entry);
       rowsChanged = true;
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
@@ -2240,7 +2238,6 @@ export function createMarginProjection({
     card.mount(() => closePreview(landOnEntry));
     document.addEventListener("lf-margin-layout", () => {
       rowsChanged = true;
-      beacons.place();
       accompanyShownRow();
       card.place();
       // The pass may have moved the marker focus is on (`nameFocusedMarker`).

@@ -170,6 +170,7 @@ behavior. A compound widget may own reading regions without being a pane.
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
 | **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position, and Reply with its key at its end. While a stance such as Draw mode stands, the field takes no words and the row's mode chip names the stance in a word (**Draw**) beside its ✕. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
+| **Beacon** | A mark at the window's edge, with an arrowhead toward the comment box the user's keys type into, a thread card's reply or the anchored comment box, standing while a scroll has carried the box out of the window; a press brings the box back with the caret in it (`writing-beacon.js`) |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
 as a **thread card** beside its words, and in the panel where nothing on the page
@@ -191,7 +192,6 @@ dialog**. The margin projection has its own terms:
 | **Margin row** | One row tied to a target and aligned with it, placed in the `rail`, as a `pin`, or `withheld` (`groupFor` in `annotation-inventory.js` says which rows a target gets) |
 | **Pin** | A margin row drawn over the page beside its target, used where the row can't sit in the rail (`rowPlacement`; `seatRows` in `margin-placement.js` places it) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
-| **Beacon** | A small copy of an active thread's margin entry, with an arrowhead toward the thread, at the window's edge nearest the entry, standing while the entry is scrolled out of the window; a thread is *active* while it holds an unread reply, the user's turn or the agent's work in progress (`margin-beacons.js`) |
 | **Margin lane** | The layer holding one scroller's margin rows: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
 | **Margin contribution** | One provider's registered bundle of margin content |

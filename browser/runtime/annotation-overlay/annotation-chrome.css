@@ -19,69 +19,61 @@
   ) {
     z-index: var(--lf-z-margin-raised);
   }
-  /* A beacon (margin-beacons.js) wears a thread entry's face at the aim floor, with an
-     arrowhead inside it on the side toward the thread, centred on its entry while the
-     entry shows. Nothing of it stands outside its box, so the entry covers all of it,
-     a pin's face being no smaller. It sticks at the one edge of the window it points
-     toward, inside the box its entry fills at that edge as the entry starts to leave:
-     so the entry covers it until then and uncovers it as it slides away, and the two
-     are never seen apart at once. A pin's beacon fills the pin's box, so it stands in
-     from the edge by the half of its unread dot (controls.css, 8px) that stands past
-     its corner, which the edge would cut. At the head it stands below the room a page's
-     sticky tab strip takes, and at the foot above what the chrome covers in its column
-     (`--lf-beacon-cover`, margin-beacons.js), as the floating panel covers a pin's
-     column on a narrow window. */
-  .lf-margin-beacon {
-    --lf-beacon-room: calc(var(--lf-margin-entry) - var(--lf-aim-floor));
-    --lf-beacon-inset: max(var(--lf-beacon-room), 4px);
-    --lf-beacon-head: 4px;
-    position: sticky;
+  /* The beacon (writing-beacon.js) wears a thread entry's face at the aim floor, with an
+     arrowhead inside it on the side toward the comment box. It stands in the box's
+     column, inside the window, and in from the edge it points at by what the page shows
+     there: at the head below a page's sticky tab strip, at the foot above what the
+     chrome covers in its column, as the floating panel does on a narrow window. */
+  .lf-writing-beacon {
+    --lf-beacon-inset: 4px;
+    --lf-beacon-arrow: 4px;
+    position: fixed;
+    z-index: var(--lf-z-margin-preview);
+    left: clamp(0px, var(--lf-beacon-left), calc(100% - var(--lf-aim-floor)));
     width: var(--lf-aim-floor);
     min-width: var(--lf-aim-floor);
     height: var(--lf-aim-floor);
     min-height: var(--lf-aim-floor);
-    margin: calc(var(--lf-beacon-room) / 2);
     pointer-events: auto;
   }
-  [data-lf-place="pin"] > .lf-margin-beacon {
-    --lf-beacon-room: 0px;
-  }
-  .lf-margin-beacon > .lf-margin-entry-icon {
+  .lf-writing-beacon > .lf-margin-entry-icon {
     inline-size: 12px;
     block-size: 12px;
   }
   /* The arrowhead is a glyph masked into the press and painted in the ink its face
      gives it, as a disclosure's arrow is (controls.css), so it chooses no ink of its own. */
-  .lf-margin-beacon::before {
+  .lf-writing-beacon::before {
     content: "";
     position: absolute;
     left: 50%;
     translate: -50% 0;
-    inline-size: calc(2 * var(--lf-beacon-head));
-    block-size: var(--lf-beacon-head);
+    inline-size: calc(2 * var(--lf-beacon-arrow));
+    block-size: var(--lf-beacon-arrow);
     background: currentColor;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 1' preserveAspectRatio='none'%3E%3Cpath d='M0 1 1 0 2 1z'/%3E%3C/svg%3E")
       center / 100% 100% no-repeat;
   }
-  .lf-margin-beacon[data-lf-towards="up"] {
-    top: calc(var(--lf-top-covered) + var(--lf-beacon-inset));
-  }
-  .lf-margin-beacon[data-lf-towards="up"]::before {
-    top: 2px;
-  }
-  .lf-margin-beacon[data-lf-towards="up"] > .lf-margin-entry-icon {
-    translate: 0 2px;
-  }
-  .lf-margin-beacon[data-lf-towards="down"] {
-    bottom: calc(
-      max(var(--lf-safe-bottom), var(--lf-beacon-cover, 0px)) + var(--lf-beacon-inset)
+  .lf-writing-beacon[data-lf-towards="up"] {
+    top: calc(
+      max(var(--lf-top-covered), var(--lf-beacon-head, 0px)) + var(--lf-beacon-inset)
     );
   }
-  .lf-margin-beacon[data-lf-towards="down"]::before {
+  .lf-writing-beacon[data-lf-towards="up"]::before {
+    top: 2px;
+  }
+  .lf-writing-beacon[data-lf-towards="up"] > .lf-margin-entry-icon {
+    translate: 0 2px;
+  }
+  .lf-writing-beacon[data-lf-towards="down"] {
+    bottom: calc(
+      max(var(--lf-safe-bottom), var(--lf-beacon-foot, 0px)) + var(--lf-beacon-inset)
+    );
+  }
+  .lf-writing-beacon[data-lf-towards="down"]::before {
     bottom: 2px;
     scale: 1 -1;
   }
-  .lf-margin-beacon[data-lf-towards="down"] > .lf-margin-entry-icon {
+  .lf-writing-beacon[data-lf-towards="down"] > .lf-margin-entry-icon {
     translate: 0 -2px;
   }
   /* A pane's lane and the frames a sticky header cuts are stacking contexts of their own

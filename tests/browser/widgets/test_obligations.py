@@ -94,13 +94,13 @@ PICTURED_OBLIGATION = """
     <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes" label="Show the goal and step"><strong>Show the goal and step</strong> A line over each item.
-        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
+        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="lf-drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
           aria-label="Items under their step">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
       <lf-option id="{id}-no" label="Leave the list as it is"><strong>Leave the list as it is</strong> Items as today.
-        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
+        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="lf-drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
@@ -136,7 +136,7 @@ CAPTURED_OPTION = """
 
 ROWED_OPTION = """
       <lf-option id="rowed-{side}">{title}
-        <svg id="rowed-{side}-picture" class="drawing" viewBox="0 0 300 60" width="300"
+        <svg id="rowed-{side}-picture" class="lf-drawing" viewBox="0 0 300 60" width="300"
           height="60" role="img" aria-label="{title}">
           <rect width="300" height="60" fill="none" stroke="currentColor" /></svg>
       </lf-option>"""
@@ -284,7 +284,7 @@ def chipped_obligation(id, cards):
     )
     return (
         f'<lf-group id="{id}" label="Which fix first?"><h3 id="{id}-h">Which fix first?</h3>'
-        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<svg class="lf-drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
         f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-group>'
     )

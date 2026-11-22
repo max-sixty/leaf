@@ -12,7 +12,7 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      /* The panel's drawings are the theme's svg.drawing idiom. A figure of several
+      /* The panel's drawings are Leaf's svg.lf-drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
       .panels {
@@ -35,12 +35,12 @@
         font-size: 15px;
         margin-bottom: 2px;
       }
-      /* Marks particular to these drawings, on the same tokens as the theme's
-         svg.drawing idiom: the rail and a surface drawn over the page. */
-      svg.drawing .rail {
+      /* Marks particular to these drawings, on the same tokens as Leaf's
+         svg.lf-drawing idiom: the rail and a surface drawn over the page. */
+      svg.lf-drawing .rail {
         fill: var(--lf-accent-tint);
       }
-      svg.drawing .over {
+      svg.lf-drawing .over {
         fill: var(--lf-paper);
         fill-opacity: 0.92;
         stroke: var(--lf-accent);
@@ -149,7 +149,7 @@
             <div class="panels" id="chrome-figure">
               <figure id="chrome-reserved">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="Leaf's panel floats at the window's foot, and the rail sits in the margin beside the column"
@@ -236,7 +236,7 @@
               </figure>
               <figure id="chrome-surfaces">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="Threads, the On view and All pages open as a view above the panel's row"
@@ -271,7 +271,7 @@
               </figure>
               <figure id="chrome-card">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A thread card opens in the rail beside its marker"
@@ -363,10 +363,10 @@
                 </tr>
                 <tr id="panel-line-notice">
                   <td>
-                    A <a href="#updates-notices">notice</a> for four seconds, or until
-                    the next input for an undo's or one offering a press; Go-to finding
-                    nothing, while its filter waits for a key; a walk's position for
-                    four seconds after each step
+                    A <a href="#updates-notices">notice</a> for four seconds, and then
+                    until the next input for an undo's or one answering the user's own
+                    action with a press; Go-to finding nothing, while its filter waits
+                    for a key; a walk's position for four seconds after each step
                   </td>
                   <td>
                     <em>Updated to v4</em>, <em>No visible threads</em>,
@@ -405,13 +405,14 @@
               in a mode <em>Close</em> <kbd>esc</kbd>, else <em>Open latest</em> on an
               older version, otherwise <em>Next On Me</em> <kbd>m</kbd> while something
               waits on the user, and <em>Comment…</em> <kbd>c</kbd> once nothing does.
-              After a Resolve it offers <em>Next thread</em> <kbd>t</kbd>. A press
-              stands there only while its key would make it, so with the caret in a
-              reply, where <kbd>m</kbd> types a letter, the end is empty until the caret
-              leaves, and <em>Close</em> leaves it while <kbd>esc</kbd> would first
-              close a thread opened in the mode. On a touchscreen the end shows the
-              press's word alone, but for <em>Close</em>, whose place the mode's ✕ takes
-              there.
+              After a Resolve it offers <em>Next thread</em> <kbd>t</kbd>, and with news
+              of changes since the version the user last saw, <em>Show changes</em>
+              <kbd>v</kbd>. A press stands there only while its key would make it, so
+              with the caret in a reply, where <kbd>m</kbd> types a letter, the end is
+              empty until the caret leaves, and <em>Close</em> leaves it while
+              <kbd>esc</kbd> would first close a thread opened in the mode. A
+              touchscreen shows no keys, so the end offers no press there; the panel's
+              menu and lists reach each one, and the mode's ✕ closes it.
             </p>
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
@@ -450,9 +451,10 @@
           <section id="updates-notices">
             <h2>Notices</h2>
             <p id="updates-notices-lede">
-              A notice stands in the panel's line for four seconds, an undo's until the
-              next input, and is announced to screen readers. Simultaneous news shares
-              one notice, such as
+              A notice stands in the panel's line for four seconds, and an undo's or one
+              answering the user's own action with a press then stays until the next
+              input. Each is announced to screen readers. Simultaneous news shares one
+              notice, such as
               <em>Not answered · New On Me</em>. Some news is only announced, since
               something on the page already shows it: an agent message the user hasn't
               read, which the leaf's dot and its margin marker show, and the user's own

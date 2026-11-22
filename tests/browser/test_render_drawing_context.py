@@ -406,7 +406,7 @@ def test_drawing_preview_contains_theme_colored_svg_strokes_inside_a_sample(
         "sample drawing context",
         '<h1 id="title">Practice</h1><lf-sample id="practice" window>'
         '<template id="practice-page" data-sample><h1>Field report</h1>'
-        '<figure id="routes"><svg class="drawing" viewBox="0 0 600 170">'
+        '<figure id="routes"><svg class="lf-drawing" viewBox="0 0 600 170">'
         '<path d="M30 80 Q150 0 285 80 T570 80" fill="none" '
         'stroke="var(--lf-accent)" stroke-width="8" />'
         '<path d="M30 140 L280 140 L570 80" fill="none" '

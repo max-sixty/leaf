@@ -108,6 +108,11 @@ test("A write from elsewhere marks the lines it changed and no line beside them"
       ["lf-written 2", "lf-written-gap 3"],
     ],
     ["one\ntwo\nthree", "one\nTWO", ["lf-written 2", "lf-written-gap-below 2"]],
+    // A rewrapped paragraph keeps its count of lines, so it leaves no gap, though its
+    // diff joins one line to the next and splits another.
+    ["aaa\nbbb ccc\n", "aaa bbb\nccc\n", ["lf-written 1", "lf-written 2"]],
+    // Lines taken from both sides of a line the write left alone.
+    ["a\nX\nb\nY", "a\nb", ["lf-written-gap 2", "lf-written-gap-below 2"]],
   ]) {
     const { editor, view } = editorOf(before);
     editor.follow(after);

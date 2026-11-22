@@ -1846,7 +1846,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(comparison).to_have_attribute("position", "100")
     assert not option.evaluate(picked), "clicking the shot answered the question"
     page.locator("#ro-shot").get_by_role("radio", name="Pair", exact=True).click()
-    expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "compare")
+    expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "pair")
     assert not option.evaluate(picked), "changing the shot view answered the question"
 
     page.locator("#ro-numbers summary").click()

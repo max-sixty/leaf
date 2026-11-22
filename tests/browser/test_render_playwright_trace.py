@@ -459,20 +459,23 @@ def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
     reader's, and the shift the opening announces a frame later must not return the
     tree to where the reader left it. Headless Chrome has no find bar, and Leaf
     intercepts a fragment navigation to travel there itself, so the page makes the
-    find's two moves: it opens the tree and scrolls the row into view natively.
+    find's two moves: it opens the tree and scrolls the row into view natively. The
+    browser's reveal stops at the window's foot rather than above the floating panel,
+    as Leaf's landings do, so the row is shown where the browser put it.
     """
     user, widget, _ = scrolled_closed_tree(browser, serve, "reduce")
     # The reader goes back to reading the page, which takes focus off the summary.
     user.get_by_text("Review note 0 on").click()
     rendered(user)
-    widget.locator(".lf-trace-node").last.evaluate(
+    revealed = widget.locator(".lf-trace-node").last.evaluate(
         "row => { row.closest('details').open = true;"
-        " row.scrollIntoView({block: 'nearest'}); }"
+        " row.scrollIntoView({block: 'nearest'});"
+        " const {top, bottom} = row.getBoundingClientRect(); return [top, bottom]; }"
     )
     landed = user.evaluate(LANDED_ROW)
     user.context.close()
     assert landed["open"]
-    assert_row_shown(landed)
+    assert landed["row"] == pytest.approx(revealed, abs=1), (landed, revealed)
 
 
 def test_trace_tree_opens_at_each_checkpoints_reading(browser, serve):

@@ -27,10 +27,10 @@
  * widget's state in this render, so a pick there, an undo, a refusal and a revision's
  * retraction move the card with no state of the board's own. Dropping it in another
  * column sends the widget's own answer for that column's value, the same command the
- * section's control sends; a column the widget has no answer for takes no drop and
- * offers no button. Such a card keeps its authored order, and the arrows only change
- * its column: an order of the board's own would be a second fact placed among columns
- * the answer decides.
+ * section's control sends; a column whose value none of the widget's members carries,
+ * or more than one, takes no drop and offers no button. Such a card keeps its authored
+ * order, and the arrows only change its column: an order of the board's own would be a
+ * second fact placed among columns the answer decides.
  *
  * Only this module holds a card to the answer it shows. The registry declares `shows`
  * as an attribute naming an element (`refers`), so `page check` and message admission

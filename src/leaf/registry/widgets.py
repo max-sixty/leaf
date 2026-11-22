@@ -98,7 +98,7 @@ def _validate_widget_relations(
         tag, entry, registry, declarations, data, path
     )
     awaits = _validate_widget_predicates(tag, entry, properties, path)
-    _validate_widget_interactions(tag, entry, registry, properties, awaits, path)
+    _validate_widget_interactions(tag, entry, registry, awaits, path)
     validate_widget_state_relations(tag, entry, declarations, path)
     validate_widget_record_contracts(
         tag, entry, properties, registry, declarations, path
@@ -295,12 +295,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
 
 
 def _validate_widget_interactions(
-    tag: str,
-    entry: dict,
-    registry: dict,
-    properties: dict,
-    awaits: dict,
-    path,
+    tag: str, entry: dict, registry: dict, awaits: dict, path
 ) -> None:
     answered = awaits.get("answered", {})
     # The user answers their own obligation, so only a verb the user writes can answer it.
@@ -321,17 +316,3 @@ def _validate_widget_interactions(
     ):
         raise registry_error("awaits-blanket", path, tag, outcome=blanket)
     require_module(tag, entry, registry, path)
-    # A version overrules a report in force with `overruled` on the element,
-    # so a widget with an agent-written verb that doesn't declare the attribute
-    # is one whose every report contradiction is unpublishable.
-    agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
-    if agent_verbs and not _typed(properties, "overruled", "boolean"):
-        raise registry_error("unoverruled", path, tag, verbs=agent_verbs)
-    # A user decision folded on the widget needs an explicit withdrawal route:
-    # `restated` names that intent; ordinary source edits leave the decision in
-    # force. Child-folding verbs place it on elements this declaration does not name.
-    folds_whole = any(
-        spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
-    )
-    if folds_whole and not _typed(properties, "restated", "boolean"):
-        raise registry_error("unrestated", path, tag)

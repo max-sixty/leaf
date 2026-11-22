@@ -15,7 +15,6 @@ from interact_support import (
     _report_position_record,
     _report_undeclared_attr,
     _report_without_module,
-    _report_without_overruled,
     _user_verb_text,
     check_findings,
     element_declaration,
@@ -150,15 +149,43 @@ def test_a_custom_detail_can_be_an_empty_closed_object(page_dir):
     registry_validation.validate_registry(registry, "test registry")
 
 
-def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
-    """A widget that folds user decisions needs an explicit withdrawal route;
-    its closed schema must admit the marker that retracts a decision."""
+def test_composition_gives_a_whole_widget_verb_the_attribute_that_takes_it_back(
+    page_dir,
+):
+    """A version takes back a user's decision on a whole widget with `restated`, and
+    an agent's report with `overruled`. The composed vocabulary carries each on a
+    widget with such a verb (`registry.contract.stamp_retractions`), so its declaration
+    lists neither, and a schema it lists for one is replaced: one that admitted no
+    marker would leave a decision no version could take back. A widget whose verb folds
+    on its members takes none: the member the verb names carries it."""
     registry = vocabulary(page_dir)
-    del registry["lf-suggestion"]["attributes"]["properties"]["restated"]
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True, exist_ok=True)
+    for tag in ("lf-local", "lf-listed"):
+        (widgets / f"{tag}.js").write_text("export function upgrade() {}\n")
+        registry[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["attributes"]["properties"]["reading"] = {"type": "string"}
+        registry[tag]["verbs"] = {
+            "set": {
+                "unit": "widget",
+                "detail": {"type": "object", "additionalProperties": False},
+            },
+            "measure": {
+                "unit": "widget",
+                "writer": "agent",
+                "record": {"kind": "value", "attr": "reading"},
+            },
+        }
+    registry["lf-listed"]["attributes"]["properties"]["restated"] = False
     declare_vocabulary(page_dir, registry)
-    status, findings = check_findings(page_dir)
-    assert status != 0
-    assert found(findings, "unrestated", "<lf-suggestion>")
+
+    composed = read_page_registry(page_dir).registry
+    for tag in ("lf-local", "lf-listed"):
+        properties = composed[tag]["attributes"]["properties"]
+        assert properties["restated"] == properties["overruled"] == {"type": "boolean"}
+    board = composed["lf-board"]
+    assert {spec["unit"] for spec in board["verbs"].values()} == {"unit"}
+    assert not {"restated", "overruled"} & set(board["attributes"]["properties"])
 
 
 @pytest.mark.parametrize(
@@ -203,9 +230,6 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         (_report_undeclared_attr, "record-undeclared", {"attr": "phase"}),
         # The destination owns the payload schema; a report cannot author another.
         (_report_authored_detail, "invalid-declaration", {}),
-        # `overruled` is how a version keeps its state over a report; without it
-        # every contradiction is unpublishable.
-        (_report_without_overruled, "unoverruled", {}),
         # Reports replay through the widget's render(), so the widget needs a module.
         (_report_without_module, "needs-module", {}),
         # Only an agent verb declares `text`.
@@ -384,7 +408,6 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
         about={"type": "string"},
         source={"type": "string"},
         shape={"type": "string"},
-        restated={"type": "boolean"},
     )
     named["refers"] = {"about": {}}
     named["inputs"] = {"feed": {"contract": "measured-scalar", "source": "source"}}
@@ -554,7 +577,6 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
             "properties"
         ]["outcome"]
         decide["record"] = {"kind": "value", "attr": "outcome"}
-        suggestion["attributes"]["properties"]["overruled"] = {"type": "boolean"}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
@@ -807,10 +829,7 @@ def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):
         "description": "A decision without an address.",
         "attributes": {
             "type": "object",
-            "properties": {
-                "open": {"type": "boolean"},
-                "restated": {"type": "boolean"},
-            },
+            "properties": {"open": {"type": "boolean"}},
             "additionalProperties": False,
         },
         "content": "markup",

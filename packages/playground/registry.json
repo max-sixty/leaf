@@ -13,9 +13,6 @@
         "submit-label": {
           "type": "string",
           "minLength": 1
-        },
-        "restated": {
-          "type": "boolean"
         }
       },
       "required": ["id"],

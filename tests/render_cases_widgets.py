@@ -73,7 +73,6 @@ PAGE_DECLARATION = {
             "properties": {
                 "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
             "additionalProperties": False,

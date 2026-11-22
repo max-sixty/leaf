@@ -100,10 +100,7 @@
         "state": {
           "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
         },
-        "on": { "type": "string" },
-        "overruled": {
-          "type": "boolean"
-        }
+        "on": { "type": "string" }
       },
       "required": ["id", "state"],
       "additionalProperties": false
@@ -201,9 +198,6 @@
           "format": "date-time"
         },
         "talk": {
-          "type": "boolean"
-        },
-        "overruled": {
           "type": "boolean"
         }
       },

@@ -104,7 +104,6 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
                 "id": {"type": "string"},
                 "label": {"type": "string"},
                 "phase": {"enum": ["blocked", "done"]},
-                "overruled": {"type": "boolean"},
             },
             "required": ["id", "phase"],
             "additionalProperties": False,

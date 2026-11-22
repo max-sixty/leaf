@@ -157,7 +157,6 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
     options = registry["lf-options"]
     if writer == "agent":
         options.pop("awaits")
-        options["attributes"]["properties"]["overruled"] = {"type": "boolean"}
         options["verbs"]["choose"]["writer"] = "agent"
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(

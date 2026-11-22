@@ -4,10 +4,7 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "restated": {
-          "type": "boolean"
-        }
+        "id": { "type": "string" }
       },
       "required": ["id"],
       "additionalProperties": false

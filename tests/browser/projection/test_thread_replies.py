@@ -134,7 +134,6 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                         "type": "object",
                         "properties": {
                             "id": {"type": "string"},
-                            "restated": {"type": "boolean"},
                         },
                         "required": ["id"],
                         "additionalProperties": False,

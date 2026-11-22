@@ -210,7 +210,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             entry = registry[tag]
             entry["attributes"]["properties"] |= {
                 attr: {"type": "string"},
-                "restated": {"type": "boolean"},
             }
             entry["verbs"] = verbs
             (widgets / f"{tag}.js").write_text("export default class {}\n")

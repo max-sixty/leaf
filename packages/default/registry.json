@@ -220,9 +220,6 @@
         },
         "settled": {
           "type": "boolean"
-        },
-        "restated": {
-          "type": "boolean"
         }
       },
       "required": ["id"],
@@ -587,9 +584,6 @@
       "properties": {
         "id": { "type": "string" },
         "required": {
-          "type": "boolean"
-        },
-        "restated": {
           "type": "boolean"
         }
       },

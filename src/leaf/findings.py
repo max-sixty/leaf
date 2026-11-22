@@ -293,7 +293,6 @@ _SAMPLED = (
     "a live sample opens with its authored history, every event one the log admits"
 )
 _DECLARED = "each widget's declaration means one thing to every part of Leaf"
-_RETRACTS = "every version can take back a decision or report it supersedes"
 _CAPTURED = "each revision draws every file it names, the same wherever it is shown"
 _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
@@ -1715,22 +1714,6 @@ _TEXT = {
             f"`awaits` blanket answer `{v['outcome']}` is not an outcome of a"
             " deciding verb that answers its obligation"
         )
-    ),
-    "unoverruled": _declared(
-        lambda v: (
-            "declares agent-written `verbs`"
-            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
-            " version sets to overrule a worker's report"
-        ),
-        keeps=_RETRACTS,
-    ),
-    "unrestated": _declared(
-        lambda v: (
-            "declares user `verbs` on the whole widget but no boolean"
-            " `restated` attribute, which a version sets to retract the user's"
-            " decision"
-        ),
-        keeps=_RETRACTS,
     ),
     "verb-detail-schema": _declared(
         lambda v: (

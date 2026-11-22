@@ -123,6 +123,18 @@ import { setScroll } from "./arrivals.js";
  * @typedef {"Top" | "Right" | "Bottom" | "Left"} MarginSide
  * @typedef {{box: Element, local: number, moved: number, ahead: number}} ScrollMove
  */
+// The browser snaps a scroll to the device's pixels, so an instant landing asked to
+// travel a fraction would go up to a pixel further than asked about half the time,
+// carrying a box held at the band's edge, as a growing reply row is, past it by a pixel
+// under the user's aim. It travels the whole pixels of its move instead, which leaves
+// the destination less than a pixel short of where it was asked to stand.
+/** @param {number} from @param {number} top */
+const snappedToward = (from, top) => {
+  const scale = window.devicePixelRatio || 1;
+  const snapped = (top > from ? Math.floor : Math.ceil)(top * scale) / scale;
+  return top > from ? Math.max(from, snapped) : Math.min(from, snapped);
+};
+
 // A smooth landing glides (scrolling.js, `glides`); only the reading band's vertical
 // moves are smooth, so it moves only scrollTop. An instant one is the reader's choice
 // from its start (`startScroll`), unless it returns them to a place they had (`kept`,
@@ -135,8 +147,9 @@ import { setScroll } from "./arrivals.js";
 // sideways reveal pressed during a glide landed from where the page stood.
 /** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {boolean} [kept] @param {number} [from] */
 const land = (box, by, behavior, kept = false, from = box.scrollTop) => {
-  const top = from + (by.top ?? 0);
-  if (glides(box, behavior)) return glideTo(box, top);
+  const asked = from + (by.top ?? 0);
+  if (glides(box, behavior)) return glideTo(box, asked);
+  const top = snappedToward(from, asked);
   const { scrollTop, scrollLeft } = box;
   if (by.top || from !== scrollTop) stopGlide(box);
   setScroll(box, { top, left: scrollLeft + (by.left ?? 0), behavior: "instant" });

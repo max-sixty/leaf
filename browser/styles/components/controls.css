@@ -152,7 +152,10 @@
    keeps its own width, end-aligned in the room, so it then stands over the words'
    end, and when it shows, it does so on the message's ground, which fades in over its
    first pixels; nothing re-lays out or moves. The room's margin takes back the head's
-   gap before it, since a control's face stands inside its box. Neither takes height,
+   gap before it, since a control's face stands inside its box. A surface that keeps
+   space past its messages' heads hangs the room into that space by
+   `--lf-msg-controls-hang`, as the floating panel's thread does, and the head's cut
+   (surfaces.css) moves out as far, so it never cuts the controls. Neither takes height,
    so a control taller than the head's line stands over its edges rather than growing
    it. Holding the room whole for controls nobody could see would cut a queued
    message's receipt short. Rejected (the user's choice): the words giving
@@ -165,6 +168,7 @@
   min-inline-size: 0;
   block-size: 0;
   margin-inline-start: calc(-1 * var(--lf-sp-2));
+  margin-inline-end: calc(-1 * var(--lf-msg-controls-hang, 0px));
 }
 .lf-msg-control-room:has(> .lf-msg-controls:empty) {
   display: none;

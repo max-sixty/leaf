@@ -11,7 +11,12 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
+from leaf.event_log import (
+    APPEND_STAMPED,
+    EventRefused,
+    _matching_attempt,
+    new_event_id,
+)
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
     build_threads,
@@ -952,6 +957,10 @@ def append_all_admitted(page, events: list[dict]) -> list[dict]:
     view = PageView(page.page_dir)
     trial = list(page.events)
     for event in events:
+        # A retry the trial already holds appends nothing, and one whose attempt
+        # names another payload is refused here, before anything is written.
+        if _matching_attempt(trial, voiced(event)) is not None:
+            continue
         record = admitted_event(view, trial, voiced(event))
         # Stamped as the append stamps it, so the next is read after it.
         seq = trial[-1]["seq"] + 1 if trial else 1

@@ -180,14 +180,6 @@ draws its readings into the element its `readings` attribute names. `page check`
 requires the target in the referrer's own document, the page or the message holding it,
 and every element there matching `where` to be named by exactly one referrer.
 
-An attribute whose value must differ among the members of one owner, such as an
-option's `value`, maps to that owner's tag in `unique`, and `page check` refuses a
-repeat inside the same owner:
-
-```json
-{ "lf-option": { "unique": { "value": "lf-options" } } }
-```
-
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
 

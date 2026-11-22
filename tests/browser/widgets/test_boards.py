@@ -925,3 +925,42 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ] == [stray["id"]]
+
+
+def test_a_column_two_options_name_takes_no_drop(browser, serve):
+    """Two options carrying one `value` land a card in the same column, and a pick of
+    either stands it there. A drop names only the value, not which of the two the user
+    picks, so the column takes no drop of that card: it offers no button, the grip's
+    arrow passes over it, and no pick of both options reaches the log."""
+    source = ANSWERS_BOARD_PAGE.replace(
+        '<lf-option id="rail-next" value="next">Next</lf-option>',
+        '<lf-option id="rail-next" value="next">Next</lf-option>'
+        '<lf-option id="rail-soon" value="next">Soon</lf-option>',
+    )
+    assert source != ANSWERS_BOARD_PAGE
+    page = open_page(browser, live_url(serve(source)))
+    card = page.locator("#card-rail")
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    expect(card.locator('[data-lf-board-target="col-open"]')).to_have_js_property(
+        "hidden", False
+    )
+    expect(card.locator('[data-lf-board-target="col-next"]')).to_have_js_property(
+        "hidden", True
+    )
+
+    with sending(page, "the drop"):
+        card.locator(".lf-grip").focus()
+        for press in ("Enter", "ArrowLeft", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-open > #card-rail")).to_have_count(1)
+    with sending(page, "the pick"):
+        page.locator("#rail-soon").click()
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    assert [
+        (event["widget"], event["action"], event["detail"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [
+        ("rail", "choose", {"value": []}),
+        ("rail", "choose", {"value": ["rail-soon"]}),
+    ]

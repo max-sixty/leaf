@@ -315,9 +315,6 @@
       "additionalProperties": false
     },
     "owners": ["lf-options"],
-    "unique": {
-      "value": "lf-options"
-    },
     "refers": {
       "for": {}
     },

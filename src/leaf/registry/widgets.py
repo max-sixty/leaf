@@ -170,14 +170,10 @@ def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Fi
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> dict:
-    for key, named in (
-        ("owners", entry.get("owners", [])),
-        ("unique", entry.get("unique", {}).values()),
-    ):
-        if unknown := sorted(set(named) - set(declarations)):
-            raise registry_error(
-                "unknown-declarations", path, tag, key=key, names=unknown
-            )
+    if unknown := sorted(set(entry.get("owners", [])) - set(declarations)):
+        raise registry_error(
+            "unknown-declarations", path, tag, key="owners", names=unknown
+        )
     attributes = entry["attributes"]
     properties = attributes.get("properties", {})
     required = set(attributes.get("required", []))
@@ -214,9 +210,8 @@ def _validate_widget_structure(
                 contract=spec["contract"],
             )
     for input_name, spec in entry.get("inputs", {}).items():
-        if (reference := spec.get("reference")) and (
-            reference not in entry.get("refers", {})
-            or entry["refers"][reference].get("key")
+        if (reference := spec.get("reference")) and reference not in entry.get(
+            "refers", {}
         ):
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference

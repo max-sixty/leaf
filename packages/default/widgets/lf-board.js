@@ -148,10 +148,15 @@ function shownAnswer(card) {
   const detailFor = (/** @type {string | null} */ value) => {
     if (!valueOf) return value === null ? null : { value };
     if (value === null) return { value: [] };
+    // The one member carrying `value` is the answer. Where several carry it, as two
+    // options that land a card in one column do, `value` doesn't say which of them the
+    // user picks, so the widget takes no answer for it and the user picks among them
+    // in the widget itself. Answering with the first, or with all of them, would
+    // record a pick the user never made.
     const members = (reading.memberships?.[record.attr] ?? []).filter(
       (member) => valueOf(member) === value,
     );
-    return members.length ? { value: members } : null;
+    return members.length === 1 ? { value: members } : null;
   };
   return Object.freeze({
     value: namedValue(state.value, valueOf),

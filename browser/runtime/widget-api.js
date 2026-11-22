@@ -104,7 +104,8 @@ export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { isNativeLayer, under } from "./shadow-tree.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
-export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";
+export { commandScope, commandsOn } from "./keyboard/scopes.js";
+export { saying } from "./keyboard/control-keys.js";
 // The claim of a scope standing over the page: every key but the command reference's.
 export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";

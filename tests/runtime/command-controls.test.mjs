@@ -11,9 +11,9 @@ import {
   paintKeysWithin,
   reflectFirstScopes,
   reflectKeys,
-  saying,
   watchCommandScopes,
 } from "../../browser/runtime/keyboard/scopes.js";
+import { saying } from "../../browser/runtime/keyboard/control-keys.js";
 import {
   activeRows,
   commandAvailable,
@@ -25,7 +25,12 @@ import {
   savedReadingSettled,
   setQuickShortcuts,
 } from "../../browser/runtime/keyboard/bindings.js";
-import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
+import {
+  activeCommandBinding,
+  dispatchKey,
+  keyReady,
+} from "../../browser/runtime/keyboard/dispatch.js";
+import { coarsePointer } from "../../browser/runtime/pointer.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
 import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 import { focused } from "../../browser/runtime/focus.js";
@@ -2430,13 +2435,44 @@ test("command aliases conflict by their canonical meaning while shifted Space st
     );
 });
 
-test("an announced scope says each live row's key and title", () => {
+test("a key is named beside a row only while its press would run the row", (t) => {
+  const owner = document.createElement("div");
+  owner.tabIndex = -1;
+  const inner = document.createElement("button");
+  owner.append(inner);
+  document.body.append(owner);
+  t.after(() => owner.remove());
+  const run = () => {};
   const rows = [
-    { id: "fixture.cancel", keys: ["Escape"], title: "cancel" },
-    { id: "fixture.top", keys: ["g"], title: "top" },
-    { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
+    { id: "fixture.cancel", keys: ["Escape"], title: "cancel", run },
+    { id: "fixture.top", keys: ["g"], title: "top", run },
+    { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false, run },
+    // A mode's own key and another way out, under one title.
+    { id: "fixture.leave", keys: ["w"], title: "leave", run },
+    { id: "fixture.out", keys: ["q"], title: "leave", run },
   ];
-  assert.equal(saying(rows), "Escape cancel, g top");
+  keys(owner, commandScope("Fixture", rows));
+  owner.focus();
+  assert.equal(saying(rows), "Escape cancel, g top, w or q leave");
+  assert.equal(activeCommandBinding(["fixture.top"]), "g");
+  // A nearer scope takes `g`, so from inside it the outer row's `g` goes unsaid, in an
+  // announcement and beside the command alike.
+  keys(
+    inner,
+    commandScope("Inner", [{ id: "fixture.inner", keys: ["g"], title: "inner", run }]),
+  );
+  inner.focus();
+  assert.equal(saying(rows), "Escape cancel, w or q leave");
+  assert.equal(activeCommandBinding(["fixture.top"]), null);
+});
+
+test("an announced scope says no key on a touchscreen", (t) => {
+  Object.defineProperty(coarsePointer, "matches", {
+    configurable: true,
+    get: () => true,
+  });
+  t.after(() => delete coarsePointer.matches);
+  assert.equal(saying([{ id: "fixture.top", keys: ["g"], title: "top" }]), "");
 });
 
 test("a widget's declared commands stand from before it is placed until it withdraws them", () => {

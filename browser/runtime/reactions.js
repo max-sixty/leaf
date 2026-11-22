@@ -51,7 +51,8 @@ import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce } from "./notifications.js";
-import { claimsEsc, keys, saying } from "./keyboard/scopes.js";
+import { claimsEsc, keys } from "./keyboard/scopes.js";
+import { saying } from "./keyboard/control-keys.js";
 import {
   handBack,
   focusDestination,
@@ -449,7 +450,7 @@ export function createReactionController({
           picker.palette.querySelector(".lf-react");
         if (first) focusDestination(first, "move");
       }
-      announce(`React — ${saying(REACT.rows)}`);
+      announce(() => ["React", saying(REACT.rows)].filter(Boolean).join(" — "));
     }
     repaint();
   }

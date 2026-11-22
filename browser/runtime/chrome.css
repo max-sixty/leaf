@@ -24,9 +24,8 @@
    the page or of a message, as a margin card's transcript does. A landing keeps that room
    too (`--lf-focus-ring-landing`, surfaces.css), and a sticky row keeps it as its own
    padding; a box whose edge touches something that paints draws its ring inset.
-   A large composite region paints a quiet ground inside its box instead. A page's
-   bounded block pads nothing at its sides, so it cuts a ring there (tokens.css, "Where
-   it stands").
+   A page's bounded block pads nothing at its sides, so it cuts a ring there
+   (tokens.css, "Where it stands").
 
    The response bar (`.lf-fab-bar`): its field (`.lf-response-control`) and every
    choice (the response face, controls.css) stand on one baseline with one type,
@@ -54,11 +53,15 @@
 .lf-ui *::after {
   box-sizing: border-box;
 }
-/* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
-   face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
-   face from its own class, and lf-draft's editor states the document's face unlayered
-   and wins. */
+/* Clearing the UA's face for a form control or a dialog lives in a layer, so any
+   unlayered choice of face outranks it whatever its specificity: a control wearing
+   .lf-ui takes the chrome face from its own class, and lf-draft's editor states the
+   document's face unlayered and wins. The UA paints a dialog's text CanvasText, black
+   or white, so each dialog the chrome opens takes the chrome's ink here. */
 @layer lf-reset {
+  dialog.lf-ui {
+    color: var(--lf-ink);
+  }
   button.lf-ui {
     appearance: none;
     margin: 0;
@@ -317,7 +320,6 @@ html[data-lf-draw-mode] {
      .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
      this one adds, since it floats over page content rather than the empty rail. */
   :is(.lf-fab-bar, .lf-margin-preview) {
-    --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-frame-top: calc(
       1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
@@ -440,7 +442,6 @@ html[data-lf-draw-mode] {
     margin: 0;
     padding: 0;
     overflow: hidden;
-    color: var(--lf-ink);
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -749,6 +750,11 @@ html[data-lf-draw-mode] {
     flex: 1;
     font: var(--lf-font-title);
   }
+  /* Close's ✕, rather than its box, ends where the dialog's words end, as in the
+     floating panel's head (controls.css, `--lf-symbol-inset`). */
+  .lf-dialog-head > .lf-icon-action:last-child {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
+  }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. A row on the user's turn
      stands on the turn's wash, as its margin entry does (controls.css). */
@@ -784,12 +790,12 @@ html[data-lf-draw-mode] {
       calc(100dvh - var(--lf-page-map-top) - var(--lf-safe-bottom) - 12px)
     );
     margin: 0 auto;
-    padding: 14px;
+    --lf-sheet-inset: 14px;
+    padding: var(--lf-sheet-inset);
     border: 1px solid var(--lf-border);
     border-radius: var(--lf-r-l);
     --lf-ground: var(--lf-paper);
     background: var(--lf-ground);
-    color: var(--lf-ink);
     box-shadow: var(--lf-raise-3);
     /* Its column stands while a closing sheet fades out, after [open] has gone. */
     flex-direction: column;
@@ -805,12 +811,17 @@ html[data-lf-draw-mode] {
   .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--lf-ink) 26%, transparent);
   }
+  /* The report scrolls out to the sheet's padding edge and keeps the sheet's padding as
+     its own, as the Page Map's list does, so its words start and end where the title
+     and Close's ✕ do, and Copy's box and focus ring, hung past its words' end
+     (controls.css, `--lf-symbol-inset`), stay inside what it clips. */
   .lf-inspection-body {
     overflow: auto;
     min-height: 0;
     overflow-wrap: anywhere;
     overscroll-behavior: contain;
-    padding: var(--lf-focus-ring-room);
+    margin-inline: calc(-1 * var(--lf-sheet-inset));
+    padding: var(--lf-focus-ring-room) var(--lf-sheet-inset);
     scroll-padding: var(--lf-focus-ring-room);
   }
   /* Each section of the report is a region of the dialog, named in the label font
@@ -837,11 +848,6 @@ html[data-lf-draw-mode] {
   .lf-inspection-body h3 {
     margin-block: 10px 2px;
   }
-  /* The title starts where the report's words do, inside the room the report keeps
-     for a focus ring. */
-  .lf-inspection-dialog > .lf-dialog-head {
-    padding-inline-start: var(--lf-focus-ring-room);
-  }
   .lf-inspection-body details {
     margin-block: 10px;
   }
@@ -854,6 +860,10 @@ html[data-lf-draw-mode] {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+  /* Copy's glyph ends on the report's edge, under Close's. */
+  .lf-copyable-head > .lf-icon-action {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
   }
   /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
      wraps rather than scrolling sideways, so it keeps no room under its last line for a
@@ -884,7 +894,7 @@ html[data-lf-draw-mode] {
      the rows' place stands on the same edge. */
   .lf-page-map-list {
     --lf-rows-bleed: 6px;
-    margin-inline: -14px;
+    margin-inline: calc(-1 * var(--lf-sheet-inset));
     padding-inline: var(--lf-rows-bleed);
     margin-top: 10px;
     overflow: auto;
@@ -1148,7 +1158,7 @@ html[data-lf-draw-mode] {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      padding-bottom: max(var(--lf-sheet-inset), env(safe-area-inset-bottom));
     }
     /* The sheet is the rail's replacement where there is no margin to draw one in, so
        its rows are touch-sized because of what the sheet is, not because of what is
@@ -1230,7 +1240,9 @@ html[data-lf-draw-mode] {
     border-radius: var(--lf-tip-r);
     background: var(--lf-tip-bg);
     color: var(--lf-tip-ink);
-    box-shadow: var(--lf-raise-1);
+    box-shadow:
+      0 0 0 1px var(--lf-tip-ring),
+      var(--lf-tip-lift);
     font: var(--lf-font-tip);
     text-align: start;
     white-space: normal;
@@ -1330,15 +1342,17 @@ html[data-lf-draw-mode] {
      excerpt room: under the place's name, its first parts as the page reads them, each a
      line of detail the face fits to its room (`fit`, preview.js), a list's items, a
      table's cells and a code block's lines each cut to one, then the conversations about
-     it under a rule. The tooltip's ground is the page's ink, so its marks mix the
-     tooltip's own ink rather than the paper's colours. */
+     it under a rule. Its marks mix the face's own ink, so they hold on whatever ground
+     the face wears. */
   .lf-place-heading,
   .lf-place-cell[data-lf-head] {
     font-weight: 600;
   }
-  .lf-place-list {
-    display: flex;
-    flex-direction: column;
+  /* Its items in block flow, each a line, which a line clamp counts and holds back, as
+     it can't in a flex box. */
+  .lf-place-list,
+  .lf-place-item {
+    display: block;
   }
   .lf-place-item,
   .lf-place-cell,

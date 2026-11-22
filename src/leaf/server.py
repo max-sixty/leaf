@@ -159,7 +159,6 @@ def another_leaf_serving(page_dir: Path) -> list[Finding]:
         Finding(
             "another-leaf-serving",
             values={"page": str(page_dir), "server": served, "checked": own},
-            severity="advice",
         )
     ]
 

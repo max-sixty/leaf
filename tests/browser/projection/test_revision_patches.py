@@ -308,35 +308,36 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     }, f"the revision did not reach what it rewrote in place: {rewritten}"
 
 
-def test_a_revision_keeps_a_recording_on_leaf_s_play_bar(browser, serve):
-    """The runtime trades a video's `controls` for its own play bar before first paint
-    (video-controls.js). A revision that leaves the video as written keeps the node and
-    the bar, and hands the browser's controls back to nobody."""
-    body = """
-<p id="rv-edited">The recording is a draft.</p>
-<video id="rv-video" controls width="320" height="180" aria-label="Test pattern"
-  src="/media/2930ad3df7819c50.mp4"></video>
-"""
-    first = leaf_page("Recording first", body)
-    second = first.replace("Recording first", "Recording second").replace(
-        "is a draft.", "is final."
+def test_a_revision_that_rewrites_a_code_block_boxes_its_new_lines(browser, serve):
+    """A code block's lines stand in boxes the runtime made (code-lines.js), so the
+    patch takes the block whole: one the revision leaves alone keeps its boxes, and one
+    whose code it rewrites arrives as authored and is boxed again, its text the new
+    source."""
+    first = leaf_page(
+        "Boxes first",
+        '<pre id="kept"><code>one\n  two\n</code></pre>'
+        '<pre id="rewritten"><code>alpha\n  beta\n</code></pre>',
+    )
+    second = first.replace("Boxes first", "Boxes second").replace(
+        "alpha\n  beta\n", "alpha\n  beta\n    gamma\n"
     )
     page = open_page(browser, live_url(serve(first)))
-    page.evaluate("() => { window.__video = document.getElementById('rv-video'); }")
+    expect(page.locator("#rewritten [data-lf-pre-line]")).to_have_count(2)
+    page.evaluate(
+        "() => { window.__kept = document.querySelector('#kept [data-lf-pre-line]'); }"
+    )
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page.locator("#rv-edited")).to_have_text("The recording is final.")
-    state = page.evaluate(
-        """() => {
-          const video = document.getElementById('rv-video');
-          return {
-            same: video === window.__video,
-            controls: video.hasAttribute('controls'),
-            bars: document.querySelectorAll('.lf-video-controls').length,
-          };
-        }"""
-    )
-    assert state == {"same": True, "controls": False, "bars": 1}, state
+    expect(page).to_have_title("Boxes second")
+    lines = page.locator("#rewritten [data-lf-pre-line]")
+    expect(lines).to_have_count(3)
+    assert lines.evaluate_all(
+        "(lines) => lines.map((line) => line.style.getPropertyValue('--lf-code-indent'))"
+    ) == ["", "2", "4"]
+    assert page.locator("#rewritten").text_content() == "alpha\n  beta\n    gamma\n"
+    assert page.evaluate(
+        "() => window.__kept === document.querySelector('#kept [data-lf-pre-line]')"
+    ), "the block the revision left alone lost its boxes"
 
 
 def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(

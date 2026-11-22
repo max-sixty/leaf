@@ -1037,10 +1037,8 @@ def thread_summarize(
 ) -> dict:
     """Replace --from through --through in the panel with a Markdown summary.
 
-    Both name messages in one thread, which is the thread summarized. No message but
-    the thread's first may stay unsummarized above any summary; a refusal names a
-    wider range that keeps this. An empty summary, such as `--text ''`, folds them
-    without prose. The original messages remain in the append-only transcript and can
+    Both name messages in one thread, which is the thread summarized. An empty
+    summary, such as `--text ''`, folds them without prose. The original messages remain in the append-only transcript and can
     always be revealed. A later overlapping summary replaces this one.
     """
     from leaf.thread import cmd_summarize
@@ -1606,8 +1604,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    A to-do on a widget needs a widget that declares `work` or holds an
-    unsettled update. A thread attachment provides discussion context;
+    A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""
     from leaf.todos import cmd_create

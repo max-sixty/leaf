@@ -7,8 +7,9 @@
  * guarantees need on every page, whatever look the page takes: the tokens Leaf's
  * interface and widgets read (styles/tokens.css, imported above), the faces of Leaf's
  * own controls and marks, and the few
- * element rules that keep a guarantee, each saying which. The reading look, the
- * element and idiom defaults a document reads in, is the bundled `reading` theme
+ * element rules that keep a guarantee, each saying which. The idioms an author writes
+ * are Leaf's too (styles/components/idioms.css, by way of shadow.css). The reading look,
+ * the type and ground a document reads in, is the bundled `reading` theme
  * (packages/reading), which a page takes by default; a page that takes none starts
  * from the browser's defaults and these tokens.
  *
@@ -134,6 +135,21 @@
 :where(.lf-ui) {
   --lf-reading-face: 1;
 }
+/* A list of facts on a surface Leaf draws for its interface, the chrome (`.lf-ui`, as
+   About's counts) or a popover a control opens (`.lf-popover`, as a capture's details),
+   keeps the facts idiom's layout (styles/components/idioms.css) at the surface's
+   density: its labels take the interface's small font, as the surface's other labels
+   do, and the list the reading face's spacing. They don't share an ancestor class, so
+   the rule names both. It stands at the idiom's weight and after it, so the frame's
+   edge trims (reading.css) still take a first or last list's margin. */
+:where(.lf-ui) dl.lf-facts,
+:where(.lf-popover) dl.lf-facts {
+  margin-block: 10px;
+}
+:where(.lf-ui) dl.lf-facts dt,
+:where(.lf-popover) dl.lf-facts dt {
+  font: var(--lf-font-small);
+}
 /* ---------- elements ---------- */
 
 /* A box that draws an inset shows it twice — above what it holds and below it — and what
@@ -255,7 +271,8 @@
   inherits: false;
 }
 /* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink, the
- * room it reaches past the box and the aim's veil. None inherits, so a box inside a
+ * room it reaches past the box, its reach over a list marker and the aim's veil. None
+ * inherits, so a box inside a
  * marked one is marked only as it is itself, and marking a box restyles that box
  * alone: an inherited veil would restyle every element of a long text document each
  * time ⌥ aimed at it. The gap is a length, so a box's edge stated as `0` reaches the
@@ -278,9 +295,37 @@
   syntax: "*";
   inherits: false;
 }
+@property --lf-band-from {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-to {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-reach-left {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --lf-band-reach-right {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --lf-band-over {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 @property --lf-aim-veil {
   syntax: "*";
   inherits: false;
+}
+@property --lf-aim-veil-shift {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 /* The body's position and box are important against the page's own rules: Leaf's
  * document-anchored paint takes the initial containing block as its origin, so it may
@@ -299,7 +344,7 @@ body {
  * was holding it, over whatever stands beside that box or past the window, where the
  * page would scroll sideways, which the render gate refuses. It reaches everything by
  * inheritance and does nothing anywhere a line already can't wrap, so the widgets
- * that scroll instead (lf-board, lf-diff, pre) are untouched. A metric's headline has
+ * that scroll instead (lf-board, lf-diff) are untouched. A metric's headline has
  * no width to spare at all, and without this a long value runs out of its card and
  * across whatever the grid put beside it.
  */
@@ -659,7 +704,7 @@ main {
  * wherever it stands: a paragraph, a list item or a heading is never set wider than the
  * column, however wide the box around it. So does a suggestion, whose slots hold it; a
  * package keeps its own widgets read as lines of text to the measure the same way
- * (options.css, and the reading theme's callout). Each starts at its holder's start
+ * (options.css, and the callout idiom, idioms.css). Each starts at its holder's start
  * edge, so in a flow wider than the column (a pane, a sidebar page's body) the box and
  * the prose around it share one left edge and one width. It caps the width and sets no
  * margin, so a widget's own arrangement still places the box. Package captions may span

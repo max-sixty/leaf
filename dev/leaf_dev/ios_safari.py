@@ -106,9 +106,8 @@ class Tab:
 def evaluate(driver, expression: str, arg=None):
     """What `expression` gives in the page, awaited, as Playwright's `evaluate` takes it:
     a function is called with `arg`, and a function's source may end its statement,
-    as a script file's does (`stills_baselines.js`). The expression is part of the
-    script WebDriver runs rather than a string the page evaluates, so a page's CSP
-    doesn't refuse it."""
+    as a script file's does. The expression is part of the script WebDriver runs
+    rather than a string the page evaluates, so a page's CSP doesn't refuse it."""
     expression = expression.strip().removesuffix(";")
     answer = driver.execute_async_script(
         "const [arg, done] = arguments;"

@@ -26,6 +26,13 @@ export const colourableAs = (code) => {
   if (code.matches(`${DATA_BODY} > code`) || code.querySelector("br")) return undefined;
   return codeLanguage(code);
 };
+// Whether an element wears the reading face (reading.css). Only an element in the
+// document has a face to read: one not yet placed is a surface Leaf is building, such
+// as a message, and all of those wear the face.
+/** @param {Element} element */
+export const wearsReadingFace = (element) =>
+  !element.isConnected ||
+  getComputedStyle(element).getPropertyValue("--lf-reading-face").trim() === "1";
 // The language Leaf colours a block in, or none, read again when its tokens land: the
 // one it can colour, where the block wears the reading face. The render gate reads the
 // two together to name a block that declares a language and goes uncoloured.
@@ -33,18 +40,10 @@ export const colourableAs = (code) => {
 // The token palette is the face's, drawn for the face's code ground (reading.css), so a
 // block that doesn't wear it, as on a page that takes no theme, keeps the colours its
 // page gives it. A page that supplies its own token palette turns off the reading face,
-// as for its other personally themed content. Only a block in the document has a face
-// to read: one not yet placed is a surface Leaf is building, such as a message, and
-// all of those wear the face.
+// as for its other personally themed content.
 /** @param {Element} code */
-export const colouredAs = (code) => {
-  if (
-    code.isConnected &&
-    getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1"
-  )
-    return undefined;
-  return colourableAs(code);
-};
+export const colouredAs = (code) =>
+  wearsReadingFace(code) ? colourableAs(code) : undefined;
 // Partition the whole-source token stream over text nodes and our earlier token
 // spans. Authored elements are traversed, never replaced; a token crossing one is
 // cut into pieces with the same style. Equal pieces keep their nodes on a repaint.

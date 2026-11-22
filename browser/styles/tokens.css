@@ -48,6 +48,13 @@
   inherits: true;
   initial-value: 8px;
 }
+/* Registered as a length so it computes to one, which the reach of a mark over a list
+   marker reads back (geometry.js, `markerReach`). */
+@property --lf-list-inset {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 24px;
+}
 :root {
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
@@ -201,7 +208,7 @@
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
-  /* The compact label every layer draws a small fact in: .tag here and the
+  /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
      height and one inset; each wearer states only its ground, ink, and where it sits.
@@ -242,10 +249,11 @@
   /* How far a line-tall control's reach stands past its face on each side: the room a
      place keeps around such a control where something else takes presses. */
   --lf-reach-room: max(0px, (var(--lf-aim-floor) - var(--lf-line)) / 2);
-  /* The smallest face a user types in. Only a finger's platform asks for one: iOS
-     Safari zooms the page onto a text field set smaller as the field takes focus. The
-     field rule that holds it is in shadow.css, and a surface that shows words before
-     opening a field on them holds the same floor so the two sizes agree. */
+  /* The smallest face a user types in, in one of Leaf's own fields. Only a finger's
+     platform asks for one: iOS Safari zooms the page onto a text field set smaller as
+     the field takes focus. The rule that holds Leaf's fields to it is in surfaces.css,
+     and a surface that shows words before opening a field on them holds the same floor
+     so the two sizes agree. */
   --lf-entry-floor: 0px;
   /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
      rail below is sized from the same length, so it is named rather than written into
@@ -254,6 +262,14 @@
   /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --lf-mark-size: 20px;
+  /* A draft's attached pictures (response.css, `.lf-composer-media`): how tall one
+     stands at most, enough to tell a pasted screenshot by its content, which 56px was
+     not; and how far they stand clear of the edge they meet as it is drawn, wherever a
+     surface places them. While a view is open the floating panel sizes the band it
+     opens for them from both (floating-panel.css), so they are named here rather than
+     on the shelf. */
+  --lf-media-h: 120px;
+  --lf-media-gap: 8px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
      to know where a pin will stand before packing it. */
   --lf-pin-inset: 4px;
@@ -282,6 +298,9 @@
      (comment-placement.js). */
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
+  /* The room inside a thread card's border, wherever the card stands: over the page
+     in the margin, or in a widget's flow (surfaces.css). */
+  --lf-comment-inset: 12px;
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus
@@ -374,11 +393,11 @@
   --lf-t-1: 1.9375rem;
   --lf-code-size: 0.84375rem;
   --lf-code-line: 1.25rem;
-  /* A drawing's words (`svg.drawing`, the reading theme). These two are fixed, in pixels,
-     which an inline SVG reads as its own units, because the shapes around the words are
-     numbers in those units. In rem, or at a rung a density restates, a reader's larger
-     default size or a working page would change the words and leave the boxes that hold
-     them as drawn. The viewBox scales words and shapes together. */
+  /* A drawing's words (`svg.lf-drawing`, components/drawing.css). These two are fixed,
+     in pixels, which an inline SVG reads as its own units, because the shapes around the
+     words are numbers in those units. In rem, or at a rung a density restates, a
+     reader's larger default size or a working page would change the words and leave the
+     boxes that hold them as drawn. The viewBox scales words and shapes together. */
   --lf-drawing-size: 11.5px;
   --lf-drawing-small-size: 10px;
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
@@ -457,19 +476,22 @@
   --lf-raise-3-drop: 12px;
   --lf-raise-3-blur: 36px;
   --lf-raise-3: 0 var(--lf-raise-3-drop) var(--lf-raise-3-blur) var(--lf-shade);
-  /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
-     --lf-raise-1. Its stylesheets live wherever the control does, often in a shadow tree
-     or a package and on a pseudo-element no shared class reaches, so the face is
-     tokens they name; each keeps its own placement. --lf-font-tip is derived from the
-     ladder, so it is declared with the other derived tokens (below). */
-  --lf-tip-bg: var(--lf-ink);
-  --lf-tip-ink: var(--lf-paper);
-  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's colour
-     drawn halfway to the tooltip's ink, which holds it clear of that ground at 4.8:1 or
-     more in either scheme, where the paper's turn ink would sink into it. */
-  --lf-tip-turn-ink: color-mix(in srgb, var(--lf-turn) 50%, var(--lf-tip-ink));
-  --lf-tip-pad: 4px 7px;
-  --lf-tip-r: var(--lf-r-s);
+  /* A tooltip's face, the one every preview wears (chrome.css, `.lf-preview-face`): the
+     face of a popover Leaf opens over the page (controls.css, `.lf-popover`), its raised
+     ground and ink, a hairline ring, a control's corners and the popover's lift. The
+     user chose it over the inverse face, which on a dark page was the brightest thing
+     on screen, and over a dark ground in both schemes. On a light page it stands off the
+     page by its ring and lift alone. --lf-font-tip is derived from the ladder, so it is
+     declared with the other derived tokens (below). */
+  --lf-tip-bg: var(--lf-card);
+  --lf-tip-ink: var(--lf-ink);
+  --lf-tip-ring: var(--lf-border);
+  --lf-tip-lift: var(--lf-raise-2);
+  --lf-tip-turn-ink: var(--lf-turn-ink);
+  /* Room enough that a preview of several lines, such as a thread's, reads as a
+     passage rather than a label. */
+  --lf-tip-pad: 6px 10px;
+  --lf-tip-r: var(--lf-r);
   /* Inline code's ground is a step from the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
      would vanish and its side padding read as double spaces around every span. */
@@ -499,6 +521,10 @@
   --lf-code-ink: light-dark(#24292f, #e8e7e3);
   --lf-code-muted: light-dark(#57606a, #9b9992); /* near-neutral, as its canvas is */
   --lf-code-border: light-dark(#d0d7de, #3b3a37);
+  /* The mark on each row a code line wraps onto (reading.css, `pre`): Menlo's ↪ in its
+     em box, a mask so it takes the colour drawn through it. A shape rather than the
+     character, since SF Mono, the face's monospace on a Mac, has no ↪. */
+  --lf-wrap-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -1556 1233 2048'%3E%3Cpath transform='scale(1 -1)' d='M365 643H946L786 803L876 893L1167 602V520L876 229L786 319L946 479H325Q294 479 246 500Q188 526 151 564Q107 610 87 660Q66 713 66 769Q66 829 88 881Q110 934 152 974Q197 1017 246 1038Q295 1059 357 1059V895Q332 895 309 885Q283 874 267 858Q249 840 239 817Q230 796 230 769Q230 744 240 720Q250 697 267 680Q286 662 309 653Q335 643 365 643Z'/%3E%3C/svg%3E");
   /* A neutral chip's ground. */
   --lf-chip: light-dark(
     oklab(
@@ -587,8 +613,6 @@
        in hand; at 1px in the contour ink, the target of an action.
      - A drawing's part, a shape or a group of them: any of these whole, along the
        contour of each shape it draws (surfaces.css).
-     - A quiet ground (--lf-focus-surface): a large composite holding focus, such as a
-       thread, where a band would be a second box round the box.
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
@@ -652,7 +676,6 @@
      alone, a code block Tab brings to a pane's top can stand 1.5px short of the ring's
      5px. */
   --lf-focus-ring-landing: calc(var(--lf-focus-region-room) + 2px);
-  --lf-focus-surface: color-mix(in srgb, var(--lf-accent) 4%, var(--lf-card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
@@ -932,8 +955,9 @@
   /* A region's name in small capitals (`.lf-label` adds the capitals and their
      tracking), set close, since capitals have no descenders. */
   --lf-font-label: 600 var(--lf-t-6) / 1.3 var(--lf-sans);
-  /* A tooltip's words, a weight up to hold on its inked ground. */
-  --lf-font-tip: 500 var(--lf-t-6) / 1.2 var(--lf-sans);
+  /* A tooltip's words, a weight up from the page's, as the user chose, with lines 1.4
+     apart to go with its room. */
+  --lf-font-tip: 500 var(--lf-t-6) / 1.4 var(--lf-sans);
   --lf-font-chip: var(--lf-t-6) / var(--lf-chip-lh) var(--lf-sans); /* a small fact (above) */
   --lf-font-count: 600 var(--lf-t-7) / 1 var(--lf-sans); /* a number on a mark */
   /* A tooltip's second line, a status under a drawing, or a chart's axes. */

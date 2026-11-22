@@ -344,7 +344,7 @@ test("superseding a blocked primary destination completes its prior navigation",
       document.body.append(workspace);
       const reached = Promise.withResolvers();
       const blocked = Promise.withResolvers();
-      const router = createThreadDestinations({});
+      const router = createThreadDestinations({ prepareNavigationStep: () => null });
       let calls = 0;
       const unregister = router.register(workspace, () => {}, {
         update: () =>
@@ -375,6 +375,7 @@ test("a thread the primary declines and nothing on the page shows is asked of it
   const router = createThreadDestinations({
     threadIdsAt: () => [],
     placedAt: () => null,
+    prepareNavigationStep: () => null,
   });
   // Declines until asked as the last resort, as the floating panel declines a thread
   // about a passage.
@@ -568,7 +569,11 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
           }),
       },
       reaction: {},
-      read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
+      read: {
+        observeMessage: () => () => {},
+        observeFeedback: () => () => {},
+        observeSummary: () => () => {},
+      },
     },
     () => Promise.resolve(),
     { answersAtOnce: true },

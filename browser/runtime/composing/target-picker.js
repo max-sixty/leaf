@@ -2,10 +2,11 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { selectEnds } from "../native-selection.js";
 import { anchoringIsReady, captured } from "../anchor-resolution.js";
-import { bindings, bindingEnabled, cycledRow, hasRows } from "../keyboard/bindings.js";
+import { bindings, cycledRow, hasRows } from "../keyboard/bindings.js";
+import { saying } from "../keyboard/control-keys.js";
+import { counted } from "../words.js";
 import { el, offerAction, searchField } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
-import { coarsePointer } from "../pointer.js";
 import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
@@ -24,7 +25,7 @@ import { shownBox } from "../geometry.js";
 import { skipped } from "../shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
-import { intersect, union } from "../rect.js";
+import { holds, intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
 import { paintSet } from "../target-paint-geometry.js";
 import {
@@ -52,9 +53,11 @@ import { keeps } from "../keeps.js";
 import { beginWalk, walkPosition, walkPositionLabel } from "../walk-position.js";
 
 import {
+  ELEMENTS,
   allButCommandReference,
   pageCommand,
   pageScope,
+  pageScopes,
 } from "../keyboard/register.js";
 
 // Hints and the active search result are paint only. The floating panel seats the
@@ -330,9 +333,8 @@ export function createTargetPicker({
     if (on) {
       hints.arm((found) =>
         announce(
-          found.length
-            ? `Choose a target — press an element${bindings(TARGET_HINT_TYPE).length ? `, type one of ${found.length} hints` : ""}, or press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`
-            : `There is no visible target to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
+          () =>
+            `${found.length ? `Choose a target — press an element; ${counted(found.length, "visible target")}.` : "There is no visible target to choose."} ${choosingKeys()}`,
         ),
       );
     } else {
@@ -376,9 +378,7 @@ export function createTargetPicker({
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
-      announce(
-        `Choose a target — ${bindings(TARGET_HINT_TYPE).length ? "type a hint, or " : ""}press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
-      );
+      announce(() => `Choose a target — press an element. ${choosingKeys()}`);
     }
     armChanged();
     repaint();
@@ -687,13 +687,8 @@ export function createTargetPicker({
     // live until that selection is left, just as a subsequent n/N landing does.
     setTargetPicker(false);
     const said = landOnMatch(segments, repeatedSearch.query);
-    announce(
-      `${said}: ${sentence(matchDescription(segments))} Selected. ${
-        coarsePointer.matches || !bindingEnabled("c")
-          ? "A press on the comment field comments on it."
-          : "Press n for next, Shift+n for previous, or c to comment."
-      }`,
-    );
+    const match = `${said}: ${sentence(matchDescription(segments))} Selected.`;
+    announce(() => `${match} ${saying([REPEAT_PAGE_SEARCH, ...commentRows()])}`);
   }
 
   /** @param {Match} segments @param {string} query */
@@ -789,7 +784,6 @@ export function createTargetPicker({
     take: chooseTarget,
     words: {
       describe: (target) => captured(target).label,
-      take: "choose",
       all: "All target hints.",
     },
     chrome: hintChrome,
@@ -859,7 +853,8 @@ export function createTargetPicker({
         title: "Go to the previous match for the last page search",
       },
     ],
-    title: "search matches",
+    // Its two keys' directions in the order they are said, as `top / bottom` is.
+    title: "next / previous match",
     repeat: true,
     travels: true,
     // With no search to repeat, the press says so, as every walk with nothing to step
@@ -938,6 +933,16 @@ export function createTargetPicker({
     ],
   };
 
+  // What Select mode says beside its words as it stands up: its own keys and search's,
+  // which the page still answers over the hints, read off their rows (`saying`).
+  const choosingKeys = () => saying([...TARGET_PICKER_SCOPE.rows, PAGE_SEARCH]);
+  // The page's `c`, declared where commenting is (surface.js), which a chosen match is
+  // selected for.
+  const commentRows = () =>
+    pageScopes().flatMap((scope) =>
+      scope === ELEMENTS ? [] : scope.rows.filter((row) => row.id === "comment.create"),
+    );
+
   /** @type {import("../keyboard/bindings.js").Scope} */
   const PAGE_SEARCH_SCOPE = {
     title: "In page search",
@@ -1008,12 +1013,7 @@ export function createTargetPicker({
     const { clientX: x, clientY: y } = ev;
     return segmentPieces(segments).some(
       ({ block, lines }) =>
-        block &&
-        path.includes(block) &&
-        lines.some(
-          (rect) =>
-            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
-        ),
+        block && path.includes(block) && lines.some((rect) => holds(rect, x, y)),
     );
   }
   /** @param {MouseEvent} ev */

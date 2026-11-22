@@ -121,7 +121,8 @@
 // continues that motion where it has the cancelled effect's target and moving
 // properties, ends at the same values in its last keyframe, and starts within a pixel
 // of each translation the cancelled effect drew when cancelled. It keeps the cancelled
-// effect's beginning and owners, though news may have sealed their credit since. Its
+// effect's beginning and owners, though news may have sealed their credit since, and a
+// carry keeps the step the cancelled carry began with (`carrySteps`). Its
 // sampled translation runs on from the cancelled effect's, never through the return
 // to underlying style that no frame drew between them. One that starts or ends
 // elsewhere is new motion.
@@ -1542,11 +1543,15 @@
     );
   };
   // A replacement that continues a cancelled effect (the header's "Each trusted
-  // gesture") takes three things from it. It takes the cancelled effect's ledger up to
+  // gesture") takes four things from it. It takes the cancelled effect's ledger up to
   // the cut, so a comparison across the cut reads one trajectory. It takes its
-  // beginning, so `begun` gives it to the input that began the cancelled one. And it
-  // takes its owners, whose credit news may have sealed since.
+  // beginning, so `begun` gives it to the input that began the cancelled one. It takes
+  // its owners, whose credit news may have sealed since. And where the cancelled
+  // effect carried a step (`carrySteps`), a replacement that carries one too keeps that
+  // first step, since the one trajectory draws the node from where it stood before it
+  // (`beginsOwned`).
   const continuations = new WeakMap();
+  const continuedSteps = new WeakMap();
   const continueMotion = (replacement) => {
     if (!cuts) return;
     const target = replacement.effect?.target;
@@ -1574,6 +1579,8 @@
       ...readings,
     ]);
     beganAt.set(replacement, beganAt.get(cancelled));
+    if (carrySteps.has(cancelled))
+      continuedSteps.set(replacement, carrySteps.get(cancelled));
     // A replayed effect that an earlier one had continued begins a motion of its own,
     // so that link no longer leads anywhere (and would loop `continued`).
     continuations.delete(replacement);
@@ -2105,6 +2112,8 @@
   const carrySteps = new WeakMap();
   const carrying = new Set();
   const beginsOwned = (animation, at) => {
+    const continuedStep = continuedSteps.get(animation);
+    continuedSteps.delete(animation);
     if (!moves(animation)) return;
     const owner = deliveredBy();
     if (owner) owner.own.add(animation);
@@ -2115,7 +2124,7 @@
       carriesBack(animation)
     ) {
       const step = frames.at(-2)?.at ?? -Infinity;
-      carrySteps.set(animation, { began: at, step });
+      carrySteps.set(animation, continuedStep ?? { began: at, step });
       carrying.add(animation);
       // A move the step made that waits to be judged, read where layout put it, the
       // carry draws back where the move found it, but it ends where layout puts the
@@ -4078,7 +4087,12 @@
       const drawn = animationMotion(node, began, at, carries);
       return box && { left: box.left - drawn.left, top: box.top - drawn.top };
     };
-    const landed = stands(first),
+    // Where the step put the node, read at the node's first reading once the carries
+    // drew. Their first sample can come from a read that reads no node, as cancelling
+    // a carry to re-time it takes one, and the ledger then still holds the node where
+    // it stood before the carries drew.
+    const drew = readings.find((reading) => reading.at >= first)?.at ?? first;
+    const landed = stands(drew),
       last = layout(readings[index].at);
     if (
       landed &&

@@ -47,6 +47,14 @@ def unnamed_browser():
     return os.environ | dict.fromkeys(browser_model.VARIABLES, "")
 
 
+def no_browser(report: dict) -> str:
+    """Why no browser read the page, as the check's one `no-browser` finding says."""
+    [why] = [
+        f["values"]["error"] for f in report["findings"] if f["code"] == "no-browser"
+    ]
+    return why
+
+
 def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
     """Driver startup failures become an unavailable render check, before a reader runs."""
     serve(LONG_PAGE)
@@ -62,7 +70,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         assert report["status"] == 0
         assert report["browser"]["asked"] == ["render check"]
         assert report["browser"]["ran"] == []
-        unavailable = report["browser"]["unavailable"]
+        unavailable = no_browser(report)
         assert "Playwright's driver did not start: " in unavailable
         assert reason in unavailable
 
@@ -122,7 +130,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             assert label["said"] == label["text"]
 
     assert_source_words()
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    expect(shot).to_have_attribute("data-lf-shot-mode", "slider")
     assert_source_words()
     # The classic track is on: its stable gutter takes both edges.
     assert (
@@ -336,7 +344,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     shot = page.locator("lf-shot")
     shot.scroll_into_view_if_needed()
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    expect(shot).to_have_attribute("data-lf-shot-mode", "slider")
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
     viewer = page.get_by_role("dialog", name="Image preview")
@@ -729,6 +737,31 @@ def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     expect(comparison).to_have_attribute("position", position)
 
 
+def test_a_shot_opens_in_the_view_its_author_names(browser, serve):
+    """`view` names the view a pair opens in, with that view's radio chosen: Pair draws
+    both captures whole and no divider, and Pixels draws its mask unpressed."""
+    pairs = "".join(
+        f'<lf-shot id="opens-{view}" view="{view}" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+        for view in ("pair", "pixels")
+    )
+    source = leaf_page("Opening views", f"<h1>Opening views</h1>{pairs}")
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    page = open_page(browser, url)
+    for view, name in (("pair", "Pair"), ("pixels", "Pixels")):
+        shot = page.locator(f"#opens-{view}")
+        expect(shot).to_have_attribute("data-lf-shot-mode", view)
+        expect(
+            shot.locator(".lf-shot-views").get_by_role("radio", name=name, exact=True)
+        ).to_have_attribute("aria-checked", "true")
+    pair = page.locator("#opens-pair")
+    expect(pair.locator("wa-comparison")).to_have_count(0)
+    for frame in pair.locator(".lf-shotframe img").all():
+        expect(frame).to_be_visible()
+    expect(page.locator("#opens-pixels .lf-shot-pixel-mask")).to_have_attribute(
+        "style", re.compile(r"--lf-shot-pixels: url\(")
+    )
+
+
 def test_a_shot_masks_the_pair_that_replaced_the_one_it_was_masking(browser, serve):
     """Pixels pressed before the first reading, with a capture replaced while its mask
     runs: the old mask ending draws nothing, and the new pair gets its own mask."""
@@ -1022,7 +1055,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
         shot.get_by_role("radio", name=view, exact=True).click()
         expect(shot).to_have_attribute(
             "data-lf-shot-mode",
-            {"Slider": "flip", "Pixels": "pixels", "Pair": "compare"}[view],
+            {"Slider": "slider", "Pixels": "pixels", "Pair": "pair"}[view],
         )
         expect(
             shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
@@ -1043,7 +1076,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     for mode in ("Slider", "Pixels"):
         shot.get_by_role("radio", name=mode, exact=True).click()
         expect(shot).to_have_attribute(
-            "data-lf-shot-mode", {"Slider": "flip", "Pixels": "pixels"}[mode]
+            "data-lf-shot-mode", {"Slider": "slider", "Pixels": "pixels"}[mode]
         )
         assert [control.bounding_box() for control in controls] == control_boxes
         shot.get_by_role("radio", name="Pair", exact=True).click()

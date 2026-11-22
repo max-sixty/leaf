@@ -11,19 +11,16 @@ from browser.controls.test_previews import (
     _comment_on,
     _reads,
 )
+from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    LONG_PAGE,
-    all_pages_offered,
     clocked,
     dwelt,
     leaf_page,
     long_press,
     open_page,
-    panel_settled,
-    panel_view,
     put_preview_away,
     tab_onto,
     told,
@@ -32,33 +29,35 @@ from render_harness import (
 from leaf.render_checks import rendered
 
 
-def test_a_focus_preview_on_a_link_elsewhere_keeps_its_new_tab_description(
-    browser, serve, live_leaf
-):
-    """An All pages row opens its page in a new tab and says so as its description. A
-    focus preview on it adds to that description while it stands, rather than the link's
-    own treatment writing over it, and the row says only that once the preview goes."""
-    live_leaf("second", "A second leaf")
-    live_leaf("other", "The other leaf")
-    page = open_page(browser, serve(LONG_PAGE))
-    all_pages_offered(page)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    panel_settled(page, view="leaves")
-    rows = page.locator(f"{panel_view('leaves')} a.lf-fp-page")
-    expect(rows.nth(1)).to_have_accessible_description("opens in a new tab")
-    tab_onto(rows.nth(1))
+def test_a_focus_preview_adds_to_a_link_s_own_description(browser, serve):
+    """A link whose author describes it keeps that description. A focus preview on it
+    adds its words to the description while it stands, rather than writing over the
+    author's, and the link says only its own once the preview goes."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "described link",
+                '<p>Read <a id="to-end" href="#end" aria-describedby="note">the end'
+                '</a>.</p><span id="note" hidden>the decision</span>'
+                '<div style="height: 1600px"></div><h2 id="end">End</h2><p>Done.</p>',
+            )
+        ),
+    )
+    link = page.locator("#to-end")
+    expect(link).to_have_accessible_description("the decision")
+    tab_onto(link)
     preview = page.locator(PREVIEW)
     expect(preview).to_be_visible()
     rendered(page)
     # Element references, which Playwright's accessible description doesn't follow.
-    described = rows.nth(1).evaluate(
-        "row => (row.ariaDescribedByElements ?? []).map((el) => el.textContent)"
+    described = link.evaluate(
+        "link => (link.ariaDescribedByElements ?? []).map((el) => el.textContent)"
     )
-    assert described == ["opens in a new tab", preview.text_content()]
+    assert described == ["the decision", preview.text_content()]
     put_preview_away(page)
     rendered(page)
-    expect(rows.nth(1)).to_have_accessible_description("opens in a new tab")
+    expect(link).to_have_accessible_description("the decision")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -149,6 +148,13 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     expect(preview.locator(".lf-place-item:not([data-lf-chosen])")).to_have_text(
         "At the door"
     )
+    # Each option stands on a line of its own.
+    chosen, other = (
+        preview.locator(f".lf-place-item{which}").bounding_box()
+        for which in ("[data-lf-chosen]", ":not([data-lf-chosen])")
+    )
+    assert chosen and other, (chosen, other)
+    assert abs(other["y"] - chosen["y"]) >= chosen["height"] - 0.5, (chosen, other)
     page.locator("#to-site").hover()
     expect(preview).to_be_hidden()
 
@@ -221,7 +227,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
           const words = document.createElement('span');
           words.className = 'lf-ui';
           words.textContent = 'COPY CONTROL';
-          document.querySelector('#code > span').after(words);
+          document.querySelector('#code span[style]').after(words);
         }"""
     )
     preview = page.locator(PREVIEW)
@@ -275,7 +281,10 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
             'title="Inspect the rollout">Inspect the small group</button></p>'
             '<p id="glossed">Roll out behind <lf-gloss id="gloss">a gate<span '
             "popover>Check every gate before expanding.</span></lf-gloss> today.</p>"
-            '<div id="info" tabindex="0"><p id="info-words">Informational marked '
+            # Room under the gloss for its explanation's preview, clear of the card.
+            + "<p>Room for the explanation.</p>"
+            * 2
+            + '<div id="info" tabindex="0"><p id="info-words">Informational marked '
             "words with facts.</p></div>"
             '<p id="prose">Plain prose with marked words in it.</p>'
             + "<p>More words.</p>"
@@ -505,3 +514,36 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
     ):
         tab_onto(page.locator(cut))
         expect(tip.locator(".lf-preview-word")).to_have_text(says)
+
+
+def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
+    """A message's markup is outlined as the page is, and an edit the log accepts
+    outlines it again: the paragraph after a heading the edit changed stands under the
+    new heading."""
+    url = serve(PANEL_PAGE)
+    thread = panel_comment(
+        serve.page_dir, "## Original heading\n\nWords after the heading."
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, thread)
+    part = """async () => {
+      const {partOver} = await import('/runtime/thread/placement.js');
+      const words = [...document.querySelectorAll('.lf-msg-body p')]
+        .find((p) => p.textContent.includes('Words after the heading'));
+      return partOver(words)?.textContent.trim() ?? null;
+    }"""
+    expect(view.locator("h2")).to_have_text("Original heading")
+    assert page.evaluate(part) == "Original heading"
+    view.locator(".lf-msg-text").dblclick()
+    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("### Changed heading")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("Words after the heading.")
+    page.keyboard.press("Enter")
+    expect(view.locator(".lf-msg-editor")).to_have_count(0)
+    expect(view.locator(".lf-edited")).to_have_text("edited")
+    told(page)
+    expect(view.locator("h3")).to_have_text("Changed heading")
+    assert page.evaluate(part) == "Changed heading"

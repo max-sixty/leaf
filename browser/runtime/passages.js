@@ -538,11 +538,12 @@ const BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
 /** @param {Element} el */
 const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // What no label can speak through, however it is marked: an inline script, the
-// stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
+// stylesheet a rendered diagram carries inside its <svg>, a slot the user's decision
+// took off the page, a native field's default-value markup, and the fallback a
+// browser running scripts never draws (<noscript>). Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
 // runtime's.
-const SILENT_TAGS = new Set(["script", "style", "textarea"]);
+const SILENT_TAGS = new Set(["script", "style", "textarea", "noscript"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // Automatic control capture uses authored words, which the file reads too, never
@@ -806,6 +807,8 @@ const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // what is assigned to it, and a declared root's host what the root holds. Native
 // `contains` stops at the first and is wrong for the second.
 export { readingUnder };
+// The values of `white-space-collapse` under which a newline in the text breaks the line.
+const BREAKS_KEPT = ["preserve", "break-spaces", "preserve-breaks"];
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -857,6 +860,15 @@ export function textNodesUnder(
   };
   let breakBefore = false;
   let lineBefore = "";
+  // Whether the words read so far end on a line break their own text draws, as a boxed
+  // code line's do (code-lines.js): a block's edge there starts no further line.
+  const lineEnded = () => {
+    const last = segments.at(-1);
+    return (
+      last?.node.data[last.end - 1] === "\n" &&
+      BREAKS_KEPT.includes(last.whiteSpace ?? "")
+    );
+  };
   const styles = new Map();
   /** @param {Element} element */
   const style = (element) => {
@@ -889,9 +901,7 @@ export function textNodesUnder(
         if (wordAfter(text, 0)) cutShort();
         return;
       }
-      const newlines =
-        breaks !== Infinity &&
-        ["preserve", "break-spaces", "preserve-breaks"].includes(whiteSpace);
+      const newlines = breaks !== Infinity && BREAKS_KEPT.includes(whiteSpace);
       if (wanted !== Infinity || newlines) {
         const marks = newlines ? /\S|\n/gu : /\S/gu;
         for (let mark; (mark = marks.exec(text));) {
@@ -929,7 +939,8 @@ export function textNodesUnder(
           if (display === "table-cell") {
             if (!entering && lineBefore !== "\n") lineBefore = "\t";
           } else if (
-            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
+            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display) &&
+            !lineEnded()
           ) {
             lineBefore = "\n";
           }

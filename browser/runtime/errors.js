@@ -25,6 +25,13 @@
    the cover at a passage's comment box over the error showing only as the leaf's
    dot, which leaves nothing saying a refused send's words have come back.
 
+   An error about no text field may offer the one press that recovers from it
+   (`press`), as a refused send whose words came back out of view offers Resume
+   writing, while that press can still act (its `stands`). The floating panel's field
+   shows it after the error's words with the keys that would make it now, as it shows a
+   notice's (field-readings.js, `end`), and the Errors list offers it beside Dismiss. A
+   text field's cover draws no press, so an error about one offers none.
+
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one.
@@ -44,6 +51,7 @@ import { announce, gesture } from "./notifications.js";
  *   id: number,
  *   message: string,
  *   subject: Element | null,
+ *   press: import("./notifications.js").NoticePress | null,
  *   at: number,
  *   revision: number | null,
  *   stack: string,
@@ -79,18 +87,24 @@ export const errorOver = (subject) =>
 
 /**
  * Tell the user something failed. `subject` is the text field it concerns, if any;
- * `announce: false` leaves the words to a producer that already says them aloud.
+ * `announce: false` leaves the words to a producer that already says them aloud;
+ * `press` is the press that recovers from an error about no field.
  * @param {string} message
- * @param {{ subject?: Element | null, announce?: boolean }} [options]
+ * @param {{ subject?: Element | null, announce?: boolean,
+ *   press?: import("./notifications.js").NoticePress | null }} [options]
  */
-export function raiseError(message, { subject = null, announce: speak = true } = {}) {
-  return raise(message, subject, speak, null);
+export function raiseError(
+  message,
+  { subject = null, announce: speak = true, press = null } = {},
+) {
+  return raise(message, subject, speak, null, press);
 }
 
 // Raise an error, taking the one `replaced` names down in the same reading, so the
 // chrome never draws the moment between them.
-/** @param {string} message @param {Element | null} subject @param {boolean} speak @param {number | null} replaced */
-function raise(message, subject, speak, replaced) {
+/** @param {string} message @param {Element | null} subject @param {boolean} speak @param {number | null} replaced
+ * @param {import("./notifications.js").NoticePress | null} [press] */
+function raise(message, subject, speak, replaced, press = null) {
   const id = ++raised;
   if (speak && !unsaid.length)
     queueMicrotask(() => {
@@ -105,6 +119,7 @@ function raise(message, subject, speak, replaced) {
       id,
       message,
       subject,
+      press,
       at: Date.now(),
       revision: untracked(() => runtime.currentRevision ?? null),
       stack,

@@ -289,7 +289,7 @@
     },
     {
       "id": "an option's chip and title may read as two words",
-      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
+      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"lf-tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
       "anchor": {
         "section": "s",
         "quote": "recommended Drop"
@@ -298,7 +298,7 @@
     },
     {
       "id": "an option's chip and title may read as one word",
-      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
+      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"lf-tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
       "anchor": {
         "section": "s",
         "quote": "recommendedDrop"

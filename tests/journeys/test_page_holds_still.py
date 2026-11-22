@@ -168,7 +168,7 @@ def thread_page(serve):
     )["id"]
     # The first two steps take a line each, so with `read` at the reading line the
     # last message starts inside the window and the reply box below it.
-    for n in range(4):
+    for n in range(3):
         user(notes, f"And then {n}?")
         append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
@@ -1546,7 +1546,7 @@ def turn(page, label):
     "Controls stay where the user aims"), so the frames from the press until it ends
     are marked `gliding` (`ARM`) and the place's check passes over them; the frame it
     ends in and every one after are held to the place."""
-    depth = page.get_by_role("radio", name=label, exact=True)
+    depth = page.get_by_role("radio", name=re.compile(rf"^{label} \d+ min$"))
     box = depth.bounding_box()
     page.evaluate("() => { window.__lfPlaceRecord.turning = true; }")
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)

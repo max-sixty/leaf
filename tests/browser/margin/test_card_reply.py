@@ -1554,13 +1554,14 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
 # macOS draws the transcript's scrollbar as an overlay, which takes no room; a styled
 # one takes room on every host, as Linux and Windows, or macOS with a mouse, draw it.
 # Chromium styles a bar with `::-webkit-scrollbar` only once the standard properties
-# are unset.
+# are unset. The sheet unsets them a type selector's weight above Leaf's thin bar, so a
+# rule Leaf states on the transcript's own state, such as hiding its bar, still wins.
 TRANSCRIPT_BAR_TAKES_ROOM = """(() => {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(`
-    .lf-margin-thread .lf-thread-transcript {
-      scrollbar-width: auto !important;
-      scrollbar-color: auto !important;
+    .lf-margin-thread .lf-thread-transcript:not(a) {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
     }
     .lf-margin-thread .lf-thread-transcript::-webkit-scrollbar { width: 11px; }`);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
@@ -2342,18 +2343,43 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
     waiting = "The answer has started. " + (
         "Additional words that wrap the ongoing answer. " * 2
     )
+    sample_frames = (
+        """() => {
+          const read = """
+        + read_positions
+        + """;
+          window.streamMotion = {active: true, frames: []};
+          const sample = () => {
+            if (!streamMotion.active) return;
+            streamMotion.frames.push(read(document.querySelector('.lf-margin-preview')));
+            requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }"""
+    )
+    sampled_frames = """() => {
+      streamMotion.active = false;
+      return streamMotion.frames;
+    }"""
+    page.evaluate(sample_frames)
     stream_reply(serve.page_dir, root, waiting)
     told(page)
     expect(streamed).to_have_text(waiting.strip())
     expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)
-    # The answer's growth may still be moving. Mid-motion its turns can overflow the
-    # transcript, whose bar rewraps them a line taller, so judge Send from the card at
-    # rest.
     page.wait_for_function(CARD_AT_REST)
     before_send = positions()
     assert before_send["reply"] == pytest.approx(writing["reply"], abs=0.5)
+    # The answer's growth moves the card's top only toward where it comes to rest. Its
+    # motion draws the turns away from where they stand, which can overflow the
+    # transcript for a moment; the transcript's bar keeps to where layout stands them,
+    # so it doesn't show and rewrap the answer a line taller meanwhile.
+    growth = page.evaluate(sampled_frames)
+    assert growth
+    for frame in growth:
+        assert frame["card"] >= before_send["card"] - 0.5, (frame, before_send)
+        assert frame["reply"] == pytest.approx(writing["reply"], abs=0.5), frame
     held = []
 
     def hold_reply(route):
@@ -2404,25 +2430,9 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
         assert after["reply"] > before["reply"] + 10, (before, after)
 
     before_stream = positions()
-    page.evaluate(
-        """() => {
-          const read = """
-        + read_positions
-        + """;
-          window.streamMotion = {active: true, frames: []};
-          const sample = () => {
-            if (!streamMotion.active) return;
-            streamMotion.frames.push(read(document.querySelector('.lf-margin-preview')));
-            requestAnimationFrame(sample);
-          };
-          requestAnimationFrame(sample);
-        }"""
-    )
+    page.evaluate(sample_frames)
     append_tokens(8)
-    frames = page.evaluate("""() => {
-      streamMotion.active = false;
-      return streamMotion.frames;
-    }""")
+    frames = page.evaluate(sampled_frames)
     assert frames
     for frame in frames:
         assert frame["card"] == pytest.approx(before_stream["card"], abs=0.5)
@@ -2631,127 +2641,6 @@ def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(
     round_trip(page)
     assert not page.evaluate("() => window.nextUnreadShown")
     expect(preview.locator(".lf-next-unread")).to_have_count(0)
-
-
-def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser, serve):
-    """The answer the user waits for, arriving past the card's capped transcript's foot,
-    says New reply there, by the floating panel's rule (thread-card.js, `#fitAnswer`). A
-    reader who read back keeps their place. One at the transcript's end keeps their turn
-    in sight above the answer, unless the two fit together, when the end shows both. A
-    press, a key on the press, or scrolling to the answer's start takes it away, and so
-    does their next turn; the press and the key show the answer's start, on the
-    thread."""
-    page, preview, transcript = open_long_thread(browser, serve)
-    thread = preview.locator(".lf-page-thread")
-    press = preview.locator(".lf-new-reply")
-    box = preview.locator(".lf-thread-reply leaf-text")
-    limit = "list => list.scrollHeight - list.clientHeight"
-    long_answer = "Someone stays on call through Sunday, and Monday too. " * 40
-
-    def turn(words):
-        box.click()
-        page.keyboard.insert_text(words)
-        with sending(page, "the turn"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        rendered(page)
-
-    def read_back():
-        transcript.hover()
-        page.mouse.wheel(0, -500)
-        page.wait_for_function(
-            "list => list.scrollTop < list.scrollHeight - list.clientHeight - 200",
-            arg=transcript.element_handle(),
-        )
-        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
-
-    def answer(words):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Claude",
-                "parent": LONG_THREAD_ROOT["id"],
-                "revision": 1,
-                "text": words,
-            },
-        )
-        told(page)
-        message = transcript.locator(".lf-msg", has_text=words[:30]).last
-        expect(message).to_be_attached()
-        rendered(page)
-        return message
-
-    turn("And the short version?")
-    answer("At the end, in a line.")
-    expect(press).to_have_count(0)
-    assert transcript.evaluate(limit) - transcript.evaluate("l => l.scrollTop") <= 2
-
-    turn("And the mobile cohort?")
-    stood = transcript.evaluate(
-        """list => {
-          window.lfScrolled = [];
-          list.addEventListener('scroll', () => lfScrolled.push(list.scrollTop));
-          return list.scrollTop;
-        }"""
-    )
-    answer("At the end: " + long_answer)
-    expect(press).to_have_text("New reply")
-    # It never goes to its end on the way, which a frame could show.
-    scrolled = transcript.evaluate("() => window.lfScrolled")
-    assert max([stood, *scrolled]) - stood < 100, (stood, scrolled)
-    asked = transcript.locator(".lf-msg", has_text="And the mobile cohort?")
-    head = asked.locator(".lf-msg-head").bounding_box()
-    words = asked.bounding_box()
-    list_box = transcript.bounding_box()
-    assert list_box["y"] <= head["y"], (list_box, head)
-    assert words["y"] + words["height"] <= press.bounding_box()["y"], (words, press)
-    assert transcript.evaluate(limit) - transcript.evaluate("l => l.scrollTop") > 100
-
-    turn("And the weekend?")
-    read_back()
-    place = transcript.evaluate("l => l.scrollTop")
-    shown = answer("By a press: " + long_answer)
-    expect(press).to_have_text("New reply")
-    assert transcript.evaluate("l => l.scrollTop") == place
-    foot = transcript.bounding_box()
-    at = press.bounding_box()
-    assert foot["y"] < at["y"] and at["y"] + at["height"] <= foot["y"] + foot["height"]
-    # A message head's height, as the thread's other actions are.
-    assert at["height"] == 28
-    press.click()
-    expect(press).to_have_count(0)
-    expect(thread).to_be_focused()
-    expect(shown.locator(".lf-msg-head")).to_be_in_viewport()
-
-    turn("And the holiday?")
-    read_back()
-    shown = answer("By a key: " + long_answer)
-    expect(press).to_have_text("New reply")
-    press.focus()
-    page.keyboard.press("Enter")
-    expect(press).to_have_count(0)
-    expect(thread).to_be_focused()
-    expect(shown.locator(".lf-msg-head")).to_be_in_viewport()
-
-    turn("And the night shift?")
-    read_back()
-    shown = answer("By scrolling: " + long_answer)
-    expect(press).to_have_text("New reply")
-    transcript.hover()
-    for _ in range(20):
-        if not press.count():
-            break
-        page.mouse.wheel(0, 120)
-        page.wait_for_timeout(30)
-    expect(press).to_have_count(0)
-
-    turn("And the next one?")
-    read_back()
-    answer("By a turn: " + long_answer)
-    expect(press).to_have_text("New reply")
-    turn("Thanks.")
-    expect(press).to_have_count(0)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

@@ -442,7 +442,10 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
     assert widget.locator(".lf-call-root-location a").all_inner_texts() == [
         f"{path}:1" for path in paths
     ]
-    widget.get_by_role("button", name="Expand all 2 call-tree roots").click()
+    # Every root stands open, so each call's link is in reach.
+    expect(
+        widget.get_by_role("button", name="Collapse all 2 call-tree roots")
+    ).to_be_visible()
     for tree in capture["trees"]:
         for node in [tree["tree"], *tree["tree"]["children"]]:
             path, number = node["file"], node["line"]
@@ -943,7 +946,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     )
     expect(root).to_be_focused()
 
-    widget.locator(".lf-call-toggle").click()
     row = widget.locator(".lf-call-location", has_text="gateway/limits.py:22")
     row.focus()
     capture(dict(second, children=list(reversed(calls))), first)
@@ -953,9 +955,9 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     ).to_have_text("├─ three()")
     expect(row).to_be_focused()
 
-    # Equal root names can share a stable call row while its group changes. The
-    # closed destination may already exist or arrive in this capture; both expose
-    # the user's focused row while a transfer without focus leaves its group closed.
+    # Equal root names can share a stable call row while its group changes. A group
+    # the user closed opens to show their focused row moving into it, while a
+    # transfer without focus leaves its group closed.
     first_work = call_node("work()", "app.py", 1)
     second_work = call_node("work()", "app.py", 20)
     third_work = call_node("work()", "app.py", 60)
@@ -964,7 +966,9 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     capture(dict(first_work, children=[unfocused, shared]), second_work, third_work)
     told(page)
     expect(groups).to_have_count(3)
-    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    for group in (groups.nth(1), groups.nth(2)):
+        group.locator(":scope > summary").click()
+        expect(group).not_to_have_attribute("open", "")
     location = widget.locator(".lf-call-location", has_text="utils.py:2")
     location.focus()
     for destination, roots in (

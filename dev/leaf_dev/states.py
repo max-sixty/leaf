@@ -156,7 +156,8 @@ def native_code_copy_hover(page: Page) -> None:
 
 
 def recorded_video(page: Page) -> None:
-    """The gallery's recording at rest under its play bar, beside the audio player."""
+    """The gallery's recording at rest under the browser's controls, beside the audio
+    player."""
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Page & layout", exact=True
     ).click()
@@ -164,7 +165,8 @@ def recorded_video(page: Page) -> None:
 
 
 def recorded_video_by_keyboard(page: Page) -> None:
-    """The recording the keyboard stands on, where Space and the arrows reach it."""
+    """The recording the keyboard stands on, where the browser's controls take its
+    keys."""
     recorded_video(page)
     page.keyboard.press("Tab")
     page.locator("#bg-recording").focus()
@@ -259,15 +261,17 @@ def paste_screenshot(page: Page, field: Locator) -> None:
     """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         # This exercises the paste handler and shelf; keep its payload local to the
-        # tab so captures cannot overwrite or race the machine's clipboard.
+        # tab so captures cannot overwrite or race the machine's clipboard. Firefox
+        # drops a constructed ClipboardEvent's `clipboardData`, so the event carries
+        # the transfer as an own property, which every engine reads.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
           const transfer = new DataTransfer();
           transfer.items.add(new File([image], 'pasted.png', {type: 'image/png'}));
-          field.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
+          const paste = new Event('paste', {bubbles: true, cancelable: true});
+          Object.defineProperty(paste, 'clipboardData', {value: transfer});
+          field.dispatchEvent(paste);
         }""")
     expect(
         page.get_by_role("button", name="Remove attached image 1", exact=True)
@@ -291,6 +295,16 @@ def page_comment_photo(page: Page) -> None:
     paste_screenshot(page, field)
 
 
+def thread_reply_photo(page: Page) -> None:
+    """An open thread in the floating panel with a screenshot pasted into its reply,
+    standing in the band the panel opens between the thread and the box."""
+    floating_thread(page)
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Here is what I see")
+    paste_screenshot(page, field)
+
+
 def page_comment_photo_hover(page: Page) -> None:
     """The panel's attached screenshot under the pointer, which shows its removal."""
     page_comment_photo(page)
@@ -298,10 +312,10 @@ def page_comment_photo_hover(page: Page) -> None:
 
 
 def panel_corner_hover(page: Page) -> None:
-    """The pointer at the panel's top-right corner, which shows its fold."""
+    """The pointer at the panel's top-left corner, which shows its fold."""
     box = page.locator(".lf-fp-card").bounding_box()
     assert box is not None
-    page.mouse.move(box["x"] + box["width"] - 24, box["y"] + 8)
+    page.mouse.move(box["x"] + 24, box["y"] + 8)
     expect(page.locator(".lf-fp-minimize")).to_be_visible()
     settle(page)
 
@@ -639,6 +653,14 @@ def motion_controls(page: Page) -> None:
 def timeline_steps(page: Page) -> None:
     """A timeline's Previous and Next beside its position, above its lanes."""
     page.locator("#race .lf-timeline-controls").scroll_into_view_if_needed()
+
+
+def timeline_step_list(page: Page) -> None:
+    """The step list under a timeline that compares two runs, one step past the
+    first, so it shows the current row between a past one and the steps ahead."""
+    page.locator("#race").get_by_role("button", name="Next").click()
+    page.mouse.move(0, 0)
+    page.locator("#race .lf-timeline-steps").scroll_into_view_if_needed()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -1388,6 +1410,14 @@ def panel_draft_kept(page: Page) -> None:
     settle(page)
 
 
+def walked_to_draft(page: Page) -> None:
+    """`t` from a page holding only a comment the user put away: the walk opens the
+    comment's box beside its paragraph, holding its words, with focus on the box."""
+    panel_draft_kept(page)
+    page.keyboard.press("t")
+    settle(page)
+
+
 def leaf_draft_kept(page: Page) -> None:
     """The panel folded to its leaf while a comment the user put away waits unsent and
     no thread has news, so the leaf wears the dot for a kept draft."""
@@ -1577,9 +1607,7 @@ def threads_drafts(page: Page) -> None:
     expect(field).to_be_focused()
     page.keyboard.type("Cite the telemetry window here.")
     page.keyboard.press("Escape")
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("t")
-    page.keyboard.press("c")
+    page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker').click()
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
     page.keyboard.type("And the support macro, before Friday.")
@@ -1774,6 +1802,11 @@ def screenshot_views_keyboard(page: Page) -> None:
         "node => node.focus({focusVisible: true})"
     )
     page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
+
+
+def page_disclosure(page: Page) -> None:
+    """A disclosure the page's author wrote, shut, under the browser's own marker."""
+    page.locator("#incident-cause-key").scroll_into_view_if_needed()
 
 
 def dial_keyboard(page: Page) -> None:
@@ -2202,7 +2235,7 @@ def gallery_plans(page: Page) -> None:
 
 
 def gallery_drawing(page: Page) -> None:
-    """The reading theme's `svg.drawing`, with each of its text classes on its shapes."""
+    """A drawing (`svg.lf-drawing`), with each of its text classes on its shapes."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
 
@@ -2399,6 +2432,30 @@ def diff_file_resolved(page: Page) -> None:
     expect(resolved).to_have_count(1)
     resolved.locator(":scope > summary").click()
     expect(resolved).to_have_attribute("open", "")
+
+
+def diff_line_threads(page: Page) -> None:
+    """Two conversations under a diff's lines, one holding an answer long enough to
+    wrap, standing as cards under their lines."""
+    diff = page.locator("#dfg-lines")
+    expect(diff.locator(".lf-page-thread")).to_have_count(2)
+    diff.evaluate("diff => diff.scrollIntoView({block: 'start'})")
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_thread_walked(page: Page) -> None:
+    """The long line conversation reached by Next thread (`t`), which rings its card
+    and brackets its line."""
+    diff_line_threads(page)
+    page.locator("#dfg-lines-guide").click()
+    thread = page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it")
+    for _ in range(3):
+        page.keyboard.press("t")
+        if thread.evaluate("t => t.hasAttribute('data-lf-focus-visible')"):
+            break
+    expect(thread).to_have_attribute("data-lf-focus-visible", "")
+    settle(page)
 
 
 def diff_line_composer(page: Page) -> None:
@@ -3110,6 +3167,7 @@ STATES = (
     State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
     State("panel-draft-kept", "lost-update", panel_draft_kept, region=".lf-fp-row"),
     State("leaf-draft-kept", "lost-update", leaf_draft_kept, region=".lf-fp-leaf"),
+    State("walked-to-draft", "lost-update", walked_to_draft),
     State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
     State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
     State(
@@ -3187,6 +3245,7 @@ STATES = (
         "feature-gallery",
         page_comment_photo_hover,
     ),
+    State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State(
         "share-link",
@@ -3270,6 +3329,12 @@ STATES = (
         activated=False,
         region="#rn-console-section",
     ),
+    State(
+        "page-disclosure",
+        "incident-report",
+        page_disclosure,
+        region="#incident-cause-key",
+    ),
     State("dial-keyboard", "incident-report", dial_keyboard, region="lf-dial"),
     State("dial-press", "incident-report", dial_press, region="lf-dial"),
     State(
@@ -3323,6 +3388,18 @@ STATES = (
         diff_file_resolved_closed,
     ),
     State("diff-file-resolved", "diff-thread-gallery", diff_file_resolved),
+    State(
+        "diff-line-threads",
+        "diff-thread-gallery",
+        diff_line_threads,
+        region="#dfg-lines",
+    ),
+    State(
+        "diff-line-thread-walked",
+        "diff-thread-gallery",
+        diff_line_thread_walked,
+        region="#dfg-lines",
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
@@ -3362,6 +3439,12 @@ STATES = (
         "lost-update",
         timeline_steps,
         region="#race .lf-timeline-controls",
+    ),
+    State(
+        "timeline-step-list",
+        "lost-update",
+        timeline_step_list,
+        region="#race .lf-timeline-steps",
     ),
     State(
         "trace-timeline-keyboard",

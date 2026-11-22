@@ -11,8 +11,8 @@ import {
  * While the changes view is on, `data-lf-toc-changed` marks a changed section. toc.css
  * draws both on the outline's rule or the contents spine; the start row's go on the
  * outline's head too, its toggle or its label, which stands where that row would where
- * the row is left out. A row's mark stands beside its link rather than in it, so it
- * still shows while the map rests with its labels faded out. The marks are aria-hidden
+ * the row is left out. On the map, the row's marker wears its marks instead, so they
+ * show while the labels rest faded out. The marks are aria-hidden
  * and take no room; what they count, threads and On Me items alike, the row's link
  * previews (`lfPreview`) in place of its name, which its face already says, and that
  * preview describes the link to a screen reader where focus lands on it. */
@@ -30,6 +30,23 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 /** @param {SectionMarks | undefined} marks */
 const markKind = (marks) =>
   marks?.onMe ? "on-me" : marks?.threads ? "thread" : nothing;
+// A section's marker on the map's spine (toc.css), which stands apart from its label so
+// the labels reveal as one layer: its depth sets its size, and its marks ring it. Lit
+// draws only those, and the widget writes a marker's place and state by its index at
+// each measure (lf-toc.js), so the markers render by position: a heading whose key
+// changes keeps its marker rather than taking an equal new one. A marker and a link
+// are drawn `data-lf-toc-shown`, which the widget takes off a section it leaves off the
+// map at each measure, so a new row shows, and its link takes focus, before the map has
+// measured it.
+/** @param {SectionMarks | undefined} marks @param {number} depth */
+const markerView = (marks, depth) =>
+  html`<span
+    class="lf-toc-marker"
+    data-lf-toc-shown
+    data-lf-depth=${depth}
+    ?data-lf-toc-changed=${Boolean(marks?.changes)}
+    data-lf-toc-mark=${markKind(marks)}
+  ></span>`;
 /** @param {SectionMarks | undefined} marks */
 const markView = (marks) =>
   markKind(marks) === nothing
@@ -98,11 +115,13 @@ export function drawToc(host, headingReading) {
     const track = host.querySelector(".lf-toc-rows");
     /** @type {HTMLElement | null} */
     const lens = host.querySelector(".lf-toc-window");
+    /** @type {HTMLElement | null} */
+    const markers = host.querySelector(".lf-toc-markers");
     const disclosure = nav?.querySelector("details");
     const summary = disclosure?.querySelector("summary");
-    if (!nav || !track || !lens || !disclosure || !summary)
+    if (!nav || !track || !lens || !markers || !disclosure || !summary)
       throw new Error("Contents did not draw its frame");
-    return { nav, track, lens, disclosure, summary };
+    return { nav, track, lens, markers, disclosure, summary };
   };
   const native = () => (frame ??= readFrame());
   return {
@@ -115,6 +134,9 @@ export function drawToc(host, headingReading) {
     },
     get lens() {
       return native().lens;
+    },
+    get markers() {
+      return native().markers;
     },
     get disclosure() {
       return native().disclosure;
@@ -138,12 +160,7 @@ export function drawToc(host, headingReading) {
       const { start, items } = outline;
       const first = marks.get(start?.heading ?? null);
       return html`
-        <nav
-          class="lf-toc-nav lf-ui"
-          data-lf-scroll
-          aria-label="On this page"
-          ${generated(false)}
-        >
+        <nav class="lf-toc-nav lf-ui" aria-label="On this page" ${generated(false)}>
           <p
             class="lf-toc-heading lf-label"
             ${generated(true)}
@@ -155,7 +172,7 @@ export function drawToc(host, headingReading) {
           </p>
           <details class="lf-toc-disclosure" ?open=${open}>
             <summary
-              class="lf-toc-toggle lf-label"
+              class="lf-toc-toggle lf-label lf-disclosure-marker"
               ${generated(true)}
               ?data-lf-toc-changed=${Boolean(first?.changes)}
               data-lf-toc-mark=${markKind(first)}
@@ -165,39 +182,50 @@ export function drawToc(host, headingReading) {
             </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
-              <div
-                class="lf-toc-start"
-                data-lf-depth="0"
-                ?data-lf-toc-changed=${Boolean(first?.changes)}
-                data-lf-toc-mark=${markKind(first)}
-              >
-                <a
-                  class="lf-toc-link"
-                  href=${href(start?.destination)}
-                  .lfPreview=${previewOf(start?.heading ?? null)}
-                  >${start?.label ?? "Top"}</a
-                >${markView(first)}
-              </div>
-              <ol>
-                ${repeat(
-                  items,
-                  ({ key }) => key,
-                  (item) => html`
-                    <li
-                      data-lf-depth=${item.depth}
-                      ?data-lf-toc-changed=${Boolean(marks.get(item.heading)?.changes)}
-                      data-lf-toc-mark=${markKind(marks.get(item.heading))}
-                    >
-                      <a
-                        class="lf-toc-link"
-                        href=${href(item.destination)}
-                        .lfPreview=${previewOf(item.heading)}
-                        >${item.label}</a
-                      >${markView(marks.get(item.heading))}
-                    </li>
-                  `,
+              <div class="lf-toc-markers" aria-hidden="true">
+                ${markerView(first, 0)}${items.map((item) =>
+                  markerView(marks.get(item.heading), item.depth),
                 )}
-              </ol>
+              </div>
+              <div class="lf-toc-labels">
+                <div
+                  class="lf-toc-start"
+                  data-lf-depth="0"
+                  ?data-lf-toc-changed=${Boolean(first?.changes)}
+                  data-lf-toc-mark=${markKind(first)}
+                >
+                  <a
+                    class="lf-toc-link"
+                    data-lf-toc-shown
+                    href=${href(start?.destination)}
+                    .lfPreview=${previewOf(start?.heading ?? null)}
+                    >${start?.label ?? "Top"}</a
+                  >${markView(first)}
+                </div>
+                <ol>
+                  ${repeat(
+                    items,
+                    ({ key }) => key,
+                    (item) => html`
+                      <li
+                        data-lf-depth=${item.depth}
+                        ?data-lf-toc-changed=${Boolean(
+                          marks.get(item.heading)?.changes,
+                        )}
+                        data-lf-toc-mark=${markKind(marks.get(item.heading))}
+                      >
+                        <a
+                          class="lf-toc-link"
+                          data-lf-toc-shown
+                          href=${href(item.destination)}
+                          .lfPreview=${previewOf(item.heading)}
+                          >${item.label}</a
+                        >${markView(marks.get(item.heading))}
+                      </li>
+                    `,
+                  )}
+                </ol>
+              </div>
             </div>
           </details>
         </nav>
@@ -212,15 +240,22 @@ export function drawToc(host, headingReading) {
       if (!list) throw new Error("Contents did not draw its outline");
       /** @type {NodeListOf<HTMLLIElement>} */
       const rows = list.querySelectorAll(":scope > li");
-      /** @param {HTMLElement | null | undefined} row */
-      const parts = (row) => {
+      /** @type {NodeListOf<HTMLElement>} */
+      const markers = host.querySelectorAll(".lf-toc-marker");
+      /** @param {HTMLElement | null | undefined} row @param {number} index */
+      const parts = (row, index) => {
         const link = row?.querySelector("a");
-        if (!row || !link) throw new Error("Contents did not draw a section link");
-        return { row, link };
+        const marker = markers.item(index);
+        if (!row || !link || !marker)
+          throw new Error("Contents did not draw a section link");
+        return { row, link, marker };
       };
       return [
-        { ...start, ...parts(startRow) },
-        ...items.map((item, index) => ({ ...item, ...parts(rows.item(index)) })),
+        { ...start, ...parts(startRow, 0) },
+        ...items.map((item, index) => ({
+          ...item,
+          ...parts(rows.item(index), index + 1),
+        })),
       ];
     },
   };

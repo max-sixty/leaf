@@ -32,13 +32,6 @@ def css_stylesheet(css: str):
     return tinycss2.parse_stylesheet(css, skip_comments=True)
 
 
-# Whether a declaration or rule a browser drops refuses its sheet (`dropped_css`):
-# "error" refuses it, "advice" reports it beside a passing check. Advice, by the
-# maintainer's decision: delivery reads such a sheet whole, so refusing it protects
-# nothing of Leaf's, and the browser forgives the author's mistake.
-DROPPED_SEVERITY = "advice"
-
-
 def dropped_css(css: str, sheet: str, *, block=False) -> tuple[Finding, ...]:
     """Each declaration or nested rule a browser drops from a sheet that delivery's
     reader reads whole (`revision_artifact._read_css`), as `css-dropped`.
@@ -50,7 +43,10 @@ def dropped_css(css: str, sheet: str, *, block=False) -> tuple[Finding, ...]:
     `p { color: red; broken; }`. Those are what this reports, so no problem is
     reported by both. A style attribute (`block`) the reader parses as its list of
     declarations, so it holds nothing more to drop. `sheet` names the sheet as its
-    author finds it: a file, the page's <style>, or one element's style attribute."""
+    author finds it: a file, the page's <style>, or one element's style attribute.
+    Advice, by the maintainer's decision: delivery reads such a sheet whole, so
+    refusing it protects nothing of Leaf's, and the browser forgives the author's
+    mistake."""
     if block:
         return ()
     errors = {}
@@ -72,7 +68,6 @@ def dropped_css(css: str, sheet: str, *, block=False) -> tuple[Finding, ...]:
                                     "column": item.source_column,
                                     "message": item.message,
                                 },
-                                severity=DROPPED_SEVERITY,
                             ),
                         )
                 walk(inner)

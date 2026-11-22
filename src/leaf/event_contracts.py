@@ -13,10 +13,8 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
-    active_summaries,
     build_threads,
     spoken_turns,
-    summary_range,
     taken_back,
     undo_error,
     unshown,
@@ -687,15 +685,6 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         return Finding("summary-endpoints", values=named)
     if start > end:
         return Finding("summary-order", values=named)
-    # The summaries in force once this one stands: those it overlaps it replaces whole.
-    candidate = {**event, "seq": events[-1]["seq"] + 1}
-    after = active_summaries([*events, candidate], {thread["id"]: thread})
-    asked = (event["from"], event["through"])
-    if (taken := summary_range(thread, after[thread["id"]], *asked)) != asked:
-        return Finding(
-            "summary-gap",
-            values={**named, "take_from": taken[0], "take_through": taken[1]},
-        )
     return None
 
 
@@ -752,9 +741,9 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
-    """A `todo` event stands on a thread, a widget that seats work, an element,
-    or the page; a `todo_end` names an open to-do; and a start names explicit agent
-    work or an owed update (`todos.todo_error`)."""
+    """A `todo` event stands on a thread, a declared widget, an element, or the page; a
+    `todo_end` names an open to-do; and a start names explicit agent work or an owed
+    update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
     if start := start_reading(event):
@@ -762,12 +751,11 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
     held = event["kind"] in {"todo", "start"}
-    workflows = readings.work.workflows if held else []
 
     def seat_error(widget: str) -> Finding | None:
         if not view.revisions:
             return Finding("not-a-widget", values={"widget": widget})
-        return widget_seat_error(readings.page(view.revisions[-1]), widget, workflows)
+        return widget_seat_error(readings.page(view.revisions[-1]), widget)
 
     def element_error(element: str) -> Finding | None:
         if (
@@ -798,13 +786,6 @@ def _publication_error(view, event: dict) -> Finding | None:
         or event["publication"] != view.publication
     ):
         return Finding("publication-owner", values=publication)
-    if event.get("revision") != view.revisions[-1] or not event[
-        "publication"
-    ].startswith(f"r{event['revision']}-"):
-        return Finding(
-            "publication-revision",
-            values={**publication, "revision": event.get("revision")},
-        )
     return None
 
 

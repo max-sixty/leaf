@@ -7,7 +7,7 @@
  * the part a widget's key names, an obligation to its own arrival region, and a
  * module's `navigateToDatum` to the part its reference names. Every route shares three
  * steps: `revealAddressed` draws the part (`revealAnchor` each part an anchor names),
- * `reveal` opens what holds it, and `clearFor` puts away a surface that would stand
+ * `reveal` opens what holds it and what takes focus, and `clearFor` puts away a surface that would stand
  * over it where it lands (floating-panel.js). Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, clearing, painting, focus and scrolling, and no route does them itself.
@@ -38,7 +38,8 @@
  */
 
 /** @typedef {{where: Element | Range, input: () => import('./drafts.js').DraftField | null,
- * open?: () => void | (() => void), present?: () => unknown, hasContent?: boolean}} EditorDestination */
+ * frame?: () => Element | null, close?: () => void, open?: () => void | (() => void),
+ * present?: () => unknown, hasContent?: boolean}} EditorDestination */
 
 import { selectEnds } from "./native-selection.js";
 import { focusElement } from "./focus.js";
@@ -99,7 +100,7 @@ export const fragmentShown = (address) =>
  * @typedef {import("./focus.js").Caret} Caret
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
  * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: Caret | null,
- * selection?: {range: Range, backward: boolean}, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
+ * selection?: {range: Range, backward: boolean} | null, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
  * @typedef {{anchors: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "placedAt">,
@@ -152,9 +153,13 @@ export function createAnchorTravel({
     if (!first || !intent()) return false;
     const holder = placeHolder(first.where);
     if (!holder) return false;
-    const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
-      reveal(target, intent),
-    );
+    // What takes focus is shown too, as a message a closed fold holds in a thread
+    // whose place the arrival lands on.
+    const disclosures = [
+      holder,
+      ...(first.focus ? [focusElement(first.focus)] : []),
+      ...(first.reveal ?? []),
+    ].map((target) => reveal(target, intent));
     const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
     const place = (complete = false) => {
       let completed = false;
@@ -174,7 +179,9 @@ export function createAnchorTravel({
         const current = resolve();
         if (!current?.where) return;
         if (complete) departure?.commit();
-        if (current.selection) {
+        // A selection the arrival names becomes the page's; `null` clears the page's.
+        if (current.selection === null) getSelection()?.removeAllRanges();
+        else if (current.selection) {
           const { range, backward } = current.selection;
           /** @type {[Node, number]} */
           const head = [range.startContainer, range.startOffset];
@@ -235,10 +242,14 @@ export function createAnchorTravel({
   // clearance, disclosure, presentation, caret and reading placement. A materializer
   // may return its keyed focus-handoff release, retired after this landing. Opening
   // supplies geometry without moving the viewport: the final arrival places editor and
-  // passage together, taking over any native smooth travel still in progress.
+  // passage together, taking over any native smooth travel still in progress. With
+  // `onFrame`, the arrival puts the user on the box the editor stands in rather than in
+  // it (`frame`), and answers with that box. Words selected elsewhere go, as focusing
+  // the editor drops them (composing/surface.js, `commentOnTarget`), so the box is
+  // where the user is and where `c` writes.
   /** @param {() => EditorDestination | null | undefined} resolve
-   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null}} options */
-  async function arriveEditor(resolve, { intent, caret }) {
+   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null, onFrame?: boolean}} options */
+  async function arriveEditor(resolve, { intent, caret, onFrame = false }) {
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
@@ -249,26 +260,27 @@ export function createAnchorTravel({
       () => {
         const current = resolve();
         if (!current) return null;
-        const input = current.input();
+        const box = onFrame ? (current.frame?.() ?? null) : current.input();
         return {
           where: current.where,
-          focus: input,
-          caret,
+          focus: box,
+          caret: onFrame ? null : caret,
+          ...(onFrame && { selection: null }),
           // The place the words are about comes into view first and the editor
           // last, so a place taller than the window, as a reviewed case is on a
           // phone, never scrolls the caret back out of it.
-          scroll: input
+          scroll: box
             ? [
                 {
                   at: current.where,
                   behavior: "instant",
                   when: () =>
                     !alreadyShown(current.where, { block: "center" }) ||
-                    !alreadyShown(input),
+                    !alreadyShown(box),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
-                { at: input, block: "nearest", behavior: "instant" },
+                { at: box, block: "nearest", behavior: "instant" },
               ]
             : [{ at: current.where, behavior: "instant" }],
         };
@@ -289,7 +301,9 @@ export function createAnchorTravel({
       },
     );
     release();
-    return mayArrive() ? (resolve()?.input() ?? null) : undefined;
+    if (!mayArrive()) return undefined;
+    const arrived = resolve();
+    return (onFrame ? arrived?.frame?.() : arrived?.input()) ?? null;
   }
 
   // Travel's departure transaction. Capture where the user is before any reveal; plan
@@ -587,11 +601,13 @@ export function createAnchorTravel({
     return { where, focus: target, scroll };
   };
 
+  // `departure` is the route's, read where the user stood before the route changed
+  // anything (thread/destination.js), or null for an arrival that adds no entry.
   /** @param {string} id
-   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, history?: boolean}} [options] */
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null}} options */
   async function scrollToThread(
     id,
-    { part = null, focus = true, presented = null, intent, history = true } = {},
+    { part = null, focus = true, presented = null, intent, departure },
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
@@ -602,7 +618,6 @@ export function createAnchorTravel({
     const destination = threadDestination(id);
     // Decided before the navigation step awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
-    const departure = history ? prepareNavigationStep() : null;
     if (destination || hydrationTarget) departure?.plan(destination);
     if (hydrationTarget) {
       const source = sectionOf(hydrationTarget);

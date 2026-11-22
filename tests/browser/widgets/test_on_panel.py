@@ -376,19 +376,26 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On Me's tabs name its view, so the first starts its controls, where another
-    view's way back stands, rather than standing among the presses at their end; no
-    name bar stands over the view, the heading naming it to assistive tech alone. The
-    strip holding the tabs reaches past them for their focus ring, so the tab is read."""
+    """On Me's tabs name its view, so the first starts its controls' line, its words on
+    the panel's text line and its frame on the field's edge, rather than standing among
+    the presses at their end; no name bar stands over the view, the heading naming it to
+    assistive tech alone. The strip holding the tabs reaches past them for their focus
+    ring, so the tab is read."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     resized(page, 1440, 900)
     open_on_me(page)
-    start, tabs = page.locator(".lf-fp-controls").evaluate(
-        """c => [c.getBoundingClientRect().left
-            + parseFloat(getComputedStyle(c).paddingLeft),
-          c.querySelector('.lf-fp-filters > .lf-fp-tab').getBoundingClientRect().left]"""
+    start, words, frame, field = page.locator(".lf-floating-panel").evaluate(
+        """p => {
+          const c = p.querySelector('.lf-fp-controls');
+          const tab = c.querySelector('.lf-fp-filters > .lf-fp-tab');
+          return [c.getBoundingClientRect().left + parseFloat(getComputedStyle(c).paddingLeft),
+            tab.querySelector('.lf-fp-tab-words').getBoundingClientRect().left,
+            tab.getBoundingClientRect().left,
+            p.querySelector('.lf-fp-field').getBoundingClientRect().left];
+        }"""
     )
-    assert tabs == start, (tabs, start)
+    assert words == start, (words, start)
+    assert frame == field, (frame, field)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
@@ -799,9 +806,9 @@ CARD_OPTIONS_PAGE = leaf_page(
     """<h1 id="title">Sidebar</h1>
 <lf-group id="stick-ask" label="How should a long sidebar stick?"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
-  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small> <strong>Wrap the blocks in one box</strong>
+  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="lf-tag">two days</small> <strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
-    <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
+    <svg class="lf-drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
   <lf-option id="stick-aside" label="Stick the aside itself"><strong>Stick the aside itself</strong> It covers the
     footer.</lf-option>
   <lf-option id="stick-rule" label="Keep the one-block rule">    <strong>Keep the one-block rule</strong> <p>Authors keep writing one block.</p></lf-option>

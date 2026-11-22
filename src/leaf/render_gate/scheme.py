@@ -177,7 +177,7 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     ):
         return None
     if message.type == "warning" and warnings:
-        return Finding("console-warning", values=said, severity="advice")
+        return Finding("console-warning", values=said)
     if message.type != "error":
         return None
     return Finding("console-error", values=said)
@@ -263,6 +263,10 @@ def _render_page(
         (resize_notices if problem.code == "resize-loop" else errors).append(problem)
 
     def ended(found, notices=(), complete=False):
+        # An attempt that stops early says why with a finding that fails the check or
+        # leaves the page unread, which `render_version` keeps in place of a notice it
+        # can't confirm.
+        assert complete or any(f.refuses or f.unread for f in found), found
         close_render_page(page)
         return list(found), list(notices), complete
 
@@ -351,7 +355,7 @@ def _render_page(
         # The first line only: the rest is playwright's call log, which says
         # nothing about the page that a reader of this failure needs.
         stopped = Finding("server-stopped", values={"error": str(e).splitlines()[0]})
-        return ended([*errors, *resize_notices, stopped])
+        return ended([*errors, stopped])
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,

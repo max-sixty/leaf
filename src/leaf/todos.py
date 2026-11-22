@@ -49,8 +49,7 @@ decided this. Letting only the session that last started a to-do end it would
 make another session start the to-do first, a step that protects nothing.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget that declares `work` or holds an unsettled action
-(`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
+widget the newest revision declares (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
@@ -290,11 +289,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled `title` on what `subject` names: a page widget, thread,
     any other element of the page by its id, or `page` for the page as a whole; the
     record. A thread attachment supplies discussion context without making a reply
-    complete the task."""
+    complete the task. A long title is fitted (`thread.agent_title`)."""
     from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
+    from .thread import agent_title
     from .work import page_element, page_subject
 
     @contract_writer
@@ -318,7 +318,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
                 )
             record, _ = append_admitted(
                 page,
-                {"kind": "todo", "author": "agent", "subject": named, "title": title},
+                {
+                    "kind": "todo",
+                    "author": "agent",
+                    "subject": named,
+                    "title": agent_title(title),
+                },
             )
             return record
 

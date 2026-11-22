@@ -1035,7 +1035,7 @@ def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator(".lf-live")).to_contain_text("Draft kept — g i resumes writing")
+    expect(page.locator(".lf-live")).to_contain_text("Draft kept")
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(field).to_be_focused()

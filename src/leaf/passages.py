@@ -297,10 +297,11 @@ TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
 # (`$passages.why-closing-and-opening`).
 CLOSING = frozenset(kernel_passages()["closing"])
 OPENING = frozenset(kernel_passages()["opening"])
-# Text no anchor can reach: executable/style content and native field defaults.
-# head is outside the browser's tree altogether, which starts at document.body —
-# without it a page's <title> would be quotable and land nowhere.
-UNQUOTABLE_TAGS = {"script", "style", "head", "textarea"}
+# Text no anchor can reach: executable/style content, native field defaults, and the
+# fallback a browser running Leaf's scripts never draws (`noscript`). head is outside
+# the browser's tree altogether, which starts at document.body — without it a page's
+# <title> would be quotable and land nowhere.
+UNQUOTABLE_TAGS = {"script", "style", "head", "textarea", "noscript"}
 
 
 class _PassageParser:

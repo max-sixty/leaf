@@ -7,16 +7,17 @@ import { sectionMarks } from "./toc-marks.js";
  * whenever the document's headings change, and measures and moves the map.
  *
  * In a track beside the body too narrow for words, a document's sidebar narrowed to
- * the map's spine, the
- * outline becomes a reading map. Each row receives the length of the section it leads
- * as its flex share, so the quiet spine describes the document before its labels
- * appear over the page. Crowded destinations are fitted together just enough for
- * their labels to remain distinct; destination marker, label, and viewport lens all
- * use that one fitted scale. A marker's center is its coordinate; its label's first line
- * is centered there too, and the viewport lens reads those same coordinates. The first
+ * the map's spine, the outline becomes a reading map. Each section's marker stands at
+ * its section's place on the document's scale, so the quiet spine describes the
+ * document before its labels appear over the page. Crowded destinations are fitted
+ * together just enough for their labels to remain distinct; destination marker, label,
+ * and viewport lens all use that one fitted scale, and a route too long for its labels
+ * leaves its deepest levels off the map (`#fitLabels`). A marker's center is its
+ * coordinate; its label's first line is centered there too, and the viewport lens reads
+ * those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
- * the document's origin to make room for type. The map ends inside main's trailing
- * padding. The labels keep their measure while faded out, so revealing them neither
+ * the document's origin to make room for type. The map fills its stuck track
+ * (toc.css). The labels keep their measure while faded out, so revealing them neither
  * moves the map nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
@@ -39,8 +40,6 @@ import { sectionMarks } from "./toc-marks.js";
  * summary, the disclosure opens semantically and temporarily remembers that choice.
  * Returning to flow restores it, unless a focused link needs to remain reachable.
  * Keyed revisions keep the same disclosure and links.
- * Fitting the map into a scrollable outline preserves its reading position, except
- * when a viewport change would put the focused link outside the outline's window.
  *
  * Each row also marks where the page's open threads, its On Me items and, while the
  * changes view is on, its changes stand (toc-marks.js), and its link previews how many
@@ -75,7 +74,6 @@ import {
   readObligations,
   readThreads,
   scrollerFor,
-  scrollIntoView,
   scrollLimit,
   sizeObserver,
   whileConnected,
@@ -96,7 +94,10 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, { label: named, chrome: inChrome }));
+      return (this.#drawingOwner ??= drawToc(this, {
+        label: named,
+        chrome: inChrome,
+      }));
     }
     get #nav() {
       return this.#drawing.nav;
@@ -112,24 +113,28 @@ customElements.define(
     #lensInputs = "";
     /** @type {ReturnType<ReturnType<typeof drawToc>["sections"]>} */
     #sections = [];
+    // `shown`: whether the row stands on the map, its heading shown and its section not
+    // left out for room.
     /** @typedef {{section: ReturnType<ReturnType<typeof drawToc>["sections"]>[number], position: number, shown: boolean, mapPosition?: number}} MeasuredSection */
     /** @type {MeasuredSection[]} */
     #measured = [];
+    // The headings of the sections off the map, their heading hidden or no room left
+    // for them (`#fitLabels`); empty where the outline isn't a map.
+    /** @type {Set<Element | null>} */
+    #offMap = new Set();
     #mapHeight = 1;
     #contentStart = 0;
     #contentEnd = 1;
     /** @type {HTMLAnchorElement | null} */
     #currentLink = null;
+    /** @type {HTMLElement | null} */
+    #currentMarker = null;
     /** @type {Element | null} */
     #scroller = null;
     /** @type {(() => void) | undefined} */
     #stopWatching;
     /** @type {{watching: ResizeObserver, renamed: MutationObserver} | null} */
     #observers = null;
-    #navHeight = 0;
-    /** @type {Element | null} */
-    #focusedLink = null;
-    #focusedVisible = false;
     /** @type {boolean | undefined} */
     #flowOpen;
 
@@ -138,11 +143,6 @@ customElements.define(
       this.#measure();
     };
     #onPresentation = () => this.#measure();
-    #onNavScroll = () => {
-      // A resize may clamp scrollTop before the measurement that restores focus.
-      if (this.#nav.getBoundingClientRect().height === this.#navHeight)
-        this.#rememberFocus();
-    };
 
     connectedCallback() {
       super.connectedCallback();
@@ -187,13 +187,18 @@ customElements.define(
 
     // The drawing as it stands with each section's marks, read again whenever the page's
     // threads, the obligations waiting on the user or the version comparison change
-    // (toc-marks.js), and not for a scroll, a resize or a pointer. It draws the outline
-    // `#reconcile` last read, in the same nodes.
+    // (toc-marks.js), or other sections leave the map, and not for a scroll or a
+    // pointer. A section off the map starts no stretch, so its marks count in the row
+    // above it, as a heading past `max-level` does. It draws the outline `#reconcile`
+    // last read, in the same nodes.
     render() {
       const main = this.#main;
+      const standing = this.#sections.filter(
+        (section) => !this.#offMap.has(section.heading),
+      );
       this.#drawing.mark(
         main
-          ? sectionMarks(main, this.#sections, {
+          ? sectionMarks(main, standing, {
               threads: readThreads().threads,
               onMe: obligationsIn(main, readObligations().user),
               changes: comparisonChanges(main),
@@ -240,8 +245,6 @@ customElements.define(
       this.#observeDestinations();
       const passive = { passive: true, signal };
       scrollSource.addEventListener("scroll", this.#schedulePaint, passive);
-      this.#nav.addEventListener("scroll", this.#onNavScroll, passive);
-      this.#nav.addEventListener("focusin", () => this.#rememberFocus(), { signal });
       for (const type of ["toggle", "load"])
         this.#main.addEventListener(type, this.#scheduleMeasure, {
           capture: true,
@@ -251,7 +254,9 @@ customElements.define(
       document.addEventListener(PRESENTATION, this.#onPresentation, { signal });
       document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
-      matchMedia("print").addEventListener("change", this.#onPresentation, { signal });
+      matchMedia("print").addEventListener("change", this.#onPresentation, {
+        signal,
+      });
       this.#scheduleMeasure();
       return () => {
         watching.disconnect();
@@ -306,131 +311,168 @@ customElements.define(
           parseFloat(getComputedStyle(main).paddingBottom),
         previous + 1,
       );
-      this.#measured.forEach((measured, index) => {
-        const { row } = measured.section;
-        row.toggleAttribute("data-lf-toc-hidden", !measured.shown);
-        const next =
-          this.#measured.find((other, at) => at > index && other.shown)?.position ??
-          this.#contentEnd;
-        row.style.setProperty(
-          "--lf-toc-span",
-          measured.shown ? String(Math.max(1, next - measured.position)) : "0",
-        );
-      });
       this.#fitRows();
-      this.#rememberFocus();
       this.#lensInputs = "";
       this.#paint();
     }
 
-    // A row's shift moves its label and dot (a transform and an inset), never the row, so
-    // the rows are measured where they stand and each shift is written once, as fitted.
+    // Each fitted row's place on the map, written once on its label and its marker, and
+    // its marker's stretch of the spine, from it to the next marker or the map's end, on
+    // the scale the lens shares, where a changed section is drawn (toc.css).
     #fitRows() {
       for (const measured of this.#measured) delete measured.mapPosition;
-      const shifts = this.#fitLabels();
-      for (const measured of this.#measured) {
-        const shift = shifts.get(measured);
-        if (shift !== undefined)
-          measured.section.row.style.setProperty("--lf-toc-row-shift", `${shift}px`);
-        else measured.section.row.style.removeProperty("--lf-toc-row-shift");
+      const offMap = this.#fitLabels();
+      if (
+        offMap.size !== this.#offMap.size ||
+        [...offMap].some((heading) => !this.#offMap.has(heading))
+      ) {
+        this.#offMap = offMap;
+        this.requestUpdate();
       }
-      // Each fitted row's stretch of the spine, from its marker to the next one's or the
-      // map's end, on the scale its marker and the lens share, where a changed section
-      // is drawn (toc.css).
       let next = this.#mapHeight;
       for (const measured of this.#measured.toReversed()) {
-        const { row } = measured.section;
+        const { row, link, marker } = measured.section;
         const at = measured.mapPosition;
-        if (at === undefined) row.style.removeProperty("--lf-toc-reach");
-        else {
-          row.style.setProperty("--lf-toc-reach", `${Math.max(0, next - at)}px`);
+        // A section off the map keeps its label's measure, hidden (toc.css), so the
+        // next fit reads it as it reads the rest.
+        for (const node of [link, marker])
+          node.toggleAttribute("data-lf-toc-shown", measured.shown);
+        if (at === undefined) {
+          for (const node of [row, marker]) node.style.removeProperty("--lf-toc-at");
+          marker.style.removeProperty("--lf-toc-reach");
+        } else {
+          for (const node of [row, marker])
+            node.style.setProperty("--lf-toc-at", `${at}px`);
+          marker.style.setProperty("--lf-toc-reach", `${Math.max(0, next - at)}px`);
           next = at;
         }
       }
     }
 
-    #rememberFocus() {
-      const viewport = this.#nav.getBoundingClientRect();
-      const active = focused(document);
-      const shown =
-        active && this.#nav.contains(active) ? active.getBoundingClientRect() : null;
-      this.#navHeight = viewport.height;
-      this.#focusedLink = active;
-      this.#focusedVisible =
-        !!shown && shown.top >= viewport.top - 1 && shown.bottom <= viewport.bottom + 1;
-    }
-
-    // Each fitted row's shift, by section index.
+    // Sets the place on the map, `mapPosition`, of each row that stands on it, and
+    // returns the headings of the sections off the map. A row's place is its section's
+    // place on the document's scale, moved just enough to keep the labels distinct.
+    // Labels that don't fit down the track at full size take a line each in a smaller
+    // face. Where they don't fit even so, the deepest level of sections leaves the map,
+    // then the next, each level trying both sizes again, until the rest fit; where even
+    // the top level doesn't, as many of its sections stay as fit, spread evenly from
+    // its first to its last. A section left out for room is off the map as one whose
+    // heading is hidden is, so the current section is the nearest one above it on the
+    // map, and its marks count in that row (`render`). The user chose this for a long
+    // route over a list of every label scrolling over the map, at rest or following the
+    // pointer, and over labels for the levels that fit with the other sections' labels
+    // shown on hover: each kept every section on the map but showed its labels a
+    // second way.
+    /** @returns {Set<Element | null>} */
     #fitLabels() {
-      /** @type {Map<MeasuredSection, number>} */
-      const shifts = new Map();
       this.removeAttribute("data-lf-compact");
-      this.removeAttribute("data-lf-outline");
-      if (getComputedStyle(this.#rows).display !== "flex") return shifts;
+      if (getComputedStyle(this.#drawing.markers).display === "none") return new Set();
+      const offMap = () =>
+        new Set(
+          this.#measured
+            .filter((measured) => !measured.shown)
+            .map((measured) => measured.section.heading),
+        );
       const track = this.#rows.getBoundingClientRect();
       this.#mapHeight = track.height;
+      const shown = this.#measured.filter((measured) => measured.shown);
+      if (!shown.length) return offMap();
+      const scale = track.height / Math.max(1, this.#contentEnd - this.#contentStart);
+      const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
+      const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
 
-      const readLabels = () => {
-        const labels = this.#measured.flatMap((measured) => {
-          const { row, link } = measured.section;
-          return measured.shown
-            ? [
-                {
-                  measured,
-                  ideal: row.getBoundingClientRect().top - track.top,
-                  height: link.getBoundingClientRect().height,
-                  center: parseFloat(getComputedStyle(link).lineHeight) / 2,
-                },
-              ]
-            : [];
-        });
-        const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
-        const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
-        const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
-        const firstCenter = labels[0]?.center ?? 0;
-        const availableHeight = track.height + firstCenter;
-        const availableGap =
-          labels.length > 1 ? (availableHeight - labelHeight) / (labels.length - 1) : 0;
-        return {
-          labels,
-          labelHeight,
-          firstCenter,
-          availableHeight,
-          preferredGap,
-          gap: Math.max(0, Math.min(preferredGap, availableGap)),
-        };
+      // Each label's height and the middle of its first line in the size the map shows.
+      // A label wraps by its own words alone, so one reading of each size serves every
+      // set of rows.
+      /** @param {MeasuredSection} measured */
+      const sizeOf = ({ section: { link } }) => ({
+        height: link.getBoundingClientRect().height,
+        center: parseFloat(getComputedStyle(link).lineHeight) / 2,
+      });
+      const rows = shown.map((measured) => {
+        const full = sizeOf(measured);
+        return { measured, full, compact: full };
+      });
+      let compactRead = false;
+      // Whether these rows' labels fit down the track: at full size with the preferred
+      // gap between them, or a line each with whatever gap is left.
+      /** @param {typeof rows} kept @param {"full" | "compact"} size */
+      const fits = (kept, size) => {
+        const gap = size === "full" ? preferredGap : 0;
+        const height = kept.reduce((sum, row) => sum + row[size].height + gap, -gap);
+        return height <= track.height + (kept[0]?.[size].center ?? 0) + 1;
       };
-
-      let layout = readLabels();
-      if (!layout.labels.length) return shifts;
-      if (
-        layout.labelHeight +
-          layout.preferredGap * Math.max(0, layout.labels.length - 1) >
-        layout.availableHeight + 1
-      ) {
-        this.setAttribute("data-lf-compact", "");
-        layout = readLabels();
+      /** @param {typeof rows} kept @returns {"full" | "compact" | undefined} */
+      const sized = (kept) => {
+        if (fits(kept, "full")) return "full";
+        if (!compactRead) {
+          this.setAttribute("data-lf-compact", "");
+          for (const row of rows) row.compact = sizeOf(row.measured);
+          compactRead = true;
+        }
+        return fits(kept, "compact") ? "compact" : undefined;
+      };
+      const depth = (/** @type {typeof rows[number]} */ { measured: { section } }) =>
+        "depth" in section ? section.depth : 0;
+      const levels = [...new Set(rows.map(depth))].sort((a, b) => b - a);
+      let kept = rows;
+      let size = sized(kept);
+      for (const level of levels.slice(1)) {
+        if (size) break;
+        kept = rows.filter((row) => depth(row) <= level);
+        size = sized(kept);
       }
-      if (layout.labelHeight > layout.availableHeight + 1) {
-        this.removeAttribute("data-lf-compact");
-        this.setAttribute("data-lf-outline", "");
-        if (
-          currentLocationIn(this.#nav) &&
-          this.#focusedLink === focused(document) &&
-          this.#focusedVisible &&
-          this.#nav.getBoundingClientRect().height < this.#navHeight - 1
-        )
-          scrollIntoView(this.#focusedLink, { block: "nearest", within: this.#nav });
-        return shifts;
+      if (!size) {
+        const top = kept;
+        // `count` of the top level's sections, spread evenly from its first to its last.
+        /** @param {number} count */
+        const spread = (count) => {
+          const picked = new Set(
+            Array.from({ length: count }, (_, index) =>
+              Math.round((index * (top.length - 1)) / Math.max(1, count - 1)),
+            ),
+          );
+          return top.filter((_, index) => picked.has(index));
+        };
+        // The most that fit, found by halving: the first and last stay whatever the room.
+        let fit = Math.min(2, top.length);
+        let over = top.length;
+        while (over - fit > 1) {
+          const count = Math.floor((fit + over) / 2);
+          if (sized(spread(count))) fit = count;
+          else over = count;
+        }
+        kept = spread(fit);
+        size = sized(kept) ?? "compact";
       }
+      this.toggleAttribute("data-lf-compact", size === "compact");
+      const standing = new Set(kept);
+      for (const row of rows) if (!standing.has(row)) row.measured.shown = false;
+      const placing = kept.map((row) => ({
+        measured: row.measured,
+        ideal: (row.measured.position - this.#contentStart) * scale,
+        ...row[size],
+      }));
+      const labelHeight = placing.reduce((sum, label) => sum + label.height, 0);
+      const firstCenter = placing[0]?.center ?? 0;
+      const gap =
+        placing.length > 1
+          ? Math.max(
+              0,
+              Math.min(
+                preferredGap,
+                (track.height + firstCenter - labelHeight) / (placing.length - 1),
+              ),
+            )
+          : 0;
 
       let prefix = 0;
-      const labels = layout.labels.map((label) => {
+      const labels = placing.map((label) => {
         const placed = { ...label, prefix };
-        prefix += label.height + layout.gap;
+        prefix += label.height + gap;
         return placed;
       });
-      const occupiedHeight = Math.max(0, prefix - layout.gap);
+      const occupiedHeight = Math.max(0, prefix - gap);
       // Pool adjacent labels that overlap into one weighted block. Each block
       // retains its labels directly, so fitting needs no parallel index ranges.
       /** @type {{labels: typeof labels, top: number, count: number}[]} */
@@ -455,17 +497,14 @@ customElements.define(
         blocks.push(block);
       }
 
-      const floor = -layout.firstCenter;
+      const floor = -firstCenter;
       const ceiling = track.height - occupiedHeight;
       for (const block of blocks) {
         const top = Math.max(floor, Math.min(ceiling, block.top));
-        for (const label of block.labels) {
-          const fitted = top + label.prefix + label.center;
-          label.measured.mapPosition = fitted;
-          shifts.set(label.measured, fitted - label.ideal);
-        }
+        for (const label of block.labels)
+          label.measured.mapPosition = top + label.prefix + label.center;
       }
-      return shifts;
+      return offMap();
     }
 
     /** @param {number} position */
@@ -529,7 +568,9 @@ customElements.define(
       let current = this.#measured.find((measured) => measured.shown);
       if (!current) {
         this.#currentLink?.removeAttribute("aria-current");
+        this.#currentMarker?.removeAttribute("data-lf-current");
         this.#currentLink = null;
+        this.#currentMarker = null;
         this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;
         this.#lensInputs = "";
@@ -549,11 +590,19 @@ customElements.define(
       for (const measured of this.#measured)
         if (measured.shown && (end || measured.position <= threshold))
           current = measured;
-      const link = current.section.link;
-      if (link === this.#currentLink) return;
-      this.#currentLink?.removeAttribute("aria-current");
-      link.setAttribute("aria-current", "location");
-      this.#currentLink = link;
+      // A revision can give the current section a new link and keep its marker, which
+      // the markers' positional rendering reuses (toc-view.js).
+      const { link, marker } = current.section;
+      if (link !== this.#currentLink) {
+        this.#currentLink?.removeAttribute("aria-current");
+        link.setAttribute("aria-current", "location");
+        this.#currentLink = link;
+      }
+      if (marker !== this.#currentMarker) {
+        this.#currentMarker?.removeAttribute("data-lf-current");
+        marker.setAttribute("data-lf-current", "");
+        this.#currentMarker = marker;
+      }
     }
 
     // Keyframes are set again only when a measure has moved the map, or the scroller's

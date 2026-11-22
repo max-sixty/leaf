@@ -879,12 +879,16 @@ function readFocusEvent(event) {
 // keyboard had put them on the panel before the press. The caret stays where they
 // pressed, and walks and the reading keys start from it (reading-regions.js). To comment
 // on the panel, the user steps onto it with the keyboard.
-// DOM focus stays on the panel until the press is released, since Chromium ends a drag's
-// selection when focus moves during it. Until then every reading of where the user is,
-// holds included, reads where the press will land, and no reader hears the panel. A tap
-// focuses at its click, after its release, and lands a task later, since Chromium drops
-// the tap's caret when focus moves while it focuses. A placement or a key that moves the
-// user during the press takes over from it.
+// DOM focus stays on the panel until the press is released. Moved inside the press's own
+// focus event, focus ends the drag selection the press starts in Chromium and WebKit; a
+// task later every engine keeps it, but Chromium can deliver a quick click's release
+// before that task, and the press's other ends read DOM focus at the release, as the
+// comment bar does as it stands down (composing/surface.js), so the pass runs first of
+// them. Until then every reading of where the user is, holds included, reads where the
+// press will land, and no reader hears the panel. A tap focuses at its click, after its
+// release, and lands a task later, since Chromium drops the tap's caret when focus moves
+// while it focuses. A placement or a key that moves the user during the press takes over
+// from it.
 // Rejected: keeping the panel as where the user is. A panel holds most of a page that
 // has one, so a press almost anywhere made `c` comment on the whole panel, with no ring
 // to show it. Rejected too: passing on the stop reach.js lends an overflowing box in the
@@ -1261,17 +1265,38 @@ onUserInput((event) => {
 // both ends' paths. Every surface that goes on a press elsewhere goes by this, rather
 // than by a listener of its own on `pointerdown`, `mousedown` or `click`, each of which
 // judged a different press. A surface decides for itself whether a press a pointer
-// mode claims, a stroke or a capture, is one away from it.
+// mode claims, a stroke or a capture, is one away from it. A control standing in for a
+// place elsewhere (`standsFor`), as the beacon stands for the comment box it points at
+// (annotation-overlay/writing-beacon.js), is pressed at that place: its path is the
+// place's, so pressing it puts away nothing a press in the place would keep.
+/** @type {WeakMap<Element, () => Element | null>} */
+const standIns = new WeakMap();
+/** @param {Element} control @param {() => Element | null} place */
+export const standsFor = (control, place) => {
+  standIns.set(control, place);
+};
+/** @param {EventTarget[]} path @returns {EventTarget[]} */
+const pressedAt = (path) => {
+  const control = path.find((node) => node instanceof Element && standIns.has(node));
+  const place = control instanceof Element ? standIns.get(control)?.() : null;
+  if (!place) return path;
+  /** @type {EventTarget[]} */
+  const at = [];
+  for (let node = /** @type {Node | null} */ (place); node; node = renderedParent(node))
+    at.push(node);
+  return [...at, document, window];
+};
 /** @param {(path: EventTarget[]) => boolean} away @param {(path: EventTarget[], from: EventTarget[]) => void} dismiss */
 export const onPressAway = (away, dismiss) =>
-  onPress((start, from) =>
-    start.button === 0 && away(from)
+  onPress((start, begun) => {
+    const from = pressedAt(begun);
+    return start.button === 0 && away(from)
       ? (end, completed) => {
-          const path = end.composedPath();
+          const path = pressedAt(end.composedPath());
           if (completed && away(path)) dismiss(path, from);
         }
-      : null,
-  );
+      : null;
+  });
 addEventListener(
   "pointerdown",
   (event) => {
@@ -1848,6 +1873,15 @@ export const onLetGo = (read) => {
 /** @param {Element | null} [from] */
 export function letGo(from = focused()) {
   letGoes++;
+  landAtReading(from);
+  if (from && from !== document.body) for (const read of letGoReaders) read(from);
+}
+// The landing alone: the user at nothing, with Tab starting from the block read on
+// screen beside `from`, as a move, so no hold takes the node they left for a place a
+// change dropped them from. A return to a working place lands so where it puts focus
+// nowhere (history.js, `returnPlace`).
+/** @param {Element | null} [from] */
+export function landAtReading(from = null) {
   const held = /** @type {HTMLElement | null} */ (focused());
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
@@ -1857,7 +1891,6 @@ export function letGo(from = focused()) {
   }
   // A page an open modal holds inert takes no focus, so the landing above moved nothing.
   held?.blur();
-  if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,

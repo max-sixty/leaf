@@ -109,20 +109,21 @@ def cmd_init(
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
             return {"page": str(page_dir), "changed": plan.changed}
-        if unready := _unready(
-            page_dir, _reinit(page_dir, selected, harness, theme=theme)
-        ):
+        errors, advice = _reinit(page_dir, selected, harness, theme=theme)
+        if unready := _unready(page_dir, errors):
             note(unready)
     else:
         if dry_run:
             raise Refused(f"{page_dir} is not initialized")
         with restarting_server(page_dir, harness), page_locked(page_dir):
             try:
-                _init_page(page_dir, selected, theme=theme)
+                _, advice = _init_page(page_dir, selected, theme=theme)
             except BaseException:
                 if made and not any(page_dir.iterdir()):
                     page_dir.rmdir()
                 raise
+    # What the selected packages advise their authors, who chose them here.
+    note(*advice)
     if harness is not None:
         _deliver_from_here(page_dir, harness)
     return {"page": str(page_dir)}
@@ -204,7 +205,7 @@ def renew_layer(
     if not renewable():
         return None
     try:
-        errors = _reinit(page_dir, None, harness, renewable)
+        errors, _ = _reinit(page_dir, None, harness, renewable)
     except Refused as error:
         return Finding(
             "renewal-refused", values={"page": str(page_dir), "error": str(error)}
@@ -221,18 +222,19 @@ def _reinit(
     still: Callable[[], bool] = lambda: True,
     *,
     theme: ThemeChoice = None,
-) -> list[Finding]:
+) -> tuple[list[Finding], tuple[Finding, ...]]:
     """Rewrite an initialized page's layer record inside a restart of its service,
     returning the errors that keep its index.html from activating under the new
-    layer. Everything that can refuse is decided first, with the page still served,
-    and an unchanged record restarts nothing (`cmd_init`). `still` says, under each
-    lock, whether the rewrite is still wanted."""
+    layer, and what its packages advise (`_PagePlan`). Everything that can refuse is
+    decided first, with the page still served, and an unchanged record restarts
+    nothing (`cmd_init`). `still` says, under each lock, whether the rewrite is still
+    wanted."""
     with page_locked(page_dir):
         if not still():
-            return []
+            return [], ()
         plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
     if not plan.changed:
-        return []
+        return [], plan.advice
     with restarting_server(page_dir, harness), page_locked(page_dir):
         return _init_page(page_dir, selected, still, theme=theme)
 
@@ -279,10 +281,11 @@ def _init_page(
     still: Callable[[], bool] = lambda: True,
     *,
     theme: ThemeChoice = None,
-) -> list[Finding]:
+) -> tuple[list[Finding], tuple[Finding, ...]]:
     """Start or re-select the page under its lock and its service's restart, and
-    return what keeps a re-selected index.html from activating; a re-selection
-    `still` no longer wants under the transaction commits nothing."""
+    return what keeps a re-selected index.html from activating, with what its
+    packages advise (`_PagePlan`); a re-selection `still` no longer wants under the
+    transaction commits nothing."""
     from .revisioning import activate_checked_source
     from .validation.source import check_source
 
@@ -303,32 +306,35 @@ def _init_page(
         remove_claim(claim_path(page_dir))
         _write_record(page_dir, plan)
         start_log(page_dir)
-        return []
+        return [], plan.advice
     # The page lock serializes this operation with other inits; an existing
     # page also has its ordinary transaction, which gives the record one order
     # against every browser append. No path takes the page transaction and then
     # the page lock, so this order cannot invert.
     with PageTransaction(page_dir) as page:
         if not still():
-            return []
+            return [], ()
         plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
         if not plan.changed:
-            return []
+            return [], plan.advice
         _write_record(page_dir, plan)
         checked = check_source(page_dir, page.events)
         if checked.revision.active:
             activate_checked_source(page, checked)
-        return checked.errors
+        return checked.errors, plan.advice
 
 
 class _PagePlan(NamedTuple):
     """An admitted init, decided before anything is written: the record it writes,
-    the package directories it copies into the page, by the name of each copy, and
-    whether either differs from the page's."""
+    the package directories it copies into the page, by the name of each copy,
+    whether either differs from the page's, and what the selected packages advise
+    their authors of their own declarations (`validation.composition.layer_advice`),
+    which `page init` says beside the page."""
 
     record: dict
     copies: dict[str, Path]
     changed: bool
+    advice: tuple[Finding, ...]
 
 
 def _plan_page(
@@ -364,7 +370,11 @@ def _plan_page(
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
-    compose_layer(roots)
+    composition = compose_layer(roots)
+    from .validation.composition import layer_advice
+
+    # Named by the packages the selection names, before any copy into the page.
+    advice = tuple(layer_advice(roots, composition.vocabulary.registry))
     copies = _copies(selected) if named else {}
     record = _record(
         tuple(
@@ -381,7 +391,7 @@ def _plan_page(
     ):
         # A copy's new bytes change what an open document runs under.
         record = {**record, "generation": secrets.token_hex(16)}
-    return _PagePlan(record, copied, record != previous)
+    return _PagePlan(record, copied, record != previous, advice)
 
 
 def _copies(selected: tuple[str, ...]) -> dict[str, Path]:

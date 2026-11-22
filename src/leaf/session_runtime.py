@@ -1,32 +1,37 @@
 """The Leaf that runs a harness session's delivery.
 
 A harness session keeps running the plugin copy it loaded: Claude Code installs an
-update into a new cache directory and leaves every running session on the old
-one until `/reload-plugins`. A page a newer Leaf initialized is then one the
-session's hooks and watch can't read, and the user's input waits until someone
-reloads. So the launcher of a copy Claude Code has replaced runs the copy installed
-since, which the marketplace sweep moves to each new commit (`bin/leaf`), and the
-session's hooks, its watch and, from an installed copy, its bare `leaf` commands
-hand themselves on to the launcher the session selected (`delivering_launcher`)
-before they read a page or change a turn: the checkout a user preview serves
-(`dev/leaf_dev/commands/preview.py`), or a checkout whose command claimed one of the
-session's pages or initialized one it holds (`select_checkout`), whose protocol the
-installed copy may not speak yet. The Codex delivery adapter follows the selection
-alone (`selected_launcher`).
+update into a new cache directory and leaves every running session on the old one
+until `/reload-plugins`, or until a new process of the session, such as a background
+job's wake or a resume, loads the update. The user chose that the session's
+hooks, its watch, its pages follower and its bare `leaf` commands run that copy too.
+Handing them to the copy Claude Code has installed since would leave the session's
+hooks module and skills, which Claude Code reads only as it loads the plugin, on
+another Leaf than its Python. So a page a newer Leaf initialized is one the session
+can't read until it loads that Leaf, and its refusal says so (`newer-layer`).
 
-Each hook runs the chosen launcher's Python as it stands, so an update reaches a
-session at its next hook without a reload; Claude Code still reads `hooks.json`
-and the hooks module only as it loads the plugin, so a change to either still
-waits for one. Nothing checks that the module a session loaded and the Python its
-hooks run agree: the module only runs the instructions the Python gives it
-(`carrier.py`), and one an older module doesn't know comes back failed, as a report
-the Python refuses does, so a thread message gets no working line; the session gets
-the thread's messages either way. The user chose this over checking that the loaded
-module is this Leaf's own, which turns
-forks off in every session that loaded the module before its latest change: most
-sessions, while the module changes often. A selection whose checkout is gone falls
-back to the installed copy, which refuses a page it can't read (`newer-layer`), so
-the agent learns why.
+A session may select a checkout to deliver for it instead (`select_launcher`): the
+checkout a user preview serves (`dev/leaf_dev/commands/preview.py`), or a checkout
+whose command claimed one of the session's pages or initialized one it holds
+(`select_checkout`), whose protocol the session's own copy may not speak yet. While
+that checkout's launcher exists, the session's hooks, its watch, its pages follower
+and, from an installed copy, its bare `leaf` commands hand themselves to it
+(`delivering_launcher`) before they read a page or change a turn, and the Codex
+delivery adapter follows it (`selected_launcher`). A selection whose checkout is gone
+falls back to the session's own copy, which refuses a page it can't read
+(`newer-layer`), so the agent learns why.
+
+A hook that runs a checkout, selected or loaded in place (`--plugin-dir`), runs its
+Python as it stands, so a change there reaches the session at its next hook without a
+reload; Claude Code still reads `hooks.json` and the hooks module only as it loads the
+plugin, so a change to either still waits for one. Nothing checks that the module a
+session loaded and the Python its hooks run agree: the module only runs the
+instructions the Python gives it (`carrier.py`), and one an older module doesn't know
+comes back failed, as a report the Python refuses does, so a thread message gets no
+working line; the session gets the thread's messages either way. The user chose this
+over checking that the loaded module is this Leaf's own, which turns forks off in
+every session whose hooks run a checkout that changed the module after the session
+loaded it.
 A running adapter keeps the modules it loaded until it retires, which it does once
 its task owns no page. The selection lives in the session lifecycle record and
 ends with its generation. Page servers retain their own runtime, so choosing
@@ -50,7 +55,7 @@ from .state import (
 
 def delivering_launcher(session_id: str) -> Path:
     """The launcher that runs this session's delivery: the one it selected, while
-    it exists, else this one."""
+    that still runs, or else this one."""
     return selected_launcher(session_id) or own_launcher()
 
 
@@ -63,15 +68,6 @@ def selected_launcher(session_id: str) -> Path | None:
     if value is not None and os.access(value, os.X_OK):
         return Path(value).resolve()
     return None
-
-
-def replaced() -> bool:
-    """Whether this copy's launcher looks for the copy Claude Code installed in its
-    place (`bin/leaf`): Claude Code marked this copy as one `installed_plugins.json`
-    no longer names (`.orphaned_at`), or the copy has lost its project."""
-    return (PLUGIN_ROOT / ".orphaned_at").exists() or not (
-        PLUGIN_ROOT / "pyproject.toml"
-    ).exists()
 
 
 def select_launcher(session_id: str, launcher: Path) -> bool:

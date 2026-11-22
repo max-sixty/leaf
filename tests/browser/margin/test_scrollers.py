@@ -11,6 +11,7 @@ from render_cases_layout import MARK
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
+    WORDS_RECTS,
     assert_follows_in_every_frame,
     leaf_page,
     margins_laid_out,
@@ -212,59 +213,6 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     assert stands
 
 
-@pytest.mark.parametrize("engine", ["firefox_browser", "webkit_browser"])
-def test_rows_follow_a_pane_and_a_shadow_scroller_in_every_engine(
-    request, serve, engine
-):
-    """Firefox and WebKit carry rows on the same anchors as Chrome: a pin in a pane,
-    whose lane is a frame anchored to the pane's scroller, and a row whose target
-    scrolls inside a widget's shadow tree, anchored through the part the document
-    names it by. Both keep their offset from their targets through those scrolls."""
-    browser = request.getfixturevalue(engine)
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
-    page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
-          const host = document.createElement('div');
-          const root = host.attachShadow({mode: 'open'});
-          root.innerHTML = '<div id="inner" style="height: 100px; overflow: auto">'
-            + '<div style="height: 40px"></div><p id="deep">Deep target</p>'
-            + '<div style="height: 400px"></div></div>';
-          document.querySelector('#other-pane > div').prepend(host);
-          const target = root.getElementById('deep');
-          const margin = registerContribution({key: 'deep', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'deep', glyph: '!', label: 'deep controls'})]}),
-            activate: () => {}});
-          window.__deep = {target, margin, inner: root.getElementById('inner')};
-        }"""
-    )
-    margins_laid_out(page)
-    reading = """() => {
-      const pane = document.querySelector('[data-lf-margin-for="pane-top"]');
-      const {target, margin} = window.__deep;
-      const deep = margin.control('deep', 'margin').closest('.lf-margin-cluster');
-      const top = (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top;
-      return {pane: top(pane, document.getElementById('pane-top')),
-              deep: top(deep, target),
-              shown: !pane.classList.contains('lf-withheld')
-                && !deep.classList.contains('lf-withheld')};
-    }"""
-    before = page.evaluate(reading)
-    assert before["shown"], before
-    page.evaluate("""() => {
-      document.querySelector('#pin-pane > div').scrollTop = 40;
-      window.__deep.inner.scrollTop = 20;
-    }""")
-    rendered(page)
-    after = page.evaluate(reading)
-    assert after["shown"], after
-    assert after["pane"] == pytest.approx(before["pane"], abs=1), (before, after)
-    assert after["deep"] == pytest.approx(before["deep"], abs=1), (before, after)
-
-
 WIDENED_TABLE_PAGE = leaf_page(
     "a widened table",
     "<h1>Seats</h1><p>A paragraph at the measure, long enough to fill the column it "
@@ -411,14 +359,16 @@ def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
 
 def _listing(lines, layout="workspace"):
     """A page holding `lines` in a code block that scrolls inside its `pre`, as
-    reveal.js's theme makes every long one."""
+    reveal.js's theme makes every long one, keeping its lines as an author who wants
+    them scrolled says (reading.css, `pre`)."""
     return leaf_page(
         "a code block that scrolls",
         "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
         'column it stands in from one edge to the other.</p><pre id="listing"><code>'
         + "\n".join(lines)
         + "</code></pre></div>",
-        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px;"
+        " white-space: pre; }"
         "</style>",
         layout=layout,
     )
@@ -438,14 +388,12 @@ LONG_NEIGHBOURS = [
     f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
 ]
 # Where a row's pin stands against its quoted words' first line and the code box.
-PIN_ON_LINE = """quote => {
+PIN_ON_LINE = (
+    """quote => {
   const code = document.querySelector('#listing code');
-  const text = code.firstChild;
-  const at = text.data.indexOf(quote);
-  const range = document.createRange();
-  range.setStart(text, at);
-  range.setEnd(text, at + quote.length);
-  const line = range.getClientRects()[0];
+  const line = ("""
+    + WORDS_RECTS
+    + """)(code, quote)[0];
   const box = code.getBoundingClientRect();
   const row = document.querySelector('[data-lf-margin-for="listing"]');
   const pin = row.getBoundingClientRect();
@@ -456,6 +404,7 @@ PIN_ON_LINE = """quote => {
           pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
           shown: !row.classList.contains('lf-withheld')};
 }"""
+)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -540,14 +489,11 @@ def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
     resized(page, 1280, 800)
     margins_laid_out(page)
     # The boxes of the quoted lines, as JavaScript taking the quote.
-    lines = """(quote) => {
-      const text = document.querySelector('#listing code').firstChild;
-      const at = text.data.indexOf(quote);
-      const range = document.createRange();
-      range.setStart(text, at);
-      range.setEnd(text, at + quote.length);
-      return [...range.getClientRects()].filter((box) => box.width);
-    }"""
+    lines = (
+        """(quote) => ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), quote)"""
+    )
     reading = f"""quote => {{
       const lines = ({lines})(quote);
       const code = document.querySelector('#listing code');
@@ -665,12 +611,9 @@ def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
     reading = page.evaluate(
         """() => {
           const block = document.getElementById('listing').getBoundingClientRect();
-          const text = document.querySelector('#listing code').firstChild;
-          const at = text.data.indexOf('short_second = 1');
-          const range = document.createRange();
-          range.setStart(text, at);
-          range.setEnd(text, at + 16);
-          const line = range.getClientRects()[0];
+          const line = ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), 'short_second = 1')[0];
           const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
             .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
                             box: row.getBoundingClientRect()}));
@@ -1509,7 +1452,7 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_constrained_target_carries_its_row_through_scroll(
     request, serve, subtests, engine
 ):
@@ -1519,11 +1462,9 @@ def test_a_constrained_target_carries_its_row_through_scroll(
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
     stays put through the document's scroll. A fixed scroller, such as a page of parts'
-    title column, stays put too, and its row rides what its own scroll carries. Firefox
-    draws a stuck target's row where the target would stand unstuck
-    (notes/browser-support.md, "A stuck sticky anchor in Firefox"). Chromium also reads
-    the compositor's frames, which only it traces; WebKit checks the rectangles after
-    each scroll.
+    title column, stays put too, and its row rides what its own scroll carries. Chromium
+    also reads the compositor's frames, which only it traces; Firefox and WebKit check
+    the rectangles after each scroll.
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)

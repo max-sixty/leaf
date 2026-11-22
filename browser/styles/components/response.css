@@ -17,6 +17,7 @@ leaf-composition-field {
 }
 .lf-fab-bar,
 .lf-margin-preview,
+[data-lf-thread-surface],
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -32,6 +33,7 @@ leaf-composition-field {
 :root,
 .lf-fab-bar,
 .lf-margin-preview,
+[data-lf-thread-surface],
 .lf-compose-field {
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
@@ -81,7 +83,10 @@ leaf-composition-field {
   margin-inline-end: auto;
   padding-inline-end: 0.75em;
 }
-.lf-compose-placeholder-lead:not(:empty) ~ span {
+/* The hint's parent is named so Chromium skips the rule for a span outside a hint,
+   rather than reading back over every sibling before it, which costs a code block's
+   thousands of token or line spans the square of their count. */
+.lf-compose-placeholder > .lf-compose-placeholder-lead:not(:empty) ~ span {
   flex: none;
 }
 /* The word naming what entering the box does (composing/input.js, `enters`) stands
@@ -363,11 +368,10 @@ leaf-composition-field {
    flow takes that padding back with its margins, so its pictures keep the field's edge;
    a shelf a surface places takes it back with its offsets. A picture lies at
    --lf-raise-1, whose shadow reaches its drop and blur below it. A picture stands up to
-   120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its content,
-   which 56px was not. Pictures of different heights meet the field's side of the
-   shelf, which is its foot wherever it stands above the field; a surface that hangs
-   its shelf below the field aligns them to its top. A surface whose ground is not
-   the paper sets the ground and ring its pictures meet it with. */
+   `--lf-media-h` tall (tokens.css). Pictures of different heights meet the field's
+   side of the shelf, which is its foot wherever it stands above the field; a surface
+   that hangs its shelf below the field aligns them to its top. A surface whose ground
+   is not the paper sets the ground and ring its pictures meet it with. */
 /* How far a picture's corner marks stand out past it, in a draft's shelf and on a
    rewrite's pictures alike. */
 .lf-composer-media,
@@ -381,12 +385,9 @@ leaf-composition-field {
       var(--lf-media-mark-overhang) + (var(--lf-aim-floor) - var(--lf-mark-size)) / 2
     )
   );
-  --lf-media-h: 120px;
-  /* How far the pictures stand clear of the edge they meet as it is drawn, wherever a
-     surface places the shelf: the floating panel's edge, or a field's, where the ring
-     the field wears on its edge (base.css) stands outside its box, so a surface that
-     places its shelf by a field adds `--lf-focus-ring-w`. */
-  --lf-media-gap: 8px;
+  /* A surface that places its shelf by a field rather than by its own edge adds
+     `--lf-focus-ring-w` to `--lf-media-gap` (tokens.css), since the ring the field
+     wears on its edge (base.css) stands outside its box. */
   display: flex;
   align-items: flex-end;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -660,7 +661,8 @@ leaf-composition-field {
 }
 
 .lf-fab-bar,
-.lf-margin-preview {
+.lf-margin-preview,
+[data-lf-thread-surface] {
   --lf-response-height: var(--lf-line);
 }
 /* The comment box, card and card reply share one text column, so Send moves no
@@ -669,7 +671,8 @@ leaf-composition-field {
    where Send takes only a free corner (above), at the thread text inset, as at the
    start. The field spends one pixel of each inset on its frame. */
 .lf-fab-bar,
-.lf-margin-preview {
+.lf-margin-preview,
+[data-lf-thread-surface] {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
@@ -678,14 +681,15 @@ leaf-composition-field {
 }
 @media (hover: hover) and (pointer: fine) {
   .lf-fab-bar,
-  .lf-margin-preview {
+  .lf-margin-preview,
+  [data-lf-thread-surface] {
     --lf-comment-text-end: var(--lf-thread-text-inset);
   }
   leaf-text.lf-fab-input {
     --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
   }
 }
-.lf-margin-preview .lf-msg {
+:is(.lf-margin-preview, [data-lf-thread-surface]) .lf-msg {
   --lf-msg-text-end: var(--lf-comment-text-end);
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
@@ -694,7 +698,7 @@ leaf-composition-field {
    which made every short card taller than the box it came from for a rewrite the
    user may never open. */
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-thread-reply .lf-compose-field,
+:is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field,
 .lf-response-control,
 .lf-response-face {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
@@ -824,8 +828,12 @@ leaf-text.lf-fab-input {
   box-sizing: border-box;
   align-items: flex-end;
   gap: 4px;
+  /* The box stands where the card the comment becomes will, as wide as its seat
+     (surfaces.css), its field inside the card's frame and inset, so Send moves no word
+     sideways, as a margin comment box keeps its words where its card shows them
+     (annotation-chrome.css). */
   width: 100%;
-  max-width: 760px;
+  padding-inline: calc(var(--lf-comment-inset) + 1px);
   white-space: nowrap;
   color: var(--lf-ink);
 }

@@ -171,11 +171,12 @@ export function createDelivery({
               ];
               void Promise.all(refused.map(({ answer }) => answer)).then(() =>
                 afterScript(() => {
-                  const { said, field } = refusedWords(
+                  const { said, field, press } = refusedWords(
                     refused.map(({ attempt }) => attempt),
                   );
                   raiseError(said ? `${refusal}. ${said}` : refusal, {
                     subject: field,
+                    press,
                   });
                 }),
               );

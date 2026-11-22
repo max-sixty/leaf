@@ -555,7 +555,7 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
               authored.textContent = 'a'.repeat(500);
               const native = document.createElement('pre');
               native.id = 'late-native';
-              native.style.width = '220px';
+              native.style.cssText = 'width:220px;white-space:pre';
               native.textContent = 'b'.repeat(500);
               document.querySelector('main').append(authored, native);
             }"""

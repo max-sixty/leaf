@@ -767,12 +767,38 @@ const bundles = {
         // 1039 while the maximum comes out at 1038.94, so every scroll event and
         // model change there would write a scroll that moves nothing. A box within a
         // pixel of the maximum already stands at it.
+        //
+        // Upstream (beta.6 and 1.0.0) gives the root `role="tree"`, and the root also
+        // holds the search field. A tree may own only tree items and groups, so the
+        // field breaks the tree's role for assistive technology. The role moves to
+        // the scroller, which holds only the rows; the root keeps the keys and the
+        // layout, which `style.js`'s seam below moves with it.
+        edit: (source) =>
+          seam(
+            seam(
+              seam(
+                source,
+                "if (scrollElement.scrollTop > maxScrollTop) scrollElement.scrollTop = maxScrollTop;",
+                "if (scrollElement.scrollTop - maxScrollTop >= 1) scrollElement.scrollTop = maxScrollTop;",
+                "Trees viewport clamp",
+              ),
+              '\t\trole: "tree",\n\t\ttabIndex: -1,',
+              "\t\ttabIndex: -1,",
+              "Trees root role",
+            ),
+            '\t\t\t\t"data-file-tree-virtualized-scroll": "true",\n',
+            '\t\t\t\t"data-file-tree-virtualized-scroll": "true",\n\t\t\t\trole: "tree",\n',
+            "Trees scroller role",
+          ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/style\.js$/,
         edit: (source) =>
           seam(
             source,
-            "if (scrollElement.scrollTop > maxScrollTop) scrollElement.scrollTop = maxScrollTop;",
-            "if (scrollElement.scrollTop - maxScrollTop >= 1) scrollElement.scrollTop = maxScrollTop;",
-            "Trees viewport clamp",
+            '[role=\\"tree\\"] {',
+            '[data-file-tree-virtualized-root=\\"true\\"] {',
+            "Trees root layout",
           ),
       },
       {

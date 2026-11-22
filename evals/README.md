@@ -513,7 +513,10 @@ captures with registered page media, including cropped or marked images. Its
 `exact_inputs` records computed source matches, leaving visual comparison to
 transformed images. The judge can read only copied images under the run's
 screenshot tree; the assertion
-supplies authored HTML to identify the references, without the author's trace.
+supplies authored HTML to identify the references, without the author's trace. A
+widget bound to a data source, such as a patch view, draws text the HTML doesn't hold,
+so a rubric about that text passes `metadata.page_data`, each bound source's value by
+id, beside the HTML in its `transform`, as `findings-show-their-cases` does.
 
 Use authoring cases for media preparation and checking or repairing rendering. Keep
 source and reading probes for decisions that need no rendered page: those whose rules
@@ -551,8 +554,8 @@ A complete task names `metadata.executor`, a `leaf_dev` Python module, and
 `metadata.scenario`, a case in `workflows/<module-name>.yaml`. That YAML owns the
 authored prompts, scenario inputs and native Promptfoo `assert` blocks, including
 text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
-tasks use one JavaScript assertion to pass the final live judge's verdict through
-the Python provider. Shared request files
+tasks use one Python assertion, `regrade.py:authoring`, which runs the live judge
+with the prompt under `authoring:` in `workflows/regrade.yaml`. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
 A task's pinned assets are copied to the root of the agent's working directory
 (`arms.stage_task_files`), so `evals/<task>/captures/before.png` reaches the agent as

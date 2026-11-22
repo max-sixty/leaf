@@ -139,12 +139,12 @@ their own activation and editing.
 Leaf already answers Enter, Space and the opening arrow on a `details > summary` or a
 button with `aria-expanded`; a row that names the same press uses `DISCLOSE(element)` as
 its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text direction,
-and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for a
-tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
+and `PRESS` is Enter and Space. `labelOf(row)` is a row's key text for a tooltip;
+`saying(rows)` names, for an announcement, the keys that would run the rows now.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
-the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
-shows, as its `::before`, turning with its state; the widget's own rules place it.
+the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
+its `::before`, turning with its state; the widget's own rules place it.
 
 ### Decisions and forwarded keys
 

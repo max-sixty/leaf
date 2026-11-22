@@ -12,7 +12,7 @@ from interact_support import (
     check,
     comment,
     found,
-    fragment_errors,
+    markup_findings,
     page_packages,
     page_state,
     publish,
@@ -25,8 +25,13 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
 from leaf.thread_context import logged_fragment
-from leaf_dev.example_data import authored_sources, named_source
-from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import (
+    leaf_in_process,
+    prepare_page,
+    read_event_lines,
+    read_fixture,
+)
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
@@ -34,7 +39,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     but the whole unreferenced group may leave a later revision."""
     registry = registry_storage.load_registry(page_dir)
     assert found(
-        fragment_errors(
+        markup_findings(
             '<lf-options settled><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
             registry,
         ),
@@ -129,12 +134,10 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     for example in seeded:
         # Only messages carrying HTML or obligations exercise this door. Plain
         # threads are covered by the complete fixture check.
-        # Use the log writer's separator: splitlines() also splits message U+2028.
         fragments = [
             event
-            for line in example.with_suffix(".jsonl").read_text().split("\n")
-            if line.strip()
-            and (logged_fragment(event := json.loads(line)) or event.get("obligation"))
+            for event in read_event_lines(seed_log(example))
+            if logged_fragment(event) or event.get("obligation")
         ]
         if not fragments:
             continue

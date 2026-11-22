@@ -51,6 +51,7 @@ from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import codex_state as codex_state_model
+from leaf import completions as completions_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -465,6 +466,16 @@ def js_facts(command: str, files) -> str:
     ).stdout
 
 
+def shipped_sheets() -> list[Path]:
+    """The core's stylesheets and the bundled packages', less what they vendor."""
+    return [
+        sheet
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+    ]
+
+
 def shipped_core_registry() -> dict:
     """The kernel registry with the core layer's declarations beside it, the layer
     facts `page init` starts every composition from, unstamped."""
@@ -595,10 +606,10 @@ PAGE = f"""<!doctype html>
   <lf-group id="plan-choice-decision" label="Which plan should lead?">
     <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
-      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small> <strong>Flag first</strong>
+      <lf-option id="flag-first" label="Flag first"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: med</small> <strong>Flag first</strong>
         Ship dark.
       </lf-option>
-      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small> <strong>Backfill first</strong>
+      <lf-option id="backfill-first" label="Backfill first"><small class="lf-tag">effort: med</small><small class="lf-tag">risk: low</small> <strong>Backfill first</strong>
         Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
@@ -712,6 +723,14 @@ def command_findings(*args) -> list[Finding]:
     cause = result.exception.__cause__
     assert isinstance(cause, Refused)
     return list(cause.findings)
+
+
+def command_notes(*args) -> list[Finding]:
+    """What the leaf command `args`, run in process, notes beside the result it
+    prints (`findings.note`); the command must succeed."""
+    result = CliRunner().invoke(cli_model.cli, [*map(str, args)])
+    assert result.exit_code == 0, result.output
+    return [Finding.loads(f) for f in json.loads(result.stdout).get("findings", [])]
 
 
 def read_page_data(page_dir) -> dict:
@@ -1104,9 +1123,9 @@ def live_versions(d):
     return files_model.published_versions(d, events)
 
 
-def fragment_errors(html, registry):
+def markup_findings(html, registry):
     parser = structure_model.SourceDocument(html)
-    return validation_model.fragment_errors(parser, registry)
+    return validation_model.markup_findings(parser, registry)
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">
@@ -1789,12 +1808,29 @@ def retire_test_services(tmp_path, isolated_session):
     """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
-    for path in (isolated_session / "sessions").glob(
-        f"*.{cleanup_model.SESSION_SUFFIX}"
-    ):
-        record = files_model.read_json(path)
-        if isinstance(record, dict) and isinstance(record.get("id"), str):
-            cleanup_model.end_session(record["id"])
+    sessions = [
+        record["id"]
+        for path in (isolated_session / "sessions").glob(
+            f"*.{cleanup_model.SESSION_SUFFIX}"
+        )
+        if isinstance(record := files_model.read_json(path), dict)
+        and isinstance(record.get("id"), str)
+    ]
+
+    def answer_completions():
+        # No hooks module runs for a test's Claude Code session, so a title
+        # worker's completion would wait out its whole deadline; answer each as a
+        # failed call, as the module reports one.
+        for session_id in sessions:
+            for asked in completions_model.pending(session_id):
+                completions_model.replied(
+                    session_id,
+                    {"basis": {"completion": asked["id"]}, "failed": "test ended"},
+                )
+
+    answer_completions()
+    for session_id in sessions:
+        cleanup_model.end_session(session_id)
     # A Claude Code hook leaves Leaf's bridge running while its session lives.
     for lock in (isolated_session / "bridge").glob("*.lock"):
         if leases_model.lock_is_held(lock):
@@ -1814,9 +1850,14 @@ def retire_test_services(tmp_path, isolated_session):
     )
     # Servers have stopped accepting input, so no new title request can start.
     # The worker reports under the page lock even when its generator fails.
+    # A worker can still ask for its completion after the answers above, so
+    # teardown answers until each worker ends.
+    deadline = time.monotonic() + STATED_TIMEOUT
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
-            worker.join(timeout=STATED_TIMEOUT)
+            while worker.is_alive() and time.monotonic() < deadline:
+                answer_completions()
+                worker.join(timeout=POLL_INTERVAL)
             assert not worker.is_alive(), "a title worker outlived its test's page"
 
 

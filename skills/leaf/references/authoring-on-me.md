@@ -24,7 +24,7 @@ in a value, such as how long captures are kept, say once above them what that va
 costs, and each title can be the whole option. A card carries its name in `label`,
 which On Me and threads show, and shows its title in its own HTML, a leading
 `<strong>`, usually in the same words. The user should be able to compare the options
-down the list without reading their prose, as through `small.tag` chips for the facts
+down the list without reading their prose, as through `small.lf-tag` chips for the facts
 they weigh, such as effort or risk. Keep each chip to a word or two, such as “2 days”
 rather than “about two days of work”, so a card's chips fit on one line beside its pick
 mark. Where cards stand side by side (`across`), chips that wrap push that card's title
@@ -98,7 +98,8 @@ group`, such as `lf-group`) holding the question and its case, with an id and a
 prose around it. The group draws none of its label, so give it the heading the page
 needs, as for any part of the page. The label's words are the question's words on On Me and in the
 answer you receive; Leaf reads the region and its name from that markup, so
-`page check` refuses a widget that asks with no group round it.
+`page check` refuses a widget that asks where no label names its question, and names
+one whose own label alone names it, which `m` selects without its premise.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a

@@ -473,7 +473,7 @@ def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed, lan
     assert summary["prompt"].startswith("<leaf-summary-fork>")
     assert "Follow-up 1?" in summary["prompt"]
     assert "> Fold what compresses most" in summary["prompt"]
-    assert "> A summary gives the range's decisions" in summary["prompt"]
+    assert "> A summary is what the user reads" in summary["prompt"]
 
     outcome = summarized(summary, {**hint, "text": "The TTL went to ten, then five."})
     assert outcome["outcome"] == "summarized"
@@ -523,23 +523,19 @@ def test_the_fork_may_fold_nothing(claimed):
     assert clerk_model.queued("s1") == []
 
 
-@pytest.mark.parametrize("shape", ["the newest message", "backwards", "a gap"])
+@pytest.mark.parametrize("shape", ["the newest message", "backwards"])
 def test_a_range_leaf_cant_take_hands_the_suggestion_to_the_agent(claimed, shape):
     """Leaf takes the fork's range only where it runs forward over the thread's spoken
-    messages, ends before the user's newest messages, which the main session answers,
-    and leaves no message but the opening one in full above a summary. Otherwise it
-    writes nothing and hands the agent the suggested range."""
+    messages and ends before the user's newest messages, which the main session
+    answers. Otherwise it writes nothing and hands the agent the suggested range."""
     opened, later, newest, summary = summary_beside(claimed)
     chosen = {
         "the newest message": {"from": opened["id"], "through": newest["id"]},
         "backwards": {"from": later[4]["id"], "through": later[2]["id"]},
-        "a gap": {"from": later[4]["id"], "through": later[6]["id"]},
     }[shape]
     outcome = summarized(summary, {**chosen, "text": "The fork's."})
     assert outcome["outcome"] == "failed"
-    assert ("summary would leave" if shape == "a gap" else "its range") in outcome[
-        "why"
-    ]
+    assert "its range" in outcome["why"]
     assert summaries_written(claimed) == []
     [handed] = clerk_model.queued("s1")
     basis_ = summary["basis"]
@@ -671,15 +667,15 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
     ]
 
 
-@pytest.mark.parametrize("moved", ["replaced", "selected", "protocol", "removed"])
+@pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
 def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     claimed, monkeypatch, capsys, moved
 ):
-    """A follower runs as long as its session, while the session's hooks run
-    whichever Leaf delivers for it now: the copy Claude Code installed in place of
-    its own, a checkout it selected, its own checkout moved past a protocol bump, or
-    another Leaf once its own is removed. The follower then ends, giving up the lane,
-    with EX_TEMPFAIL for the module to start it again under that Leaf."""
+    """A follower runs as long as its session, while the session's hooks hand
+    themselves to whichever Leaf delivers for it now: a checkout selected since, its
+    own checkout moved past a protocol bump, or another Leaf once its own is removed.
+    The follower then ends, giving up the lane, with EX_TEMPFAIL for the module to
+    start it again under that Leaf."""
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
     monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
@@ -690,9 +686,7 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
         return True
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
-    if moved == "replaced":
-        monkeypatch.setattr(session_runtime_model, "replaced", lambda: bool(waited))
-    elif moved == "selected":
+    if moved == "selected":
         own = session_runtime_model.own_launcher()
         monkeypatch.setattr(
             session_runtime_model,
@@ -718,27 +712,6 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     assert not forks_model.lane_up("s1")
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert listed["do"] == []
-
-
-def test_a_follower_stays_in_a_copy_marked_before_it_started_until_the_mark_clears(
-    claimed, monkeypatch
-):
-    """A copy Claude Code had marked replaced as the follower started is one its
-    launcher ran all the same, as where Claude Code's record still names it, so the
-    follower stays: ending would have the module start it in that copy again and
-    again. Once the sweep clears that mark, a later one is a real replacement, and
-    the follower ends to be started under the copy installed since."""
-    serving(claimed, 1)
-    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
-    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
-    monkeypatch.setattr(file_changes_model, "wait", lambda _marks, _timeout: True)
-    # The mark as the follower starts, then at each of its passes.
-    marks = iter([True, True, False, True])
-    monkeypatch.setattr(session_runtime_model, "replaced", lambda: next(marks))
-    with pytest.raises(SystemExit) as ended:
-        hooks_model.cmd_pages(FOLLOWER)
-    assert ended.value.code == os.EX_TEMPFAIL
-    assert next(marks, None) is None
 
 
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(

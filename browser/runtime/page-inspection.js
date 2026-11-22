@@ -210,7 +210,7 @@ function browserReading(view) {
       ${view.viewport.width} × ${view.viewport.height} · ${view.color_scheme}
     </p>
     <details>
-      <summary>Rendering environment</summary>
+      <summary class="lf-disclosure-marker">Rendering environment</summary>
       ${copyableText("rendering environment", JSON.stringify(view.identity, null, 2))}
     </details>
     ${view.unavailable ? html`<p>${view.unavailable}</p>` : nothing}
@@ -250,7 +250,7 @@ function browserReading(view) {
         : nothing
     }
     <details>
-      <summary>Browser observations and locations</summary>
+      <summary class="lf-disclosure-marker">Browser observations and locations</summary>
       ${copyableText("browser observations and locations", JSON.stringify(view, null, 2))}
     </details>`;
 }
@@ -277,7 +277,6 @@ function present() {
       ${navigationError ? html`<p role="status">${navigationError}</p>` : nothing}
       <section aria-label="Authored CSS">
         <h2 class="lf-label">Authored CSS</h2>
-        ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${
           sourceError
             ? html`<p role="status">${sourceError}</p>
@@ -312,7 +311,7 @@ function present() {
                     : nothing
                 }
                 <details>
-                  <summary>Selected layer CSS</summary>
+                  <summary class="lf-disclosure-marker">Selected layer CSS</summary>
                   ${metrics(report.css.layer)}${sourceRows(report.css, "layer")}
                 </details>
               `
@@ -329,7 +328,7 @@ function present() {
                 Files: report.javascript.page.files,
               })}
               <details>
-                <summary>JavaScript sources</summary>
+                <summary class="lf-disclosure-marker">JavaScript sources</summary>
                 <dl>
                   ${report.javascript.sources.map(
                     (source) =>
@@ -367,7 +366,7 @@ function present() {
         </p>
       </section>
       <details>
-        <summary>Structured report</summary>
+        <summary class="lf-disclosure-marker">Structured report</summary>
         ${copyableText("Structured diagnostics", serialized)}
       </details>
     `,

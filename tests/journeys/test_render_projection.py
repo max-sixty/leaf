@@ -46,15 +46,14 @@ from render_harness import (
     example_media,
     expect_obligations_answered,
     expect_on_me,
-    expect_panel_offers,
     holding,
     leaf_page,
     names,
     nudge,
+    open_latest,
     open_page,
     page_comment,
     page_declarations,
-    panel_control,
     panel_field,
     panel_view,
     resized,
@@ -373,13 +372,13 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             failures = render_gate_model.render_version(
                 browser,
                 f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-            ).failures
+            ).findings
         finally:
             release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
     assert failures and all(f.code == "server-stopped" for f in failures), (
-        f"a wedged server has to come back as a failure, and this came back as {failures}"
+        f"a wedged server has to come back as its finding, and this came back as {failures}"
     )
 
 
@@ -1207,12 +1206,13 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
-    # open draft keeps the first revision shown and leaves the direct activation
-    # route available through the leaf's menu row for the latest version.
+    # draft, with the caret in it, keeps the first revision shown. It holds only while
+    # the caret stays: opening the leaf's menu moves focus to its search, and the next
+    # heartbeat then installs the second revision under the menu. So every press below
+    # leaves the caret where it is.
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
     expect(page).to_have_title("Live first")
-    expect_panel_offers(page, "latest")
 
     # One read, held open while it still names the first revision. Releasing it below is
     # what sends it, so the server answers it against the log and versions of that
@@ -1240,10 +1240,10 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         working(serve.page_dir, "exercising the held state request")
         holding(page, held, 1, "the read from revision 1")
 
-        # The row's own read remains independent of the background read held above.
-        # It moves the page to the second revision, then the third revision is
+        # Open latest's own read remains independent of the background read held
+        # above. It moves the page to the second revision, then the third revision is
         # written before the held request is released.
-        panel_control(page, "latest").click()
+        open_latest(page)
         expect(page).to_have_title("Live second")
         page_comment(page)
         (serve.page_dir / "index.html").write_text(

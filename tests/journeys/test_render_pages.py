@@ -43,7 +43,8 @@ from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.thread_context import logged_fragment
 from leaf_dev.browser import PANEL_THREAD
-from leaf_dev.example_data import authored_sources, named_source
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import read_event_lines
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -149,15 +150,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
     for example in seeded:
         url = serve(example)
-        # The log's grammar is events joined by "\n" — never splitlines(), whose
-        # wider class reads a U+2028 inside a comment's text as a break.
-        events = [
-            json.loads(line)
-            for line in example.with_suffix(".jsonl")
-            .read_text(encoding="utf-8")
-            .split("\n")
-            if line.strip()
-        ]
+        events = read_event_lines(seed_log(example))
         assert events, f"{example.stem}: the shipped log is empty"
 
         page = open_page(browser, url)
@@ -175,7 +168,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 f"{example.stem}: duplicate {event['id']}"
             )
             previous.add(event["id"])
-        assert {event["id"] for event in events} <= previous
+        # A seed may leave an event's id to admission; each id it names survives.
+        assert {event["id"] for event in events if "id" in event} <= previous
         by_id = {event["id"]: event for event in logged}
 
         def thread_of(event_id, by_id=by_id):
@@ -679,7 +673,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
     failures = render_gate_model.render_version(
         browser, serve(source.replace("</main>", framed + "</main>"))
-    ).failures
+    ).findings
 
     assert [
         f
@@ -899,11 +893,11 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", table="")
         + item.format(id="holds", table=table.format(id="holds"))
-        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
-        + '<aside class="callout" id="granted-c" data-width="wide">'
+        + '<aside class="lf-callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="lf-callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
         + "</aside>"
-        + '<aside class="callout" id="contained-c">'
+        + '<aside class="lf-callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
         + '<lf-group id="list-q" label="Raise the limit?">'

@@ -2,9 +2,10 @@
  * margin trace, the proxy ring and the location ring.
  *
  * Each is an attribute on the box it marks (page-paint.js, `RUNTIME_PAINT_ATTRIBUTE`),
- * and the box draws the mark itself, as its own outline (surfaces.css). So the mark moves with the box through every scroll,
- * transform and layout change in every engine, passes under what the page stacks over
- * the box, and needs no placement here. Only the design label, which names what the
+ * and the box draws the mark itself, as its own outline, or as its border image where
+ * the mark reaches over a list marker (surfaces.css). So the mark moves with the box
+ * through every scroll, transform and layout change in every engine, passes under what
+ * the page stacks over the box, and needs no placement here. Only the design label, which names what the
  * aim marks, stands in Leaf's chrome beside the box (`labelAim`). Persistent
  * annotations mark their boxes through their own optional painter. */
 
@@ -12,7 +13,7 @@ import { nextRender } from "./rendering.js";
 import { move } from "./dom-move.js";
 import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
-import { shownParts } from "./geometry.js";
+import { readMarkerSides, shownParts } from "./geometry.js";
 import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 
@@ -28,8 +29,10 @@ function markOne(attribute) {
   let marked = [];
   function draw() {
     const boxes = target?.isConnected ? shownParts(target) : [];
+    const sideMarkers = readMarkerSides(boxes);
     for (const box of marked)
       if (!boxes.includes(box)) box.toggleAttribute(attribute, false);
+    sideMarkers();
     for (const box of boxes) box.toggleAttribute(attribute, true);
     marked = boxes;
   }
@@ -89,9 +92,12 @@ export function labelAim(node) {
     surface,
   } = aimed;
   const style = getComputedStyle(shownParts(surface)[0] ?? surface);
+  // The mark is the box's outline, or its border image where it reaches over a list
+  // marker (surfaces.css), which stands as far out above the box.
   const room = Math.max(
     0,
     Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth),
+    Number.parseFloat(style.borderImageOutset),
   );
   // The label stacks with what it names: over the chrome's surfaces where the aimed
   // item stands in one, as a widget in a reply does.
@@ -166,8 +172,10 @@ function drawLocation() {
     element?.isConnected && !locationStandsDown(element)
       ? [element, ...shownParts(element)]
       : [];
+  const sideMarkers = readMarkerSides(boxes);
   for (const box of locationProjected)
     if (!boxes.includes(box)) box.toggleAttribute(PROJECTED_LOCATION, false);
+  sideMarkers();
   for (const box of boxes) box.toggleAttribute(PROJECTED_LOCATION, true);
   locationProjected = boxes;
 }

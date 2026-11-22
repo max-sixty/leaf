@@ -6,7 +6,15 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import PREVIEW, leaf_page, open_page, preview_parts, resized
+from render_harness import (
+    PREVIEW,
+    clocked,
+    dwelt,
+    leaf_page,
+    open_page,
+    preview_parts,
+    resized,
+)
 
 from leaf.render_checks import one_frame
 from leaf_dev.example_data import named_source
@@ -31,7 +39,7 @@ def section(name, paragraphs):
 SECTIONS = ("impact", "cause", "fix", "timeline", "method", "owners", "followups")
 DIAL_PAGE = leaf_page(
     "Dial",
-    '<h1>Report</h1><p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+    '<h1>Report</h1><p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
     + "".join(section(name, 3) for name in SECTIONS),
 )
 
@@ -73,11 +81,26 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
         expect(page.locator(f"#{name}-0")).to_be_hidden()
     expect(markers).to_have_count(len(SECTIONS))
     assert abs(top(page, "#cause-gist") - reading) < 2
+    # A section's ⋯ is the last box its section holds, so the marks drawn on the
+    # section, such as a comment's aim, hold the ⋯ whole.
+    assert page.locator("#cause .lf-dial-more").evaluate(
+        "m => m.getBoundingClientRect().bottom"
+        " <= m.closest('section').getBoundingClientRect().bottom + 0.5"
+    )
 
-    page.locator("#cause-gist + .lf-dial-more button").click()
+    skim_face = page.locator("lf-dial .lf-dial-depth", has_text="Skim")
+    skim_ink = skim_face.evaluate("r => getComputedStyle(r).borderColor")
+    page.locator("#cause .lf-dial-more button").click()
     expect(page.locator("#cause-0")).to_be_visible()
     expect(page.locator("#impact-0")).to_be_hidden()
     expect(page.locator("#cause-0")).to_be_focused()
+    # The page now shows more than Skim, so Skim's selection steps back, and pressing
+    # it folds the page to Skim again.
+    assert skim_face.evaluate("r => getComputedStyle(r).borderColor") != skim_ink
+    depth(page, "Skim")
+    expect(page.locator("#cause-0")).to_be_hidden()
+    expect(folded).to_have_count(4 * len(SECTIONS))
+    expect(skim_face).to_have_css("border-color", skim_ink)
 
     depth(page, "Everything")
     expect(folded).to_have_count(0)
@@ -140,9 +163,10 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     """Each depth says under its word how long it takes to read. Pointing at one hangs
     each depth's page under its own button, Skim's shortest and Everything's longest,
     with Leaf's own preview face unseen, and fades on the page what Skim would fold. A
-    press on another depth keeps them up the whole time it is held,
-    and moves the frame to it; Escape puts them away and leaves focus on the depth."""
-    page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
+    press on another depth keeps them up the whole time it is held and as it is let go,
+    however long it was held, and moves the frame to it; Escape puts them away and
+    leaves focus on the depth."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(DIAL_PAGE))
     buttons = page.locator("lf-dial .lf-dial-depth")
     expect(buttons.locator(".lf-dial-time")).to_have_text([re.compile(r"\d+ min")] * 3)
     panel = page.locator(".lf-dial-hang-panel")
@@ -153,6 +177,7 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     expect(panel).to_have_attribute("data-lf-open", "")
     expect(page.locator(PREVIEW)).to_have_attribute("data-lf-face", "unseen")
     expect(page.locator(PREVIEW)).to_be_hidden()
+    page.wait_for_function("() => document.getAnimations().length === 0")
     for i in range(3):
         assert centre_x(sheets.nth(i)) == pytest.approx(centre_x(buttons.nth(i)), abs=1)
     heights = [sheets.nth(i).bounding_box()["height"] for i in range(3)]
@@ -168,9 +193,20 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     one_frame(page)
     one_frame(page)
     expect(panel).to_have_attribute("data-lf-open", "")
+    # Held past the warmth the put-away preview leaves, after which the pointer's next
+    # preview there would wait for its dwell.
+    dwelt(page, "WARM")
+    panel.evaluate(
+        """panel => new MutationObserver(() => {
+          if (!panel.hasAttribute("data-lf-open")) panel.dataset.closed = "";
+        }).observe(panel, {attributes: true, attributeFilter: ["data-lf-open"]})"""
+    )
     page.mouse.up()
     expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
+    # Past the dwell that would bring back sheets the release had put away.
+    dwelt(page)
     expect(panel).to_have_attribute("data-lf-open", "")
+    assert panel.get_attribute("data-closed") is None
     page.wait_for_function("() => document.getAnimations().length === 0")
     assert centre_x(frame) == pytest.approx(centre_x(everything), abs=1)
 
@@ -213,10 +249,11 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     video, a canvas, a picture in a tab, a picture marked inside a figure, with the
     figure's caption, and a paragraph or list item holding a gist, whole, words and
     links beside it included. A picture the author didn't mark folds with the words
-    around it, headings inside it included. A section or list item of blocks is laid
-    out in place, a button among its blocks included, so a gist in one keeps its
-    support folded. A gist or heading inside a closed disclosure stays closed, since
-    Skim shows nothing Read doesn't, so a section holding only those folds whole."""
+    around it, headings inside it included, and so does an `aside`. A section, list
+    item or aside of blocks is laid out in place, a button among its blocks included,
+    so a gist in one keeps its support folded. A gist or heading inside a closed
+    disclosure stays closed, since Skim shows nothing Read doesn't, so a section
+    holding only those folds whole."""
     chart = (
         '<lf-chart class="gist" id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
         "marks: [Plot.lineY([1, 3, 2])] }"
@@ -227,7 +264,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         serve(
             leaf_page(
                 "Dial",
-                '<h1>Report</h1><p class="lede">What happened.</p>'
+                '<h1>Report</h1><p class="lf-lede">What happened.</p>'
                 '<lf-dial id="dial"></lf-dial>'
                 '<section id="cause"><h2 id="cause-heading">Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
@@ -247,6 +284,9 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
                 '<li><img class="gist" alt="Run 3" width="40" height="30"> '
                 '<a id="run-link" href="#key-figure">Run 3</a> '
                 '<em id="run-rate">hit rate 3%</em></li></ul>'
+                '<aside id="cause-note"><p>The canary missed it.</p></aside>'
+                '<aside><p class="gist" id="aside-gist">No flag guarded the key.</p>'
+                '<p id="aside-support">Cache keys ship unflagged.</p></aside>'
                 '<details id="cause-raw" open><summary id="cause-raw-summary">Raw'
                 f'</summary><figure class="gist" id="cause-raw-figure">{SQUARE}'
                 "</figure></details></section>"
@@ -282,6 +322,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#key-caption",
         "#shot-line",
         "#finding-gist",
+        "#aside-gist",
         "#run-link",
         "#run-rate",
         "#cause-raw-summary",
@@ -304,6 +345,8 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#cause-copy",
         "#unmarked-line",
         "#finding-support",
+        "#cause-note",
+        "#aside-support",
         "#latency-figure",
         "#latency-0",
         "#demo-0",
@@ -320,6 +363,37 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     expect(page.locator("main [hidden]")).to_have_count(0)
 
 
+def test_a_dial_in_a_sidebar_page_s_body_governs_the_body_alone(browser, serve):
+    """A dial in a sidebar page's body governs the body: Skim folds the body's blocks,
+    leaves the sidebar's contents shown, sets no ⋯ among the Layout's regions, and
+    leaves the sidebar and the body where they stood."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<aside id="route"><div class="layout-track">'
+                '<lf-toc id="contents"></lf-toc></div></aside>'
+                '<div class="layout-column" id="body"><h1>Report</h1>'
+                '<p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                + "".join(section(name, 3) for name in SECTIONS)
+                + "</div>",
+                layout="sidebar",
+            )
+        ),
+    )
+    resized(page, 1400, 900)
+    regions = page.locator("main > *")
+    across = "nodes => nodes.map(n => [n.getBoundingClientRect().x, n.offsetWidth])"
+    before = regions.evaluate_all(across)
+    depth(page, "Skim")
+    expect(page.locator("#impact-0")).to_be_hidden()
+    expect(page.locator("#contents")).to_be_visible()
+    expect(page.locator("#route [data-lf-dial-folded]")).to_have_count(0)
+    expect(regions).to_have_count(2)
+    assert regions.evaluate_all(across) == before
+
+
 def test_a_section_without_a_gist_folds_whole(browser, serve):
     """Skim kept every heading, so a section the author gave no gist still showed its
     heading over nothing. A heading stands only for a lede or gist it heads, in a
@@ -332,7 +406,7 @@ def test_a_section_without_a_gist_folds_whole(browser, serve):
             leaf_page(
                 "Dial",
                 '<hgroup id="title"><h1>Report</h1></hgroup>'
-                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
                 '<section id="cause"><h2>Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
                 '<section id="detail"><h3 id="detail-heading">Detail</h3>'

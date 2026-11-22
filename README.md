@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/f94125f7d759f8badee9de6f937c74ae52f0d8bf/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/f94125f7d759f8badee9de6f937c74ae52f0d8bf/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/2db35a03b240b1ad30a0f9bb1e603b8b3194fe98/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/2db35a03b240b1ad30a0f9bb1e603b8b3194fe98/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/f94125f7d759f8badee9de6f937c74ae52f0d8bf/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/2db35a03b240b1ad30a0f9bb1e603b8b3194fe98/demo/demo.gif)
 
 </details>
 
@@ -73,10 +73,6 @@ index. Render checks and exports use the executable named by
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`. A render check of a page last shown in
 Firefox uses the installed Firefox instead, where there is one.
-
-Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
-turn they run in. On an earlier one, an update handed into a prompt you interrupt
-waits until that turn ends before it is offered again.
 
 In Claude Code, a background Stop hook watches the session's pages between turns.
 Leaf's hooks module shows a line above the prompt for each page the session owns,

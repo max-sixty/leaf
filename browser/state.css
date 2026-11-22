@@ -103,9 +103,6 @@
       text-decoration: none !important;
       list-style: none !important;
     }
-    [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
-      display: none !important;
-    }
   }
 }
 

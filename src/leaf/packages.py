@@ -49,7 +49,7 @@ from .schema import (
 )
 from .state import fsync_parents, json_bytes
 from .styles import set_properties, unguarded_reads
-from .themes import DEFAULT_THEME
+from .themes import DEFAULT_THEME, themes_under
 
 
 def package_write_lock(*packages: Path):
@@ -256,12 +256,14 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The layer a new page selecting this package composes: the mandatory layer and
-    Leaf's default theme before this package when it is not already in it."""
+    """The layer a new page selecting this package composes: the mandatory layer, the
+    themes it composes under the package (`themes.themes_under`), so a theme composes
+    as a page taking it does, then this package, each once."""
     inputs = layer_inputs()
-    theme = named_package(DEFAULT_THEME)
-    if theme is not None and not any(paths_same(theme, root) for root in inputs):
-        inputs.append(theme)
+    for name in themes_under(package):
+        theme = named_package(name)
+        if theme is not None and not any(paths_same(theme, root) for root in inputs):
+            inputs.append(theme)
     if not any(paths_same(package, root) for root in inputs):
         inputs.append(package)
     return inputs
@@ -324,7 +326,6 @@ def unset_properties(package: Path, composition: LayerComposition) -> list:
             Finding(
                 "unset-property",
                 values={"sheet": str(package / path), "property": name, "rows": lines},
-                severity="advice",
             )
             for name, lines in sorted(rows.items())
         ]
@@ -452,8 +453,10 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
     """Check the package, and with `render` its widgets' worked examples in the
     host's browser, and report one object in `page check`'s shape: `status`, the exit
     status; `findings`, each finding as a record: the findings a refusal carries, such
-    as a registry's, any other refusal as one `package` record, or else the advice
-    `unset_properties` gives and the widget quality findings; and `browser`, what the browser gate ran in or why none could, null
+    as a registry's, any other refusal as one `package` record, or else what its
+    declarations advise (`validation.composition.layer_advice`), the advice
+    `unset_properties` gives and the widget quality findings; and `browser`, what the
+    browser gate ran in or why none could, null
     where none was asked for or the package check refused."""
     from .findings import Finding, Rejected
 
@@ -473,7 +476,12 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
             else [Finding("package", values={"text": str(error)})]
         )
         return reported(1, found)
-    advice = unset_properties(package, composition)
+    from .validation.composition import layer_advice
+
+    advice = [
+        *layer_advice([package], composition.vocabulary.registry),
+        *unset_properties(package, composition),
+    ]
     if not render:
         return reported(0, advice)
     from .render_gate.command import widget_quality

@@ -4,6 +4,8 @@ Leaf's examples and instructions teach are the ones its references name."""
 import json
 import re
 
+from interact_support import shipped_sheets
+
 from leaf.schema import ASSETS, BUNDLED_PACKAGES
 from leaf.state import PLUGIN_ROOT
 
@@ -28,16 +30,6 @@ COMMENT = re.compile(r"/\*.*?\*/", re.S)
 CODE_COMMENT = re.compile(r"/\*.*?\*/|(?<![:\"'`])//[^\n]*", re.S)
 
 
-def sheets():
-    """The core's sheets and the bundled packages', less what they vendor."""
-    return [
-        path
-        for root in (ASSETS, BUNDLED_PACKAGES)
-        for path in sorted(root.rglob("*.css"))
-        if "vendor" not in path.parts
-    ]
-
-
 def declared(text):
     return {a or b for a, b in DECLARED.findall(COMMENT.sub("", text))}
 
@@ -60,7 +52,7 @@ def test_every_property_leaf_declares_is_named_as_leaf_s():
     page the panel's quiet words took the surface's colour and read 1.1:1."""
     foreign = sorted(
         f"{sheet.relative_to(PLUGIN_ROOT)}: {name}"
-        for sheet in sheets()
+        for sheet in shipped_sheets()
         for name in declared(sheet.read_text())
         if not name.startswith(("--lf-", *DEPENDENCY))
     )

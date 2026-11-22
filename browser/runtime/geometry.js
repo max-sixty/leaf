@@ -15,6 +15,8 @@ import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
 import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { keeps } from "./keeps.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{band: Box | null, axes: {x: boolean, y: boolean},
@@ -675,6 +677,77 @@ export function shownParts(el, { leaveSkipped = false } = {}) {
 /** @param {Element} el */
 export const shownExtent = (el) =>
   union(shownParts(el).map((part) => part.getBoundingClientRect()));
+// How far what Leaf draws round `box` reaches past its left and right edges to take in
+// a list marker beside it, in CSS pixels. The browser draws an outside marker beyond
+// its item's border box, in the column the list keeps for it, and gives the marker no
+// box of its own, so a mark that followed the box alone would run between the marker
+// and the words. So a box that draws an outside marker (`display: list-item`, with a
+// marker, outside), or a block that opens one, standing at its content's first line and
+// start edge as a loose list's paragraph does, reaches by the list inset
+// (`--lf-list-inset`) on the item's start side. Every other box reaches 0, such as an
+// item's second paragraph, which no marker stands beside, or a link that opens an item,
+// which keeps to its own edge. The margin's bars and its outline round a change
+// (margin-bars.js) and the marks a box draws round itself (surfaces.css,
+// `[data-lf-beside-marker]`) all reach by this.
+/** @param {Element} box @returns {{left: number, right: number}} */
+export function markerReach(box) {
+  const none = { left: 0, right: 0 };
+  const own = getComputedStyle(box);
+  if (own.display.startsWith("inline")) return none;
+  const at = box.getBoundingClientRect();
+  let style = own;
+  let item = box;
+  while (!style.display.includes("list-item")) {
+    const holder = item.parentElement;
+    if (!holder) return none;
+    style = getComputedStyle(holder);
+    // A `display: contents` holder draws no box of its own to stand at the corner of.
+    if (style.display !== "contents" && !opens(at, holder, style)) return none;
+    item = holder;
+  }
+  // The marker's own `content` draws it where the list style draws none, and hides it.
+  const marker = getComputedStyle(item, "::marker").content;
+  if (
+    style.listStylePosition !== "outside" ||
+    marker === "none" ||
+    (marker === "normal" &&
+      style.listStyleType === "none" &&
+      style.listStyleImage === "none")
+  )
+    return none;
+  const reach = Number.parseFloat(own.getPropertyValue("--lf-list-inset"));
+  return style.direction === "rtl"
+    ? { left: 0, right: reach }
+    : { left: reach, right: 0 };
+}
+// Whether a box at `at` opens `holder`: stands at its content's first line and start edge.
+/** @param {DOMRect} at @param {Element} holder @param {CSSStyleDeclaration} style */
+function opens(at, holder, style) {
+  const outer = holder.getBoundingClientRect();
+  const px = (/** @type {string} */ value) => Number.parseFloat(value);
+  const top = outer.top + px(style.borderTopWidth) + px(style.paddingTop);
+  const start =
+    style.direction === "rtl"
+      ? outer.right - px(style.borderRightWidth) - px(style.paddingRight)
+      : outer.left + px(style.borderLeftWidth) + px(style.paddingLeft);
+  const edge = style.direction === "rtl" ? at.right : at.left;
+  return Math.abs(edge - start) <= 1 && Math.abs(at.top - top) <= 1;
+}
+// Reads the side each of `boxes` reaches over a list marker on (`markerReach`), and
+// returns the write that says it on each (`data-lf-beside-marker`), which surfaces.css
+// reads to draw the box's marks. A mark's writer reads this with its other reads and
+// writes it with its other writes, so marking many boxes lays the page out once.
+/** @param {Element[]} boxes */
+export function readMarkerSides(boxes) {
+  const sides = boxes.map((box) => {
+    const { left, right } = markerReach(box);
+    return left ? "left" : right ? "right" : null;
+  });
+  return () =>
+    boxes.forEach((box, at) =>
+      keeps(box, RUNTIME_PAINT_ATTRIBUTE.besideMarker, sides[at]),
+    );
+}
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an

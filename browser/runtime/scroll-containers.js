@@ -7,11 +7,23 @@
    moves with every scroll that moves its anchor, which a reading of the motions under
    way counts (`carriersOf`), and how far the glides under way still carry a node
    across both is read here too (`glideTravel`, `glideGap`), with what the user sees of
-   it where they leave it (`seenGlided`, `seenAhead`). */
+   it where they leave it (`seenGlided`, `seenAhead`).
+
+   How far a scroll carries a node is read, never modelled: each box is scrolled where
+   the scroll would leave it, the node read there, and the box put back, in one task
+   (`movedBy`, `whereGlidesLand`; arrivals.js, `readScrolled`). A sticky box rides a
+   scroll until it reaches its line, comes back off it with its own place and is pushed
+   on by its holder's end, through transforms and nested scrollers, and the browser's
+   layout says where each leaves it, in Chromium and Firefox alike. That rests on both
+   engines laying a box's content out as a scroll write lands, and costs a write and a
+   write back for each box a glide moves, whose events go no further than arrivals.js.
+   The move that carries a node a given distance is found the same way, a few readings
+   for a pane that sticks (`seekScroll`). */
 import { inputs } from "./inputs.js";
 import { isElement, renderedParent, renderedUnder } from "./shadow-tree.js";
 import { anchorHolder, anchorNamed } from "./css-anchors.js";
 import { scrollAxes } from "./element-axes.js";
+import { readScrolled } from "./arrivals.js";
 import {
   aimedTop,
   aimScroll,
@@ -24,13 +36,13 @@ import {
   scrollsFor,
 } from "./scrolling.js";
 import {
-  carried,
   clippedPlace,
   fixedInWindow,
   inFront,
   placeBox,
   placeHolder,
   seenRect,
+  shownBox,
   shownWindow,
   userScrollport,
 } from "./geometry.js";
@@ -175,15 +187,17 @@ export const holderOf = (node) =>
 
 // The distance the glides under way have still to carry `node`, through the boxes that
 // carry it (`carriersOf`): each box's glide, from where the box stands to its goal
-// (scrolling.js, `scrollGoal`), carries what it moves as far as geometry.js `carried`
-// says, so a page's sticky header holding the focused tab rides a glide of the page
-// only until it sticks, and none once it has. Summed as a vector in client pixels
-// through each box's transforms (element-axes.js, `scrollAxes`), with the outermost box
-// whose glide carries it; null where none does. An element's own scroll moves what it
-// holds and not its box (`heldTravel` asks for what it holds). A scroll the browser
-// runs, as a wheel's, has no goal Leaf knows, so it adds nothing. Where a box Leaf
-// anchors will stand also depends on its placement, which solves again after a scroll
-// (floating.js), and this reads only the scrolls.
+// (scrolling.js, `scrollGoal`), carries the element it moves (`carrying`) as far as
+// the browser's layout leaves it there (`movedBy`), so a page's sticky header holding
+// the focused tab rides a glide of the page only until it sticks, and comes back down
+// with a glide that takes its own place back past its line. Summed as a vector in
+// client pixels, with the outermost box whose glide carries it; null where none does.
+// An element's own scroll moves what it holds and not its box (`heldTravel` asks for
+// what it holds, which rides the whole scroll through the box's transforms,
+// element-axes.js `scrollAxes`). A scroll the browser runs, as a wheel's, has no goal
+// Leaf knows, so it adds nothing. Where a box Leaf anchors will stand also depends on
+// its placement, which solves again after a scroll (floating.js), and this reads only
+// the scrolls.
 /** @param {Element | Range | Anchor} node */
 export const glideTravel = (node) =>
   travelFrom(
@@ -202,14 +216,105 @@ function travelFrom(holder, own) {
   let outer = null;
   for (const [box, on] of carrying(holder)) {
     if (box === own) continue;
-    const ride = carried(on, box, scrollGoal(box) - box.scrollTop);
-    if (!ride) continue;
-    const axis = scrollAxes(box).y;
-    x -= ride * axis.x;
-    y -= ride * axis.y;
+    const goal = scrollGoal(box);
+    if (goal === box.scrollTop) continue;
+    const by = on === box ? ownScroll(box, goal) : movedBy(on, box, goal);
+    if (Math.abs(by.x) < 0.5 && Math.abs(by.y) < 0.5) continue;
+    x += by.x;
+    y += by.y;
     outer = box;
   }
   return outer && { x, y, outer };
+}
+// How far a scroll of `box` to `top` carries what it scrolls as content: the whole
+// scroll, through the box's transforms.
+/** @param {Element} box @param {number} top */
+const ownScroll = (box, top) => {
+  const axis = scrollAxes(box).y;
+  const by = top - box.scrollTop;
+  return { x: -by * axis.x, y: -by * axis.y };
+};
+// How far, in client pixels, a scroll of `box` to `top` carries `node`'s box, read
+// where the scroll leaves it (arrivals.js, `readScrolled`).
+/** @param {Element} node @param {Element} box @param {number} top */
+export const movedBy = (node, box, top) =>
+  readScrolled((scroll) => {
+    const was = shownBox(node);
+    scroll(box, top);
+    const now = shownBox(node);
+    return { x: now.left - was.left, y: now.top - was.top };
+  });
+// Read `read` with each of `boxes` where its glide is headed (scrolling.js,
+// `scrollGoal`), as the page will stand once the glides under way land, though none
+// has (arrivals.js, `readScrolled`, whose `scroll` `read` may move them further with).
+/** @template T @param {Iterable<Element>} boxes
+ * @param {(scroll: (box: Element, top: number) => void) => T} read @returns {T} */
+export function whereGlidesLand(boxes, read) {
+  const goals = [...boxes].map((box) => /** @type {const} */ ([box, scrollGoal(box)]));
+  return readScrolled((scroll) => {
+    for (const [box, goal] of goals) scroll(box, goal);
+    return read(scroll);
+  });
+}
+
+// The offset to scroll `box` to that carries what `edge` reads, a client y, `by` pixels
+// down the window (up where negative) from where it stands with the box at `from`, and
+// how far that offset carries it (`by`). Each offset tried is read where it leaves the
+// edge (arrivals.js, `readScrolled`). The first is the move that carries the box's
+// content `by`, where a node riding the whole scroll lands, and nothing carries a node
+// faster than its box's content. A sticky box that stops the node leaves it short
+// there, and then the move is the least that carries it as far, found from the
+// furthest offset still short by the same rule, halving what is left where a step
+// gains nothing. So a pane that rides the page until it sticks takes a few readings,
+// and the move ends where the pane sticks. It goes no further than the first move, to
+// where the pane's holder would push it on or its own place would bring it back: the
+// scroll between would carry the text beside the pane and leave the node where it was,
+// as a side list stuck beside the item it opens would scroll the item's start away.
+/** @param {Element} box @param {number} from @param {number} by @param {() => number} edge */
+export function seekScroll(box, from, by, edge) {
+  const rate = scrollAxes(box).y.y;
+  if (!rate || Math.abs(by) < 0.5) return { top: from, by: 0 };
+  return readScrolled((scroll) => {
+    /** @param {number} top */
+    const at = (top) => {
+      scroll(box, top);
+      return { top: box.scrollTop, y: edge() };
+    };
+    const start = at(from);
+    // How far short of `by` the edge stands in a reading, along `by`'s way.
+    /** @param {{y: number}} reading */
+    const short = ({ y }) => Math.abs(by) - Math.sign(by) * (y - start.y);
+    const way = Math.sign(-by / rate);
+    const pace = Math.abs(rate);
+    // The offset that carries content `left` further than `reading` stands.
+    /** @param {{top: number}} reading @param {number} left */
+    const onward = (reading, left) => reading.top + (way * left) / pace;
+    // `far` carries the edge as far as the first move does, `least` short of `by`, and
+    // `near` stops short of that.
+    let far = at(onward(start, Math.abs(by)));
+    const least = short(far);
+    let near = start;
+    let gained = true;
+    for (
+      let tries = 0;
+      tries < 24 && least >= 0.5 && Math.abs(far.top - near.top) > 1;
+      tries++
+    ) {
+      // No offset short of `rest` carries the edge as far, so where `far` stands no
+      // further, it is the least move.
+      const rest = onward(near, short(near) - least);
+      if ((rest - far.top) * way >= 0) break;
+      const next = at(gained ? rest : (near.top + far.top) / 2);
+      if (short(next) < least + 0.5) far = next;
+      else {
+        gained = short(next) < short(near) - 0.5;
+        near = next;
+      }
+    }
+    return short(start) < least + 0.5
+      ? { top: from, by: 0 }
+      : { top: far.top, by: far.y - start.y };
+  });
 }
 
 // How far `node`'s box stands outside the part of the window the page shows

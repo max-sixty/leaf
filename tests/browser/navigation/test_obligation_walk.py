@@ -970,6 +970,79 @@ def test_m_pressed_while_the_page_glides_lands_an_ask_in_a_sticky_track_where_it
     assert settled() == pytest.approx(paged, abs=2)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_m_pressed_as_g_g_glides_back_lands_an_ask_its_released_track_carries_down(
+    request, serve, engine
+):
+    """`g g m` typed quickly, on a sidebar page whose stuck track holds the ask just
+    above the window's foot, ends where the same keys typed slowly end. `g g`'s glide to
+    the top takes the track's own place back past the line it sticks at, so the track
+    comes down with the page and carries the ask past the foot, and `m` brings it back.
+    Read as staying stuck, the ask stood whole where the glide leaves it, and `m` left
+    it under the foot."""
+    paragraphs = "".join(
+        f"<p>Body paragraph {n} of the review, long enough to fill a line.</p>"
+        for n in range(120)
+    )
+    source = leaf_page(
+        "An ask a released track carries",
+        '<aside id="route"><div class="layout-track" id="track">'
+        '<div id="before" style="height: 300px"></div>'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Take the left route</lf-option>'
+        '<lf-option id="right">Take the right route</lf-option></lf-options></lf-group>'
+        "</div></aside>"
+        f'<article class="layout-column"><h1>Release review</h1>{paragraphs}</article>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 700)
+    ask = page.locator("#ask")
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def foot_gap():
+        """How far the ask's foot stands above the window's, which no chrome covers
+        beside the page's column."""
+        return page.evaluate(
+            "document.documentElement.clientHeight"
+            " - document.getElementById('ask').getBoundingClientRect().bottom"
+        )
+
+    page.evaluate("() => scrollTo({top: 600, behavior: 'instant'})")
+    settled()
+    # Stand the ask, in the stuck track, 12px above the window's foot.
+    page.evaluate(
+        "gap => { const before = document.getElementById('before');"
+        " before.style.height = `${before.offsetHeight + gap - 12}px`; }",
+        foot_gap(),
+    )
+    settled()
+    assert foot_gap() == pytest.approx(12, abs=1)
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    assert settled() == 0
+    # Released, the track came down past the window's foot with the ask.
+    assert foot_gap() < 0
+    page.keyboard.press("m")
+    expect(ask).to_be_focused()
+    slowly = settled()
+    assert foot_gap() >= 0
+
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo({top: 600, behavior: 'instant'})")
+    settled()
+    with held_frames(page) as step:
+        page.keyboard.press("g")
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        step()
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(slowly, abs=2)
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):

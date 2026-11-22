@@ -44,7 +44,11 @@
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
    scroll or scroll end crosses one either, so this module hears the document's and
-   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`).
+   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). It
+   writes every scroll, and reads the page with boxes scrolled elsewhere and put back in
+   one task (`readScrolled`). That costs a write and a write back for each box, and is
+   exact because the browser lays a box's content out as a scroll write lands; the
+   events the writes owe go to no listener but this module's.
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
@@ -356,6 +360,7 @@ export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
   const { behavior = "instant" } = options;
   if (behavior === "instant" && !moves(box, options)) return;
+  known(box);
   box.scrollTo({ ...options, behavior });
   if (behavior !== "instant") return;
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
@@ -402,6 +407,7 @@ export const scrollDrawn = () => undrawn?.promise ?? null;
 /** @param {Element} box */
 export function stopWhereItStands(box) {
   const at = { top: box.scrollTop, left: box.scrollLeft };
+  known(box);
   box.scrollTo({ ...at, behavior: "smooth" });
   box.scrollTo({ ...at, behavior: "instant" });
   placed.set(box, at);
@@ -420,6 +426,77 @@ const moves = (box, { top, left }) => {
     along(top, box.scrollTop, range.top) || along(left, box.scrollLeft, range.left)
   );
 };
+
+// Read the page with boxes scrolled elsewhere: `read` scrolls each box it asks about
+// (`scroll(box, top)`, clamped as a write is) and reads, and every box goes back where
+// it stood before the task ends, so no frame draws it there. This is how Leaf learns
+// where a scroll leaves a node, a glide's still to come or a move it is choosing: the
+// browser lays a box's content out as a scroll write lands, sticky boxes, their
+// holders' ends, transforms and nested scrollers included, and a read just after is
+// exact in Chromium 159 and Firefox 159. A model of that layout needs a stuck box's own
+// place, which Firefox can't read (geometry.js, `stuckShift`). A box Leaf anchors
+// (css-anchors.js) takes a write only at the next frame (notes/browser-support.md, "A
+// reveal of an anchored fixed box before the next frame in Chromium"), so past one the
+// anchor's holder is what is read (scroll-containers.js, `carrying`). `read` only
+// reads: a write of its own would be undone.
+//
+// Each box written costs a write and a write back, a few hundredths of a millisecond
+// with the read, and one `scroll` and one `scrollend` event at the next rendering
+// update. Those events are this module's alone: a `scroll` that finds the box where the
+// last one found it, and the `scrollend` after it, go no further (`probeOnly`), so no
+// sequence starts and no listener places paint, records a reading place or decides who
+// chose the position. A box that moved for anything else since sends its event as
+// usual, the probe's merged into it. The write also stops a smooth scroll a script set
+// going in the box, in Chromium and Firefox alike, and in Firefox the rubber band of a
+// flick into its edge; a key's smooth scroll, as PageDown's, runs on in both. So only a
+// box a glide of Leaf's moves, or one a landing is choosing a move for, is written.
+/** @type {WeakSet<Element>} */
+const probed = new WeakSet();
+/** @type {WeakSet<Element>} */
+const probeEnds = new WeakSet();
+/** @template T @param {(scroll: (box: Element, top: number) => void) => T} read @returns {T} */
+export function readScrolled(read) {
+  /** @type {Map<Element, number>} */
+  const stood = new Map();
+  /** @param {Element} box @param {number} top */
+  const scroll = (box, top) => {
+    if (!moves(box, { top })) return;
+    if (!stood.has(box)) {
+      stood.set(box, box.scrollTop);
+      known(box);
+    }
+    box.scrollTo({ top, behavior: "instant" });
+  };
+  try {
+    return read(scroll);
+  } finally {
+    for (const [box, top] of stood) {
+      if (box.scrollTop !== top) box.scrollTo({ top, behavior: "instant" });
+      probed.add(box);
+    }
+  }
+}
+// Where each box stood when its last `scroll` event was sent, or where Leaf first found
+// it before any was, so its first write's event is never taken for a probe's.
+/** @type {WeakMap<Element, {top: number, left: number}>} */
+const eventAt = new WeakMap();
+/** @param {Element} box */
+function known(box) {
+  if (!eventAt.has(box)) eventAt.set(box, { top: box.scrollTop, left: box.scrollLeft });
+}
+// Whether a `scroll` event, or the `scrollend` that follows it, is a probe's alone
+// (`readScrolled`): the box stands where its last `scroll` event found it.
+/** @param {string} type @param {Element} box */
+function probeOnly(type, box) {
+  if (type !== "scroll") return probeEnds.delete(box);
+  const at = eventAt.get(box);
+  const only =
+    probed.has(box) && at?.top === box.scrollTop && at.left === box.scrollLeft;
+  probed.delete(box);
+  eventAt.set(box, { top: box.scrollTop, left: box.scrollLeft });
+  if (only) probeEnds.add(box);
+  return only;
+}
 // The positions a box's scroll takes on each axis, as the browser clamps a write: from
 // zero to the side where the box's content flows from, the negative one where that is
 // the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;
@@ -493,7 +570,8 @@ export function hearScrollsIn(root) {
   if (hearing.has(root)) return;
   hearing.add(root);
   /** @param {Event} event */
-  const heard = ({ type, target }) => {
+  const heard = (event) => {
+    const { type, target } = event;
     const box =
       target === document
         ? root === document
@@ -503,7 +581,9 @@ export function hearScrollsIn(root) {
           ? target
           : null;
     if (!box) return;
-    if (type === "scroll") announceScroll(box);
+    // Heard before every other listener Leaf adds to the tree: this module loads first.
+    if (probeOnly(type, box)) event.stopImmediatePropagation();
+    else if (type === "scroll") announceScroll(box);
     else if (!awaitsReader(box)) endSequence(box);
   };
   root.addEventListener("scroll", heard, SCROLL);

@@ -509,12 +509,6 @@ export const aimedTop = (box) => {
   return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 
-// How much of a move a box can make from where it stands, or from `from`: a box at its
-// end moves no further, whatever it is asked.
-/** @param {Element} box @param {number} top @param {number} [from] */
-export const reachable = (box, top, from = box.scrollTop) =>
-  Math.max(-from, Math.min(scrollLimit(box) - from, top));
-
 // A glide moves a box to a goal at the pace of the browser's own paging keys, and every
 // smooth vertical motion Leaf makes is one: the reading-page keys (navigation.js,
 // `stepAlong`), the go-to sequence's edges, and every landing (landing-scroll.js), such

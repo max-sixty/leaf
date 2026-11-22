@@ -1,6 +1,5 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
- * window the page shows, where sticky boxes stand and how far a scroll carries what
- * they hold (`carried`), and the one conversion from viewport boxes to
+ * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import {
   excludedByInert,
@@ -13,8 +12,7 @@ import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js"
 import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
 import { cancelRender, nextRender } from "./rendering.js";
-import { watchScrolls } from "./arrivals.js";
-import { reachable } from "./scrolling.js";
+import { readScrolled, watchScrolls } from "./arrivals.js";
 import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
 import { elementAxes } from "./element-axes.js";
@@ -596,8 +594,10 @@ function displaced(sticky, style, axis) {
 // (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
 // scroller inside the page can reach under it. Where a surface stands across the
 // columns a landing's destination stands in (`across`), the band ends at the root's
-// foot plus however far a scroll of the page that far carries the scroller up
-// (`carried`), and the root's band brings the destination the rest of the way clear.
+// foot plus however far a scroll of the page that far carries the scroller up, read
+// where that scroll leaves it (arrivals.js, `readScrolled`): a side list standing a
+// pixel short of the line it sticks at rides the page for that pixel alone. The
+// root's band brings the destination the rest of the way clear.
 /** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
 export const landingBand = (scroller, across = null) => {
   const band = insetBand(scroller, landingInsets(scroller));
@@ -608,53 +608,17 @@ export const landingBand = (scroller, across = null) => {
   if (
     band.bottom > foot &&
     coverBoxes(scroller).some((box) => overlapsAcross(box, across))
-  )
-    band.bottom = Math.max(
-      band.top,
-      foot + carried(scroller, root, band.bottom - foot),
-    );
+  ) {
+    const by = band.bottom - foot;
+    const rides = readScrolled((scroll) => {
+      const was = scroller.getBoundingClientRect().top;
+      scroll(root, root.scrollTop + by);
+      return was - scroller.getBoundingClientRect().top;
+    });
+    band.bottom = Math.max(band.top, foot + rides);
+  }
   return band;
 };
-// How far a scroll of `box` by `by`, in its scroll offset and down positive, carries
-// `node`, in the same measure: the whole scroll for what the box scrolls as content, as
-// far as the box can scroll that way (scrolling.js, `reachable`), and none where a box
-// fixed in the window holds `node`. A sticky box holding `node` that sticks in `box`
-// rides the scroll until it reaches a line it sticks at, and `node` rides the least any
-// of them does. So a side list standing a pixel short of its top line rides a scroll of
-// the page down for that pixel alone, and a box its holder's end has pushed past its
-// line rides back to the line, and the other way with the holder.
-//
-// What a box rides is the distance the scroll carries it before anything holds it.
-// Once it sticks it rides no further, even where its own place coming back to the
-// line, or its holder's end reaching it, would carry it on later in the same scroll. A
-// landing's band and moves need that distance: scrolling the page further than it
-// carries a region scrolls the text beside the region and leaves the destination where
-// it was (landing-scroll.js, `readingBandMoves`). The box's drawing alone gives the
-// distance, so Chromium and Firefox read it alike; only a view timeline knows a stuck
-// box's own place (`stuckShift`), and Firefox can't read one. A box on its line reads
-// as stuck there, as `stuckBox` reads it, though it may stand there in its own place
-// and leave the line when the scroll goes the other way.
-/** @param {Element} node @param {Element} box @param {number} by */
-export function carried(node, box, by) {
-  let ride = reachable(box, by);
-  const way = Math.sign(ride);
-  /** @type {Element | null} */
-  let el = node;
-  for (; ride && el && el !== box; el = renderedParent(el)) {
-    const style = getComputedStyle(el);
-    if (inWindow(el, style)) return 0;
-    if (style.position !== "sticky") continue;
-    const lines = stickLines(el, style);
-    if (lines?.scroller !== box) continue;
-    const { top, bottom } = el.getBoundingClientRect();
-    // How far the scroll carries the box toward each line before it reaches it: up to a
-    // pixel below zero where the box is on the line, further below where the scroll
-    // carries it away from the line, and NaN on a side it doesn't stick to.
-    for (const short of [way * (top - lines.top), way * (bottom - lines.foot)])
-      if (short >= -1) ride = way * Math.min(way * ride, Math.max(0, short));
-  }
-  return ride;
-}
 /** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
 function insetBand(scroller, inset) {
   const band = shownBand(scroller);

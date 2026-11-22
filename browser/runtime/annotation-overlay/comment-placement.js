@@ -148,9 +148,11 @@ import {
   visualViewport,
   shownExtent,
   shownParts,
+  shownBox,
   shownRect,
   shownRectHeld,
 } from "../geometry.js";
+import { movedBy, seekScroll } from "../scroll-containers.js";
 import { markRoom } from "../mark-room.js";
 import { clamp, union } from "../rect.js";
 import {
@@ -420,29 +422,44 @@ function reachableRoom(side, extent, room, boundary, scroller) {
 // room is read where the scroller is headed (scrolling.js, `scrollGoal`), as a key
 // pressed while the page glides acts as though the glide had landed, and a glide under
 // way takes the move into its goal (`glideTo`), so the page lands once, with the room
-// made.
-/** @param {"top" | "bottom"} side @param {Extent} clear @param {Extent} extent @param {MarkRoom} room @param {number} height @param {Boundary} boundary @param {Element} scroller */
-export function makeRoom(side, clear, extent, room, height, boundary, scroller) {
+// made. How far the glide and the move carry `clear` is read where they leave
+// `element`, the subject `clear` is a box of (scroll-containers.js, `movedBy`,
+// `seekScroll`), so a subject in a sticky box the scroll can't carry asks for no move.
+/** @param {"top" | "bottom"} side @param {Extent} clear @param {Extent} extent @param {MarkRoom} room @param {number} height @param {Boundary} boundary @param {Element} scroller @param {Element} element */
+export function makeRoom(
+  side,
+  clear,
+  extent,
+  room,
+  height,
+  boundary,
+  scroller,
+  element,
+) {
   const gap = subjectGap(room, side);
   if (extent.height + gap + height > boundary.height) return false;
   const goal = scrollGoal(scroller);
-  const { available: travel, projection, direction } = roomTravel(side, scroller, goal);
-  // How far the glide under way will still carry `clear` up the window.
-  const ahead = (goal - scroller.scrollTop) * projection;
+  // How far the glide under way will still carry `clear` down the window.
+  const ahead = goal === scroller.scrollTop ? 0 : movedBy(element, scroller, goal).y;
   const overflow =
     side === "top"
-      ? boundary.top - (clear.top - ahead - gap - height)
-      : clear.bottom - ahead + gap + height - boundary.bottom;
-  const movement = Math.max(0, Math.min(overflow, travel));
-  if (movement <= 0.5) return false;
-  const by = (direction * movement) / projection;
+      ? boundary.top - (clear.top + ahead - gap - height)
+      : clear.bottom + ahead + gap + height - boundary.bottom;
+  if (overflow <= 0.5) return false;
+  const move = seekScroll(
+    scroller,
+    goal,
+    side === "top" ? overflow : -overflow,
+    () => shownBox(element).top,
+  );
+  if (Math.abs(move.by) <= 0.5) return false;
   if (goal !== scroller.scrollTop) {
-    glideTo(scroller, goal + by);
+    glideTo(scroller, move.top);
     return true;
   }
   const before = scroller.scrollTop;
-  moveScrollerBy(scroller, by);
-  return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
+  moveScrollerBy(scroller, move.top - before);
+  return scroller.scrollTop !== before;
 }
 
 // The side a comment's surface takes, as a Floating UI side.

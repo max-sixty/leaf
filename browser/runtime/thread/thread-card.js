@@ -120,6 +120,7 @@ import {
 } from "../scrolling.js";
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
+import { seekScroll, whereGlidesLand } from "../scroll-containers.js";
 import { renderedOrder } from "../shadow-tree.js";
 import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
@@ -1065,13 +1066,16 @@ export class ThreadView {
       )
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
-      // reply's ground, its head first where it is taller than that, measured where the
-      // box is headed: New reply sticks at the box's foot, and the turn rises by what
-      // the glide has yet to move. The box glides there, as it glides to the end.
-      const ahead = stood - scroller.scrollTop;
-      const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
-      const below = foot ? turn.getBoundingClientRect().bottom - ahead - foot.top : 0;
-      glideTo(scroller, stood + Math.min(Math.max(below, 0), from() - ahead));
+      // reply's ground, its head first where it is taller than that, read where the
+      // box is headed, New reply stuck at its foot (scroll-containers.js,
+      // `whereGlidesLand`). The box glides there, as it glides to the end.
+      const rise = whereGlidesLand([scroller], () => {
+        const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
+        const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+        return Math.min(Math.max(below, 0), from());
+      });
+      const edge = () => turn.getBoundingClientRect().top;
+      glideTo(scroller, seekScroll(scroller, stood, -rise, edge).top);
     });
   }
 

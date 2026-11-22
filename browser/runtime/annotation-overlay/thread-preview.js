@@ -939,6 +939,7 @@ export function createThreadPreview({
                 fitted,
                 boundary,
                 scroller,
+                place.element,
               )
             ) {
               session.side.scrolled();

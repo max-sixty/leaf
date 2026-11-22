@@ -93,16 +93,23 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
 
 
 @pytest.mark.parametrize(
-    "left", ["page thread's link", "passage thread's link", "card's link", "walk"]
+    "left",
+    [
+        "page thread's link",
+        "passage thread's link",
+        "card's link",
+        "walk",
+        "Show on page",
+    ],
 )
 def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
     """Leaving a thread for a place its view would stand over puts the view away, and
     Back reopens the thread in the reader the user had it in, where they had read it
     to, with the user on it and no other thread open: the panel for a thread they read
     there, about the whole page or a passage, and the margin card for one they read in
-    the card. A `t` walk from the panel's thread to a card reads where the user was
-    before the panel puts its view away. Forward lands on the place again and puts the
-    view away again."""
+    the card. A `t` walk from the panel's thread to a card, and Show on page, read
+    where the user was before the panel puts its view away. Forward lands on the place
+    again and puts the view away again."""
     url = serve(LONG_PAGE)
     page_root = panel_comment(serve.page_dir, "Where does this end?")
     passage_root = panel_comment(
@@ -134,9 +141,13 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         page.keyboard.press("t")
         thread = card
     else:
-        root = passage_root if left == "passage thread's link" else page_root
-        if left == "walk":
-            # From the page's foot, so the walk to the passage at its top moves the page.
+        root = (
+            passage_root
+            if left in ("passage thread's link", "Show on page")
+            else page_root
+        )
+        if left in ("walk", "Show on page"):
+            # From the page's foot, so going to the passage at its top moves the page.
             page.evaluate("scrollTo({top: 1e6, behavior: 'instant'})")
         open_panel_thread(page, root)
         thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
@@ -145,6 +156,10 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         expect(thread).to_be_focused()
         page.keyboard.press("t")
         destination = card
+    elif left == "Show on page":
+        page.locator(".lf-fp-head .lf-fp-on-page").click()
+        # A press lands in the card's reply (thread/focus.js, `openingPart`).
+        destination = page.locator(".lf-margin-preview .lf-thread-reply :focus")
     else:
         link = thread.get_by_role("link", name="the last paragraph")
         link.scroll_into_view_if_needed()
@@ -161,9 +176,13 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
     expect(
         page.locator(PANEL_THREAD if left == "card's link" else ".lf-margin-preview")
     ).to_be_hidden()
-    page.go_forward()
-    expect(destination).to_be_focused()
-    expect(thread).to_be_hidden()
+    # Forward to a card's reply box returns to the thread's passage instead, with the
+    # panel's view still open: a reply's editing continuity carries it across a
+    # revision (version.js), and a return carries no reply.
+    if left != "Show on page":
+        page.go_forward()
+        expect(destination).to_be_focused()
+        expect(thread).to_be_hidden()
 
 
 def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):

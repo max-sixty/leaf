@@ -4903,19 +4903,18 @@ export function createFloatingPanel({
               const intent = retainUserIntent();
               const place = placedAt(thread.id)?.place;
               if (place) reveal(place, intent);
-              close();
-              // The reply box the field drew goes back to the thread's drawing on
-              // the page once the reader has drawn the view gone, and the route lands
-              // there where an opening does (thread/focus.js, `openingPart`); where the
-              // page draws no view of the thread, as a window with no room for the rail
-              // does, on its place (thread/destination.js, `reader: "page"`).
-              void present({ release: true }).then(() =>
-                threadActions.open(thread.key, {
-                  part: null,
-                  intent,
-                  reader: "page",
-                }),
-              );
+              // The route reads where the user is before anything moves, so Back
+              // returns to this view, then draws the thread on the page and has this
+              // view put away, handing the reply box the field drew to the page's
+              // drawing; it lands there where an opening does (thread/focus.js,
+              // `openingPart`), and where the page draws no view of the thread, as a
+              // window with no room for the rail does, on its place
+              // (thread/destination.js, `reader: "page"`).
+              void threadActions.open(thread.key, {
+                part: null,
+                intent,
+                reader: "page",
+              });
             }}
           ></button>`
         : nothing
@@ -5712,7 +5711,11 @@ export function createFloatingPanel({
     return {
       thread: threadByKey(top.thread)?.key ?? top.thread,
       scroll: view.scrollTop,
-      focus: Boolean(at) && at !== document.body && renderedUnder(at, view),
+      // The user is in the thread on its view or its head line, whose Resolve and
+      // Show on page stand for the view; the field's reply is its editing continuity's.
+      focus: [view, head].some(
+        (part) => at && at !== document.body && renderedUnder(at, part),
+      ),
     };
   }
   // The view opens again through the thread's route, which keeps one thread open

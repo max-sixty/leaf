@@ -18,8 +18,9 @@
    the page, and the user in it goes with it, a reply they are writing carried with its
    caret and undo history (`returnToPage`). A route to the page alone
    (`reader: "page"`), Show on page's and that return, asks the primary only to put its
-   view away once the page shows the thread; where the page shows the thread's place but
-   no view of it, a route that travels lands on the place. A route to the primary alone
+   view away once the page shows the thread, or, where the page shows the thread's place
+   but no view of it, once a route that travels has landed on the place. A route to the
+   primary alone
    (`reader: "primary"`) returns the user to a thread they had there, as taking back a
    settlement made there does (undo.js): nothing else shows the thread on it, so the
    primary is asked as the last resort is, and keeps the thread once the page could draw
@@ -440,7 +441,8 @@ export function createThreadDestinations({
     // place into view and lands on the margin control standing for the thread, whose
     // focus traces the place (`refreshHighlight`) after a pointer's press as after a
     // key's, and from which a tap or Enter opens the thread again; with no margin, on the
-    // place itself, its current target. Bringing the place into view can draw a view of
+    // place itself, its current target. The primary then puts its view away, as where the
+    // page draws the thread, since the user has gone on to the page. Bringing the place into view can draw a view of
     // the thread there after all, as a widget's seat does once the file holding its line
     // loads, replacing the control that stood for it: the route lands in that seat, as on
     // a wide window, at every width.
@@ -480,6 +482,7 @@ export function createThreadDestinations({
         if (primary) await inPrimary(primary, false);
         return surfaceFocusTarget(id, { part });
       }
+      if (primary) await inPrimary(primary, false);
       if (!control) return threadTarget(id);
       intent.handoff(() => focusDestination(control, "move"));
       return control;

@@ -64,7 +64,14 @@
 
 import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
 import { setScroll } from "./arrivals.js";
-import { deepFocus, drawn, focusDestination, readCaret, blurFocused } from "./focus.js";
+import {
+  deepFocus,
+  drawn,
+  focusDestination,
+  readCaret,
+  blurFocused,
+  releaseFocus,
+} from "./focus.js";
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
@@ -143,7 +150,9 @@ export async function returnPlace(checkpoint) {
     // collapse it.
     if (checkpoint.caret) return;
   } else if (checkpoint.chrome && chrome) {
-    blurFocused();
+    // The user leaves where they are as a move, not a drop, so a reply box the return
+    // leaves doesn't carry them back to it (thread/focus.js, `holdThreadPlace`).
+    releaseFocus();
     reopened = chrome.restore(checkpoint.chrome);
   } else returnToPlace(checkpoint);
   returnSelection(checkpoint);

@@ -2,9 +2,9 @@
  * kernel idiom in registry.json). Leaf draws it on every page, whatever theme the page
  * takes, and on a page that takes none. Leaf's instructions tell every author to draw a
  * layout, a wireframe or an option's picture in it, and an SVG's shapes paint black
- * where no rule reaches them. The user chose this over leaving the idiom with the
- * reading theme: there a page without that theme drew black shapes, and a theme that
- * replaced `reading` would have had to copy these rules.
+ * where no rule reaches them. The user chose this. Left with the reading theme, the
+ * idiom would draw black shapes on a page without that theme, and a look that replaced
+ * `reading` would have to copy these rules.
  *
  * Every mark takes a token, so a drawing follows the page's palette and colour scheme
  * as its prose does, which an SVG loaded as an image cannot. A theme restyles a drawing

@@ -1618,37 +1618,43 @@ def test_the_kernel_styles_no_class_a_page_coins():
 
     def coined(prelude):
         """The classes a prelude names that are neither Leaf's nor a library's, read one
-        compound at a time, so that those after a compound wearing a drawing's class
-        count as its marks."""
-        names, compound, inside = [], [], False
+        compound at a time, so that those on a descendant of a compound wearing a
+        drawing's class count as its marks. A sibling of the drawing is outside it."""
+        names, compound = [], []
+        within = at = False  # inside a drawing; on the drawing's own element
+        combinator = None
         for token in [*tinycss2.parse_component_value_list(prelude), None]:
             ends_selector = token is None or (
                 token.type == "literal" and token.value == ","
             )
-            if (
-                ends_selector
-                or token.type == "whitespace"
-                or (token.type == "literal" and token.value in ">+~")
-            ):
-                if not inside:
+            explicit = (
+                not ends_selector and token.type == "literal" and token.value in ">+~"
+            )
+            if not (ends_selector or explicit or token.type == "whitespace"):
+                compound.append(token)
+                continue
+            if compound:
+                within = within or (at and combinator in (" ", ">"))
+                if not within:
                     names += [
                         name
                         for name in classes(compound)
                         if not name.startswith(authored + libraries)
                     ]
-                inside = not ends_selector and (
-                    inside or not marked.isdisjoint(classes(compound, nested=False))
-                )
-                compound = []
-            else:
-                compound.append(token)
+                at = not marked.isdisjoint(classes(compound, nested=False))
+                compound, combinator = [], " "
+            if explicit:
+                combinator = token.value
+            if ends_selector:
+                within = at = False
+                combinator = None
         return sorted(names)
 
     assert marked <= structure_model.AUTHORED_CLASSES
-    assert coined("svg.lf-drawing .box, .box svg.lf-drawing, .lf-scroll .hot") == [
-        "box",
-        "hot",
-    ]
+    inside = "svg.lf-drawing .box, svg.lf-drawing > g .hot, svg.lf-drawing .a + .b"
+    assert coined(inside) == []
+    outside = ".c svg.lf-drawing, svg.lf-drawing + .d, svg.lf-drawing ~ svg .e"
+    assert coined(f"{outside}, svg.lf-drawing.f, .lf-scroll .g") == list("cdefg")
 
     def preludes(rules):
         for rule in rules:

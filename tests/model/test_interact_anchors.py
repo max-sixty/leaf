@@ -75,9 +75,9 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     document = structure_model.SourceDocument(
         '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
         "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
-        '<lf-option id="chipped"><small class="tag">recommended</small>'
+        '<lf-option id="chipped"><small class="lf-tag">recommended</small>'
         "<strong>Apply</strong>Ship it.</lf-option>"
-        '<lf-option id="quoted"><small class="tag">recommended</small>'
+        '<lf-option id="quoted"><small class="lf-tag">recommended</small>'
         '<strong>"Update" for mixed input</strong></lf-option></main>'
     )
     assert passages_model.page_passages(document).text == (

@@ -39,7 +39,7 @@ def section(name, paragraphs):
 SECTIONS = ("impact", "cause", "fix", "timeline", "method", "owners", "followups")
 DIAL_PAGE = leaf_page(
     "Dial",
-    '<h1>Report</h1><p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+    '<h1>Report</h1><p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
     + "".join(section(name, 3) for name in SECTIONS),
 )
 
@@ -264,7 +264,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         serve(
             leaf_page(
                 "Dial",
-                '<h1>Report</h1><p class="lede">What happened.</p>'
+                '<h1>Report</h1><p class="lf-lede">What happened.</p>'
                 '<lf-dial id="dial"></lf-dial>'
                 '<section id="cause"><h2 id="cause-heading">Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
@@ -375,7 +375,7 @@ def test_a_dial_in_a_sidebar_page_s_body_governs_the_body_alone(browser, serve):
                 '<aside id="route"><div class="layout-track">'
                 '<lf-toc id="contents"></lf-toc></div></aside>'
                 '<div class="layout-column" id="body"><h1>Report</h1>'
-                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
                 + "".join(section(name, 3) for name in SECTIONS)
                 + "</div>",
                 layout="sidebar",
@@ -406,7 +406,7 @@ def test_a_section_without_a_gist_folds_whole(browser, serve):
             leaf_page(
                 "Dial",
                 '<hgroup id="title"><h1>Report</h1></hgroup>'
-                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
                 '<section id="cause"><h2>Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
                 '<section id="detail"><h3 id="detail-heading">Detail</h3>'

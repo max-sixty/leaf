@@ -13,7 +13,7 @@
         <p>ship review · offline editing</p>
         <h1>Finish the ship review</h1>
       </hgroup>
-      <p class="lede" id="off-lede">
+      <p class="lf-lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
         and a six-week beta across 96 workspaces saw no data loss. Approve the release
         with that workaround below, and choose the follow-up work separately in the
@@ -29,17 +29,17 @@
         <ul id="off-readiness">
           <li id="off-t-patch">
             <strong>Ship offline editing in the first patch</strong>
-            <span class="tag">review · mobile</span>
+            <span class="lf-tag">review · mobile</span>
             <ul>
               <li id="off-t-resync">
                 <strong>iOS reconnect stall</strong>
-                <span class="tag warn">stalled · mobile</span> One reconnect in about
+                <span class="lf-tag warn">stalled · mobile</span> One reconnect in about
                 40. Nothing is lost — the edits stay queued — but the user sees a
                 spinner until they background the app.
               </li>
               <li id="off-t-workaround">
                 <strong>Keep the resend workaround in the patch</strong>
-                <span class="tag">review · mobile</span> After 20 seconds the client
+                <span class="lf-tag">review · mobile</span> After 20 seconds the client
                 resends the queued batch; 500 forced stalls all recovered.
                 <lf-group
                   id="off-workaround-decision"
@@ -58,25 +58,25 @@
               </li>
               <li id="off-t-vendor">
                 <strong>Land the upstream fix</strong>
-                <span class="tag warn">blocked · mobile</span> The vendor reproduced the
-                stall but has not named a release.
+                <span class="lf-tag warn">blocked · mobile</span> The vendor reproduced
+                the stall but has not named a release.
               </li>
               <li id="off-t-telemetry">
                 <strong>Keep reconnect telemetry</strong>
-                <span class="tag ok">done · data</span> The beta alert and per-platform
-                count remain on for the release cohort.
+                <span class="lf-tag ok">done · data</span> The beta alert and
+                per-platform count remain on for the release cohort.
               </li>
               <li id="off-t-support">
                 <strong>Write the support playbook</strong>
-                <span class="tag ok">done · support</span> It covers the spinner, queued
-                edits, and background-app recovery.
+                <span class="lf-tag ok">done · support</span> It covers the spinner,
+                queued edits, and background-app recovery.
               </li>
             </ul>
           </li>
         </ul>
       </section>
 
-      <dl class="facts" id="off-facts">
+      <dl class="lf-facts" id="off-facts">
         <dt>Observed</dt>
         <dd>1 reconnect in about 40</dd>
         <dt>Data loss</dt>

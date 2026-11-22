@@ -66,7 +66,7 @@ provisional until the stamped revision its `handling` asks for.
 ## Make changes easy to find
 
 Before handing over a changed page, compare it with the last version the user saw and
-mark each significant addition, such as a `.tag` reading "new" beside a new section's
+mark each significant addition, such as a `.lf-tag` reading "new" beside a new section's
 heading. Remove those marks in the next version you hand over.
 
 ## Keep the current page current

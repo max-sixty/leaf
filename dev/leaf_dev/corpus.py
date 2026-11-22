@@ -100,7 +100,7 @@ HEAD = """\
 <p>internal page corpus</p>
 <h1>Every Leaf page fixture, composed</h1>
 </hgroup>
-<p class="lede" id="corpus-lede">This internal stress surface puts every
+<p class="lf-lede" id="corpus-lede">This internal stress surface puts every
 authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
 catalog.</p>

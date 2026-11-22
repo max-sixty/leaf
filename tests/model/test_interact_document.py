@@ -4717,7 +4717,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     )
     edited = live.replace(
         "Fastest to ship.",
-        'A revised recommendation. <small class="tag">Recommended</small>',
+        'A revised recommendation. <small class="lf-tag">Recommended</small>',
     ).replace('id="o-stage"', 'id="o-stage" selected')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0

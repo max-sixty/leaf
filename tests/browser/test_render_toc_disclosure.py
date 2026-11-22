@@ -155,7 +155,7 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     source = leaf_page(
         "sidebar contents",
         '<header><h1>Review</h1></header><aside id="rail">'
-        '<div class="layout-track"><section class="panel">'
+        '<div class="layout-track"><section class="lf-panel">'
         '<lf-toc id="contents"></lf-toc></section></div></aside>'
         f'<div id="body">{sections}</div>',
         layout="sidebar",

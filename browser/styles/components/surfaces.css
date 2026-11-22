@@ -217,9 +217,30 @@ a[data-lf-external]::after,
  * would be a floor the newest kind of widget is the one to fall through. */
 /* Every box's outline stands where the box says its marks stand (base.css, "Where it
    stands"), so a ring a carrier draws on its own box stands there without restating
-   it. A box that says nothing keeps the property's initial 0. */
+   it. A box that says nothing keeps the property's initial 0.
+   Every box also states where Leaf's marks on it (below) would stand, whether or not
+   one shows: their gap (`--lf-band-gap`), the box's `--lf-ring-at`, else a region's gap,
+   or a control's for a box that takes a press; and the room their band takes past the
+   box's edge (`--lf-band-room`). So a surface that stands clear of the marks
+   (geometry.js, `markedBox`) clears them before they show. */
 :where(*) {
   outline-offset: var(--lf-ring-at, 0px);
+  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
+  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
+}
+:where(a[href]),
+:where(button),
+:where(input),
+:where(select),
+:where(textarea),
+:where(summary),
+:where([role]) {
+  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-ring-gap));
+}
+/* A drawing's marks follow the contour of each shape, or stand on the edge of a part
+   that draws none (below), so the room they take past a part is the band at most. */
+:where(svg) :where(:not(foreignObject *)) {
+  --lf-band-room: var(--lf-focus-ring-w);
 }
 /* A visible focus destination wears the layer's band unless its own rule supplies
    a carrier, or another mark on it carries it: a comment's mark
@@ -298,8 +319,6 @@ a[data-lf-external]::after,
 :where([data-lf-proxied]),
 :where([data-lf-mark]),
 :where([data-lf-projected-location]) {
-  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
-  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent));
   outline-offset: var(--lf-band-gap);
@@ -347,45 +366,6 @@ a[data-lf-external]::after,
     1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
     calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
     calc(var(--lf-band-room) + var(--lf-band-reach-left)) !important;
-}
-:where([data-lf-aimed]):where(
-  a[href],
-  button,
-  input,
-  select,
-  textarea,
-  summary,
-  [role]
-),
-:where([data-lf-traced]):where(
-  a[href],
-  button,
-  input,
-  select,
-  textarea,
-  summary,
-  [role]
-),
-:where([data-lf-proxied]):where(
-  a[href],
-  button,
-  input,
-  select,
-  textarea,
-  summary,
-  [role]
-),
-:where([data-lf-mark]):where(a[href], button, input, select, textarea, summary, [role]),
-:where([data-lf-projected-location]):where(
-  a[href],
-  button,
-  input,
-  select,
-  textarea,
-  summary,
-  [role]
-) {
-  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-ring-gap));
 }
 /* The margin trace takes its own ink, and an action's target alone a quieter line. */
 :where([data-lf-traced]) {

@@ -273,10 +273,9 @@
     (what, node) =>
       ["class", "style", "title", "aria-hidden", "children"].includes(what) &&
       is(node, ":is(div, img):is([class^='viewer-'], [class*=' viewer-'])"),
-    // The contents map decides which face it needs, roomy, compact or an open outline,
-    // by measuring its labels in each; a label's height is where it wraps in that face.
-    (what, node) =>
-      ["data-lf-compact", "data-lf-outline"].includes(what) && is(node, "lf-toc"),
+    // The contents map decides which face it needs, roomy or compact, by measuring its
+    // labels in each; a label's height is where it wraps in that face.
+    (what, node) => what === "data-lf-compact" && is(node, "lf-toc"),
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
@@ -447,7 +446,9 @@
           attribute: record.attributeName,
           target: place(record.target),
           ...(record.type === "childList"
-            ? { nodes: [...record.removedNodes, ...record.addedNodes].map(number) }
+            ? {
+                nodes: [...record.removedNodes, ...record.addedNodes].map(number),
+              }
             : {}),
         });
     }

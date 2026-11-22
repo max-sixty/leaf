@@ -228,6 +228,7 @@ user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
+For a control in a widget's shadow root, that ancestor is the widget.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,

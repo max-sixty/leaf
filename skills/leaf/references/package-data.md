@@ -45,8 +45,10 @@ The record kind fixes the event's payload, a closed object with every field requ
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`.
-- `position` sends `{unit, value, rank}`: the moved element, the destination container
-  (of the tag `record.within` names), and its rank.
+- `position` sends `{unit, value, rank}`: the moved element, the destination container,
+  and its rank. A container is an element of the tag `record.within` names, inside the
+  widget and with an id of its own. The widget is never its own container, so a widget
+  with one list of members still holds them in a container element.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
 detail field holding the moved element. A verb with no record declares its own closed

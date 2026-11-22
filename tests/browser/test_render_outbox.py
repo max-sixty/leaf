@@ -705,13 +705,26 @@ def test_undo_takes_a_comment_back_without_opening_its_thread(browser, serve):
 def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
     """The age Undo's row says, at its end and whole in its hover, is read where the
     menu paints, so a page left open keeps it true: a gesture made just now reads
-    minutes old once minutes pass, with no new reading of the log."""
+    minutes old once minutes pass, with no new reading of the log. The agent has
+    answered the thread the user resolves, so nothing is owed whose next change the
+    page would ask the server about instead."""
     url = serve(UNDO_PAGE, comments=1)
     [comment] = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": comment,
+            "responds": comment,
+            "text": "Done.",
+        },
+    )
     append_carried_log_record(
         serve.page_dir,
         {

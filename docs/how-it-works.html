@@ -1456,14 +1456,17 @@ sequenceDiagram
               update as a new copy in its plugin cache, and a process loads the copy
               installed when it starts, as at a new session, a resume or a background
               job's wake, or when it runs <code>/reload-plugins</code>. Its hooks run
-              <code>$CLAUDE_PLUGIN_ROOT/bin/leaf</code>, which runs the copy it sits
-              in. Leaf's hooks module comes from the same copy and follows the
-              session's pages through that copy's launcher, and the agent's bare
+              <code>$CLAUDE_PLUGIN_ROOT/bin/leaf</code>, which runs the copy it sits in.
+              Leaf's hooks module comes from the same copy and follows the session's
+              pages through that copy's launcher, and the agent's bare
               <code>leaf</code> is that launcher too, since Claude Code puts the copy's
-              <code>bin/</code> on the Bash <code>PATH</code>. Codex and Pi also run Leaf's hooks through
-              the launcher in the copy they loaded. An install changes nothing a running
-              process runs, and the session takes the update at its next new process or
-              reload. Leaf never reads Claude Code's record of the installed copy.
+              <code>bin/</code> on the Bash <code>PATH</code>. In Claude Code an install
+              changes nothing a running process runs, and the session takes the update
+              at its next new process or reload. Codex and Pi also run Leaf's hooks
+              through the launcher in the copy they loaded, but each keeps one copy and
+              updates it in place, so the session's next hook runs the update. A path
+              names no version there, so Leaf tells two copies apart by path and commit.
+              Leaf never reads a harness's record of the installed copy.
             </p>
             <p id="leaf-copy-outlast">
               Three things outlive the process, so a session can find one that another
@@ -1486,10 +1489,11 @@ sequenceDiagram
                     last initialized the page
                   </td>
                   <td>
-                    A prompt or Stop hook, or the first <code>leaf</code> command that
-                    writes to the page, initializes a page at an older protocol again
-                    under the session's copy, keeping its log. A page at a newer
-                    protocol is refused until the session loads a Leaf that speaks it.
+                    The first hook that reads the session's pages, as a prompt or Stop
+                    hook does, or the first <code>leaf</code> command that writes to the
+                    page, initializes a page at an older protocol again under the
+                    session's copy, keeping its log. A page at a newer protocol is
+                    refused until the session loads a Leaf that speaks it.
                   </td>
                 </tr>
                 <tr id="leaf-copy-server">
@@ -1499,17 +1503,17 @@ sequenceDiagram
                     <code>service.json</code>
                   </td>
                   <td>
-                    A prompt hook restarts a server that another installed copy started
-                    under the hook's copy, at the same address. Open tabs reload where
-                    the browser runtime changed.
+                    A prompt hook restarts a server that another installed copy, or the
+                    same copy at another commit, started under the hook's copy, at the
+                    same address. Open tabs reload where the browser runtime changed.
                   </td>
                 </tr>
                 <tr id="leaf-copy-skill">
                   <th scope="row">The skill text the agent read</th>
-                  <td>The copy the session's last hook ran from, in its session record</td>
+                  <td>A digest of the skill the session's last hook ran with</td>
                   <td>
-                    The first hook from another copy whose skill differs tells the agent
-                    to read that copy's <code>SKILL.md</code> again.
+                    The first hook whose copy ships a different skill tells the agent to
+                    read that copy's <code>SKILL.md</code> again.
                   </td>
                 </tr>
               </tbody>

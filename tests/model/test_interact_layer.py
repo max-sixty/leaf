@@ -336,20 +336,21 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
 
 
 def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
-    """A server keeps the Leaf it started under, so a check by another commit of
-    Leaf may pass on code the user's tab doesn't run. `page check` notes that, with
-    the commands that restart the server, and the first reply on a revision repeats
-    its advice. A live server at this Leaf's commit, or a stopped one, draws no
-    note."""
+    """A server keeps the Leaf it started under, so a check by another Leaf, at
+    another path or commit, may pass on code the user's tab doesn't run. `page check`
+    notes that, with the commands that restart the server, and the first reply on a
+    revision repeats its advice. A live server this Leaf started, or a stopped one,
+    draws no note."""
     (page_dir / "index.html").write_text(leaf_page("Notes", "<p>Ship Tuesday.</p>"))
     activate_source(page_dir)
     serving(page_dir, available_loopback_port())
     service = read_record(page_dir / "service.json")
 
-    def advised(commit, enabled=True):
+    def advised(commit, enabled=True, path=cleanup_model.PLUGIN_ROOT):
+        runtime = {"path": str(path), "commit": commit}
         write_record(
             page_dir / "service.json",
-            {**service, "enabled": enabled, "runtime": {"commit": commit}},
+            {**service, "enabled": enabled, "runtime": runtime},
         )
         checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
         assert checked.exit_code == 0, checked.output
@@ -361,8 +362,12 @@ def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
 
     [noted] = advised("0123456789ab")
     restart = f"`leaf server stop {page_dir}` then `leaf server start {page_dir}`"
-    assert "runs Leaf 0123456789ab" in noted["text"] and restart in noted["text"]
-    assert advised(layer_model.running_leaf()["commit"]) == []
+    served = f"runs the Leaf at {cleanup_model.PLUGIN_ROOT} (0123456789ab)"
+    assert served in noted["text"] and restart in noted["text"]
+    own = layer_model.running_leaf()["commit"]
+    assert advised(own) == []
+    [elsewhere] = advised(own, path=page_dir.parent / "another-checkout")
+    assert "another-checkout" in elsewhere["text"]
     assert advised("0123456789ab", enabled=False) == []
 
 
@@ -2974,7 +2979,10 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
 def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_state(
     tmp_path, monkeypatch
 ):
-    """An enclosing repo is not the payload, and reading the payload leaves Git alone."""
+    """An enclosing repo is not the payload, and reading the payload leaves Git alone.
+    Codex's copy in its plugin cache is a clone, whose commit Git reads, since Codex
+    updates it in place under one name, and which reads clean whatever Codex strips
+    from it or adds."""
 
     def git(repo, *args):
         return subprocess.run(
@@ -3017,7 +3025,6 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_stat
         "-m",
         "plugin",
     )
-    (plugin / ".codex-marketplace-install.json").write_text("{}\n")
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
     monitor = tmp_path / "fsmonitor"
@@ -3046,6 +3053,17 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_stat
     }
     assert index.stat().st_mtime_ns == before
     assert not monitor.with_suffix(".invoked").exists()
+
+    codex = tmp_path / ".codex" / "plugins" / "cache" / "leaf" / "leaf" / "local"
+    codex.parent.mkdir(parents=True)
+    plugin.rename(codex)
+    (codex / "payload").unlink()
+    (codex / ".codex-marketplace-install.json").write_text("{}\n")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", codex)
+    assert layer_model.payload_provenance(include_path=True) == {
+        **clean,
+        "path": str(codex),
+    }
 
 
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(

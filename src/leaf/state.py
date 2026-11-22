@@ -34,7 +34,6 @@ import functools
 import hashlib
 import json
 import os
-import re
 import secrets
 import stat
 import sys
@@ -54,17 +53,19 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 
 def plugin_cache_copy(root: Path) -> bool:
-    """Whether `root` is a copy Claude Code installed from a marketplace into its
+    """Whether `root` is a copy a harness installed from a marketplace into its
     plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
-    than a checkout. Leaf leaves its manifest version unset, so the version
-    component is the source commit's SHA."""
+    than a checkout. Claude Code installs each update as a new copy without `.git`,
+    whose version component is the source commit's SHA, since Leaf leaves its
+    manifest version unset. Codex keeps one clone, at the version `local`, and
+    replaces it in place, so there only the commit the clone holds tells two
+    versions apart (`layer.payload_provenance`)."""
     parents = root.parents
     return (
         len(parents) >= 4
         and root.parent.name == "leaf"
         and parents[2].name == "cache"
         and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
     )
 
 
@@ -110,8 +111,8 @@ TOOLS_SUFFIX = "tools"
 # The harness process its Leaf module last ran in, or whose user Leaf told it
 # didn't (`leases.mark_module`).
 MODULE_SUFFIX = "module"
-# The plugin root its Leaf hooks last ran from (`leases.mark_root`).
-ROOT_SUFFIX = "root"
+# The digest of the leaf skill its Leaf hooks last ran with (`leases.mark_skill`).
+SKILL_SUFFIX = "skill"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.
 STATUS_CHECKED_SUFFIX = "status-checked"

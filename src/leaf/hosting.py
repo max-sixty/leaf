@@ -44,6 +44,7 @@ from .server import (
     exit_serving_on_signals,
     host_key,
     loopback_only,
+    other_serving_leaf,
     page_access,
     page_origin,
     page_url,
@@ -856,14 +857,13 @@ def claim_and_start(
 
 def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     """`leaf server start`: take and serve the page (`claim_and_start`) with this
-    Leaf, restarting at its address a running server another Leaf started.
+    Leaf, restarting at its address a running server another Leaf started
+    (`server.other_serving_leaf`).
 
     A server keeps the Leaf it started under, and markup and layout contracts move
     between commits with no protocol change, so the agent asking to serve a page
     must get the Leaf whose `page check` it read, not one an older session or a
-    deleted checkout left running. Another Leaf is another install or checkout, or
-    this one at another commit (`layer.payload_provenance`). Uncommitted edits don't
-    count, since the record can't say whether they changed after the server started.
+    deleted checkout left running.
 
     Whether this Leaf can serve the page is decided first, as a fresh bind decides
     it (`http.page_endpoint`), so a refusal leaves the page with its owner and the
@@ -885,22 +885,6 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
         with restarting_server(page_dir, session_harness()):
             pass
     return started
-
-
-def other_serving_leaf(page_dir: Path) -> dict | None:
-    """The Leaf the page's running server records (`payload_provenance`), where it
-    is another Leaf than this one by path or commit (`start_page`), or None where no
-    server runs or this Leaf started it."""
-    from .layer import payload_provenance
-
-    existing = running_server(page_dir)
-    if not existing:
-        return None
-    served = existing["runtime"]
-    here = payload_provenance(include_path=True)
-    if all(served.get(key) == here.get(key) for key in ("path", "commit")):
-        return None
-    return served
 
 
 class _StopScope(Enum):

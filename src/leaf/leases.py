@@ -25,8 +25,7 @@ from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     MODULE_SUFFIX,
-    PLUGIN_ROOT,
-    ROOT_SUFFIX,
+    SKILL_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
     flocked_descriptor,
@@ -246,31 +245,30 @@ def mark_hooks(session_id: str) -> None:
     session_file(session_id, HOOKS_SUFFIX).touch()
 
 
-def mark_root(session_id: str) -> Path | None:
-    """Record the plugin root this Leaf runs from as the one the session's hooks last
-    ran from, and return the root they ran from before, where that was another.
+def mark_skill(session_id: str, digest: str) -> bool:
+    """Record `digest`, the leaf skill this Leaf ships (`hooks.skill_digest`), as the
+    one the session's hooks last ran with, and say whether they ran with another
+    before. A session's first hook has nothing to compare, so says not.
 
     Unlike the hooks mark, this one outlives the harness instance while a claim
     names the session (`state._retire`), so the first hook of a resumed or woken
-    process compares its root with the root of the process before. An unchanged
-    root costs one read. Hooks that run at once, as PreToolUse's registrations do,
-    change the mark under its lock, so only one of them returns the earlier
-    root."""
-    path = session_file(session_id, ROOT_SUFFIX)
-    here = str(PLUGIN_ROOT)
+    process compares its skill with the skill of the process before. An unchanged
+    skill costs one read. Hooks that run at once, as PreToolUse's registrations do,
+    change the mark under its lock, so only one of them says it changed."""
+    path = session_file(session_id, SKILL_SUFFIX)
     try:
-        if path.read_text() == here:
-            return None
+        if path.read_text() == digest:
+            return False
     except FileNotFoundError:
         pass
     with flocked(path) as held:
         held.seek(0)
         before = held.read().decode()
-        if before == here:
-            return None
+        if before == digest:
+            return False
         held.truncate(0)
-        held.write(here.encode())
-    return Path(before) if before else None
+        held.write(digest.encode())
+    return bool(before)
 
 
 def mark_module(session_id: str, pid: int) -> None:

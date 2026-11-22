@@ -1660,16 +1660,17 @@ def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
     assert skill not in capsys.readouterr().out
 
 
-def test_a_hook_from_another_copy_sends_the_agent_back_to_the_skill(
+def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
     claimed, monkeypatch, tmp_path, capsys
 ):
-    """The skill the agent read under the copy of Leaf its hooks ran before may
-    describe commands and rules the copy they run now changed, as after a resume or
-    `/reload-plugins`. The first prompt under a copy whose skill differs names the
-    skill to read again, beside the input it hands over, and the next prompt
-    doesn't; a prompt under the same copy, or a copy with the same skill, says
-    nothing of it."""
-    skill = str(schema_model.SKILL_FILE)
+    """The skill the agent read under the Leaf its hooks ran before may describe
+    commands and rules the Leaf they run now changed, as after a resume,
+    `/reload-plugins`, or an update Codex makes to its copy in place. The first prompt
+    whose Leaf ships another skill than the previous hook's names the skill to read
+    again, beside the input it hands over, and the next prompt doesn't. A prompt whose
+    Leaf ships the same skill, from the same copy or another, says nothing of it, and
+    the copy the previous hook ran from may be gone."""
+    shipped = schema_model.SKILL_FILE.parent
 
     def prompt() -> str:
         hooks_model.cmd_hook(
@@ -1678,24 +1679,29 @@ def test_a_hook_from_another_copy_sends_the_agent_back_to_the_skill(
         out = capsys.readouterr().out
         return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
 
-    def ran_from(root: Path) -> None:
-        """The hooks of the copy at `root` ran last."""
-        with monkeypatch.context() as patched:
-            patched.setattr(leases_model, "PLUGIN_ROOT", root)
-            leases_model.mark_root("s1")
+    def runs(root: Path, skill: str | None = None) -> str:
+        """The hooks run the copy at `root`, which ships this Leaf's skill, with
+        `skill` for its SKILL.md where given, and the path that names it."""
+        directory = root / "skills" / "leaf"
+        if not directory.is_dir():
+            shutil.copytree(shipped, directory)
+        if skill is not None:
+            (directory / "SKILL.md").write_text(skill)
+        monkeypatch.setattr(schema_model, "SKILL_FILE", directory / "SKILL.md")
+        return str(directory / "SKILL.md")
 
-    assert skill not in prompt()
-    assert skill not in prompt()
+    assert str(schema_model.SKILL_FILE) not in prompt()
+    assert str(schema_model.SKILL_FILE) not in prompt()
 
     same = tmp_path / "same"
-    shutil.copytree(schema_model.SKILL_FILE.parent, same / "skills" / "leaf")
-    ran_from(same)
+    assert runs(same) not in prompt()
+
+    local = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "local"
+    skill = runs(local)
+    shutil.rmtree(same)
     assert skill not in prompt()
 
-    other = tmp_path / "other"
-    shutil.copytree(schema_model.SKILL_FILE.parent, other / "skills" / "leaf")
-    (other / "skills" / "leaf" / "SKILL.md").write_text("An earlier skill.\n")
-    ran_from(other)
+    runs(local, "An updated skill.\n")
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Is it done?"}
     )

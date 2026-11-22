@@ -81,11 +81,12 @@ installed update, its next prompt does the same for each page the session holds;
 tabs reconnect, reloading where the runtime changed. Open pages keep working across
 updates except one that changes the page protocol.
 
-After a protocol change, the session holding the page takes it to the new protocol at
-its first `leaf` command or hook, keeping the log and source, and reports only a
-failure. While another live session holds the page, Leaf refuses to serve or write it,
-and `leaf page state` explains in `source.error`, naming the `leaf page init` command
-to run from the session that holds the page. A page a newer Leaf initialized is refused
+After a protocol change, the session holding the page takes it to the new protocol
+before its hooks next read the page or a `leaf` command writes to it, keeping the log
+and source, and reports only a failure; a command that only reads the page, such as
+`leaf page state`, leaves it as it was. While another live session holds the page,
+Leaf refuses to serve or write it, and `leaf page state` explains in `source.error`,
+naming the `leaf page init` command to run from the session that holds the page. A page a newer Leaf initialized is refused
 as well; the refusal says how to load a newer Leaf.
 
 An update can change what a widget accepts or how it draws, and a page's own widgets

@@ -1,5 +1,5 @@
 """Serve again the pages a session still means to serve, and restart those another
-installed copy of Leaf serves, as its next prompt opens.
+installed Leaf serves, as its next prompt opens.
 
 A resumed session holds the claims its earlier process made, which name a lifetime
 that has ended, and the servers of those pages retired with it; a server can also die
@@ -29,14 +29,15 @@ watches (`session.Watch`), and the next prompt tries again where that failed.
 Telling the agent to run `leaf server start` instead leaves the user's tab without
 a server until the agent acts, which an agent can put off or never do.
 
-A session that loads a newer installed copy (`session_runtime.py`) reads `page check`
-from it, while each page's server goes on running the copy that started it, so what
-the user's tab draws may differ from what the agent checked. So once the prompt has
-served pages again, it restarts the server of each page the session holds that
-another installed copy started, where the hook runs an installed copy too
-(`state.plugin_cache_copy`). It finds another Leaf by the test `leaf server start`
-makes (`hosting.other_serving_leaf`), and restarts the server as that command does,
-at the same address (`hosting.restarting_server`).
+A session whose hooks run an installed update (`session-lifetime.md`, "Which Leaf
+runs a session") reads `page check` from it, while each page's server goes on running
+the Leaf that started it, so what the user's tab draws may differ from what the agent
+checked. So once the prompt has served pages again, it restarts the server of each
+page the session holds that another installed Leaf started, where the hook runs an
+installed copy too (`state.plugin_cache_copy`): another copy, or the same copy at
+another commit, as Codex's is once Codex replaces it in place. It finds another Leaf
+by the test `leaf server start` makes (`server.other_serving_leaf`), and restarts the
+server as that command does, at the same address (`hosting.restarting_server`).
 
 As that command does, the hook first asks whether this Leaf can serve the page, as a
 fresh bind decides it (`http.page_endpoint`), and leaves a page it can't serve to the
@@ -78,8 +79,8 @@ RESTART_NEEDS = 5.0
 
 def serve_again(harness: Harness, started: float) -> list[Finding]:
     """Serve each page `harness`'s session still means to serve whose ownership or
-    server is down, then restart each it holds whose server another installed copy
-    of Leaf started (`to_restart`), and say what kept any of them from serving.
+    server is down, then restart each it holds whose server another installed Leaf
+    started (`to_restart`), and say what kept any of them from serving.
 
     The starts share the hook's one deadline, `CONFIRM_WITHIN` after `started`, its
     `time.monotonic()` as it began. A start takes about a second, or several on a
@@ -181,11 +182,11 @@ def to_serve(harness: Harness) -> list[Path]:
 
 def to_restart(harness: Harness) -> list[Path]:
     """The pages `harness`'s session holds whose running server another installed
-    copy of Leaf started, where this Leaf is an installed copy too, by the rules the
-    module header gives."""
+    Leaf started, where this Leaf is an installed copy too, by the rules the module
+    header gives."""
     if not plugin_cache_copy(PLUGIN_ROOT):
         return []
-    from .hosting import other_serving_leaf
+    from .server import other_serving_leaf
 
     pages = []
     for claim in claim_records(harness.session):

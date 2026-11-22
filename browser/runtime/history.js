@@ -69,8 +69,7 @@ import {
   drawn,
   focusDestination,
   readCaret,
-  blurFocused,
-  releaseFocus,
+  landAtReading,
 } from "./focus.js";
 
 import { retainUserIntent } from "./user-intent.js";
@@ -152,7 +151,7 @@ export async function returnPlace(checkpoint) {
   } else if (checkpoint.chrome && chrome) {
     // The user leaves where they are as a move, not a drop, so a reply box the return
     // leaves doesn't carry them back to it (thread/focus.js, `holdThreadPlace`).
-    releaseFocus();
+    landAtReading();
     reopened = chrome.restore(checkpoint.chrome);
   } else returnToPlace(checkpoint);
   returnSelection(checkpoint);
@@ -164,7 +163,7 @@ export async function returnPlace(checkpoint) {
 function returnToPlace(checkpoint) {
   const place = checkpoint.place?.deref();
   if (place?.isConnected && presented(place)) focusDestination(place, "return");
-  else blurFocused();
+  else landAtReading();
 }
 
 /** @param {WorkingPlace} checkpoint */

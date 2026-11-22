@@ -4907,14 +4907,16 @@ export function createFloatingPanel({
               // returns to this view, then draws the thread on the page and has this
               // view put away, handing the reply box the field drew to the page's
               // drawing; it lands there where an opening does (thread/focus.js,
-              // `openingPart`), and where the page draws no view of the thread, as a
-              // window with no room for the rail does, on its place
-              // (thread/destination.js, `reader: "page"`).
-              void threadActions.open(thread.key, {
-                part: null,
-                intent,
-                reader: "page",
-              });
+              // `openingPart`). Where the page draws no view of the thread, as a
+              // window with no room for the rail does, it lands on the thread's place
+              // (thread/destination.js, `reader: "page"`) and the view goes once it
+              // has, keeping its reply's words as a close does.
+              void threadActions
+                .open(thread.key, { part: null, intent, reader: "page" })
+                .then(() => {
+                  if (intent() && threadOf(trail.value.at(-1))?.key === thread.key)
+                    close();
+                });
             }}
           ></button>`
         : nothing

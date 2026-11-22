@@ -19,6 +19,7 @@ from render_harness import (
     resized,
     rgb_pixels,
     scroll_settled,
+    wait_until_ready,
 )
 
 from browser.test_render_gate import AIM_BOXES, aim_selectors
@@ -837,3 +838,37 @@ def test_a_first_read_that_waits_a_second_says_the_file_is_loading(
     expect(editor).to_have_text("Todo.")
     expect(placeholder).to_have_count(0)
     assert editor_room() == room
+
+
+def test_a_page_presents_without_a_file_whose_first_read_has_waited_a_second(
+    browser, serve, tmp_path
+):
+    """The page waits for the file it opens with, but not past a second: on leaf.page a
+    first visit's read waits for the visitor's container to start. The page then
+    presents with the editor saying the file is loading, and the text lands when the
+    read answers."""
+    notes = tmp_path / "notes.md"
+    notes.write_text("Notes.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", notes)
+    held = []
+
+    def hold_read(page):
+        page.route("**/api/files/notes", lambda route: held.append(route))
+
+    page = open_page(primed(browser, hold_read), live_url(url), upgraded=False)
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    placeholder = widget.locator(".cm-placeholder")
+    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+    expect(placeholder).to_have_text("Loading file…")
+    expect(editor).to_have_attribute("aria-readonly", "true")
+    held[0].continue_()
+    expect(editor).to_have_text("Notes.")
+    expect(placeholder).to_have_count(0)
+    wait_until_ready(page)

@@ -46,11 +46,16 @@
  * other choices still stand; it then reads "Not saved", the slot's one line having
  * no room for both, with the error as its description. Where no file
  * could be read at all, the status reads "Unavailable" and the empty editor shows
- * why, as its placeholder. Once a file's first read has waited a second, as on
- * leaf.page while a visitor's container starts, the placeholder says "Loading file…"
- * until the read answers; a local page's read answers well within that second, so it
- * shows no word. Rejected: the word in the status slot, which sits at the header's
- * far end from the empty line the reader looks at.
+ * why, as its placeholder. The page waits to present until the file it opens with
+ * is read, so the text and the gutter's width are there when the reader first has
+ * the page. A local page's read answers well within a second. Once a first read
+ * has waited that second, as on leaf.page while a visitor's container starts, the
+ * placeholder says "Loading file…" until the read answers and the page presents
+ * without the file, whose text then lands as an arrival; the page's own controls
+ * and the names in its state don't wait for a server that is still starting.
+ * Rejected: the word in the status slot, which sits at the header's far end from
+ * the empty line the reader looks at; and never holding the page for the file,
+ * since a file of a hundred lines widens the gutter under the reader as it lands.
  * The comparison of both versions opens below the editor only on the reader's
  * Compare, and shares the editing room with it. Rejected: a pane below
  * the editor holding the error, the choices and the comparison, which took the
@@ -71,6 +76,7 @@ import {
   closeLayer,
   closeNativeLayer,
   commandsOn,
+  deferredArrival,
   el,
   focusDestination,
   focused,
@@ -628,6 +634,10 @@ customElements.define(
           if (of.owed) void refresh(of);
         }
       }
+      // Settles once a first read has waited a second, which is when the page stops
+      // waiting for the file it opens with.
+      /** @type {PromiseWithResolvers<void>} */
+      const waited = Promise.withResolvers();
       /** @param {OpenFile} of @param {HTMLElement | null} [returnFrom] */
       async function refresh(of, returnFrom = null) {
         if (!connected) return;
@@ -644,6 +654,7 @@ customElements.define(
           : setTimeout(() => {
               of.loading = true;
               if (of === file) paint();
+              waited.resolve();
             }, 1000);
         try {
           const current = await of.api.read();
@@ -776,7 +787,8 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(opening);
+          this.controller.present(Promise.race([opening, waited.promise]));
+          deferredArrival(opening);
           initial = false;
         }
         watch();

@@ -21,9 +21,10 @@ browser applies the patch to the reading it named (`completeState` in
 leaves alone keeps the identity it had there, down to each message and each source's
 value, which is what lets every reader downstream skip it.
 
-A source's value is compared by its `revision`, the digest `data.read_data` already
-took of it (`_compared`), and sent whole when that moves: encoding every value again
-to compare it would cost each answer about what sending them all did.
+A source's value, and a bound file's text, is compared by its `revision`, the digest
+its reader already took of it (`_compared`), and sent whole when that moves: encoding
+every value again to compare it would cost each answer about what sending them all
+did.
 
 The patch is a list of changes, each at a path of keys from the root of what it
 changes through its objects:
@@ -297,14 +298,18 @@ def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> Non
 
 
 def _compared(reading: dict) -> dict:
-    """`reading` as its parts are taken: each data source's value stood in for by its
-    `revision`, which digests it."""
+    """`reading` as its parts are taken: each data source's value and each bound
+    file's text stood in for by its `revision`, which digests it."""
     data = reading["data"]
     sources = {
         source: {**held, "value": held["revision"]} if "value" in held else held
         for source, held in data["sources"].items()
     }
-    return {**reading, "data": {**data, "sources": sources}}
+    files = {
+        binding: {**file, "text": file["revision"]} if "text" in file else file
+        for binding, file in reading["files"].items()
+    }
+    return {**reading, "data": {**data, "sources": sources}, "files": files}
 
 
 def answer(state: dict, held: str | None, page_dir: Path) -> dict:

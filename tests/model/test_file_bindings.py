@@ -1,4 +1,5 @@
-"""Explicit local-file grants, lossless saves, and the authenticated HTTP door."""
+"""Explicit local-file grants, the files a state answer carries, lossless saves, and
+the authenticated HTTP door."""
 
 import json
 import shutil
@@ -26,7 +27,6 @@ from leaf.file_bindings import (
     bind_file,
     bound_files,
     labels,
-    read_file,
     save_file,
 )
 from leaf.locations import PATH_LOCKS, path_lock_key
@@ -50,8 +50,7 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
     assert BINDINGS.read(page_dir / "files.json") == {
         "bindings": {"notes": str(target.resolve())}
     }
-    original = read_file(page_dir, "notes")
-    assert original is not None
+    original = bound_files(page_dir)["notes"]
     assert original["text"] == "# café\n\nhello\n"
     saved = save_file(
         page_dir,
@@ -60,7 +59,8 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
     )
     assert target.read_bytes() == "# café\r\nchanged\r\n".encode()
     assert stat.S_IMODE(target.stat().st_mode) == 0o640
-    assert saved == read_file(page_dir, "notes")
+    current = bound_files(page_dir)["notes"]
+    assert (saved["text"], saved["revision"]) == (current["text"], current["revision"])
     assert saved["revision"] != original["revision"]
     target.write_text("external\n")
     with pytest.raises(StaleFileError) as stale:
@@ -86,9 +86,6 @@ def test_each_bound_file_is_named_by_its_path_among_the_pages_files(page_dir, tm
         "values": "deploy/values.yaml",
         "runbook": "docs/runbook.md",
     }
-    snapshot = read_file(page_dir, "values")
-    assert snapshot is not None
-    assert snapshot["label"] == "deploy/values.yaml"
     assert labels(
         {
             "a": Path("/home/ana/proj/README.md"),
@@ -124,7 +121,9 @@ def test_page_state_names_each_bound_file_for_the_agent(page_dir, tmp_path):
 
 def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     """A grant inside the page names its file from there, so a copy of the page,
-    such as a published example in its visitor's container, edits its own copy."""
+    such as a published example in its visitor's container, edits its own copy. The
+    copy's file reads as the same revision, so a save from the state the site
+    published at build time lands in the container."""
     target = page_dir / "files" / "deploy" / "values.yaml"
     target.parent.mkdir(parents=True)
     target.write_text("replicas: 3\n")
@@ -132,12 +131,11 @@ def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     assert BINDINGS.read(page_dir / "files.json") == {
         "bindings": {"values": "files/deploy/values.yaml"}
     }
+    published = bound_files(page_dir)["values"]
     copy = tmp_path / "copy"
     shutil.copytree(page_dir, copy)
-    current = read_file(copy, "values")
-    assert current is not None
     save_file(
-        copy, "values", {"revision": current["revision"], "text": "replicas: 4\n"}
+        copy, "values", {"revision": published["revision"], "text": "replicas: 4\n"}
     )
     assert (copy / "files" / "deploy" / "values.yaml").read_text() == "replicas: 4\n"
     assert target.read_text() == "replicas: 3\n"
@@ -147,12 +145,11 @@ def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
     target = tmp_path / "executable"
     target.write_text("original\n")
     bind_file(page_dir, "executable", target)
-    snapshot = read_file(page_dir, "executable")
+    snapshot = bound_files(page_dir)["executable"]
     for mode in (0o2755, 0o6755, 0o1755):
         target.chmod(mode)
         assert stat.S_IMODE(target.stat().st_mode) == mode
         text = f"saved {mode:o}\n"
-        assert snapshot is not None
         snapshot = save_file(
             page_dir, "executable", {"revision": snapshot["revision"], "text": text}
         )
@@ -166,10 +163,11 @@ def test_cli_unbinding_revokes_open_editor_access_only_for_its_grant(
     target = tmp_path / "notes.txt"
     target.write_text("saved work\n")
     bind_file(page_dir, "notes", target)
-    original = read_file(page_dir, "notes")
     bind_file(page_dir, "other", target)
     state_url = f"{server}/api/state"
-    assert set(json.loads(fetch(state_url)[1])["files"]) == {"notes", "other"}
+    files = json.loads(fetch(state_url)[1])["files"]
+    assert set(files) == {"notes", "other"}
+    original = files["notes"]
     before = page_reading(page_dir)
 
     for _ in range(2):
@@ -177,18 +175,17 @@ def test_cli_unbinding_revokes_open_editor_access_only_for_its_grant(
         assert result.exit_code == 0, result.output
         assert json.loads(result.output) == {"binding": "notes", "bound": False}
     assert page_reading(page_dir) != before
-    assert set(json.loads(fetch(state_url)[1])["files"]) == {"other"}
-    url = f"{server}/api/files/notes"
-    assert fetch(url) == (200, b"null")
-    assert original is not None
+    files = json.loads(fetch(state_url)[1])["files"]
+    assert set(files) == {"other"}
     posted = json.dumps(
         {"revision": original["revision"], "text": "old draft\n"}
     ).encode()
+    url = f"{server}/api/files/notes"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 400
     assert json.loads(raw)["error"] == "No file is bound as 'notes'."
     assert target.read_text() == "saved work\n"
-    assert read_file(page_dir, "other") == original
+    assert files["other"]["text"] == original["text"]
 
 
 def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
@@ -205,12 +202,11 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             bind_file(page_dir, "notes", target)
     target.write_bytes(b"original\n")
     with pytest.raises(FileBindingError):
-        read_file(page_dir, str(target))
-    with pytest.raises(FileBindingError):
         bind_file(page_dir, "../notes", target)
     bind_file(page_dir, "notes", target)
-    snapshot = read_file(page_dir, "notes")
-    assert snapshot is not None
+    snapshot = bound_files(page_dir)["notes"]
+    with pytest.raises(FileBindingError):
+        save_file(page_dir, str(target), {"revision": snapshot["revision"], "text": ""})
     for body in (
         {},
         {"revision": snapshot["revision"], "text": 5},
@@ -228,38 +224,16 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
     substitute.write_bytes(b"private\n")
     target.unlink()
     target.symlink_to(substitute)
+    assert bound_files(page_dir)["notes"] == {
+        "label": "file.txt",
+        "stamp": bound_files(page_dir)["notes"]["stamp"],
+        "error": "The bound file path now contains a symlink; bind it again.",
+    }
     with pytest.raises(FileBindingError):
-        read_file(page_dir, "notes")
-    with pytest.raises(FileBindingError):
-        assert snapshot is not None
         save_file(
             page_dir, "notes", {"revision": snapshot["revision"], "text": "overwrite\n"}
         )
     assert substitute.read_bytes() == b"private\n"
-    assert read_file(page_dir, "other") is None
-
-
-def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
-    page_dir, tmp_path
-):
-    first, second = tmp_path / "first.txt", tmp_path / "second.txt"
-    first.write_text("same\n")
-    second.write_text("same\n")
-    bind_file(page_dir, "notes", first)
-    original = read_file(page_dir, "notes")
-    bind_file(page_dir, "notes", second)
-    rebound = read_file(page_dir, "notes")
-    assert rebound is not None
-    assert original is not None
-    assert rebound["revision"] != original["revision"]
-    with pytest.raises(StaleFileError):
-        assert original is not None
-        save_file(
-            page_dir,
-            "notes",
-            {"revision": original["revision"], "text": "old buffer\n"},
-        )
-    assert second.read_text() == "same\n"
 
 
 def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
@@ -271,9 +245,7 @@ def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
     for page in pages:
         page.mkdir()
         bind_file(page, "notes", target)
-    read_file_result = read_file(pages[0], "notes")
-    assert read_file_result is not None
-    revision = read_file_result["revision"]
+    revision = bound_files(pages[0])["notes"]["revision"]
     waiting = lock_contention(monkeypatch, PATH_LOCKS / f"{path_lock_key(target)}.lock")
     replacing = Event()
     replace = file_bindings.replace_bytes
@@ -306,14 +278,10 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
-    original = read_file(page_dir, "notes")
+    original = bound_files(page_dir)["notes"]
     url = f"{server}/api/files/notes"
-    assert fetch(url, token=None)[0] == 401
-    assert json.loads(fetch(url)[1]) == original
+    assert fetch(url, data=b"{}", token=None)[0] == 401
     assert fetch(f"{server}/files.json")[0] == 404
-    # A binding the page lacks reads as no file, and only a save against it refuses.
-    assert fetch(f"{server}/api/files/unbound") == (200, b"null")
-    assert original is not None
     posted = json.dumps({"revision": original["revision"], "text": "edited\n"}).encode()
     assert (
         fetch(f"{server}/api/files/unbound", data=posted, headers={"Origin": server})[0]
@@ -340,18 +308,20 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert target.read_text() == "hello\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 200, raw
-    assert json.loads(raw) == read_file(page_dir, "notes")
+    assert json.loads(raw)["revision"] == bound_files(page_dir)["notes"]["revision"]
     assert target.read_text() == "edited\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 409
     assert json.loads(raw)["current"]["text"] == "edited\n"
 
     target.unlink()
-    for operation in ({}, {"data": posted, "headers": {"Origin": server}}):
-        status, raw = fetch(url, **operation)
-        assert status == 400
-        assert json.loads(raw)["error"].startswith("Could not access the bound file:")
-        assert str(target.parent).encode() not in raw
+    status, raw = fetch(url, data=posted, headers={"Origin": server})
+    assert status == 400
+    assert json.loads(raw)["error"].startswith("Could not access the bound file:")
+    assert str(target.parent).encode() not in raw
+    error = json.loads(fetch(f"{server}/api/state")[1])["files"]["notes"]["error"]
+    assert error.startswith("Could not access the bound file:")
+    assert str(target.parent) not in error
 
     from leaf.files import latest_revision
     from leaf.hosting import LeafHTTPServer
@@ -370,7 +340,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     with running_http_server(preview):
         address = f"http://127.0.0.1:{preview.server_address[1]}"
         assert fetch(f"{address}/files.json")[0] == 404
-        assert fetch(f"{address}/api/files/notes") == (200, b"null")
+        assert json.loads(fetch(f"{address}/api/state")[1])["files"] == {}
         assert (
             fetch(
                 f"{address}/api/files/notes", data=posted, headers={"Origin": address}
@@ -379,30 +349,34 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         )
 
 
-def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
+def test_a_bound_file_write_moves_the_page_reading_and_the_file_in_state(
     server, page_dir, tmp_path
 ):
-    """An editor reads its file only when the state answer stamps the binding anew,
-    so a write outside Leaf moves the reading a visible tab polls and that binding's
-    stamp."""
+    """An editor takes its file from the page's state, so a write outside Leaf moves
+    the reading a visible tab polls, and the state carries the new text under a new
+    stamp. A write that puts back bytes the state carried before moves the stamp too,
+    so an editor that saved in between still hears it."""
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
 
-    def stamps():
-        return {
-            binding: file["stamp"]
-            for binding, file in json.loads(fetch(f"{server}/api/state")[1])[
-                "files"
-            ].items()
-        }
+    def files():
+        return json.loads(fetch(f"{server}/api/state")[1])["files"]
 
     # The first state read activates the page, which moves its reading once.
-    stamped = stamps()
+    first = files()
     reading = page_reading(page_dir)
-    assert set(stamped) == {"notes"}
-    assert (stamps(), page_reading(page_dir)) == (stamped, reading)
+    assert set(first) == {"notes"}
+    assert first["notes"]["text"] == "hello\n"
+    assert (files(), page_reading(page_dir)) == (first, reading)
 
     target.write_text("edited outside Leaf\n")
     assert page_reading(page_dir) != reading
-    assert stamps()["notes"] != stamped["notes"]
+    edited = files()["notes"]
+    assert edited["text"] == "edited outside Leaf\n"
+    assert edited["stamp"] != first["notes"]["stamp"]
+
+    target.write_text("hello\n")
+    restored = files()["notes"]
+    assert restored["revision"] == first["notes"]["revision"]
+    assert restored["stamp"] != first["notes"]["stamp"]

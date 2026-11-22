@@ -1632,7 +1632,7 @@ def initial_state(
     ).page_state(view_revision)
     state["release"] = release
     # A capture binds no files, but a first visit shows this state until the visitor's
-    # container answers, so it names the page's files as a live page's state does.
+    # container answers, so it carries the page's files as a live page's state does.
     state["files"] = bound_files(page_dir)
     return scope_page_urls(state, page_root)
 

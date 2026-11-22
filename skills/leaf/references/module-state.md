@@ -213,13 +213,18 @@ beside it; keep no clock of your own. Return the answer rather than the time, as
 
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `label` is the file's path below the deepest folder holding every
-file the page binds, or `null` until the page's state names it. `read()` returns
-`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws a `RequestError` whose `current` holds the newer file.
+file the page binds, or `null` until the page's state names it. The page's state
+carries the file, so `read()` answers at once: `{label, text, revision, taken}`, with
+`text` in LF line endings and `taken` the moment the server read it, or `null` before
+the page has its state; it throws where there is no file to show, with the reason as
+its message. `save({revision, text})` writes only if the file is still at `revision`,
+and answers the same shape, or throws a `RequestError` whose `current` holds the newer
+file. A state read the server took before a save can arrive after its answer, so
+compare `taken` before letting a reading replace what a save answered.
 `RequestError` also carries the HTTP `status` and response `body`; distinguish it
 with `instanceof` when handling a server refusal. `watch(callback)` calls
-back whenever the file may have changed on disk or its label changed, the widget's own
-save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
+back whenever the page's state carries the file otherwise, after a write elsewhere or
+the widget's own save, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
 travel with the page.

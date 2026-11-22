@@ -2,7 +2,12 @@
 
 Only the trusted CLI chooses a path; browser requests name a binding. The file
 remains the authority, outside page revisions and the semantic event log. A
-revision names its canonical path and exact bytes. Saves preserve LF/CRLF and
+revision names the file's exact bytes and nothing of where it lies, so the state a
+site publishes at build time names the same revision a visitor's container reads,
+and the first save from it lands. A binding granted again to another file holding
+the same bytes keeps its revision, so a draft read from the first file saves to the
+second; the editor would merge its draft onto the second file's identical text
+either way. Saves preserve LF/CRLF and
 permission bits, and serialize across Leaf processes and pages through a target lock.
 The comparison plus atomic replacement is not an OS compare-and-swap: an unrelated
 writer which ignores this lock can still race the final comparison and replacement.
@@ -14,9 +19,9 @@ files resolve wherever its directory is restored. Every other file is granted by
 canonical absolute path.
 
 A binding the page lacks, as in a copied page or the unbound worked example, is a
-designed state rather than a fault: a read answers it as no file, so the browser's
-console stays clean, and only a save against it refuses. Unbinding withdraws one
-grant under the same page lock as reads and saves, leaving the file itself intact.
+designed state rather than a fault: the state answer names no file for it, and only a
+save against it refuses. Unbinding withdraws one grant under the same page lock as
+saves, leaving the file itself intact.
 
 The browser names each file by its label (`labels`): its path below the deepest
 folder holding every file the page binds, so several files read as one tree and a
@@ -24,13 +29,22 @@ single file as its name, and no label spells out a host path.
 
 The page's reading stamps each bound file (`bound_paths`), so the news token moves
 and the page's watchers wake when a bound file does, and a state answer carries each
-binding's label and stamp (`bound_files`), naming which binding moved. A stamp only
-prompts a read; the read's revision decides what changed.
+file as a read finds it (`bound_files`), so an editor shows its file with the page's
+state and takes in a write elsewhere from the state that news prompts. The state
+answer reads a file again only once its stamp moves (`_Reads`), and the stamp it
+carries moves with every write, so a write that puts back bytes the editor last read
+from the state is still news to it.
+
+The state carries no order of its files' versions, and a state read that started
+before a save can answer after it. So a save's answer, and the newer file a stale
+save is refused with, carry `taken`, the moment the server read the file, as a state
+answer does: a reading taken before it speaks for an older file.
 """
 
 import hashlib
 import os
 import re
+import time
 from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
@@ -39,6 +53,7 @@ from stat import S_ISREG
 from .files import file_stamp
 from .leases import page_locked
 from .locations import canonical_path, path_lock
+from .page_memory import memo
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import (
@@ -80,6 +95,12 @@ class StaleFileError(FileBindingError):
         self.current = current
 
 
+def _refusal(error: OSError) -> FileBindingError:
+    """A filesystem failure in words that name no host path."""
+    reason = error.strerror or "filesystem operation failed"
+    return FileBindingError(f"Could not access the bound file: {reason}.")
+
+
 @contextmanager
 def _access(page_dir: Path):
     """Serialize browser file access and keep OS paths out of its refusals."""
@@ -87,8 +108,7 @@ def _access(page_dir: Path):
         with page_locked(page_dir):
             yield
     except OSError as error:
-        reason = error.strerror or "filesystem operation failed"
-        raise FileBindingError(f"Could not access the bound file: {reason}.") from error
+        raise _refusal(error) from error
 
 
 def _grants(page_dir: Path) -> dict[str, str]:
@@ -125,7 +145,7 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
     holding them all. Where only the filesystem's root holds them all, the path from
     there would spell out the host's, so each takes the fewest trailing parts of its
     path that tell it from every other file the page binds. Bindings of one file share
-    its name. The state answer and every read and save ask this, so its work grows
+    its name. The state answer and every save ask this, so its work grows
     with the files and the depth of their paths, never with their pairs."""
     if not paths:
         return {}
@@ -151,20 +171,46 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
     return {binding: trailing(path) for binding, path in paths.items()}
 
 
+class _Reads:
+    """Each bound file's reading (`_reading`), kept under its path's stamp. Every state
+    answer carries every bound file, and reading and digesting one costs far more than
+    a stat. Readers share the kept reading and never change it."""
+
+    def __init__(self) -> None:
+        self.held: dict[Path, tuple] = {}
+
+
+def _reading(path: Path) -> dict[str, str]:
+    """The file as a read finds it, its text and revision, or why it can't be read."""
+    try:
+        return _snapshot(_read(path))
+    except FileBindingError as error:
+        return {"error": str(error)}
+    except OSError as error:
+        return {"error": str(_refusal(error))}
+
+
 def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
-    """Each binding's label and short stamp, the stamp moving whenever the file's
-    path or what the filesystem says of the file there (`file_stamp`) does."""
+    """Each binding's label; a short stamp, moving whenever the file's path or what
+    the filesystem says of the file there (`file_stamp`) does; and the file as a read
+    finds it (`_reading`)."""
     paths = bound_paths(page_dir)
     named = labels(paths)
-    return {
-        binding: {
+    held = memo(page_dir, _Reads).held
+    for unbound in held.keys() - set(paths.values()):
+        del held[unbound]
+    files = {}
+    for binding, path in paths.items():
+        stamp = file_stamp(path)
+        kept = held.get(path)
+        if kept is None or kept[0] != stamp or stamp is None:
+            kept = held[path] = (stamp, _reading(path))
+        files[binding] = {
             "label": named[binding],
-            "stamp": hashlib.sha256(
-                repr((str(path), file_stamp(path))).encode()
-            ).hexdigest()[:16],
+            "stamp": hashlib.sha256(repr((str(path), stamp)).encode()).hexdigest()[:16],
+            **kept[1],
         }
-        for binding, path in paths.items()
-    }
+    return files
 
 
 def granted_files(page_dir: Path) -> dict[str, dict[str, str]]:
@@ -201,9 +247,9 @@ def _read(path: Path) -> bytes:
         return stream.read(MAX_FILE_BYTES + 1)
 
 
-def _snapshot(path: Path, raw: bytes, label: str) -> dict:
-    """The file as the browser reads it: its label, its text with LF line endings,
-    and the revision a save names."""
+def _snapshot(raw: bytes) -> dict[str, str]:
+    """The file as the browser reads it: its text with LF line endings, and the
+    revision a save names."""
     if len(raw) > MAX_FILE_BYTES:
         raise FileBindingError("File exceeds the 256 KiB limit.")
     try:
@@ -216,8 +262,7 @@ def _snapshot(path: Path, raw: bytes, label: str) -> dict:
     normalized = text.replace("\r\n", "\n")
     if "\r" in normalized or (newline == "CRLF" and "\n" in text.replace("\r\n", "")):
         raise FileBindingError("File has mixed or unsupported line endings.")
-    revision = hashlib.sha256(os.fsencode(path) + b"\0" + raw).hexdigest()
-    return {"label": label, "text": normalized, "revision": revision}
+    return {"text": normalized, "revision": hashlib.sha256(raw).hexdigest()}
 
 
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
@@ -243,7 +288,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         except OSError as error:
             raise FileBindingError(str(error)) from error
         # Refuse a file the editor could not hold before granting it.
-        _snapshot(path, raw, path.name)
+        _snapshot(raw)
         root = canonical_path(page_dir)
         grants = _grants(page_dir)
         grants[binding] = str(
@@ -264,19 +309,9 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
     return {"binding": binding, "bound": False}
 
 
-def read_file(page_dir: Path, binding: str) -> dict | None:
-    """Read the current file, never a cached document or browser buffer; None where
-    the page binds no file under this id."""
-    with _access(page_dir):
-        target = _target(page_dir, binding)
-        if target is None:
-            return None
-        path, label = target
-        return _snapshot(path, _read(path), label)
-
-
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
-    """Compare and atomically replace one file; acknowledge exactly these bytes."""
+    """Compare and atomically replace one file; acknowledge exactly these bytes, with
+    their label and the moment they were written (`taken`)."""
     if set(posted) != {"revision", "text"} or not all(
         isinstance(posted[name], str) for name in ("revision", "text")
     ):
@@ -288,11 +323,15 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         if target is None:
             raise FileBindingError(f"No file is bound as {binding!r}.")
         path, label = target
+
+        def answer(snapshot: dict) -> dict:
+            return {"label": label, **snapshot, "taken": time.time()}
+
         with path_lock(path):
             before = _read(path)
-            current = _snapshot(path, before, label)
+            current = _snapshot(before)
             if posted["revision"] != current["revision"]:
-                raise StaleFileError(current)
+                raise StaleFileError(answer(current))
             text = posted["text"]
             if "\r" in text:
                 raise FileBindingError("Editor text must use LF line endings.")
@@ -301,10 +340,10 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
                 if b"\r\n" in before
                 else text.encode()
             )
-            submitted = _snapshot(path, raw, label)
+            submitted = _snapshot(raw)
             # Recheck path identity and contents immediately before replacement.
-            latest = _snapshot(path, _read(path), label)
+            latest = _snapshot(_read(path))
             if latest["revision"] != current["revision"]:
-                raise StaleFileError(latest)
+                raise StaleFileError(answer(latest))
             replace_bytes([(path, raw, True)])
-            return submitted
+            return answer(submitted)

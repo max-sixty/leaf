@@ -2,13 +2,13 @@
 
 import io
 import re
-from datetime import UTC, datetime, timedelta
 
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     one_frame,
@@ -19,7 +19,7 @@ from render_harness import (
     resized,
     rgb_pixels,
     scroll_settled,
-    wait_until_ready,
+    told,
 )
 
 from browser.test_render_gate import AIM_BOXES, aim_selectors
@@ -89,7 +89,6 @@ def test_paper_keeps_the_files_words_and_drops_the_editors_controls(
         leaf_page(
             "Printed files",
             '<h1>Printed files</h1><lf-file-editor id="notes-file" binding="notes">'
-            '</lf-file-editor><lf-file-editor id="missing-file" binding="missing">'
             "</lf-file-editor>",
         ),
         packages=["file-editor"],
@@ -97,13 +96,18 @@ def test_paper_keeps_the_files_words_and_drops_the_editors_controls(
     bind_file(serve.page_dir, "notes", file)
     page = open_page(browser, live_url(url))
     bound = page.locator("#notes-file")
-    retry = page.locator("#missing-file").get_by_role("button", name="Retry")
+    retry = bound.get_by_role("button", name="Retry")
     expect(bound.locator(".cm-line", has_text="Words worth printing.")).to_be_visible()
+    page.route("**/api/files/notes", lambda route: route.abort())
+    bound.get_by_role("textbox", name="File contents", exact=True).click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Unsaved.")
     expect(retry).to_be_visible()
     page.emulate_media(media="print")
     expect(retry).to_be_hidden()
     expect(bound.get_by_text("notes.md", exact=True)).to_be_visible()
     expect(bound.locator(".cm-line", has_text="Words worth printing.")).to_be_visible()
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
 
 
 def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
@@ -451,6 +455,77 @@ def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tm
     )
 
 
+def test_a_state_read_from_before_a_save_leaves_the_saved_draft(
+    browser, serve, tmp_path
+):
+    """A state read the server took before a save can answer after it. Here the
+    agent's write reaches the editor first through the save's refusal, which the
+    editor merges and saves; the late state carrying that write is older than the
+    save, so the editor keeps the reader's saved line rather than taking it back and
+    marking it as written elsewhere."""
+    file = tmp_path / "values.yaml"
+    file.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 3\n")
+    url = serve(
+        leaf_page(
+            "Values",
+            '<h1>Values</h1><lf-file-editor id="values-file" binding="values">'
+            "</lf-file-editor>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "values", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    writes, states = [], []
+
+    def hold_first_write(route):
+        if route.request.method == "POST" and not writes:
+            writes.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/files/values", hold_first_write)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    page.keyboard.insert_text("4")
+    holding(page, writes, 1, "the reader's save")
+    # The server answers the state read the agent's write prompts at once, and the
+    # page hears that answer only once the reader's save has landed.
+    page.route("**/api/state*", lambda route: states.append((route, route.fetch())))
+    file.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 4\n")
+    holding(page, states, 1, "the state read the agent's write prompts")
+    merged = "replicas: 4\n\nautoscaling:\n  minReplicas: 4\n"
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.status == 200
+            and response.request.post_data_json["text"] == merged
+        )
+    ):
+        writes[0].continue_()
+    page.unroute("**/api/state*")
+    for route, answer in states:
+        route.fulfill(response=answer)
+    told(page)
+    assert file.read_text() == merged
+    expect(editor).to_have_text("replicas: 4autoscaling:  minReplicas: 4")
+    expect(editor.locator(".cm-line.lf-written")).to_have_text(["  minReplicas: 4"])
+    # The agent's line changed inside the region the reader was typing in.
+    page.evaluate("lfWordsJudged()")
+    consume_browser_errors(
+        page,
+        http_error_console(409),
+        {
+            "code": "words-left-screen",
+            "words": "replicas: 4autoscaling:  minReplicas: 3",
+        },
+    )
+
+
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     browser, serve, tmp_path
 ):
@@ -690,10 +765,9 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     assert page.evaluate("scrollY") == before
 
 
-def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(
-    browser, serve
-):
-    """A captured page cannot read files; its editor shows that refusal without a busy transition."""
+def test_an_exported_file_editor_stays_unavailable(browser, serve):
+    """A captured page carries no files; its editor shows that refusal without a busy
+    transition."""
     page = open_page(
         browser,
         serve(
@@ -710,105 +784,3 @@ def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(
         editor.get_by_role("textbox", name="File contents", exact=True)
     ).to_have_attribute("aria-readonly", "true")
     expect(editor.get_by_role("button", name="Retry")).to_be_hidden()
-
-
-def test_a_first_read_that_waits_a_second_says_the_file_is_loading(
-    browser, serve, tmp_path
-):
-    """A file's first read can wait seconds, as a first visit's does on leaf.page while
-    the visitor's container starts. Once it has waited a second, the empty editor says
-    the file is loading, in the line it already shows; a read answered sooner, as a
-    local page's is, shows no word."""
-    files = {name: tmp_path / f"{name}.md" for name in ("notes", "plan", "todo")}
-    for name, file in files.items():
-        file.write_text(f"{name.title()}.\n")
-    url = serve(
-        leaf_page(
-            "Notes",
-            '<p><a href="#notes-file:plan">Plan</a> <a href="#notes-file:todo">To do</a></p>'
-            '<lf-file-editor id="notes-file" binding="notes plan todo"></lf-file-editor>',
-        ),
-        packages=["file-editor"],
-    )
-    for name, file in files.items():
-        bind_file(serve.page_dir, name, file)
-    page = open_page(browser, live_url(url))
-    widget = page.locator("lf-file-editor")
-    editor = widget.get_by_role("textbox", name="File contents", exact=True)
-    placeholder = widget.locator(".cm-placeholder")
-    expect(editor).to_have_text("Notes.")
-
-    def editor_room():
-        return widget.evaluate(
-            """host => {
-              const edit = host.shadowRoot.querySelector('.lf-file-editor-edit');
-              const box = edit.getBoundingClientRect();
-              return [box.top - host.getBoundingClientRect().top, box.height];
-            }"""
-        )
-
-    room = editor_room()
-    widget.evaluate(
-        """host => {
-          window.placeholdersShown = [];
-          new MutationObserver(() => {
-            const shown = host.shadowRoot.querySelector('.cm-placeholder');
-            if (shown) window.placeholdersShown.push(shown.textContent);
-          }).observe(host.shadowRoot, {childList: true, subtree: true});
-        }"""
-    )
-    # The page starts on the browser's own time. From here on only the test moves it, so
-    # a read the server answers slowly still answers within the page's first second.
-    page.clock.install()
-    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
-    page.get_by_role("link", name="Plan").click()
-    page.clock.run_for(100)
-    expect(editor).to_have_text("Plan.")
-    assert page.evaluate("window.placeholdersShown") == []
-
-    held = []
-    page.route("**/api/files/todo", lambda route: held.append(route))
-    page.get_by_role("link", name="To do").click()
-    page.clock.run_for(900)
-    expect(placeholder).to_have_count(0)
-    page.clock.run_for(200)
-    expect(placeholder).to_have_text("Loading file…")
-    assert editor_room() == room
-    held[0].continue_()
-    expect(editor).to_have_text("Todo.")
-    expect(placeholder).to_have_count(0)
-    assert editor_room() == room
-
-
-def test_a_page_presents_without_a_file_whose_first_read_has_waited_a_second(
-    browser, serve, tmp_path
-):
-    """The page waits for the file it opens with, but not past a second: on leaf.page a
-    first visit's read waits for the visitor's container to start. The page then
-    presents with the editor saying the file is loading, and the text lands when the
-    read answers."""
-    notes = tmp_path / "notes.md"
-    notes.write_text("Notes.\n")
-    url = serve(
-        leaf_page(
-            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
-        ),
-        packages=["file-editor"],
-    )
-    bind_file(serve.page_dir, "notes", notes)
-    held = []
-
-    def hold_read(page):
-        page.route("**/api/files/notes", lambda route: held.append(route))
-
-    page = open_page(primed(browser, hold_read), live_url(url), upgraded=False)
-    widget = page.locator("lf-file-editor")
-    editor = widget.get_by_role("textbox", name="File contents", exact=True)
-    placeholder = widget.locator(".cm-placeholder")
-    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-    expect(placeholder).to_have_text("Loading file…")
-    expect(editor).to_have_attribute("aria-readonly", "true")
-    held[0].continue_()
-    expect(editor).to_have_text("Notes.")
-    expect(placeholder).to_have_count(0)
-    wait_until_ready(page)

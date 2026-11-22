@@ -248,6 +248,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.scroll_into_view_if_needed()
+    entries = page.evaluate("history.length")
     with page.expect_request("**/api/event"):
         resolve.click()
     expect_open_threads(page, 0)
@@ -260,9 +261,11 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
         json={"ok": False, "final": True, "error": "Please retry."},
     )
     expect_open_threads(page, 1)
-    # The margin card the resolve closed opens again, with the user back in it.
+    # The margin card the resolve closed opens again, with the user back in it: a
+    # return, which adds no Back step.
     thread = page.locator(".lf-margin-thread")
     expect(thread.locator(".lf-page-thread")).to_be_focused()
+    assert page.evaluate("history.length") == entries
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))

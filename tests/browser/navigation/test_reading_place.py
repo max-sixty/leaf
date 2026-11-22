@@ -455,6 +455,73 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     expect(part("b", 1)).to_be_in_viewport()
 
 
+def test_a_trip_that_puts_a_thread_away_leaves_an_entry_naming_none(browser, serve):
+    """A widget's trip from the page while the floating panel shows a thread, which the
+    landing puts away since the view would stand over the part, adds an entry naming no
+    thread, so Forward or a reload there leaves the thread put away."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items at the foot",
+                '<h1 id="top">Items at the foot</h1>'
+                '<lf-item-link id="jump" for="items" key="a/4"></lf-item-link>'
+                + "".join(f"<p>Reading context {n}.</p>" for n in range(30))
+                + '<lf-items id="items"></lf-items>',
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Where?"},
+    )["id"]
+    for n in range(3):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {n}. " + "More of the explanation. " * 30,
+            },
+        )
+    page = open_page(browser, f"{url}{'&' if '?' in url else '?'}thread={root}")
+    thread = page.locator(f'{panel_view("thread")}[data-lf-thread="{root}"]')
+    expect(thread).to_be_focused()
+    # A key, not a press: a press on the page would put the view away before the trip.
+    page.locator("#jump button").focus()
+    page.keyboard.press("Enter")
+    expect(page.locator('#items [data-item="a"][data-part="4"]')).to_be_focused()
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    assert "thread=" not in page.url
+
+
+def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serve):
+    """A rename asked for during a navigation waits for it, so it never aborts it, and
+    renames only the entry it was asked on: once a newer navigation has moved the user
+    to another entry, it is dropped rather than overwriting that entry's address."""
+    page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          navigation.addEventListener('navigate', (event) => {
+            if (event.destination.url.endsWith('#slow'))
+              event.intercept({handler: () => new Promise(() => {})});
+          });
+          const slow = navigation.navigate('#slow');
+          api.replaceEntry(new URL('#renamed', location.href));
+          await navigation.navigate('#other').committed;
+          await slow.finished.catch(() => {});
+          await new Promise((resolve) => setTimeout(resolve));
+        }"""
+    )
+    assert page.url.endswith("#other")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, engine):
     """A root tab set takes Back to an entry in another of its views and opens that

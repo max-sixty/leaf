@@ -4,22 +4,20 @@
    floating panel's or a margin card's, so a reload, a copied link, Back and Forward each
    reach the thread view the entry showed.
 
-   One writer keeps the parameter equal to the thread that stands open
-   (`followOpenThread`): as a view opens, closes or turns to another thread where the
-   user stands, it renames the entry the user is on and never adds one, keeping every
-   other parameter, the page key above all, and the fragment. Escape and the back
+   One composition writes the parameter (`name`): every entry history writes, a
+   route's step, a widget's or a rename, names the thread that stands open as it is
+   written, keeping every other parameter, the page key above all, and the fragment. As a
+   view opens, closes or turns to another thread where the user stands, the entry the
+   user is on is renamed (`followOpenThread`), never added. Escape and the back
    gesture put a view away by its close request (keyboard/close-requests.js), so they
    rename the entry and never traverse. A route that travels to a thread names the entry
-   it adds through this writer too: the step takes the name the entry has once the view
-   stands open, and the entry left keeps the name it had (history.js, `prepareEntry`). A
-   seat's thread stands in its widget rather than in a view, so its entry names no
-   thread. The writer compares threads rather than spellings, so a link naming one of a
-   thread's replies stands. It names the entry as the change happens, so a press that
-   closes a card as it takes focus renames the entry it is on before the link it lands
-   on adds the next one; during a navigation it reads the name once the navigation ends
-   (history.js, `replaceEntry`), for the entry it ends on. A browser that refuses a write
-   past its rate limit, as Safari does by throwing, leaves the entry named as it was
-   until the next change.
+   it adds the same way: the step is written once the view stands open, and the entry
+   left keeps the name it had (history.js, `prepareEntry`). A seat's thread stands in
+   its widget rather than in a view, so its entry names no thread. The composition
+   compares threads rather than spellings, so a link naming one of a thread's replies
+   stands. The entry is renamed as the change happens, so a press that closes a card as
+   it takes focus renames the entry it is on before the link it lands on adds the next
+   one; history.js says when a rename waits (`replaceEntry`).
 
    A traversal shows the thread its entry names (`claim`): it opens that thread where
    the user stands, or puts the open thread away where the entry names none, beside any
@@ -54,31 +52,18 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
     return name ? (threadNamed(name)?.id ?? name) : null;
   };
 
-  let waiting = false;
-  function nameEntry() {
-    const transition = window.navigation.transition;
-    if (transition) {
-      if (waiting) return;
-      waiting = true;
-      const retry = () => {
-        waiting = false;
-        nameEntry();
-      };
-      void transition.finished.then(retry, retry);
-      return;
-    }
+  // `url` naming the thread that stands open now, or none: the one composition of the
+  // parameter, which every entry history writes takes (history.js, `nameThread`).
+  /** @param {URL} url */
+  function name(url) {
     const open = untracked(shown)?.id ?? null;
-    const url = new URL(location.href);
-    if (named(url) === open) return;
-    if (open) url.searchParams.set("thread", open);
-    else url.searchParams.delete("thread");
-    try {
-      replaceEntry(url);
-    } catch {
-      // Over the browser's rate limit (the header).
-    }
+    if (named(url) === open) return url;
+    const renamed = new URL(url);
+    if (open) renamed.searchParams.set("thread", open);
+    else renamed.searchParams.delete("thread");
+    return renamed;
   }
-  // Each change of the thread that stands open.
+  // Each change of the thread that stands open renames the entry the user is on.
   function followOpenThread() {
     /** @type {string | null | undefined} */
     let last;
@@ -86,7 +71,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
       const open = shown()?.id ?? null;
       const changed = last !== undefined && open !== last;
       last = open;
-      if (changed) nameEntry();
+      if (changed) replaceEntry();
     });
   }
 
@@ -150,5 +135,5 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
     };
   }
 
-  return { followOpenThread, claim, arrive };
+  return { followOpenThread, claim, arrive, name };
 }

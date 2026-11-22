@@ -2261,8 +2261,13 @@ export function createVersionController({
   // Changed executable identity requires a fresh document. Serialize the continuity
   // handoff before reload; installArrival consumes it once after upgrade.
   const reloadInto =
-    (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
+    (/** @type {import("../types/contract.js").ServedRevision} */ target) =>
+    async () => {
       forceActivation = false;
+      // A rename waits for a navigation under way (history.js, `replaceEntry`), and
+      // the reload must carry its mark, so it waits for the navigation first and marks
+      // the entry the navigation leaves the user on.
+      await window.navigation.transition?.finished.catch(() => {});
       const live = pageDocument();
       const source = authoredSource;
       if (!live || !source)

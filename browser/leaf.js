@@ -837,6 +837,7 @@ async function boot() {
     thread: {
       claim: (url, place) => threadAddress.claim(url, place),
       drawing: (id) => app.threadDestinations.threadFocusTarget(id, { part: "thread" }),
+      name: (url) => threadAddress.name(url),
     },
   });
   const landFragment = version.aimArrival();

@@ -521,6 +521,10 @@ export function createObligationView({
     // Materializing an obligation can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
     const arriveAtRecord = bindQueuedWork(arrive);
+    // The place the user leaves, read before drawing the obligation opens its thread,
+    // which renames the entry they are on (thread/address.js); only a successful
+    // arrival commits the departure.
+    const departure = prepareNavigationStep();
     // A thread source must exist before its owner can reveal a projected record.
     if (hasObligationSource(next, "widget") && next.thread)
       await materializeObligation(next, next.message, mayArrive);
@@ -548,9 +552,9 @@ export function createObligationView({
     // press moves the page is `alreadyArrived`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
-    // Capture the outgoing place before reveal can reshape it; only a successful
-    // arrival commits the departure. A thread obligation in the panel's own list
-    // arrives centred in that region and is no navigation step. One in a thread's
+    // A thread obligation in the floating panel arrives centred in that region, a step
+    // as every arrival at a stop the user wasn't on is (anchor-travel.js,
+    // `prepareNavigationStep`). One in a thread's
     // card, which stands fixed over the page by the thread's words where no scroll of
     // the boxes around the obligation moves it, lands as an arrival at the thread
     // does (anchor-travel.js, `threadLanding`). Which box either travel moves is the
@@ -579,28 +583,30 @@ export function createObligationView({
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareNavigationStep();
     const {
       box: initialBox,
       region: initialRegion,
       source: initialSource,
       landing,
     } = initial;
-    if (landing) departure.plan(landing.where);
-    const moving = Boolean(
-      initialBox &&
-      departure.plan(initial.target, {
-        there: (readable) =>
-          alreadyArrived(
-            next,
-            initialRegion,
-            initial.target,
-            initialSource,
-            initialBox,
-            readable,
-          ),
-      }),
-    );
+    const moving = landing
+      ? departure.plan(landing.where)
+      : departure.plan(
+          initial.target,
+          initialBox
+            ? {
+                there: (readable) =>
+                  alreadyArrived(
+                    next,
+                    initialRegion,
+                    initial.target,
+                    initialSource,
+                    initialBox,
+                    readable,
+                  ),
+              }
+            : {},
+        );
     const arrived = await arriveAtRecord(
       () => {
         const here = destination();

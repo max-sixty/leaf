@@ -432,12 +432,20 @@ export function createUndo({
 
   // Put the user on a thread, under the intent of the gesture that asked for it: in the
   // reader a settlement named (thread/folding.js), else where they see it drawn on the
-  // page, which needs no travel, else where a route to it opens it.
-  /** @param {string} id @param {UserIntent} intent @param {Reader} [reader] @param {boolean} [travel] */
-  async function returnToThread(id, intent, reader = null, travel = true) {
-    if (reader) return openThread(id, { part: "thread", intent, reader, travel });
+  // page, which needs no travel, else where a route to it opens it. `travel` and
+  // `history` are the route's (thread/destination.js): a return no gesture of the
+  // user's began, as after the log refuses a settlement, adds no Back step (history.js).
+  /** @param {string} id @param {UserIntent} intent
+   * @param {{reader?: Reader, travel?: boolean, history?: boolean}} [route] */
+  async function returnToThread(
+    id,
+    intent,
+    { reader = null, travel = true, history = true } = {},
+  ) {
+    const route = { part: /** @type {const} */ ("thread"), intent, travel, history };
+    if (reader) return openThread(id, { ...route, reader });
     const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
-    if (!seated) return openThread(id, { part: "thread", intent, travel });
+    if (!seated) return openThread(id, route);
     intent.handoff(() => focusDestination(seated, "move"));
     return seated;
   }
@@ -454,7 +462,7 @@ export function createUndo({
     const place = placeOf(event);
     if (place?.message)
       return openThread(place.message, { part: "message", intent, travel });
-    if (place?.thread) return returnToThread(place.thread, intent, reader, travel);
+    if (place?.thread) return returnToThread(place.thread, intent, { reader, travel });
     if (place?.fragment === undefined || !intent()) return;
     // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so
     // Back returns to where the user was reading.

@@ -110,7 +110,7 @@ export async function settleThread({
     refused: async () => {
       const mayReturn = retainUserIntent({ since });
       await whenDocumentPresented();
-      return undo.returnToThread(parent(), mayReturn, reader);
+      return undo.returnToThread(parent(), mayReturn, { reader, history: false });
     },
   });
 }

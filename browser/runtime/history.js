@@ -245,25 +245,48 @@ function write(method, state, url) {
   }
 }
 
+// Each entry this document writes names the thread view standing open as it is
+// written (thread/address.js, `name`), so no URL a route, a widget or a waiting rename
+// captured earlier carries a thread name the page no longer shows.
+/** @type {(url: URL) => URL} */
+let nameThread = (url) => url;
+/** @param {string | URL | null | undefined} url */
+const named = (url) => nameThread(new URL(url ?? location.href, location.href));
+
 /** @param {string | URL | null | undefined} url @param {unknown} state */
 export function pushEntry(url, state = null) {
-  write("pushState", state, url);
+  write("pushState", state, named(url));
 }
 
-// A rename waits for a navigation under way to end, then renames the entry the user is
-// on: a history write aborts the navigation in Chromium and Firefox alike, and a rename
-// is no step of the user's that should end one, as a tab set naming the view a
-// traversal's claimant opened would end that traversal before its place came back.
-// Without `state`, the entry keeps its own, read when the rename is written.
-/** @param {string | URL | null | undefined} url @param {unknown} [state] */
+// A rename renames the entry the user is on, at `url`, or at its own address where
+// `url` is absent. One asked for while a navigation is under way waits for it to end,
+// since a history write aborts the navigation in Chromium and Firefox alike, and a
+// rename is no step of the user's that should end one, as a tab set naming the view a
+// traversal's claimant opened would end that traversal before its place came back. It
+// renames only the entry it was asked on: where a newer navigation has moved the user to
+// another, it is dropped. Without `state`, the entry keeps its own, read when the rename
+// is written. A rename that would change nothing writes nothing, and one the browser
+// refuses over its rate limit, as Safari does by throwing past 100 in 30 seconds, is
+// dropped, since the next write names the entry again.
+/** @param {string | URL | null | undefined} [url] @param {unknown} [state] */
 export function replaceEntry(url, state) {
   const transition = window.navigation.transition;
   if (transition) {
-    const rename = () => replaceEntry(url, state);
+    const asked = window.navigation.currentEntry?.key;
+    const rename = () => {
+      if (window.navigation.currentEntry?.key === asked) replaceEntry(url, state);
+    };
     void transition.finished.then(rename, rename);
     return;
   }
-  write("replaceState", state === undefined ? history.state : state, url);
+  const address = named(url);
+  const kept = state === undefined ? history.state : state;
+  if (address.href === location.href && kept === history.state) return;
+  try {
+    write("replaceState", kept, address);
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "SecurityError")) throw error;
+  }
 }
 
 // A route can reveal or hydrate before it knows whether arrival will succeed. Capture
@@ -291,8 +314,9 @@ export function prepareEntry() {
 }
 
 // `claim(url)` returns the handler that reveals the destination of a traversal, or
-// nothing when the entry is not the claimant's. The thread view the entry names is
-// claimed first (`mountHistory`), then the first claim to answer takes it.
+// nothing when the entry is not the claimant's. The first claim to answer takes it. The
+// thread view the entry names opens or goes after it, whoever claimed the traversal
+// (`mountHistory`).
 // A handler places the viewport itself unless it resolves to false, handing placement
 // back to the entry's checkpoint (or the browser when no checkpoint was captured).
 // Travel follows it where the entry's fragment names a place its view doesn't show.
@@ -303,19 +327,22 @@ export function claimTraversals(claim, { signal } = {}) {
 }
 
 // The thread view an entry names (thread/address.js): `claim` opens it or puts it away
-// on a traversal, as it reads the entry's saved place, and `drawing` is the drawing of
-// a thread a return puts the user in (`returnPlace`), wherever the thread's route drew
-// it (thread/destination.js).
+// on a traversal, as it reads the entry's saved place, and resolves to false, since it
+// places nothing; `drawing` is the drawing of a thread a return puts the user in
+// (`returnPlace`), wherever the thread's route drew it (thread/destination.js); and
+// `name` names the open thread in a URL this document writes.
 /** @type {((id: string) => Element | null) | null} */
 let threadDrawing = null;
 let mounted = false;
 /** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
  * returnToFragment: (url: URL) => TraversalHandler | null | undefined,
- * thread: {claim: ThreadClaim, drawing: (id: string) => Element | null}}} options */
+ * thread: {claim: ThreadClaim, drawing: (id: string) => Element | null,
+ * name: (url: URL) => URL}}} options */
 export function mountHistory({ followFragment, returnToFragment, thread }) {
   if (mounted) return;
   mounted = true;
   threadDrawing = thread.drawing;
+  nameThread = thread.name;
   const navigation = window.navigation;
   navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
@@ -328,7 +355,8 @@ export function mountHistory({ followFragment, returnToFragment, thread }) {
     }
     if (event.navigationType === "traverse") {
       const place = places.get(event.destination.key);
-      const claim = thread.claim(url, place ?? null) || claimed(url);
+      const claim = claimed(url);
+      const showThread = thread.claim(url, place ?? null);
       const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
       const applied = traversalApplied(event.signal);
       event.intercept({
@@ -356,6 +384,13 @@ export function mountHistory({ followFragment, returnToFragment, thread }) {
             work = claim?.();
           });
           let placed = Boolean(claim) && (await work) !== false;
+          if (!mayReturn()) return;
+          // The thread view opens or goes in the view the claimant revealed.
+          work = undefined;
+          mayReturn.handoff(() => {
+            work = showThread?.();
+          });
+          await work;
           if (!mayReturn()) return;
           work = undefined;
           mayReturn.handoff(() => {

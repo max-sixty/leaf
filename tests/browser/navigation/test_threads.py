@@ -1509,9 +1509,14 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
     expect(linked_thread(page, "anchor01")).to_be_focused()
     expect(page.locator("#target")).to_be_in_viewport()
     assert page.evaluate("history.length") == 2
-    # The tab set names the view it opened beside the thread, and the entry keeps both.
+    # The tab set names the view it opened beside the thread, and the entry keeps both:
+    # the thread by the reply the link named, or by its own id where the tab set's
+    # rename came before the thread stood open and the entry was named again after.
     assert urlsplit(page.url).fragment == "second"
-    assert dict(parse_qsl(urlsplit(page.url).query))["thread"] == "answer01"
+    assert dict(parse_qsl(urlsplit(page.url).query))["thread"] in (
+        "answer01",
+        "anchor01",
+    )
     page.reload()
     wait_until_ready(page)
     expect(linked_thread(page, "anchor01")).to_be_visible()

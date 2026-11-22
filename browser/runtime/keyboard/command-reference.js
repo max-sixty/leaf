@@ -66,6 +66,7 @@ import {
   live,
   routedCommand,
   spell,
+  spokenBinding,
   word,
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -136,7 +137,7 @@ commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
  * @typedef {{id: string, rowId: string, keyId: string, descriptionId: string, sectionId: string, sectionTitle: string,
  * order: number, sequenceControl: boolean, keyLabel: boolean, steps: readonly string[], keySequence: ReturnType<typeof keySequenceModel> | null,
  * title: string, description: string, actionable: boolean, available: boolean, unavailableMessage: string,
- * bindingForms: readonly string[], directWords: string, familyWords: string}} ReferenceEntry
+ * bindingForms: readonly {display: string, spoken: string}[], directWords: string, familyWords: string}} ReferenceEntry
  * @typedef {{id: string, title: string, words: string, order: number, entries: readonly ReferenceEntry[]}} CatalogSection
  * @typedef {{total: number, entries: readonly ReferenceEntry[], sections: readonly CatalogSection[]}} ReferenceCatalog
  * @typedef {{query: string, selectedCommandId: string | null, metaOverride: string | null}} ReferenceState
@@ -309,6 +310,28 @@ const availableWhere = (row, scopeTitle, scopeReach) => {
   return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
 };
 
+/** @param {import("./bindings.js").CommandRoute | null} route
+ * @param {readonly (readonly string[])[]} keys @param {readonly string[]} declared
+ * @returns {import("./key-sequence.js").KeySequenceStep[]} */
+const referenceKeySteps = (route, keys, declared) => {
+  const alternatives = route?.binding === undefined ? declared : [route.binding];
+  const [binding, ...rest] = alternatives;
+  const spokenIndex =
+    binding !== undefined && !rest.length
+      ? keys.map(stepText).lastIndexOf(spell(binding))
+      : -1;
+  return keys.map((one, index) => {
+    const text = stepText(one);
+    return {
+      text,
+      keys: one,
+      spoken:
+        index === spokenIndex && binding !== undefined ? spokenBinding(binding) : text,
+      state: "neutral",
+    };
+  });
+};
+
 // Evaluate every dynamic declaration once while opening. Search never calls back into the
 // register, and rendered records retain no executable command or liveness function.
 /** @returns {ReferenceCatalog} */
@@ -454,6 +477,7 @@ function captureCommandReferenceCatalog() {
           : [];
         const steps = keySteps.map(stepText);
         const isAvailable = executable.has(id);
+        const spokenSteps = referenceKeySteps(route, keySteps, rowInfo.declared);
         /** @type {ReferenceEntry} */
         const entry = Object.freeze({
           id,
@@ -466,15 +490,7 @@ function captureCommandReferenceCatalog() {
           sequenceControl: Boolean(rowInfo.row.sequenceControl),
           keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
-          keySequence: steps.length
-            ? keySequenceModel(
-                keySteps.map((keys) => ({
-                  text: stepText(keys),
-                  keys,
-                  state: "neutral",
-                })),
-              )
-            : null,
+          keySequence: steps.length ? keySequenceModel(spokenSteps) : null,
           title,
           description,
           actionable: actionable(rowInfo.row, route),
@@ -482,7 +498,10 @@ function captureCommandReferenceCatalog() {
           unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
           bindingForms: Object.freeze(
             alternatives.map((binding) =>
-              [...rowInfo.sequence, spell(binding)].join(" "),
+              Object.freeze({
+                display: [...rowInfo.sequence, spell(binding)].join(" "),
+                spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" "),
+              }),
             ),
           ),
           directWords: commandReferenceWords(
@@ -535,11 +554,16 @@ function projectCommandReference(catalog, state) {
     return section.entries.map((entry) => {
       const exactBinding =
         Boolean(bindingQuery) &&
-        entry.bindingForms.some((display) => display.startsWith(bindingQuery));
+        entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
       const foldedBinding =
         Boolean(foldedBindingQuery) &&
-        entry.bindingForms.some((display) =>
+        entry.bindingForms.some(({ display }) =>
           display.toLocaleLowerCase().startsWith(foldedBindingQuery),
+        );
+      const spokenPrefix =
+        Boolean(foldedBindingQuery) &&
+        entry.bindingForms.some(({ spoken }) =>
+          spoken.toLocaleLowerCase().startsWith(foldedBindingQuery),
         );
       const rank = !query
         ? 0
@@ -547,17 +571,19 @@ function projectCommandReference(catalog, state) {
           ? 0
           : foldedBinding
             ? 1
-            : sectionMatch || entry.directWords.includes(query)
+            : spokenPrefix
               ? 2
-              : !directMatch && entry.familyWords.includes(query)
+              : sectionMatch || entry.directWords.includes(query)
                 ? 3
-                : Infinity;
+                : !directMatch && entry.familyWords.includes(query)
+                  ? 4
+                  : Infinity;
       return { entry, section, rank };
     });
   });
   const bindingMatches = query
     ? ranked
-        .filter(({ rank }) => rank <= 1)
+        .filter(({ rank }) => rank <= 2)
         .sort(
           (left, right) =>
             left.rank - right.rank ||

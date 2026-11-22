@@ -35,7 +35,7 @@
    introduces no ownership cycle through its callers. */
 import { bindingEnabled, cycledRow, hasRows, spell } from "./bindings.js";
 import { html, render } from "/runtime/framework.js";
-import { keySequenceModel, keySequenceTemplate, neutralSteps } from "./key-sequence.js";
+import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { layoutWindow } from "../geometry.js";
@@ -610,7 +610,9 @@ export function createHintSession({
   const enabled = (candidate) => [...candidate.code].every(bindingEnabled);
   /** @param {{candidate: C}} plan */
   const shown = (plan) => enabled(plan.candidate) || plan.candidate === hinted()[at];
-  const nativeTake = keySequenceModel(neutralSteps([spell("Enter")]));
+  const nativeTake = keySequenceModel([
+    { text: spell("Enter"), keys: [spell("Enter")], state: "neutral", spoken: "Enter" },
+  ]);
   /** @param {{candidate: C, model: M}} plan */
   const face = (plan) =>
     plan.candidate && !enabled(plan.candidate)

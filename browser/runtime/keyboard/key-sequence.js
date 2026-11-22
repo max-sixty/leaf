@@ -35,13 +35,14 @@ export const completeRowSteps = (row, route = null) =>
   completeRowKeySteps(row, route).map(stepText);
 
 /** One complete step, kept together through every presentation.
- * @typedef {{text: string, keys: readonly string[], state: "neutral" | "pressed"}} KeySequenceStep
+ * @typedef {{text: string, keys: readonly string[], spoken: string, state: "neutral" | "pressed"}} KeySequenceStep
  */
 /** @param {readonly string[]} steps @returns {KeySequenceStep[]} */
 export const neutralSteps = (steps) =>
   steps.map((text) => ({
     text,
     keys: [text],
+    spoken: text,
     state: "neutral",
   }));
 
@@ -55,22 +56,20 @@ export const progressSteps = (steps, pressed) => {
     return {
       text,
       keys: [text],
+      spoken: text,
       state: matching ? "pressed" : "neutral",
     };
   });
 };
 
-// A screen reader hears the chips' own words, as the eye reads them, and names their
-// symbols (⌘, ⇧, ⏎) itself; the label adds only what the chips' places say, the order
-// of the steps and the alternatives within one.
 /** @param {readonly KeySequenceStep[]} steps */
 export function keySequenceModel(steps) {
   if (!steps.length) throw new Error("leaf: a key sequence needs a step");
-  const reading = steps.map(({ text, keys, state }) =>
-    Object.freeze({ text, keys: Object.freeze([...keys]), state }),
+  const reading = steps.map(({ text, keys, spoken, state }) =>
+    Object.freeze({ text, keys: Object.freeze([...keys]), spoken, state }),
   );
   return Object.freeze({
-    label: reading.map(({ text }) => text.replaceAll(" / ", " or ")).join(" then "),
+    label: reading.map(({ spoken }) => spoken.replaceAll(" / ", " or ")).join(" then "),
     steps: Object.freeze(reading),
   });
 }

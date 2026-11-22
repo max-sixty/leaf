@@ -277,9 +277,12 @@ restarts it under that one at the same address (`hosting.start_page`), as the
 session's next prompt does for a page it holds where both are installed copies
 ("Serving again at the next prompt"). Where the skill the hook's Leaf ships differs
 from the one the session's previous hook ran with, the agent is told to read it again
-(`hooks.skill_changed`). Codex's adapter keeps the code it started with until its task
-owns no page or the session selects another Leaf (`codex_adapter.run_adapter`), so it
-runs that code across an in-place update.
+(`hooks.skill_changed`). Codex's adapter follows its copy without waiting for a hook.
+Within a pass of Codex replacing the copy the adapter started from, the adapter
+releases its leases and starts a successor from the new copy. It holds the task's
+start lock until the successor holds its leases and its transport answers, so a claim
+meanwhile waits and then joins the successor (`codex_adapter.py`). Until then, a hook
+that reads the adapter lease without the start lock finds no adapter.
 
 ### A session's files
 

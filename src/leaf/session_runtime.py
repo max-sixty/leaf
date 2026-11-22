@@ -34,9 +34,10 @@ working line; the session gets the thread's messages either way. The user chose 
 over checking that the loaded module is this Leaf's own, which turns forks off in
 every session whose hooks run a checkout that changed the module after the session
 loaded it.
-A running adapter keeps the modules it loaded until it retires, which it does once
-its task owns no page. The selection lives in the session lifecycle record and
-ends with its generation. Page servers retain their own runtime, so choosing
+A running adapter from an installed copy hands its task to an adapter from the copy
+that replaces it (`codex_adapter.py`); one from a checkout keeps the modules it loaded
+until it retires, which it does once its task owns no page. The selection lives in the
+session lifecycle record and ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 

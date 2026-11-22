@@ -5050,13 +5050,13 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
 
 
 @pytest.mark.parametrize("touch", [False, True])
-def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
+def test_the_panel_s_band_at_the_foot_is_as_tall_as_the_row_stands_up(
     browser, serve, touch
 ):
-    """The theme reserves the panel's row at the window's foot, with the gap it stands
-    above the window's edge again above it, so the page's last line scrolls clear of the
-    row and no further. A reserve stated as a number of its own can stand taller than
-    the row, under a mouse and under a finger alike."""
+    """The band the panel's row takes at the window's foot, which a landing stops
+    above, is the row with the gap it stands above the window's edge again above it,
+    and no more. A band stated as a number of its own can stand taller than the row,
+    under a mouse and under a finger alike."""
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )

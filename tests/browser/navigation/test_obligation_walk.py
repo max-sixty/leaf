@@ -916,6 +916,60 @@ def test_m_pressed_while_a_glide_carries_asks_past_steps_on_from_where_it_lands(
     assert reached[0] == reached[1]
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_m_pressed_while_the_page_glides_lands_an_ask_in_a_sticky_track_where_it_lands_alone(
+    request, serve, engine
+):
+    """`d m` typed quickly, on a sidebar page whose stuck track holds the ask, ends where
+    the same keys typed slowly end: `d`'s glide carries the track up only until it
+    sticks, so the ask stands in the window where the glide leaves it and `m` moves the
+    page nowhere `d` doesn't. Counted as riding the whole glide, the ask read as leaving
+    the window above, and `m` pulled the page back most of the way to the top."""
+    paragraphs = "".join(
+        f"<p>Body paragraph {n} of the review, long enough to fill a line.</p>"
+        for n in range(120)
+    )
+    source = leaf_page(
+        "An ask in the track",
+        '<aside id="route"><div class="layout-track" id="track">'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Take the left route</lf-option>'
+        '<lf-option id="right">Take the right route</lf-option></lf-options></lf-group>'
+        "<p>Notes beside the ask.</p></div></aside>"
+        f'<article class="layout-column"><h1>Release review</h1>{paragraphs}</article>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 700)
+    ask = page.locator("#ask")
+    track_top = "document.getElementById('track').getBoundingClientRect().top"
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    standing = page.evaluate(track_top)
+    page.keyboard.press("d")
+    paged = settled()
+    stuck = page.evaluate(track_top)
+    # The track rode the start of `d`'s glide, short of the whole of it.
+    assert 1 < standing - stuck < paged, (standing, stuck, paged)
+    page.keyboard.press("m")
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(paged, abs=2)
+
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    # `m` pressed before `d`'s glide has moved the page, on any host.
+    with held_frames(page) as step:
+        page.keyboard.press("d")
+        page.keyboard.press("m")
+        step()
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(paged, abs=2)
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):

@@ -1072,7 +1072,7 @@ def restarting_server(
             deadline=deadline,
         )
     except StartRefused as error:
-        raise Refused(f"{page_dir}'s server did not start again: {error}") from error
+        raise Refused(f"the page's server did not start again: {error}") from error
 
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:

@@ -55,12 +55,17 @@
   // strip's paging edge or a page's sticky header. At the page's foot that is the
   // floating panel's band, which the page states for Leaf's landings rather than in its
   // padding (`landingInsets`, geometry.js), so each sweep reads it before it measures.
-  // No scroller around a box fixed in the window carries it, so the walk stops there:
-  // the panel's own controls are pressed where they stand, whether or not the page
-  // behind them scrolls.
+  // The boxes around a fixed box don't scroll it, so the walk ends at the first one, with
+  // the scrollers the runtime says carry it (`carriersOf`, scroll-containers.js). None
+  // carry a box stuck in the window, so the panel's own controls are pressed where they
+  // stand, whether or not the page behind them scrolls. A box Leaf anchors, as a margin
+  // row's carrier is, rides the scrollers carrying its anchor, so the page's scroll
+  // brings it out from under the panel.
   let rootFoot = 0;
-  const readRootFoot = async () => {
+  let carriersOf;
+  const readPage = async () => {
     const { landingInsets } = await window.__lfWidgetApi();
+    ({ carriersOf } = await window.__lfCheckApi());
     rootFoot = landingInsets(document.scrollingElement).bottom;
   };
   function viewOf(el) {
@@ -71,7 +76,9 @@
       if (at.nodeType !== 1) continue;
       const style = getComputedStyle(at);
       if (at !== el) narrow(at, style);
-      if (style.position === "fixed") break;
+      if (style.position !== "fixed") continue;
+      for (const box of carriersOf(at)) narrow(box, getComputedStyle(box));
+      break;
     }
     return { left, top, right, bottom };
 
@@ -259,7 +266,7 @@
   // lowers its floor; one it inherits from a container holds it to the document's, and
   // an aim another box covers to nothing is short under any floor.
   async function flooredAims(roots, selectors) {
-    await readRootFoot();
+    await readPage();
     const floor = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--lf-aim-floor"),
     );
@@ -303,7 +310,7 @@
   // link inside a sentence is sized by the words around it, and nothing can be done
   // about that which does not damage the sentence.
   async function offeredAims(floor) {
-    await readRootFoot();
+    await readPage();
     const found = [];
     const seen = new Set();
     for (const el of document.querySelectorAll(
@@ -340,7 +347,7 @@
   // The aim as a box in the page: the control's box grown by its reach, which stands
   // out the same distance on either side of its face.
   async function aimRect(el) {
-    await readRootFoot();
+    await readPage();
     const { box, w, h } = aim(el);
     return {
       x: box.x - (w - box.width) / 2,

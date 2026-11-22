@@ -710,6 +710,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
+| What a target draws, its list marker included, and where the marks round it stand                     | `geometry.js` `inkedBox`, `markedBox`                                              |
+| The room the marks round a target take beside it, a named box's round it included                     | `mark-room.js` `markRoom`                                                          |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |

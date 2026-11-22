@@ -275,9 +275,9 @@ runs. A page at an older protocol is renewed (`layer-registry.md`, "Page protoco
 page server keeps the Leaf that started it, and `server start` from another Leaf
 restarts it under that one at the same address (`hosting.start_page`), as the
 session's next prompt does for a page it holds where both are installed copies
-("Serving again at the next prompt"). Where the skill the hook's Leaf ships differs
-from the one the session's previous hook ran with, the agent is told to read it again
-(`hooks.skill_changed`). Codex's adapter keeps the code it started with until its task
+("Serving again at the next prompt"). Where the hook runs another Leaf than the
+session's previous hook, and that Leaf ships another skill, the agent is told to read
+it again (`hooks.skill_changed` says when an edit counts). Codex's adapter keeps the code it started with until its task
 owns no page or the session selects another Leaf (`codex_adapter.run_adapter`), so it
 runs that code across an in-place update.
 
@@ -287,8 +287,9 @@ Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
 session lock stay, since the page shows that session's turn from the lifecycle, and
-so does the digest of the skill its hooks last ran with (`leases.mark_skill`), which
-the first hook of a resumed session compares with its own. A
+so does the record of the Leaf its hooks last ran and the skill it ships
+(`leases.mark_skill`), which the first hook of a resumed session compares with its
+own. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one

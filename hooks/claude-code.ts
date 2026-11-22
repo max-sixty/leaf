@@ -15,7 +15,11 @@
  * hooks too, naming itself (`agentId`), and they leave its calls and turns alone, but
  * for starting the pages follower after a `leaf` command, as any session's does.
  * Claude Code loads the module from the copy of Leaf the session's process loaded,
- * whose `bin/leaf` its hooks run (`$.plugin.root`, measured at 2.1.305).
+ * whose `bin/leaf` its hooks run (`$.plugin.root`, measured at 2.1.305). A
+ * `/reload-plugins` that loads another copy retires this instance, which ends its
+ * pages follower, and raises session.start on a new instance from that copy; a reload
+ * that leaves the copy as it was keeps the instance and its follower (measured at
+ * 2.1.330).
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
@@ -187,12 +191,7 @@ let initialized: Promise<void> | undefined;
 
 /** The session's id, once Claude Code's process is known. A resumed or cleared
  * session raises no session.start, so whichever hook comes first reads it, and hooks
- * that start meanwhile wait for that one read. A `/reload-plugins` that loads another
- * copy of Leaf changes the module's arguments, which name its root, so Claude Code
- * retires this instance, whose follower then ends with SIGTERM, and raises
- * session.start on a new instance from that copy. A reload that leaves the arguments
- * as they were, as one of a plugin loaded in place from a directory does, keeps this
- * instance and its follower running (measured at 2.1.330). */
+ * that start meanwhile wait for that one read. */
 async function sessionOf($: EngineInterface) {
   initialized ??= (async () => {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();

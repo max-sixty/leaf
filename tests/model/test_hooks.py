@@ -1669,7 +1669,8 @@ def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
     whose Leaf ships another skill than the previous hook's names the skill to read
     again, beside the input it hands over, and the next prompt doesn't. A prompt whose
     Leaf ships the same skill, from the same copy or another, says nothing of it, and
-    the copy the previous hook ran from may be gone."""
+    the copy the previous hook ran from may be gone. Nor does an edit to the skill of
+    a checkout the hooks run, which the session developing it made."""
     shipped = schema_model.SKILL_FILE.parent
 
     def prompt() -> str:
@@ -1688,6 +1689,7 @@ def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
         if skill is not None:
             (directory / "SKILL.md").write_text(skill)
         monkeypatch.setattr(schema_model, "SKILL_FILE", directory / "SKILL.md")
+        monkeypatch.setattr(hooks_model, "PLUGIN_ROOT", root)
         return str(directory / "SKILL.md")
 
     assert str(schema_model.SKILL_FILE) not in prompt()
@@ -1695,9 +1697,10 @@ def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
 
     same = tmp_path / "same"
     assert runs(same) not in prompt()
+    assert runs(same, "A skill being edited.\n") not in prompt()
 
     local = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "local"
-    skill = runs(local)
+    skill = runs(local, "A skill being edited.\n")
     shutil.rmtree(same)
     assert skill not in prompt()
 

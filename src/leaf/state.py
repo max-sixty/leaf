@@ -111,7 +111,7 @@ TOOLS_SUFFIX = "tools"
 # The harness process its Leaf module last ran in, or whose user Leaf told it
 # didn't (`leases.mark_module`).
 MODULE_SUFFIX = "module"
-# The digest of the leaf skill its Leaf hooks last ran with (`leases.mark_skill`).
+# The Leaf its hooks last ran and the skill it ships (`leases.mark_skill`).
 SKILL_SUFFIX = "skill"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.

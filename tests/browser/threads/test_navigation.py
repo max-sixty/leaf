@@ -4,14 +4,18 @@ thread and the history they leave, and leaving or re-entering a reply."""
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import THREAD_DIFF_PAGE, live_url
+from render_cases_interaction import THREAD_DIFF_PAGE, live_url, panel_comment
 from render_harness import (
+    LONG_PAGE,
     leaf_page,
     open_page,
     put_preview_away,
     resized,
     scroll_settled,
 )
+
+from browser.threads import open_panel_thread
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -86,6 +90,80 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
         page.wait_for_function(
             "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=top
         )
+
+
+@pytest.mark.parametrize(
+    "left", ["page thread's link", "passage thread's link", "card's link", "walk"]
+)
+def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
+    """Leaving a thread for a place its view would stand over puts the view away, and
+    Back reopens the thread in the reader the user had it in, where they had read it
+    to, with the user on it and no other thread open: the panel for a thread they read
+    there, about the whole page or a passage, and the margin card for one they read in
+    the card. A `t` walk from the panel's thread to a card reads where the user was
+    before the panel puts its view away. Forward lands on the place again and puts the
+    view away again."""
+    url = serve(LONG_PAGE)
+    page_root = panel_comment(serve.page_dir, "Where does this end?")
+    passage_root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
+    )
+    for root in (page_root, passage_root):
+        # The link stands in the thread's first reply, above the replies the panel's
+        # view opens at.
+        for text in [
+            "See [the last paragraph](#p59).",
+            *(f"Reply {n}. " + "More of the explanation. " * 30 for n in range(6)),
+        ]:
+            append_carried_log_record(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "agent": "Claude",
+                    "parent": root,
+                    "revision": 1,
+                    "text": text,
+                },
+            )
+    page = open_page(browser, url)
+    card = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{passage_root}"]'
+    )
+    if left == "card's link":
+        page.keyboard.press("t")
+        thread = card
+    else:
+        root = passage_root if left == "passage thread's link" else page_root
+        if left == "walk":
+            # From the page's foot, so the walk to the passage at its top moves the page.
+            page.evaluate("scrollTo({top: 1e6, behavior: 'instant'})")
+        open_panel_thread(page, root)
+        thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    if left == "walk":
+        page.keyboard.press("Escape")
+        expect(thread).to_be_focused()
+        page.keyboard.press("t")
+        destination = card
+    else:
+        link = thread.get_by_role("link", name="the last paragraph")
+        link.scroll_into_view_if_needed()
+        read_to = thread.evaluate("view => view.scrollTop")
+        link.click()
+        destination = page.locator("#p59")
+    expect(destination).to_be_focused()
+    expect(thread).to_be_hidden()
+
+    page.go_back()
+    expect(thread).to_be_focused()
+    if left in ("page thread's link", "passage thread's link"):
+        assert abs(thread.evaluate("view => view.scrollTop") - read_to) <= 2
+    expect(
+        page.locator(PANEL_THREAD if left == "card's link" else ".lf-margin-preview")
+    ).to_be_hidden()
+    page.go_forward()
+    expect(destination).to_be_focused()
+    expect(thread).to_be_hidden()
 
 
 def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):

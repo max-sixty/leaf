@@ -1065,30 +1065,18 @@ const topLevelAwaitRule = {
 // module writes for the form such words took before, a dash or a semicolon and then a
 // shortcut, a character or `g` and one, doing something ("— v shows them", "; g D
 // restores it"), past a count or the article ("— 3 changes", "— a process exited"). It
-// catches that form, not every way of spelling a key. What a screen reader hears from
-// `announce` may name a key.
+// catches that form, not every way of spelling a key.
 const SPELLED_KEY = /(?:—|;)\s+(?:g\s+)?[^\s\daAI]\s+[a-z]+s\b/u;
 export const spelledKeysRule = {
   meta: { type: "problem", schema: [] },
   create(context) {
-    /** @param {any} node */
-    const announced = (node) => {
-      for (let at = node.parent; at; at = at.parent)
-        if (
-          at.type === "CallExpression" &&
-          at.callee.type === "Identifier" &&
-          at.callee.name === "announce"
-        )
-          return true;
-      return false;
-    };
     /** @param {any} node @param {unknown} text */
     const check = (node, text) => {
-      if (typeof text === "string" && SPELLED_KEY.test(text) && !announced(node))
+      if (typeof text === "string" && SPELLED_KEY.test(text))
         context.report({
           node,
           message:
-            "Offer the step as a press (notifications.js, `press`; errors.js) rather than spelling its key in the words: the panel's field shows the key only while it would make the press.",
+            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/scopes.js), rather than spelling it in the words: both name a key only while it would work.",
         });
     };
     return {

@@ -22,11 +22,13 @@ test("words that spell a key for a step are refused", () => {
     "notice(`${counted(n, 'change')} since v${since.version} — v shows them`);",
     'notice("Edit discarded; g D restores it");',
     'const said = [hidden.length && "Draft kept — g i resumes writing"];',
+    // An announcement says its keys through the register (`saying`), not in its words.
+    "announce(`${title} — g t opens it`);",
   ])
     assert.equal(reports(code), 1, code);
 });
 
-test("words that name no key, or that a screen reader hears, are admitted", () => {
+test("words that name no key are admitted", () => {
   for (const code of [
     'notice("Draft kept", { press });',
     "raiseError(`Couldn't send — attempt ${attempt} is already in use`);",
@@ -34,8 +36,7 @@ test("words that name no key, or that a screen reader hears, are admitted", () =
     'notice("Saved — 3 changes since v2");',
     'raiseError("Couldn\'t start — a process exited");',
     'notice("Its box is gone, so its words moved to a comment on the page");',
-    "announce(`Draw mode: each stroke adds to one drawing, and z takes one back. ${'Escape leaves.'}`);",
-    "announce(`${title} — g t opens it`);",
+    "announce(`Go to — 3 visible targets. ${saying(rows)}`);",
   ])
     assert.equal(reports(code), 0, code);
 });

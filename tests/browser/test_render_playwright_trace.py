@@ -780,7 +780,7 @@ def test_trace_metadata_inspection_preserves_pending_checkpoint(browser, serve):
 def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serve):
     """A frame played over a fitted capture covers it exactly, so playback shows one
     image and the recorded pointer lands on the frame it marks."""
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context = browser.new_context(viewport={"width": 1440, "height": 828})
     user = context.new_page()
     user.goto(serve(named_source("playwright-trace-gallery")))
     wait_until_ready(user)
@@ -788,7 +788,8 @@ def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serv
     widget.get_by_role("button", name="Start", exact=True).click()
     rendered(user)
     # The fitted capture is narrower than its canvas, where centering rules would
-    # otherwise reach the playback layer.
+    # otherwise reach the playback layer: the window is short enough for the stage's
+    # height, not its width, to bound the capture.
     assert widget.evaluate("""widget => {
       const image = widget.querySelector(
         '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');

@@ -235,7 +235,6 @@
         "settled": [false]
       },
       "retired": "settled",
-      "key": "value",
       "answered": {
         "choose": {
           "when": {
@@ -474,10 +473,6 @@
     "owners": ["lf-column"],
     "refers": {
       "shows": {}
-    },
-    "shows": {
-      "reference": "shows",
-      "value": "value"
     },
     "instructions": "Give the card its name in `label`, which names it wherever Leaf does, such as when the user moves it, and its title and prose as content, the title a leading `<strong>`: the card draws none of its label. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (read the `lf-board` instructions for the composition)."
   },

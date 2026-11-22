@@ -21,16 +21,27 @@
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
- * A card with `shows` is the board's view of another widget's answer (`shows`,
- * `shownAnswer`), such as a proposal's pick in its own section. The board draws it in
- * the column whose `value` that answer names, read from the widget's state in this
- * render, so a pick there, an undo, a refusal and a revision's retraction move the card
- * with no state of the board's own. Dropping it in another column sends the widget's
- * own answer for that column's value, the same command the section's control sends;
- * a column the widget has no answer for takes no drop and offers no button. Such a
- * card keeps its authored order: an order of the board's own would be a second fact
- * placed among columns the answer decides (`shown_answers.py`), so the door refuses
- * a move of it and the arrows only change its column.
+ * A card with `shows` is the board's view of another widget's answer (`shownAnswer`),
+ * such as a proposal's pick in its own section, and the answer stays that widget's. The
+ * board draws the card in the column whose `value` the answer names, read from the
+ * widget's state in this render, so a pick there, an undo, a refusal and a revision's
+ * retraction move the card with no state of the board's own. Dropping it in another
+ * column sends the widget's own answer for that column's value, the same command the
+ * section's control sends; a column the widget has no answer for takes no drop and
+ * offers no button. Such a card keeps its authored order, and the arrows only change
+ * its column: an order of the board's own would be a second fact placed among columns
+ * the answer decides. This module is the rule's one keeper. The registry declares
+ * `shows` only as an attribute naming an element (`refers`), and neither `page check`
+ * nor the append door reads it, so the board never sends its own move for a card
+ * carrying it (#movable, #send), and it draws a card whose `shows` names no answer it
+ * can read where the markup puts it, taking no move.
+ *
+ * An answer names a value when it is one string: a `value` record's attribute, or the
+ * members an `attribute` record picks when every one of them carries the same `value`
+ * attribute, as an `lf-option`'s does. An empty pick, a member without one (an option
+ * the user wrote in) or members naming different values name none, and the card then
+ * stands in the first column without a `value`, as it does when no column holds the
+ * value named.
  *
  * The board also says what it is non-visually: columns are labeled lists and
  * cards their items (#structure), and each grip is named for the column its
@@ -79,9 +90,82 @@ import {
   whileConnected,
   focused,
   declarationFor,
-  shownAnswer,
+  authoredScope,
+  widgetController,
   commandsChanged,
 } from "/runtime/widget-api.js";
+
+// The attribute naming an answer: on a column, the answer the column holds, and on a
+// member a widget's answer picks, the answer that pick gives.
+const VALUE = "value";
+
+// The value `answer` names, given the reading of the members it picks.
+/** @param {unknown} answer @param {((id: string) => string | null) | null} valueOf */
+const namedValue = (answer, valueOf) => {
+  if (!valueOf) return typeof answer === "string" && answer ? answer : null;
+  /** @type {unknown[]} */
+  const members = Array.isArray(answer) ? answer : [];
+  const values = new Set(
+    members.map((member) => {
+      if (typeof member !== "string")
+        throw new Error("A picked answer must name its members by id");
+      return valueOf(member);
+    }),
+  );
+  const [only, other] = values;
+  return only !== undefined && other === undefined ? only : null;
+};
+
+/** The answer a card shows, or null where it shows none: no `shows`, no widget by that
+ * id in the card's own page or message, a widget whose `awaits.value` verb records
+ * neither a value nor members, or one whose state has not loaded. Reading it reads
+ * that widget's own published state, and changing it sends the widget's own command
+ * through its controller, the same command its own control sends.
+ * `value` is the value the answer names now (null for none), `available` whether the
+ * user can change it, `takes(value)` whether the widget can answer `value` (null
+ * clears a pick), and `answer(value, says)` sends the widget's command, returning
+ * what `dispatch` returns, or null where the widget can't take `value`. */
+/** @param {Element} card */
+function shownAnswer(card) {
+  const id = card.getAttribute("shows");
+  const owner = id ? elementById(id, authoredScope(card)) : null;
+  if (!owner) return null;
+  const declaration = declarationFor(owner);
+  const verb = declaration?.awaits?.value;
+  if (!verb) return null;
+  const record = declaration?.verbs?.[verb]?.record;
+  if (record?.kind !== "value" && record?.kind !== "attribute") return null;
+  const controller = widgetController(owner);
+  const reading = controller.read();
+  const state = reading.state?.[verb];
+  if (!state) return null;
+  const scope = authoredScope(owner);
+  const valueOf =
+    record.kind === "attribute"
+      ? (/** @type {string} */ member) =>
+          elementById(member, scope)?.getAttribute(VALUE) ?? null
+      : null;
+  const detailFor = (/** @type {string | null} */ value) => {
+    if (!valueOf) return value === null ? null : { value };
+    if (value === null) return { value: [] };
+    const members = (reading.memberships?.[record.attr] ?? []).filter(
+      (member) => valueOf(member) === value,
+    );
+    return members.length ? { value: members } : null;
+  };
+  return Object.freeze({
+    value: namedValue(state.value, valueOf),
+    available: Boolean(reading.actions[verb]?.available),
+    takes: (/** @type {string | null} */ value) => detailFor(value) !== null,
+    /** @param {string | null} value @param {string} [says] */
+    answer(value, says) {
+      const detail = detailFor(value);
+      return detail
+        ? controller.dispatch({ kind: "action", verb, detail, ...(says && { says }) })
+        : null;
+    },
+  });
+}
 
 customElements.define(
   "lf-board",
@@ -251,31 +335,28 @@ customElements.define(
       return Boolean(this.reading?.actions.move?.available);
     }
 
-    // A card showing another widget's answer (`shows`) moves when that answer can
-    // change, and every other card when the board's own move can.
+    // A card with `shows` moves when the answer it shows can change, so never where it
+    // shows none, and every other card when the board's own move can.
     /** @param {Element} card */
     #movable(card) {
-      const shown = shownAnswer(card);
-      return shown ? shown.available : this.#available();
+      if (!card.hasAttribute("shows")) return this.#available();
+      return Boolean(shownAnswer(card)?.available);
     }
 
-    // The value a column holds for a card showing an answer, null for none: the
-    // attribute the card's `shows` names.
-    /** @param {Element} column @param {Element} card */
-    #holds(column, card) {
-      const shows = declarationFor(card)?.shows;
-      if (!shows) throw new Error("Shown-answer card has no declared column value");
-      return column.getAttribute(shows.value) || null;
+    // The value a column holds for a card showing an answer, null for none.
+    /** @param {Element} column */
+    #holds(column) {
+      return column.getAttribute(VALUE) || null;
     }
 
     // Where a card showing an answer stands: the first column holding the value the
-    // answer names, else the first holding none (shown_answers.py).
-    /** @param {Element} card @param {unknown} value */
-    #columnFor(card, value) {
+    // answer names, else the first holding none.
+    /** @param {unknown} value */
+    #columnFor(value) {
       const columns = [...this.#columns()];
       return (
-        columns.find((column) => this.#holds(column, card) === value) ??
-        columns.find((column) => this.#holds(column, card) === null) ??
+        columns.find((column) => this.#holds(column) === value) ??
+        columns.find((column) => this.#holds(column) === null) ??
         null
       );
     }
@@ -327,7 +408,7 @@ customElements.define(
       const held = () => this.#grabbed?.grip === grip;
       // Whether the card is authored to show an answer, read off its markup since the
       // answer's own state may not have loaded yet.
-      const shows = card.hasAttribute(declarationFor(card)?.shows?.reference ?? "");
+      const shows = card.hasAttribute("shows");
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.
@@ -623,13 +704,14 @@ customElements.define(
     // snapshot: that snapshot may be another queued move the server also refused.
     /** @param {Element} card @param {Element} from @param {Element} to */
     #send(card, from, to) {
-      const shown = shownAnswer(card);
-      if (shown) {
+      if (card.hasAttribute("shows")) {
         // The answer moves the card, through its widget's own command; a move within
-        // its column changes nothing, and the release below puts it back.
+        // its column changes nothing, and the release below puts it back. So does a
+        // card showing no answer by the time it drops, since the board's own move
+        // would record its place as a fact of the board's.
         if (to !== from)
-          shown.answer(
-            this.#holds(to, card),
+          shownAnswer(card)?.answer(
+            this.#holds(to),
             `Moved “${this.#title(card)}” to ${to.getAttribute("label")}`,
           );
         this.#finishGesture();
@@ -776,7 +858,7 @@ customElements.define(
       );
       for (const card of this.#allCards()) {
         const shown = shownAnswer(card);
-        const target = shown && this.#columnFor(card, shown.value);
+        const target = shown && this.#columnFor(shown.value);
         if (!target) continue;
         const destination = columns[target.id];
         if (!destination) continue;
@@ -803,7 +885,7 @@ customElements.define(
     /** @param {Element} card @param {Element | null} column */
     #takes(card, column) {
       const shown = shownAnswer(card);
-      return !shown || (column && shown.takes(this.#holds(column, card)));
+      return !shown || (column && shown.takes(this.#holds(column)));
     }
 
     /** @param {Readonly<Record<string, readonly string[]>>} columns */

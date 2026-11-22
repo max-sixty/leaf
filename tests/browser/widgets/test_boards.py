@@ -6,7 +6,7 @@ import re
 from itertools import pairwise
 
 import pytest
-from interact_support import stamp
+from interact_support import append_command, stamp
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
@@ -822,7 +822,7 @@ ANSWERS_BOARD_PAGE = leaf_page(
 def test_a_section_and_a_board_answer_one_decision(browser, serve):
     """The card shows the section's answer and changes it through the section's own
     command, so a pick and a drop are one fact at one coordinate, and both views follow
-    its undo, its refusal and a version's retraction (`shown_answers.py`)."""
+    its undo, its refusal and a version's retraction."""
     page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
     grip = page.locator("#card-rail .lf-grip")
 
@@ -883,3 +883,45 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     page.unroute("**/api/event")
     consume_browser_errors(page, http_error_console(400))
     assert len(picks()) == 2
+
+
+def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
+    """The board's module alone holds a card with `shows` to the answer it shows:
+    neither `page check` nor the append door reads the attribute. A board move of such
+    a card that reaches the log, which the module never sends, leaves the card in its
+    answer's column, and a card whose `shows` names an element with no answer stands
+    where the markup puts it and takes no move."""
+    source = ANSWERS_BOARD_PAGE.replace(
+        '<lf-column id="col-open" label="Undecided"></lf-column>',
+        '<lf-column id="col-open" label="Undecided">'
+        '<lf-card id="card-section" label="The section" shows="rail-section">'
+        "<strong>The section</strong></lf-card></lf-column>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    stray = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan",
+            "action": "move",
+            "detail": {"unit": "card-rail", "value": "col-next", "rank": "i"},
+        },
+    )
+    told(page)
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    grip = page.locator("#card-section .lf-grip")
+    expect(grip).to_have_attribute("aria-disabled", "true")
+    grip.focus()
+    for press in ("Enter", "ArrowRight", "Enter"):
+        page.keyboard.press(press)
+    expect(page.locator("#col-open > #card-section")).to_have_count(1)
+    assert [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [stray["id"]]

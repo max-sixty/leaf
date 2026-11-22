@@ -1214,10 +1214,14 @@ export function createFloatingPanel({
     const held = heldWords.value;
     const page = !key;
     const { notice, goTo, step } = passingFacts(page ? STANDING : NO_STANDING);
+    const error = fieldError();
     return readField({
       thread: !page,
       writing: input === focused(),
-      error: fieldError(),
+      error: error && {
+        message: error.message,
+        press: error.press?.stands() ? pressReading(error.press) : null,
+      },
       held: held && heldText(held),
       selected: page && selectedWords ? excerptWords(selectedWords.quote, 60) : null,
       notice: notice && {
@@ -2996,7 +3000,7 @@ export function createFloatingPanel({
       return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
     /** @param {number | null} dismissed */
     const movePast = (dismissed) => {
-      const presses = [...stage.querySelectorAll(".lf-fp-error button")];
+      const presses = [...stage.querySelectorAll(".lf-fp-error .lf-fp-dismiss")];
       const at = errors.findIndex((error) => error.id === dismissed);
       const after = errors.findIndex(
         (error, index) => index > at && live.has(error.id),
@@ -3041,6 +3045,19 @@ export function createFloatingPanel({
             <b>${error.message}</b
             ><span class="lf-fp-note">${timeOfDay(error.at)}</span>
           </p>
+          ${
+            error.press
+              ? html`<button
+                  type="button"
+                  ${offeredAction("word", "lf-fp-error-press")}
+                  ?disabled=${!live.has(error.id) || !error.press.stands()}
+                  aria-label=${`${actionName(error.press.action)}: ${error.message}, ${timeOfDay(error.at)}`}
+                  @click=${() => putAwayThen(() => error.press?.run())}
+                >
+                  ${actionName(error.press.action)}
+                </button>`
+              : nothing
+          }
           ${
             canCopy()
               ? guard([error.id], () => {

@@ -627,8 +627,7 @@ const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 // What a box that stops showing the user's words says, once: that they are kept, with
 // Resume writing, the press that brings them back, at the panel field's end, where the
 // user looks for a moment's next press and its key (notifications.js, `press`). A
-// refusal's error offers no press, so it says only that the words are kept
-// (`keepRefusedWords`), and Resume writing still reaches them.
+// refusal's error offers the same press (`keepRefusedWords`).
 export function noticeDraftKept() {
   notice("Draft kept", { press: writingPlace && RESUME_WRITING });
 }
@@ -1133,8 +1132,10 @@ export function giveBackWords(ctx, text, payload, under = null) {
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
 // destination, a content change to that draft like any other, and the refusal's error
-// says they are kept (delivery.js). The error is about the box on
-// screen the sending gesture's words came back to, where there is one (`field`).
+// says they are kept (delivery.js). The error is about the box on screen the sending
+// gesture's words came back to, where there is one (`field`); otherwise it is about no
+// box and offers Resume writing as its press (`press`), since a box's cover draws no
+// press (errors.js).
 //
 // Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
 // press on the error over them does (composing/input.js), so Enter sends them.
@@ -1184,9 +1185,11 @@ export function keepRefusedWords(attempts) {
     hidden.length && "Draft kept",
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
+  const field = returned.map(shownIn).find(Boolean) ?? null;
   return {
     said: sentences.length ? sentences.join(". ") : null,
-    field: returned.map(shownIn).find(Boolean) ?? null,
+    field,
+    press: hidden.length && writingPlace && !field ? RESUME_WRITING : null,
   };
 }
 const writingEditor = () =>

@@ -34,15 +34,18 @@
  * most, and in a stance that is the way out; `m` still walks On Me. A draft the field
  * holds stays in it, unwritable, until the stance ends.
  *
- * The field's end offers one press, the one that matters most at that moment (`end`):
+ * The field's end offers one press, the one that matters most at that moment (`end`).
+ * Where a reading's words come with a press of their own (`press`), the end offers
+ * that one: a notice's, such as a Resolve's Next thread and t, or Show changes and v
+ * with news of changes (notifications.js, `press`), or an error's, such as Resume
+ * writing and g i after a refused send (errors.js). Otherwise it offers, by the
+ * reading's `end`:
  * - "key": the key that enters the field, alone after the words, as after an error;
  * - "comment": Comment… and that key, as the field says at rest;
- * - "moment": a notice's own press, such as a Resolve's Next thread and t, or Show
- *   changes and v with news of changes (notifications.js, `press`); else in a stance
- *   its Close; else the page's own press, Open latest on an older version or Next On
- *   Me while On Me lists anything (floating-panel.js, `pagePress`); else Comment… and
- *   its key. In a thread, Reply… and its key, after whose turn it is or a notice's
- *   words;
+ * - "moment": in a stance its Close; else the page's own press, Open latest on an older
+ *   version or Next On Me while On Me lists anything (floating-panel.js, `pagePress`);
+ *   else Comment… and its key. In a thread, Reply… and its key, after whose turn it is
+ *   or a notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. The end shows the page's shortcuts, so a press stands
@@ -86,7 +89,8 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @typedef {object} FieldFacts
  * @property {boolean} thread whether the field is an open thread's reply box
  * @property {boolean} writing whether the caret is in the field
- * @property {{message: string} | null} error the newest error the field can say
+ * @property {{message: string, press: BoxPress | null} | null} error the newest error
+ * the field can say, with the press that recovers from it
  * @property {string | null} held keys pressed before the page was ready, which wait
  * @property {string | null} selected the words selected on the page, as quoted
  * @property {{message: Words, press: BoxPress | null, news: boolean} | null} notice a
@@ -105,7 +109,8 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
 
 /** @typedef {"standing" | null} Lead
  * @typedef {{says: string, field?: "page" | "thread", claims: (f: FieldFacts) => Words | null,
- * lead?: Lead | ((f: FieldFacts) => Lead), end: End, offers?: boolean}} FieldReading */
+ * lead?: Lead | ((f: FieldFacts) => Lead), press?: (f: FieldFacts) => BoxPress | null,
+ * end: End, offers?: boolean}} FieldReading */
 
 /** The readings in the order they claim the field; each names how long it stands.
  * @type {readonly FieldReading[]} */
@@ -126,6 +131,7 @@ export const FIELD_READINGS = Object.freeze([
       f.error && !(f.notice?.press && !f.notice.news && !f.writing)
         ? leafSays(f.error.message)
         : null,
+    press: (f) => f.error?.press ?? null,
     end: "key",
   },
   // Keys pressed while the page loads, which wait for it, until it is ready
@@ -169,6 +175,7 @@ export const FIELD_READINGS = Object.freeze([
       return passing ? noticeWords(passing) : null;
     },
     lead: (f) => (f.notice ? null : "standing"),
+    press: (f) => f.notice?.press ?? null,
     end: "moment",
   },
   // An open thread's reply box, while the thread stands open, says whose turn it is and
@@ -228,7 +235,7 @@ export function readField(f) {
     const leads = typeof reading.lead === "function" ? reading.lead(f) : reading.lead;
     const lead = leads === "standing" ? f.standing() : [];
     const words = [...lead, ...[said].flat()];
-    const end = endOf(reading.end, f, words);
+    const end = endOf(reading, f, words);
     return {
       says: reading.says,
       words,
@@ -245,12 +252,14 @@ export function readField(f) {
 /** While the page holds keys, every reading's end offers nothing (`held`), and while a
  * stance stands, its Close in place of what enters the field or the page's own press
  * (`still`).
- * @param {End} kind @param {FieldFacts} f @param {readonly (string | Said)[]} words
- * @returns {BoxPress | string | null} */
-function endOf(kind, f, words) {
+ * @param {FieldReading} reading @param {FieldFacts} f
+ * @param {readonly (string | Said)[]} words @returns {BoxPress | string | null} */
+function endOf(reading, f, words) {
+  const kind = reading.end;
   if (kind === "none" || f.held) return null;
+  const own = reading.press?.(f);
+  if (own) return own;
   if (kind === "comment") return COMMENT_HINT;
-  if (kind === "moment" && f.notice?.press) return f.notice.press;
   if (f.still) return f.close();
   if (kind === "key") return "";
   if (f.thread) return REPLY_HINT;

@@ -7,10 +7,12 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    CutOff,
     consume_browser_errors,
     holding,
     http_error_console,
     leaf_page,
+    nudge,
     one_frame,
     open_page,
     primed,
@@ -763,6 +765,38 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     one_frame(child)
     rendered(child)
     assert page.evaluate("scrollY") == before
+
+
+def test_a_file_editor_on_a_page_its_server_has_not_answered_says_so(
+    browser, serve, tmp_path
+):
+    """A live page whose server answers no state read presents without one, and its
+    file editor, having no file to show, says why where the text would be rather than
+    reading as an empty file. The file arrives once the server answers."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    reads = CutOff()
+    page = open_page(primed(browser, reads.hold), live_url(url), upgraded=False)
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "Unavailable", use_inner_text=True
+    )
+    expect(widget.locator(".cm-placeholder")).to_have_text(
+        "The page's server did not answer."
+    )
+    expect(editor).to_have_attribute("aria-readonly", "true")
+    reads.restore()
+    nudge(serve.page_dir)
+    expect(editor).to_have_text("Notes.")
+    expect(editor).to_have_attribute("aria-readonly", "false")
 
 
 def test_an_exported_file_editor_stays_unavailable(browser, serve):

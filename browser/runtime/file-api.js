@@ -10,13 +10,19 @@ import { LayerRefused, RequestError, requestJson } from "./layer-client.js";
 import { applicationState, readPart } from "./semantic-state.js";
 
 const live = readPart((root) => root.document.live);
+const UNANSWERED = "The page's server did not answer.";
 
 /** @param {string} binding */
 export function boundFile(binding) {
   const writable = () => !offlineInteractive && Boolean(live());
-  // Undefined before the page has a state, and null where its state binds no such file.
+  // Undefined before the page has a state, false where it has none because its server
+  // did not answer, and null where its state binds no such file.
   const selected = applicationState.select((root) =>
-    root.authoritative ? (root.authoritative.files[binding] ?? null) : undefined,
+    root.authoritative
+      ? (root.authoritative.files[binding] ?? null)
+      : root.reach.reach === "unreachable"
+        ? false
+        : undefined,
   );
   const label = readPart((root) => root.authoritative?.files[binding]?.label ?? null);
   return {
@@ -31,12 +37,14 @@ export function boundFile(binding) {
     },
     // The file as the page's state carries it, or null before the page has a state.
     // Throws, in words the editor can show, where it has no file to give: an export, a
-    // binding the page lacks, or a file the server can't read.
+    // page whose server did not answer, a binding the page lacks, or a file the server
+    // can't read.
     /** @returns {import("../types/contract.js").ServedFileSnapshot | null} */
     read() {
       if (!writable()) throw new Error("File editing is available in live pages.");
       const file = selected.read();
       if (file === undefined) return null;
+      if (file === false) throw new Error(UNANSWERED);
       if (file === null) throw new Error(`No file is bound as '${binding}'.`);
       const { text, revision, error, taken } = file;
       if (text === undefined || revision === undefined) throw new Error(error);
@@ -65,7 +73,7 @@ export function boundFile(binding) {
         if (error instanceof LayerRefused)
           throw new Error("Leaf changed while accessing the file.", { cause: error });
         if (!(error instanceof RequestError))
-          throw new Error("The page's server did not answer.", { cause: error });
+          throw new Error(UNANSWERED, { cause: error });
         if (error.said === undefined)
           throw new Error(
             error.status < 400

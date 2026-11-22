@@ -273,8 +273,8 @@ a[data-lf-external]::after,
   outline: var(--lf-focus-ring);
   outline-offset: var(--lf-focus-ring-inset);
 }
-/* Every mark on a box is drawn by the box itself, as its outline, so it moves with the
-   box through every scroll, transform and layout change in every engine, and passes
+/* Every mark on a box is drawn by the box itself, as its outline, or as its border
+   image beside a list marker (below), so it moves with the box through every scroll, transform and layout change in every engine, and passes
    under what the page stacks over the box as the box's own words do. The Alt aim
    (`[data-lf-aimed]`), the margin trace (`[data-lf-traced]`), a comment's mark (`data-lf-mark`,
    visual-mark-paint.js), the location ring round the decision the user stands in
@@ -296,6 +296,7 @@ a[data-lf-external]::after,
 :where([data-lf-mark]),
 :where([data-lf-projected-location]) {
   --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
+  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent));
   outline-offset: var(--lf-band-gap);
@@ -308,6 +309,41 @@ a[data-lf-external]::after,
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
+}
+/* A box beside a list marker (`[data-lf-beside-marker]`, geometry.js, `markerReach`)
+   reaches its marks over the marker by the list inset, on the side the stamp names,
+   since the browser draws an outside marker beyond the item's box and an outline
+   stands the same distance out on every side. The box draws the band as a border image
+   instead, which stands where the outline would on the other sides and further out on
+   that one. A border image stands outside the box or on its edge, never further in, so
+   the band's room stops at 0. The image takes the place of any border the box draws of
+   its own while the mark shows. Focus alone keeps the outline, so a page's
+   `:focus { outline: none }` still hides it. */
+:where([data-lf-beside-marker="left"]) {
+  --lf-band-reach-left: var(--lf-list-inset);
+}
+:where([data-lf-beside-marker="right"]) {
+  --lf-band-reach-right: var(--lf-list-inset);
+}
+:where([data-lf-beside-marker]):where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark]:not([data-lf-mark="focus"]),
+  [data-lf-projected-location]
+) {
+  --lf-band-room: max(
+    0px,
+    var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w))
+  );
+  outline-style: none !important;
+  border-image: linear-gradient(
+      var(--lf-band-ink, var(--lf-accent)),
+      var(--lf-band-ink, var(--lf-accent))
+    )
+    1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
+    calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
+    calc(var(--lf-band-room) + var(--lf-band-reach-left)) !important;
 }
 :where([data-lf-aimed]):where(
   a[href],
@@ -394,12 +430,30 @@ a[data-lf-external]::after,
   }
 }
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
-   one box. */
+   one box. Where the brackets reach over a list marker, the veil reaches with them:
+   one shadow can't stand further out on one side, so it stands half the reach toward
+   the marker and spreads half the reach wider, and the brackets' clip cuts what the
+   wider spread adds above and below (`--lf-band-over`). */
 :where([data-lf-aimed]) {
   --lf-aim-veil: color-mix(in srgb, var(--lf-accent) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
-    0 0 0 max(0px, var(--lf-band-gap)) var(--lf-aim-veil);
+    var(--lf-aim-veil-shift) 0 0
+      calc(max(0px, var(--lf-band-gap)) + var(--lf-band-over)) var(--lf-aim-veil);
+}
+:where(
+  [data-lf-aimed][data-lf-beside-marker]:not(
+      [data-lf-projected-location],
+      [data-lf-proxied],
+      [data-lf-mark~="focus"],
+      [data-lf-focus-visible],
+      [data-lf-control-focus-visible]
+    )
+) {
+  --lf-band-over: calc((var(--lf-band-reach-left) + var(--lf-band-reach-right)) / 2);
+  --lf-aim-veil-shift: calc(
+    (var(--lf-band-reach-right) - var(--lf-band-reach-left)) / 2
+  );
 }
 /* A gesture's mark is brackets: the box clips the middle of its outline's top and
    bottom runs, leaving 8px at each end. The clip cuts only the band the mark takes, so
@@ -438,7 +492,11 @@ a[data-lf-external]::after,
     [data-lf-control-focus-visible]
   )
 ) {
-  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
+  /* The band's start and end, past any reach over a list marker. The clip's last two
+     cuts take what the aim's veil spreads above and below the band where it reaches
+     over one (`--lf-band-over`), and are empty elsewhere. */
+  --lf-band-from: calc(-1 * var(--lf-band-room) - var(--lf-band-reach-left));
+  --lf-band-to: calc(100% + var(--lf-band-room) + var(--lf-band-reach-right));
   clip-path: polygon(
     evenodd,
     -9999px -9999px,
@@ -446,17 +504,45 @@ a[data-lf-external]::after,
     calc(100% + 9999px) calc(100% + 9999px),
     -9999px calc(100% + 9999px),
     -9999px -9999px,
-    calc(8px - var(--lf-band-room)) calc(-0.5px - var(--lf-band-room)),
-    calc(100% + var(--lf-band-room) - 8px) calc(-0.5px - var(--lf-band-room)),
-    calc(100% + var(--lf-band-room) - 8px) calc(0.5px - var(--lf-band-gap)),
-    calc(8px - var(--lf-band-room)) calc(0.5px - var(--lf-band-gap)),
-    calc(8px - var(--lf-band-room)) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-to) - 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-to) - 8px)
+      calc(0.5px + var(--lf-band-w, var(--lf-focus-ring-w)) - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px)
+      calc(0.5px + var(--lf-band-w, var(--lf-focus-ring-w)) - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px) calc(-0.5px - var(--lf-band-room)),
     -9999px -9999px,
-    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-gap) - 0.5px),
-    calc(100% + var(--lf-band-room) - 8px) calc(100% + var(--lf-band-gap) - 0.5px),
-    calc(100% + var(--lf-band-room) - 8px) calc(100% + var(--lf-band-room) + 0.5px),
-    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-room) + 0.5px),
-    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-gap) - 0.5px),
+    calc(var(--lf-band-from) + 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    calc(var(--lf-band-to) - 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    calc(var(--lf-band-to) - 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-from) + 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-from) + 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    -9999px -9999px,
+    calc(var(--lf-band-from) - 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    calc(var(--lf-band-to) + 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    calc(var(--lf-band-to) + 1px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) - 1px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) - 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    -9999px -9999px,
+    calc(var(--lf-band-from) - 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-to) + 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-to) + 1px)
+      calc(100% + var(--lf-band-room) + var(--lf-band-over) + 0.5px),
+    calc(var(--lf-band-from) - 1px)
+      calc(100% + var(--lf-band-room) + var(--lf-band-over) + 0.5px),
+    calc(var(--lf-band-from) - 1px) calc(100% + var(--lf-band-room) + 0.5px),
     -9999px -9999px
   );
 }

@@ -5463,3 +5463,46 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect_design_mode(page, on=False)
+
+
+def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, so the aim on an
+    item, or on the paragraph that opens one, reaches over the marker rather than
+    running between it and the words, where it would cross a number's full stop."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul><li id="i">An item.</li><li><p id="p">A paragraph in an item.</p></li></ul>
+<ol start="10"><li id="n">A numbered item.</li></ol>
+""",
+            )
+        ),
+    )
+    for target in ("i", "p", "n"):
+        page.locator(f"#{target}").hover(position={"x": 4, "y": 4})
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(target)
+        clip = page.evaluate(
+            """(id) => {
+              const box = document.getElementById(id).getBoundingClientRect();
+              return { x: box.left - 48, y: box.top, width: 48, height: 18 };
+            }""",
+            target,
+        )
+        shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        page.keyboard.up("Alt")
+        rgb = shot.tobytes()
+        pixels = [
+            (i // 3 % shot.width, rgb[i], rgb[i + 1], rgb[i + 2])
+            for i in range(0, len(rgb), 3)
+        ]
+        # The band is the accent's blue; the marker is the text's near-black.
+        band = [x for x, r, _, b in pixels if b - r > 40]
+        marker = [x for x, r, g, b in pixels if max(r, g, b) < 110 and b - r < 25]
+        assert band and marker, f"#{target}: no band or no marker beside the item"
+        assert max(band) < min(marker), (
+            f"#{target}: the aim's band runs across the list marker"
+        )

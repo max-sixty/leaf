@@ -558,15 +558,17 @@ export function createThreadDestinations({
   // message where a message part lands (`message-edit.js`).
   // Landed on the thread instead, a long one's landing on its latest turn took the view
   // away from a rewrite it had just opened higher up.
-  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent */
-  async function openThreadDraft(context, intent) {
+  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent
+   * @param {{travel?: boolean}} [options] */
+  async function openThreadDraft(context, intent, { travel = true } = {}) {
     const route = threadDraft(context);
     if (!route) return null;
     const { part, name } = route;
     const thread = threadNamed(name);
     if (!thread) return null;
-    if (part === "reply") return openPageThread(thread.id, { part: "reply", intent });
-    const landed = await openPageThread(name, { part: "message", intent });
+    if (part === "reply")
+      return openPageThread(thread.id, { part: "reply", intent, travel });
+    const landed = await openPageThread(name, { part: "message", intent, travel });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }

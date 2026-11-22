@@ -73,6 +73,7 @@ import {
 } from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
+import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { passageStart, rangeOf } from "./passages.js";
@@ -108,6 +109,7 @@ export const fragmentShown = (address) =>
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
  * @typedef {{anchors: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "placedAt">,
  * refreshThread: () => unknown, focusForNavigation: typeof import("./focus.js").focusDestination,
+ * openThread: () => string | null,
  * threadFocusTarget: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["threadFocusTarget"],
  * clearFor: (destination: Arrival, landed: DOMRect | null) => unknown, announce: (message: string) => unknown}} TravelOptions
  */
@@ -116,6 +118,7 @@ export function createAnchorTravel({
   anchors,
   refreshThread,
   focusForNavigation,
+  openThread,
   threadFocusTarget,
   clearFor,
   announce,
@@ -251,13 +254,17 @@ export function createAnchorTravel({
   // the editor drops them (composing/surface.js, `commentOnTarget`), so the box is
   // where the user is and where `c` writes.
   /** @param {() => EditorDestination | null | undefined} resolve
-   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null, onFrame?: boolean}} options */
-  async function arriveEditor(resolve, { intent, caret, onFrame = false }) {
+   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null, onFrame?: boolean, travel?: boolean}} options */
+  async function arriveEditor(
+    resolve,
+    { intent, caret, onFrame = false, travel = true },
+  ) {
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    const departure = prepareNavigationStep();
-    departure.plan(destination.where);
+    // An editor opened where the user stands (`travel: false`) is no departure.
+    const departure = travel ? prepareNavigationStep() : null;
+    departure?.plan(destination.where);
     let release = () => {};
     await arrive(
       () => {
@@ -316,7 +323,11 @@ export function createAnchorTravel({
   // followed link is, though the stop already shows: the first `t` to a thread on
   // screen, which once left Back leaving the page from the card it opened, and `m` or
   // `t` between stops the window already shows. An arrival that puts focus nowhere new,
-  // as on the stop the user is on, is a step only where it moves the page. A route that
+  // as on the stop the user is on, is a step only where it moves the page, and so is one
+  // onto the view of the thread that already stands open, the card beside the place the
+  // user stands at, which shows them nothing new: as the first `t` after a reload
+  // reopened the card, which landed on it and left a Back step that changed nothing. A
+  // part inside that view, as a question it asks, is a stop of its own. A route that
   // opens or puts away a view where the user stands doesn't travel (`travel: false`,
   // thread/destination.js) and takes no departure. Capture where the user is before any
   // reveal; plan answers whether the arrival moves the page, which a caller may use to
@@ -333,6 +344,7 @@ export function createAnchorTravel({
     const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     const left = focused();
+    const standing = openThread();
     /** @type {boolean | undefined} */
     let moving;
     return {
@@ -343,7 +355,12 @@ export function createAnchorTravel({
       commit() {
         if (moving === undefined) return;
         const on = focused();
-        const stayed = on === left || (left !== document.body && under(left, on));
+        const stayed =
+          on === left ||
+          (left !== document.body && under(left, on)) ||
+          (standing !== null &&
+            on?.matches(THREAD) === true &&
+            drawnThreadId(on) === standing);
         if (moving || !stayed) write(url ?? window.location.href);
         // No departure, but the entry the user stays on now names where they are.
         else if (url) replaceEntry(url);

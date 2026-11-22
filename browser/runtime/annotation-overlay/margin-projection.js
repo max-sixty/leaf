@@ -1822,12 +1822,14 @@ export function createMarginProjection({
       focusMap &&
         (() => {
           if (!landsOnTarget) return handBack(...mapControlPlaces(entry));
-          inventory.activate(item);
+          inventory.activate(item, { travel: false });
           const target = targetFor(entry);
           if (target?.isConnected) focusDestination(target, "move");
         }),
     );
-    if (!landsOnTarget) inventory.activate(item);
+    // A press in the margin opens what it names where the user stands, a draft as well
+    // as a thread (`openThreadChoice`), so it adds no Back step.
+    if (!landsOnTarget) inventory.activate(item, { travel: false });
   }
 
   /** @param {Entry} entry @param {Element} button */

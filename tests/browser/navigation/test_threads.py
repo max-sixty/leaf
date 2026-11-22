@@ -1350,6 +1350,36 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
         assert page.evaluate("scrollY") == pytest.approx(reading_offset, abs=1)
 
 
+def test_t_onto_the_card_a_reload_reopened_adds_no_back_step(browser, serve):
+    """A reload opens the card its entry names again, without focus. The first `t`
+    lands on that card, which already stood open beside the user's place and shows
+    them nothing new, so it adds no Back step; the next `t` goes on, a step."""
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")])
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    first = card.get_attribute("data-lf-thread")
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-lf-thread", first or "")
+    second = card.get_attribute("data-lf-thread")
+    # The reload restores the offset the walk's landing reached, not one mid-glide.
+    scroll_settled(page)
+    page.reload()
+    wait_until_ready(page)
+    expect(card).to_have_attribute("data-lf-thread", second or "")
+    entries = page.evaluate("history.length")
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(card).to_have_attribute("data-lf-thread", second or "")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-lf-thread", second or "")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+
+
 def test_following_a_thread_url_uses_native_history(browser, serve):
     page = open_page(browser, thread_page(serve))
     entries = page.evaluate("history.length")

@@ -385,29 +385,29 @@ export function mountHistory({ followFragment, returnToFragment, thread }) {
           });
           let placed = Boolean(claim) && (await work) !== false;
           if (!mayReturn()) return;
-          // The thread view opens or goes in the view the claimant revealed.
-          work = undefined;
-          mayReturn.handoff(() => {
-            work = showThread?.();
-          });
-          await work;
-          if (!mayReturn()) return;
           work = undefined;
           mayReturn.handoff(() => {
             work = returnToFragment(url)?.();
           });
           if (work !== undefined) placed = (await work) !== false || placed;
           if (!mayReturn()) return;
-          if (!placed && !place) {
-            event.scroll();
-            return;
-          }
-          if (!placed && place)
+          if (!placed && !place) event.scroll();
+          else if (!placed && place)
             setScroll(pageScroller, {
               left: place.offset[0],
               top: place.offset[1],
               behavior: "instant",
             });
+          // The thread view opens or goes once the page stands where the entry left it,
+          // so a card takes its side against the page the user returns to: opened
+          // against the page they leave, it stood below its words and over them once
+          // the page moved back.
+          work = undefined;
+          mayReturn.handoff(() => {
+            work = showThread?.();
+          });
+          await work;
+          if (!mayReturn() || (!placed && !place)) return;
           if (place) mayReturn.handoff(() => void returnPlace(place));
           // Firefox and WebKit may apply the traversal after this placement and move
           // the page as they do (above). Once they have, the first block on screen goes

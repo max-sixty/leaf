@@ -1,6 +1,8 @@
 """Moving to and between threads by keyboard and pointer: the walks that reach a
 thread and the history they leave, and leaving or re-entering a reply."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -183,6 +185,63 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         page.go_forward()
         expect(destination).to_be_focused()
         expect(thread).to_be_hidden()
+
+
+def test_back_reopens_a_card_on_the_side_it_opened_on(browser, serve):
+    """Back to an entry whose card a `t` walk put away opens the card again where it
+    stood, above its words, once the page stands where the entry left it, rather than
+    on a side chosen against the page being left, from which it covered its words."""
+    url = serve(
+        LONG_PAGE, anchored=[("p10", "Paragraph 10."), ("p40", "Paragraph 40.")]
+    )
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    page.locator("#p10").evaluate(
+        "p => scrollTo({top: p.getBoundingClientRect().top + scrollY - 500,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator("leaf-margin-cluster").first.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    side = card.get_attribute("data-lf-thread-placement")
+    first = card.locator(".lf-page-thread").get_attribute("data-lf-thread")
+    # Out of the reply box the press left the user in, onto the thread.
+    page.keyboard.press("Escape")
+    page.keyboard.press("t")
+    expect(card.locator(".lf-page-thread")).not_to_have_attribute(
+        "data-lf-thread", first
+    )
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{first}"]')).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    expect(card).to_have_attribute("data-lf-thread-placement", side)
+
+
+def test_a_marker_opens_a_thread_holding_a_reply_where_the_user_stands(browser, serve):
+    """A press on a passage's margin marker opens its thread where the user stands, a
+    view opened in place that adds no Back step, though the thread holds a reply the
+    user wrote and left unsent, which the press opens it on."""
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    marker = page.locator("leaf-margin-cluster").first
+    card = page.locator(".lf-margin-preview")
+    reply = card.locator(".lf-thread-reply leaf-text")
+    marker.click()
+    expect(reply).to_be_focused()
+    page.keyboard.type("Half a thought")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    marker.click()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Half a thought")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries
 
 
 def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):

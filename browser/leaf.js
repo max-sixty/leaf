@@ -352,6 +352,7 @@ async function boot() {
       app.threadDestinations.threadFocusTarget(id, options),
     clearFor: (destination, landed) =>
       floatingPanel?.clearFor(destination, landed) ?? null,
+    openThread: () => openThreadView()?.id ?? null,
     announce,
   });
   declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);
@@ -455,7 +456,7 @@ async function boot() {
       renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
       scrollThreadIntoView,
       openInPanel: (id) => floatingPanel?.openThread(id),
-      resumeDraft: (context) => writingResume.resumeDraft(context),
+      resumeDraft: (context, route) => writingResume.resumeDraft(context, route),
     },
     state: {
       prepareActivation: (state) => version.prepareActivation(state),
@@ -676,8 +677,8 @@ async function boot() {
 
   const writingResume = createWritingResume({
     arriveEditor: anchorTravel.arriveEditor,
-    revealInThread: (context, intent) =>
-      app.threadDestinations.openThreadDraft(context, intent),
+    revealInThread: (context, intent, route) =>
+      app.threadDestinations.openThreadDraft(context, intent, route),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
   const rewriteRestore = createRewriteRestore({
@@ -845,15 +846,17 @@ async function boot() {
     ? { landArrival: () => {}, savedView: null, handedOff: false, restored: false }
     : version.installArrival();
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
-  // The entry's `?thread=` (thread/address.js), read from the thread views the panel
-  // and the margin card stand open.
+  // The entry's `?thread=` (thread/address.js).
+  // The thread view standing open: the panel's, else a margin card's.
+  /** @returns {import("./runtime/thread/address.js").OpenThread | null} */
+  function openThreadView() {
+    const panel = floatingPanel?.shownThread() ?? null;
+    if (panel) return { id: panel, reader: "primary" };
+    const card = app?.overlay?.threadPreview.shown() ?? null;
+    return card ? { id: card, reader: null } : null;
+  }
   const threadAddress = createThreadAddress({
-    shown: () => {
-      const panel = floatingPanel.shownThread();
-      if (panel) return { id: panel, reader: "primary" };
-      const card = app?.overlay?.threadPreview.shown() ?? null;
-      return card ? { id: card, reader: null } : null;
-    },
+    shown: openThreadView,
     putAway: () => {
       floatingPanel.putThreadAway();
       app?.overlay?.threadPreview.close();

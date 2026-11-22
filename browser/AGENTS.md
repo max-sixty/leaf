@@ -321,6 +321,11 @@ directly as in a terminal").
   one-pixel seams. A box edged on one side is never rounded: mark a state with a
   whole contour, or a stripe on a square box. Avoid reflexive cards, tints, gradients and
   soft shadows. Check: `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **A box inside a frame either meets its edge or stands clear of it.** A box that
+  meets its frame's edge, as the floating panel's field and a thread card's reply box
+  do, takes the frame's rounding at the corners they share and is square at the
+  others. A box that stands clear of every edge, as a message's rewrite does, is
+  rounded all round.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
@@ -705,6 +710,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
+| What a target draws, its list marker included, and where the marks round it stand                     | `geometry.js` `inkedBox`, `markedBox`                                              |
+| The room the marks round a target take beside it, a named box's round it included                     | `mark-room.js` `markRoom`                                                          |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |

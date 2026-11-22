@@ -277,7 +277,8 @@
  * alone: an inherited veil would restyle every element of a long text document each
  * time ⌥ aimed at it. The gap is a length, so a box's edge stated as `0` reaches the
  * brackets' `calc` as `0px`: untyped, a unitless 0 there is a number, the clip is
- * invalid and the mark draws whole. */
+ * invalid and the mark draws whole. The room is a length too, so a script reads it in
+ * pixels (geometry.js, `markedBox`). */
 @property --lf-band-gap {
   syntax: "<length>";
   inherits: false;
@@ -292,8 +293,9 @@
   inherits: false;
 }
 @property --lf-band-room {
-  syntax: "*";
+  syntax: "<length>";
   inherits: false;
+  initial-value: 0px;
 }
 @property --lf-band-from {
   syntax: "*";

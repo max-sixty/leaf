@@ -36,14 +36,6 @@
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
     --lf-fp-press: 28px;
-    /* How far the panel's words stand inside its 6px padding: the words of a view's
-       head, a thread's quote, each message and the field, so all of them start on one
-       edge, and a draft's lines stand where the sent message's will. What marks them
-       off, the quote's rule and a rewrite's frame, stands at the padding. A thread
-       sets its own inset (surfaces.css), so the thread's view sets the panel's again
-       (`.lf-fp-messages`). */
-    --lf-fp-inset: 8px;
-    --lf-thread-text-inset: var(--lf-fp-inset);
     /* The room the field's words keep at the end of every line for Send, which stands
        in the corner past its 6px end padding (`.lf-fp-field`). */
     --lf-fp-send-room: calc(max(var(--lf-line), var(--lf-aim-floor)) - 6px);
@@ -196,7 +188,7 @@
      field, which stacked three in the menu's foot. */
   .lf-floating-panel[data-lf-open] .lf-fp-row {
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
+      calc(100% - 2 * (6px + var(--lf-thread-text-inset))) 1px no-repeat;
   }
   /* The more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
@@ -213,13 +205,15 @@
     min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   /* The leaf is a symbol (controls.css), a line tall, its mark a size up from an
-     action's symbol. Its badges hang past its top-left corner (below), so it stands
-     the row's padding further off what precedes it, which keeps them clear of the
-     field's ring while the user writes. */
+     action's symbol. It stands centred in the room the field leaves at the row's end,
+     the row's padding from the field's edge as from the panel's, its margin making up
+     the row's gap. So its dots, which hang past its top-left corner (below), stay
+     clear of the field's ring, which stands inside the field's edge while the user
+     writes. */
   .lf-fp-leaf {
     --lf-icon-action-face: var(--lf-line);
     flex: none;
-    margin-inline-start: var(--lf-fp-row-pad);
+    margin-inline-start: calc(var(--lf-fp-row-pad) - 2px);
   }
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
@@ -434,12 +428,13 @@
     margin: 0;
     box-shadow: none;
   }
-  /* The caret in the field makes the panel's left part the box the words go in, with
-     an anchored comment box's face (annotation-chrome.css): the field's box runs out to
-     the panel's edges wherever it borders them, the ring one band inside them, the
-     card's ground inside it, lighter than the panel's, and every corner at the panel's
-     own rounding. Its right side stands between the words and the leaf, so the leaf
-     stays outside the box. A key that moves the caret there, `c` among them, shows where
+  /* The caret in the field makes the panel's left part the box the words go in, as a
+     thread card's reply box is the card's region the words go in (response.css): the
+     field's box runs out to the panel's edges wherever it borders them, the ring one
+     band inside them, the card's ground inside it, lighter than the panel's. It wears
+     the panel's rounding at the panel's corners it shares and stands square at the
+     others (browser/AGENTS.md, "Visual treatment carries meaning"). Its right side
+     stands between the words and the leaf, so the leaf stays outside the box. A key that moves the caret there, `c` among them, shows where
      the words will go. The box's padding takes back the room its margins give, and its
      words stand as far in as that box's at rest too, so the caret arriving moves none
      of them. With a view open the box reaches the panel's sides and foot, and the line
@@ -454,7 +449,8 @@
      inside the box being written in, and open at the leaf's side; the panel parting
      into a box for the leaf and one for the words, which left a gap and changed the
      panel's shape; the field's 6px corners, which against the panel's edge read square;
-     and the panel's hairline and shadow giving way while the user writes, which in the
+     the panel's rounding at every corner, which curled the box's top away from the
+     view's straight edge under an open thread; and the panel's hairline and shadow giving way while the user writes, which in the
      light scheme left page text under the panel ending at an edge nobody sees. The
      panel's hairline stays just outside the ring: covering it would stand the ring
      outside the card, whose clip Safari can't widen (`overflow-clip-margin`).
@@ -472,9 +468,16 @@
     padding-inline-start: var(--lf-fp-row-pad);
     outline: var(--lf-focus-ring);
     --lf-ring-at: var(--lf-focus-ring-inset);
-    border-radius: var(--lf-r-l);
+    border-radius: 0;
+    border-start-start-radius: var(--lf-r-l);
+    border-end-start-radius: var(--lf-r-l);
     background: var(--lf-card);
     --lf-wears-ring: 1;
+  }
+  .lf-floating-panel[data-lf-open]
+    .lf-fp-row[data-lf-control-focus-visible]
+    > .lf-fp-field {
+    border-start-start-radius: 0;
   }
   .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field .lf-compose-field {
     --lf-field-ground: var(--lf-card);
@@ -932,7 +935,7 @@
     align-items: center;
     gap: 2px;
     min-height: 36px;
-    padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
+    padding: 8px 6px 0 calc(6px + var(--lf-thread-text-inset));
     box-sizing: border-box;
   }
   .lf-fp-head:has(> .lf-fp-name > .lf-fp-back) {
@@ -975,7 +978,7 @@
     align-items: center;
     gap: var(--lf-fp-controls-gap);
     min-height: 40px;
-    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
+    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-thread-text-inset));
     box-sizing: border-box;
   }
   .lf-fp-crumb {
@@ -1022,7 +1025,7 @@
      row it stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
     min-height: 32px;
-    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
+    padding: 6px 6px 0 calc(6px + var(--lf-thread-text-inset));
   }
   .lf-fp-joined {
     display: flex;
@@ -1097,7 +1100,7 @@
      reach.
 
      A tab's words stand as far inside its frame as the field's words stand inside
-     the field (`--lf-fp-inset`), and the strip hangs into the panel's padding by that
+     the field (`--lf-thread-text-inset`, surfaces.css), and the strip hangs into the panel's padding by that
      much, so the first tab's words start on the panel's text line and a selected
      tab's frame on the field's edge under it. Between two tabs stands an empty gap
      (floating-panel.js, `tabs`) in a gutter track an inset wide, so a selected tab's
@@ -1112,14 +1115,19 @@
     );
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(min-content, max-content) minmax(0, var(--lf-fp-inset));
+    grid-auto-columns: minmax(min-content, max-content)
+      minmax(0, var(--lf-thread-text-inset));
     justify-content: start;
     min-width: 0;
-    max-width: calc(100cqi + 2 * var(--lf-focus-ring-room) + var(--lf-fp-inset));
+    max-width: calc(
+      100cqi + 2 * var(--lf-focus-ring-room) + var(--lf-thread-text-inset)
+    );
     overflow-x: auto;
     padding: var(--lf-fp-filter-reach) var(--lf-focus-ring-room);
     margin: calc(-1 * var(--lf-fp-filter-reach)) calc(-1 * var(--lf-focus-ring-room));
-    margin-inline-start: calc(-1 * (var(--lf-focus-ring-room) + var(--lf-fp-inset)));
+    margin-inline-start: calc(
+      -1 * (var(--lf-focus-ring-room) + var(--lf-thread-text-inset))
+    );
   }
   /* A tab's inset gives way before the line does: its words stand between two rooms
      that shrink to nothing as the strip narrows, each tab and gutter giving up the
@@ -1133,8 +1141,8 @@
   .lf-fp-filters > .lf-fp-tab {
     display: grid;
     grid-template-columns:
-      minmax(0, calc(var(--lf-fp-inset) - 1px)) max-content
-      minmax(0, calc(var(--lf-fp-inset) - 1px));
+      minmax(0, calc(var(--lf-thread-text-inset) - 1px)) max-content
+      minmax(0, calc(var(--lf-thread-text-inset) - 1px));
     min-width: auto;
     padding-inline: 0;
     font: var(--lf-font-small);
@@ -1802,7 +1810,6 @@
      copy under the view head's ✕, and the head's cut (surfaces.css) stands a gap past
      them rather than across copy. */
   .lf-fp-messages > .lf-page-thread {
-    --lf-thread-text-inset: var(--lf-fp-inset);
     padding: 0;
   }
   .lf-fp-messages .lf-thread-transcript {

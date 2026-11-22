@@ -829,6 +829,15 @@ Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "K
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
+Add a fact only where some part of Leaf, such as the server, `page check` or the first
+paint, must act on it without running the widget's module, and the module can't keep
+the same rule itself. A rule about one widget's markup that its module can check as it
+draws stays in the module, which reports a breach with `reportFailure`, even where
+static validation could observe the same breach. The author then hears of the breach
+from `page check --render`, and in a thread message only after the user opens the
+thread. Keep a rule static where a breach would otherwise reach the log or a stored
+decision (root `AGENTS.md`, "Leaf's role").
+
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and words a module generates are a passage
 cell of their own, so browser capture stops at the fence and a selection across it

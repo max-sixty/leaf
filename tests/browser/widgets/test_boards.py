@@ -887,10 +887,10 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
 
 def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
-    """The board's module alone holds a card with `shows` to the answer it shows:
-    neither `page check` nor the append door reads the attribute. A board move of such
-    a card that reaches the log, which the module never sends, leaves the card in its
-    answer's column. A card whose `shows` names an element with no answer stands
+    """Only the board's module holds a card with `shows` to the answer it shows:
+    `page check` requires only that the element exists, and the append door admits a
+    board move of the card. Such a move in the log, which the module never sends,
+    leaves the card in its answer's column. A card whose `shows` names an element with no answer stands
     where the markup puts it and takes no move, and the board tells the author so
     once, as the page's error."""
     source = ANSWERS_BOARD_PAGE.replace(
@@ -935,3 +935,79 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     assert [
         event["text"].startswith(report) for event in events if event["kind"] == "error"
     ] == [True]
+
+
+def test_an_answer_naming_no_one_column_stands_with_the_undecided(browser, serve):
+    """A card stands in the first column without a `value` while its answer names no
+    one column: a pick whose value no column holds, or the picks of a `multiple`
+    question that name different values."""
+    source = (
+        ANSWERS_BOARD_PAGE.replace(
+            '<lf-option id="rail-later" value="later" selected>Later</lf-option>',
+            '<lf-option id="rail-later" value="later" selected>Later</lf-option>'
+            '<lf-option id="rail-someday" value="someday">Someday</lf-option>',
+        )
+        .replace(
+            '<lf-board id="plan">',
+            '<lf-group id="pager-section" label="Page the on-call">'
+            '<h2 id="pager-section-h">Page the on-call</h2>'
+            '<lf-options id="pager" multiple>'
+            '<lf-option id="pager-next" value="next">Next</lf-option>'
+            '<lf-option id="pager-later" value="later">Later</lf-option>'
+            '</lf-options></lf-group><lf-board id="plan">',
+        )
+        .replace(
+            '<lf-column id="col-open" label="Undecided"></lf-column>',
+            '<lf-column id="col-open" label="Undecided">'
+            '<lf-card id="card-pager" label="Page the on-call" shows="pager">'
+            "<strong>Page the on-call</strong></lf-card></lf-column>",
+        )
+    )
+    page = open_page(browser, live_url(serve(source)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    with sending(page, "the pick"):
+        page.locator("#rail-someday").click()
+    expect(page.locator("#col-open > #card-rail")).to_have_count(1)
+
+    with sending(page, "the pick"):
+        page.locator("#pager-next").click()
+    expect(page.locator("#col-next > #card-pager")).to_have_count(1)
+    with sending(page, "the pick"):
+        page.locator("#pager-later").click()
+    expect(page.locator("#col-open > #card-pager")).to_have_count(1)
+
+
+def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
+    browser, serve
+):
+    """Options that carry no `value` can put a card in no column, so the board tells
+    the author. A card whose `shows` is empty shows no answer, and is the board's own
+    to move."""
+    source = (
+        ANSWERS_BOARD_PAGE.replace(' value="next">Next<', ">Next<")
+        .replace(' value="later" selected>Later<', " selected>Later<")
+        .replace(
+            '<lf-column id="col-open" label="Undecided"></lf-column>',
+            '<lf-column id="col-open" label="Undecided">'
+            '<lf-card id="card-own" label="Own" shows="">'
+            "<strong>Own</strong></lf-card></lf-column>",
+        )
+    )
+    assert source.count(" value=") == 2
+    page = open_page(browser, live_url(serve(source)))
+    reported_browser_errors(
+        page,
+        '<lf-card id="card-rail"> failed: shows="rail" names <lf-options>, none of'
+        " whose members carries a `value`",
+    )
+
+    with sending(page, "the move"):
+        page.locator("#card-own .lf-grip").focus()
+        for press in ("Enter", "ArrowRight", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-own")).to_have_count(1)
+    assert [
+        (event["widget"], event["action"], event["detail"]["unit"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [("plan", "move", "card-own")]

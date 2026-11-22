@@ -2096,9 +2096,8 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 
 def select_another_leaf(tmp_path) -> Path:
-    """Have session s1 deliver through another Leaf, as an installed plugin's or
-    another checkout's, and return its launcher."""
-    other = tmp_path / "installed" / "bin" / "leaf"
+    """Have session s1 deliver through another checkout, and return its launcher."""
+    other = tmp_path / "other checkout" / "bin" / "leaf"
     other.parent.mkdir(parents=True)
     other.write_text("#!/bin/sh\n")
     other.chmod(0o755)

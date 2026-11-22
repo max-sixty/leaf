@@ -3,7 +3,7 @@
 A harness session keeps running the plugin copy it loaded: Claude Code installs an
 update into a new cache directory and leaves every running session on the old one
 until `/reload-plugins`, or until a new process of the session, such as a background
-job's next sitting or a resume, loads the update. The user chose that the session's
+job's wake or a resume, loads the update. The user chose that the session's
 hooks, its watch, its pages follower and its bare `leaf` commands run that copy too.
 Handing them to the copy Claude Code has installed since would leave the session's
 hooks module and skills, which Claude Code reads only as it loads the plugin, on

@@ -123,11 +123,12 @@ import { setScroll } from "./arrivals.js";
  * @typedef {"Top" | "Right" | "Bottom" | "Left"} MarginSide
  * @typedef {{box: Element, local: number, moved: number, ahead: number}} ScrollMove
  */
-// The browser snaps a scroll to the device's pixels, so an instant landing asked to
-// travel a fraction would go up to a pixel further than asked about half the time,
-// carrying a box held at the band's edge, as a growing reply row is, past it by a pixel
-// under the user's aim. It travels the whole pixels of its move instead, which leaves
-// the destination less than a pixel short of where it was asked to stand.
+// The browser snaps a scroll to the device's pixels, so a move asked to travel a
+// fraction goes up to a pixel further than asked about half the time. A box held at the
+// band's edge, as a growing reply row is (`keepInBand`), would be carried past it by a
+// pixel under the user's aim, so its move travels only the whole pixels, leaving it less
+// than a pixel short. Every other landing reveals, and keeps the browser's snapping: cut
+// short, a target a fraction past an inner scrollport's edge would stay clipped there.
 /** @param {number} from @param {number} top */
 const snappedToward = (from, top) => {
   const scale = window.devicePixelRatio || 1;
@@ -144,12 +145,13 @@ const snappedToward = (from, top) => {
 // stands, unless it only moves the box across: that move, as the walk before a
 // reading region makes to reveal a box sideways (`innerMoves`), leaves the glide going,
 // so the region's landing after it still aims from the glide's goal. Stopped there, a
-// sideways reveal pressed during a glide landed from where the page stood.
-/** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {boolean} [kept] @param {number} [from] */
-const land = (box, by, behavior, kept = false, from = box.scrollTop) => {
+// sideways reveal pressed during a glide landed from where the page stood. A `held`
+// landing keeps a box at the band's edge (`snappedToward`).
+/** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {boolean} [kept] @param {number} [from] @param {boolean} [held] */
+const land = (box, by, behavior, kept = false, from = box.scrollTop, held = false) => {
   const asked = from + (by.top ?? 0);
   if (glides(box, behavior)) return glideTo(box, asked);
-  const top = snappedToward(from, asked);
+  const top = held ? snappedToward(from, asked) : asked;
   const { scrollTop, scrollLeft } = box;
   if (by.top || from !== scrollTop) stopGlide(box);
   setScroll(box, { top, left: scrollLeft + (by.left ?? 0), behavior: "instant" });
@@ -487,12 +489,19 @@ export function landedBox(where) {
 // A region whose glide already heads where the landing would take it moves no further,
 // unless the landing is instant: then the glide lands at once, since an instant landing
 // shows its destination now, as a replaced view must, and not at the glide's end.
-/** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior */
-function scrollIntoReadingBand(where, holder, block, behavior, kept = false) {
+/** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior @param {boolean} [kept] @param {boolean} [held] */
+function scrollIntoReadingBand(
+  where,
+  holder,
+  block,
+  behavior,
+  kept = false,
+  held = false,
+) {
   const { moves } = readingBandMoves(where, holder, block);
   for (const { box, local, moved, ahead } of moves)
     if (Math.abs(moved) >= 1 || (Math.abs(ahead) >= 1 && !glides(box, behavior)))
-      land(box, { top: local }, behavior, kept, scrollGoal(box));
+      land(box, { top: local }, behavior, kept, scrollGoal(box), held);
 }
 
 // Reveal inner overflow before aligning its owning reading region. The ancestry
@@ -602,7 +611,7 @@ function landsStill(where, block) {
 // and the clearance at once (thread/reply-landing.js, `revealWritingArea`).
 /** @param {Destination} where */
 export const keepInBand = (where) =>
-  scrollIntoReadingBand(where, holderOf(where), "nearest", "instant");
+  scrollIntoReadingBand(where, holderOf(where), "nearest", "instant", false, true);
 
 // A Tab's arrival (see the header), read once the browser's own reveal has moved.
 onCurrentLocation(

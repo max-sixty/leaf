@@ -47,7 +47,14 @@
   // scrolling the page, so a press is judged only inside the view of every scroller that
   // holds the control: its scrollport, less the `scroll-padding` it keeps for what
   // stands over its edges on each side it can still scroll toward, such as a tab
-  // strip's paging edge or a page's sticky header.
+  // strip's paging edge or a page's sticky header. At the page's foot that is the
+  // floating panel's band, which the page states for Leaf's landings rather than in its
+  // padding (`landingInsets`, geometry.js), so each sweep reads it before it measures.
+  let rootFoot = 0;
+  const readRootFoot = async () => {
+    const { landingInsets } = await window.__lfWidgetApi();
+    rootFoot = landingInsets(document.scrollingElement).bottom;
+  };
   function viewOf(el) {
     const root = document.scrollingElement;
     let [left, top, right, bottom] = [0, 0, innerWidth, innerHeight];
@@ -61,6 +68,7 @@
       const box = at === root ? new DOMRect() : at.getBoundingClientRect();
       const [x0, y0] = [box.left + at.clientLeft, box.top + at.clientTop];
       const pad = (side, size) => {
+        if (at === root && side === "Bottom") return rootFoot;
         const value = style[`scrollPadding${side}`];
         return (parseFloat(value) || 0) * (value.endsWith("%") ? size / 100 : 1);
       };
@@ -237,7 +245,8 @@
   // so by setting its own `--lf-aim-floor` to 0px. Only the control's own declaration
   // lowers its floor; one it inherits from a container holds it to the document's, and
   // an aim another box covers to nothing is short under any floor.
-  function flooredAims(roots, selectors) {
+  async function flooredAims(roots, selectors) {
+    await readRootFoot();
     const floor = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--lf-aim-floor"),
     );
@@ -280,7 +289,8 @@
   // Inline boxes are out, and that is the target-size exception rather than an excuse: a
   // link inside a sentence is sized by the words around it, and nothing can be done
   // about that which does not damage the sentence.
-  function offeredAims(floor) {
+  async function offeredAims(floor) {
+    await readRootFoot();
     const found = [];
     const seen = new Set();
     for (const el of document.querySelectorAll(
@@ -316,7 +326,8 @@
 
   // The aim as a box in the page: the control's box grown by its reach, which stands
   // out the same distance on either side of its face.
-  function aimRect(el) {
+  async function aimRect(el) {
+    await readRootFoot();
     const { box, w, h } = aim(el);
     return {
       x: box.x - (w - box.width) / 2,

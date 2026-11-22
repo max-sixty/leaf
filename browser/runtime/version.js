@@ -49,9 +49,13 @@
  * selections and module state cannot cross documents. Drafts and chrome preferences
  * use their own stores.
  *
- * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin and panel location, mechanical carry, and obligation location. A newer
- * revision may consume it, but ordinary reloads and history travel cannot replay it.
+ * A reload Leaf asks for stores a page-scoped, one-use handoff (`handOff`): reading
+ * position, comparison, pointer, margin and panel location, editing continuity,
+ * mechanical carry, and obligation location. A fresh-document install asks for one, and
+ * so does a server restarted under another Leaf, whose reload lands this revision under
+ * that Leaf's runtime (layer-client.js, `reloadNow`). The document that reload loads
+ * consumes it, at that revision or a newer one; ordinary reloads and history travel find
+ * none to replay.
  * Explicit historical travel carries reading position and the decision landmark, without
  * mechanical carry or obligation location. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
@@ -59,7 +63,7 @@
  * `captureView` records a place (reading-place.js) for the page and each reading
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
  * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
- * `landArrival` runs after presentation: a valid revision handoff restores continuity;
+ * `landArrival` runs after presentation: a valid handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
  * different revision. Ordinary reloads and full-document history travel keep the browser's
@@ -168,7 +172,12 @@ import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
+import {
+  LayerRefused,
+  admitReading,
+  handOffReloads,
+  reportPageError,
+} from "./layer-client.js";
 import { projectDocument, readApplication } from "./semantic-state.js";
 import { batch, effect, signal } from "/runtime/framework.js";
 
@@ -2258,31 +2267,37 @@ export function createVersionController({
     };
   }
 
-  // Changed executable identity requires a fresh document. Serialize the continuity
-  // handoff before reload; installArrival consumes it once after upgrade.
+  // The continuity handoff to the fresh document a reload is about to load, at
+  // `revision` or a newer one; installArrival consumes it once after upgrade.
+  /** @param {number} revision */
+  function handOff(revision) {
+    const live = pageDocument();
+    const source = authoredSource;
+    if (!live || !source)
+      throw new Error("A revision handoff requires its authored document");
+    const view = captureView();
+    const editingContinuity = captureEditingContinuity();
+    tabStore.set(VIEW_KEY, JSON.stringify(view));
+    tabStore.set(
+      HANDOFF_KEY,
+      JSON.stringify({
+        revision,
+        url: location.href,
+        view,
+        retainedCurrentLocation: captureRetainedCurrentLocation(),
+        ...editingContinuity,
+        carry: captureCarry(live, source).records,
+        comparison: selectedBase(),
+        pointer: pointerAt(),
+      }),
+    );
+  }
+
+  // Changed executable identity requires a fresh document.
   const reloadInto =
     (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
       forceActivation = false;
-      const live = pageDocument();
-      const source = authoredSource;
-      if (!live || !source)
-        throw new Error("A revision handoff requires its authored document");
-      const view = captureView();
-      const editingContinuity = captureEditingContinuity();
-      tabStore.set(VIEW_KEY, JSON.stringify(view));
-      tabStore.set(
-        HANDOFF_KEY,
-        JSON.stringify({
-          revision: target.revision,
-          url: location.href,
-          view,
-          retainedCurrentLocation: captureRetainedCurrentLocation(),
-          ...editingContinuity,
-          carry: captureCarry(live, source).records,
-          comparison: selectedBase(),
-          pointer: pointerAt(),
-        }),
-      );
+      handOff(target.revision);
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
       replaceEntry(marked);
@@ -3026,9 +3041,14 @@ export function createVersionController({
     // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
-    // target a widget generates, hides, or moves (`aimArrival`), and travel to a
-    // different authored revision, where a passage is a better landmark than the old
+    // target a widget generates, hides, or moves (`aimArrival`), and a reload Leaf asked
+    // for and the user didn't, which hands over their whole place (`handOff`). Into a
+    // different authored revision, a passage is also a better landmark than the old
     // document's pixels.
+    handOffReloads(() => {
+      if (anchoringIsReady() && runtime.currentRevision !== null)
+        handOff(runtime.currentRevision);
+    });
     const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
       performance.getEntriesByType("navigation")[0]
     )?.type;
@@ -3038,14 +3058,13 @@ export function createVersionController({
       tabStore.set(HANDOFF_KEY, null);
       try {
         const value = JSON.parse(serialized || "null");
-        return LIVE_ROOT &&
-          currentRevision !== null &&
+        return currentRevision !== null &&
           navigationType === "reload" &&
           value?.url === location.href &&
           Number.isInteger(value.revision) &&
           value.revision <= currentRevision &&
           Number.isInteger(value.view?.revision) &&
-          value.view.revision < currentRevision
+          value.view.revision <= currentRevision
           ? value
           : null;
       } catch {

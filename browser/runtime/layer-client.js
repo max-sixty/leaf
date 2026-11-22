@@ -76,12 +76,29 @@ async function sourceMovedOn() {
   return generation ? generation !== layerGeneration : undefined;
 }
 
+// What this document hands the one its reload loads: the user's place, which the
+// version controller captures as it does for a revision that needs a fresh document
+// (version.js, `handOff`). A reload before the page has its anchors leaves the browser's
+// own restoration.
+let handOff = () => {};
+/** @param {() => void} capture */
+export const handOffReloads = (capture) => {
+  handOff = capture;
+};
+
 let layerReloading = false;
 /** @param {string} message */
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
   notice(message);
+  // The reload goes ahead whatever the capture meets: this document can no longer read
+  // its server.
+  try {
+    handOff();
+  } catch (error) {
+    reportPageError(error, "Couldn't keep the user's place across the reload");
+  }
   location.reload();
 }
 

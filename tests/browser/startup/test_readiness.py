@@ -7,7 +7,7 @@ import re
 import pytest
 from interact_support import append_carried_log_record, append_command, wait_for
 from playwright.sync_api import expect
-from render_cases_interaction import SHORT_SUGGESTION, SUGGESTION_PAGE
+from render_cases_interaction import SHORT_SUGGESTION, SUGGESTION_PAGE, live_url
 from render_cases_layout import SHADOWED_DIFF
 from render_cases_navigation import FIRST_PRESENTATION, _publish
 from render_cases_widgets import (
@@ -35,6 +35,7 @@ from render_harness import (
     selection_field,
     sending,
     watched,
+    write,
 )
 
 from browser.threads import open_panel_thread
@@ -551,18 +552,12 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     consume_browser_errors(page, "read failed: Unexpected token")
 
 
-def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):
-    """A server restarted under another Leaf runs another runtime, whose state the
-    tab's code may misread. The tab refuses that server's answer, asks its source, and
-    reloads onto the document the server now serves (`runtime_selection.py`)."""
-    page = open_page(
-        browser, serve(leaf_page("Restarted", "<h1>Readable authored content</h1>"))
-    )
-    page.evaluate("() => { window.lfSameDocument = true; }")
+def restart_under_another_runtime(page, serve):
+    """The page's server restarting under another Leaf, as the tab sees it: its answers
+    name another runtime until the tab's source has said so once, which is the reading
+    the reload lands on. Returns once the reload has landed."""
     restarted = {"answers": True}
 
-    # The server's answers name another runtime until its source has said so once,
-    # which is the reading the reload lands on.
     def another_runtime(route):
         if not restarted["answers"]:
             route.continue_()
@@ -583,7 +578,76 @@ def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve
             {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
         )
     wait_until_ready(page)
+
+
+def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):
+    """A server restarted under another Leaf runs another runtime, whose state the
+    tab's code may misread. The tab refuses that server's answer, asks its source, and
+    reloads onto the document the server now serves (`runtime_selection.py`)."""
+    page = open_page(
+        browser, serve(leaf_page("Restarted", "<h1>Readable authored content</h1>"))
+    )
+    page.evaluate("() => { window.lfSameDocument = true; }")
+    restart_under_another_runtime(page, serve)
     assert page.evaluate("() => window.lfSameDocument") is None
+
+
+@pytest.mark.parametrize("address", ["live", "version"])
+def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
+    browser, serve, address
+):
+    """Leaf reloads the tab, not the user, so their place rides across the reload, as
+    it does into a revision that needs a fresh document (version.js, `handOff`): the
+    thread card they had open, its reply box with the words they had selected, and a
+    disclosure they opened. That holds at a version's own address as at the live one.
+    The handoff is spent on that reload, so an ordinary one after it keeps only what a
+    reload keeps."""
+    version_url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>'
+            '<details id="why"><summary>Why</summary><p>No errors.</p></details>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(
+        browser, live_url(version_url) if address == "live" else version_url
+    )
+    page.locator("#why > summary").click()
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator(".lf-thread-reply leaf-text")
+    write(reply, "Hello there world")
+    page.keyboard.press("Home")
+    for _ in range(5):
+        page.keyboard.press("ArrowRight")
+    for _ in range(6):
+        page.keyboard.press("Shift+ArrowRight")
+    original_document = page.evaluate("performance.timeOrigin")
+
+    restart_under_another_runtime(page, serve)
+
+    assert page.evaluate("performance.timeOrigin") != original_document
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hello there world")
+    assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 11]
+    expect(page.locator("#why")).to_have_js_property("open", True)
+
+    page.unroute("**/api/state")
+    page.unroute("**/registry.json")
+    page.reload()
+    wait_until_ready(page)
+    expect(card).to_have_count(0)
+    expect(page.locator("#why")).to_have_js_property("open", False)
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):

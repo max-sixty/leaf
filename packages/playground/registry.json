@@ -95,7 +95,6 @@
     },
     "content": "members",
     "owners": ["lf-playground"],
-    "word": "preset",
     "instructions": "A control the preset has no setting for keeps its current value."
   },
   "lf-playground-setting": {

@@ -36,10 +36,14 @@ To name an element elsewhere, such as in a feed row, use `addressableLabel(eleme
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
-`addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`word`), as `lf-visual-review` says "review", else what its element answers
-from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
-says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
+`addressableWord(element)` gives the word for its kind instead: what its element answers
+from an `lfWord()` method, as `lf-visual-review` says "review" and `lf-suggestion`
+says "insertion" or "rewrite" by its children, else its tag without `lf-`. A member
+with no module of its own gets the method from its owner's module, as a playground
+gives each of its presets one. Only an element a module has run on answers
+`lfWord()`, so Leaf calls a widget by its tag where none has, as in an agent's message
+before a drawing shows it or in an earlier version the comparison reads. Where a
+widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
 returns the words that describe it. A
 widget's name is its `label` attribute, as an option card's, a board card's or a

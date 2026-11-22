@@ -178,6 +178,10 @@ function field(name, controls) {
 /** @param {HTMLElement} host */
 export function createPlayground(host) {
   const presets = own(host, "lf-playground-preset");
+  // A preset has no module of its own, so its playground says what Leaf calls it away
+  // from the page, as in a thread's anchor: a preset, where its tag alone would say
+  // "playground-preset".
+  for (const preset of presets) preset.lfWord = () => "preset";
   const [output, extraOutput] = own(host, "lf-playground-output");
   if (!output || extraOutput)
     throw new Error("playground needs one lf-playground-output");

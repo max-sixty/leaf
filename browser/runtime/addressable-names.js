@@ -59,16 +59,14 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-// A widget's word for its kind: its declaration's fixed word (`word`), else what
-// its module answers from `lfWord()` where `element` is drawn and has the method, else
-// its tag without the prefix.
+// A widget's word for its kind: what `element` answers from `lfWord()`, a method its
+// module defines or its owner's gives it, else its tag without the prefix. Only an
+// element a module has run on has the method, so one an agent's message keeps before
+// any drawing shows it, and one of an earlier version the comparison reads, go by
+// their tags.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
-  return (
-    registry[tag]?.word ||
-    element?.lfWord?.() ||
-    (tag.startsWith("lf-") ? tag.slice(3) : "")
-  );
+  return element?.lfWord?.() || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation

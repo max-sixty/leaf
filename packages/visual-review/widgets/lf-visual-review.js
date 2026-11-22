@@ -100,6 +100,12 @@ customElements.define(
         : "Unchecked";
     }
 
+    // What Leaf calls the widget away from the page, as in a thread's anchor or On Me's
+    // By kind: a review, where its tag alone would say "visual-review".
+    lfWord() {
+      return "review";
+    }
+
     // The run, set by whoever hosts the widget: Leaf from the bound source (the
     // registry's `inputs.run.property`), or null while that source has none.
     static properties = { value: { attribute: false } };

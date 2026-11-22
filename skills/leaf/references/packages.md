@@ -251,8 +251,8 @@ and the module can't enforce the same rule itself:
 ```
 
 The merged registry's `$keys` entry defines each fact by its name; `$verbs` defines the members of `verbs`, and `$awaits` an
-obligation's answer. What the module alone can answer stays in the module, as a word
-for its kind that depends on the element is its `lfWord()`. So does a rule about the
+obligation's answer. What the module alone can answer stays in the module, as its word
+for its kind is its `lfWord()`. So does a rule about the
 widget's markup that the module can check as it draws: the module reports a breach
 with `reportFailure` ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)),
 which fails `page check --render`, as a board reports a card whose `shows` names a

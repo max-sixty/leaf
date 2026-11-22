@@ -400,7 +400,6 @@ FACTS: dict[str, dict] = {
         ]
     },
     "text-format": {"const": "markdown"},
-    "word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
     "views": {
         "type": "object",
         "properties": {

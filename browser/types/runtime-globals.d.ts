@@ -305,8 +305,8 @@ interface ShadowRoot {
 }
 
 interface Element {
-  /** The word a widget's module names its kind by where it depends on the element
-   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
+  /** The word a widget's module names its kind by, where its tag without the prefix
+   * isn't that word (`addressable-names.widgetWord`). */
   lfWord?(): string;
   lfSays?(): string;
 }

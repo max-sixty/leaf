@@ -173,13 +173,16 @@ the drawing needs them.
 
 `iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
-symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
-`runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
+symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls"). For a symbol whose action follows its
-state, such as Expand all turning to Collapse all, `nameAction(control, action,
-{label, title, className})` swaps in the new action's symbol and says its name as the
-tooltip and accessible name, unless `label` or `title` says more.
+(`module-authoring.md`, "Generated controls").
+[`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
+The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
+names, each with its symbol and the words its press says. For a symbol whose action
+follows its state, such as Expand all turning to Collapse all,
+`nameAction(control, action, {label, title, className})` swaps in the new action's
+symbol and says its name as the tooltip and accessible name, unless `label` or `title`
+says more.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
 

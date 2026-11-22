@@ -42,13 +42,15 @@ exports `signal`, for private state a command's `when` reads (`module-input.md`,
 ### A widget that also runs off Leaf
 
 A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
-`widget-api.js`. Retained-node helpers, writes and generated controls work on both
-hosts. The host maps `/runtime/` and `/vendor/` to a Leaf install with its own import
-map and gives the element its drawing box. For the widget's look it links the layer's
-`portable.css`, served beside `/widgets/` (`packages.md`, "Styles and composition").
-Use `LeafElement` ("Drawing what a widget reads") or extend `HTMLElement`.
-Leaf adds its services through events and element declarations that a plain host can
-ignore:
+`widget-api.js`. The portable helpers are the names that file exports
+([`browser/runtime/portable-api.js`](../../../browser/runtime/portable-api.js)). Each
+loads in a page Leaf didn't compose, where `widget-api.js` itself fails to load.
+Retained-node helpers, writes and generated controls work on both hosts. The host maps
+`/runtime/` and `/vendor/` to a Leaf install with its own import map and gives the
+element its drawing box. For the widget's look it links the layer's `portable.css`,
+served beside `/widgets/` (`packages.md`, "Styles and composition"). Use `LeafElement`
+("Drawing what a widget reads") or extend `HTMLElement`. Leaf adds its services through
+events and element declarations that a plain host can ignore:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's

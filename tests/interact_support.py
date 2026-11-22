@@ -1798,20 +1798,29 @@ def retire_test_services(tmp_path, isolated_session):
     """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
-    for path in (isolated_session / "sessions").glob(
-        f"*.{cleanup_model.SESSION_SUFFIX}"
-    ):
-        record = files_model.read_json(path)
-        if isinstance(record, dict) and isinstance(record.get("id"), str):
-            # No hooks module runs for a test's Claude Code session, so a title
-            # worker's completion would wait out its whole deadline; answer each
-            # as a failed call, as the module reports one.
-            for asked in completions_model.pending(record["id"]):
+    sessions = [
+        record["id"]
+        for path in (isolated_session / "sessions").glob(
+            f"*.{cleanup_model.SESSION_SUFFIX}"
+        )
+        if isinstance(record := files_model.read_json(path), dict)
+        and isinstance(record.get("id"), str)
+    ]
+
+    def answer_completions():
+        # No hooks module runs for a test's Claude Code session, so a title
+        # worker's completion would wait out its whole deadline; answer each as a
+        # failed call, as the module reports one.
+        for session_id in sessions:
+            for asked in completions_model.pending(session_id):
                 completions_model.replied(
-                    record["id"],
+                    session_id,
                     {"basis": {"completion": asked["id"]}, "failed": "test ended"},
                 )
-            cleanup_model.end_session(record["id"])
+
+    answer_completions()
+    for session_id in sessions:
+        cleanup_model.end_session(session_id)
     # A Claude Code hook leaves Leaf's bridge running while its session lives.
     for lock in (isolated_session / "bridge").glob("*.lock"):
         if leases_model.lock_is_held(lock):
@@ -1831,9 +1840,14 @@ def retire_test_services(tmp_path, isolated_session):
     )
     # Servers have stopped accepting input, so no new title request can start.
     # The worker reports under the page lock even when its generator fails.
+    # A worker can still ask for its completion after the answers above, so
+    # teardown answers until each worker ends.
+    deadline = time.monotonic() + STATED_TIMEOUT
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
-            worker.join(timeout=STATED_TIMEOUT)
+            while worker.is_alive() and time.monotonic() < deadline:
+                answer_completions()
+                worker.join(timeout=POLL_INTERVAL)
             assert not worker.is_alive(), "a title worker outlived its test's page"
 
 

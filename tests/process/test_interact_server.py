@@ -81,6 +81,7 @@ from leaf import files as files_model
 from leaf import gesture_words as gesture_words_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import inference as inference_model
 from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import media as media_model
@@ -5093,3 +5094,48 @@ def test_test_teardown_joins_titles_before_reusing_the_page(
             retirement.result(timeout=STATED_TIMEOUT)
             native_join(timeout=STATED_TIMEOUT)
     assert not worker.is_alive(), "the title outlived its page fixture"
+
+
+def test_test_teardown_answers_a_title_completion_asked_while_it_retires(
+    claimed, tmp_path, isolated_session, monkeypatch
+):
+    """A title worker that asks its Claude Code session for a completion only once
+    teardown has begun is still answered, rather than waiting out
+    `inference.TIMEOUT` for a hooks module no test runs.
+
+    Hold the real Claude Code generator just before it writes its request, and let
+    it go once teardown joins the worker."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Why here?"}
+    )
+    started = threading.Event()
+    released = threading.Event()
+    ask = thread_titles_model.title_generator(
+        inference_model.claude_code_generator("s1")
+    )
+
+    def generate(request, page_dir):
+        started.set()
+        assert released.wait(timeout=STATED_TIMEOUT), "the title was never released"
+        return ask(request, page_dir)
+
+    thread_titles_model.name_admitted_thread(generate, claimed, comment["id"], "s1")
+    assert started.wait(timeout=STATED_TIMEOUT), "the title generator did not start"
+    [worker] = [
+        thread for thread in threading.enumerate() if thread.name == "leaf-thread-title"
+    ]
+    native_join = worker.join
+
+    def observed_join(*args, **kwargs):
+        released.set()
+        return native_join(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "join", observed_join)
+    retire_test_services(tmp_path, isolated_session)
+    assert not worker.is_alive(), "the title outlived its page fixture"
+    [failed] = [
+        row
+        for row in interaction_model.read_interactions(claimed)
+        if row["source"] == "server" and row["type"] == "thread_title_failed"
+    ]
+    assert "test ended" in failed["detail"], failed

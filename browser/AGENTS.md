@@ -321,6 +321,11 @@ directly as in a terminal").
   one-pixel seams. A box edged on one side is never rounded: mark a state with a
   whole contour, or a stripe on a square box. Avoid reflexive cards, tints, gradients and
   soft shadows. Check: `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **A box inside a frame either meets its edge or stands clear of it.** A box that
+  meets its frame's edge, as the floating panel's field and a thread card's reply box
+  do, takes the frame's rounding at the corners they share and is square at the
+  others. A box that stands clear of every edge, as a message's rewrite does, is
+  rounded all round.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).

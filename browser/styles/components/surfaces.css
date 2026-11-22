@@ -881,8 +881,11 @@ summary {
 /* However wide the box its host gives, each message keeps the width it has in a margin
    card at the card's own width, so a reply wraps where it would beside a passage; its
    head, and the thread's controls on it, keep the card's whole width. The reply box
-   keeps the margin card's width too, so its words wrap where they will once sent and a
-   message's rewrite is as wide as the reply box (response.css, `.lf-msg-editor`). */
+   runs to the card's sides and foot, as a margin card's does (response.css), and its
+   words still wrap where they would in a margin card at the measure, as they will once
+   sent. Past them it keeps the room by which it is wider than that card's reply box,
+   whose words' box is the measure less two borders, the card's and its own, on each
+   side. */
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
 }
@@ -890,7 +893,14 @@ summary {
   max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
 }
 [data-lf-thread-surface] .lf-thread-reply {
-  max-inline-size: var(--lf-seat-column);
+  margin-inline: calc(-1 * var(--lf-comment-inset));
+  margin-block-end: calc(-1 * var(--lf-comment-inset));
+}
+[data-lf-thread-surface] .lf-thread-reply .lf-compose-field > leaf-text {
+  padding-inline-end: max(
+    var(--lf-compose-pad-inline-start),
+    100% - var(--lf-thread-card) + 4px + var(--lf-compose-pad-inline-start)
+  );
 }
 .lf-page-thread::after {
   border-radius: inherit;
@@ -900,15 +910,23 @@ summary {
 [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
   margin-top: var(--lf-sp-2);
 }
-/* Every conversation shares its reading edge, including a floating draft. The
-   field subtracts its border; messages and metadata take the full inset. */
-/* An open summary's region overhangs the transcript's end by `--lf-group-ring-end`,
-   so a transcript that scrolls keeps at least that much room there
-   (`--lf-transcript-room`, annotation-chrome.css). */
+/* Every conversation shares its reading edge, including a floating draft: its words
+   stand this far inside the padding of the frame that holds it, the floating panel's
+   6px inside its hairline and a thread card's border and `--lf-comment-inset`, which
+   come to the same, so a thread's words stand as far inside a card as inside the
+   panel. The words of a view's head, a thread's quote, each message and each box
+   written in start on that one edge, and a draft's lines stand where the sent
+   message's will. What marks them off, the quote's rule and a rewrite's frame, stands
+   at the padding. A field subtracts its border; messages and metadata take the full
+   inset. */
+/* An open summary's region overhangs the words' end by `--lf-group-ring-end`, so a
+   transcript that scrolls keeps at least that much room past them, in the words'
+   inset and the room it keeps at its edges (`--lf-transcript-edge-room`,
+   annotation-chrome.css). */
 :root,
 .lf-page-thread,
 .lf-fab-bar {
-  --lf-thread-text-inset: 13px;
+  --lf-thread-text-inset: 8px;
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;

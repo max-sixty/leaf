@@ -5,8 +5,8 @@
  * (drawing.css). The user chose this. Left with the `reading` theme, an idiom drew as
  * plain text on a page without that theme, and a theme that replaced `reading` would
  * have to copy these rules. Leaf's own lists of facts, such as About's counts and a
- * capture's details, wear the facts idiom too, so a reader learns where a value stands
- * once.
+ * capture's details, take the facts idiom's layout, so a reader learns where a value
+ * stands once, and their surface's type and spacing (base.css).
  *
  * Every rule reads the theme's tokens, so an idiom follows the page's palette, faces
  * and density. A theme restyles one through those tokens, or with rules of its own,

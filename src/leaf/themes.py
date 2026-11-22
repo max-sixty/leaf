@@ -74,7 +74,7 @@ def catalogue() -> tuple[Path, dict]:
     try:
         with path.open("rb") as source:
             config = tomllib.load(source)
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         return path, {"themes": []}
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise Refused(f"{path}: {error}") from None
@@ -143,6 +143,19 @@ def with_theme(packages: tuple[str, ...], theme: dict | None) -> tuple[str, ...]
     root = named_package(name)
     bases = base_chain(root) if root is not None else ()
     return tuple(dict.fromkeys((*bases, name, *packages)))
+
+
+def themes_under(package: Path) -> tuple[str, ...]:
+    """The themes a new page selecting the package at `package` composes under it. A
+    theme, one the catalogue lists or Leaf's own, matched by the package's name as the
+    catalogue names it, composes as a page taking it does: after its bases alone. Any
+    other package composes over the bases it names, or else over Leaf's default theme
+    (`DEFAULT_THEME`)."""
+    if bases := base_chain(package):
+        return bases
+    if package.name == DEFAULT_THEME or package.name in catalogue()[1]["themes"]:
+        return ()
+    return with_theme((), {"name": DEFAULT_THEME})
 
 
 def base_chain(root: Path) -> tuple[str, ...]:

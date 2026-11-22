@@ -135,6 +135,21 @@
 :where(.lf-ui) {
   --lf-reading-face: 1;
 }
+/* A list of facts on a surface Leaf draws for its interface, the chrome (`.lf-ui`, as
+   About's counts) or a popover a control opens (`.lf-popover`, as a capture's details),
+   keeps the facts idiom's layout (styles/components/idioms.css) at the surface's
+   density: its labels take the interface's small font, as the surface's other labels
+   do, and the list the reading face's spacing. They don't share an ancestor class, so
+   the rule names both. It stands at the idiom's weight and after it, so the frame's
+   edge trims (reading.css) still take a first or last list's margin. */
+:where(.lf-ui) dl.lf-facts,
+:where(.lf-popover) dl.lf-facts {
+  margin-block: 10px;
+}
+:where(.lf-ui) dl.lf-facts dt,
+:where(.lf-popover) dl.lf-facts dt {
+  font: var(--lf-font-small);
+}
 /* ---------- elements ---------- */
 
 /* A box that draws an inset shows it twice — above what it holds and below it — and what

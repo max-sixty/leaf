@@ -101,8 +101,7 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
 def test_a_theme_stands_alone_or_builds_on_the_base_it_names(tmp_path):
     """A personal theme composes after the base it names, so one that wants `reading`
     with another accent states only the accent and keeps the look, its declaration
-    following the look's. A theme that names none composes without `reading`. `leaf
-    package check` composes a theme over its base as a page taking it does."""
+    following the look's. A theme that names none composes without `reading`."""
     catalogue(tmp_path)
     assert with_theme(("diagram",), {"name": "editorial"}) == (
         "reading",
@@ -122,12 +121,26 @@ def test_a_theme_stands_alone_or_builds_on_the_base_it_names(tmp_path):
     sheet = layer.files["/theme.css"].decode()
     assert READING_ROOT not in sheet and "--lf-accent: #553399" in sheet
     assert ".lf-callout" in layer.vocabulary.registry
+
+
+def test_package_check_composes_a_theme_as_a_page_taking_it_does(tmp_path):
+    """`leaf package check` composes a package as a new page selecting it would: a theme
+    the catalogue lists over its bases alone, so one that stands alone is checked
+    without `reading`, and any other package over the bases it names, or else over
+    Leaf's default theme."""
+    catalogue(tmp_path)
+
+    def composed(package):
+        """The packages composed after the kernel and the default package."""
+        return [root.name for root in package_layer_inputs(package)][2:]
+
+    assert composed(tmp_path / "dense") == ["dense"]
+    assert composed(tmp_path / "editorial") == ["reading", "editorial"]
+    content = tmp_path / "content"
+    content.mkdir()
+    assert composed(content) == ["reading", "content"]
     on_dense = theme_package(tmp_path / "on-dense", ":root { --lf-r: 0; }", "dense")
-    assert [root.name for root in package_layer_inputs(on_dense)][-2:] == [
-        "dense",
-        "on-dense",
-    ]
-    assert "reading" not in [root.name for root in package_layer_inputs(on_dense)]
+    assert composed(on_dense) == ["dense", "on-dense"]
 
 
 def test_a_theme_s_bases_must_be_installed_and_lead_nowhere_back(tmp_path):

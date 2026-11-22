@@ -19,6 +19,8 @@ import {
   StateField,
   Transaction,
   EditorView,
+  ViewPlugin,
+  countColumn,
   keymap,
   lineNumbers,
   highlightActiveLineGutter,
@@ -57,7 +59,26 @@ const theme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
   ".cm-content": { caretColor: "var(--lf-accent)" },
-  ".cm-line": { padding: "0 .85rem" },
+  // A line's rows after the first hang two columns past its indent (`hangs`), up to the
+  // 24 columns a code block's stop at, behind the mark a code block's wrapped rows wear
+  // (reading.css, `[data-lf-pre-line]`), so a row a long line wraps onto reads as the
+  // rest of that line. Started at the editor's edge, it read as a line of its own, and
+  // in YAML as a new top-level key.
+  ".cm-line": {
+    padding: "0 .85rem",
+    position: "relative",
+    "--lf-code-hang": "calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch)",
+    textIndent: "var(--lf-code-hang) hanging",
+  },
+  ".cm-line::before": {
+    content: '""',
+    position: "absolute",
+    insetBlock: "1lh 0",
+    insetInlineStart: "calc(.85rem + var(--lf-code-hang) - 2ch)",
+    inlineSize: "1ch",
+    background: "var(--lf-code-muted)",
+    mask: "var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y",
+  },
   // A line another writer changed (`written`), tinted and barred in the accent.
   ".cm-line.lf-written": {
     background:
@@ -182,6 +203,40 @@ const loadLanguage = (name) => {
   }
   return pending;
 };
+// Each line in view states its indent (`--lf-code-indent`), which its wrapped rows hang
+// from (the theme's `.cm-line`), as code-lines.js boxes a code block's lines for it:
+// CSS can't read a line's leading columns.
+/** @param {EditorView} view */
+const indents = (view) => {
+  const marks = [];
+  for (const { from, to } of view.visibleRanges)
+    for (let at = from; at <= to;) {
+      const { text, from: start, to: end } = view.state.doc.lineAt(at);
+      const indent = countColumn(text, view.state.tabSize, text.search(/\S|$/));
+      if (indent)
+        marks.push(
+          Decoration.line({
+            attributes: { style: `--lf-code-indent: ${indent}` },
+          }).range(start),
+        );
+      at = end + 1;
+    }
+  return Decoration.set(marks);
+};
+const hangs = ViewPlugin.fromClass(
+  class {
+    /** @param {EditorView} view */
+    constructor(view) {
+      this.decorations = indents(view);
+    }
+    /** @param {import("@codemirror/view").ViewUpdate} update */
+    update(update) {
+      if (update.docChanged || update.viewportChanged)
+        this.decorations = indents(update.view);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 // The lines the last write from elsewhere changed, such as an agent's: shown until
 // the next one replaces them, and each until the reader edits that line, so a reader
 // whose file changed under them sees where. A file's first reading marks nothing.
@@ -216,17 +271,20 @@ const written = StateField.define({
 });
 // The marks for `changes`, a write from elsewhere that took `before` to `after`: each
 // line of `after` whose text differs from the line it replaced, and where it took
-// lines away and put none in their place, the gap they leave. A change from the
-// dependency's diff starts and ends wherever the two texts stop agreeing, which can be
-// within a line the write left alone: a line inserted above "three" can arrive as
-// "wo\nt" inserted after the "t" of "three", and one appended below "one" as "\ntwo"
-// after it. So each change is read as the whole lines it touches, before and after,
-// and the lines the two ends of that run share are left unmarked.
+// lines away, the gap they leave. A change from the dependency's diff starts and ends
+// wherever the two texts stop agreeing, which can be within a line the write left
+// alone: a line inserted above "three" can arrive as "wo\nt" inserted after the "t" of
+// "three", and one appended below "one" as "\ntwo" after it. So each change is read as
+// the whole lines it touches, before and after, and the lines the two ends of that run
+// share are left unmarked. A change that left fewer lines than it replaced rewrote the
+// first of them and took the rest away, so its gap follows the lines it marks.
 /** @param {ChangeSet} changes @param {import("@codemirror/state").Text} before
  * @param {import("@codemirror/state").Text} after */
 const writtenMarks = (changes, before, after) => {
   /** @type {Map<number, Decoration>} */
   const marks = new Map();
+  /** @type {Map<number, Decoration>} */
+  const gaps = new Map();
   /** @param {import("@codemirror/state").Text} doc @param {number} from @param {number} to */
   const linesOf = (doc, from, to) => {
     const first = doc.lineAt(from).number;
@@ -243,16 +301,17 @@ const writtenMarks = (changes, before, after) => {
     let trail = 0;
     while (trail < shared - lead && old.at(-1 - trail) === texts.at(-1 - trail))
       trail++;
-    for (let n = first + lead; n < first + texts.length - trail; n++)
-      marks.set(after.line(n).from, writtenLine);
-    if (lead + trail < texts.length || lead + trail === old.length) return;
-    const at = first + lead;
-    const line = after.line(Math.min(at, after.lines));
-    if (!marks.has(line.from))
-      marks.set(line.from, at > after.lines ? gapBelow : gapAbove);
+    const end = first + texts.length - trail;
+    for (let n = first + lead; n < end; n++) marks.set(after.line(n).from, writtenLine);
+    if (old.length <= texts.length) return;
+    gaps.set(
+      after.line(Math.min(end, after.lines)).from,
+      end > after.lines ? gapBelow : gapAbove,
+    );
   });
   return Decoration.set(
-    [...marks].sort(([a], [b]) => a - b).map(([at, mark]) => mark.range(at)),
+    [...marks, ...gaps].map(([at, mark]) => mark.range(at)),
+    true,
   );
 };
 // Every editor's undo history, in one compartment the module shares, so a write from
@@ -432,6 +491,7 @@ export function createEditor(
         }),
         editable.of(readonlyExtension()),
         EditorView.lineWrapping,
+        hangs,
         // A comparison is created with the disk version it shows and only ever moves
         // to a later one (`setConflict`); the primary editor never shows one.
         original === null

@@ -101,6 +101,13 @@ test("A write from elsewhere marks the lines it changed and no line beside them"
     ["one\ntwo\nthree\n", "one\nthree\n", ["lf-written-gap 2"]],
     ["one\ntwo\n", "one\n", ["lf-written-gap 2"]],
     ["one\ntwo", "one", ["lf-written-gap-below 1"]],
+    // One change that rewrites a line and takes the next ones away marks both.
+    [
+      "one\ntwo\nthree\nfour\n",
+      "one\nTWO\nfour\n",
+      ["lf-written 2", "lf-written-gap 3"],
+    ],
+    ["one\ntwo\nthree", "one\nTWO", ["lf-written 2", "lf-written-gap-below 2"]],
   ]) {
     const { editor, view } = editorOf(before);
     editor.follow(after);

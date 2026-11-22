@@ -96,7 +96,7 @@ def test_an_option_that_runs_from_nowhere_still_says_its_keys_and_why(browser, s
         (
             "browser.history.back",
             "Back",
-            r"(Command\+\[|Alt\+ArrowLeft) Return to the place the last walk",
+            r"(⌘\[|Alt\+←) Return to the place the last walk",
         ),
     ]:
         option = page.locator(

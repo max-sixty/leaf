@@ -138,15 +138,17 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         expect(page.locator(f"#{expected}")).to_be_focused()
     page.keyboard.press("Shift+h")
     expect(page.locator("#d")).to_be_focused()
-    # The marks are annotations: Escape lets go of the change and leaves them, and `o`
+    # The marks are annotations: Escape lets go of the change and leaves them, and `g H`
     # hides them with the rest.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
     beta = page.locator('.lf-change-bar[data-lf-for="b"]')
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(beta).to_have_css("background-color", clear)
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(beta).not_to_have_css("background-color", clear)
     # A changed block the agent is at work on shows both bars, the change's nearer it.
     _start(d, _comment_on(d, "b", BETA[1], revision=3)["id"], "Rewriting Beta")

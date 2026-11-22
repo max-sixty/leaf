@@ -1880,9 +1880,11 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()
-    # Playwright's click may scroll its target into view. Finish that navigation
-    # before holding the positions the press itself must preserve.
-    control.scroll_into_view_if_needed()
+    # Playwright's click scrolls a target it can't reach into view, as it does one the
+    # floating panel's row stands over at the window's foot. Bring the control to the
+    # window's middle first, as a user scrolls a control into sight before pressing it,
+    # and hold the positions the press itself must preserve from there.
+    control.evaluate("node => node.scrollIntoView({block: 'center'})")
     page_at_rest(page)
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"

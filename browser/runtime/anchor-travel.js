@@ -333,9 +333,6 @@ export function createAnchorTravel({
     const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     const left = focused();
-    // Only a route the user's gesture began adds an entry (history.js): one begun
-    // without the browser's user activation, as on news or a revision, renames.
-    const begun = navigator.userActivation.isActive;
     /** @type {boolean | undefined} */
     let moving;
     return {
@@ -347,7 +344,7 @@ export function createAnchorTravel({
         if (moving === undefined) return;
         const on = focused();
         const stayed = on === left || (left !== document.body && under(left, on));
-        if (begun && (moving || !stayed)) write(url ?? window.location.href);
+        if (moving || !stayed) write(url ?? window.location.href);
         // No departure, but the entry the user stays on now names where they are.
         else if (url) replaceEntry(url);
       },

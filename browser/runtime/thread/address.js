@@ -30,10 +30,11 @@
    there again rather than beside its passage.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
-   focus, unless the URL also names an element, which then places the page, and the
-   thread opens beside it. So a widget that names the view it opens in the fragment, as
-   a tab set names the panel the thread's passage stands in, leaves an address a reload
-   or a copied link still reaches the thread by. */
+   focus, unless the URL also names an element, which then places the page, or the
+   browser restored the page's place, as on a reload, and the thread opens beside it,
+   as a fragment does (version.js, `aimArrival`). So a widget that names the view it
+   opens in the fragment, as a tab set names the panel the thread's passage stands in,
+   leaves an address a reload or a copied link still reaches the thread by. */
 import { effect, untracked } from "/runtime/framework.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../errors.js";
@@ -124,12 +125,14 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   }
 
   // The arrival's route to the thread `url` names, under the intent the arrival began
-  // with, or null where it names none.
-  /** @param {URL} url @param {import("../user-intent.js").UserIntent} arrival */
-  function arrive(url, arrival) {
+  // with, or null where it names none. `restored` is an arrival whose place the browser
+  // restored, a reload's or a traversal's into the document.
+  /** @param {URL} url @param {import("../user-intent.js").UserIntent} arrival
+   * @param {{restored: boolean}} options */
+  function arrive(url, arrival, { restored }) {
     const id = url.searchParams.get("thread");
     if (!id) return null;
-    const beside = Boolean(fragmentTarget(url.hash));
+    const beside = restored || Boolean(fragmentTarget(url.hash));
     const intent = restrictUserIntent(arrival, arrival);
     return async () => {
       if (!intent()) return null;

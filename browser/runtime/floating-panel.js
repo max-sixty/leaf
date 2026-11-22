@@ -1952,13 +1952,17 @@ export function createFloatingPanel({
   // Where the page's package draws its conversations, a thread opens in its reader, in
   // its reply as a row's opening does (`focusView`), or on the thread a send starts
   // (`part`), and the view it was chosen from goes, uncovering the page.
-  /** @param {string} key @param {{focus?: boolean, message?: string | null, part?: "reply" | "thread"}} [options] */
-  function openInPackage(key, { focus = true, message = null, part = "reply" } = {}) {
+  /** @param {string} key @param {{focus?: boolean, message?: string | null, part?: "reply" | "thread", travel?: boolean}} [options] */
+  function openInPackage(
+    key,
+    { focus = true, message = null, part = "reply", travel = true } = {},
+  ) {
     if (trail.value.length) close();
     void threadActions.open(threadByKey(key)?.key ?? key, {
       part,
       focus,
       message,
+      travel,
     });
   }
   // Opening a thread shows it at its first unread reply, as its card does, else at its
@@ -5775,7 +5779,8 @@ export function createFloatingPanel({
       messagesAside: true,
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they were in the panel, read before the panel's
-      // reader, and the message they were on, goes.
+      // reader, and the message they were on, goes. The thread moves where the user
+      // stands, which is no step of theirs (history.js).
       yielded: () => {
         const top = trail.value.at(-1);
         if (!top?.thread) return null;
@@ -5785,7 +5790,7 @@ export function createFloatingPanel({
             null)
           : null;
         const key = top.thread;
-        return () => openInPackage(key, { focus, message });
+        return () => openInPackage(key, { focus, message, travel: false });
       },
       // A thread about the whole page opens here; one about a passage opens beside it,
       // where the page draws it, widgets in its messages included, and here only where

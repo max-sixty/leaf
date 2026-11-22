@@ -1322,7 +1322,9 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
     entries = page.evaluate("history.length")
     page.reload()
     wait_until_ready(page)
-    expect(thread).to_be_focused()
+    # A reload is a return: the thread opens again where the browser restored the page,
+    # without taking the user there.
+    expect(thread).to_be_visible()
     assert page.evaluate("history.length") == entries
     if name == "anchor01":
         # Leaving the passage puts its card away, renaming the entry, so Back returns
@@ -1360,7 +1362,8 @@ def test_following_a_thread_url_uses_native_history(browser, serve):
     assert "thread=" not in page.url
     page.go_forward()
     wait_until_ready(page)
-    expect(linked_thread(page, "general1")).to_be_focused()
+    # Forward into the document is a return, so the thread opens in place.
+    expect(linked_thread(page, "general1")).to_be_visible()
     assert page.evaluate("history.length") == entries + 1
 
 

@@ -840,8 +840,8 @@ async function boot() {
     },
   });
   const landFragment = version.aimArrival();
-  const { landArrival, savedView, handedOff } = offlineInteractive
-    ? { landArrival: () => {}, savedView: null, handedOff: false }
+  const { landArrival, savedView, handedOff, restored } = offlineInteractive
+    ? { landArrival: () => {}, savedView: null, handedOff: false, restored: false }
     : version.installArrival();
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
   // The entry's `?thread=` (thread/address.js), read from the thread views the panel
@@ -864,7 +864,7 @@ async function boot() {
   // (version.js, `captureRetainedCurrentLocation`).
   const threadArrive = handedOff
     ? null
-    : threadAddress.arrive(arrivalUrl, threadArrival);
+    : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
   if (threadArrive) void afterPresentation(threadArrive);
 
   async function presentPage() {

@@ -3088,7 +3088,12 @@ export function createVersionController({
         )
           restoreView(savedView, currentIntent);
       });
-    return { landArrival, savedView, handedOff: Boolean(handoff) };
+    return {
+      landArrival,
+      savedView,
+      handedOff: Boolean(handoff),
+      restored: navigationType !== "navigate",
+    };
   }
 
   // A fresh URL aimed at an element stays landed while the page arrives. The browser

@@ -9,10 +9,11 @@
  *
  * Only a route the user's gesture began on the entry being left adds an entry: a
  * followed link, a walk's step, a list's row, Undo's trip (anchor-travel.js,
- * `prepareNavigationStep`, which renames instead where the browser saw no user
- * activation as the route began). A return, a revision or news never adds one, nor
- * does a view opened or put away where the user stands, which renames the entry at
- * most (thread views, thread/address.js). Browsers keep that rule too: Chromium marks
+ * `prepareNavigationStep`). A return, an arrival, a revision or news never adds one,
+ * nor does a view opened, put away or handed to another reader where the user stands,
+ * which renames the entry at most (thread views, thread/address.js): each opens its
+ * thread with `travel: false` or `history: false` (thread/destination.js), and so takes
+ * no departure. Browsers keep that rule too: Chromium marks
  * a document's entries skippable by Back once one is added without the user's
  * activation, and Firefox 135 and later skip such entries, so an entry added without a
  * gesture would cost the user the Back steps they made. A rename waits for a

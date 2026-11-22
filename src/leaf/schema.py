@@ -284,7 +284,6 @@ AWAITS_SCHEMA = {
         },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["value", "answered"],
     "additionalProperties": False,
@@ -369,16 +368,6 @@ FACTS: dict[str, dict] = {
     "awaits": AWAITS_SCHEMA,
     "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "exhibit": _conditional({"const": True}),
-    # A view of another widget's answer (`shown_answers.py`): `reference` is the
-    # attribute (`refers`) naming that widget, as an input's `reference` names the
-    # element it reads, and `value` the attribute of the view's compound owner that
-    # names the answer it holds.
-    "shows": {
-        "type": "object",
-        "properties": {"reference": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
-        "required": ["reference", "value"],
-        "additionalProperties": False,
-    },
     "history": {"const": True},
     "owners": _TAGS,
     "unique": {
@@ -477,9 +466,8 @@ DECLARATION_SCHEMA = {
     },
     "required": ["description", "attributes"],
     # A fact read through others needs them declared too: a member that leaves under
-    # its owner's decision reads its owners, and a view of another widget's answer its
-    # owners and its reference (`registry.widgets`).
-    "dependentRequired": {"retired-when": ["owners"], "shows": ["owners", "refers"]},
+    # its owner's decision reads its owners.
+    "dependentRequired": {"retired-when": ["owners"]},
     "additionalProperties": False,
 }
 # Every key `$keys` documents: each a declaration may hold but its `description`.

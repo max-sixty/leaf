@@ -60,14 +60,9 @@ export const queryAllUnder = (root, selector) =>
 
 // The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
-// rather than written here so a project override travels with the widget, and fetched
-// during upgrade so the stage below stays synchronous for its callers.
+// rather than written here so a project override travels with the widget.
 export let shadowRules = "";
-// One read for the tab. The three boundaries that import widget modules each ask for
-// the rules before the import, since a module's stage is built as its element upgrades
-// and no boundary can tell which module will build one, so the ask is repeated and the
-// answer is not. Sharing the promise rather than the text also holds a second caller
-// behind the first read instead of starting another.
+// One read for the tab, which the first stage starts (stage-integration.js).
 /** @type {Promise<void> | null} */
 let loading = null;
 export function loadShadowRules() {

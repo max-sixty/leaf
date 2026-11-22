@@ -155,8 +155,9 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     would satisfy every refusal below and
     say nothing about which of them holds.
 
-    The theme arrives once, through the document's `<link>`, and so do the shadow
-    rules, which the loader reads before it imports a module.
+    The shadow rules follow the same line: `/shadow.css` is what a stage renders
+    under, so a page whose modules build none never asks for it, and the theme
+    arrives once, through the document's `<link>`.
     """
     example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -172,7 +173,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "pele" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
-    assert asked.count("/shadow.css") == 1, [p for p in asked if p == "/shadow.css"]
+    assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
         p for p in asked if p == "/registry.json"
     ]

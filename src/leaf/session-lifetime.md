@@ -273,7 +273,9 @@ idle or changes hands.
 Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
-session lock stay, since the page shows that session's turn from the lifecycle. A
+session lock stay, since the page shows that session's turn from the lifecycle, and
+so does the plugin root its hooks last ran from (`leases.mark_root`), which the
+first hook of a resumed session compares with its own. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one

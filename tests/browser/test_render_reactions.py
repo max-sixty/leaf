@@ -2063,8 +2063,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     """Reaction belongs to its own header, including an agent-authored root, and
     stands clear of the view's Resolve. It stands on the head's line, and a control
     that ends the line may hang into the room the transcript keeps at its end
-    (floating-panel.css, `.lf-msg-control-room`) but no further. Both actions stay
-    reachable, and a touch trigger reaches its floor without its face covering the
+    (floating-panel.css, `.lf-fp-messages .lf-msg-head`) but no further. Both actions
+    stay reachable, and a touch trigger reaches its floor without its face covering the
     message's first line."""
     url = serve(PANEL_PAGE)
     text = (

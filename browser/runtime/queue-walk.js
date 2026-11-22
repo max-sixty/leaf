@@ -196,7 +196,7 @@ export const groupingLabel = (grouping) =>
 // The ids of the items a plan step names, its own and its steps', in the plan's order;
 // and whether a step, or one under it, is the user's.
 /** @param {PlanStep} step @returns {string[]} */
-const namedIn = (step) => [
+export const namedIn = (step) => [
   ...(step.item ? [step.item.id] : []),
   ...step.steps.flatMap(namedIn),
 ];

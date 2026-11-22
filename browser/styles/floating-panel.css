@@ -1059,16 +1059,15 @@
      the tabs, at its end, so the tabs stay on the row and a tab turned to never
      leaves the finger that turned it. Each tab's view keeps room for one press before
      Close, Menu's none included, so every tab breaks the line alike and turning them
-     moves nothing; only On <agent>'s plan head, beside its press, may take that line
-     where the others share the tabs'. */
+     moves nothing. */
   .lf-fp-controls {
     flex-wrap: wrap-reverse;
     container-type: inline-size;
   }
   /* The tabs' line stands as tall with the presses as without them. It breaks only
      where the tabs at their narrowest don't fit beside the room kept for the presses,
-     and takes that room's width whether the presses stand beside it or, as On
-     <agent>'s plan head does, on a line of their own, so the tabs' insets
+     and takes that room's width whether the presses stand beside it or on a line of
+     their own, so the tabs' insets
      (`.lf-fp-tab`) and every tab stand alike on each view. */
   .lf-fp-controls > .lf-fp-crumb {
     min-height: var(--lf-fp-press);
@@ -1856,6 +1855,7 @@
     font: var(--lf-font-compact);
   }
   .lf-fp-plan-step > .lf-fp-running,
+  .lf-fp-plan-step > .lf-fp-plan-detail,
   .lf-fp-plan-step > .lf-fp-plan-steps {
     grid-column: 2 / -1;
   }
@@ -1901,14 +1901,17 @@
     font-weight: 600;
   }
   .lf-fp-plan-time,
+  .lf-fp-plan-detail,
   .lf-fp-running {
     font: var(--lf-font-small);
     color: var(--lf-muted);
     font-variant-numeric: tabular-nums;
   }
   /* The line the agent's running step wrote, under what it is about: a plan's step, or
-     an item On <agent> lists. It keeps to one line, cut short at its end, and an item's
+     an item On <agent> lists; and under a finished step, the words its end gave, such
+     as where its result is. It keeps to one line, cut short at its end, and an item's
      card opened shows it whole. */
+  .lf-fp-plan-detail,
   .lf-fp-running {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1921,26 +1924,8 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  /* The plan's head at On <agent>'s foot, a word (controls.css) with its progress as
-     a short bar after its words, which discloses the plan over the list. A step on the
-     user says so with an inline press, On Me, which turns to the list of it. */
-  .lf-fp-plan-head {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font: var(--lf-font-small);
-  }
-  .lf-fp-plan-bar {
-    width: 40px;
-    height: 4px;
-    border-radius: var(--lf-r-s);
-    background: linear-gradient(
-      to right,
-      var(--lf-work) var(--lf-fp-plan-done),
-      var(--lf-fp-faint) 0
-    );
-  }
-  /* The plan disclosed over the list, a rule between them. */
+  /* The plan over the list, a rule between them. A step on the user says so with an
+     inline press, On Me, which turns to the list of it. */
   .lf-fp-plan:last-of-type {
     border-bottom: 1px solid var(--lf-fp-faint);
   }

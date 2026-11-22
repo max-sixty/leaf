@@ -3063,33 +3063,36 @@ flowchart TD
           <section id="progress-plan">
             <h2>The work plan</h2>
             <p id="progress-plan-reading">
-              For work with several steps, the agent can publish an outline, which the
-              On view's list of the agent's work discloses from the plan's progress and
-              On Me can group by. It shows the goal, the current step, and later steps,
-              including those waiting on the user. A step can name an existing to-do or
-              obligation and follow its title, owner, and state, or carry a title and
-              state the agent maintains.
+              For work with several steps, the agent can publish an outline, which heads
+              the On view's list of the agent's work and which On Me can group by. It
+              shows each goal, the step under way, the steps finished with where their
+              results are, and the steps ahead, including those waiting on the user.
+              Each step is a to-do or an obligation and shows its title, owner and
+              state, and a goal is done once its steps are, so the outline never says
+              more than the work does.
             </p>
             <details id="progress-plan-contract">
               <summary>Plan commands and lifetime</summary>
               <p>
                 <code>leaf task plan</code> reads the complete outline from stdin. Depth
-                0 is the goal; each nested step is one level deeper. A plain step’s
-                state is <code>open</code>, <code>working</code>, <code>done</code>, or
-                <code>dropped</code>.
+                0 is a goal, a heading over the steps one level deeper. A step written
+                as <code>todo</code> opens a to-do with that title, and a step written
+                as <code>item</code> names an existing to-do or obligation.
               </p>
               <pre
                 id="progress-plan-command"
               ><code class="language-bash">leaf task plan ./review &lt;&lt;'EOF'
-[{"depth": 0, "title": "Review the queue policy", "state": "working"},
- {"depth": 1, "item": "&lt;todo-id&gt;"},
- {"depth": 1, "item": "widget:queue-policy"}]
+[{"depth": 0, "title": "Review the queue policy"},
+ {"depth": 1, "todo": "Read the current policy"},
+ {"depth": 1, "item": "widget:queue-policy"},
+ {"depth": 1, "todo": "Write the new policy"}]
 EOF</code></pre>
               <p>
+                The agent starts and ends a step's to-do as it starts and ends any
+                other, so the plan follows the work without being written again.
                 Rewriting the plan replaces its arrangement; an empty list clears it.
-                Removing a to-do or obligation from the outline ends nothing. Work that
-                must stay owed after the turn belongs in a to-do or obligation, which
-                the plan references; a plain step creates no such obligation.
+                Removing a to-do or obligation from the outline ends nothing: it stays
+                owed until the agent or the user ends it.
               </p>
             </details>
           </section></lf-tab

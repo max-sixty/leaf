@@ -66,26 +66,28 @@ leaf task end <page> <todo> done --text "<where the result is>"
 Housekeeping such as changing packages, restarting the server, or merging needs
 no to-do.
 
-When the work runs to several steps, some of which may wait on the user, write your plan
-before you start the first step, so the user can follow it in the panel's list of your
-work, under the plan's progress, and see On Me grouped by its goals: the goal, its steps
-in order, the one under way, and those waiting on them.
-`leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
-goal at depth 0, each step one deeper than the step it belongs to, and each either a
-`title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
+When the work runs to several steps and past the turn you are in, as when some steps
+wait on the user, write your plan before you start the first step. The user follows it
+at the head of the panel's list of your work, and On Me groups by its goals: each goal,
+its steps in order, the one under way, where each finished step's result is, and those
+waiting on them. `leaf task plan <page>` reads the whole outline from stdin as a JSON
+list: a goal is a `title` at depth 0 over the steps one level deeper, and each step is
+a `todo`, which opens a to-do with that title, or names the `item` it is, an open
+to-do's or an obligation's id:
 
 ```bash
 leaf task plan <page> <<'EOF'
-[{"depth": 0, "title": "Move the billing exports", "state": "working"},
+[{"depth": 0, "title": "Move the billing exports"},
  {"depth": 1, "item": "<to-do id>"},
  {"depth": 1, "item": "widget:<widget-id>"},
- {"depth": 1, "title": "Retire the old export job", "state": "open"}]
+ {"depth": 1, "todo": "Retire the old export job"}]
 EOF
 ```
 
-Make each step that stays owed past your turn a to-do or obligation the plan names by
-id, so it follows that one's state; a plain step's state is yours to keep current. Write
-the plan again when a step finishes or the breakdown changes.
+Each step shows the state of its to-do or obligation, and the plan it prints names each
+new to-do by id. Start and end a step's to-do as you would any other; its end's
+`--text` is where the user finds the result. Write the plan again only when the
+breakdown changes, naming the steps it already holds by `item`.
 
 When input arrives:
 

@@ -1659,22 +1659,26 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
 @page_argument(renew=True)
 @body_options("the JSON outline")
 def task_plan(page_dir: Path, text: str | None, body_file) -> dict:
-    """Replace the page's plan with the JSON list of steps given, in order.
+    """Replace the page's plan with the JSON list of steps given, in order, and
+    print it.
 
-    Each step has a `depth`, 0 for a goal and one more for each level under it.
-    A plain step has a `title` and a `state`: open, working, done or dropped.
-    A step can instead name an `item`, a to-do's id or an obligation's id, and shows
-    that item's title and state, so work that stays owed past your turn is a
-    to-do the plan names:
+    Each step has a `depth`, 0 for a goal and one more for each level under it. A
+    heading has a `title` and groups the steps under it. Every other step is work:
+    `todo` opens a to-do with that title, and `item` names an open to-do's or an
+    obligation's id. A step shows its item's title and state, and a heading is done
+    once its steps are:
 
     \b
-    [{"depth": 0, "title": "Review the pull request", "state": "working"},
-     {"depth": 1, "title": "Check the snapshot diffs", "state": "done"},
+    [{"depth": 0, "title": "Review the pull request"},
+     {"depth": 1, "todo": "Check the snapshot diffs"},
      {"depth": 1, "item": "<to-do id>"},
      {"depth": 1, "item": "widget:<widget-id>"}]
 
-    Write the whole plan each time it changes. Leaving out an open to-do ends
-    nothing; it stays on its list. `[]` clears the plan."""
+    The printed plan names each new to-do by its id. Start and end a step's to-do
+    with `leaf task start` and `leaf task end`. Rewrite the plan only when the
+    breakdown changes, naming the steps it already holds by `item`; a `todo` opens a
+    new to-do each time. Leaving out an open to-do ends nothing; it stays on your
+    list. `[]` clears the plan."""
     from leaf.plans import cmd_plan
 
     steps = json_body(text, body_file)

@@ -732,12 +732,12 @@
       "additionalProperties": false
     },
     "PlanStep": {
-      "description": "One step of the plan (`plans.plan_reading`): plain, or naming a to-do or obligation whose title, owner and state it shows; `done` of `total` counts its children, dropped ones left out.",
+      "description": "One step of the plan (`plans.plan_reading`): a heading, which has no `owner` or `item` and reads its state from its steps, or a step naming a to-do or obligation whose title, owner and state it shows, with the words a finished to-do's end gave as `detail`; `done` of `total` counts its steps, dropped ones left out.",
       "type": "object",
       "properties": {
         "title": { "type": ["string", "null"] },
         "state": { "enum": ["open", "working", "done", "failed", "dropped"] },
-        "owner": { "enum": ["agent", "user"] },
+        "owner": { "enum": ["agent", "user", null] },
         "item": {
           "anyOf": [
             {
@@ -754,6 +754,7 @@
         },
         "running": { "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }] },
         "since": { "type": ["string", "null"] },
+        "detail": { "type": ["string", "null"] },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } },
         "done": { "type": "integer" },
         "total": { "type": "integer" }
@@ -765,6 +766,7 @@
         "item",
         "running",
         "since",
+        "detail",
         "steps",
         "done",
         "total"

@@ -298,6 +298,7 @@ _RETRACTS = "every version can take back a decision or report it supersedes"
 _CAPTURED = "each revision draws every file it names, the same wherever it is shown"
 _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
+_STANDS = "each step of the agent's plan reads where its work stands"
 _PUBLISHES = "a reply reaches the user with the page edits saved before it"
 _PASSAGE = "each comment anchors to the one passage its quote or id names"
 _RESERVED = "each update gets one answer, from the writer that reserved it"
@@ -2359,9 +2360,15 @@ _TEXT = {
     "unknown-plan-item": _refuses(
         _NAMES,
         lambda at, v: (
-            f"{v['item']!r} names no to-do or obligation on this page; name an id `leaf task"
-            " open` printed or an obligation id from `leaf page state`, or write a plain step"
-            " with a title and state"
+            f"{v['item']!r} names no to-do or obligation on this page; name an id from"
+            " `leaf page state`, or write a new step as a `todo` with its title"
+        ),
+    ),
+    "plan-empty-heading": _refuses(
+        _STANDS,
+        lambda at, v: (
+            f"plan heading {v['title']!r} has no step under it; write a step of work"
+            " as a `todo` with its title, or put steps one level below the heading"
         ),
     ),
     "unowed-start": _refuses(

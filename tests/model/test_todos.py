@@ -238,11 +238,12 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
 
-def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
-    page_dir,
-):
-    """The plan nests steps by depth and shows a named item's own state, and a
-    rewrite that leaves a to-do out leaves it owed on the agent's list."""
+def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
+    """The plan nests steps by depth and writes no state: a step shows its to-do's or
+    obligation's own, a heading its steps', and a `todo` step opens the to-do the plan
+    then names. A start lapses with its turn and an end says where the result is, so
+    the plan follows the work without a rewrite, and a rewrite that leaves a to-do out
+    leaves it owed on the agent's list."""
 
     def plan(steps) -> Result:
         return CliRunner().invoke(
@@ -257,18 +258,27 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     written(
         leaf("task", "start", page_dir, todo["id"], "--text", "Cutting the example")
     )
-    written(
+    record = written(
         plan(
             [
-                {"depth": 0, "title": "Review the change", "state": "working"},
-                {"depth": 1, "title": "Check the diffs", "state": "done"},
-                {"depth": 1, "title": "Draft the response", "state": "working"},
+                {"depth": 0, "title": "Review the change"},
+                {"depth": 1, "todo": "Check the diffs"},
+                {"depth": 1, "title": "Draft the response"},
                 {"depth": 2, "item": todo["id"]},
                 {"depth": 1, "item": item["id"]},
-                {"depth": 1, "title": "Post it", "state": "dropped"},
+                {"depth": 1, "todo": "Post it"},
             ]
         )
     )
+    checking, posting = [
+        step["item"]
+        for step in record["steps"]
+        if "item" in step and step["item"] not in (todo["id"], item["id"])
+    ]
+    opened = {each["id"]: each["title"] for each in state_json(page_dir)["todos"]}
+    assert (opened[checking], opened[posting]) == ("Check the diffs", "Post it")
+    written(leaf("task", "end", page_dir, checking, "done", "--text", "In PR #12"))
+    written(leaf("task", "end", page_dir, posting, "dropped", "--text", "Not needed"))
     [goal] = state_json(page_dir)["plan"]["steps"]
 
     def shape(step):
@@ -284,7 +294,7 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     assert shape(goal) == (
         "Review the change",
         "working",
-        "agent",
+        None,
         1,
         3,
         [
@@ -292,7 +302,7 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
             (
                 "Draft the response",
                 "working",
-                "agent",
+                None,
                 0,
                 1,
                 [("Cut to two lines", "working", "agent", 0, 0, [])],
@@ -301,9 +311,19 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
             ("Post it", "dropped", "agent", 0, 0, []),
         ],
     )
+    assert goal["steps"][0]["detail"] == "In PR #12"
     cut = goal["steps"][1]["steps"][0]
     assert cut["item"] == {"kind": "todo", "id": todo["id"]}
     assert cut["since"] == cut["running"]["ts"]
+
+    # Once the start is put down and the to-do ends, the heading over it reads done
+    # with no rewrite; the question waiting on the user keeps the goal open.
+    written(leaf("page", "open", page_dir))
+    [goal] = state_json(page_dir)["plan"]["steps"]
+    assert (goal["state"], goal["steps"][1]["state"]) == ("open", "open")
+    written(leaf("task", "end", page_dir, todo["id"], "done", "--text", "Cut"))
+    [goal] = state_json(page_dir)["plan"]["steps"]
+    assert (goal["state"], goal["steps"][1]["state"]) == ("open", "done")
 
     # A question whose thread the agent resolved, as it does once the user answers
     # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
@@ -312,44 +332,54 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     )
     asked = f"message:{question['id']}"
     written(leaf("thread", "resolve", page_dir, question["id"]))
+    left = written(leaf("task", "create", page_dir, "page", "--title", "Tidy up"))
     written(
-        plan(
-            [
-                {"depth": 0, "title": "Review the change", "state": "done"},
-                {"depth": 1, "item": asked},
-            ]
-        )
+        plan([{"depth": 0, "title": "Review the change"}, {"depth": 1, "item": asked}])
     )
     [goal] = state_json(page_dir)["plan"]["steps"]
+    assert goal["state"] == "done"
     assert [(step["item"]["id"], step["state"]) for step in goal["steps"]] == [
         (asked, "done")
     ]
-    assert ("todo", todo["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
+    assert ("todo", left["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
     outline = page_dir.parent / "plan.json"
     # A step that skips a level reads one level below the step before it, so the plan
     # is written and the command says where the step went.
-    outline.write_text(json.dumps([{"depth": 1, "title": "Too deep", "state": "open"}]))
+    outline.write_text(json.dumps([{"depth": 1, "item": left["id"]}]))
     [skipped] = command_notes("task", "plan", page_dir, "--file", outline)
     assert (skipped.code, skipped.severity) == ("plan-depth", "advice")
     [step] = state_json(page_dir)["plan"]["steps"]
-    assert (step["title"], step["steps"]) == ("Too deep", [])
+    assert (step["title"], step["steps"]) == ("Tidy up", [])
+    todos_before = len(state_json(page_dir)["todos"])
     for steps, code in (
         ([{"depth": 0, "item": "no-such-item"}], "unknown-plan-item"),
         (
-            [{"depth": depth, "title": "Deep", "state": "open"} for depth in range(10)],
+            [{"depth": 0, "todo": "Opens nothing"}, {"depth": 0, "title": "Alone"}],
+            "plan-empty-heading",
+        ),
+        (
+            [{"depth": depth, "title": "Deep"} for depth in range(9)]
+            + [{"depth": 9, "item": left["id"]}],
             "invalid-event",
         ),
     ):
         outline.write_text(json.dumps(steps))
         [refused] = command_findings("task", "plan", page_dir, "--file", outline)
         assert refused.code == code
-    # A step close to one of the two shapes is refused at the field it gets wrong.
-    outline.write_text(json.dumps([{"depth": 0, "title": "Ship", "state": "active"}]))
-    [unknown] = command_findings("task", "plan", page_dir, "--file", outline)
-    assert (unknown.code, unknown.values["field"]) == (
-        "invalid-event",
-        "/steps/0/state",
+    # A refused plan opens none of its to-dos.
+    assert len(state_json(page_dir)["todos"]) == todos_before
+    # A step close to one of the shapes is refused for the field it gets wrong.
+    outline.write_text(
+        json.dumps(
+            [
+                {"depth": 0, "title": "Ship", "state": "working"},
+                {"depth": 1, "todo": "X"},
+            ]
+        )
     )
+    [unknown] = command_findings("task", "plan", page_dir, "--file", outline)
+    assert (unknown.code, unknown.values["field"]) == ("invalid-event", "/steps/0")
+    assert "'state' was unexpected" in unknown.values["error"]
     written(plan([]))
     assert state_json(page_dir)["plan"] is None
 
@@ -388,9 +418,15 @@ def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
     )
     assert answered["todo"] == fitted
     outline = page_dir.parent / "plan.json"
-    outline.write_text(json.dumps([{"depth": 0, "title": words, "state": "open"}]))
+    outline.write_text(
+        json.dumps([{"depth": 0, "title": words}, {"depth": 1, "todo": words}])
+    )
     planned = cut(leaf("task", "plan", page_dir, "--file", outline))
-    assert [step["title"] for step in planned["steps"]] == [fitted]
+    heading, step = planned["steps"]
+    assert heading["title"] == fitted
+    assert {todo["id"]: todo["title"] for todo in state_json(page_dir)["todos"]}[
+        step["item"]
+    ] == fitted
 
 
 def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):

@@ -201,7 +201,7 @@
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
-  /* The compact label every layer draws a small fact in: .tag here and the
+  /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
      height and one inset; each wearer states only its ground, ink, and where it sits.

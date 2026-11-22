@@ -45,7 +45,7 @@ test("authoring selectors and shared facts never enter widget state", () => {
     },
     "lf-index-owner.selected": idiom,
     table: idiom,
-    ".lede": idiom,
+    ".lf-lede": idiom,
     $keys: {
       verbs: "State meanings.",
     },

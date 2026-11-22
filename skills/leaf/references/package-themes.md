@@ -11,8 +11,8 @@ Leaf's own defaults; rules meant to win over widget defaults and Layouts belong 
 
 A theme styles the page's own native controls as well as its markup, so they stand
 beside Leaf's controls as one set. Leaf bundles one theme, `reading`: the reading look,
-which styles the body's type and colour and the idioms such as `.callout`, and turns on
-the reading face markup wears in Leaf's own surfaces (headings, prose, lists, tables,
+which styles the body's type and colour and turns on the reading face markup wears in
+Leaf's own surfaces (headings, prose, lists, tables,
 code, quotes, figures, disclosures, definitions, rules and pictures, with a wide table
 scrolling inside itself, a code block's long lines wrapping, and a `language-…` code
 block coloured by its tokens) by setting `--lf-reading-face: 1` on the root. The face
@@ -24,8 +24,8 @@ and a personal theme restyles the page's controls through the tokens they read o
 rules of its own. A new page takes it unless the user names another default. A page that
 takes none (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing
 of the look reaches it, its tables, code blocks and controls included, while Leaf's
-widgets, threads and panel keep their own faces, in the browser's own canvas and text
-colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
+widgets, idioms, threads and panel keep their own faces, in the browser's own canvas
+and text colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
 `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there. Each of
@@ -42,21 +42,28 @@ themes = ["editorial", "dense"]
 default = "editorial"
 ```
 
-A personal theme builds on the reading look: `reading` composes first and the theme
-after it, so a theme states only what it changes, such as its three colours, a face
-and a corner, and its pages keep the look's idioms, such as `.callout` and `.tag`. A
-theme's rule wins a tie with the reading look's. A look that wants none of `reading`
-is a content package on a page that takes no theme: `leaf page init <page> --no-theme
---package dense`.
+A personal theme stands alone or builds on another theme it names as its base, in its
+`registry.json`:
+
+```json
+{ "$theme": { "base": "reading" } }
+```
+
+Leaf composes the base first, after any base that one names, and the theme after it,
+so a theme that builds on `reading` states only what it changes, such as its three
+colours, a face and a corner, and its rule wins a tie with the reading look's. A theme
+that names no base composes without `reading`. Either way its pages keep Leaf's idioms,
+such as `.lf-callout` and `.lf-tag`, which Leaf draws on every page. Leaf refuses a
+base that isn't installed, and bases that name each other, when `leaf package
+install` installs the theme and when a page taking it composes.
 
 `leaf theme list` returns the available choices, default and author instructions.
 The author's selection follows the user's request first, then the task and those
 instructions; leaving it unspecified uses the default on a new page. Select one with
 `leaf page init <page> --theme dense`. Content packages remain independent; the
-reading look and the selected theme compose right after Leaf's default package and
-before them, so a
-project package can restate a theme's idiom, such as `.callout`, and its rules win a
-tie with the theme's.
+selected theme and its bases compose right after Leaf's default package and before
+them, so a project package can restate what a theme declares, and its rules win a tie
+with the theme's.
 
 A page captures its selected theme when initialized. Re-initializing preserves that
 choice, even if the user's default changes; an explicit `--theme` replaces it.
@@ -68,8 +75,8 @@ and demo recordings take `reading` rather than the developer's personal default.
 default under `layer.theme`.
 
 A page records its theme's name, and the Leaf serving, checking or exporting it
-composes the theme package it finds by that name, so each of those needs the package
-installed; an export carries the theme's bytes. Live samples inherit their parent's
+composes the theme package it finds by that name, after the bases that package names,
+so each of those needs the packages installed; an export carries the themes' bytes. Live samples inherit their parent's
 layer; a sample may deliberately show different theme inputs as a style reference
 (`live-samples.md`). Applying the catalogue's current default to already-authored
 pages remains a possible later change.

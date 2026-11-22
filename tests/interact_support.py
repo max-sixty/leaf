@@ -595,10 +595,10 @@ PAGE = f"""<!doctype html>
   <lf-group id="plan-choice-decision" label="Which plan should lead?">
     <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
-      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small> <strong>Flag first</strong>
+      <lf-option id="flag-first" label="Flag first"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: med</small> <strong>Flag first</strong>
         Ship dark.
       </lf-option>
-      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small> <strong>Backfill first</strong>
+      <lf-option id="backfill-first" label="Backfill first"><small class="lf-tag">effort: med</small><small class="lf-tag">risk: low</small> <strong>Backfill first</strong>
         Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>

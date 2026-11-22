@@ -768,8 +768,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     source = (
         "<!doctype html><html><head><title>T</title></head><body>"
         '<header id="banner" data-width="wide">Banner</header><main data-width="available">'
-        '<aside class="callout warn" id="note">Paused.</aside>'
-        '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
+        '<aside class="lf-callout warn" id="note">Paused.</aside>'
+        '<aside class="lf-callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
         '<lf-board id="board" data-width="available"></lf-board>'
         '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'

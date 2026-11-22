@@ -19,7 +19,7 @@
     "registry": {
       "lf-option": {}
     },
-    "markup": "<lf-option id=\"it\" label=\"Flag first\"><small class=\"tag\">effort: low</small>Ship dark.</lf-option>",
+    "markup": "<lf-option id=\"it\" label=\"Flag first\"><small class=\"lf-tag\">effort: low</small>Ship dark.</lf-option>",
     "name": "Flag first"
   },
   {

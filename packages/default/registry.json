@@ -397,7 +397,7 @@
           "type": "string"
         },
         "view": {
-          "enum": ["slider", "pair", "pixels"]
+          "enum": ["pair", "pixels"]
         }
       },
       "required": ["id", "before", "after", "alt"],

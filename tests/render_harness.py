@@ -964,7 +964,7 @@ def long_press(page, point):
 # (design.js): the mode as the page shows it.
 DESIGN_LEGEND = ".lf-legend-box"
 # The chrome's root, after `body` (chrome.js), which holds what the runtime states for
-# its own stylesheets, such as the annotation layer hidden (`a`, annotation-layer.js).
+# its own stylesheets, such as the annotation layer hidden (`x`, annotation-layer.js).
 CHROME_ROOT = "html > .lf-chrome"
 
 

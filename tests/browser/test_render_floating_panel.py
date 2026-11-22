@@ -2987,8 +2987,8 @@ def test_floating_status_records_feedback_only_when_its_words_show(
 
 def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     """The row's status and errors remain inline; its menu carries the full reading.
-    The leaf's preview names what it opens, and says the status under that only when
-    the leaf is folded."""
+    The leaf's preview names what it opens and the key that presses it, and says the
+    status under that only when the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
     peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
@@ -2996,7 +2996,9 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
     leaf.hover()
-    expect(peek).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-word")).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-keys")).to_have_text("o")
+    expect(peek.locator(".lf-preview-detail")).to_have_count(0)
     seat.hover()
     rendered(page)
     expect(peek).to_be_hidden()
@@ -3037,7 +3039,8 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    expect(peek).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-word")).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-detail")).to_have_count(0)
 
 
 # A status longer than the panel's field holds on its one line at any width.
@@ -3587,24 +3590,24 @@ def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, se
     page = floating(browser, serve(LONG_PAGE, comments=1))
     hidden = page.locator(".lf-chrome[data-lf-annotations-hidden]")
     page.locator("body").focus()
-    page.keyboard.press("a")
-    expect_panel_says(page, "Annotations hidden · Show annotations a")
+    page.keyboard.press("x")
+    expect_panel_says(page, "Annotations hidden · Show annotations x")
     expect(page.locator(".lf-live")).to_have_text("Annotations hidden")
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     # Read once the press has drawn, while its notice's moment still stands.
     rendered(page)
     assert field(page).get_attribute("data-lf-says") == "status"
     assert "Annotations" not in (field(page).get_attribute("placeholder") or "")
     expect(page.locator(".lf-live")).to_have_text("Annotations shown")
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     expect(hidden).to_have_count(1)
     page.locator(".lf-fp-field .lf-compose-press").click()
     expect(hidden).to_have_count(0)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     expect_panel_says(page, "Annotations hidden")
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     expect_panel_says(page, "Annotations shown")
 
 
@@ -3638,7 +3641,7 @@ def test_a_gesture_s_notice_with_a_press_stays_until_the_next_input(browser, ser
     )
     moment = page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
     page.locator("body").focus()
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     expect(offered).to_have_count(1)
     page.keyboard.press("ArrowDown")
     page.clock.run_for(moment * 2)

@@ -18,7 +18,7 @@
    next-hunk key does. The change's margin entry, and a gap's stand-in, open what it
    replaced over it (version.js, `toggleChangeCard`).
 
-   The marks are annotations, so `a` hides them with the rest, and nothing here stops
+   The marks are annotations, so `x` hides them with the rest, and nothing here stops
    them: a comparison ends with `v` or its Compare in Versions. The user decided
    against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch

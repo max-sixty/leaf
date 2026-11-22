@@ -1480,10 +1480,10 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     )
     drawn = verify.evaluate(face)
     assert drawn != "rgba(0, 0, 0, 0)"
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
     assert verify.evaluate(face) == "rgba(0, 0, 0, 0)"
-    page.keyboard.press("a")
+    page.keyboard.press("x")
     expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", re.compile(".*"))
     assert verify.evaluate(face) == drawn
 

@@ -1289,7 +1289,7 @@ export function createFloatingPanel({
   // in the order they are said (`STANDING_PARTS`): the version the
   // page shows where it is older than the latest (version.js, `shownBehind`), how many
   // changes the page marks since the version it compares with (`v`, version.js), whose
-  // bars say only that a block changed, and that the user hid the annotation layer (`a`,
+  // bars say only that a block changed, and that the user hid the annotation layer (`x`,
   // annotation-layer.js), which a reload keeps, or a page whose marks are hidden would
   // read as one with none. What passes on the page field leaves to these words the
   // facts they say (`STANDING`, `passingFacts`). They stand in the field's words, so
@@ -5262,15 +5262,15 @@ export function createFloatingPanel({
   // ---------- gestures ----------
   // The leaf unfolds a folded panel, and otherwise opens the On view on the tab its
   // marks point at (`leafOpens`), or puts the view away where it stands, a view it leads
-  // to included. `o` presses it (`LEAF`); on a folded panel a key's press opens the
-  // view as Go-to's doors do, and the panel folds again as the view goes, where a
-  // pointer's press unfolds it. A key lands on the tab's first row, as every
+  // to included. `o` presses it (`LEAF`), so on a folded panel `o` unfolds it as a
+  // click or Enter on the leaf does; Go-to's doors open their view over the fold. A key
+  // lands on the tab's first row, as every
   // key that opens a list does (`focusView`), so ← and → go on to the other tabs from
   // there, and ↑ or `/` reaches the menu's search. A mouse's press on the menu puts
   // the caret in its search, so the words the user types narrow it; a finger reads the
   // menu first, as it reads a thread before the keyboard rises (`focusView`).
   function pressLeaf() {
-    if (host.dataset.lfRest === "mark" && pressLed()) {
+    if (host.dataset.lfRest === "mark") {
       prefs().setRest("row");
       paint();
       return;

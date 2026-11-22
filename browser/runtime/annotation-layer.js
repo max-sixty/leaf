@@ -44,7 +44,7 @@ export function watchAnnotations(watcher) {
 export function mountAnnotationControls() {
   pageCommand({
     id: "annotations.toggle",
-    keys: ["a"],
+    keys: ["x"],
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",

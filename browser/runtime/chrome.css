@@ -53,11 +53,15 @@
 .lf-ui *::after {
   box-sizing: border-box;
 }
-/* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
-   face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
-   face from its own class, and lf-draft's editor states the document's face unlayered
-   and wins. */
+/* Clearing the UA's face for a form control or a dialog lives in a layer, so any
+   unlayered choice of face outranks it whatever its specificity: a control wearing
+   .lf-ui takes the chrome face from its own class, and lf-draft's editor states the
+   document's face unlayered and wins. The UA paints a dialog's text CanvasText, black
+   or white, so each dialog the chrome opens takes the chrome's ink here. */
 @layer lf-reset {
+  dialog.lf-ui {
+    color: var(--lf-ink);
+  }
   button.lf-ui {
     appearance: none;
     margin: 0;
@@ -438,7 +442,6 @@ html[data-lf-draw-mode] {
     margin: 0;
     padding: 0;
     overflow: hidden;
-    color: var(--lf-ink);
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -793,7 +796,6 @@ html[data-lf-draw-mode] {
     border-radius: var(--lf-r-l);
     --lf-ground: var(--lf-paper);
     background: var(--lf-ground);
-    color: var(--lf-ink);
     box-shadow: var(--lf-raise-3);
     /* Its column stands while a closing sheet fades out, after [open] has gone. */
     flex-direction: column;

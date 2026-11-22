@@ -867,6 +867,22 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const visualField = field.querySelector("div.lf-compose-field");
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
+    // A box the user stands on rather than in, as a walk's stop at a kept comment
+    // leaves them (anchor-travel.js, `onFrame`), takes Enter into its words, with the
+    // caret after them, as `c` there does.
+    keys(visualField, "On a text box", [
+      {
+        id: "text.enter",
+        touch: false,
+        keys: ["Enter"],
+        title: "write",
+        when: () => focused() === visualField,
+        run: () => {
+          const end = ta.value.length;
+          focusDestination(ta, "move", { caret: [end, end] });
+        },
+      },
+    ]);
     sendBtn = (submitIn ?? field).querySelector("button.lf-compose-submit");
     // The key that sends from the box is the box's own `text.send`, which sends rather
     // than pressing Send, so the box says it beside Send: as a key chip in Send's

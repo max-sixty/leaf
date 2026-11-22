@@ -378,7 +378,9 @@ layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 ## Contained examples and scoped appearance
 
 `mountSample(frame, {template, window})` asynchronously mounts the authored template
-with that id as a contained Leaf page in an iframe. `window` defaults to `false`;
+with that id as a contained Leaf page in an iframe; `{source}` in place of `template`
+mounts a complete HTML document the module passes (`live-samples.md`, "Generated
+samples"). `window` defaults to `false`;
 `true` gives the child a full-window layout. Await the returned host, then its `ready`
 promise before reading its presentation. `reset()` replaces the child's isolated
 history, `setWindow(boolean)` changes its allocation, and `destroy()` releases the

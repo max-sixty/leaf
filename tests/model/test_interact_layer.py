@@ -1590,11 +1590,18 @@ def test_the_kernel_styles_no_class_a_page_coins():
     floor and grows its form (tests/fixtures/plain/form.html). A kernel sheet's
     selectors and `@scope` preludes, and the selectors the runtime hands a DOM query,
     name no other class but a library's on the elements Leaf draws for it: PhotoSwipe's
-    in the chrome's lightbox, and CodeMirror's in a text field's closed tree."""
+    in the chrome's lightbox, and CodeMirror's in a text field's closed tree. A kernel
+    idiom's own words are the other kind, since a rule naming one reaches only an
+    element that wears the idiom's class: a word that varies an idiom, written beside its
+    class, as `.warn` is in `.lf-tag.warn`, and a drawing's marks, a class on an element
+    inside `svg.lf-drawing`, as `.box` is in `svg.lf-drawing .box`. A box the page fills
+    with its own content, as `lf-scroll` is, has no marks."""
     authored = ("lf-", "layout-", "density-")
     libraries = ("pswp", "cm-")
+    marked = {"lf-drawing"}
+    idioms = structure_model.AUTHORED_CLASSES
 
-    def classes(tokens):
+    def classes(tokens, nested=True):
         """The class selectors among `tokens`, in and out of `:is()`-like arguments."""
         previous = None
         for token in tokens:
@@ -1605,18 +1612,53 @@ def test_the_kernel_styles_no_class_a_page_coins():
                 and previous.value == "."
             ):
                 yield token.value
-            if token.type in ("function", "() block"):
+            if nested and token.type in ("function", "() block"):
                 yield from classes(
                     token.arguments if token.type == "function" else token.content
                 )
             previous = token
 
-    def coined(selector):
-        return sorted(
-            name
-            for name in classes(tinycss2.parse_component_value_list(selector))
-            if not name.startswith(authored + libraries)
-        )
+    def coined(prelude):
+        """The classes a prelude names that are neither Leaf's nor a library's, read one
+        compound at a time, so that those beside an idiom's class count as its variants,
+        and those on a descendant of a compound wearing a drawing's class as its marks.
+        A sibling of the drawing is outside it."""
+        names, compound = [], []
+        within = at = False  # inside a drawing; on the drawing's own element
+        combinator = None
+        for token in [*tinycss2.parse_component_value_list(prelude), None]:
+            ends_selector = token is None or (
+                token.type == "literal" and token.value == ","
+            )
+            explicit = (
+                not ends_selector and token.type == "literal" and token.value in ">+~"
+            )
+            if not (ends_selector or explicit or token.type == "whitespace"):
+                compound.append(token)
+                continue
+            if compound:
+                within = within or (at and combinator in (" ", ">"))
+                own = set(classes(compound, nested=False))
+                if not (within or own & idioms):
+                    names += [
+                        name
+                        for name in classes(compound)
+                        if not name.startswith(authored + libraries)
+                    ]
+                at = not marked.isdisjoint(own)
+                compound, combinator = [], " "
+            if explicit:
+                combinator = token.value
+            if ends_selector:
+                within = at = False
+                combinator = None
+        return sorted(names)
+
+    assert marked <= idioms
+    inside = "svg.lf-drawing .box, svg.lf-drawing > g .hot, svg.lf-drawing .a + .b"
+    assert coined(f"{inside}, .lf-tag.warn, .lf-callout:is(.ok, .warn) > b") == []
+    outside = ".c svg.lf-drawing, svg.lf-drawing + .d, svg.lf-drawing ~ svg .e"
+    assert coined(f"{outside}, .lf-tag .f, .lf-scroll .g") == list("cdefg")
 
     def preludes(rules):
         for rule in rules:

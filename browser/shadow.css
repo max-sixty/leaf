@@ -2,6 +2,8 @@
  * declared-shadow delivery. Composition supplies the existing cascade tiers. */
 @import "./styles/components/surfaces.css";
 @import "./styles/components/reading.css";
+@import "./styles/components/drawing.css";
+@import "./styles/components/idioms.css";
 @import "./styles/vendor/webawesome-native.css";
 @import "./styles/vendor/page-controls.css";
 @import "./styles/components/controls.css";

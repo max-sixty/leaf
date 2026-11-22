@@ -109,7 +109,7 @@ Give the main result and the material supporting it the most attention and space
 Write headings that tell a scanning reader what each part establishes. Use the
 user's context to leave out explanations and background they already have.
 
-A panel's heading (`section.panel`, as on a dashboard) is set in small capitals,
+A panel's heading (`section.lf-panel`, as on a dashboard) is set in small capitals,
 which read as a region's name and not as a sentence, so name the region there in a
 few words and state its finding in the panel's first line.
 
@@ -136,7 +136,7 @@ lines, a question's answer, and the threads about it.
 Arrange the material so the reader can do the task with little navigation or memory.
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
-widgets and class idioms for those roles, including the theme's `.metric` entry
+widgets and class idioms for those roles, including the `.lf-metric` entry
 for a metric. Arrange an experiment's results so each variant's effect against its
 baseline reads without arithmetic, and show what each variant changed beside its
 effect.
@@ -192,15 +192,15 @@ page of parts, whose column parts each take their own outline.
 ## Style the page
 
 A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
-tables, code, controls) in both colour schemes and adds the class idioms, such as
-`.callout`, so a page of ordinary content needs no CSS of its own: polish it through
-clearer content and hierarchy within that treatment. Where the task calls for a design
-of its own, such as an instrument, an arrangement, or a look the user asks for, write
-it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
+tables, code, controls) in both colour schemes, and Leaf draws its class idioms, such
+as `.lf-callout`, on every page, so a page of ordinary content needs no CSS of its
+own: polish it through clearer content and hierarchy within that treatment. Where the
+task calls for a design of its own, such as an instrument, an arrangement, or a look
+the user asks for, write it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
 mockup or a page the user brings, takes no theme instead (`leaf page init <page>
 --no-theme`), so it starts from the browser's defaults, its tables, code blocks and
 controls included, and none of the theme shows through its rules; Leaf's widgets,
-threads and panel keep their own faces either way.
+idioms, threads and panel keep their own faces either way.
 `leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
 themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as
@@ -267,14 +267,14 @@ rely on, in full:
 ```bash
 leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)'
-leaf page vocabulary <page> | jq '.["lf-options"], .[".lede"], .["$series"]'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".lf-lede"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .lede | jq -r '.author // empty'
+leaf page instructions <page> --use lf-options --use .lf-lede | jq -r '.author // empty'
 ```
 
 The output is a JSON map from audience to text. When you or an agent you assign takes
@@ -350,9 +350,9 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 `page-layout.md`, "Bounds and widths".
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
-reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also wraps a `<pre>`'s long lines, and a table's columns size to their content. It
-puts each line of a `<pre>` in a `<span data-lf-pre-line>`, so the rows a line wraps onto
+reading face, as a page in the `reading` theme does (`package-themes.md`, "Personal
+themes"), Leaf also wraps a `<pre>`'s long lines, and a table's columns size to their
+content. It puts each line of a `<pre>` in a `<span data-lf-pre-line>`, so the rows a line wraps onto
 hang from its indent behind a mark; a selector such as `pre span` reaches those spans
 too. A block whose columns must line up past its container's width, such as a diagram
 drawn in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such

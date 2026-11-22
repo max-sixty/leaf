@@ -37,6 +37,7 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     WIDE_TABLE_PAGE,
     arrival_findings,
+    serious_axe_violations,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -203,7 +204,9 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
 
 
 def _panel(name: str) -> str:
-    return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+    return (
+        f'<section class="lf-panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+    )
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -216,27 +219,27 @@ DRAWN_LABELS_PAGE = leaf_page(
     """
 <h1>Rollout</h1>
 <figure id="squeezed">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
     <text x="20" y="40">canary</text>
     <text x="560" y="40">region</text>
     <text x="1100" y="40">global</text>
   </svg>
 </figure>
 <figure id="large">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
     <text x="20" y="60" font-size="28">canary</text>
     <text x="1100" y="60" font-size="28">global</text>
   </svg>
 </figure>
 <figure id="natural">
-  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+  <svg class="lf-drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
     <circle class="mark" cx="20" cy="20" r="7" />
     <text class="glyph" style="font-size: 9px" x="20" y="20">1</text>
     <text class="small" x="40" y="24">note</text>
   </svg>
 </figure>
 <figure id="undrawn">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
     <defs><text x="20" y="40">draft</text></defs>
     <rect class="mark" x="20" y="60" width="200" height="40" />
     <text x="20" y="40"><tspan display="none">paused</tspan></text>
@@ -1476,22 +1479,36 @@ READING_SCROLLER = (
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
+def in_each_scheme(page):
+    """Put the page in each colour scheme in turn, yielding the scheme once its
+    colours have landed."""
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions, shadow trees' included, such
+        # as a search field's ground; read where they end.
+        render_checks_model.evaluate_probe(page, "finishMoving")
+        yield scheme
+
+
 def unread_syntax(page):
     """Code tokens the page paints too faint to read, each with the colour scheme it
     was read in."""
-    unread = []
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        # The scheme's colours land through transitions; read where they end.
-        page.evaluate(
-            "() => document.getAnimations().forEach("
-            "(a) => a instanceof CSSTransition && a.finish())"
-        )
-        unread += [
-            (scheme, Finding.read(u))
-            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
-        ]
-    return unread
+    return [
+        (scheme, Finding.read(u))
+        for scheme in in_each_scheme(page)
+        for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+    ]
+
+
+def axe_findings(page):
+    """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
+    that has any."""
+    findings = []
+    for scheme in in_each_scheme(page):
+        violations, report = serious_axe_violations(page)
+        if violations:
+            findings.append(f"[{scheme}] {report}")
+    return findings
 
 
 def scroll_findings(page):
@@ -2365,7 +2382,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><hgroup><p>Eyebrow</p><h2>Heading</h2></hgroup></section>
-<div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
+<div class="lf-callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>
 <section id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
@@ -3390,12 +3407,12 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-option id="asked-late" label="Late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
 </lf-group>
-<section class="panel" id="checks">
+<section class="lf-panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
 <tbody><tr><th scope="row">Error rate</th><td><code>0.11%</code> / below <code>0.50%</code></td></tr></tbody></table>
 </section>
-<section class="panel" id="wide-checks">
+<section class="lf-panel" id="wide-checks">
 <h2>Sessions</h2>
 <table id="wide-framed"><tr>{cells}</tr></table>
 </section>
@@ -3413,7 +3430,7 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
         '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
     ).replace(
         "</table>",
-        "</table><table id='statuses'><tr><td><span class='tag ok'>passed</span></td>"
+        "</table><table id='statuses'><tr><td><span class='lf-tag ok'>passed</span></td>"
         "<td>"
         + "The replay covers every legacy export and the importer's output. " * 3
         + "</td></tr></table>",
@@ -3423,7 +3440,7 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
     table = page.locator("#sessions")
     read = """t => {
       const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
-      const tag = document.querySelector('#statuses .tag');
+      const tag = document.querySelector('#statuses .lf-tag');
       return {scrolls: t.scrollWidth - t.clientWidth,
               inside: cap.left >= box.left - 1 && cap.right <= box.right + 1,
               tagLines: Math.round(tag.getBoundingClientRect().height
@@ -3710,7 +3727,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
 </pre></lf-diff>
             <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
           </div>
-          <aside id="framed" class="callout">
+          <aside id="framed" class="lf-callout">
             <table id="framed-table" data-width="wide"><tr><td>Framed evidence.</td></tr></table>
           </aside>
           <div id="wrapper"><section>

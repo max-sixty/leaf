@@ -24,9 +24,8 @@
    the page or of a message, as a margin card's transcript does. A landing keeps that room
    too (`--lf-focus-ring-landing`, surfaces.css), and a sticky row keeps it as its own
    padding; a box whose edge touches something that paints draws its ring inset.
-   A large composite region paints a quiet ground inside its box instead. A page's
-   bounded block pads nothing at its sides, so it cuts a ring there (tokens.css, "Where
-   it stands").
+   A page's bounded block pads nothing at its sides, so it cuts a ring there
+   (tokens.css, "Where it stands").
 
    The response bar (`.lf-fab-bar`): its field (`.lf-response-control`) and every
    choice (the response face, controls.css) stand on one baseline with one type,
@@ -54,11 +53,15 @@
 .lf-ui *::after {
   box-sizing: border-box;
 }
-/* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
-   face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
-   face from its own class, and lf-draft's editor states the document's face unlayered
-   and wins. */
+/* Clearing the UA's face for a form control or a dialog lives in a layer, so any
+   unlayered choice of face outranks it whatever its specificity: a control wearing
+   .lf-ui takes the chrome face from its own class, and lf-draft's editor states the
+   document's face unlayered and wins. The UA paints a dialog's text CanvasText, black
+   or white, so each dialog the chrome opens takes the chrome's ink here. */
 @layer lf-reset {
+  dialog.lf-ui {
+    color: var(--lf-ink);
+  }
   button.lf-ui {
     appearance: none;
     margin: 0;
@@ -317,7 +320,6 @@ html[data-lf-draw-mode] {
      .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
      this one adds, since it floats over page content rather than the empty rail. */
   :is(.lf-fab-bar, .lf-margin-preview) {
-    --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
     --lf-comment-frame-top: calc(
       1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
@@ -440,7 +442,6 @@ html[data-lf-draw-mode] {
     margin: 0;
     padding: 0;
     overflow: hidden;
-    color: var(--lf-ink);
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -795,7 +796,6 @@ html[data-lf-draw-mode] {
     border-radius: var(--lf-r-l);
     --lf-ground: var(--lf-paper);
     background: var(--lf-ground);
-    color: var(--lf-ink);
     box-shadow: var(--lf-raise-3);
     /* Its column stands while a closing sheet fades out, after [open] has gone. */
     flex-direction: column;

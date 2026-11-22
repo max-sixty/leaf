@@ -302,7 +302,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
-        ("#fence-option > small.tag", "effort: low", "fence-option"),
+        ("#fence-option > small.lf-tag", "effort: low", "fence-option"),
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
@@ -6007,7 +6007,7 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
         ),
         (
             '<lf-group id="pick-q" label="What should a full store do?">'
-            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
+            '<lf-options id="pick"><lf-option id="drop"><small class="lf-tag ok">'
             "recommended</small><strong>Drop the oldest documents</strong> Editing "
             'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
             "</strong> Nothing leaves.</lf-option></lf-options></lf-group>",

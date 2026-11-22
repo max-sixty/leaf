@@ -26,7 +26,7 @@ vars:
       box: in the new thread's reply box (your proposal), or in the task's box as today.
     - You already drew a before/after figure with the two threads today beside one
       thread proposed. Include it verbatim as
-      `<figure id="seat-figure"><svg class="drawing" viewBox="0 0 680 272"></svg></figure>`.
+      `<figure id="seat-figure"><svg class="lf-drawing" viewBox="0 0 680 272"></svg></figure>`.
     - You also built a live demo the user can operate: two numbered steps, then
       `<lf-sample id="seat-sample" label="practice plan"><template data-sample><!-- demo page --></template></lf-sample>`,
       which renders about 700px tall at desktop width.

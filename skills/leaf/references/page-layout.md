@@ -200,7 +200,7 @@ the page's own grid of panes:
 <main class="layout-workspace density-working">
   <header>
     <h1>…</h1>
-    <p><span class="tag warn">…</span></p>
+    <p><span class="lf-tag warn">…</span></p>
   </header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>

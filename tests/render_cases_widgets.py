@@ -1005,7 +1005,7 @@ graph LR
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
 <div class="layout-tiles" id="nums">
-  <section id="me1" class="panel">
+  <section id="me1" class="lf-panel">
     <dl><dt>p95, with the path it measures</dt><dd><strong>410ms</strong></dd></dl>
     <lf-diagram id="in-metric"><pre>
 graph LR

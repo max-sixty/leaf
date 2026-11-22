@@ -2127,9 +2127,11 @@ export function createMarginProjection({
   // that accompanied the target the user was on, with the user outside the card,
   // comes back only beside that target's marker (`openInlineThread`, `unfold: false`).
   // A reply being written in the card carries its thread back itself (version.js,
-  // `restoreEditingContinuity`), so the card is left to it.
-  function captureCurrentLocation() {
-    const active = focused();
+  // `restoreEditingContinuity`), so the card is left to it. A return to a working place,
+  // as Back from a link followed out of the card is, reopens the card the same way
+  // (history.js, `returnPlace`).
+  /** @param {Element | null} [active] the node the user is on, else where focus is */
+  function captureCurrentLocation(active = focused()) {
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
     const selected = card.selection();
@@ -2159,8 +2161,8 @@ export function createMarginProjection({
       : null;
   }
 
-  /** @param {MarginLocation | null} currentLocation */
-  function restoreCurrentLocation(currentLocation) {
+  /** @param {MarginLocation | null} currentLocation @returns {Promise<boolean>} */
+  async function restoreCurrentLocation(currentLocation) {
     if (!currentLocation || typeof currentLocation.entry !== "string") return false;
     const entry = pageInventory.find(
       (candidate) => candidate.key === currentLocation.entry,
@@ -2171,10 +2173,11 @@ export function createMarginProjection({
       : false;
     return currentLocation.focus?.kind === "entry"
       ? restoreEntryFocus(entry, currentLocation.focus)
-      : shown;
+      : await shown;
   }
 
-  /** @param {Entry} entry @param {SavedPreview} preview @param {SavedFocus | null} focus */
+  /** @param {Entry} entry @param {SavedPreview} preview @param {SavedFocus | null} focus
+   * @returns {boolean | Promise<boolean>} */
   function restoreCard(entry, { thread, accompanies }, focus) {
     const items = threadReading(entry)?.items ?? [];
     const item = items.find((candidate) => candidate.id === thread) ?? items[0];
@@ -2191,10 +2194,12 @@ export function createMarginProjection({
     if (kept) closePreview();
     const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
-    // Where the revision closed a tab or disclosure over the passage, or hid it, the
-    // floating panel shows the thread: a reveal would move the page under a reader who
-    // asked for nothing, and a card with no passage to stand beside never places. A user
-    // who was in the card remains in the thread wherever it opens.
+    // Where the page no longer shows the passage, as when a revision closed a tab or
+    // disclosure over it or hid it, or the window narrowed past the margin since the
+    // user left the card, the floating panel shows the thread: a reveal would move the
+    // page under a reader who asked for nothing, and a card with no passage to stand
+    // beside never places. A user who was in the card remains in the thread wherever it
+    // opens.
     const intent = retainUserIntent();
     const opened = openPageThread(id, {
       part: "thread",
@@ -2203,15 +2208,19 @@ export function createMarginProjection({
       scroll: false,
       intent,
     });
-    if (focus?.kind === "preview-close")
-      void opened.then((destination) => {
-        if (destination && under(destination, preview) && intent())
-          card.focusThread(Promise.resolve(true), {
-            closeControl: true,
-            cause: "return",
-          });
-      });
-    return true;
+    return opened.then((destination) => {
+      if (
+        focus?.kind === "preview-close" &&
+        destination &&
+        under(destination, preview) &&
+        intent()
+      )
+        card.focusThread(Promise.resolve(true), {
+          closeControl: true,
+          cause: "return",
+        });
+      return Boolean(destination);
+    });
   }
 
   /** @param {Entry} entry @param {Extract<SavedFocus, {kind: "entry"}>} focus */

@@ -37,7 +37,7 @@ customElements.define(
         <summary>Worktree evidence</summary>
         ${
           record
-            ? html`<dl class="facts">
+            ? html`<dl class="lf-facts">
                   <dt>Branch</dt>
                   <dd>${record.branch}</dd>
                   <dt>Revision</dt>

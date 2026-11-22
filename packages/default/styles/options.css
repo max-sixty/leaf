@@ -146,7 +146,7 @@ lf-option[recommended]::before {
     & > strong {
       margin-inline-end: 0.35em;
     }
-    & > .tag {
+    & > .lf-tag {
       float: inline-end;
       margin: 0 0 0 6px;
     }
@@ -154,11 +154,11 @@ lf-option[recommended]::before {
 }
 /* An option's chips wear the package's chip face (chip.css). The band adds the margins
  * that space and wrap a row. */
-lf-option > .tag {
+lf-option > .lf-tag {
   margin: 0 6px 2px 0;
 }
 /* The titled form: cards stacked full width and read down, whatever their length. A
- * `dl.facts` list at the top of an option docks right where the row can spare it, so
+ * `dl.lf-facts` list at the top of an option docks right where the row can spare it, so
  * scalars align down the group, and stacks above the prose where it cannot. */
 lf-options:has(> lf-option:where([label])) {
   display: block;
@@ -179,20 +179,20 @@ lf-options:has(> lf-option:where([label])) {
   }
   /* The rail declares its frame, so its first term's margin is trimmed rather than
    * collapsing into the option's padding and dropping the rail below the case. */
-  & > lf-option > dl.facts {
+  & > lf-option > dl.lf-facts {
     display: block;
     margin: 0 0 var(--lf-sp-2);
     --lf-block-frame: 1;
   }
   @container (min-width: calc(9.5em + 16px + 20em)) {
-    & > lf-option > dl.facts {
+    & > lf-option > dl.lf-facts {
       float: right;
       clear: right;
       width: 9.5em;
       margin: 0 0 var(--lf-sp-2) var(--lf-sp-3);
     }
   }
-  & > lf-option > dl.facts dt {
+  & > lf-option > dl.lf-facts dt {
     color: var(--lf-muted);
     font: var(--lf-font-small);
     text-transform: uppercase;
@@ -200,7 +200,7 @@ lf-options:has(> lf-option:where([label])) {
     margin-top: 6px;
     padding: 0;
   }
-  & > lf-option > dl.facts dd {
+  & > lf-option > dl.lf-facts dd {
     font: var(--lf-font-widget);
     margin: 0;
   }
@@ -744,12 +744,12 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   @container style(--lf-option-in-row: 1) {
     /* Each chip's row is the seat's height, so the chips wrap level beside the seat and
      * under it rather than stepping down where the seat ends. */
-    lf-option[label] > .tag:has(~ strong),
+    lf-option[label] > .lf-tag:has(~ strong),
     lf-option[label][recommended]:has(> strong)::before {
       float: inline-start;
       margin-block-end: calc(var(--lf-card-state-height) - 1lh);
     }
-    lf-options:has(> lf-option[label]:is([recommended], :has(> .tag ~ strong)))
+    lf-options:has(> lf-option[label]:is([recommended], :has(> .lf-tag ~ strong)))
       > lf-option
       > strong {
       clear: both;

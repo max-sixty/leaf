@@ -416,9 +416,10 @@ export const contentRides = (box, rides) =>
   rides ? riding.add(box) : riding.delete(box);
 // A box's scroll height as its layout gives it: from where its children stand, which
 // offsets read without any transform, and its own end padding. A child placed against
-// something other than the box leaves the browser's reading.
+// something other than the box leaves the browser's reading. It is the height of what
+// the box holds, so a box taller than its content reads its content's height.
 /** @param {Element} box */
-function laidOutHeight(box) {
+export function laidOutHeight(box) {
   let end = 0;
   for (const child of box.children) {
     if (!child.checkVisibility()) continue;

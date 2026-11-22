@@ -1331,7 +1331,7 @@ WIDE_PAGE = leaf_page(
 <header><h1 id="t">Wide page</h1></header>
 <div id="body">{paras}</div>
 <aside id="side">
-  <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+  <section class="lf-panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
 </aside>
 """,
     layout="sidebar",

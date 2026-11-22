@@ -3749,27 +3749,95 @@ def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
 
 def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, serve):
     """Annotations hidden is where the user stands, which the page field's standing
-    words say at once. Hiding them by key names the key that brings them back, which
-    those words don't, so its notice shows there too; showing them again only undoes
-    what the field said, so the field leaves its notice to them. Folded, the leaf's
-    peek says no standing words, so it shows both."""
+    words say at once. Hiding them offers Show annotations, the press that brings them
+    back, which those words don't, so its notice shows there too, with the press and
+    its key at the field's end, and a click on the press shows them; showing them
+    again only undoes what the field said, so the field leaves its notice to them.
+    Folded, the leaf's peek says no standing words, so it shows both."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
+    hidden = page.locator(".lf-chrome[data-lf-annotations-hidden]")
     page.locator("body").focus()
     page.keyboard.press("o")
-    expect_panel_says(page, "Annotations hidden — o shows them")
-    expect(page.locator(".lf-live")).to_have_text("Annotations hidden — o shows them")
+    expect_panel_says(page, "Annotations hidden · Show annotations o")
+    expect(page.locator(".lf-live")).to_have_text("Annotations hidden")
     page.keyboard.press("o")
     # Read once the press has drawn, while its notice's moment still stands.
     rendered(page)
     assert field(page).get_attribute("data-lf-says") == "status"
     assert "Annotations" not in (field(page).get_attribute("placeholder") or "")
     expect(page.locator(".lf-live")).to_have_text("Annotations shown")
+    page.keyboard.press("o")
+    expect(hidden).to_have_count(1)
+    page.locator(".lf-fp-field .lf-compose-press").click()
+    expect(hidden).to_have_count(0)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
     page.keyboard.press("o")
-    expect_panel_says(page, "Annotations hidden — o shows them")
+    expect_panel_says(page, "Annotations hidden")
     page.keyboard.press("o")
     expect_panel_says(page, "Annotations shown")
+
+
+def test_on_a_touchscreen_hiding_annotations_offers_no_press(browser, serve):
+    """A touchscreen shows no keys, and a press's word alone at the field's end reads as
+    status rather than a control, so hiding the annotations from the menu offers no
+    Show annotations there, and the field's standing words say where the user stands,
+    with no notice repeating them."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
+    page.locator(".lf-fp-leaf").tap()
+    panel_tab(page, "Menu").tap()
+    page.locator(".lf-fp-item", has_text="Annotations").first.tap()
+    page.locator(".lf-fp-item", has_text="Hide annotations").tap()
+    expect(page.locator(".lf-chrome[data-lf-annotations-hidden]")).to_have_count(1)
+    expect_panel_says(page, "Annotations hidden")
+    rendered(page)
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
+
+
+def test_a_gesture_s_notice_with_a_press_stays_until_the_next_input(browser, serve):
+    """Hiding the annotations answers the user's own gesture with a press, Show
+    annotations, so its notice stands its time and then until the user's next input:
+    an input within its time leaves it standing, and the first one after takes it."""
+    page = floating(clocked(browser), serve(LONG_PAGE, comments=1))
+    offered = page.locator(
+        ".lf-fp-field .lf-compose-press", has_text="Show annotations"
+    )
+    moment = page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    expect(offered).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    page.clock.run_for(moment * 2)
+    rendered(page)
+    expect(field(page)).to_have_attribute("data-lf-says", "notice")
+    expect(offered).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    expect(offered).to_have_count(0)
+
+
+def test_a_refused_resolve_takes_next_thread_from_under_the_pointer(held_events, serve):
+    """A Resolve's notice stands no longer than its gesture does. A Resolve the log
+    refuses puts the user back on its thread, so Next thread, which would walk them
+    away from it, leaves the field's end, though the pointer rests on the panel."""
+    browser, held = held_events
+    url = serve(LONG_PAGE)
+    for words in ("Is the window long enough?", "Who watches the weekend?"):
+        agent_said(serve.page_dir, panel_comment(serve.page_dir, words), "Noted.")
+    page = floating(browser, url)
+    open_threads(page)
+    page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
+    next_thread = page.locator(".lf-fp-field .lf-compose-press", has_text="Next thread")
+    with page.expect_request("**/api/event"):
+        page.locator(".lf-fp-head .lf-resolve").click()
+    expect(next_thread).to_have_count(1)
+    [resolve] = [r for r in held if r.request.post_data_json["kind"] == "resolve"]
+    resolve.fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    expect_panel_says(page, "Please retry")
+    expect(next_thread).to_have_count(0)
 
 
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
@@ -5608,15 +5676,19 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     expect(row).to_have_css("margin-top", "0px")
 
 
+@pytest.mark.parametrize("by", ["key", "menu", "menu-after-send"])
 def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box(
-    browser, serve
+    browser, serve, by
 ):
     """With a thread open, an image pasted into its reply stands where the page's field
     stands one, just over the box from the panel's start edge, in a band the panel opens
     between the thread's view and the box: it covers neither, the box stays where the
     user types, and the thread's last message stays beside the reply throughout, though
     the panel already reached the window's top and the band takes its room from the
-    view."""
+    view. That holds for a paste from a menu too, which comes with no key: the band
+    then reads as news, which leaves the thread's messages where its scroll puts them,
+    since it changed none of them, even just after a reply the user sent rode into the
+    view, whose ride a reading may have caught mid-way."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -5641,6 +5713,14 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     view.evaluate("view => { view.scrollTop = view.scrollHeight; }")
     field(page).click()
     settled(page)
+    if by == "menu-after-send":
+        page.emulate_media(reduced_motion="no-preference")
+        count = view.locator(".lf-msg").count()
+        page.keyboard.insert_text("And the weekend?")
+        with sending(page, "the reply"):
+            page.keyboard.press("Enter")
+        expect(view.locator(".lf-msg")).to_have_count(count + 1)
+        settled(page)
     last = view.locator(".lf-msg").last
 
     def foot():
@@ -5654,31 +5734,35 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     before = foot()
     assert before[0] >= 0, before
     words = field(page).bounding_box()
-    # The band opens on the panel's tween, as the user's change: its first frame shows
-    # the last message beside the reply already, rather than carrying it as news from
-    # where it stood, under the band, up into the view.
+    # The band opens on the panel's tween: its first frame shows the last message
+    # beside the reply already, rather than carrying it from where it stood, under the
+    # band, up into the view.
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    # The user's paste key hands the field the picture after the watches have heard the
-    # key, as the browser's paste comes after its listeners, so the upload and the
-    # thumbnail are that key's rendering.
-    page.evaluate(
-        """encoded => document.addEventListener('keydown', function paste(event) {
-          if (event.key !== 'v') return;
-          document.removeEventListener('keydown', paste, true);
-          event.preventDefault();
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          document.querySelector('.lf-fp-field leaf-text').dispatchEvent(
-            new ClipboardEvent('paste', {
-              bubbles: true, cancelable: true, clipboardData: transfer,
-            }));
-        }, true)""",
-        base64.b64encode(solid_png(240, 120, (255, 128, 64))).decode(),
-    )
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("ControlOrMeta+v")
+    picture = solid_png(240, 120, (255, 128, 64))
+    if by == "key":
+        # The user's paste key hands the field the picture after the watches have
+        # heard the key, as the browser's paste comes after its listeners, so the
+        # upload and the thumbnail are that key's rendering.
+        page.evaluate(
+            """encoded => document.addEventListener('keydown', function paste(event) {
+              if (event.key !== 'v') return;
+              document.removeEventListener('keydown', paste, true);
+              event.preventDefault();
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+              document.querySelector('.lf-fp-field leaf-text').dispatchEvent(
+                new ClipboardEvent('paste', {
+                  bubbles: true, cancelable: true, clipboardData: transfer,
+                }));
+            }, true)""",
+            base64.b64encode(picture).decode(),
+        )
+        with page.expect_response(lambda response: response.url.endswith("/api/media")):
+            page.keyboard.press("ControlOrMeta+v")
+    else:
+        paste_image(field(page), picture)
     shelf = page.locator(".lf-fp-field .lf-composer-media-item")
     expect(shelf).to_have_count(1)
     page.wait_for_function("() => __lfHeld.length > 0")
@@ -5697,6 +5781,10 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     after = foot()
     assert after[1] < before[1], "the fixture must take the band from the view"
     assert after[0] == pytest.approx(before[0], abs=1), (before, after)
+    if by != "key":
+        # A menu's paste reaches the page with no key or press the hold-still watch can
+        # credit, so the band moving the view's head up reads to it as news.
+        consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 def test_a_pasted_image_s_thumbnail_arrives_at_its_picture_s_size(browser, serve):

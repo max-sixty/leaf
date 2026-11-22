@@ -105,7 +105,7 @@ import {
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
 import { advertisesKeys } from "../keyboard/bindings.js";
-import { activeCommandLabel } from "../keyboard/dispatch.js";
+import { commandKeysNow } from "../keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
 import {
@@ -1492,7 +1492,7 @@ export function createResponseSurface({
   let commentKey = "";
   const commentHint = () => {
     const { box } = commentDestination();
-    commentKey = activeCommandLabel(["comment.create"]);
+    commentKey = commandKeysNow("comment.create").join(" ");
     return { box, label: commentKey };
   };
 

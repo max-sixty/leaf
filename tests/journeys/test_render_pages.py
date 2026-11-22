@@ -899,11 +899,11 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", table="")
         + item.format(id="holds", table=table.format(id="holds"))
-        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
-        + '<aside class="callout" id="granted-c" data-width="wide">'
+        + '<aside class="lf-callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="lf-callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
         + "</aside>"
-        + '<aside class="callout" id="contained-c">'
+        + '<aside class="lf-callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
         + '<lf-group id="list-q" label="Raise the limit?">'

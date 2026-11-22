@@ -138,7 +138,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         expect(page.locator(f"#{expected}")).to_be_focused()
     page.keyboard.press("Shift+h")
     expect(page.locator("#d")).to_be_focused()
-    # The marks are annotations: Escape lets go of the change and leaves them, and `o`
+    # The marks are annotations: Escape lets go of the change and leaves them, and `a`
     # hides them with the rest.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")

@@ -26,8 +26,8 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serve):
-    """`o` hides the annotation layer: every pin, the controls one holds included, and
+def test_hiding_annotations_takes_down_what_is_drawn_over_the_page(browser, serve):
+    """`a` hides the annotation layer: every pin, the controls one holds included, and
     the durable marks, while the rail and what stands in it stay, since the rail covers
     nothing. Nothing in the layer takes up room, so no box of the page moves. A press on
     a passage whose mark is hidden opens nothing, and the choice is the tab's, so a
@@ -37,7 +37,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     Hidden annotations leave a commented page looking as if nobody commented, and the
     hidden layer comes back with a reload, after its notice has passed. So while it is
     hidden the panel's field says so, ahead of the status or after a stance's name,
-    until `o` shows the layer again."""
+    until `a` shows the layer again."""
     page = open_page(
         browser,
         serve(

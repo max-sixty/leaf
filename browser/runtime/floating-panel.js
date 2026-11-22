@@ -217,6 +217,7 @@ import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
 import {
   advertisesKeys,
+  cycledRow,
   labelOf,
   parsed,
   rowArrows,
@@ -439,6 +440,15 @@ const GROUPS = Object.freeze([
   { name: "navigate", label: "Navigate" },
   { name: "annotate", label: "Annotations" },
 ]);
+// The On view's tabs, in their strip's order (`onTabs`), which ← and → turn (`turnTab`),
+// and the Go-to door to each list (keyboard/go-to-sequence.js), which its tab names.
+/** @type {readonly ("menu" | "you" | "agent" | "threads")[]} */
+const ON_TABS = Object.freeze(["menu", "you", "agent", "threads"]);
+const ON_DOORS = Object.freeze({
+  you: "navigation.panel.queue",
+  agent: "navigation.panel.agent",
+  threads: "navigation.panel.threads",
+});
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
 // The leaf's press by key (`pressLeaf`), which the leaf itself is the finger's route to.
@@ -1928,7 +1938,7 @@ export function createFloatingPanel({
     const before = trail.value.at(-1);
     if (before && routeKey(before) === routeKey(route) && !replace) {
       if (reopen) return;
-      close();
+      putAway();
       return;
     }
     if (route.thread && presentation && !presentation.primary) {
@@ -2033,6 +2043,14 @@ export function createFloatingPanel({
     const row = shownView()?.querySelector(`[data-lf-row="${CSS.escape(door)}"]`);
     if (row) focusDestination(row, "return");
     else focusView(trail.value.at(-1), null);
+  }
+  // A press that puts the view away, the leaf's or a door's, takes a user standing in
+  // it back to the page, as Escape does (the `floating panel` rung), rather than
+  // leaving focus on nothing as the view goes. One standing anywhere else stays there.
+  function putAway() {
+    const inside = currentLocationIn(opened);
+    close();
+    if (inside) letGo();
   }
   function close({ handedOn = false } = {}) {
     // Closing the view ends the writing posture too. A saved page draft keeps
@@ -4722,19 +4740,26 @@ export function createFloatingPanel({
   // Rejected: a blank at zero, which reads as a gap after the word, and the word
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On Me nearly always does. An empty gap stands between two tabs, for the
-  // strip's gutter track (floating-panel.css, `.lf-fp-filters`).
+  // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
+  // show previews the keys of the Go-to door that opens it from anywhere (`door`), such
+  // as `g A` on On <agent>'s, so the user meets the key where they reach for the list.
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
-   * @param {(name: T) => number | null} count */
-  const tabs = (names, current, label, choose, count) =>
+   * @param {(name: T) => number | null} count @param {(name: T) => string | null} door */
+  const tabs = (names, current, label, choose, count, door) =>
     html`<div class="lf-fp-filters" data-lf-scroll role="group" aria-label="Show">
       ${names.map((name, at) => {
         const counted = count(name);
         const gap = at ? html`<span class="lf-fp-tab-gap"></span>` : nothing;
+        const opens = door(name);
         return html`${gap}<button
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
+            .lfPreview=${() => {
+              const steps = opens && current !== name ? commandSteps(opens) : [];
+              return steps.length ? { keys: [steps] } : null;
+            }}
             @click=${() => {
               refit();
               choose(name);
@@ -4819,7 +4844,7 @@ export function createFloatingPanel({
     // so no tab says 0 of a list the page can't read yet or offline.
     const counted = readQueues().phase === "ready";
     return tabs(
-      ["menu", "you", "agent", "threads"],
+      ON_TABS,
       current,
       (tab) => (tab === "menu" || tab === "threads" ? TAB_LABELS[tab] : tabLabel(tab)),
       onTab,
@@ -4831,6 +4856,7 @@ export function createFloatingPanel({
             : counted
               ? lists[tab].length
               : null,
+      (tab) => (tab === "menu" ? null : ON_DOORS[tab]),
     );
   }
   // A tab keeps the user on it, as turning between the lists always has, so the press
@@ -5235,7 +5261,8 @@ export function createFloatingPanel({
   // ---------- gestures ----------
   // The leaf unfolds a folded panel, and otherwise opens the On view on the tab its
   // marks point at (`leafOpens`), or puts the view away where it stands, a view it leads
-  // to included. `o` presses it (`LEAF`). A key lands on the tab's first row, as every
+  // to included. `o` presses it (`LEAF`), and from a folded panel opens the view as it
+  // unfolds it, as Go-to's doors do. A key lands on the tab's first row, as every
   // key that opens a list does (`focusView`), so ← and → go on to the other tabs from
   // there, and ↑ or `/` reaches the menu's search. A mouse's press on the menu puts
   // the caret in its search, so the words the user types narrow it; a finger reads the
@@ -5244,10 +5271,10 @@ export function createFloatingPanel({
     if (host.dataset.lfRest === "mark") {
       prefs().setRest("row");
       paint();
-      return;
+      if (pressLed()) return;
     }
     if (onViewStands()) {
-      close();
+      putAway();
       return;
     }
     const opens = leafOpens(
@@ -5404,10 +5431,8 @@ export function createFloatingPanel({
     const rows = listRows();
     return rows.length > 0 && (at === shownView() || rows.some((row) => row === at));
   };
-  // The On view's tabs, in their strip's order (`onTabs`), and the one it shows, or
-  // null where the view standing is no tab of it, as a thread or Versions is.
-  /** @type {readonly ("menu" | "you" | "agent" | "threads")[]} */
-  const ON_TABS = Object.freeze(["menu", "you", "agent", "threads"]);
+  // The On view's tab it shows, or null where the view standing is no tab of it, as a
+  // thread or Versions is.
   const shownTab = () => {
     const top = trail.value.at(-1)?.view;
     return top === "queue"
@@ -5424,19 +5449,20 @@ export function createFloatingPanel({
     shownTab() !== null &&
     (Boolean(tabOn()) || inList() || (focused() !== null && focused() === shownView()));
   // ← and → turn the On view to the tab beside the one it shows, round from either
-  // end, as ↑ and ↓ walk its rows, so its lists stand on a grid the arrows cross. From
-  // the list the user lands on the new tab's list as a key opening it lands
-  // (`focusView`); from the tab strip, on the new tab, as a press on a tab keeps them
-  // (`onTab`). The arrows on a card's own controls keep their meaning there, as with
-  // the rows' walk.
+  // end as a tab strip's walk comes round (`cycledRow`), while ↑ and ↓ walk its rows,
+  // so its lists stand on a grid the arrows cross. From the list the user lands on the
+  // new tab's list as a key opening it lands (`focusView`); from the tab strip, on the
+  // new tab, as a press on a tab keeps them (`onTab`), stepping from the tab they stand
+  // on, which Tab may have moved off the one shown. The arrows on a card's own controls
+  // keep their meaning there, as with the rows' walk.
   /** @param {string} binding */
   function turnTab(binding) {
-    const from = shownTab();
-    if (from === null) return;
     const strip = tabOn();
-    const ahead = binding === rowArrows(strip ?? host)[1] ? 1 : -1;
-    const to =
-      ON_TABS[(ON_TABS.indexOf(from) + ahead + ON_TABS.length) % ON_TABS.length];
+    const stripTabs = [...controls.querySelectorAll(".lf-fp-tab")];
+    const from = strip ? ON_TABS[stripTabs.indexOf(strip)] : shownTab();
+    if (!from) return;
+    const back = binding === rowArrows(strip ?? host)[0];
+    const to = cycledRow(ON_TABS, from, back ? -1 : 1);
     if (to === undefined) return;
     if (to === "menu" || to === "threads") query = "";
     onTab(to);
@@ -5587,13 +5613,11 @@ export function createFloatingPanel({
     id: LEAF,
     keys: ["o"],
     title: () =>
-      prefs().rest === "mark"
-        ? "unfold"
-        : onViewStands()
-          ? "close"
-          : LEAF_PRESSES[
-              leafOpens(fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()))
-            ],
+      onViewStands()
+        ? "close"
+        : LEAF_PRESSES[
+            leafOpens(fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()))
+          ],
     description: "Press the leaf: the list its marks point at, or the menu",
     control: leaf,
     touch: false,

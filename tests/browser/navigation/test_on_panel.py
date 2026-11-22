@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    PREVIEW,
     expect_obligations_answered,
     expect_panel_says,
     field_press,
@@ -440,14 +441,16 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
 
 def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serve):
     """`o` presses the leaf, which names it, so with a question waiting it opens On Me
-    with the question's card under the user, and a second `o` puts the view away. ←
-    and → turn the view's tabs round from either end, landing on each list as a key
-    opening it lands, or, from the tab strip, on the tab. `g A` opens the agent's list
-    as `g M` opens the user's, and closes it again."""
+    with the question's card under the user, and a second `o` puts the view away,
+    leaving the user on the page rather than on nothing. ← and → turn the view's tabs
+    round from either end, landing on each list as a key opening it lands, or, from the
+    tab strip, on the tab, stepping from the tab focus stands on. `g A` opens the
+    agent's list as `g M` opens the user's, and closes it again."""
     page = open_page(browser, serve(QUEUE_PAGE))
     shown = page.locator(".lf-fp-view:not([data-lf-leaving])")
     tab = page.locator('.lf-fp-tab[aria-pressed="true"]')
     agent = re.compile(r"On (?!Me\b)\w")
+    on_page = "() => document.activeElement?.closest('main') !== null"
     expect(page.locator(".lf-fp-leaf")).to_have_attribute("aria-keyshortcuts", "o")
     page.locator("#h").click()
     page.keyboard.press("o")
@@ -467,18 +470,44 @@ def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serv
     expect(tab).to_contain_text("Menu")
     menu_row = page.locator(f"{panel_view('menu')} .lf-fp-item:not(:disabled)")
     expect(menu_row.first).to_be_focused()
-    tab.focus()
-    page.keyboard.press("ArrowLeft")
-    expect(tab).to_contain_text("Threads")
-    expect(tab).to_be_focused()
     page.keyboard.press("o")
     expect(shown).to_have_count(0)
+    # Escape's landing, on the page, so Tab goes on from what is read there rather than
+    # from the panel's row.
+    page.keyboard.press("Tab")
+    page.wait_for_function(on_page)
+    # A tab pressed keeps the user on it; Tab moves to the next tab, On Me, without
+    # turning to it, and → turns to the tab after the one focus stands on.
+    page.keyboard.press("o")
+    page.locator(".lf-fp-tab", has_text="Menu").click()
+    expect(tab).to_contain_text("Menu")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-tab", has_text="On Me")).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(tab).to_contain_text(agent)
+    expect(tab).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Menu")
+    expect(tab).to_be_focused()
+    # A tab the view doesn't show names the door that opens its list from anywhere.
+    page.mouse.move(2, 2)
+    page.locator(".lf-fp-tab", has_text=agent).hover()
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(
+        re.compile(r"^\s*g\s*A\s*$")
+    )
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(tab).to_contain_text(agent)
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(shown).to_have_count(0)
+    # From a folded panel, `o` unfolds it and opens the view in one press.
+    page.keyboard.press(".")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
+    page.keyboard.press("o")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "row")
+    expect(tab).to_contain_text("On Me")
 
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):

@@ -587,7 +587,7 @@ def test_a_pin_stays_inside_a_window_that_shrinks_around_a_fixed_canvas(browser,
 
 
 def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
-    """A phone has no `o` to press, so the leaf's menu holds the same toggle under
+    """A phone has no `a` to press, so the leaf's menu holds the same toggle under
     Annotate: the pin goes, no box of the page moves, and the row's word turns to the way
     back."""
     context = browser.new_context(

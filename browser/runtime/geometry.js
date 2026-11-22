@@ -23,7 +23,8 @@ import { keeps } from "./keeps.js";
  * placer: Element | null | undefined, scrolls: boolean}} ClipEntry
  * @typedef {Map<Element, ClipEntry>} ClipCache
  * @typedef {{box: Element, axes: {x: boolean, y: boolean}, scrolls: boolean,
- * covered: boolean, footed: boolean, band: Box | null}} ClipCut */
+ * covered: boolean, footed: boolean, band: Box | null}} ClipCut
+ * @typedef {Record<keyof Box, Element | null>} Holders */
 
 // The geometry owner uses the active document's visual viewport, including pinch
 // zoom and the on-screen keyboard. Refuse a missing capability at this boundary.
@@ -51,7 +52,8 @@ export const visualViewport = nativeViewport;
    - `shownParts` for obligation rings and element-anchor outlines;
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
-   - `shownRect` for visible placement of floating chrome and key badges;
+   - `shownRect` for visible placement of floating chrome and key badges, and
+     `shownRectHeld` for the box each of its edges belongs to;
    - `seenRect` for whether, and how much of, something is in front of the user;
    - `growthIsSeen` and `growthAfterIsSeen` for whether a change of size would move what
      the user sees (`motionBand`), which scroll anchoring makes a different question;
@@ -773,6 +775,19 @@ export function readMarkerSides(boxes) {
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
+// `shownRect` with the box that supplies each of its edges (`holders`): the item's own,
+// a box whose band clips it there, or null where the window does. A floating surface
+// held in at one of those edges stands in that box's plane (floating.js).
+/** @param {Element} item @param {ClipCache} clips @returns {(Box & {holders: Holders}) | null} */
+export function shownRectHeld(item, clips) {
+  const root = item.ownerDocument.scrollingElement;
+  const own = item === root ? null : item;
+  /** @type {Holders} */
+  const holders = { left: own, top: own, right: own, bottom: own };
+  const cuts = clipWalk(item, clips, false).cuts;
+  const shown = cutBy(shownBox(item), cuts, root, true, holders);
+  return shown && { ...shown, holders };
+}
 // What of an item the user sees: what every box over it lets through, within the visible
 // viewport's height, less the boxes the chrome covers (`coverBoxes`), or null when none
 // of it shows. A cover reaching into the item's columns takes the item from the cover to
@@ -1188,17 +1203,29 @@ function clipped(box, item, clips, held, inWindow = true, stop) {
   const root = item.ownerDocument.scrollingElement;
   return cutBy(box, clipWalk(item, clips, held, stop).cuts, root, inWindow && !stop);
 }
+/** @type {readonly (keyof Box)[]} */
+const BOX_EDGES = ["left", "top", "right", "bottom"];
 // `box` less the bands of `cuts`, each on the axes it clips, or null where they leave
 // none of it. In the window's plane the window cuts it; in the page's plane the root's
 // band is the window, which cuts nothing there, and only a header stuck over its top
-// does.
-/** @param {Box} box @param {ClipCut[]} cuts @param {Element | null} root @param {boolean} inWindow */
-function cutBy(box, cuts, root, inWindow) {
-  let shown = inWindow ? intersect(box, layoutWindow()) : box;
-  for (const { box: cut, band, axes, covered } of cuts) {
+// does. `holders`, where given, starts with the box each edge of `box` belongs to and
+// ends with the box each edge of the answer does: the clip whose band cut that edge
+// furthest in, the first on a tie, or null where the window or the root's band did.
+/** @param {Box} box @param {ClipCut[]} cuts @param {Element | null} root @param {boolean} inWindow @param {Holders} [holders] */
+function cutBy(box, cuts, root, inWindow, holders) {
+  /** @param {Box} shown @param {Box} edges @param {Element | null} holder @param {{x: boolean, y: boolean}} [axes] */
+  const cut = (shown, edges, holder, axes) => {
+    const next = intersect(shown, edges, axes);
+    if (holders)
+      for (const edge of BOX_EDGES)
+        if (next[edge] !== shown[edge]) holders[edge] = holder;
+    return next;
+  };
+  let shown = inWindow ? cut(box, layoutWindow(), null) : box;
+  for (const { box: clip, band, axes, covered } of cuts) {
     if (!band) return null;
     const edges =
-      !inWindow && cut === root
+      !inWindow && clip === root
         ? {
             left: -Infinity,
             top: covered ? band.top : -Infinity,
@@ -1206,7 +1233,7 @@ function cutBy(box, cuts, root, inWindow) {
             bottom: Infinity,
           }
         : band;
-    shown = intersect(shown, edges, axes);
+    shown = cut(shown, edges, clip === root ? null : clip, axes);
   }
   const { left, top, right, bottom } = shown;
   return hasArea(shown) ? { left, top, right, bottom } : null;

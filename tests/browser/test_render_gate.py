@@ -216,27 +216,27 @@ DRAWN_LABELS_PAGE = leaf_page(
     """
 <h1>Rollout</h1>
 <figure id="squeezed">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
     <text x="20" y="40">canary</text>
     <text x="560" y="40">region</text>
     <text x="1100" y="40">global</text>
   </svg>
 </figure>
 <figure id="large">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
     <text x="20" y="60" font-size="28">canary</text>
     <text x="1100" y="60" font-size="28">global</text>
   </svg>
 </figure>
 <figure id="natural">
-  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+  <svg class="lf-drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
     <circle class="mark" cx="20" cy="20" r="7" />
     <text class="glyph" style="font-size: 9px" x="20" y="20">1</text>
     <text class="small" x="40" y="24">note</text>
   </svg>
 </figure>
 <figure id="undrawn">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
     <defs><text x="20" y="40">draft</text></defs>
     <rect class="mark" x="20" y="60" width="200" height="40" />
     <text x="20" y="40"><tspan display="none">paused</tspan></text>

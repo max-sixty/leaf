@@ -268,10 +268,10 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     from 1600 units as well as the one fitted from 900."""
     compared = """
 <figure id="compare">
-  <svg class="drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
+  <svg class="lf-drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
     <text x="20" y="40">before</text>
   </svg>
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
     <text x="20" y="40">canary</text>
     <text x="560" y="40">region</text>
     <text x="1100" y="40">global</text>

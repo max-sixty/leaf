@@ -1590,11 +1590,14 @@ def test_the_kernel_styles_no_class_a_page_coins():
     floor and grows its form (tests/fixtures/plain/form.html). A kernel sheet's
     selectors and `@scope` preludes, and the selectors the runtime hands a DOM query,
     name no other class but a library's on the elements Leaf draws for it: PhotoSwipe's
-    in the chrome's lightbox, and CodeMirror's in a text field's closed tree."""
+    in the chrome's lightbox, and CodeMirror's in a text field's closed tree. An idiom's
+    marks are the one other kind: a class on an element inside one that wears a kernel
+    idiom's class (`structure.AUTHORED_CLASSES`), as `.box` is in `svg.lf-drawing .box`,
+    which reaches nothing outside a drawing."""
     authored = ("lf-", "layout-", "density-")
     libraries = ("pswp", "cm-")
 
-    def classes(tokens):
+    def classes(tokens, nested=True):
         """The class selectors among `tokens`, in and out of `:is()`-like arguments."""
         previous = None
         for token in tokens:
@@ -1605,18 +1608,47 @@ def test_the_kernel_styles_no_class_a_page_coins():
                 and previous.value == "."
             ):
                 yield token.value
-            if token.type in ("function", "() block"):
+            if nested and token.type in ("function", "() block"):
                 yield from classes(
                     token.arguments if token.type == "function" else token.content
                 )
             previous = token
 
-    def coined(selector):
-        return sorted(
-            name
-            for name in classes(tinycss2.parse_component_value_list(selector))
-            if not name.startswith(authored + libraries)
-        )
+    def coined(prelude):
+        """The classes a prelude names that are neither Leaf's nor a library's, read one
+        compound at a time, so that those after a compound wearing an idiom's class
+        count as that idiom's marks."""
+        names, compound, inside = [], [], False
+        for token in [*tinycss2.parse_component_value_list(prelude), None]:
+            ends_selector = token is None or (
+                token.type == "literal" and token.value == ","
+            )
+            if (
+                ends_selector
+                or token.type == "whitespace"
+                or (token.type == "literal" and token.value in ">+~")
+            ):
+                if not inside:
+                    names += [
+                        name
+                        for name in classes(compound)
+                        if not name.startswith(authored + libraries)
+                    ]
+                inside = not ends_selector and (
+                    inside
+                    or not structure_model.AUTHORED_CLASSES.isdisjoint(
+                        classes(compound, nested=False)
+                    )
+                )
+                compound = []
+            else:
+                compound.append(token)
+        return sorted(names)
+
+    assert coined("svg.lf-drawing .box, .box svg.lf-drawing, :is(.lf-scroll) .hot") == [
+        "box",
+        "hot",
+    ]
 
     def preludes(rules):
         for rule in rules:

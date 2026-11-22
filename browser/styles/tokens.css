@@ -383,11 +383,11 @@
   --lf-t-1: 1.9375rem;
   --lf-code-size: 0.84375rem;
   --lf-code-line: 1.25rem;
-  /* A drawing's words (`svg.drawing`, the reading theme). These two are fixed, in pixels,
-     which an inline SVG reads as its own units, because the shapes around the words are
-     numbers in those units. In rem, or at a rung a density restates, a reader's larger
-     default size or a working page would change the words and leave the boxes that hold
-     them as drawn. The viewBox scales words and shapes together. */
+  /* A drawing's words (`svg.lf-drawing`, components/drawing.css). These two are fixed,
+     in pixels, which an inline SVG reads as its own units, because the shapes around the
+     words are numbers in those units. In rem, or at a rung a density restates, a
+     reader's larger default size or a working page would change the words and leave the
+     boxes that hold them as drawn. The viewBox scales words and shapes together. */
   --lf-drawing-size: 11.5px;
   --lf-drawing-small-size: 10px;
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the

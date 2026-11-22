@@ -28,7 +28,7 @@ vars:
     \ \"Great, can we make a full Leaf page that explains this and\nshows tradeoffs / any other options\"\
     \n\nWrite the page. The page directory is not reachable from here, so reply with the\n`<main>` element's\
     \ HTML rather than writing a file. Figures may be placeholders\nsuch as `<figure id=\"owners-figure\"\
-    ><svg class=\"drawing\" viewBox=\"0 0 680 300\"></svg></figure>`.\n"
+    ><svg class=\"lf-drawing\" viewBox=\"0 0 680 300\"></svg></figure>`.\n"
 assert:
   - type: llm-rubric
     metric: judgment

@@ -2235,7 +2235,7 @@ def gallery_plans(page: Page) -> None:
 
 
 def gallery_drawing(page: Page) -> None:
-    """The reading theme's `svg.drawing`, with each of its text classes on its shapes."""
+    """A drawing (`svg.lf-drawing`), with each of its text classes on its shapes."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
 

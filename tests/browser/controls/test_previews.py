@@ -2809,7 +2809,8 @@ def test_a_name_longer_than_its_room_ends_in_an_ellipsis(engine, request, serve)
             leaf_page(
                 "Long name",
                 '<p><button id="before">Before</button></p>'
-                '<p><button id="aim">Aim</button></p>',
+                '<p><button id="aim">Aim</button></p>'
+                '<div style="height: 200vh"></div>',
             )
         ),
     )
@@ -2819,6 +2820,9 @@ def test_a_name_longer_than_its_room_ends_in_an_ellipsis(engine, request, serve)
     )
     page.set_viewport_size({"width": 900, "height": 180})
     tip = page.locator(PREVIEW)
+    # The buttons stand at the window's top, so the room the short window gives the
+    # preview lies below Aim, where the grown window adds more.
+    page.locator("#before").evaluate("el => el.scrollIntoView({block: 'start'})")
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(tip.locator(".lf-preview-word")).to_contain_text("word0")

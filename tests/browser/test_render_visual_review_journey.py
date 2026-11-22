@@ -25,6 +25,7 @@ from render_harness import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -396,6 +397,78 @@ def test_a_comment_being_written_on_a_visual_case_stays_in_hand_as_the_case_goes
     assert page.evaluate("window.blurs") == 0
     page.keyboard.type(" a thought")
     expect(box).to_have_js_property("value", "Half a thought")
+
+
+def test_a_comment_being_written_on_a_visual_case_keeps_its_seat_under_the_panel_s_row(
+    browser, serve
+):
+    """News leaves the comment box the user is typing in seated in its case's
+    discussion while the discussion's foot stands under the floating panel's row and
+    the field stands clear of the row."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual review mid-page",
+            """
+<h1>Review the package change</h1>
+<section><lf-visual-review id="visual-review-run" source="gallery-visual-run"></lf-visual-review></section>
+<p style="min-height: 40rem">The decision record continues after the evidence.</p>
+""",
+        ),
+        "put the review mid-page",
+    )
+    url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
+    page = open_page(browser, url)
+    resized(page, 390, 760)
+    case = page.locator(".lf-vr-case:not([hidden])")
+    comment_on_target(page, case)
+    field = case.locator(".lf-vr-threads .lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep the return route")
+    rendered(page)
+    places = """(field, panel) => {
+      const discussion = field.closest('.lf-vr-discussion').getBoundingClientRect();
+      const row = document.querySelector(panel).getBoundingClientRect();
+      return {field: field.getBoundingClientRect().bottom,
+        discussion: discussion.bottom, row: row.top};
+    }"""
+    at = field.evaluate(places, PANEL)
+    # The row's top falls midway between the field's foot and the discussion's.
+    gap = (at["discussion"] - at["field"]) / 2
+    page.mouse.move(195, 300)
+    before = page.evaluate("scrollY")
+    page.mouse.wheel(0, at["discussion"] - at["row"] - gap)
+    page.wait_for_function("y => scrollY !== y", arg=before)
+    scroll_settled(page)
+    at = field.evaluate(places, PANEL)
+    assert at["field"] <= at["row"] < at["discussion"], at
+    case.locator(".lf-vr-threads").evaluate(
+        """outlet => {
+          window.lfSeatLeft = 0;
+          new MutationObserver((records) => {
+            for (const record of records)
+              for (const node of record.removedNodes)
+                if (node.classList?.contains('lf-fab-bar')) window.lfSeatLeft++;
+          }).observe(outlet, {childList: true});
+        }"""
+    )
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    result = "The candidate keeps its return route on the package page."
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "gallery-visual-run",
+        record
+        | {"cases": [record["cases"][0] | {"result": result}, *record["cases"][1:]]},
+    )
+    told(page)
+    expect(case.locator(".lf-vr-result")).to_contain_text(result)
+    rendered(page)
+    assert page.evaluate("window.lfSeatLeft") == 0, "the comment box left its seat"
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep the return route")
 
 
 def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):

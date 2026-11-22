@@ -45,7 +45,10 @@
    the same headers cut, so a pin whose target scrolls under a stuck toolbar takes none
    of the toolbar's presses. A row that quotes a passage follows its words, which a box
    inside the target can scroll, and is withheld as they leave its view (`wordsShown`).
-   Remeasuring after a scroll writes the same insets.
+   Remeasuring after a scroll writes the same insets for a row outside a carrier. A carrier's
+   inset and its rows' margins are measured from the window, so a pass after a scroll
+   writes new values, and `placeCarriedRows` relies on that write: it makes an engine
+   that misplaced a carrier after a scroll inside a scaled box resolve its anchor again.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
    observation covers the target's layout siblings and ancestors, including a bounded
    region whose outer height stayed fixed. Geometric reflow, rather than scroll, is what

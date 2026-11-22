@@ -7,7 +7,13 @@
  * autosaves to it within half a second, and a copy shared across tabs would set two
  * live buffers against one file with no log to settle between them. The draft only
  * has to survive this tab's reloads, including the forced one when Leaf's layer
- * changes, which is what lets the editor say the draft is kept.
+ * changes, which is what lets the editor say the draft is kept. A save can reach the
+ * file while its answer never reaches the tab, as when a reload cancels the request, so
+ * until a save is answered the draft also records the text it sent, and leaving the
+ * page asks first; a read that then finds that text on disk takes it as the version
+ * the draft stands over. Rejected: keeping the draft without that text, since the read
+ * then takes the save's words as a write from elsewhere, and the line merge puts them
+ * in place of a reader's later typing, or calls the reader's own save a conflict.
  *
  * The editor publishes its files as a `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
@@ -101,10 +107,11 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
 /** One bound file as this tab knows it: what the server last acknowledged (`base`), a
  * newer disk version held for the reader's choice (`latest`), and the requests on it.
  * `kept` is what the editor held of it while another file is open, and `named` the
- * name the editor's `files` output last listed it by.
+ * name the editor's `files` output last listed it by. `sent` is the text of a save the
+ * server hasn't answered, in flight or lost, until an answer or a read settles it.
  * @typedef {{
  *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
- *   base: FileSnapshot | null, latest: FileSnapshot | null,
+ *   base: FileSnapshot | null, latest: FileSnapshot | null, sent: string | null,
  *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
  *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
  *   slow: boolean, loading: boolean, generation: number, timer: number,
@@ -194,6 +201,7 @@ customElements.define(
             recoveryKey: `file:${this.id}:${binding}`,
             base: null,
             latest: null,
+            sent: null,
             failure: null,
             spoken: null,
             busy: false,
@@ -321,7 +329,8 @@ customElements.define(
           : (of.kept?.state.doc.toString() ?? of.base?.text ?? "");
       const dirty = (/** @type {OpenFile} */ of) =>
         of.base !== null && text(of) !== of.base.text;
-      const unsettled = (/** @type {OpenFile} */ of) => dirty(of) || of.latest !== null;
+      const unsettled = (/** @type {OpenFile} */ of) =>
+        dirty(of) || of.latest !== null || of.sent !== null;
       // A version written elsewhere that changed other lines than the draft did joins
       // the draft, which then stands over that version and saves on its own.
       /** @param {OpenFile} of @param {FileSnapshot} current */
@@ -343,7 +352,7 @@ customElements.define(
         tabStore.set(
           of.recoveryKey,
           of.base && unsettled(of)
-            ? JSON.stringify({ base: of.base, text: text(of) })
+            ? JSON.stringify({ base: of.base, text: text(of), sent: of.sent })
             : null,
         );
       }
@@ -592,6 +601,7 @@ customElements.define(
         const against = replace && of.latest ? of.latest : of.base;
         const submitted = text(of);
         of.busy = true;
+        of.sent = submitted;
         // The host compares the file before writing, so a receipt or a stale answer
         // covers any read owed before it starts; a failure read nothing.
         const owedBefore = of.owed;
@@ -619,6 +629,9 @@ customElements.define(
           }
         } finally {
           of.busy = false;
+          // A save that got no answer, as when a reload cancels it, may still have
+          // reached the file, so its text stays until a read says.
+          if (!of.failure) of.sent = null;
           if (connected) remember(of);
           if (!dirty(of) || of.failure || of.latest || !connected) finishSaving(of);
           else if (!of.slow) {
@@ -672,12 +685,18 @@ customElements.define(
               else editor.follow(current.text);
             } else if (of.kept && text(of) !== current.text)
               of.kept = followKept(of.kept, current.text);
-          } else if (current.text === text(of)) {
+          } else if (
+            current.text === text(of) ||
+            current.revision === of.base.revision ||
+            current.text === of.sent
+          ) {
+            // The file holds the draft, the version it was typed over, or the save
+            // whose answer was lost; the draft stands over it.
             of.base = current;
             of.latest = null;
-          } else if (current.revision === of.base.revision) of.latest = null;
-          else if (!settle(of, current)) of.latest = current;
+          } else if (!settle(of, current)) of.latest = current;
           of.recovering = false;
+          of.sent = null;
           of.failure = null;
         } catch (fault) {
           of.failure = { kind: "read", message: describeFailure(fault) };
@@ -726,9 +745,10 @@ customElements.define(
       const recover = (of) => {
         const pending = tabStore.get(of.recoveryKey);
         if (!pending || !of.api.writable) return;
-        /** @type {{base: FileSnapshot, text: string}} */
+        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
         const recovered = JSON.parse(pending);
         of.base = recovered.base;
+        of.sent = recovered.sent;
         of.recovering = true;
         return recovered.text;
       };

@@ -170,39 +170,21 @@ and when the element leaves, drop unfinished work but keep finished nodes.
 
 ## Revisions
 
-A revision that changes anything in a widget's markup replaces the whole widget with a
-new element, and the user loses what they had open in it. A module that builds beside
-the widget's authored content, and leaves every node the author wrote where it is,
-declares `static lfPatch = "members"` on its element's class. Leaf then keeps the
-widget and patches the markup inside it as it patches the rest of the page: it writes
-the words, attributes and elements the revision changed, and puts each element's
-children back in the order the revision gives them.
+A revision that changes a widget's markup replaces the whole widget, rebuilding what
+the user had open in it. A module that builds beside the widget's direct authored
+children and leaves them where they are declares `static lfPatch = "members"` on its
+element's class, and Leaf then edits inside those children in place.
 
-Inside such a widget Leaf still replaces two things whole when the revision changes
-anything in them. One is a widget with a module of its own, unless that module's class
-declares `lfPatch` too. The other is an element that no longer holds every node the
-author wrote in it, the whitespace between its children included. `setChildren` removes
-that whitespace ("Retained nodes").
-
-A module that moves its authored members itself, as `lf-board` orders its cards from
-its state, declares nothing. With `lfPatch`, a revision can leave the members in the
-order it gives them, without redrawing the widget. Without it, the revision replaces
-the widget, the new widget's first render places the members, and a control the module
-keyed with `data-lf-carry` takes the user's focus back (`module-input.md`, "Focus and
-layers").
-
-Leaf also replaces a widget that declares `lfPatch` when a revision changes what its
-module drew from, which it takes to be the element's own attributes. A module that also
-draws from which children it has, or from their attributes, as a tab strip shows each
-tab's `label`, declares `content: members` or `views`. Leaf then also replaces the
-widget when a direct child is added, removed, reordered or given other attributes.
-Without either declaration the module keeps its first drawing of a child the revision
-changed. Leaf compares only each direct child's tag and attributes, and a revision
-doesn't redraw a widget it keeps. So a module that draws from what its children hold,
-or can declare neither, reads them again when they change: `lf-pane` watches its
-children with a `MutationObserver`, and a `LeafElement` calls `requestUpdate()` from
-one. A widget that draws its own content (`content` `data` or `empty`) is always
-replaced.
+Leaf still replaces the widget when a revision changes what the module drew from, which
+it takes to be the element's own attributes. A module that also draws from which
+children it has, or from their attributes, as a tab strip shows each tab's `label`,
+declares `content: members` or `views`. Leaf then also replaces the widget when a
+direct child is added, removed, reordered or given other attributes. Without either
+declaration the module keeps its first drawing of a child the revision changed. Leaf
+compares only each direct child's tag and attributes, so a module that draws from what
+its children hold, or can declare neither, reads them again when they change, as
+`lf-pane` observes its children. A widget that draws its own content (`content` `data`
+or `empty`) is always replaced.
 
 ## Startup and presentation
 
@@ -324,10 +306,8 @@ position; only Leaf supplies the status presentation.
 
 ### Retained nodes
 
-To place nodes the module keeps, use `setChildren(parent, nodes)`, which makes `nodes`
-the parent's only children, moving what is out of order and removing every other child,
-the whitespace between authored elements included, or `move(parent, node, before)` for
-one node. Where nodes move between
+To place nodes the module keeps, use `setChildren(parent, nodes)`, which moves only what
+is out of order, or `move(parent, node, before)` for one node. Where nodes move between
 parents, place every list at once with `setChildLists([[parent, nodes], …])`, outer
 parents first. For a subtree the renderer owns entirely, `setRenderedChildren(parent,
 nodes)` edits only changed text and keeps a text selection the user made in it.

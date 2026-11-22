@@ -1590,11 +1590,16 @@ def test_the_kernel_styles_no_class_a_page_coins():
     floor and grows its form (tests/fixtures/plain/form.html). A kernel sheet's
     selectors and `@scope` preludes, and the selectors the runtime hands a DOM query,
     name no other class but a library's on the elements Leaf draws for it: PhotoSwipe's
-    in the chrome's lightbox, and CodeMirror's in a text field's closed tree."""
+    in the chrome's lightbox, and CodeMirror's in a text field's closed tree. A drawing's
+    marks are the one other kind: a class on an element inside `svg.lf-drawing`, as
+    `.box` is in `svg.lf-drawing .box`. The idiom's entry tells an author to write them
+    there, and such a rule reaches nothing outside a drawing. A box the page fills with
+    its own content, as `lf-scroll` is, has no marks."""
     authored = ("lf-", "layout-", "density-")
     libraries = ("pswp", "cm-")
+    marked = {"lf-drawing"}
 
-    def classes(tokens):
+    def classes(tokens, nested=True):
         """The class selectors among `tokens`, in and out of `:is()`-like arguments."""
         previous = None
         for token in tokens:
@@ -1605,18 +1610,51 @@ def test_the_kernel_styles_no_class_a_page_coins():
                 and previous.value == "."
             ):
                 yield token.value
-            if token.type in ("function", "() block"):
+            if nested and token.type in ("function", "() block"):
                 yield from classes(
                     token.arguments if token.type == "function" else token.content
                 )
             previous = token
 
-    def coined(selector):
-        return sorted(
-            name
-            for name in classes(tinycss2.parse_component_value_list(selector))
-            if not name.startswith(authored + libraries)
-        )
+    def coined(prelude):
+        """The classes a prelude names that are neither Leaf's nor a library's, read one
+        compound at a time, so that those on a descendant of a compound wearing a
+        drawing's class count as its marks. A sibling of the drawing is outside it."""
+        names, compound = [], []
+        within = at = False  # inside a drawing; on the drawing's own element
+        combinator = None
+        for token in [*tinycss2.parse_component_value_list(prelude), None]:
+            ends_selector = token is None or (
+                token.type == "literal" and token.value == ","
+            )
+            explicit = (
+                not ends_selector and token.type == "literal" and token.value in ">+~"
+            )
+            if not (ends_selector or explicit or token.type == "whitespace"):
+                compound.append(token)
+                continue
+            if compound:
+                within = within or (at and combinator in (" ", ">"))
+                if not within:
+                    names += [
+                        name
+                        for name in classes(compound)
+                        if not name.startswith(authored + libraries)
+                    ]
+                at = not marked.isdisjoint(classes(compound, nested=False))
+                compound, combinator = [], " "
+            if explicit:
+                combinator = token.value
+            if ends_selector:
+                within = at = False
+                combinator = None
+        return sorted(names)
+
+    assert marked <= structure_model.AUTHORED_CLASSES
+    inside = "svg.lf-drawing .box, svg.lf-drawing > g .hot, svg.lf-drawing .a + .b"
+    assert coined(inside) == []
+    outside = ".c svg.lf-drawing, svg.lf-drawing + .d, svg.lf-drawing ~ svg .e"
+    assert coined(f"{outside}, svg.lf-drawing.f, .lf-scroll .g") == list("cdefg")
 
     def preludes(rules):
         for rule in rules:

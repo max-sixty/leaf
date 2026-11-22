@@ -41,87 +41,72 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
-def test_an_older_installed_copy_delivers_through_the_copy_installed_since(
+def _installed_since(plugins):
+    """Record in `installed_plugins.json` a newer copy Claude Code installed beside
+    the one a session loaded, and return its root."""
+    newer = plugins / "cache" / "leaf" / "leaf" / "1b1b1b1b1b1b"
+    launcher = newer / "bin" / "leaf"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text("#!/bin/sh\necho ran\n")
+    launcher.chmod(0o755)
+    (plugins / "installed_plugins.json").write_text(
+        json.dumps({"plugins": {"leaf@leaf": [{"installPath": str(newer)}]}})
+    )
+    return newer
+
+
+def test_a_bare_command_from_an_installed_copy_runs_only_a_selected_checkout(
     tmp_path, monkeypatch
 ):
-    """Claude Code installs an update beside the copy a running session loaded and
-    records it in `installed_plugins.json`; the older copy's delivery runs the newer
-    one, and a checkout, which someone chose to run, runs itself."""
+    """A bare `leaf` command from a copy Claude Code installed runs that copy, the
+    one the session loaded, even once Claude Code has installed a newer one, until
+    the session selects a checkout, which it then runs. A hook hands itself off by
+    its payload's session instead (`hooks.main`), and a checkout, which someone
+    chose to run, runs itself."""
     from leaf import session_runtime
 
-    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    launchers = {}
-    for version in ("0a0a0a0a0a0a", "1b1b1b1b1b1b"):
-        launcher = cache / version / "bin" / "leaf"
-        launcher.parent.mkdir(parents=True)
-        launcher.write_text("#!/bin/sh\n")
-        launcher.chmod(0o755)
-        launchers[version] = launcher.resolve()
-    (tmp_path / "plugins" / "installed_plugins.json").write_text(
-        json.dumps(
-            {"plugins": {"leaf@leaf": [{"installPath": str(cache / "1b1b1b1b1b1b")}]}}
-        )
-    )
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "0a0a0a0a0a0a")
-    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
-    # A bare command from the older copy runs the newer one, a hook its own way.
+    loaded = _installed_since(tmp_path / "plugins").with_name("0a0a0a0a0a0a")
+    checkout = tmp_path / "checkout" / "bin" / "leaf"
+    checkout.parent.mkdir(parents=True)
+    checkout.write_text("#!/bin/sh\n")
+    checkout.chmod(0o755)
     ran = []
     monkeypatch.setattr(
         session_runtime.os, "execve", lambda path, argv, env: ran.append(argv)
     )
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", loaded)
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    cleanup_model.ensure_session(session, {})
+    session_runtime.hand_off_command(["page", "state", "p"])
+    assert ran == []
+
+    session_runtime.select_launcher(session, checkout)
     session_runtime.hand_off_command(["page", "state", "p"])
     session_runtime.hand_off_command(["hook", "--harness", "claude-code"])
-    assert ran == [[str(launchers["1b1b1b1b1b1b"]), "page", "state", "p"]]
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "1b1b1b1b1b1b")
-    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "checkout")
-    assert session_runtime.installed_launcher() is None
+    assert ran == [[str(checkout.resolve()), "page", "state", "p"]]
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "another checkout")
+    session_runtime.hand_off_command(["page", "state", "p"])
+    assert len(ran) == 1
 
 
-def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
-    tmp_path,
-):
+def test_a_copy_that_lost_its_project_refuses_naming_the_reload(tmp_path):
     """Claude Code may delete an orphaned copy's files while a session still runs
-    its launcher; that launcher runs the copy `installed_plugins.json` records at an
-    absolute path, and refuses, naming the cause, where none is recorded, rather
-    than leaving uv to run the caller's `python` or a copy found relative to the
-    caller's working directory."""
-    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    orphan = cache / "0a0a0a0a0a0a" / "bin" / "leaf"
+    its launcher. That launcher refuses, naming `/reload-plugins`, rather than run
+    the copy Claude Code installed since or leave uv to run the caller's `python`."""
+    loaded = _installed_since(tmp_path / "plugins").with_name("0a0a0a0a0a0a")
+    orphan = loaded / "bin" / "leaf"
     orphan.parent.mkdir(parents=True)
     shutil.copy(PLUGIN_ROOT / "bin/leaf", orphan)
-    installed = cache / "1b1b1b1b1b1b" / "bin" / "leaf"
-    installed.parent.mkdir(parents=True)
-    installed.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\n")
-    installed.chmod(0o755)
-    record = tmp_path / "plugins" / "installed_plugins.json"
-
-    def run():
-        return subprocess.run(
-            [str(orphan), "page", "state", "a page"],
-            cwd=cache,
-            input="the hook's payload\n",
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-
-    record.write_text(
-        json.dumps(
-            {"plugins": {"leaf@leaf": [{"installPath": str(installed.parent.parent)}]}}
-        )
+    refused = subprocess.run(
+        [str(orphan), "page", "state", "a page"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
     )
-    handed = run()
-    assert (handed.returncode, handed.stdout) == (
-        0,
-        "page\nstate\na page\nthe hook's payload\n",
-    )
-    for plugins in ({}, {"leaf@leaf": [{"installPath": installed.parent.parent.name}]}):
-        record.write_text(json.dumps({"plugins": plugins}))
-        refused = run()
-        assert (refused.returncode, refused.stdout) == (1, "")
-        assert "has lost its files" in refused.stderr
+    assert (refused.returncode, refused.stdout) == (1, ""), refused.stderr
+    assert "has lost its files; run /reload-plugins" in refused.stderr
 
 
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):

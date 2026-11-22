@@ -79,7 +79,10 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     panel_control(page, "command:design.mode.enter", at="annotate").tap()
-    expect(page.locator(".lf-live")).to_contain_text("Exit Design mode leaves.")
+    # A touchscreen hears what the mode does and no key; the ✕ beside its name leaves it.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Design mode: a click comments on what it lands on — a widget, a control, a picture."
+    )
     exit_design = leave("Exit Design mode")
 
     # The mode is about what the agent made, so Leaf's own chrome stays a finger's: the

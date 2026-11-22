@@ -140,7 +140,7 @@ export function commandsChanged(el) {
 // `lf-announce` event on the window carrying them as its `detail`. Leaf says them in the
 // page's live region; a page without Leaf hears nothing unless it listens.
 export const ANNOUNCE = "lf-announce";
-/** @param {import("./voice.js").Words} words */
+/** @param {import("./voice.js").Words | (() => import("./voice.js").Words)} words */
 export const announce = (words) =>
   window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
 

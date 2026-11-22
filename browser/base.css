@@ -271,7 +271,8 @@
   inherits: false;
 }
 /* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink, the
- * room it reaches past the box and the aim's veil. None inherits, so a box inside a
+ * room it reaches past the box, its reach over a list marker and the aim's veil. None
+ * inherits, so a box inside a
  * marked one is marked only as it is itself, and marking a box restyles that box
  * alone: an inherited veil would restyle every element of a long text document each
  * time ⌥ aimed at it. The gap is a length, so a box's edge stated as `0` reaches the
@@ -294,9 +295,37 @@
   syntax: "*";
   inherits: false;
 }
+@property --lf-band-from {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-to {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-reach-left {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --lf-band-reach-right {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --lf-band-over {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 @property --lf-aim-veil {
   syntax: "*";
   inherits: false;
+}
+@property --lf-aim-veil-shift {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 /* The body's position and box are important against the page's own rules: Leaf's
  * document-anchored paint takes the initial containing block as its origin, so it may

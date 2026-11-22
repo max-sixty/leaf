@@ -846,6 +846,7 @@ export function createFloatingPanel({
                           ></span
                         ><textarea
                           class="lf-fp-served-field"
+                          name="comment"
                           rows="1"
                           aria-label=${PAGE_FIELD_NAME}
                           autocapitalize="sentences"

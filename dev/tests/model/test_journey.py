@@ -1153,3 +1153,11 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"
+
+
+def test_release_name_matches_its_words_whatever_joins_them():
+    # An agent may write the word pair as a title, as in `Valley Summit`.
+    for written in ("valley-summit", "Valley Summit", "VALLEY_SUMMIT", "Valley–Summit"):
+        assert journey.names_release(f"Release {written} passed", "valley-summit")
+    assert not journey.names_release("Summit valley passed", "valley-summit")
+    assert not journey.names_release("Valley passed; summit next", "valley-summit")

@@ -26,7 +26,7 @@ import { tabStore } from "./tab-store.js";
 import { chromeRoot } from "./chrome.js";
 import { pageCommand } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
-import { coarsePointer } from "./pointer.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 
 import { ANNOTATIONS_KEY } from "./restore-state.js";
 
@@ -48,23 +48,24 @@ export function mountAnnotationControls() {
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
-    // A notice while the press's result stands. Where its words say only what the page
-    // field's standing "Annotations hidden" says (floating-panel.js, `standing`), or
-    // that it went, it is about the annotations and shows where those words don't, as
-    // on the folded leaf; hiding them with a key names the key that brings them back,
-    // which the standing words don't, so that one shows in the field too.
+    // A notice while the press's result stands, about the annotations (notifications.js,
+    // `about`); hiding them offers Show annotations as its press.
     run: () => {
       const on = !hidden.value;
       setAnnotationsHidden(on);
-      const key = on && !coarsePointer.matches;
-      notice(
-        !on
-          ? "Annotations shown"
-          : key
-            ? "Annotations hidden — o shows them"
-            : "Annotations hidden",
-        { about: key ? null : "annotations", stands: () => hidden.value === on },
-      );
+      const stands = () => hidden.value === on;
+      notice(on ? "Annotations hidden" : "Annotations shown", {
+        about: "annotations",
+        stands,
+        press: on
+          ? {
+              action: "show-annotations",
+              command: "annotations.toggle",
+              run: () => pressCommand("annotations.toggle"),
+              stands,
+            }
+          : null,
+      });
     },
   });
 }

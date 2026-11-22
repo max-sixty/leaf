@@ -174,7 +174,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     nav = page.get_by_role("navigation", name="On this page")
     links = nav.get_by_role("link")
     expect(links).to_have_count(4)
-    expect(links.first).to_have_css("opacity", "0")
+    expect(nav.locator(".lf-toc-labels")).to_have_css("opacity", "0")
 
     page.keyboard.press("g")
     chips = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')

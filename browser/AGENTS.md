@@ -326,6 +326,11 @@ directly as in a terminal").
   do, takes the frame's rounding at the corners they share and is square at the
   others. A box that stands clear of every edge, as a message's rewrite does, is
   rounded all round.
+- **A word about shown material stands outside it.** Where the page shows an
+  interface rather than says something, as a capture or a quoted sample does, a word
+  about it, such as Before and After or a sample's note, stands on the page just above
+  its frame or gutter. Inside, the word reads as part of the interface, which could
+  have drawn a band or a heading of its own.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).

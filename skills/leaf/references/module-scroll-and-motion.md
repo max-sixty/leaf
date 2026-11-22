@@ -62,7 +62,7 @@ screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where
 keeps a `scrollbar-gutter` across states.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`).
+page's, which is the document's own (`document.scrollingElement`).
 
 When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the

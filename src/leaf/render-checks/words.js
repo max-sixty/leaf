@@ -1,10 +1,11 @@
-import { canvas2D, pageScroller, scrollLimit } from "/runtime/widget-api.js";
+import { canvas2D, scrollLimit } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
   colourableAs,
   colouredAs,
   coverBoxes,
   inPage,
+  pageScroller,
   quoteFrom,
   textNodesUnder,
   upFrom,

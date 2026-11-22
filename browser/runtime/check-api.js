@@ -101,6 +101,7 @@ export { selectionAnchor } from "./composing/capture.js";
 export { PREVIEW_TIMERS, pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
+export { pageScroller } from "./scrolling.js";
 export {
   readingBlock,
   blocksOnScreen,

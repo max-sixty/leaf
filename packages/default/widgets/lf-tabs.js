@@ -115,7 +115,6 @@ import {
   generated,
   openingView,
   viewMembers,
-  pageScroller,
   preserveReadingRegions,
   pushEntry,
   registerReadingRegion,
@@ -141,6 +140,8 @@ import {
 } from "/runtime/widget-api.js";
 
 const PLACE_KEY = "lf-tabs-place:";
+// The document's own scroller, which scrolls a page-flow set's views.
+const pageScroller = /** @type {Element} */ (document.scrollingElement);
 /** @param {Element} owner */
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(

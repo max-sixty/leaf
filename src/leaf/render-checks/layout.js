@@ -1,7 +1,7 @@
-import { pageScroller } from "/runtime/widget-api.js";
 import {
   layoutBox,
   pageDocument,
+  pageScroller,
   inPage,
   readingRegions,
   regionScrollBehavior,

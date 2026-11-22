@@ -465,6 +465,16 @@ def js_facts(command: str, files) -> str:
     ).stdout
 
 
+def shipped_sheets() -> list[Path]:
+    """The core's stylesheets and the bundled packages', less what they vendor."""
+    return [
+        sheet
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+    ]
+
+
 def shipped_core_registry() -> dict:
     """The kernel registry with the core layer's declarations beside it, the layer
     facts `page init` starts every composition from, unstamped."""

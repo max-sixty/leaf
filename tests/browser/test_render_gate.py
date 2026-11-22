@@ -100,7 +100,8 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.validation import composition as validation_model
-from leaf_dev.example_data import authored_sources, named_source
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import read_event_lines
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -4156,29 +4157,23 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     anchored comment, not merely exist: the planted rule traps its margin against a
     thread's first message, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
-    seeded = [
-        path
-        for path in authored_sources()
-        if (log := path.with_suffix(".jsonl")).exists()
-        and any(
-            event.get("kind") == "comment" and event.get("anchor")
-            for event in map(json.loads, filter(None, log.read_text().splitlines()))
-        )
-    ]
+
+    def anchored(source):
+        log = seed_log(source)
+        return [
+            event["id"]
+            for event in (read_event_lines(log) if log.exists() else [])
+            if event.get("kind") == "comment" and event.get("anchor")
+        ]
+
+    seeded = [path for path in authored_sources() if anchored(path)]
     assert seeded, (
         "no corpus source ships a log holding an anchored comment, so the panel would "
         "open on nothing"
     )
     page = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
-    [thread] = [
-        event["id"]
-        for event in map(
-            json.loads,
-            filter(None, seeded[0].with_suffix(".jsonl").read_text().splitlines()),
-        )
-        if event.get("kind") == "comment" and event.get("anchor")
-    ][:1]
+    [thread] = anchored(seeded[0])[:1]
     open_panel_thread(page, thread)
 
     # The control. A thread's own box draws its inset, and a first block reserving a

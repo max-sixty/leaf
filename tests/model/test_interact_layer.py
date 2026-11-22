@@ -43,6 +43,7 @@ from interact_support import (
     registry_refusal,
     serving,
     shipped_payload,
+    shipped_sheets,
     vendored_at_another_protocol,
     wait_for,
     words,
@@ -1935,23 +1936,20 @@ def test_a_has_leads_only_to_a_subject_naming_an_element():
             for part in _simple_selectors(compound)
         )
 
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for sheet in sorted(root.rglob("*.css")):
-            if "vendor" in sheet.parts:
-                continue
-            where = sheet.relative_to(ROOT)
-            for selector in _scope_roots(sheet):
-                *before, subject = _split_top(selector, " >+~")
-                if _only_has(subject) and not any(map(_names_an_element, before)):
-                    found.append(f"{where}: @scope ({selector})")
-                elif any(
-                    ":has(" in compound and not keyed(compound)
-                    for compound in _split_top(selector, " >+~")
-                ):
-                    found.append(f"{where}: @scope ({selector}), a type alone")
-            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
-                if _untyped_after_has(selector):
-                    found.append(f"{where}: {selector}")
+    for sheet in shipped_sheets():
+        where = sheet.relative_to(ROOT)
+        for selector in _scope_roots(sheet):
+            *before, subject = _split_top(selector, " >+~")
+            if _only_has(subject) and not any(map(_names_an_element, before)):
+                found.append(f"{where}: @scope ({selector})")
+            elif any(
+                ":has(" in compound and not keyed(compound)
+                for compound in _split_top(selector, " >+~")
+            ):
+                found.append(f"{where}: @scope ({selector}), a type alone")
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+            if _untyped_after_has(selector):
+                found.append(f"{where}: {selector}")
     assert not found, (
         "name an element in the subject after this `:has()`, and a scope's root by "
         "a class, id or attribute:\n" + "\n".join(found)
@@ -1995,15 +1993,12 @@ def test_no_has_reads_where_focus_is():
     elements, with that rule or without it."""
     reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
     found = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for sheet in sorted(root.rglob("*.css")):
-            if "vendor" in sheet.parts:
-                continue
-            where = sheet.relative_to(ROOT)
-            selectors = [selector for _c, _e, selector, _d in _style_rules(sheet)]
-            for selector in [*selectors, *_scope_roots(sheet)]:
-                if any(map(reads_focus.search, _has_arguments(selector))):
-                    found.append(f"{where}: {selector}")
+    for sheet in shipped_sheets():
+        where = sheet.relative_to(ROOT)
+        selectors = [selector for _c, _e, selector, _d in _style_rules(sheet)]
+        for selector in [*selectors, *_scope_roots(sheet)]:
+            if any(map(reads_focus.search, _has_arguments(selector))):
+                found.append(f"{where}: {selector}")
     assert not found, (
         "name the box that shows a control's focus from the control, with "
         "--lf-focus-box, and read its data-lf-control-focus marks:\n" + "\n".join(found)
@@ -2066,15 +2061,10 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
                     yield from reaches_later_siblings(each.lstrip("~+> "))
 
     found = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for sheet in sorted(root.rglob("*.css")):
-            if "vendor" in sheet.parts:
-                continue
-            where = sheet.relative_to(ROOT)
-            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
-                found += [
-                    f"{where}: {selector}" for _ in reaches_later_siblings(selector)
-                ]
+    for sheet in shipped_sheets():
+        where = sheet.relative_to(ROOT)
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+            found += [f"{where}: {selector}" for _ in reaches_later_siblings(selector)]
     assert not found, (
         "name the element this `:has(~ …)` is asked of by a class, id or attribute:\n"
         + "\n".join(found)
@@ -2266,9 +2256,7 @@ def test_every_ring_stands_at_a_kind_of_box():
     allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [
         f"{sheet.relative_to(ROOT)}: {selector} {{ {name}: {value} }}"
-        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-        for sheet in sorted(root.rglob("*.css"))
-        if "vendor" not in sheet.parts
+        for sheet in shipped_sheets()
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         for name, value in declarations
         if name in allowed and value not in allowed[name]
@@ -2654,12 +2642,7 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
             for name, value in declarations
         )
 
-    sheets = [
-        (sheet.relative_to(ROOT), sheet)
-        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-        for sheet in sorted(root.rglob("*.css"))
-        if "vendor" not in sheet.parts
-    ]
+    sheets = [(sheet.relative_to(ROOT), sheet) for sheet in shipped_sheets()]
     authored = authored_sources()
     sheets += [
         (sheet.relative_to(ROOT), sheet)
@@ -3428,14 +3411,11 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
 
     _retire(launcher)
 
-    def running():
-        try:
-            os.kill(descendant, 0)
-        except ProcessLookupError:
-            return False
-        return True
-
-    wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
+    wait_for(
+        lambda: machine_model.pid_alive(descendant),
+        lambda alive: not alive,
+        failure="the launcher's child survived",
+    )
 
 
 @pytest.mark.parametrize(

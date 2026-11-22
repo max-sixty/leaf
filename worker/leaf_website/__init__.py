@@ -77,7 +77,7 @@ from leaf.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.interaction_log import append_interactions
 from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
-from leaf.page_snapshot import capture_page_snapshot
+from leaf.page_snapshot import PageSnapshot, capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata, layer_record, selected
 from leaf.revision_artifact import read_revision
@@ -1607,6 +1607,17 @@ def site_endpoint(
     )
 
 
+def carrying_files(snapshot: PageSnapshot, page_dir: Path) -> PageSnapshot:
+    """`snapshot` with the files the page binds, which a capture leaves out. The site
+    answers a first visit, and a visitor whose container sleeps, with a capture's
+    state, and the page's file editors show their files from it, as from a live
+    page's."""
+    files = bound_files(page_dir)
+    return replace(
+        snapshot, context=replace(snapshot.context, bound_files=lambda: files)
+    )
+
+
 def initial_state(
     page_dir: Path,
     page_root: str,
@@ -1626,14 +1637,11 @@ def initial_state(
     )
     state = PageStateService(
         page_dir,
-        source=captured,
+        source=carrying_files(captured, page_dir),
         preview=preview_metadata(page_dir),
         publication={**PUBLICATION, "kind": kind},
     ).page_state(view_revision)
     state["release"] = release
-    # A capture binds no files, but a first visit shows this state until the visitor's
-    # container answers, so it carries the page's files as a live page's state does.
-    state["files"] = bound_files(page_dir)
     return scope_page_urls(state, page_root)
 
 

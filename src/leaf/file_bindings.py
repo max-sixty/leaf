@@ -35,10 +35,12 @@ answer reads a file again only once its stamp moves (`_Reads`), and the stamp it
 carries moves with every write, so a write that puts back bytes the editor last read
 from the state is still news to it.
 
-The state carries no order of its files' versions, and a state read that started
-before a save can answer after it. So a save's answer, and the newer file a stale
-save is refused with, carry `taken`, the moment the server read the file, as a state
-answer does: a reading taken before it speaks for an older file.
+A state read that started before a save can answer after it, and a revision says
+nothing of which version came first. So each file in the state, a save's answer and
+the newer file a stale save is refused with carry `taken`, the moment the server
+began to read or write those bytes, and a version read before another was taken is
+the older. A file keeps the `taken` of its first read under its stamp, since every
+later write moves the stamp.
 """
 
 import hashlib
@@ -180,17 +182,19 @@ class _Reads:
         self.held: dict[Path, tuple] = {}
 
 
-def _reading(path: Path) -> dict[str, str]:
-    """The file as a read finds it, its text and revision, or why it can't be read."""
+def _reading(path: Path) -> dict:
+    """The file as a read finds it, its text and revision, or why it can't be read,
+    and the moment the read began (`taken`)."""
+    taken = time.time()
     try:
-        return _snapshot(_read(path))
+        return {**_snapshot(_read(path)), "taken": taken}
     except FileBindingError as error:
-        return {"error": str(error)}
+        return {"error": str(error), "taken": taken}
     except OSError as error:
-        return {"error": str(_refusal(error))}
+        return {"error": str(_refusal(error)), "taken": taken}
 
 
-def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
+def bound_files(page_dir: Path) -> dict[str, dict]:
     """Each binding's label; a short stamp, moving whenever the file's path or what
     the filesystem says of the file there (`file_stamp`) does; and the file as a read
     finds it (`_reading`)."""
@@ -311,7 +315,7 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
     """Compare and atomically replace one file; acknowledge exactly these bytes, with
-    their label and the moment they were written (`taken`)."""
+    their label and the moment their write began (`taken`)."""
     if set(posted) != {"revision", "text"} or not all(
         isinstance(posted[name], str) for name in ("revision", "text")
     ):
@@ -323,15 +327,12 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         if target is None:
             raise FileBindingError(f"No file is bound as {binding!r}.")
         path, label = target
-
-        def answer(snapshot: dict) -> dict:
-            return {"label": label, **snapshot, "taken": time.time()}
-
         with path_lock(path):
+            read_at = time.time()
             before = _read(path)
             current = _snapshot(before)
             if posted["revision"] != current["revision"]:
-                raise StaleFileError(answer(current))
+                raise StaleFileError({"label": label, **current, "taken": read_at})
             text = posted["text"]
             if "\r" in text:
                 raise FileBindingError("Editor text must use LF line endings.")
@@ -344,6 +345,7 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
             # Recheck path identity and contents immediately before replacement.
             latest = _snapshot(_read(path))
             if latest["revision"] != current["revision"]:
-                raise StaleFileError(answer(latest))
+                raise StaleFileError({"label": label, **latest, "taken": read_at})
+            written_at = time.time()
             replace_bytes([(path, raw, True)])
-            return answer(submitted)
+            return {"label": label, **submitted, "taken": written_at}

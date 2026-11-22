@@ -288,7 +288,7 @@ def _responses(
             return executor.submit(
                 _responses, page, site_root, manifest, root, source_error, blobs
             ).result()
-    from leaf_website import WebsitePageEndpoint, page_routes
+    from leaf_website import WebsitePageEndpoint, carrying_files, page_routes
 
     revision = latest_revision(page.page_dir)
     assert revision is not None
@@ -305,8 +305,13 @@ def _responses(
     # starts a store for a page that has none, publishing either (`publish_drafts`).
     # The Durable Object serves its own copy of the store in place of the one
     # captured here.
-    snapshot = replace(
-        snapshot, source_error=source_error, frozen_drafts=read_drafts(page.page_dir)
+    snapshot = carrying_files(
+        replace(
+            snapshot,
+            source_error=source_error,
+            frozen_drafts=read_drafts(page.page_dir),
+        ),
+        page.page_dir,
     )
     paths = {"", "api/state", "api/news", "api/drafts", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)

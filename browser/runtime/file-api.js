@@ -10,7 +10,6 @@ import { LayerRefused, RequestError, requestJson } from "./layer-client.js";
 import { applicationState, readPart } from "./semantic-state.js";
 
 const live = readPart((root) => root.document.live);
-const taken = readPart((root) => root.authoritative?.taken ?? null);
 
 /** @param {string} binding */
 export function boundFile(binding) {
@@ -19,7 +18,7 @@ export function boundFile(binding) {
   const selected = applicationState.select((root) =>
     root.authoritative ? (root.authoritative.files[binding] ?? null) : undefined,
   );
-  const served = selected.read;
+  const label = readPart((root) => root.authoritative?.files[binding]?.label ?? null);
   return {
     get writable() {
       return writable();
@@ -28,21 +27,20 @@ export function boundFile(binding) {
     // file the page binds, or null before the server has named it or where the page
     // binds none.
     get label() {
-      return served()?.label ?? null;
+      return label();
     },
-    // The file as the page's state read it, with that state's `taken`; null before the
-    // page has a state. Throws, in words the editor can show, where it has no file to
-    // give: an export, a binding the page lacks, or a file the server can't read.
+    // The file as the page's state carries it, or null before the page has a state.
+    // Throws, in words the editor can show, where it has no file to give: an export, a
+    // binding the page lacks, or a file the server can't read.
     /** @returns {import("../types/contract.js").ServedFileSnapshot | null} */
     read() {
       if (!writable()) throw new Error("File editing is available in live pages.");
-      const when = taken();
-      if (when === null) return null;
-      const file = served();
-      if (!file) throw new Error(`No file is bound as '${binding}'.`);
-      const { label, text, revision, error } = file;
+      const file = selected.read();
+      if (file === undefined) return null;
+      if (file === null) throw new Error(`No file is bound as '${binding}'.`);
+      const { text, revision, error, taken } = file;
       if (text === undefined || revision === undefined) throw new Error(error);
-      return { label, text, revision, taken: when };
+      return { label: file.label, text, revision, taken };
     },
     /** @param {Pick<import("../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
      * @returns {Promise<import("../types/contract.js").ServedFileSnapshot>} */

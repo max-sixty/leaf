@@ -32,9 +32,10 @@
  * The editor takes the open file from the page's state (`boundFile().read`) when it
  * connects, when the reader opens it and when the state carries the binding anew
  * (`boundFile().watch`), so the file is drawn with the page's state and the page
- * presents with it. A state read taken before a save's answer can arrive after it, so
- * a reading older than the version the editor holds (`taken`) is passed over; the
- * save's own news brings a newer one. A reading that arrives while a save is in
+ * presents with it. A state read the server began before a save can arrive after the
+ * save's answer, so a file the server read before the version the editor holds
+ * (`taken`) is passed over; any later write moves the file's stamp, and its news
+ * brings that version. A reading that arrives while a save is in
  * flight, or while a failed save or a conflict holds the file, stays owed until a
  * later reading or save covers it.
  * Ordinary writes have no status transition. A write pending for one second earns a
@@ -65,6 +66,7 @@
 import { html, nothing, render } from "/vendor/lit.js";
 import { EditorView } from "/vendor/codemirror.esm.js";
 import {
+  aborted,
   allButCommandReference,
   announce,
   boundFile,
@@ -300,6 +302,9 @@ customElements.define(
       /** @type {ReturnType<typeof createEditor> | null} */
       let comparison = null;
       let connected = false;
+      // Settles as the editor's current connection ends.
+      /** @type {Promise<unknown>} */
+      let leaving = Promise.resolve();
       // Landing the reader back in the editor shows them where they type.
       const returnToEditor = () => {
         focusDestination(editor.contentDOM, "return");
@@ -651,14 +656,13 @@ customElements.define(
               if (first) {
                 editor.value = current.text;
                 // CodeMirror lays the text out in a frame of its own, which moves the
-                // gutter; the page presents once it has.
-                element.controller.present(
-                  new Promise((done) => {
-                    const view = EditorView.findFromDOM(editor.contentDOM);
-                    if (!view) return done(undefined);
-                    view.requestMeasure({ read() {}, write: () => done(undefined) });
-                  }),
-                );
+                // gutter; the page presents once it has, or the editor has left.
+                const laidOut = new Promise((done) => {
+                  const view = EditorView.findFromDOM(editor.contentDOM);
+                  if (!view) return done(undefined);
+                  view.requestMeasure({ read() {}, write: () => done(undefined) });
+                });
+                element.controller.present(Promise.race([laidOut, leaving]));
               } else editor.follow(current.text);
             } else if (of.kept && text(of) !== current.text)
               of.kept = followKept(of.kept, current.text);
@@ -753,6 +757,7 @@ customElements.define(
       };
       whileConnected(this, (signal) => {
         connected = true;
+        leaving = aborted(signal);
         editor.connect();
         comparison?.connect();
         window.addEventListener("beforeunload", beforeUnload, { signal });

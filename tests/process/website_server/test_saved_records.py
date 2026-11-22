@@ -24,6 +24,7 @@ import leaf_website as website_server
 from leaf import drafts as drafts_model
 from leaf import media as media_model
 from leaf.event_log import read_events
+from leaf.file_bindings import bind_file
 from leaf.files import latest_revision, revision_path
 from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
@@ -328,6 +329,41 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
             executor.submit(commit).result()
         assert stored["publications"]
     assert "since" in tail.answer(service.page_state(), held, private)
+
+
+def test_a_saved_state_carries_the_files_the_page_binds(
+    page_dir, tmp_path, monkeypatch
+):
+    """While a visitor's container sleeps, the page's state is the one its last commit
+    saved, so that state carries the page's files, as a live page's does, and the
+    page's file editor still shows them."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    notes = private / "files" / "notes.md"
+    notes.parent.mkdir()
+    notes.write_text("Notes.\n")
+    bind_file(private, "notes", notes)
+    write_manifest(site, {"/example": ("page", "example")})
+    assert website_server.activate_source(private).error is None
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+
+        def commit():
+            with PageTransaction(private):
+                pass
+
+        # Playwright's session fixture may already own this thread's event loop.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(commit).result()
+        response = stored["publications"][-1]["responses"]["api/state"]
+        saved = b"".join(stored["blobs"][digest] for digest in response["chunks"])
+    assert json.loads(saved)["files"]["notes"]["text"] == "Notes.\n"
 
 
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(

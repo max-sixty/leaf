@@ -224,11 +224,11 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
     substitute.write_bytes(b"private\n")
     target.unlink()
     target.symlink_to(substitute)
-    assert bound_files(page_dir)["notes"] == {
-        "label": "file.txt",
-        "stamp": bound_files(page_dir)["notes"]["stamp"],
-        "error": "The bound file path now contains a symlink; bind it again.",
-    }
+    swapped = bound_files(page_dir)["notes"]
+    assert "text" not in swapped
+    assert (
+        swapped["error"] == "The bound file path now contains a symlink; bind it again."
+    )
     with pytest.raises(FileBindingError):
         save_file(
             page_dir, "notes", {"revision": snapshot["revision"], "text": "overwrite\n"}
@@ -380,3 +380,10 @@ def test_a_bound_file_write_moves_the_page_reading_and_the_file_in_state(
     restored = files()["notes"]
     assert restored["revision"] == first["notes"]["revision"]
     assert restored["stamp"] != first["notes"]["stamp"]
+
+    # A file is as new as its read: the version a save wrote reads as newer than the
+    # save's answer, and one written before the save as older.
+    saved = save_file(
+        page_dir, "notes", {"revision": restored["revision"], "text": "saved\n"}
+    )
+    assert restored["taken"] < saved["taken"] < files()["notes"]["taken"]

@@ -335,14 +335,13 @@ def cmd_pages(payload: dict) -> None:
 
     It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
-    under that Leaf. A follower runs as long as its session, while the session's
-    hooks hand themselves at each call to the Leaf delivering for it: a newer copy
-    Claude Code installed, a checkout the session selected, or the same checkout
-    moved past a protocol bump.
+    under that Leaf. A follower runs as long as its session, while the Leaf the
+    session's hooks run can change between calls: to a checkout the session selected
+    since, or to the same checkout moved past a protocol bump.
 
     The module that reads the list stays the one the session loaded until
-    `/reload-plugins`, so a follower under a newer Leaf may print it to an older
-    module, which runs its instructions as any (`carrier.py`).
+    `/reload-plugins`, so a follower under a checkout's newer Leaf may print it to an
+    older module, which runs its instructions as any (`carrier.py`).
 
     The follower notes once in each page it holds that it runs
     (`interaction_log.record_follower`), so a round that got no line fork says
@@ -440,13 +439,15 @@ def cmd_pages(payload: dict) -> None:
 
 
 def _moved_on(sid: str) -> bool:
-    """Whether the session's delivery now runs another Leaf than this process: one
-    selected or installed since it started, which its hooks hand themselves to as
-    `main` does (`session_runtime.delivering_launcher`), or its own install moved
-    under it to another page protocol (`registry.kernel.installed_protocol`), or
-    removed, as a selected checkout's is when its worktree goes: the module starts
-    the follower again from its own launcher, which hands it to the Leaf delivering
-    now. A registry read mid-write reads as unmoved until it settles."""
+    """Whether the session's delivery now runs another Leaf than this process: a
+    checkout selected since it started, which its hooks hand themselves to as `main`
+    does (`session_runtime.delivering_launcher`), or its own checkout moved under it
+    to another page protocol (`registry.kernel.installed_protocol`), or its own tree
+    removed, as a selected checkout's is when its worktree goes. The module then
+    starts the follower again from the launcher of the copy the session loaded,
+    which hands it to the Leaf delivering now; where the removed tree is that copy's
+    own, no follower starts again until `/reload-plugins`. A registry read mid-write
+    reads as unmoved until it settles."""
     from .registry.kernel import installed_protocol, kernel_protocol
     from .session_runtime import delivering_launcher, own_launcher
 

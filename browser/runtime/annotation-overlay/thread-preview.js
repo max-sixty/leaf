@@ -346,7 +346,7 @@ export function createThreadPreview({
           session !== null &&
           preview.hasAttribute("data-lf-thread-placement") &&
           !preview.hasAttribute("data-lf-carried") &&
-          placeNow(session)
+          placeNow(session, true)
         );
       },
     },
@@ -578,11 +578,11 @@ export function createThreadPreview({
     return session.positionResult.promise;
   };
   // Places the card now, in place of any placement a frame has queued.
-  /** @param {Session} session */
-  function placeNow(session) {
+  /** @param {Session} session @param {boolean} [delivered] */
+  function placeNow(session, delivered = false) {
     cancelRender(session.positionFrame);
     session.positionFrame = 0;
-    return placeThreadPreview();
+    return placeThreadPreview(delivered);
   }
   // Floating UI follows what moves the card's target: its scroll containers, the window
   // and visual viewport, and the target and card changing size or moving.
@@ -673,8 +673,16 @@ export function createThreadPreview({
   // Placement supplies the outer bounds; the native tracks share them between
   // reading and writing. A scroll that only carries a fitting card writes nothing;
   // clipped contents receive newly available room without requiring a complete fit.
-  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session */
-  function measureThreadCard(room, cap, reading, session) {
+  // A placement box-motion's size delivery asked for (`delivered`) lands in that
+  // delivery, where resizing the card would be a loop for the card's other observers
+  // (box-motion.js, `placedParts`): it keeps the card's width and cap, and the next
+  // frame fits the card again.
+  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered */
+  function measureThreadCard(room, cap, reading, session, delivered) {
+    if (delivered && Math.abs(preview.offsetWidth - room) >= 0.5) {
+      scheduleThreadPreviewPosition();
+      return preview.getBoundingClientRect().height;
+    }
     preview.style.setProperty("width", layoutPx(room));
     const transcript = session.transcript;
     // Growing a top-held card may reveal new words below, but must not reveal lines
@@ -691,8 +699,10 @@ export function createThreadPreview({
       session.transcript,
       ...previewList.querySelectorAll(REPLY_BOX),
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
-    if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
-      preview.style.setProperty("max-height", layoutPx(cap));
+    if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5)) {
+      if (delivered) scheduleThreadPreviewPosition();
+      else preview.style.setProperty("max-height", layoutPx(cap));
+    }
     session.gutter?.();
     // A reader at the end stays there through this fit by the transcript's own keeper
     // (`syncPreviewTranscript`).
@@ -762,7 +772,8 @@ export function createThreadPreview({
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Feed the shared placement policy the current conversation and native draft;
   // fitting and landing below retain the transcript's reading through that geometry.
-  function placeThreadPreview() {
+  /** @param {boolean} [delivered] box-motion's size delivery asked for it (`measureThreadCard`) */
+  function placeThreadPreview(delivered = false) {
     const session = previewSession;
     if (!session || !session.control?.isConnected) return false;
     const control = session.control;
@@ -891,6 +902,7 @@ export function createThreadPreview({
               Math.max(stood, height),
               reading,
               session,
+              delivered,
             );
             if (!session.wide && !stoodNarrow && outgrown()) {
               session.wide = true;
@@ -899,6 +911,7 @@ export function createThreadPreview({
                 Math.max(stood, height),
                 reading,
                 session,
+                delivered,
               );
             }
             // A card at the least width declares that it may yet widen, carrying its

@@ -159,6 +159,7 @@ import { claimed } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
+import { createWritingBeacon } from "./writing-beacon.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { alreadyShown } from "../landing-scroll.js";
@@ -248,6 +249,8 @@ export function createMarginProjection({
     openInPanel,
     onClose: closedPreview,
   });
+  // At the window's edge, toward a comment box holding the caret that a scroll carried away.
+  createWritingBeacon();
   const preview = card.element;
   const previewOpen = card.isOpen;
   /** @type {Set<HTMLElement>} */

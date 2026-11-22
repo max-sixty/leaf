@@ -1525,11 +1525,10 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     assert read["top"] >= read["head"], read
 
 
-def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serve):
-    """A conversation in a diff ends in a Reply press, one control high and with no
-    frame or microphone, rather than an open field. A press opens the field, which
-    rests again once the user leaves it empty, and `c` from the conversation opens it
-    with the caret in it."""
+def test_a_diff_conversation_s_reply_rests_as_the_margin_card_s_field(browser, serve):
+    """A conversation in a diff ends in the reply field a margin card ends in: framed,
+    one response line tall and offering the microphone, on the code's own ground. `c`
+    from the conversation puts the caret in it, and a draft left there stays."""
     datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
     page = open_page(
         browser,
@@ -1550,32 +1549,26 @@ def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serv
     thread = page.locator("lf-diff .lf-diff-thread-outlet .lf-page-thread")
     reply = thread.get_by_role("textbox", name="Reply", exact=True)
     face = """field => {
-      const box = field.parentElement;
+      const box = field.parentElement, style = getComputedStyle(box);
       return {
-        height: field.getBoundingClientRect().height,
-        frame: getComputedStyle(box).borderTopColor,
+        height: box.getBoundingClientRect().height,
+        line: parseFloat(style.getPropertyValue('--lf-line')),
+        framed: style.borderTopColor !== 'rgba(0, 0, 0, 0)',
         mic: getComputedStyle(box.querySelector('.lf-compose-dictate')).display,
+        card: getComputedStyle(field.closest('.lf-page-thread')).backgroundColor,
+        code: getComputedStyle(field.closest('pre')).backgroundColor,
       };
     }"""
-    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "mic": "none"}
     expect(reply).to_be_visible()
-    assert reply.evaluate(face) == resting
-    reply.click()
-    expect(reply).to_be_focused()
-    opened = reply.evaluate(face)
-    assert opened["height"] > resting["height"] and opened["mic"] != "none", opened
-    page.keyboard.press("Escape")
-    expect(reply).not_to_be_focused()
-    assert reply.evaluate(face) == resting
+    resting = reply.evaluate(face)
+    assert resting["height"] == resting["line"] and resting["framed"], resting
+    assert resting["mic"] != "none" and resting["card"] == resting["code"], resting
     thread.locator(".lf-msg-body").first.click()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
-    reached = reply.evaluate(face)
-    assert (reached["height"], reached["mic"]) == (opened["height"], opened["mic"])
     page.keyboard.insert_text("Keep this draft open")
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
-    assert reply.evaluate(face)["height"] == opened["height"]
     expect(reply).to_have_js_property("value", "Keep this draft open")
 
 

@@ -261,15 +261,17 @@ def paste_screenshot(page: Page, field: Locator) -> None:
     """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         # This exercises the paste handler and shelf; keep its payload local to the
-        # tab so captures cannot overwrite or race the machine's clipboard.
+        # tab so captures cannot overwrite or race the machine's clipboard. Firefox
+        # drops a constructed ClipboardEvent's `clipboardData`, so the event carries
+        # the transfer as an own property, which every engine reads.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
           const transfer = new DataTransfer();
           transfer.items.add(new File([image], 'pasted.png', {type: 'image/png'}));
-          field.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
+          const paste = new Event('paste', {bubbles: true, cancelable: true});
+          Object.defineProperty(paste, 'clipboardData', {value: transfer});
+          field.dispatchEvent(paste);
         }""")
     expect(
         page.get_by_role("button", name="Remove attached image 1", exact=True)
@@ -290,6 +292,16 @@ def page_comment_photo(page: Page) -> None:
     field = page.locator(".lf-fp-field leaf-text")
     field.click()
     page.keyboard.insert_text("Is this screenshot right?")
+    paste_screenshot(page, field)
+
+
+def thread_reply_photo(page: Page) -> None:
+    """An open thread in the floating panel with a screenshot pasted into its reply,
+    standing in the band the panel opens between the thread and the box."""
+    floating_thread(page)
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Here is what I see")
     paste_screenshot(page, field)
 
 
@@ -2223,7 +2235,7 @@ def gallery_plans(page: Page) -> None:
 
 
 def gallery_drawing(page: Page) -> None:
-    """The reading theme's `svg.drawing`, with each of its text classes on its shapes."""
+    """A drawing (`svg.lf-drawing`), with each of its text classes on its shapes."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
 
@@ -2420,6 +2432,30 @@ def diff_file_resolved(page: Page) -> None:
     expect(resolved).to_have_count(1)
     resolved.locator(":scope > summary").click()
     expect(resolved).to_have_attribute("open", "")
+
+
+def diff_line_threads(page: Page) -> None:
+    """Two conversations under a diff's lines, one holding an answer long enough to
+    wrap, standing as cards under their lines."""
+    diff = page.locator("#dfg-lines")
+    expect(diff.locator(".lf-page-thread")).to_have_count(2)
+    diff.evaluate("diff => diff.scrollIntoView({block: 'start'})")
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_thread_walked(page: Page) -> None:
+    """The long line conversation reached by Next thread (`t`), which rings its card
+    and brackets its line."""
+    diff_line_threads(page)
+    page.locator("#dfg-lines-guide").click()
+    thread = page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it")
+    for _ in range(3):
+        page.keyboard.press("t")
+        if thread.evaluate("t => t.hasAttribute('data-lf-focus-visible')"):
+            break
+    expect(thread).to_have_attribute("data-lf-focus-visible", "")
+    settle(page)
 
 
 def diff_line_composer(page: Page) -> None:
@@ -3210,6 +3246,7 @@ STATES = (
         "feature-gallery",
         page_comment_photo_hover,
     ),
+    State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State(
         "share-link",
@@ -3352,6 +3389,18 @@ STATES = (
         diff_file_resolved_closed,
     ),
     State("diff-file-resolved", "diff-thread-gallery", diff_file_resolved),
+    State(
+        "diff-line-threads",
+        "diff-thread-gallery",
+        diff_line_threads,
+        region="#dfg-lines",
+    ),
+    State(
+        "diff-line-thread-walked",
+        "diff-thread-gallery",
+        diff_line_thread_walked,
+        region="#dfg-lines",
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(

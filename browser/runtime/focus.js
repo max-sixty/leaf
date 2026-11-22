@@ -1265,17 +1265,38 @@ onUserInput((event) => {
 // both ends' paths. Every surface that goes on a press elsewhere goes by this, rather
 // than by a listener of its own on `pointerdown`, `mousedown` or `click`, each of which
 // judged a different press. A surface decides for itself whether a press a pointer
-// mode claims, a stroke or a capture, is one away from it.
+// mode claims, a stroke or a capture, is one away from it. A control standing in for a
+// place elsewhere (`standsFor`), as the beacon stands for the comment box it points at
+// (annotation-overlay/writing-beacon.js), is pressed at that place: its path is the
+// place's, so pressing it puts away nothing a press in the place would keep.
+/** @type {WeakMap<Element, () => Element | null>} */
+const standIns = new WeakMap();
+/** @param {Element} control @param {() => Element | null} place */
+export const standsFor = (control, place) => {
+  standIns.set(control, place);
+};
+/** @param {EventTarget[]} path @returns {EventTarget[]} */
+const pressedAt = (path) => {
+  const control = path.find((node) => node instanceof Element && standIns.has(node));
+  const place = control instanceof Element ? standIns.get(control)?.() : null;
+  if (!place) return path;
+  /** @type {EventTarget[]} */
+  const at = [];
+  for (let node = /** @type {Node | null} */ (place); node; node = renderedParent(node))
+    at.push(node);
+  return [...at, document, window];
+};
 /** @param {(path: EventTarget[]) => boolean} away @param {(path: EventTarget[], from: EventTarget[]) => void} dismiss */
 export const onPressAway = (away, dismiss) =>
-  onPress((start, from) =>
-    start.button === 0 && away(from)
+  onPress((start, begun) => {
+    const from = pressedAt(begun);
+    return start.button === 0 && away(from)
       ? (end, completed) => {
-          const path = end.composedPath();
+          const path = pressedAt(end.composedPath());
           if (completed && away(path)) dismiss(path, from);
         }
-      : null,
-  );
+      : null;
+  });
 addEventListener(
   "pointerdown",
   (event) => {

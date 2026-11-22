@@ -77,6 +77,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -373,14 +374,17 @@ def release_name() -> str:
     included, asks for a name no earlier run's board holds. The maintainer chose a
     word pair over the release's hash, which a hosted model can miscopy by one
     character, even at git's seven; any shorter or looser hash check would widen the
-    same check again. The agent's casing of the words is its own (`names_release`)."""
+    same check again. How the agent cases and joins the words is its own
+    (`names_release`)."""
     return "-".join(random.sample(RELEASE_WORDS, 2))
 
 
 def names_release(text: str, marker: str) -> bool:
-    """Whether `text` names the release `marker`, in any case: an agent may capitalize
-    a name, and the theme may uppercase the eyebrow or heading that shows it."""
-    return marker.casefold() in text.casefold()
+    """Whether `text` names the release `marker`: its words in order, in any case and
+    joined by any punctuation or space. An agent may write `valley-summit` as the title
+    `Valley Summit`, and the theme may uppercase the eyebrow or heading that shows it."""
+    words = r"[\W_]*".join(re.escape(word) for word in marker.split("-"))
+    return re.search(words, text, re.IGNORECASE) is not None
 
 
 def release_ask(marker: str) -> str:

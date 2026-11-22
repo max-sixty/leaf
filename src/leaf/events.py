@@ -212,7 +212,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
-    leave its closure in force. A later resolution closes it again.
+    leave its closure in force, and so does the agent's answer to a request the user
+    closed the thread over (`_answers_closed`). A later resolution closes it again.
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
@@ -311,7 +312,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         elif (
             kind == "reply" and _resumes(e) and (thread := thread_for.get(e["parent"]))
         ):
-            put.append((thread, e, False))
+            if not _answers_closed(e, closures.standing(thread)):
+                put.append((thread, e, False))
         elif (
             kind == "edit"
             and e["author"] != "agent"
@@ -411,6 +413,24 @@ def _resumes(reply: dict) -> bool:
     )
 
 
+def _users_resolve(closing: dict) -> bool:
+    """Whether a closing is the user's own resolve, which takes the thread off their
+    list and answers nothing in it (`owed_turns`)."""
+    return closing["kind"] == "resolve" and closing["author"] == "user"
+
+
+def _answers_closed(reply: dict, closing: dict | None) -> bool:
+    """Whether `reply` is the agent's answer to a request the user closed the thread
+    over, where `closing` is what decides the thread now: the answer goes into the
+    thread and leaves it closed. The user chose this over an answer that reopened the
+    thread: they end most threads with a last word and then Resolve, which means
+    they are done with the thread and not that they took the word back, so the
+    request stays owed (`owed_turns`) and its answer brings nothing back to their
+    lists. Anything else the agent says there reopens it, as any spoken reply
+    does, and a question the answer asks reaches the user on On Me."""
+    return closing is not None and _users_resolve(closing) and is_answer(reply)
+
+
 class _ClosureHistory:
     """Each thread's closings and reopenings in force, in log order, and when it
     stood closed (`build_threads`, ``closures``). The latest in force decides; one
@@ -439,7 +459,7 @@ class _ClosureHistory:
         ):
             if not closes:
                 break
-            if event["kind"] != "resolve" or event["author"] != "user":
+            if not _users_resolve(event):
                 return event
         return None
 
@@ -729,10 +749,10 @@ def owed_turns(thread: dict) -> list[dict]:
 
     The user's resolve takes a thread off their list and settles nothing the agent
     owes in it. A request made before it stays owed, and the reply that answers it
-    reopens the thread, so the result returns to where the user asked for it. The
-    user chose this over a resolve that dropped the request, which lost the result
-    of work they had asked for and then tidied away; cancelling a request takes
-    their words. Every other closing answers for the thread: the
+    goes into the thread and leaves it closed (`_answers_closed`). The user chose
+    this over a resolve that dropped the request, which left nothing on the page
+    saying the agent owed it; cancelling a request takes their words. Every other
+    closing answers for the thread: the
     agent's own resolve, which says the thread wants no answer, and the user's
     answer on a widget whose `resolves` names the thread, the decision the agent
     offered them there. From such a closing until the thread reopens it owes

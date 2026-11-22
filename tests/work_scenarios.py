@@ -334,7 +334,7 @@ def s2(stage: Stage) -> Iterator[Checkpoint]:
 
 def s3(stage: Stage) -> Iterator[Checkpoint]:
     """The user's resolve leaves the request owed, so the agent answers it where it
-    was asked, and the answer reopens the thread."""
+    was asked, and the answer leaves the thread closed."""
     stage.publish()
     stage.page_open()
     stage.watch()
@@ -352,7 +352,7 @@ def s3(stage: Stage) -> Iterator[Checkpoint]:
     stage.reply(request, "CLAUDE.md says so now, under “Review”.", "--done")
     stage.page_open()
     stage.turn_ends()
-    yield Checkpoint("result", "The answer reopened the thread.")
+    yield Checkpoint("result", "The answer is in the thread, which stays resolved.")
 
 
 def s4(stage: Stage) -> Iterator[Checkpoint]:

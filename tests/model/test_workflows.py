@@ -341,9 +341,9 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
 
 def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
     """The user's resolve takes a thread off their list and leaves the request in it
-    owed: its record stays the agent's, on the agent's list, and the answer reopens
-    the thread. The agent's own resolve answers for the thread, whatever the user
-    closes after it, until the user reopens it."""
+    owed: its record stays the agent's, on the agent's list, and the answer goes into
+    the thread, which stays closed. The agent's own resolve answers for the thread,
+    whatever the user closes after it, until the user reopens it."""
     publish(page_dir)
     asked = append_carried_log_record(
         page_dir,
@@ -393,7 +393,7 @@ def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
     thread_model.post_reply(
         page_dir, {"parent": asked["id"], "responds": asked["id"]}, "It says so now."
     )
-    assert reading() == (None, [], [])
+    assert reading() == ("user", [], [])
 
 
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):

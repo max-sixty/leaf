@@ -297,12 +297,14 @@ input. A `--done` answer to an update the agent's earlier answer already settled
 with a to-do still open carries no `responds`, and the command names that to-do
 for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
 thread, and brings back none of the questions the resolve ended; reactions and
-failure receipts leave it closed.
+failure receipts leave it closed, and so does the agent's answer to a request the user
+closed the thread over (below).
 
 The user's `resolve` takes a thread off their list. It retires the questions the agent
 asked them there and settles nothing the agent owes: a turn of theirs, or an answer of
 theirs on a widget in a thread message, that the agent has not answered stays owed, and
-the reply that answers it reopens the thread (`events.owed_turns`). The agent's
+the reply that answers it goes into the thread and leaves it closed
+(`events.owed_turns`). The agent's
 `resolve` answers for its thread, as does the user's answer on a widget whose `resolves`
 names it: from either until the thread reopens, the thread owes nothing.
 

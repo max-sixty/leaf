@@ -580,8 +580,9 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   receives a thread reply, because that message's HTML is fixed. Moving
                   a card can require no answer; the agent still receives the event.
                   Resolving a thread takes it off the user's list and leaves a comment
-                  the agent has not answered owed its reply, which reopens the thread. A
-                  multi-select obligation submits the choice when the user presses Done.
+                  the agent has not answered owed its reply, which goes into the closed
+                  thread. A multi-select obligation submits the choice when the user
+                  presses Done.
                 </p>
                 <p id="delivery-envelope">
                   A delivery is one JSON document, whose <code>format</code> field names

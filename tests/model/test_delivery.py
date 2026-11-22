@@ -255,7 +255,7 @@ def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_
     assert [start["item"] for start in owed["started_by"]] == [question["id"]]
     assert not write("unresolve", parent=question["id"])["attention"]
     assert not write("resolve", parent=question["id"])["attention"]
-    # The answer reopens the thread, and its question waits on the user.
+    # The answer leaves the thread closed, and its question waits on the user.
     answered = append_command(
         page_dir,
         {

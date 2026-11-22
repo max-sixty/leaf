@@ -1735,3 +1735,19 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("source", "words"),
+    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
+)
+def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
+    engine, source, words, request, serve
+):
+    """A figure caption in the product docs draws its title on a line of its own above
+    its text, and page search finds the title's last word and the text's first apart."""
+    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")

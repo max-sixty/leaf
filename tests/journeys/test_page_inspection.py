@@ -5,7 +5,13 @@ import json
 from browser.test_page_inspection import MENU_ROOM
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_harness import consume_browser_errors, open_page, panel_control
+from render_cases_interaction import live_url
+from render_harness import (
+    consume_browser_errors,
+    open_page,
+    over_plain_http,
+    panel_control,
+)
 
 
 def test_diagnostics_arrival_inside_sample_stays_in_child_document(browser, serve):
@@ -74,3 +80,19 @@ def test_sample_diagnostics_copy_failure_keeps_a_visible_manual_copy_route(
     )
     page.keyboard.press("Escape")
     expect(dialog).not_to_be_visible()
+
+
+def test_about_copy_on_plain_http_machine_name(browser, serve):
+    local_url = live_url(
+        serve(leaf_page("About over HTTP", "<h1>Page details</h1>"), packages=())
+    )
+    context, remote_url = over_plain_http(browser, local_url)
+    page = open_page(browser, remote_url, context=context)
+    assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
+    panel_control(page, "inspection").click()
+    dialog = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(dialog).to_contain_text("Source captured for r1")
+    dialog.get_by_role("button", name="Copy Leaf version", exact=True).click()
+    page.keyboard.press("Escape")
+    page.goto(local_url)
+    assert page.evaluate("navigator.clipboard.readText()").startswith("Leaf layer\n")

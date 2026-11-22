@@ -624,7 +624,7 @@ tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among th
 Leaf counts what a sample's page does after loading only while its frame shows
 (`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
 waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
-`tests/browser/startup/test_hosting.py`,
+`tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
 

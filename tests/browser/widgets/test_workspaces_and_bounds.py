@@ -561,7 +561,6 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
         }"""
     )
     assert carrier == "cells", carrier
-    page.close()
 
 
 ZONE_PACKAGE = {

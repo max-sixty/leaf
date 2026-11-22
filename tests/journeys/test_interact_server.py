@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -878,10 +879,16 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     release_codex_command,
     retire_test_services,
+    said,
+    served_state_error,
     vendored_at_another_protocol,
+)
+from process.test_interact_server import (
+    browser_observation,
 )
 
 from leaf import codex_adapter as codex_adapter_model
+from leaf import interaction_log as interaction_model
 from leaf import schema as schema_model
 
 
@@ -1554,3 +1561,208 @@ def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_pat
             200,
             frozen_sheet,
         )
+
+
+def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
+    page_dir, monkeypatch
+):
+    """A session remote from its user need not have arrived over SSH — a
+    scheduler, a daemon, a detached job all derive loopback — so the note says
+    what the address is rather than leaving the user to report a dead link."""
+    monkeypatch.delenv("SSH_CONNECTION", raising=False)
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        noted = said(started.stdout)["findings"]
+        assert [note["code"] for note in noted] == ["loopback-only"]
+        assert "--host NAME" in noted[0]["text"]
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
+    """`/api/state`, the state an event's answer carries and `/api/view` hold
+    `served_state/state.schema.json`: before the page has a revision, whose `active`
+    and `browser` are null, and once it has one, with a neighbor beside it, a claim
+    on it, a thread and a published version."""
+    index = page_dir / "index.html"
+    source = index.read_text()
+    index.write_text(
+        source.replace("</main>", "<lf-unknown-tag></lf-unknown-tag></main>")
+    )
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200, raw
+    unrevised = json.loads(raw)
+    assert unrevised["active"] is None and unrevised["browser"] is None
+    assert unrevised["source_error"]
+    assert served_state_error(unrevised, "answer") is None, served_state_error(
+        unrevised, "answer"
+    )
+
+    index.write_text(source)
+    publish(page_dir)
+    neighbor = cleanup_model.state_home() / "pages" / "schema-neighbor"
+    neighbour_page(neighbor, title="Neighbor")
+    server_rows_model.RowPublisher(neighbor, "fixture-server").refresh()
+    record_claim(page_dir, id="schema-session", cwd="/work/page")
+    sent = {"kind": "comment", "revision": 1, "text": "Is this right?"}
+    status, raw = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    assert status == 200, raw
+    answered = json.loads(raw)["state"]
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200, raw
+    served = json.loads(raw)
+    assert served["browser"]["views"]
+    # The list of other pages is an answer of its own, held to its schema by `fetch`.
+    assert json.loads(fetch(f"{server}/api/pages")[1])
+    for state in (answered, served):
+        assert served_state_error(state, "answer") is None, served_state_error(
+            state, "answer"
+        )
+    latest = served["browser"]["basis"]["through_seq"]
+    status, raw = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
+    assert status == 200, raw
+    viewed = json.loads(raw)
+    assert viewed["document"]["revision"] == 1
+    assert served_state_error(viewed, "ViewAnswer") is None, served_state_error(
+        viewed, "ViewAnswer"
+    )
+
+
+@pytest.mark.parametrize("routed", [False, True])
+def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed):
+    template = """<template id="practice" data-sample><h1>Practice</h1>
+      <template id="inner" data-sample><h1>Nested practice</h1></template>
+    </template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        origin = preview.origin
+
+        allocation_pages = {}
+
+        def create(parent, name, token):
+            generation = json.loads(fetch(parent + "/api/state", token=token)[1])[
+                "layer"
+            ]["generation"]
+            status, raw = fetch(
+                parent + "/api/samples",
+                data=json.dumps({"template": name}).encode(),
+                token=token,
+                layer=generation,
+                headers={"Leaf-Layer": generation},
+            )
+            assert status == 200, raw
+            url = origin + json.loads(raw)["url"].rstrip("/")
+            if routed and parent == origin:
+                url += "~" + "1" * 64
+            allocation_pages[url] = json.loads(raw)["page"]
+            return url
+
+        first = create(origin, "practice", TOKEN)
+        second = create(origin, "practice", TOKEN)
+        preflight = urllib.request.Request(
+            first + "/api/event",
+            method="OPTIONS",
+            headers={
+                "Origin": "null",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,leaf-layer",
+            },
+        )
+        with urllib.request.urlopen(preflight) as answer:
+            assert answer.status == 204
+            assert answer.headers["Access-Control-Allow-Origin"] == "*"
+            assert (
+                answer.headers["Access-Control-Allow-Headers"]
+                == "content-type,leaf-layer"
+            )
+            assert answer.headers["Referrer-Policy"] == "no-referrer"
+            assert answer.headers.get("Access-Control-Allow-Credentials") is None
+        with urllib.request.urlopen(first + "/") as answer:
+            assert answer.headers.get("Content-Security-Policy") is None
+        assert fetch(first + "/api/state", token=None)[0] == 200
+        assert (
+            fetch(
+                first + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {
+                        "session": "a" * 32,
+                        "entries": [browser_observation("checkpoint")],
+                    }
+                ).encode(),
+            )[0]
+            == 204
+        )
+        routed_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "a" * 32
+        )
+        assert routed_trace["page"] == first.removeprefix(origin)
+        assert fetch(origin + "/api/state", token=None)[0] == 401
+        assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
+        nested = create(first, "inner", None)
+        assert fetch(nested + "/", token=None)[0] == 200
+        assert (
+            fetch(
+                nested + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {
+                        "session": "b" * 32,
+                        "entries": [browser_observation("checkpoint")],
+                    }
+                ).encode(),
+            )[0]
+            == 204
+        )
+        assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
+        assert fetch(first + "/", token=None)[0] == 404
+        # A read already sent by the opaque child can arrive after Reset revokes
+        # its capability. It still receives the HTTP refusal, not a CORS failure.
+        for method in ("GET", "OPTIONS"):
+            request = urllib.request.Request(
+                first + "/api/state", method=method, headers={"Origin": "null"}
+            )
+            if method == "OPTIONS":
+                # Browsers reject non-2xx preflights regardless of their headers.
+                with urllib.request.urlopen(request) as answer:
+                    assert answer.status == 204
+                    headers = answer.headers
+            else:
+                with pytest.raises(urllib.error.HTTPError) as refused:
+                    urllib.request.urlopen(request)
+                assert refused.value.code == 404
+                headers = refused.value.headers
+            assert headers["Access-Control-Allow-Origin"] == "*"
+            assert headers.get("Access-Control-Allow-Credentials") is None
+        assert fetch(nested + "/", token=None)[0] == 404
+        nested_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "b" * 32
+        )
+        assert (
+            nested_trace["page"]
+            == nested.removeprefix(origin)
+            == allocation_pages[nested]
+        )
+        assert fetch(second + "/api/state", token=None)[0] == 200
+        assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
+        assert all(not samples.pages for samples in preview.httpd.samples.values())

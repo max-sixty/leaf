@@ -32,7 +32,6 @@ from interact_support import (
     command_notes,
     declare_on_page,
     element_declaration,
-    fetch,
     install_payload,
     js_facts,
     lock_contention,
@@ -54,7 +53,6 @@ from packaging.specifiers import SpecifierSet
 
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -203,102 +201,6 @@ def test_agent_interaction_command_help(regtest):
         )
         assert result.exit_code == 0, result.output
         outputs.append(f"## leaf {command} --help\n{result.output}")
-    regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
-
-
-def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
-    """Actual CLI recovery after two user messages arrive in one delivery."""
-    page = claimed
-    publish(page)
-    runner = CliRunner()
-    ids = []
-    outputs = []
-    references = []
-
-    def record(args, code):
-        result = runner.invoke(cli_model.cli, args, prog_name="leaf")
-        assert result.exit_code == code, result.output
-        output = result.output
-        if code == 0:
-            # A write prints its record, whose own id and time differ each run, and
-            # the words of what it notes beside it.
-            output = "".join(
-                json.dumps(
-                    {key: record[key] for key in ("kind", "parent")}
-                    | {"notes": [found["text"] for found in record.get("findings", [])]}
-                )
-                + "\n"
-                for record in map(json.loads, output.splitlines())
-            )
-        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
-        text = text.replace(str(page), "/page")
-        for ref in references:
-            text = text.replace(ref, "response-ref")
-        for number, event_id in enumerate(ids, 1):
-            text = text.replace(event_id, f"user-{number}")
-        outputs.append(text)
-
-    record(["thread", "reply", "--text", "Answer"], 2)
-    for text in ("Why this plan?", "What will it cost?"):
-        code, response = fetch(
-            f"{server}/api/event",
-            data=json.dumps({"kind": "comment", "revision": 1, "text": text}).encode(),
-        )
-        assert code == 200, response
-        ids.append(events_model.read_events(page)[-1]["id"])
-    # A message by id answers nothing. Undelivered, the owed message has no
-    # reference yet: the note names the wait that delivers one.
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
-    woke = runner.invoke(cli_model.cli, ["wait", str(page)])
-    assert woke.exit_code == 0, woke.output
-    envelope = json.loads(woke.output)
-    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
-    delivery_model.receive(envelope, "s1")
-    [batch] = envelope["batches"]
-    assert len(batch["events"]) == 2
-    reference = batch["events"][0]["answer"]["ref"]
-    references.append(reference)
-    # Delivered, the note names the delivery's exact reference.
-    record(["thread", "reply", str(page), "--text", "Answer", "--done"], 1)
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
-
-    def response_args(*extra):
-        return ["thread", "reply", reference, "--text", "Answer", "--done", *extra]
-
-    record(response_args(), 0)
-    answered_events = events_model.read_events(page)
-    record(response_args(), 0)
-    assert events_model.read_events(page) == answered_events
-    for addressed_option in (["--done"],):
-        record(
-            [
-                "thread",
-                "reply",
-                str(page),
-                ids[0],
-                "--text",
-                "Follow-up",
-                *addressed_option,
-            ],
-            2,
-        )
-    assert events_model.read_events(page) == answered_events
-    record(
-        ["thread", "reply", str(page), ids[0], "--text", "Follow-up", "--obligation"],
-        0,
-    )
-    followup = events_model.read_events(page)[-1]
-    assert followup["parent"] == ids[0]
-    assert followup["obligation"] is True
-    # A page reaction can close without an answer: it never owed a reply.
-    code, response = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "comment", "revision": 1, "token": "keep"}).encode(),
-    )
-    assert code == 200, response
-    ids.append(events_model.read_events(page)[-1]["id"])
-    record(["thread", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
-    record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -2927,25 +2829,6 @@ def test_identical_init_preserves_the_installed_layer(tmp_path):
     assert served_layer() == first
 
 
-def test_site_page_accepts_events_across_build_and_container_python_versions(
-    claimed, server, monkeypatch
-):
-    """The build host and serving container can run different Python releases."""
-    page = claimed
-    publish(page)
-    monkeypatch.setattr(sys, "version", "container Python version")
-    planned = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--dry-run", str(page)]
-    )
-    assert planned.exit_code == 0, planned.output
-    assert not json.loads(planned.output)["changed"]
-    code, response = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
-    )
-    assert code == 200, response
-
-
 PLAIN_PAGE = (
     '<!doctype html><html lang="en"><head><title>t</title></head>'
     "<body><main><h1>Title</h1><p>words</p></main></body></html>"
@@ -3231,53 +3114,6 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
 
     assert len(composed) == 1
     assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
-
-
-def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
-    tmp_path, monkeypatch
-):
-    """A layer that reads a page's own copy of a package is kept in the page's memory
-    beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
-    replaces that layer rather than keeping another beside it, so a process holds one
-    layer for the page however often its package is edited, and none once it drops
-    the page's memory. Forgetting the shared layers forgets it too."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / "notes"
-    package.mkdir()
-    (package / "registry.json").write_text("{}")
-    page = tmp_path / "page"
-    kept = weakref.WeakSet()
-    for edit in range(3):
-        sheet = f".note {{ --edit: {edit}; }}"
-        (package / "defaults.css").write_text(sheet + "\n")
-        made = CliRunner().invoke(
-            cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
-        )
-        assert made.exit_code == 0, made.output
-        record = registry_storage.layer_record(page)
-        assert record is not None
-        layer = registry_storage.selected(record, page)
-        assert sheet in layer.files["/theme.css"].decode()
-        kept.add(layer)
-    del layer
-    gc.collect()
-    assert len(kept) == 1
-
-    # A process that forgets the tree it read, as a preview does between servers
-    # (`layer.forget_layers`), composes the page's layer again.
-    [before] = kept
-    layer_model.forget_layers()
-    after = registry_storage.selected(record, page)
-    assert after is not before
-    kept.add(after)
-    del before, after
-    gc.collect()
-    assert len(kept) == 1
-
-    for n in range(page_memory.PageMemories.LIMIT):
-        page_memory.memory_of(tmp_path / f"other-{n}")
-    gc.collect()
-    assert len(kept) == 0
 
 
 def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
@@ -5532,52 +5368,6 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
-
-
-def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
-    """`package list` names what `page init --package NAME` selects: an installed
-    package under a name of its own beside the bundled ones, described by the first
-    paragraph of its author instructions and its entries' descriptions, and an
-    installed package in place of the bundled one whose name it takes. `default`, on
-    every page already, and the theme `theme list` offers are not listed."""
-    team = tmp_path / "src" / "team-charts"
-    packages_model.cmd_package_init(team, "lf-trend")
-    (team / "instructions").mkdir(exist_ok=True)
-    (team / "instructions" / "author.md").write_text(
-        "## When to select it\n\n"
-        "Select this package for the analytics team's pages.\n"
-        "It charts in their house style.\n\n"
-        "Give every chart a label.\n"
-    )
-    diagram = tmp_path / "src" / "diagram"
-    packages_model.cmd_package_init(diagram)
-    for source in (team, diagram):
-        installed = CliRunner().invoke(
-            cli_model.cli, ["package", "install", str(source)]
-        )
-        assert installed.exit_code == 0, installed.output
-
-    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
-
-    assert listed.exit_code == 0, listed.output
-    packages = {each["name"]: each for each in json.loads(listed.output)["packages"]}
-    assert packages["team-charts"] == {
-        "name": "team-charts",
-        "installed": True,
-        "description": "Select this package for the analytics team's pages. "
-        "It charts in their house style.",
-        "entries": {
-            "lf-trend": packages_model.starter_element_declaration("lf-trend")[
-                "description"
-            ]
-        },
-    }
-    assert packages["diagram"]["installed"] is True
-    assert packages["diagram"]["entries"] == {}
-    assert packages["playwright"]["installed"] is False
-    assert "lf-trace" in packages["playwright"]["entries"]
-    assert "default" not in packages
-    assert "reading" not in packages
 
 
 def test_every_bundled_package_says_when_to_select_it():

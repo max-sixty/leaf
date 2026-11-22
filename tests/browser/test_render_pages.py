@@ -11,7 +11,6 @@ from interact_support import (
     append_carried_log_record,
     declare_on_page,
     element_declaration,
-    record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -76,7 +75,6 @@ from render_harness import (
     resized,
     root_overflow,
     scroll_settled,
-    sending,
     stamp_page,
     told,
     wait_for_revision,
@@ -86,7 +84,6 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from leaf import cli as cli_model
-from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
 from leaf.render_checks import asked_again, rendered, wait_until_ready
@@ -317,59 +314,6 @@ def stand_on_thread(page, thread_id):
         "button", name="Show on page", exact=True
     ).click()
     panel_settled(page, open=False)
-
-
-def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypatch):
-    """An agent's side of a thread is the user's side with the author flipped.
-    Its label belongs to the message — the poster's own environment stamps it as
-    the comment is written — so another host claiming the page later cannot
-    rewrite who said it."""
-    url = serve(TWIN_V1)
-    d = serve.page_dir
-    monkeypatch.setenv("LEAF_SESSION_ID", "codex")
-    monkeypatch.setenv("LEAF_AGENT", "Codex")
-    assert (
-        CliRunner()
-        .invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "create",
-                str(d),
-                "--quote",
-                "Retries are capped at three",
-                "--text",
-                "is three right?",
-            ],
-        )
-        .exit_code
-        == 0
-    )
-    record_claim(d, id="claude")
-    page = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Counted as open, like any other thread.
-    expect_open_threads(page, 1)
-    [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
-    thread = open_panel_thread(page, root)
-    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
-    expect(
-        thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
-    ).to_have_text("Codex")
-    expect(thread.locator(".lf-thread-quote")).to_have_text(
-        "Retries are capped at three"
-    )
-
-    write(panel_field(page), "three is the retry budget, not a guess")
-    with sending(page, "the reply"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(1)
-    with sending(page, "the resolve"):
-        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
-
-    kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
-    assert ("comment", "agent") in kinds
-    assert ("reply", "user") in kinds and ("resolve", "user") in kinds
 
 
 @pytest.mark.parametrize("draft", [False, True], ids=["empty", "draft"])

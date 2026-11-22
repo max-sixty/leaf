@@ -243,7 +243,9 @@
      frame, so attaching neither grows the box nor moves a word and the passage stays in
      view, as the floating panel hangs its shelf over its card (floating-panel.css):
      the shelf's gap clear of the field's ring (response.css), under the field, or over
-     it when the box stands above its passage. The user chose this
+     it when the box stands above its passage and the room over the field holds the
+     whole shelf, whose corner marks stand at its far edge there (`data-lf-media-side`,
+     floating-response.js, `mediaSide`). The user chose this
      over 34px pictures in the header row the frame keeps for the card's author line,
      and over a row of their own in the box, which re-placed the box and moved the
      field. The pictures cover the page beside the box while the draft holds them, and
@@ -270,7 +272,7 @@
     align-items: flex-start;
     pointer-events: none;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-placement^="top"]
+  .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-media-side="top"]
     .lf-composer-media:not([hidden]) {
     inset-block: auto
       calc(

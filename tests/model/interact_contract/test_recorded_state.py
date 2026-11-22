@@ -579,12 +579,7 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
 def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilities():
     registry = deepcopy(model_layer())
     child = registry["lf-option"]
-    child.update(
-        {
-            "shadow": True,
-            "visual": "whole",
-        }
-    )
+    child.update({"visual": "whole"})
     with_modules(registry, "lf-option")
     registry_validation.validate_registry(registry, "presentation members")
     child["attributes"]["properties"].update(

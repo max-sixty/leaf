@@ -4959,7 +4959,6 @@ LATE_STAGE = {
         "additionalProperties": False,
     },
     "content": "markup",
-    "shadow": True,
     "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
 LATE_STAGE_MODULE = """

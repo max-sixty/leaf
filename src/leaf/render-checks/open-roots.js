@@ -1,9 +1,9 @@
 /* Which trees are the page, for the readings that answer for what a widget renders
  * rather than for what it declares.
  *
- * Every open root, found by walking rather than read off the registry's `shadow`
- * list: a root a module attached without declaring one still holds words and code the
- * user has to read, and a reading that asked the registry would look away from exactly
+ * Every open root, found by walking rather than read off the stages a module built
+ * (`shadowStage`): a root a module attached any other way still holds words and code the
+ * user has to read, and a reading that asked for stages would look away from exactly
  * the tree nobody vouched for. That is the whole of the difference from the runtime's
  * own `shadowRootsIn`, which answers the document's question — whose words these are —
  * and is right to stop at what a version promised.

@@ -1159,7 +1159,6 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     if deep:
         # The body is rendered from the widget's own root, so the entry stops
         # claiming the user gets it verbatim from the markup.
-        declarations["lf-drift"]["shadow"] = True
         del declarations["lf-drift"]["verbatim"]
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.

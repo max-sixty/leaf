@@ -250,7 +250,7 @@ presses, and the connection's abort signal ends any work still running when the 
 disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
-changes, including inside a declared shadow root, and returns its unsubscribe function;
+changes, including inside a shadow stage, and returns its unsubscribe function;
 register it inside `whileConnected` and call that function in the cleanup. The causes
 are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 

@@ -9,10 +9,8 @@ import { reachScrollers } from "/runtime/reach.js";
 import { registry } from "/runtime/registry.js";
 
 test("a sweep reaches a scroll surface in a nested declared shadow stage", () => {
-  const tag = "x-reach-nested-stage";
-  registry[tag] = {
-    shadow: true,
-  };
+  const tag = "lf-reach-nested-stage";
+  registry[tag] = {};
   const outer = document.createElement(tag);
   const outerRoot = outer.attachShadow({ mode: "open" });
   const inner = document.createElement(tag);

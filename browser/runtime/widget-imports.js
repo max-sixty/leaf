@@ -2,8 +2,6 @@
  * This reading is shared by browser imports and website preload hints. It inspects
  * markup without executing a widget and ignores inert template contents, just as
  * querySelectorAll does. An arriving scope may itself be the widget being loaded.
- * Declared creations also need shared shadow rules before their first connection;
- * their constructors remain imports of the creating module.
  */
 import { isElement } from "./shadow-tree.js";
 
@@ -29,12 +27,5 @@ export function widgetImports(scope, registry) {
     /** @type {Record<string, unknown>} */ (registry).$modules ?? {}
   );
   const modules = tags.filter((tag) => Object.hasOwn(held, tag));
-  const shadow = tags.some(
-    (tag) =>
-      registry[tag]?.shadow ||
-      Object.values(registry[tag]?.verbs ?? {}).some(
-        (state) => state.creates && registry[state.creates.child]?.shadow,
-      ),
-  );
-  return { modules, shadow };
+  return { modules };
 }

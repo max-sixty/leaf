@@ -1,13 +1,13 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
 import { isStage, liveStages } from "./arrivals.js";
-import { registry } from "./registry.js";
+import { declarationFor } from "./registry.js";
 
-// The open shadow roots under some root that hold the page's own words, from what the
-// registry declares rather than from a sweep of every element: a `shadow` widget is
-// making a promise about whose words those are, and a root some other library happened
-// to attach is not covered by it. `getComposedRanges` is told exactly these, so what the
-// capture can see and what the reading walks are one list.
+// The open shadow roots under some root that hold the page's own words, from what each
+// widget's module declares rather than from a sweep of every element: a module that
+// builds a stage is making a promise about whose words those are, and a root some other
+// library happened to attach is not covered by it. `getComposedRanges` is told exactly
+// these, so what the capture can see and what the reading walks are one list.
 //
 // Which root to look under is the axis, because the whole document is not the only
 // answer: a message arriving in the panel carries widget markup that upgrades in a
@@ -15,13 +15,16 @@ import { registry } from "./registry.js";
 // to ask about. A root is found under `root` as a selector would find its host: `root`
 // itself or an element in `root`'s own tree, not one inside another root.
 //
-// A declared root is the stage a `shadow` widget built through `shadowStage`, so
-// the roots come from the stages' registry (`liveStages`, arrivals.js), not from a
-// query of `root`. Every id the document doesn't hold is looked for here
-// (`elementById`, passages.js), as is an obligation's widget in a thread no one has
-// opened, on every paint that places it, so this answer costs the number of stages, not
-// the size of the page. A root attached any other way carries none of a stage's marks
-// or watches, and its host reads as one with no declared root: by its own children.
+// A widget's module declares a root by building it as a stage: through `shadowStage`,
+// or as the render root of a `LeafElement` whose class says `static shadow = true`
+// (leaf-element.js). So the roots come from the stages' registry (`liveStages`,
+// arrivals.js), not from a query of `root`. Every id the document doesn't hold is looked
+// for here (`elementById`, passages.js), as is an obligation's widget in a thread no one
+// has opened, on every paint that places it, so this answer costs the number of stages,
+// not the size of the page. A root attached any other way carries none of a stage's
+// marks or watches, and its host reads as one with no declared root: by its own
+// children. So does a stage on a host the layer declares no widget for, as a page
+// script may build one: the file's reading knows no widget there.
 //
 // A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
 // good, and its host reads the same way.
@@ -33,7 +36,7 @@ export const refuseShadowRoot = (root) => refusedRoots.add(root);
 /** @param {Element} host */
 export const declaredRoot = (host) =>
   host.shadowRoot &&
-  registry[host.localName]?.shadow &&
+  declarationFor(host) &&
   isStage(host.shadowRoot) &&
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
@@ -61,11 +64,10 @@ export const queryAllUnder = (root, selector) =>
 // during upgrade so the stage below stays synchronous for its callers.
 export let shadowRules = "";
 // One read for the tab. The three boundaries that import widget modules each ask for
-// the rules the widgets they are about to upgrade render under, and a `shadow`
-// widget can arrive at any of them — in the document, in a later version, or in an
-// agent's reply — so the ask is repeated and the answer is not. Sharing the promise
-// rather than the text also holds a second caller behind the first read instead of
-// starting another.
+// the rules before the import, since a module's stage is built as its element upgrades
+// and no boundary can tell which module will build one, so the ask is repeated and the
+// answer is not. Sharing the promise rather than the text also holds a second caller
+// behind the first read instead of starting another.
 /** @type {Promise<void> | null} */
 let loading = null;
 export function loadShadowRules() {

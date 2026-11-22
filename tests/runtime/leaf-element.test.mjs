@@ -9,6 +9,7 @@ import { signal } from "/runtime/framework.js";
 import { html, nothing, noChange } from "/vendor/lit.js";
 import { LeafElement, shadowStage } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
+import { declaredRoot } from "/runtime/shadow.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
 import {
@@ -22,7 +23,7 @@ import {
   PRESENTATION_DOM,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import { adoptRegistry, registry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
 
 const phase = readPart((root) => root.phase);
@@ -594,6 +595,34 @@ test("a setup that throws shows its failure and the element draws nothing, a che
   assert.match(element.textContent, /failed: cannot build/);
   assert.ok(!pending(element), "its region does not wait on a draw that cannot come");
   element.remove();
+});
+
+test("a class declaring `static shadow` draws into a stage the page reads", async () => {
+  const tag = `lf-probe-static-shadow-${++tags}`;
+  registry[tag] = {};
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static shadow = true;
+      render() {
+        return html`<p>Staged words</p>`;
+      }
+    },
+  );
+  const { element: light } = probe(() => "light");
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element, light);
+  await settled(element);
+  await settled(light);
+  assert.equal(element.renderRoot, element.shadowRoot);
+  assert.equal(declaredRoot(element), element.shadowRoot, "the stage is the page's");
+  assert.match(element.shadowRoot.textContent, /Staged words/);
+  assert.equal(light.renderRoot, light, "a class without it draws into itself");
+  assert.equal(light.shadowRoot, null);
+  element.remove();
+  light.remove();
+  delete registry[tag];
 });
 
 test("a setup that throws inside its own shadow root shows its failure there", async () => {

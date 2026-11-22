@@ -18,6 +18,13 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { served } from "../served-paths.mjs";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
+// The loader reads the layer's shadow rules before it imports any widget module
+// (widget-loader.js). No server stands behind this world, so its layer holds none.
+const serverFetch = globalThis.fetch;
+globalThis.fetch = (input, init) =>
+  String(input).endsWith("/shadow.css")
+    ? Promise.resolve(new Response(""))
+    : serverFetch(input, init);
 // happy-dom does not implement custom element states. These tests inspect DOM
 // ownership rather than :state() styling, so keep the native state's set semantics.
 HTMLElement.prototype.attachInternals ??= function () {

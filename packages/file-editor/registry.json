@@ -17,7 +17,6 @@
     "outputs": {
       "files": { "contract": "file-list" }
     },
-    "shadow": true,
     "height": true,
     "instructions": "Write the element empty, and bind each id in `binding` to a file with `leaf file bind PAGE BINDING PATH`. Name several ids to edit several files; a `lf-file-tree` whose `for` names this editor lists them and opens the one picked.",
     "example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>"

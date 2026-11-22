@@ -39,8 +39,8 @@ import { widgetImports } from "./widget-imports.js";
 
    A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
    the markup about to be upgraded, imports each declared tag standing in it once per
-   tab. Shared dependency preparation loads shadow rules where the scope
-   holds or declares creation of a `shadow` widget, alongside any declared Markdown parser. Three
+   tab. Shared dependency preparation loads the shadow rules, which any module may
+   build a stage under, alongside any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
    version activation with the incoming authored body, and the state application with the
    markup an agent's reply carries, ahead of the panel building a body. Each of them
@@ -151,14 +151,10 @@ const widgetUrl = (tag) =>
 /** @param {Scope} scope */
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
-  // an async stage would put every `shadow` widget's look a fetch behind its own
-  // nodes. The creating module imports its child's constructor; its declaration brings
-  // the child's shared rules in before even the first child exists. The rules are read
-  // once for the tab however many scopes ask.
-  await Promise.all([
-    loadDeclaredMarkdown(scope),
-    ...(widgetImports(scope, registry).shadow ? [loadShadowRules()] : []),
-  ]);
+  // an async stage would put every staged widget's look a fetch behind its own nodes.
+  // Only a module says whether it builds a stage (shadow.js, `declaredRoot`), as its
+  // element upgrades, so the rules are read for every scope, once for the tab.
+  await Promise.all([loadDeclaredMarkdown(scope), loadShadowRules()]);
 }
 
 /** @param {Scope} scope */

@@ -12,7 +12,6 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "shadow": true,
     "example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
   },
   "lf-margin-entry-gallery": {

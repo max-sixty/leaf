@@ -90,7 +90,7 @@
    the span the two differ in (`carry`), so a change to the page is searched only around
    it. An anchor asked of a reading again has the answer it had (`findQuote`).
 
-   Shadow trees: only open roots declared through `shadow` join the page reading;
+   Shadow trees: only open roots a module built as a stage join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow-tree.js),
@@ -671,7 +671,7 @@ export const authored = (root) => {
     !overIn(isElement(n) ? n : elementOver(n), GENERATED, frame);
 };
 // The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (`shadow`) shows the user what its shadow tree holds, and a
+// open shadow root (a stage) shows the user what its shadow tree holds, and a
 // host's own children stop rendering the moment it has one. A TreeWalker sees none of
 // that — it stops dead at the boundary — so the walk is written out, and it is the same
 // walk in both directions: a host's shadow root stands in for its children, a <slot> in
@@ -1113,7 +1113,7 @@ function firstPassing(items, test, from = 0) {
 // end's part is the mark they stop at where the range ends at an offset of that part's
 // own root, as a range over a whole part does. Finding them costs a binary search
 // however many parts the page holds. A walk from the range's
-// own root reads whatever that root holds: select-all beside a `shadow` widget
+// own root reads whatever that root holds: select-all beside a staged widget
 // composes a range over <html>, and the reading has no position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
@@ -2217,7 +2217,7 @@ export function hearPageWords(hear) {
 }
 // A declared shadow stage is part of its document's words — `textNodesUnder` walks into
 // one at its host's place in the string — and no observer crosses the boundary on its
-// own. shadow-stage.js, which is the only door a `shadow` root is built through,
+// own. shadow-stage.js, which is the only door a stage is built through,
 // hands each one here as it fills it, and again each time it adopts it. The first time
 // forgets the reading of the document the root stands in, which was read without it;
 // from then on the watcher reports the root's changes itself. The words it fills with
@@ -2485,7 +2485,7 @@ function indexed(segments, chains, marks = []) {
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen) dynamicWords.add(gen);
   // A segment's cell is the nearest candidate over it that fences. The chain crosses
-  // the shadow boundary (upFrom), and that is what keeps a `shadow` widget fenced.
+  // the shadow boundary (upFrom), and that is what keeps a staged widget fenced.
   // The parts were remembered off the light DOM before any module ran, so nothing
   // inside a shadow tree is among them; a chain that stopped at the root would put a
   // diff's lines in no cell at all, which reads as ordinary page prose and lets a quote

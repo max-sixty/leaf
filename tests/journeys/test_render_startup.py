@@ -574,7 +574,6 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
             "additionalProperties": False,
         },
         "content": "empty",
-        "shadow": True,
         "example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';

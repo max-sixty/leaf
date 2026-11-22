@@ -3364,7 +3364,6 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(

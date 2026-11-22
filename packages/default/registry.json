@@ -524,7 +524,6 @@
       "for": {}
     },
     "inline": true,
-    "shadow": true,
     "instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next On Me control that steps through the obligations waiting on the user.",
     "example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-group id=\"retries-ask\" label=\"Ship the retry cap?\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\">\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-group>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-group id=\"flag-ask\" label=\"Remove the flag?\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\">\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-group>\n  </lf-tab>\n</lf-tabs>"
   },

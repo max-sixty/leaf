@@ -13,7 +13,6 @@ import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { ElementData } from "./element-data.js";
-import { registry } from "./registry.js";
 
 export const elementIntegration = {
   attachApplicationPresentation,
@@ -27,6 +26,5 @@ export const elementIntegration = {
   paintKeysWithin,
   data: (/** @type {Element} */ element, /** @type {() => void} */ stage) =>
     new ElementData(element, stage),
-  shadows: (/** @type {Element} */ element) => registry[element.localName]?.shadow,
 };
 installElementIntegration(elementIntegration);

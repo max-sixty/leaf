@@ -275,9 +275,9 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 ### Drawing what a widget reads
 
 A widget extends `LeafElement`, a `LitElement` that draws everything in one `render()`.
-A `shadow` widget uses an ordinary shadow root; other widgets draw into
-themselves or a generated part `createRenderRoot()` returns, never over authored
-children. One-time setup goes in `setup()`, before the first render; work needing the
+A widget whose class declares `static shadow = true` draws into a shadow root; other
+widgets draw into themselves or a generated part `createRenderRoot()` returns, never
+over authored children. One-time setup goes in `setup()`, before the first render; work needing the
 rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
 the widget draws nothing after it.
 
@@ -320,13 +320,15 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 
 ### Shadow stages and styles
 
-Declare `shadow` where the user should quote and comment on the words a widget's
-shadow root shows; a root attached any other way is opaque to comments.
+Build a widget's shadow root as a stage, in one of the two ways below, where the user
+should quote and comment on the words it shows; a root attached any other way is
+opaque to comments.
 
-For `shadow`, `LeafElement` creates the root, applies the shared stylesheet and
-annotation support, and owns its Lit render. Return the template from `render()` and
-use native slots for authored children. Read presentation inputs from the host and its
-authored children; read decisions through `this.reading` and `this.state`.
+A `LeafElement` subclass declares `static shadow = true`. `LeafElement` then creates
+the root, applies the shared stylesheet and annotation support, and owns its Lit
+render. Return the template from `render()` and use native slots for authored
+children. Read presentation inputs from the host and its authored children; read
+decisions through `this.reading` and `this.state`.
 
 An imperative renderer overrides `createRenderRoot()` to keep Lit out of its stage
 and uses `shadowStage(host, nodes)`, never `attachShadow`; it applies

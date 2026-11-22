@@ -1,8 +1,8 @@
 /* A widget that draws what it reads: the one paint route of a `LeafElement`.
 
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
-   into its staged shadow root when the registry declares `shadow`, otherwise the
-   element itself, unless `createRenderRoot()` names a part it generated.
+   into its staged shadow root when its class declares `static shadow = true`,
+   otherwise the element itself, unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
    (`this.reading`, `this.state`), obligations, reports, work, the time (`ago`,
    `clockValue`), and a bound data source through the property Leaf sets ("Bound
@@ -100,6 +100,9 @@ class UpdateBoundary extends LitElement {
 }
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
+  /** `true` on a subclass draws its `render()` into a shadow stage, whose words the
+   * page reads as it reads any stage's (shadow.js, `declaredRoot`). */
+  static shadow = false;
   /** @type {{error?: unknown}} */
   #signalError = {};
   /** @type {(() => void) | null} */
@@ -177,7 +180,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   /** @returns {HTMLElement | DocumentFragment} */
   createRenderRoot() {
-    if (!integration?.shadows(this)) return this;
+    if (!(/** @type {typeof LeafElement} */ (this.constructor).shadow)) return this;
     const root = super.createRenderRoot();
     if (!(root instanceof ShadowRoot))
       throw new Error("A shadow widget needs a shadow render root");

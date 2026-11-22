@@ -82,15 +82,15 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                           | Declared shadow trees                 | A page without Leaf |
+| Sheet               | Document                           | Shadow stages                         | A page without Leaf |
 | ------------------- | ---------------------------------- | ------------------------------------- | ------------------- |
 | `defaults.css`      | `lf-base`                          | A thread's transcript, in `lf-shadow` | `lf-base`           |
 | `widget-shadow.css` | `lf-base`                          | `lf-shadow`                           | `lf-base`           |
 | `overrides.css`     | Page-wide in `lf-overrides`        | —                                     | —                   |
 | `chrome.css`        | Leaf's chrome, above its own rules | —                                     | —                   |
 
-A widget can seat a thread in its shadow tree, as a diff does a line's, so a declared
-shadow tree takes `defaults.css` within `@scope (.lf-thread-transcript)`, in `lf-shadow`
+A widget can seat a thread in its shadow tree, as a diff does a line's, so a shadow
+stage takes `defaults.css` within `@scope (.lf-thread-transcript)`, in `lf-shadow`
 after its `widget-shadow.css`, as it follows that sheet in the document: a message's
 markup wears the same look there as in the document, and the widget's own elements take
 none of it.
@@ -147,9 +147,9 @@ declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
 internals through its inputs or API; overrides are deliberately page-wide.
 
-Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet through `LeafElement` for `shadow`, or through
-`shadowStage` for an imperative renderer. Use theme inputs for changes across
+Document selectors don't reach into a shadow root. A shadow stage gets the composed
+shared stylesheet through `LeafElement` for a class declaring `static shadow = true`,
+or through `shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
 

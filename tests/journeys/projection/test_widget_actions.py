@@ -103,8 +103,6 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     holder = declarations["lf-trial"]
-    if shadow:
-        holder["shadow"] = True
     holder["attributes"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder["attributes"].setdefault("required", []).append("decision")
     holder["example"] = holder["example"].replace(

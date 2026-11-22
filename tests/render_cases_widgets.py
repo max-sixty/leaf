@@ -261,7 +261,6 @@ SHADOW_VISUAL_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "shadow": True,
         "visual": {"parts": "parts"},
         "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
     }

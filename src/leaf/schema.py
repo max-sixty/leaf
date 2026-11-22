@@ -393,7 +393,6 @@ FACTS: dict[str, dict] = {
     "refers": REFERENCE_SCHEMA,
     "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
-    "shadow": {"const": True},
     "inline": {"const": True},
     "visual": {
         "oneOf": [

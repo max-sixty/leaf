@@ -61,7 +61,7 @@ changed anchor, use
 checks the reply and posts it at once, and your final message then posts nothing.
 
 If the user resolves the thread before the turn completes, the reserved reply still
-posts and reopens it. Your final message publishes your saved page edits with it,
+posts, into the thread, which stays resolved. Your final message publishes your saved page edits with it,
 so end the turn without running `leaf page check` first. If Leaf refuses to post it,
 as it does over a saved edit with errors, it starts a correction turn with the error
 and the same reply address; fix the problem and complete the answer. Leaf also

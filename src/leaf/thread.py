@@ -17,7 +17,13 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import active_summaries, build_threads, is_answer, taken_back
+from leaf.events import (
+    active_summaries,
+    build_threads,
+    closed_by_user,
+    is_answer,
+    taken_back,
+)
 from leaf.files import (
     latest_revision,
     require_revision,
@@ -1006,6 +1012,17 @@ def _compose_and_append(
     if asks_back and not explicit_obligation and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
+    # Admission refuses a reply whose thread is taken back, so where the thread is
+    # gone from the reading there is nothing to say of it.
+    before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
+    unannounced = (
+        before is not None
+        and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
+        and not ephemeral
+        and failure is None
+    )
+    if unannounced:
+        event["unannounced"] = True
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
@@ -1044,14 +1061,35 @@ def _compose_and_append(
         record, _ = append_admitted(page, event)
     # Said once the message stands, which a later gate could still refuse.
     note(*twice)
-    if title is not None:
+    if title is not None and before and before["title"] not in (None, title):
         # A thread keeps the first title it was given (`events.build_threads`), so
-        # the agent hears which one stands. Admission has refused a reply whose
-        # thread is taken back, so the thread is there to read.
-        standing = build_threads(events, active_enclosing(page_dir))[thread_id]["title"]
-        if standing not in (None, title):
-            note(Finding("title-kept", values={"title": standing}))
+        # the agent hears which one stands.
+        note(Finding("title-kept", values={"title": before["title"]}))
+    if unannounced:
+        # Only the agent knows whether the user needs to see this message, and
+        # nothing on their lists will announce it.
+        note(Finding("reply-kept-closed"))
     return record, published
+
+
+def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
+    """Whether the agent's message goes into `thread` without reopening it, which
+    the reply records as `unannounced` (`events.build_threads`): the user's own
+    resolve holds the thread closed, and the message asks them nothing, in words or
+    with a widget.
+
+    A thread the user resolved stays off their lists until they reopen it or the
+    agent asks them something there. The user chose that the answer to a request they
+    closed a thread over leaves it closed: they end most threads with a last word and
+    then Resolve, which means they are done with the thread and not that they took
+    the word back, so the request stays owed (`events.owed_turns`) and its answer
+    brings nothing back to their lists. That every other message which asks nothing
+    does the same is a call the user has not yet made. The result of work the agent
+    promised reaches the thread in a reply that names no input, so a rule keyed on
+    the answer alone reopened the thread for the result and left it closed for the
+    promise. A message that asks reopens it, since the user answers a question in its
+    thread and ends one they won't answer by resolving it."""
+    return closed_by_user(thread) and not asks
 
 
 def post_response(

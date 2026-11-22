@@ -434,7 +434,8 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     """The user's resolve takes the thread off their list and leaves the request
     owed, so the reply the delivery addressed still answers it, in the thread the
-    user closed, which stays closed. Anything else the agent says there reopens
+    user closed. The thread stays closed for whatever the agent says in it, and the
+    command says nothing announces the message; only a question to the user reopens
     it."""
     root = append_carried_log_record(
         published(page_dir),
@@ -459,16 +460,44 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     events = events_model.read_events(page_dir)
     assert events[-1]["responds"] == root["id"]
     assert owed_answers(page_dir) == []
+    assert "reply-kept-closed" in answered.output
     [thread] = state_json(page_dir)["threads"]
     assert thread["resolved"] == "user"
 
-    more = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", str(page_dir), root["id"], "--text", "One more thing."],
+    def says(*flags):
+        said = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), root["id"], "--text", "More.", *flags],
+        )
+        assert said.exit_code == 0, said.output
+        [thread] = state_json(page_dir)["threads"]
+        return thread["resolved"], "reply-kept-closed" in said.output
+
+    assert says() == ("user", True)
+    assert says("--obligation") == (None, False)
+
+
+def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_dir):
+    """The agent answers a request the user resolved its thread over with a promise,
+    and later with the result at the same reference, which names no input. Both go
+    into the thread without reopening it."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
     )
-    assert more.exit_code == 0, more.output
-    [thread] = state_json(page_dir)["threads"]
-    assert thread["resolved"] is None
+    reference = response_reference(page_dir, root["id"])
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+    for text, flags in (("On it.", ["--todo", "Check it"]), ("Checked.", ["--done"])):
+        said = CliRunner().invoke(
+            cli_model.cli, ["thread", "reply", reference, "--text", text, *flags]
+        )
+        assert said.exit_code == 0, said.output
+        [thread] = state_json(page_dir)["threads"]
+        assert thread["resolved"] == "user"
+    assert "responds" not in events_model.read_events(page_dir)[-1]
 
 
 def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_dir):
@@ -496,6 +525,13 @@ def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_d
     misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
     assert "the agent resolved the thread" in misplaced.output
     assert "leaf thread reply" not in misplaced.output
+    # The user closing the thread after the agent leaves the agent's resolve
+    # answering for it, and the refusal still names that one.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    again = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "the agent resolved the thread" in again.output
     assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
 
 

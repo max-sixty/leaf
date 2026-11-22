@@ -1185,7 +1185,7 @@ class AppServerReplyStream:
 
         A completed answer retains its delivered response address even when that
         update was settled during the turn. The reply reopens the thread, unless the
-        user's own resolve closed it over the request (`events.build_threads`).
+        user's own resolve holds it closed (`thread.post_reply`, `unannounced`).
 
         A commit appends the reply, then clears its reply reservation and draft in a
         separate transaction. Every other way out releases the reservation,

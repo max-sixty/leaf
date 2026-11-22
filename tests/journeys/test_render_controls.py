@@ -2159,9 +2159,11 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     parent_storage = page.evaluate(
         "[Object.keys(localStorage), Object.keys(sessionStorage)]"
     )
-    # The child's panel stands at the foot of its frame, which the host scrolls to.
+    # The child's panel stands at the foot of its frame, which the host brings clear of
+    # its own panel's row at the window's foot, as a landing of Leaf's does.
     second.evaluate(
-        "sample => sample.scrollIntoView({block: 'end', behavior: 'instant'})"
+        "async sample => (await window.__lfWidgetApi())"
+        ".scrollIntoView(sample, {block: 'end', behavior: 'instant'})"
     )
     write(page_comment(other), "Keep the other sample's draft.")
     reset.scroll_into_view_if_needed()

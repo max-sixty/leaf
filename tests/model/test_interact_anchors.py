@@ -75,9 +75,9 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     document = structure_model.SourceDocument(
         '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
         "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
-        '<lf-option id="chipped"><small class="tag">recommended</small>'
+        '<lf-option id="chipped"><small class="lf-tag">recommended</small>'
         "<strong>Apply</strong>Ship it.</lf-option>"
-        '<lf-option id="quoted"><small class="tag">recommended</small>'
+        '<lf-option id="quoted"><small class="lf-tag">recommended</small>'
         '<strong>"Update" for mixed input</strong></lf-option></main>'
     )
     assert passages_model.page_passages(document).text == (
@@ -834,6 +834,8 @@ def test_quote_preservation_reads_restated_body_at_the_candidate_revision(page_d
         if thread["id"] == root["id"]
     )
     assert thread["anchor"] == {"section": "note"}
+    # The words the thread is about stay readable once the page no longer shows them.
+    assert thread["rewritten_from"]["quote"] == "Alpha"
 
 
 def test_a_stamp_detaches_a_reopened_quote_without_a_surviving_section(page_dir):
@@ -1061,8 +1063,8 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
     """An undone reaction is a mark taken back: no thread fold shows it, so a reply
-    naming it would open a thread with no root. Neither detaching nor moving it
-    lands."""
+    naming it would open a thread with no root. The append door refuses both
+    detaching and moving it."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     root = append_carried_log_record(
@@ -1093,7 +1095,7 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stdout).code == "no-anchor"
+    assert refused_on(detached.stdout).code == "withdrawn-parent"
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -1110,6 +1112,22 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
     )
     assert moved.exit_code != 0
     assert refused_on(moved.stdout).code == "withdrawn-parent"
+
+    titled = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Shorter flow",
+            "--text",
+            "Name the withdrawn mark's thread.",
+        ],
+    )
+    assert titled.exit_code != 0
+    assert refused_on(titled.stdout).code == "withdrawn-parent"
 
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
@@ -1972,44 +1990,6 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
         assert "document-declaration" in refused.output, refused.output
     handled = '<p onclick="this.hidden = true">Hide me</p>\n\n' + widget
     assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
-
-
-def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
-    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
-    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
-    so the code loses its blank lines, indents and marks while the HTML stays well
-    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
-    published(page_dir)
-    code = "def a():\n    return 1\n\ndef b():\n    return 2"
-    for split in (code, "steps:\n\n- build\n- ship"):
-        refused = comment(
-            page_dir,
-            "--text",
-            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
-        )
-        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
-    for kept in (
-        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
-        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
-    ):
-        assert code in passages_model.message_markup(kept)
-        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
-
-
-def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
-    page_dir,
-):
-    """A widget whose opening tag shares its line with its content is inline HTML, so
-    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
-    refusal names that repair alone, not the widget the parser emptied, which the
-    agent wrote whole."""
-    published(page_dir)
-    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
-    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
-    assert refused.exit_code != 0
-    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
-    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
-    assert kept.exit_code == 0, kept.output
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():

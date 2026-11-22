@@ -11,7 +11,7 @@ touches:
 
 - `claude-code` (`commands/journey/_claude_code.py`): after a change to `hooks/hooks.json`,
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, the watch between turns in
-  `session.py`, `forks.py`, `carrier.py` or `holding.py`. Add `--sandbox` after a
+  `session.py`, `forks.py` or `carrier.py`. Add `--sandbox` after a
   change to `bridge.py`, the README's "Agent sandboxes" settings, or what a `leaf`
   command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`commands/journey/_codex.py`), both: after a change to
@@ -41,6 +41,5 @@ reply over enough runs to see past that spread.
 To find out what happened to one message, on a real page or in a journey's evidence
 directory, run `leaf-dev logs timeline PAGE --message ID`: it lays the page's log and
 diagnostics beside the Claude Code session's transcript and debug log, so it shows
-whether Leaf kept it back, what the line fork judged, which fork's turn held it, when
-Leaf handed it over, and what the session did meanwhile
-(`dev/leaf_dev/commands/logs/timeline.py`).
+what came of the line fork, when Leaf handed the message to the session, and what the
+session did meanwhile (`dev/leaf_dev/commands/logs/timeline.py`).

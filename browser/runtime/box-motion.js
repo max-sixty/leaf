@@ -100,7 +100,8 @@
  * out for where its old placement stood it and turn back a frame later.
  *
  * A send is the user's change joining a stream ("send" from `theirs()`, read where
- * the stream starts from with `stream`), and news joins it as the agent's turn. What
+ * the stream starts from with `stream`), and news joins it as the agent's turn, in
+ * each scroller whose content it changed (`joins`). What
  * the box shows above its field then moves as one stream sliding up to take the new
  * turn: a scroller's content, every child of it, is carried from where it was drawn,
  * when the send began or at the last reading before the news, a send's own scroll
@@ -134,7 +135,7 @@ import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
-import { contentRides } from "./scrolling.js";
+import { contentRides, laidOutHeight } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
 import { shifted } from "./rect.js";
 
@@ -189,12 +190,11 @@ function listen() {
 }
 
 // The parts of every box a placement stands are observed by one observer, made as
-// this module loads, which asks each box's placement first (`placed`). A placement
-// landing in its delivery can resize the placed box, which the placement's own
-// observer, made when it first watches the box, observes too. Chromium delivers
-// observers in the order they were made, so that observer reads the box's new size
-// after this one. Delivered before it, as an observer made when the box first stands
-// would be, it would read the old size and Chromium would report the new one as a loop.
+// this module loads, which asks each box's placement first (`placed`). The placement
+// lands in this delivery, so it may move the box but not resize the box or anything
+// holding it: another observer of that box, delivered before this one or at a shallower
+// depth, would miss the new size, and the browser reports that as a loop. A placement
+// whose fit would change a size makes that change in the next frame, before layout.
 // We could consider, in future, making this the only observer that asks a placed box's
 // placement for a change of its size: Floating UI's watch (`autoUpdate`'s
 // `elementResize`) asks too, and observes the reference with the same option, so its
@@ -350,6 +350,12 @@ export function boxMotion({
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   /** @type {Timing | null} */
   let timing = null;
+  // How tall each scroller's content stood in its layout at the last reading, which
+  // tells news that changed what a scroller holds from news that changed only the box
+  // around it (`joins`). Its scroll height would count a ride's drawing, and follow the
+  // box where the content is shorter than it.
+  /** @type {WeakMap<Element, number>} */
+  const contentHeights = new WeakMap();
   // Each part moving, from the box it was drawn at to its rest, on one clock.
   /** @type {Map<Element, Moving>} */
   let motions = new Map();
@@ -493,8 +499,10 @@ export function boxMotion({
     const shape = Math.min(1, progress / shapeUntil);
     const w = width(from) + (width(to) - width(from)) * shape;
     const h = height(from) + (height(to) - height(from)) * shape;
-    if (rtl) rect.left = rect.right - w;
-    else rect.right = rect.left + w;
+    // A fold gathers the box into the leaf at its row's end, so the shape holds that
+    // edge as it shrinks.
+    if (rtl) rect.right = rect.left + w;
+    else rect.left = rect.right - w;
     rect.top = rect.bottom - h;
     return rect;
   };
@@ -683,6 +691,13 @@ export function boxMotion({
     };
     parts.forEach(note);
     watch();
+    /** @type {Set<Element>} */
+    const changed = new Set();
+    for (const scroller of scrollers) {
+      const height = laidOutHeight(scroller);
+      if (height !== contentHeights.get(scroller)) changed.add(scroller);
+      contentHeights.set(scroller, height);
+    }
     // A send's scroll moves a scroller's content without changing any part's layout,
     // as in a view already at its cap: that content still rides. Every other scroll
     // has been taken in.
@@ -717,8 +732,14 @@ export function boxMotion({
     const gesture = theirs();
     // A turn joining the stream the box shows, the user's send or news, carries each
     // scroller's content from where it was drawn (`streamContent`); a press or a key
-    // shows it where its scroll puts it.
-    const joins = gesture === "send" || gesture === null;
+    // shows it where its scroll puts it. So does news that left a scroller's content as
+    // it stood and changed only the box around it, as a picture pasted from a menu,
+    // which comes with no key, opens a band under a thread's view: carried, the
+    // thread's messages stood where they were drawn, under the view's new foot, and
+    // hid the message being answered until the ride ended.
+    /** @param {Element} scroller */
+    const joins = (scroller) =>
+      gesture === "send" || (gesture === null && changed.has(scroller));
     // The first reading, and any while motion does not play, is taken as it stands, as
     // is one a key makes, but for a line it takes away.
     const previous = motionPlays() && rests ? drawn(progress, carried, rests) : null;
@@ -843,7 +864,7 @@ export function boxMotion({
       const to = part.box;
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
         grow(part, from);
-        if (joins) streamContent(part);
+        if (joins(part.element)) streamContent(part);
         return;
       }
       const emptied =
@@ -1112,8 +1133,8 @@ export function boxMotion({
 
     /** @param {Part} part */
     function streamWithin(part) {
-      if (part.scrolls) streamContent(part);
-      else part.parts.forEach(streamWithin);
+      if (!part.scrolls) part.parts.forEach(streamWithin);
+      else if (joins(part.element)) streamContent(part);
     }
 
     /** @param {Part} part @param {{from: Box, to: Box}} frame @param {Part[]} [siblings] @returns {void} */
@@ -1134,7 +1155,7 @@ export function boxMotion({
         if (sized && !part.holdsWindow) {
           carry(part, from);
           // A part carried whole still holds the stream a turn joins.
-          if (joins) streamWithin(part);
+          streamWithin(part);
           return;
         }
         if (part.whole) return carryContent(part, from);

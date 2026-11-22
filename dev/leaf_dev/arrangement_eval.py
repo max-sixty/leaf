@@ -803,19 +803,6 @@ Task and criterion:
         return {"error": str(error), "metadata": {"evidence": str(evidence)}}
 
 
-def call_api(prompt: str, options: dict, context: dict) -> dict:
-    """Promptfoo's live judge provider for the final and predecision pages."""
-    request = context["vars"]
-    return judge_pages(
-        request["pages"],
-        request["widths"],
-        prompt,
-        request["schema"],
-        Path(request["evidence"]),
-        handovers=request.get("handovers"),
-    )
-
-
 def capture(run: Run) -> dict[int, dict]:
     """Report the final page and, when applicable, its decision controls."""
     return {

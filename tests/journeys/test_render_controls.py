@@ -297,7 +297,6 @@ RING_CASES = (
             RING_CHROME: (
                 (".lf-grip", FLOOR_RING),
                 (".lf-fp-leaf", FLOOR_RING),
-                (".lf-fp-on-user", FLOOR_RING),
                 # The field's slot wears the ring, so Send in the editor's corner
                 # stays put (floating-panel.css).
                 (
@@ -554,13 +553,18 @@ RING_SCOPE_SURFACE = {
 
 
 RING_SCOPE_OPENER = {
-    "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "On Me": ".lf-fp-on-user",
-    "the leaf's menu": ".lf-fp-leaf",
-    "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
-    "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",
+    "an inline response": ("#pr-exact-patch .lf-diff-file-comment",),
+    "On Me": (".lf-fp-leaf",),
+    # The leaf opens the On view on the tab its marks point at, so the Menu tab turns it
+    # to the menu where they point at a list.
+    "the leaf's menu": (
+        ".lf-fp-leaf",
+        ".lf-fp-controls .lf-fp-filters > button:first-child",
+    ),
+    "a thread card": ('.lf-margin-marker[data-lf-kinds~="comment"]',),
+    "a reaction palette": (f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",),
     # Any control inside the diff puts the user in its scope, where `]` lands a line.
-    "a landed diff line": "#pr-exact-patch summary",
+    "a landed diff line": ("#pr-exact-patch summary",),
 }
 
 
@@ -818,8 +822,8 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     resized(page, 390, 720)
     expect(back).to_be_in_viewport()
     assert root_overflow(page) <= 1
-    # The held draft gives the field the quick chips' room. Open Threads through
-    # the child's Go-to route while the same frame stands in Full view.
+    # Open Threads through the child's Go-to route while the same frame stands in Full
+    # view.
     child.locator("h1").click()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1135,9 +1139,9 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
     serious/critical findings; layout and accessibility-tree snapshots belong to
     specific regressions, not a baseline that changes with every restyle. The feature
-    gallery is the authored page with the broadest real UI. The specialist package
-    pages get one 420px Axe reading in the exported corpus; focused tests own the live
-    chrome surfaces this page does not open.
+    gallery is the authored page with the broadest real UI. Every other authored page
+    gets one Axe reading in each scheme at its widest (`test_page_fixture_renders`);
+    focused tests own the live chrome surfaces this page does not open.
 
     A phone's width because what a box does there is a different question and not a
     smaller one: the column is 372px, so a block that had room at a desk starts
@@ -1319,11 +1323,11 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     for _ in range(60):
         page.keyboard.press("Shift+Tab")
         if page.evaluate(
-            "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
+            "() => Boolean(document.activeElement?.matches('.lf-fp-leaf'))"
         ):
             break
     else:
-        raise AssertionError("Tab never reached the panel's On Me mark")
+        raise AssertionError("Tab never reached the panel's leaf")
     rendered(page)
 
     assert seen_stop(page) is None, (
@@ -1335,13 +1339,13 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
         style.textContent =
-          '.lf-fp-on-user:focus { outline: none !important;'
+          '.lf-fp-leaf:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
     rendered(page)
     lost = seen_stop(page)
-    assert lost and "lf-fp-on-user" in lost, (
+    assert lost and "lf-fp-leaf" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the sample floor cannot report a missing indication"
     )
@@ -1499,7 +1503,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 page_at_rest(page)
             if holding := RING_SCOPE_THREAD.get(scope):
                 open_panel_thread_holding(page, holding)
-            if opener := RING_SCOPE_OPENER.get(scope):
+            for opener in RING_SCOPE_OPENER.get(scope, ()):
                 page.locator(opener).first.click()
             for key in keys:
                 page.keyboard.press(key)
@@ -1513,7 +1517,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):
                 assert page.locator(surface).count() == 1, (
-                    f"{RING_SCOPE_OPENER.get(scope, ' '.join(keys))} did not open "
+                    f"{RING_SCOPE_OPENER.get(scope, keys)} did not open "
                     f"{scope} on {example.stem}, which "
                     "offers it"
                 )
@@ -1544,7 +1548,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     # A key press makes the focus that follows keyboard focus. Shift
                     # moves nothing: a Tab could stand in the panel's field, whose
-                    # caret puts the On Me mark aside (floating-panel.js, `quickHidden`).
+                    # caret starts writing there (floating-panel.js, `writing`).
                     page.keyboard.press("Shift")
                     target.focus()
                     # A note on the details shelf is reached from the element that

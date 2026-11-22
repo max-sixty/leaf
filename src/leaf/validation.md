@@ -9,7 +9,7 @@ directly:
   check`, activation, `page stamp` and `page init` all run ("Static validation");
 - the HTML in an agent's message at `admission.check_markup`, which applies the same
   structure and vocabulary checks to the markup the message draws
-  (`passages.message_markup`);
+  (`passages.message_markup`) and notes its advice beside the command's result;
 - a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
   `page init`, `page check`, serving and export, but not reading the page
   ([layer-registry.md](layer-registry.md));
@@ -35,8 +35,8 @@ them:
 - The runtime's `lf-` and `data-lf-` namespaces are reserved, for names it uses now
   and later, but for the classes the kernel's idioms name
   (`structure.AUTHORED_CLASSES`), which a page writes to take what the idiom offers.
-  No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
-  command's ID names a widget or a message in one address space.
+  No id is one the log already gives an event (`event_log.logged_ids`), since
+  a command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the
@@ -50,8 +50,8 @@ them:
   any sheet delivery rewrites in the document, which the capture finds by
   delivery's own walk (`structure.delivered_elements`), templates and shadow roots
   included. What that reader reads whole but a browser drops, such as `broken;`
-  in a rule, the source check reports as `css-dropped` advice, a severity
-  `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
+  in a rule, the source check reports as `css-dropped` advice
+  (`styles.dropped_css`). A message, which no capture
   reads, asks what the capture would refuse at its own gate
   (`revision_artifact.uncaptured_errors`).
 

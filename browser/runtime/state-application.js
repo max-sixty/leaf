@@ -274,7 +274,7 @@ export function createStateApplication({
           presentedNews.reading = newsReading;
           presentedNews.observed = reading.observed;
         } else presentedNews = { reading: newsReading, observed: reading.observed };
-        // The agent's new words are heard, not shown: the On Me mark's dot and each
+        // The agent's new words are heard, not shown: the leaf's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
         // The user chose this over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));

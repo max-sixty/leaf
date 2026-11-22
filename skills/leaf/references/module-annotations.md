@@ -205,7 +205,9 @@ drawn}`, each part optional:
   box's words agree with Resolve and the notice. `attention` is what the thread waits
   on, with the `word` Threads says it in, or null where it waits on nothing, as once
   it is resolved.
-- `quote: true` quotes the words the thread is about over its messages.
+- `quote: true` quotes the words the thread is about over its messages, for a widget
+  that stands apart from them. Without it, the thread quotes them only once the page
+  no longer shows them as quoted, as after a revision rewrote them.
 - `scroller: (transcript) => box` names the box that scrolls the thread's messages,
   which may be the thread's own `transcript`. An answer the user waits for that arrives
   past its foot then says New reply there.
@@ -255,7 +257,8 @@ box. Return, in the same order, an outlet for each target or `null`, or a promis
 that array; an asynchronous `threadOutlets` checks `signal` before changing the DOM. A
 target is `{anchor, placement, thread}`, with `thread` `null` for the comment box. A
 target on a datum names it in `anchor.datum`, with its element at
-`placement.datumElement`. A target with no `anchor.datum` is the widget itself: a
+`placement.datumElement`; a passage running across several data names the last there and
+the first in `anchor.from`. A target with no `anchor.datum` is the widget itself: a
 thread anchored to its element and nothing inside it. A thread on a passage or a visual
 part of the widget is never a target, and stays in the margin. Here `this.outletFor` is
 the widget's own method that finds or makes the outlet beside a datum (`lf-diff`'s
@@ -278,13 +281,16 @@ A thread names its widget by `id`, so a widget that shows threads needs an `id` 
 each instance and should require it in its schema: Leaf reports an instance without
 one as a failure of that widget and registers no surface for it.
 
-The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
-stop returning may still hold the comment box the user is typing in, so remove outlets
-only in `onCommit`, which runs once this pass's placement takes effect, and keep
-returned ones in the document while redrawing around them. A widget that must remove a
-node holding outlets at another time, such as when its data goes, first calls
-`releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf returns
-the widget's threads to the margin until the next pass.
+The widget creates, lays out and removes its outlets, and Leaf fills them, drawing each
+thread as a card with its own frame that fills the outlet and stands on the ground the
+widget declares where it paints one (`--lf-ground`). So an outlet's box is the cards'
+shape, and the outlet draws no frame of its own. An outlet you stop returning may
+still hold the comment box the user is typing in, so remove outlets only in `onCommit`,
+which runs once this pass's placement takes effect, and keep returned ones in the
+document while redrawing around them. A widget that must remove a node holding outlets
+at another time, such as when its data goes, first calls `releaseOutlets(node)`, before
+any `holdFocus`. If `threadOutlets` throws, Leaf returns the widget's threads to the
+margin until the next pass.
 
 `threadSurface(this).open` is the reactive opener for the comment box on the widget or
 one of its data items, or `null` while no surface is registered, as in an export, which

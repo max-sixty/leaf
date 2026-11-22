@@ -8,6 +8,7 @@ import re
 import textwrap
 from copy import deepcopy
 from pathlib import Path
+from typing import cast
 
 import pytest
 from click.testing import CliRunner
@@ -15,6 +16,7 @@ from interact_support import (
     Json,
     Prose,
     command_findings,
+    command_notes,
     fetch,
     found,
     page_packages,
@@ -62,9 +64,9 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
     registry = shipped_core_registry()
     entry = {
         "description": "An opening.",
-        "example": '<p class="lede">Opening</p>',
+        "example": '<p class="lf-lede">Opening</p>',
     }
-    registry[".lede"] = entry
+    registry[".lf-lede"] = entry
     registry_validation.validate_layer_declarations(registry, "registry.json")
     entry["instructions"] = "Use above a heading."
     registry_validation.validate_layer_declarations(registry, "registry.json")
@@ -79,7 +81,7 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
         )
     )
     assert found(
-        [refused], "idiom-schema", selector=".lede", keyword=keyword, path=path
+        [refused], "idiom-schema", selector=".lf-lede", keyword=keyword, path=path
     )
 
 
@@ -215,6 +217,17 @@ def init_refusal(page_dir) -> Finding:
     return refused
 
 
+def init_notes(page_dir) -> list[Finding]:
+    """What `page init` of the page's packages and the project layer `.leaf` over
+    them notes beside the page it initializes."""
+    return command_notes(
+        "page",
+        "init",
+        *package_selection_args((*page_packages(), "./.leaf")),
+        str(page_dir),
+    )
+
+
 def _handling(clauses):
     return {"handling": clauses}
 
@@ -222,14 +235,6 @@ def _handling(clauses):
 @pytest.mark.parametrize(
     ("events", "code"),
     [
-        (
-            _handling({"bogus-kind": [{"text": "A clause for no kind."}]}),
-            "undeclared-event-kind",
-        ),
-        (
-            {"answering": {"markdown": [{"text": "A clause for no answer."}]}},
-            "undeclared-event-kind",
-        ),
         (_handling({"comment": []}), "layer-facts"),
         (_handling({"comment": "Reply in French."}), "layer-facts"),
         (_handling({"comment": [{"text": ""}]}), "layer-facts"),
@@ -258,6 +263,32 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
     finding = init_refusal(page_dir)
     assert finding.code == code
     assert next(iter(events)) in json.dumps(finding.values)
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        _handling({"bogus-kind": [{"text": "A clause for no kind."}]}),
+        {"answering": {"markdown": [{"text": "A clause for no answer."}]}},
+    ],
+)
+def test_init_advises_on_instructions_for_a_kind_no_batch_carries(
+    page_dir, tmp_path, events
+):
+    """A clause for a kind or answer this Leaf doesn't have reaches no delivery, and a
+    package may be written for a newer Leaf's kind, so `page init` composes the layer
+    and says the clause has no effect."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"$events": events}))
+
+    [advice] = init_notes(page_dir)
+    assert (advice.code, advice.severity, advice.values["key"]) == (
+        "undeclared-event-kind",
+        "advice",
+        next(iter(events)),
+    )
+    assert advice.values["registry"] == str(overlay / "registry.json")
 
 
 @pytest.mark.parametrize("path", [("verbs", "decide", "unit")], ids="-".join)
@@ -987,19 +1018,11 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     assert finding.values["path"][:2] == ["$tones", "names"]
 
 
-def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
-    """$keys documents each key an entry may declare, and exactly those: a member
-    for a key the lint doesn't admit is documentation of nothing, and one missing is a
-    key the registry then leaves unsaid. A project layer overrides a member (its own
-    reading of a key) and adds none — the set is closed where the keys are checked."""
+def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
+    """A project layer overrides a member of $keys, its own reading of a key, and the
+    shipped members it leaves stand."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"space": "wider, in this project", "nope": "?"}})
-    )
-    finding = init_refusal(page_dir)
-    assert found([finding], "keys-documentation", missing=[], unadmitted=["nope"])
-
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"space": "wider, in this project"}})
     )
@@ -1018,31 +1041,31 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["verbatim"]  # the rest of the shipped members stand
 
 
-@pytest.mark.parametrize("fact", ["$verbs", "$awaits"])
-def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
-    """`$verbs` documents the fields of a verb (`verbs`) and `$awaits` those of
-    `awaits`, held to their schemas as `$keys` is to a declaration's keys: a field
-    the schema
-    admits with no member is one an author reads the registry for and finds unsaid."""
-    kernel = shipped_core_registry()
-    registry_validation.validate_layer_declarations(kernel, "kernel")
-    documented = deepcopy(kernel)
-    field = min(registry_validation.DOCUMENTED_KEYS[fact])
-    del documented[fact][field]
-    documented[fact]["nope"] = "?"
-    refused = registry_refusal(
-        lambda: registry_validation.validate_layer_declarations(documented, "kernel")
-    )
-    assert found(
-        [refused], "keys-documentation", fact=fact, missing=[field], unadmitted=["nope"]
-    )
+@pytest.mark.parametrize(
+    ("fact", "admitted"),
+    [
+        ("$keys", schema_model.DECLARATION_KEYS),
+        ("$verbs", frozenset(cast(dict, schema_model.VERB_SCHEMA["properties"]))),
+        ("$awaits", frozenset(cast(dict, schema_model.AWAITS_SCHEMA["properties"]))),
+    ],
+)
+def test_the_key_docs_hold_to_the_keys_their_schema_admits(fact, admitted):
+    """Leaf's own `$keys` documents each key a declaration may hold, `$verbs` each
+    field of a verb and `$awaits` each of `awaits`, one paragraph apiece beside a
+    description: a member for a key the schema doesn't admit is documentation of
+    nothing, and a key with no member is one an author reads the registry for and
+    finds unsaid. Agents query them, and the site's table is generated from `$keys`."""
+    members = dict(shipped_core_registry()[fact])
+    assert isinstance(members.pop("description"), str)
+    assert set(members) == admitted
+    assert all(isinstance(text, str) and text for text in members.values())
 
 
 @pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
 def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
     """A layer cannot change the event kinds, their ownership, or the protocol
     numbering them, so every page's vocabulary carries the kernel's of the Leaf
-    reading it."""
+    reading it, and `page init` says the layer's value has no effect."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = vocabulary(page_dir)
@@ -1054,28 +1077,29 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
         # Equal to a protocol of 1 in Python, and still not the kernel's number.
         registry["$events"][key] = True
     (overlay / "registry.json").write_text(json.dumps(registry))
+    shipped = cleanup_model.kernel_registry()["$events"][key]
 
-    finding = init_refusal(page_dir)
-    assert found([finding], "fixed-events", key=key)
+    assert found(init_notes(page_dir), "fixed-events", key=key)
+    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
 
     (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
-    finding = init_refusal(page_dir)
-    assert found([finding], "fixed-events", key=key)
+    assert found(init_notes(page_dir), "fixed-events", key=key)
+    assert registry_storage.load_registry(page_dir)["$events"][key] == shipped
 
 
 @pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
 def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     """Python reads the running Leaf's kernel facts and the browser a copy generated
     from them, so a layer's change to one, even taking a member out, would reach
-    neither runtime."""
+    neither runtime; `page init` keeps the kernel's and says so."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     shipped = registry_storage.load_registry(page_dir)[fact]
     member = next(key for key in shipped if key != "description")
     (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
 
-    finding = init_refusal(page_dir)
-    assert found([finding], "fixed-kernel-fact", name=fact)
+    assert found(init_notes(page_dir), "fixed-kernel-fact", name=fact)
+    assert registry_storage.load_registry(page_dir)[fact] == shipped
 
 
 def test_shared_package_declarations_compose_by_member():

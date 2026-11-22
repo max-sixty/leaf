@@ -18,14 +18,15 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underlying
-issue** to the verdict; most of Tend's own pull requests land on this review alone.
+Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage**, **The maintainer
+decides** and **Fix the underlying issue** to the verdict; most of Tend's own pull
+requests land on this review alone.
 Once a change moves Leaf toward a coherent architecture, its claimed path works and
 what it adds is worth keeping, the review is done. Reserve findings for architectural
-seams, cross-runtime invariants, public surface traps (root `AGENTS.md`, "Where
-instructions live", names those in prose), regressions anywhere the change reaches,
-additions that cost more than they buy, or a central claim or test that is false or
-that nothing has shown.
+seams, cross-runtime invariants, a public interface that misleads its user, the text
+defects root `AGENTS.md`, "Where instructions live", lists, regressions anywhere the
+change reaches, additions that cost more than they buy, or a central claim or test
+that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
 prose or test polish unless they expose one of those problems. Those findings ask a
 change to cover more or read better; a finding that it adds more than it buys is
@@ -34,11 +35,7 @@ none of them.
 The verdict rests on that weighing. Weigh the change before searching it for
 defects, and revisit the weighing when a defect shows a cost it missed: on Tend's own
 pull request a defect found in an addition gets fixed and the addition lands, so for
-an addition the weighing rejects, the rejection is the finding, not its defect. State
-in the session what the change adds that later changes must hold, what that buys, who
-pays its cost and who gains beyond the claimed case, and the cheapest other change
-you can name that buys the same. Where that change keeps what this one must and costs
-materially less, it is the finding: withhold approval and name it.
+an addition the weighing rejects, the rejection is the finding, not its defect.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the

@@ -46,13 +46,16 @@ html[data-lf-interactive]
    which is the whole reason lf-diff makes its own wrap the user's switch and this is
    simply the default. The frame keeps `overflow-x: auto` for what no line box can break:
    a path, a URL, minified data. An author whose capture is columnar has no attribute to
-   say so yet; add one when a page needs it. */
+   say so yet; add one when a page needs it. A row wraps under its own start, which the
+   module's height for an undrawn row counts on (lf-text-document.js, `rowLines`), so
+   the hang a code block gives its wrapped rows (reading.css, `pre`) stops here. */
 lf-text-document pre {
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   white-space: pre-wrap;
+  text-indent: 0;
 }
 /* The listing (lf-text-document.js, `listing`) takes the type and paper of Leaf's code
    blocks. Each row is one line, wrapped under its own start, with its number in the

@@ -11,6 +11,7 @@ from interact_support import (
     check,
     check_findings,
     command_findings,
+    command_notes,
     found,
     published,
     styled,
@@ -135,49 +136,6 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
-def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
-    """An allocation means something only where the kernel's `$marks` say it does,
-    and delivery paints none elsewhere, so the page would show no sign of it: a width
-    on `main`, which would size the page, and a stated height on a block no module
-    draws into. `page check` names each so the author can move it. A width on a table
-    in the question's group, and a height on a chart, mean what they say. A tab set
-    draws no box of its own only where
-    it is written `flow="page"`, so a width there means nothing and on a boxed set it
-    holds."""
-    tabs = (
-        '<lf-tabs id="{id}"{flow} data-width="wide">'
-        '<lf-tab id="{id}-one" label="One"><p>One.</p></lf-tab></lf-tabs>'
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main data-width="wide">')
-        .replace(
-            "</section>",
-            "</section>"
-            + tabs.format(id="page-tabs", flow=' flow="page"')
-            + tabs.format(id="boxed-tabs", flow=""),
-        )
-        .replace(PAGE_GROUP, '<lf-options id="plan-choice">')
-        .replace(
-            "</lf-options>\n  </lf-group>",
-            "</lf-options>\n"
-            '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
-            '<div id="sized" data-height="200">box</div>\n'
-            '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
-            "</lf-chart>\n  </lf-group>",
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 0
-    assert [
-        (f.at, f.values["attr"], f.values["holds"], f.severity)
-        for f in found(findings, "inert-allocation")
-    ] == [
-        ("<main>", "data-width", "content", "advice"),
-        ("<div id=sized>", "data-height", "declared", "advice"),
-        ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
-    ]
-
-
 def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
     """An option or card leading with a <strong>, past any chips, with no `label` draws
     as bold words rather than a titled card and is named by all its words, so `page
@@ -186,7 +144,7 @@ def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice">').replace(
             '<lf-option id="flag-first" label="Flag first">',
-            '<lf-option id="old"><small class="tag">x</small> <strong>Old</strong> w.'
+            '<lf-option id="old"><small class="lf-tag">x</small> <strong>Old</strong> w.'
             '</lf-option><lf-option id="bare">Keep <strong>it</strong></lf-option>'
             '<lf-option id="flag-first" label="Flag first">',
         )
@@ -320,7 +278,6 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
 
 
 SAMPLE_DOCUMENT_CASES = [
-    ("<noscript>invisible</noscript>", "noscript", ("practice",)),
     ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
     ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
     (
@@ -334,8 +291,9 @@ SAMPLE_DOCUMENT_CASES = [
         ("practice",),
     ),
     (
-        '<template id="nested" data-sample><noscript>hidden</noscript></template>',
-        "noscript",
+        '<template id="nested" data-sample><p id="twice">One</p><p id="twice">Two</p>'
+        "</template>",
+        "duplicate-ids",
         ("practice", "nested"),
     ),
 ]
@@ -458,8 +416,8 @@ def test_sample_diagnostics_report_authored_lines(page_dir, nested):
     line = source[: source.index("<noscript>")].count("\n") + 1
     unknown = source[: source.index("<lf-unknown")].count("\n") + 1
     assert [(f.code, f.samples, f.values["line"]) for f in findings] == [
-        ("noscript", samples, line),
         ("unknown-widget", samples, unknown),
+        ("noscript", samples, line),
     ]
 
 
@@ -493,6 +451,37 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     ]
 
 
+def test_an_id_the_log_gives_an_event_is_refused_in_a_page_and_a_message(page_dir):
+    """A command's ID names a widget or a message in one address space, so markup may
+    not take an id the log already gives an event. An id that only looks like one, as
+    a hash written as a section's id, names nothing else and passes."""
+    shaped = '<section id="6d1d57ac"><h2>Shaped</h2></section>'
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", shaped + "</main>"))
+    status, findings = check_findings(page_dir)
+    assert status == 0, findings
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "6d1d57ac", "author": "user", "text": "A question"},
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.code, f.values) for f in findings] == [
+        ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
+    ]
+    (page_dir / "index.html").write_text(PAGE)
+    published(page_dir)
+    message = command_findings(
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        'See:\n\n<lf-code id="6d1d57ac">\n<pre><code>1</code></pre></lf-code>',
+    )
+    assert [(f.code, f.values) for f in message] == [
+        ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
+    ]
+
+
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
     """The page's own <style> and each inline style. Chrome drops a malformed
     declaration without a word, so the author hears of it here or not at all.
@@ -512,6 +501,22 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
         "page <style> (line 6)",
         "<p style> (line 11)",
     ]
+
+
+def test_a_url_of_two_values_is_advice_beside_the_sheets_drops(page_dir):
+    """A browser drops a declaration whose url() holds more than one value, as a URL
+    modifier or a second string, so the check says so beside the sheet, and delivery
+    carries the sheet as written."""
+    (page_dir / "index.html").write_text(
+        styled('.page { background-image: url("x.png" crossorigin(anonymous)); }')
+    )
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 0, findings
+    [advice] = found(findings, "css-url")
+    assert advice.severity == "advice"
+    assert advice.values["sheet"].startswith("page <style>")
 
 
 @pytest.mark.parametrize("style", ["color: red; } }", "& { color: red; }"])
@@ -577,10 +582,28 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     ] == [("css-syntax", "Unmatched ]")]
 
 
+def test_a_message_takes_the_advice_its_markup_draws_on_a_page(page_dir):
+    """The advice that reads only markup reaches a message's HTML as it reaches a
+    page's source: a code block naming a language Leaf doesn't colour posts, and its
+    command says so beside it."""
+    published(page_dir)
+    noted = command_notes(
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        'Run:\n\n<pre><code class="language-nope">go</code></pre>',
+    )
+    assert [(f.code, f.values["language"]) for f in noted] == [
+        ("uncoloured-language", "nope")
+    ]
+
+
 def test_a_dropped_declaration_is_advice(page_dir):
     """A declaration a browser drops is one delivery's reader reads whole, so it
     refuses nothing of Leaf's: the check reports it beside a passing result, and a
-    message carrying it is admitted (`styles.DROPPED_SEVERITY`)."""
+    message carrying it is admitted with the same advice beside the command's result
+    (`styles.dropped_css`)."""
     (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
     status, findings = check_findings(page_dir)
     [dropped] = found(findings, "css-dropped")
@@ -591,10 +614,10 @@ def test_a_dropped_declaration_is_advice(page_dir):
     )
     (page_dir / "index.html").write_text(PAGE)
     published(page_dir)
-    refused = command_findings(
+    noted = command_notes(
         "thread", "create", page_dir, "--text", f"Try:\n\n{published_markup}"
     )
-    assert refused == []
+    assert [(f.code, f.severity) for f in noted] == [("css-dropped", "advice")]
 
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
@@ -718,7 +741,7 @@ SAMPLE_FIXTURE_REFUSALS = [
         '[{"kind": []}]',
         'type="application/json"',
         'data-sample-events="fixture"',
-        "fixture-kind",
+        "fixture-event",
         {"event": 1},
     ),
     (
@@ -811,7 +834,7 @@ def test_sample_fixture_refusals_reach_page_check(
             "ids-taken",
         ),
         (
-            '<lf-code id="code"><pre><code class="language-python">1</code></pre></lf-code><style>p {color:red}</style>',
+            '<lf-code id="code">\n<pre><code class="language-python">1</code></pre></lf-code>\n<style>p {color:red}</style>',
             "message-style",
         ),
     ],

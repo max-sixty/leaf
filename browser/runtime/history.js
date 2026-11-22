@@ -7,7 +7,9 @@
  * Travel prepares its outgoing checkpoint before revealing a destination and commits
  * it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
- * A working-place checkpoint owns the viewport offset, focus and selection together.
+ * A working-place checkpoint owns the viewport offset, focus and selection together,
+ * and the thread views open in the chrome, which a return opens again where they have
+ * closed (`returnPlace`).
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
  * A traversal cancels the outgoing placement, waits for that cancellation's rendering
@@ -62,7 +64,13 @@
 
 import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
 import { setScroll } from "./arrivals.js";
-import { deepFocus, drawn, focusDestination, readCaret, blurFocused } from "./focus.js";
+import {
+  deepFocus,
+  drawn,
+  focusDestination,
+  readCaret,
+  landAtReading,
+} from "./focus.js";
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
@@ -77,9 +85,10 @@ import { aborted } from "./abort.js";
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
  * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
  * caret: import("./focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
- * offset: [number, number]}} WorkingPlace
+ * chrome: unknown, offset: [number, number]}} WorkingPlace
  * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
  * @typedef {(url: URL) => TraversalHandler | null | undefined} TraversalClaim
+ * @typedef {{capture(at: Element | null): unknown, restore(location: unknown): Promise<boolean>}} ChromeLocation
  */
 /** @type {Set<TraversalClaim>} */
 const claims = new Set();
@@ -88,8 +97,10 @@ const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
 // stepping into the floating panel, whose place-keeping commands hand it back. `focus` is
-// the node they had focused, when the reading comes after focus has left it. Plain endpoints
-// keep a removed passage from being silently retargeted by a live Range. pageRange
+// the node they had focused, when the reading comes after focus has left it. `chrome`
+// is where that node stood in the chrome's thread views, as each view reads its own
+// (`mountHistory`), and outlasts the view that drew the node (`returnPlace`). Plain
+// endpoints keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
 // keeps its working end. The offset is where the page is headed (`scrollGoal`), as a
 // key pressed while Leaf still moves the page acts as if the motion had landed: a second
@@ -111,6 +122,7 @@ export function readPlace(focus = deepFocus()) {
     place: place && new WeakRef(place),
     caret: readCaret(focus),
     ends,
+    chrome: chrome?.capture(focus) ?? null,
     offset: [scrollX, scrollGoal(pageScroller)],
   };
 }
@@ -118,26 +130,44 @@ export function readPlace(focus = deepFocus()) {
 // Put the user back in a place `readPlace` read. A live revision may have removed or
 // shortened what it named since, so a node no longer drawn is not returned to, and a
 // selection end past its node's current length returns to what is left of that node,
-// its end.
-/** @param {WorkingPlace} checkpoint */
-export function returnPlace(checkpoint) {
+// its end. The view that drew the focused node may have closed since: travel puts the
+// panel's view away where it would stand over the place it lands on, and a card closes
+// as the user leaves its passage. The chrome then opens its thread views again as a
+// revision does, at the reply the user had read to and with the user in the one they
+// were in; a margin card whose passage the page no longer shows opens in the panel.
+// Where nothing reopens, the user returns to the node's page target, the same working
+// place seen from the page. The return settles once they are there, so a command acting
+// on the returned place awaits it.
+/** @param {WorkingPlace} checkpoint @returns {Promise<void>} */
+export async function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
-  const place = checkpoint.place?.deref();
-  const { caret } = checkpoint;
+  /** @type {Promise<boolean> | null} */
+  let reopened = null;
   if (focus !== document.body && focus?.isConnected && presented(focus)) {
-    focusDestination(focus, "return", { caret });
+    focusDestination(focus, "return", { caret: checkpoint.caret });
     // A field's caret is its whole selection, and clearing the document's would
     // collapse it.
-    if (caret) return;
-  }
-  // A thread card may have closed on departure, still painted but inert during
-  // its closing fade. Its page target is the same working place from the other
-  // side, and remains a browser focus destination on return. Arriving there opens
-  // the card beside it again wherever a card stands, as the card accompanies any
-  // page target the user arrives at other than by a press (margin-projection.js,
-  // `followCurrentLocation`).
-  else if (place?.isConnected && presented(place)) focusDestination(place, "return");
-  else blurFocused();
+    if (checkpoint.caret) return;
+  } else if (checkpoint.chrome && chrome) {
+    // The user leaves where they are as a move, not a drop, so a reply box the return
+    // leaves doesn't carry them back to it (thread/focus.js, `holdThreadPlace`).
+    landAtReading();
+    reopened = chrome.restore(checkpoint.chrome);
+  } else returnToPlace(checkpoint);
+  returnSelection(checkpoint);
+  const intent = retainUserIntent();
+  if (reopened && !(await reopened) && intent()) returnToPlace(checkpoint);
+}
+
+/** @param {WorkingPlace} checkpoint */
+function returnToPlace(checkpoint) {
+  const place = checkpoint.place?.deref();
+  if (place?.isConnected && presented(place)) focusDestination(place, "return");
+  else landAtReading();
+}
+
+/** @param {WorkingPlace} checkpoint */
+function returnSelection(checkpoint) {
   const selection = getSelection();
   if (!selection) return;
   selection.removeAllRanges();
@@ -217,11 +247,17 @@ export function claimTraversals(claim, { signal } = {}) {
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
 }
 
+// Where the user is in the chrome's thread views, the panel's and a margin card, which
+// each view reads and restores itself, as a revision carries them (version.js,
+// `captureRetainedCurrentLocation`).
+/** @type {ChromeLocation | null} */
+let chrome = null;
 let mounted = false;
-/** @param {{followFragment: TraversalClaim, returnToFragment: TraversalClaim}} options */
-export function mountHistory({ followFragment, returnToFragment }) {
+/** @param {{followFragment: TraversalClaim, returnToFragment: TraversalClaim, chrome: ChromeLocation}} options */
+export function mountHistory({ followFragment, returnToFragment, chrome: views }) {
   if (mounted) return;
   mounted = true;
+  chrome = views;
   const navigation = window.navigation;
   navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
@@ -279,7 +315,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
               top: place.offset[1],
               behavior: "instant",
             });
-          if (place) mayReturn.handoff(() => returnPlace(place));
+          if (place) mayReturn.handoff(() => void returnPlace(place));
           // Firefox and WebKit may apply the traversal after this placement and move
           // the page as they do (above). Once they have, the first block on screen goes
           // back to where the placement stood it.

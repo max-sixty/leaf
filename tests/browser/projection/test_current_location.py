@@ -723,7 +723,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
@@ -857,7 +857,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     """On Me's card for an ask represents the ask, as an On row did: focusing the
     card rings the ask, and its digits answer it there."""
     page = open_page(browser, serve(STORE_ASK_PAGE))
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
     card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
     card.focus()

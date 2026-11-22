@@ -1516,6 +1516,89 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     assert left_owed() == []
 
 
+def test_a_start_holds_its_message_while_background_work_runs(
+    claimed, interactive, monkeypatch, capsys
+):
+    """A turn that starts a message and gives its work to an agent in the background
+    ends over it. While Claude Code says the session has been busy since the start,
+    the page reads the message Working, and neither a later turn's prompt nor the
+    watch names it, as the user decided: the agent may still be answering it. Once
+    the background work ends with the message still owed, the page reads it stalled
+    and the watch wakes a turn that names it, once."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    asked = append_carried_log_record(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "What does the lease allow?"},
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+
+    def left_owed() -> list[str]:
+        with service_model.PageTransaction(claimed) as page:
+            return [event["id"] for event in session_model.left_owed(page)]
+
+    def condition() -> dict | None:
+        [workflow] = [
+            item
+            for item in activity_reading(claimed)["workflows"]
+            if item["input"] == asked["id"]
+        ]
+        return workflow["condition"]
+
+    hooks_model.cmd_hook("claude-code", prompt)
+    capsys.readouterr()
+    started = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "task",
+            "start",
+            str(claimed),
+            asked["id"],
+            "--text",
+            "A fork reads the lease",
+        ],
+    )
+    assert started.exit_code == 0, started.output
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert left_owed() == []
+
+    # The next turn, for a message in another thread, hands that one over and names
+    # nothing of the started one, nor does the watch once the turn ends.
+    other = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Shorten the intro."}
+    )
+    hooks_model.cmd_hook("claude-code", prompt)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert other["id"] in context
+    assert asked["id"] not in context
+    thread_model.post_reply(
+        claimed, {"parent": other["id"], "responds": other["id"]}, "Shortened."
+    )
+    hooks_model.cmd_hook("claude-code", stop)
+    capsys.readouterr()
+    assert left_owed() == []
+    assert condition() is None
+
+    # The background work ends with the message unanswered.
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    assert condition() == {"kind": "stale", "operation": "work"}
+    woke = hooks_model.cmd_watch("claude-code", stop)
+    assert woke is not None
+    assert woke.startswith(f"{claimed} has an update still owed an answer")
+    hooks_model.cmd_hook("claude-code", prompt)
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert asked["id"] in reminder["additionalContext"]
+    assert left_owed() == []
+
+
 def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     claimed, printing, capsys
 ):
@@ -1575,6 +1658,51 @@ def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     assert skill not in capsys.readouterr().out
+
+
+def test_a_hook_from_another_copy_sends_the_agent_back_to_the_skill(
+    claimed, monkeypatch, tmp_path, capsys
+):
+    """The skill the agent read under the copy of Leaf its hooks ran before may
+    describe commands and rules the copy they run now changed, as after a resume or
+    `/reload-plugins`. The first prompt under a copy whose skill differs names the
+    skill to read again, beside the input it hands over, and the next prompt
+    doesn't; a prompt under the same copy, or a copy with the same skill, says
+    nothing of it."""
+    skill = str(schema_model.SKILL_FILE)
+
+    def prompt() -> str:
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+        )
+        out = capsys.readouterr().out
+        return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
+
+    def ran_from(root: Path) -> None:
+        """The hooks of the copy at `root` ran last."""
+        with monkeypatch.context() as patched:
+            patched.setattr(leases_model, "PLUGIN_ROOT", root)
+            leases_model.mark_root("s1")
+
+    assert skill not in prompt()
+    assert skill not in prompt()
+
+    same = tmp_path / "same"
+    shutil.copytree(schema_model.SKILL_FILE.parent, same / "skills" / "leaf")
+    ran_from(same)
+    assert skill not in prompt()
+
+    other = tmp_path / "other"
+    shutil.copytree(schema_model.SKILL_FILE.parent, other / "skills" / "leaf")
+    (other / "skills" / "leaf" / "SKILL.md").write_text("An earlier skill.\n")
+    ran_from(other)
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Is it done?"}
+    )
+    context = prompt()
+    assert context.count(skill) == 1
+    assert asked["id"] in context
+    assert skill not in prompt()
 
 
 def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot):
@@ -2013,9 +2141,8 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 
 def select_another_leaf(tmp_path) -> Path:
-    """Have session s1 deliver through another Leaf, as an installed plugin's or
-    another checkout's, and return its launcher."""
-    other = tmp_path / "installed" / "bin" / "leaf"
+    """Have session s1 deliver through another checkout, and return its launcher."""
+    other = tmp_path / "other checkout" / "bin" / "leaf"
     other.parent.mkdir(parents=True)
     other.write_text("#!/bin/sh\n")
     other.chmod(0o755)

@@ -392,7 +392,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
-    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(field).to_be_focused()
     page.keyboard.type("A page note")
     expect(field).to_have_js_property("value", "A page note")
@@ -886,7 +886,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     )
     page.keyboard.press("Enter")
     expect(page.locator(".lf-live")).to_contain_text(
-        "Press n for next, Shift+n for previous, or c to comment"
+        "Selected. n or Shift+n next / previous match, c comment on the selection"
     )
 
     selected_in = """() => {

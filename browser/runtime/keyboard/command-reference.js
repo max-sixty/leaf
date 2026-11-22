@@ -1234,9 +1234,9 @@ registerPageControl({
   label: "Keyboard shortcuts",
   shortcut: ["?"],
   group: "page",
-  press: (held) => {
+  press: async (held) => {
     const door = focused();
-    if (held) returnPlace(held);
+    if (held) await returnPlace(held);
     openReference(door);
   },
 });

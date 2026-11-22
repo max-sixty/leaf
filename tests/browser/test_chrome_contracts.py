@@ -468,10 +468,12 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
         counts = restyle_counts(page, resolve)
         expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
         page.close()
-        return sum(counts)
+        return counts
 
+    # Each recalc's count, so a failure tells a recalc the larger page adds from
+    # one that restyles more of it.
     short, long = restyled(4), restyled(24)
-    assert long - short < 10, {"4 sections": short, "24 sections": long}
+    assert sum(long) - sum(short) < 10, f"4 sections: {short}\n24 sections: {long}"
 
 
 @pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
@@ -678,6 +680,97 @@ FIRST_LINE = """box => {
 }"""
 
 
+@pytest.mark.parametrize(
+    "engine,surface",
+    [
+        ("firefox_browser", "composer"),
+        ("firefox_browser", "card"),
+        ("firefox_browser", "panel"),
+        ("browser", "composer"),
+    ],
+)
+def test_a_press_in_a_box_the_chrome_holds_leaves_the_page_still(
+    engine, surface, request, serve
+):
+    """A press in a box's words that the pointer drifts during, as a trackpad's click
+    often does, starts a drag selection in the editor and leaves the page where it was,
+    as does dragging on to the window's foot. The boxes are the comment box beside a
+    passage, a thread card's reply and the panel's field. Each stands in a box fixed to
+    the window, in the chrome after `body`, and CodeMirror's drag selection scrolls
+    only boxes inside it (build/vendor.mjs, "CodeMirror scroll walk"). Taking the root's own box for its
+    scrollport, which moves up as the page scrolls, it would scroll the page to its end
+    at the drift once the page is scrolled further than the window's height less the
+    pointer's height in it, so the page here is scrolled more than a window down.
+    Taking the window, it would scroll the page at the window's foot."""
+    url = serve(LONG_PAGE)
+    if surface == "card":
+        panel_comment(
+            serve.page_dir, "A thread on the page's middle.", {"section": "p40"}
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 300)")
+    rendered(page)
+    if surface == "composer":
+        words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+        box = page.locator(".lf-fab-input")
+    elif surface == "card":
+        page.locator('[data-lf-margin-for="p40"] .lf-margin-marker').click()
+        box = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    else:
+        box = page_comment(page)
+    write(box, "Words to press among, then drift a pixel.")
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    assert scrolled > page.evaluate("innerHeight"), "the page must be scrolled to jump"
+    at = box.bounding_box()
+    x, y = at["x"] + at["width"] / 2, at["y"] + at["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 1, y)
+    # A timer the page sets after the drift runs after every interval of a shorter or
+    # equal delay that the drift's handler set (HTML, "timer initialisation steps"),
+    # as CodeMirror's drag scroll is.
+    after = page.evaluate(
+        "() => new Promise((done) => setTimeout(() => done(scrollY), 250))"
+    )
+    assert after == scrolled
+    # Dragged on to the window's foot, the selection still scrolls nothing.
+    page.mouse.move(x + 1, page.evaluate("innerHeight") - 2)
+    after = page.evaluate(
+        "() => new Promise((done) => setTimeout(() => done(scrollY), 250))"
+    )
+    page.mouse.up()
+    assert after == scrolled
+
+
+def test_more_room_for_a_draft_at_the_pages_end_leaves_the_page_still(
+    firefox_browser, serve
+):
+    """More room to write widens the panel's field, so a wrapped draft takes fewer
+    lines, and the page stays where it was. As an editor changes height, CodeMirror
+    keeps the nearest box it finds scrolling the editor at its end if it stood there.
+    For the panel's field that box is the panel, fixed to the window (build/vendor.mjs,
+    "CodeMirror scroll walk"), which doesn't scroll; were it the window, the page would
+    move up by the lines the draft gave up. So the page is at its end."""
+    page = open_page(firefox_browser, serve(LONG_PAGE), init_script=KEEP_ROOTS)
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    rendered(page)
+    box = page_comment(page)
+    write(box, "A draft long enough to wrap over several lines of the field. " * 6)
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    lines = "box => window.__lfRoots.get(box).querySelector('.cm-content').offsetHeight"
+    tall = box.evaluate(lines)
+    page.get_by_role("button", name="More room to write", exact=True).click()
+    panel_settled(page, open=False)
+    rendered(page)
+    assert box.evaluate(lines) < tall, (
+        "the draft must take fewer lines, or this proves nothing"
+    )
+    assert page.evaluate("scrollY") == scrolled
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
     engine, request, serve, subtests
@@ -871,7 +964,9 @@ PHONE_READING_PAGE = leaf_page(
         + "Filler words for the reading column. " * 8
         + "</p>"
         for n in range(12)
-    ),
+    )
+    + "<p><label>Owner <input id='own-field' style='font-size: 13px'></label>"
+    + " <label>Team <input id='plain-field'></label></p>",
 )
 
 
@@ -880,22 +975,25 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the user panning
-    sideways across a page wider than the screen. So no field the page holds is smaller,
+    sideways across a page wider than the screen. So none of Leaf's own fields is
+    smaller, nor a field the page wrote without a size, which takes Leaf's default face,
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
-    one set in a sidenote's smaller type opens a size larger than it showed.
+    one set in a sidenote's smaller type opens a size larger than it showed. A field
+    whose author gave it a size keeps that size.
 
     With too little room below, the field stands above without scrolling the page.
     This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
-    # Every field in the composed tree, the vendored controls' own native fields in
-    # their shadow roots included: the Threads find box and the Map's search are
-    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    # Every field in the composed tree but the one its author sized, the vendored
+    # controls' own native fields in their shadow roots included: the Threads find box
+    # and the Map's search are Web Awesome inputs, and Safari zooms onto the field
+    # inside them.
     sizes = page.evaluate("""() => {
       const sizes = {};
       const walk = (root) => {
         for (const node of root.querySelectorAll('*')) {
-          if (node.matches('input, textarea, leaf-text, select')) {
+          if (node.matches('input, textarea, leaf-text, select') && node.id !== 'own-field') {
             const host = node.getRootNode().host;
             const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
             sizes[name] = Math.min(
@@ -909,6 +1007,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     }""")
     assert any(name.startswith("wa-input.") for name in sizes), sizes
     assert min(sizes.values()) >= 16, sizes
+    own = page.locator("#own-field")
+    assert own.evaluate("field => parseFloat(getComputedStyle(field).fontSize)") == 13
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(
         "body => parseFloat(getComputedStyle(body).fontSize)"
@@ -1231,7 +1331,7 @@ WIDE_PAGE = leaf_page(
 <header><h1 id="t">Wide page</h1></header>
 <div id="body">{paras}</div>
 <aside id="side">
-  <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+  <section class="lf-panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
 </aside>
 """,
     layout="sidebar",
@@ -1477,7 +1577,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.hover()
     rendered(page)
     # Read before dispatch: an earlier pointerdown capture listener may already have
@@ -1500,7 +1600,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator(panel_view("queue"))).to_be_visible()
+    expect(page.locator(panel_view("menu"))).to_be_visible()
 
 
 # The words of the field's draft, row by row as the field draws them.
@@ -1696,11 +1796,11 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On Me mark keeps its seat; the leaf's menu stays shut.
+    # and the leaf keeps its place; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()

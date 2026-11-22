@@ -251,7 +251,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
-    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
+    page.locator(".lf-fp-leaf").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(
@@ -2015,12 +2015,12 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # nothing there to aim at anyway, since an anchor names an element of the page. Last,
     # since it leaves the panel open.
     with subtests.test(case="the chrome keeps its presses"):
-        on_me = page.locator(".lf-fp-on-user")
-        on_me.hover()
+        leaf = page.locator(".lf-fp-leaf")
+        leaf.hover()
         page.keyboard.down("Alt")
-        on_me.click()
+        leaf.click()
         page.keyboard.up("Alt")
-        panel_settled(page, view="queue")
+        panel_settled(page)
         expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -2261,7 +2261,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Pick this passage." in said.text_content():
                 break
         else:
@@ -2340,7 +2340,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Volume ·" in said.text_content():
                 break
         else:
@@ -2464,11 +2464,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if (
-                f": {inventory[1]['label']}. Press Enter to choose."
-                in said.text_content()
-            ):
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {inventory[1]['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The middle control lost its spoken context")
@@ -2887,7 +2884,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             previous = live.text_content()
             page.keyboard.press("Tab")
             expect(live).not_to_have_text(previous)
-            expect(live).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(live).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             heard.append(live.text_content())
         missing = [
             target["label"]
@@ -2895,7 +2892,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             for target in got
             if "part" in target["anchor"]
             and not any(
-                f": {target['label']}. Press Enter to choose." in said for said in heard
+                f": {target['label']}. Enter choose target" in said for said in heard
             )
         ]
         assert not missing, (missing, heard)
@@ -3699,7 +3696,9 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-quote-label")).to_have_text("§ diagram · Start request")
+    expect(page.locator(PANEL_THREAD).locator(".lf-quote-label")).to_have_text(
+        "§ diagram · Start request"
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)
@@ -4934,7 +4933,7 @@ def test_design_hint_faces_follow_controls_and_their_native_labels(browser, serv
         before = said.text_content()
         page.keyboard.press("Tab")
         expect(said).not_to_have_text(before)
-        expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+        expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
         heard.append(said.text_content())
         name = next(
             (
@@ -5001,8 +5000,8 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if f": {target['label']}. Press Enter to choose." in said.text_content():
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {target['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The Choice B control was not offered")
@@ -5223,7 +5222,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
     markup = leaf_page(
         "Code reachability",
         '<h1>Review code</h1><section id="snippets">'
-        f'<pre id="code"{attrs} style="width:260px"><code>'
+        f'<pre id="code"{attrs} style="width:260px; white-space: pre"><code>'
         "alpha_function_name = compute_the_overly_long_value(first_argument, second_argument, third_argument)"
         "</code></pre></section>",
     )
@@ -5461,3 +5460,58 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect_design_mode(page, on=False)
+
+
+def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, so the aim on an
+    item, or on the paragraph that opens one, reaches over a marker that fits the
+    list's inset rather than running between it and the words, where it would cross
+    a number's full stop."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul><li id="i">An item.</li><li><p id="p">A paragraph in an item.</p></li></ul>
+<ol start="9"><li id="n">A numbered item.</li></ol>
+""",
+            )
+        ),
+    )
+
+    def beside(target):
+        clip = page.evaluate(
+            """(id) => {
+              const box = document.getElementById(id).getBoundingClientRect();
+              return { x: box.left - 48, y: box.top, width: 48, height: 18 };
+            }""",
+            target,
+        )
+        rgb = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        data = rgb.tobytes()
+        return [
+            (i // 3 % rgb.width, data[i], data[i + 1], data[i + 2])
+            for i in range(0, len(data), 3)
+        ]
+
+    for target in ("i", "p", "n"):
+        page.locator(f"#{target}").hover(position={"x": 4, "y": 4})
+        before = beside(target)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(target)
+        after = beside(target)
+        page.keyboard.up("Alt")
+        # The marker is the text's near-black before the aim. The band is the
+        # accent's blue the aim adds, so the coloured edges of text that a
+        # subpixel-smoothed font draws, blue before as after, aren't band.
+        marker = [x for x, r, g, b in before if max(r, g, b) < 110]
+        band = [
+            x
+            for (x, r, _, b), (_, r0, _, b0) in zip(after, before, strict=True)
+            if b - r > 40 and b0 - r0 <= 40
+        ]
+        assert band and marker, f"#{target}: no band or no marker beside the item"
+        assert max(band) < min(marker), (
+            f"#{target}: the aim's band runs across the list marker"
+        )

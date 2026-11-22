@@ -166,7 +166,10 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         expect(thread).to_have_attribute("data-lf-resolved", "true")
         expect(thread).to_have_attribute("inert", "")
         expect(summary).to_be_focused()
-        expect(summary).to_contain_text(f"Resolved · {2 if existing_neighbors else 1}")
+        expect(summary).to_contain_text(
+            "Resolved · 2 · " if existing_neighbors else "Resolved · These jobs"
+        )
+        expect(summary).to_contain_text("These jobs can share one visit")
         assert thread.evaluate("node => node.parentElement.matches('.lf-test-threads')")
         assert page.evaluate("window.retirement.effect.getTiming().duration") == 220
         assert abs(thread.locator("..").bounding_box()["height"] - before) < 1
@@ -1035,7 +1038,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
         ).to_be_visible()
 
     arrive()
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.keyboard.press("r")
     rendered(page)
     expect(card).to_be_visible()

@@ -274,7 +274,10 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
-    """The last translated frame and rest keep Copy on the message's head line."""
+    """The last translated frame and rest keep Copy on the message's head line, ending
+    where the card's own controls end (annotation-chrome.css, `--lf-margin-symbol-end`),
+    less the transcript's scrollbar: where scrollbars take room, the reply makes the
+    transcript scroll and its bar stands between the message and the card's edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Opening turn.", {"section": "how-store"})
     append_agent_reply(serve.page_dir, root, "A reply with words to copy. " * 8)
@@ -305,10 +308,20 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         edges = """m => {
           const box = m.getBoundingClientRect();
           const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
-          return {right: copy.right - box.right, top: copy.top - box.top};
+          const transcript = m.closest('.lf-thread-transcript');
+          const card = m.closest('.lf-margin-thread')
+            .querySelector('.lf-margin-thread-controls > :last-child')
+            .getBoundingClientRect();
+          return {
+            right: copy.right - box.right,
+            top: copy.top - box.top,
+            cardEnd: card.right - box.right
+              - (transcript.offsetWidth - transcript.clientWidth),
+          };
         }"""
         moving = message.evaluate(edges)
-        assert moving == pytest.approx({"right": 0, "top": 0}, abs=1), moving
+        assert moving["top"] == pytest.approx(0, abs=1), moving
+        assert moving["right"] == pytest.approx(moving["cardEnd"], abs=1), moving
         page.evaluate(
             "() => __lfHeld.slice().filter(a => a.playState !== 'idle')"
             ".forEach(a => a.finish())"
@@ -390,7 +403,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     does, keeping at its end only the inset its words start with, where its rewrite's
     frame stands. Keeping the room Send takes in the field they were typed in, the
     user's lines would stop short of the agent's, so every message the user sent would
-    wrap narrower than the reply under it."""
+    wrap narrower than the reply under it. A seated card ends every message's words
+    that inset in, as the margin card does (`--lf-msg-text-end`), so there the two
+    end together."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -413,7 +428,8 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     expect(agent).to_contain_text("Check that these")
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
-    assert theirs["end"] - mine["end"] == pytest.approx(mine["inset"], abs=0.5), (
+    shorter = mine["inset"] if surface == "panel" else 0
+    assert theirs["end"] - mine["end"] == pytest.approx(shorter, abs=0.5), (
         mine,
         theirs,
     )

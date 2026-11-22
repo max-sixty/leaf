@@ -1,3 +1,6 @@
+Select this package for a page an operator watches during a release, with its current
+state, checks, run log and rollback decision. It has no widgets.
+
 Lead with the release's current state: what is live, what stopped it or what comes next,
 and any hold or escalation policy and deadline. Keep the supporting measurements, checks
 and run log available, with observed values beside their required values. Keep reference

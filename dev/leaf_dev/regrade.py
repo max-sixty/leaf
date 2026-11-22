@@ -1,4 +1,17 @@
-"""Grade a retained run's saved outputs again, through Promptfoo.
+"""Promptfoo's live judges of eval samples, and the replay that grades saved samples again.
+
+Every judge reads live copies of a sample's saved pages, each served by its original
+runtime, under one set of names: the sample's label for its final revision, and the
+label with `_before_decision` or `_before_revision` for the revisions before the
+user's decision and last revision request, where the task has them. A judge of one
+sample labels it `page`; a pair judge labels its samples `A` and `B`.
+
+`authoring` is the quality assertion of a complete authoring case, on a sample
+authored now or replayed. One judge grades the sample's pages against the case's
+`rubric` as `pass`, `defect` or `insufficient_evidence`; a sample whose author did
+not complete is `unscored` without being judged. The report reads the grade from
+`metadata.authoring_grade`, and the judge's evidence stays under the sample's work
+directory.
 
 `leaf-dev eval run --from RUN` writes a Promptfoo config whose tests replay saved results
 instead of running an author. `replay` is the provider of every column: it returns
@@ -8,9 +21,9 @@ response that failed, such as an author that did not complete, fails again witho
 being graded. By default a test carries its case's current assertions. A named
 judgment replaces them:
 
-- `pair` judges two columns' samples of one task on live copies of their saved
-  pages, each served by its original runtime. A pair runs as two tests, one per
-  presentation order, and a winner counts only where both completed orders name it
+- `pair` judges two columns' samples of one task side by side. A pair runs as two
+  tests, one per presentation order, and a winner counts only where both completed
+  orders name it
   (`eval report` reads them together). Exploration the judge could not finish is
   insufficient evidence rather than a tie, and a pair with a failed response is
   unscored.
@@ -19,10 +32,10 @@ judgment replaces them:
   can direct it. It neither authors samples nor picks winners: a changed request
   needs fresh matched authoring runs.
 
-A judgment's assertion keeps the judge's response, its structured output included,
-as `metadata.judge`, and the judge's native evidence in a fresh directory under the
-grading run's `judgments/`. Saved task inputs stay authoritative when the catalog
-changes; the judge's method comes from this checkout.
+Every judge's assertion keeps the judge's response, its structured output included,
+as `metadata.judge`, and the judge's native evidence in a fresh directory, which for
+a named judgment is under the grading run's `judgments/`. Saved task inputs stay
+authoritative when the catalog changes; the judge's method comes from this checkout.
 """
 
 import json
@@ -101,6 +114,67 @@ def comparison_handovers(samples: dict[str, dict], comparison: dict) -> dict:
     }
 
 
+def authoring(output: str, context: dict) -> dict:
+    """Grade the test's sample against its case's rubric."""
+    sample = context["providerResponse"]["metadata"]
+    if not sample["checks"]["completed"]:
+        return authoring_grade(
+            {
+                "status": "unscored",
+                "reason": "Native author did not complete; inspect retained native evidence.",
+            }
+        )
+    diagnostics = sample["diagnostics"]
+    comparison = diagnostics["comparison"]
+    if not all(
+        diagnostics["phases"][version].get("page")
+        for version in comparison["phases"].values()
+    ):
+        return authoring_grade(
+            {
+                "status": "insufficient_evidence",
+                "reason": "A required saved page is missing.",
+            }
+        )
+    prompt = DEFINITION["authoring"]["prompt"].format(
+        criterion=diagnostics.get("criterion") or "",
+        rubric=context["config"]["rubric"],
+        brief=comparison["brief"],
+        decision_task=comparison["decision_task"] or "",
+        output=output,
+    )
+    response = judge_pages(
+        comparison_pages({"page": sample}, comparison),
+        comparison["widths"],
+        prompt,
+        DEFINITION["authoring"]["output_schema"],
+        evidence(Path(sample["work"]), "authoring"),
+        handovers=comparison_handovers({"page": sample}, comparison),
+    )
+    return authoring_grade(
+        response.get("output") or {"status": "unscored", "reason": response["error"]},
+        response,
+    )
+
+
+def authoring_grade(verdict: dict, response: dict | None = None) -> dict:
+    """Promptfoo's assertion result for an authoring grade, which passes only on
+    `pass`."""
+    passed = verdict["status"] == "pass"
+    return {
+        "pass": passed,
+        "score": float(passed),
+        "reason": f"{verdict['status']}: {verdict['reason']}",
+        "metadata": {"authoring_grade": verdict}
+        | ({"judge": response} if response else {}),
+        **(
+            {"tokensUsed": response["tokenUsage"]}
+            if response and "tokenUsage" in response
+            else {}
+        ),
+    }
+
+
 def pair(output, context: dict) -> dict:
     """Judge the test's two saved samples, A and B, side by side."""
     samples = context["providerResponse"]["metadata"]
@@ -124,7 +198,7 @@ def pair(output, context: dict) -> dict:
             comparison["widths"],
             prompt,
             DEFINITION["pair"]["output_schema"],
-            evidence(context, "pair"),
+            evidence(Path(context["config"]["evidence"]), "pair"),
             handovers=comparison_handovers(samples, comparison),
         ),
         lambda verdict: (
@@ -150,7 +224,7 @@ def discovery(output, context: dict) -> dict:
             comparison["widths"],
             prompt,
             DEFINITION["discovery"]["output_schema"],
-            evidence(context, "discovery"),
+            evidence(Path(context["config"]["evidence"]), "discovery"),
             handovers=comparison_handovers({"page": sample}, comparison),
         ),
         lambda found: (
@@ -160,11 +234,10 @@ def discovery(output, context: dict) -> dict:
     )
 
 
-def evidence(context: dict, name: str) -> Path:
-    """A fresh directory for one judgment's native evidence. The judge is told to
-    save its captures there, so its name leaves out the case, whose name describes
-    what is measured; the test's metadata keeps the subject."""
-    root = Path(context["config"]["evidence"])
+def evidence(root: Path, name: str) -> Path:
+    """A fresh directory under ROOT for one judgment's native evidence. The judge is
+    told to save its captures there, so its name leaves out the case, whose name
+    describes what is measured; the test's metadata keeps the subject."""
     root.mkdir(parents=True, exist_ok=True)
     return Path(tempfile.mkdtemp(prefix=f"{name}-", dir=root))
 

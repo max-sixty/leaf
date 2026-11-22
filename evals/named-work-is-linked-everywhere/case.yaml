@@ -1,14 +1,16 @@
-# A Claude Code agent's overnight work page linked a pull request where it led a
-# table row or was newly introduced, and left it bare text in the decision sections
-# and the prose that came back to it, so the user could not open the PRs a decision
-# named. The rule is in page-authoring.md. In a fresh context agents can link per
-# section, so the case guards that behavior rather than reproducing the
-# late-session failure.
+# Two situations invite an agent to name pull requests by number. In the base case,
+# notes that cite them by number turn into an overnight report's decision sections,
+# whose headings and options come out as "Revert #3931" and "Land #3962", and whose
+# later sections leave them unlinked. In `merge-ask`, a merge ask is written after a
+# compaction beside the turn-end check's ask that names its pull request only by
+# number, and agents copy it: "Merging #1211", "Merge #1211", "It doesn't depend on
+# #1204". The user meets each section, question and thread on its own, so each says
+# what the work it mentions is or does, and links it there.
 description: named-work-is-linked-everywhere
 metadata:
   purpose:
-    "Page authoring: each section and decision links every pull request and issue it
-    names, not only the first place the page names it."
+    "Page authoring: each section and decision says what each pull request and issue
+    it names is or does, and links it there, not only where the page first names it."
   tags:
     - asks
 vars:
@@ -58,3 +60,124 @@ assert:
       #4018) is an `<a href>` to its GitHub URL at least once, wherever
       in the unit that link sits. A link elsewhere on the page doesn't count for the
       unit. Fail if a unit names a number it never links, or a link points elsewhere.
+  - type: llm-rubric
+    metric: names
+    value: |
+      The user reaches each section, and each decision in it, on its own, from the
+      page's contents or their list of what waits on them, without the notes above.
+      Pass only if every heading and every question's label says, on its own, what
+      the work it names is or does, in plain words such as "the contents map's early
+      layout" or "the direct launcher"; each option's title says what choosing it
+      does; and each section or decision says what each pull request or issue it
+      mentions is or does where it first mentions it. The number may stand beside
+      those words, as their link, and a later sentence or an option may refer back
+      to work its section or decision already described, as "Land #3962" may under a
+      heading that says what #3962 is. Fail if a heading or a label names work only
+      by its number, as "Revert #3931 or land #3962?" would, if an option names work
+      its decision never describes, or if a section mentions work it never
+      describes, as "#3876 conflicts with #3857" would where #3857 is described
+      nowhere in it.
+variants:
+  merge-ask:
+    metadata:
+      purpose:
+        "Threads: an ask to merge, written after a compaction beside an ask that names
+        its pull request only by number, names the change by what it does for the user,
+        with the number as its link."
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, in a checkout of acme/notes, a notes
+        app for phones. With the user you found why notes typed offline vanished, and
+        your page /Users/max/.local/state/leaf/pages/offline-notes holds the work. The
+        conversation was compacted a few minutes ago, and Leaf's hook asked you to read
+        the Leaf skill again before your next leaf command. Load the Leaf skill if it
+        isn't in your context.
+
+        From the compaction's summary:
+
+        - The user reported that notes typed on the train were gone once the phone
+          found a signal. Edits made while the replica was detached went to its
+          in-memory journal, which reattach discarded.
+        - [#1204](https://github.com/acme/notes/pull/1204) persists the detached journal
+          to the outbox and drains it on reattach. Leaf's turn-end check asked the user
+          in a thread whether to merge it, as your message; they haven't answered.
+        - [#1211](https://github.com/acme/notes/pull/1211) renders `SyncBadge` in
+          `NoteRow` while the note has a pending outbox entry: the look the user picked
+          from three sketches on the page.
+        - [#1215](https://github.com/acme/notes/pull/1215) makes `SyncBadge` open the
+          sync log. The page still asks the user how the badge should show it can be
+          pressed.
+
+        The page's lede, as the active revision has it:
+
+        ```html
+        <p class="lf-lede" id="lede">
+          Notes typed offline vanished because reattaching dropped the detached
+          journal. #1204 persists it to the outbox; it lands on its own. #1211 shows
+          the badge while a note waits to sync, as you picked. #1215 makes the badge
+          open the sync log. One choice is left: how the badge shows it can be pressed.
+        </p>
+        ```
+
+        The thread "Merging #1204", on the lede, holds the ask Leaf's turn-end check
+        posted:
+
+        ```markdown
+        [#1204](https://github.com/acme/notes/pull/1204) is ready to land: CI is green
+        and the review bot approved it. It persists the detached journal to the outbox
+        and drains it on reattach. It lands without waiting on the choice above.
+
+        Shall I merge it?
+
+        <lf-options id="merge-1204">
+        <lf-option id="merge-1204-hold" label="Hold #1204 open"><strong>Hold #1204 open</strong></lf-option>
+        <lf-option id="merge-1204-merge" label="Merge #1204"><strong>Merge #1204</strong> Squash-merges it to main.</lf-option>
+        </lf-options>
+        ```
+
+        You just ran `gh pr checks 1211 --watch`: every check passes, and the review
+        bot approved #1211. It doesn't depend on #1204 or on the open choice. You'd
+        merge it.
+
+        Ask the user on the page whether to merge #1211. The page and services are
+        unreachable in this exercise: write out the command you would run, with the
+        full text of the message and any markup, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: names
+        value: |
+          The answer is a command that opens a thread on a Leaf page, with its title
+          and message. The user meets this thread on its own, often hours later,
+          without the conversation and without rereading the page: its title alone,
+          as a row in their list of what waits on them, and its message and options
+          in a narrow card beneath that title, beside the page's opening paragraph.
+          Pass only if the title says what the change does, each option title says
+          what choosing it does ("Merge it", "Merge the badge", or "Merge #1211"
+          under a title that says what #1211 does, may pass), and the message says
+          what each change it mentions does where it first mentions it, in words a
+          user of the notes app knows, such as a badge on a note that hasn't synced
+          yet, so they can decide from the card alone what merging changes. A pull
+          request's number may stand beside those words, as their link, and a later
+          sentence or an option may refer back to a change the card has already
+          described. Fail if the title names the change only by its number (as
+          "Merging #1211" would), if the message
+          mentions a change it never describes (as "It doesn't depend on #1204"
+          would), or if it describes a change only by code names such as `SyncBadge`
+          or `NoteRow`, or by something only the conversation or another part of the
+          page identifies, such as "the look you picked" or "the choice above".
+      - type: llm-rubric
+        metric: links
+        value: |
+          The answer is a command that opens a thread on a Leaf page, with its
+          message. Pass only if the message links each pull request it mentions to its
+          GitHub URL where it first mentions it, whether it names the pull request by
+          its number or by words that say what it does. Fail if it mentions a pull
+          request, such as the offline-notes fix or the badge, without linking it
+          there, or links one to the wrong URL.
+      - type: llm-rubric
+        metric: brief
+        value: |
+          The answer is a command that opens a thread on a Leaf page, with its
+          message. Pass only if the message is short enough to take in at a glance in
+          a narrow card. Fail if it recounts the investigation, lists what each file
+          changes, or runs to more than about five sentences before its options.

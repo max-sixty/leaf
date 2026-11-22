@@ -1,7 +1,7 @@
 # Interactive and external evidence
 
 Where the page's vocabulary has no widget for a form below, select the package that
-adds it (`packages.md`, "Package reach").
+adds it (`leaf package list`).
 
 ## Measured facts
 
@@ -27,7 +27,7 @@ diagram, in a widget that lays it out. Its instructions cover checking the drawi
 reporting what you could verify.
 
 Draw what automatic layout can't place, such as a page layout, a wireframe or a
-thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
+thumbnail inside an option, as the `svg.lf-drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
 units in a 720px column draw an 11px label at 5px. Draw only the detail the figure's
@@ -44,7 +44,7 @@ Chart quantities in a chart, not in a diagram language's charts, such as Mermaid
 Keep a few numbers in prose when a sentence explains them clearly.
 
 Show an order of events between actors that you describe, such as a race between two
-jobs, as a timeline rather than drawing one in `svg.drawing`, whose labels you would
+jobs, as a timeline rather than drawing one in `svg.lf-drawing`, whose labels you would
 place by hand. A recorded browser journey is shown as its trace instead (below).
 
 A user can comment on a whole drawing. To let them comment on one part, give the part
@@ -58,12 +58,12 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Show a text file or quoted passage the user can comment on as a text document. When
-the user reviews an edit to code, prose or configuration, show its exact patch and
-explain the effect beside it. Choose the comparison that covers the work being
-discussed; `wt step diff`, when available, often covers a branch. The patch widget's
-and its package's author instructions own markup, source binding and patch
-preparation.
+Show a text file or quoted passage the user can comment on as a text document. When a
+claim or decision on the page turns on an edit to code, prose or configuration, show
+its exact patch and explain the effect beside it. Choose the comparison that covers
+the work being discussed; `wt step diff`, when available, often covers a branch. The
+patch widget's and its package's author instructions own markup, source binding and
+patch preparation.
 
 Choose whether evidence should follow the current source or preserve what was
 reviewed. A bound widget always shows its source's current value, in every version

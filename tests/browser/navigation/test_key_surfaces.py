@@ -31,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
     """Even overlapping identical words give the polite region two arrivals."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.evaluate(
         """async () => {
           window.__lfLiveNode = document.querySelector('.lf-live');
@@ -259,9 +259,10 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               dispatchEvent(new Event('resize'));
             }"""
     )
-    # The field's end still names its press, Next On Me while On Me lists anything,
-    # but not the key that makes it.
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved · Next On Me")
+    # The notice's words stay, but the field's end names no press: a word alone there
+    # reads as status to a finger, and the panel's menu and lists reach each press.
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top

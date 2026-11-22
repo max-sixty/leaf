@@ -338,6 +338,40 @@ needs today.
 </script>
 ```
 
+### A mask smaller than an inline box in WebKit
+
+On 2026-11-20, Playwright 1.65.2's WebKit 27.2 on macOS 26.5.1 painted the whole
+background of an inline box whose only mask layer was a no-repeat image smaller than
+the box, rather than only where the image covers it; an inline-block, Chromium 159
+and Firefox 159 painted only the image. The mark after a link that leaves the page is
+such a box (`surfaces.css`), and without a correction WebKit drew it as a solid bar
+the height of the line. A second mask layer, a transparent gradient, makes WebKit
+paint only the image, as USWDS's external-link mark also does.
+
+Recheck: give an inline `<i>` 40px of inline padding, a red background and
+`mask: <a black square> center / 10px no-repeat` in a 40px font, and count the red
+pixels; 100 is right. Once WebKit draws 100, drop the gradient layer.
+
+### A custom state set's own contents in WebKit
+
+`ElementInternals.states` is `[SameObject]`, but WebKit doesn't keep the set alive
+while a script holds only the `ElementInternals`. On 2026-11-20, Playwright 1.65.2's
+WebKit 27.2 (build 2388) on macOS 26.5.1 collected it within a few garbage
+collections, and `states` then read as a new, empty set: `has` said false for a state
+the element still matched with `:state()`. Chromium 159.0.8154.6 (build 1255) and
+Firefox 159.0 (build 1572) kept one set. Writes through the new set still reach the
+element (deleting the state stopped the match), so only reads go wrong: a write that
+skips a state `has` reports absent never deletes it, and in a floating panel's field
+`:state(more-above)` stayed on a one-line draft. Holding the set itself keeps it
+whole, so the text field holds it (`composing/text-field.js`, `#states`) and every
+read and write goes through that. An element that only adds and deletes needs no such
+hold.
+
+Recheck: on an element holding only its `ElementInternals`, add a state, make
+garbage for a few event-loop turns, and compare `internals.states.has(name)` with
+`matches(":state(name)")`. Once they agree in WebKit, this entry and the comment at
+`#states` go.
+
 ### Font style in syntax highlights
 
 `lf-text-document` colours its source with CSS custom highlights
@@ -359,7 +393,10 @@ block suggestion and a resolved inline thread, with `calc-size()`. Where
 intrinsic-size interpolation is missing it folds from the block's measured pixel
 height, and where `display` can't be animated it keeps an already-retired slot
 drawn with an inline `display` the effect's end removes. Playwright Firefox 155
-needed both on 2026-10-25 and folded the same curve as Chromium.
+needed both on 2026-10-25 and folded the same curve as Chromium. On 2026-11-20
+Playwright Firefox 159.0 (build 1572) still lacked both `calc-size()` and
+`interpolate-size` (`CSS.supports`), while WebKit 27.2 (build 2388) reported
+both, so it takes the native path; its folds were not watched.
 lf-draft's return from its editor (`packages/default/widgets/lf-draft.js`)
 still needs `calc-size()`: its end height is known only after the close lays
 out, and reading it then would clamp a reader at the document foot. In Firefox
@@ -573,6 +610,24 @@ before that navigation commits. Recheck canceled departure and slow navigation
 with `tests/journeys/test_render_sample_delivery.py` and
 `tests/browser/startup/test_readiness.py` when changing document lifetime.
 
+### A sample's page out of view in Chromium
+
+Chromium renders a sample's page, whose origin is opaque, once as it loads and then
+not again while its frame is off screen or in a closed disclosure; its timers keep
+running. Work that waits on a rendering, such as an `lf-chart` sized by its first
+layout and the widget upgrade that waits for it, waits until the frame shows. Over 5 s
+on 2026-11-19, in Chromium 159.0.8154.6 (Playwright 1.65.2, headless), an opaque frame
+on screen ran 300 animation frames, one 300 px below the window 1, one in a closed
+`<details>` 1, and a same-origin frame off screen 300; a ResizeObserver attached after
+the first second delivered nothing in either hidden opaque frame. No Chromium switch
+tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among them.
+Leaf counts what a sample's page does after loading only while its frame shows
+(`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
+waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
+`tests/journeys/startup/test_hosting.py`,
+`test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
+whose first assertion fails once Chromium draws the chart out of view.
+
 ### Page cache
 
 Every Leaf server, locally and on leaf.page, sends `no-cache` for a page's
@@ -683,10 +738,14 @@ column's properties non-inheriting and passing them down with `inherit`.
 `browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one
 composed root. In engines without it, ordinary insertion restores focus and
 caret but still blurs the descendant and reloads an iframe. Playwright WebKit
-26.6 lacked the API on 2026-10-10. Recheck native state preservation before
-removing the fallback; `test_retained_moves_keep_native_editor_and_frame_state`
-in `tests/browser/controls/test_focus.py` exercises native and forced-fallback
-paths in Chromium. API presence alone does not prove preservation.
+26.6 lacked the API on 2026-10-10, and WebKit 27.2 (build 2388) still lacked it on
+2026-11-20. That day Playwright Firefox 159.0 (build 1572) had it: a focused input
+moved with its iframe to another parent kept focus, its caret and the frame's
+document, as in Chromium 159.0.8154.6 (build 1255). Recheck native state
+preservation before removing the fallback;
+`test_retained_moves_keep_native_editor_and_frame_state` in
+`tests/browser/controls/test_focus.py` exercises native and forced-fallback paths
+in Chromium. API presence alone does not prove preservation.
 
 Chromium 153.0.8010.12 also left a focused node unmatched by its own
 `:focus-within` after moves through a hidden parent on 2026-10-12. Leaf's focus
@@ -760,30 +819,25 @@ Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
 
-### A control's own arrows after focus leaves it in Chromium
+### A control's own arrows after focus leaves it in Chromium and WebKit
 
 A key pressed at a control the user has scrolled away from lets go of it first
-(`keyboard/controller.js`), and Chromium still applies a radio's, slider's or
-select's own arrows at the control the key was aimed at: a radio's ArrowDown checked
-the next radio and scrolled the page back to it, a slider's ArrowRight stepped its
-value, and a closed select's ArrowDown kept focus and scrolled the page back to it.
-Playwright Chromium 156.0.8078.4 did each of these, and Playwright Firefox 157.0 did
-none, scrolling the page by the arrow from where focus had gone, on 2026-11-04. The
-controller withholds those arrows in every engine (focus.js,
-`controlNavigationKeys`), so the arrow that lets go scrolls nothing. Recheck on a
-plain page holding two radios of one name, the first checked and focused, whose
-capturing `keydown` listener on the document blurs the focused element: the gap is
-closed when ArrowDown leaves the first radio checked.
-
-### A stuck sticky anchor in Firefox
-
-An anchored margin row, highlight, aim or floating card can disappear or stay
-at its target's unstuck position while the target is sticky. Playwright Firefox
-155 ignored the stuck offset on 2026-10-14; Chromium 153, Chrome 155 and WebKit
-26.6 placed the box on the stuck target. `browser/runtime/css-anchors.js`
-accepts this gap; Threads and the Page Map keep controls reachable.
-Recheck a fixed box anchored to a sticky header after its scroller passes the
-header's initial position, comparing their rectangle tops.
+(`keyboard/controller.js`), and Chromium and WebKit still apply a radio's, slider's
+or select's own arrows at the control the key was aimed at: a radio's ArrowDown
+checked the next radio and scrolled the page back to it, a slider's ArrowRight
+stepped its value, and a closed select's ArrowDown kept focus and scrolled the page
+back to it. Playwright Chromium 156.0.8078.4 did each of these, and Playwright
+Firefox 157.0 did none, scrolling the page by the arrow from where focus had gone,
+on 2026-11-04. On 2026-11-20, on a plain page whose capturing `keydown` listener
+blurs the focused element, Playwright Chromium 159.0.8154.6 (build 1255) and WebKit
+27.2 (build 2388) each checked the next radio and left focus on it, stepped the
+slider, and left focus on the select, while Firefox 159.0 (build 1572) did none of
+these; that page didn't scroll the controls away first. The controller withholds
+those arrows in every engine (focus.js, `controlNavigationKeys`), so the arrow that
+lets go scrolls nothing. Recheck on a plain page holding two radios of one name, the
+first checked and focused, whose capturing `keydown` listener on the document blurs
+the focused element: the gap is closed in an engine when ArrowDown leaves the first
+radio checked there.
 
 ### A stuck sticky box bounces with the page
 
@@ -872,30 +926,6 @@ box. The test passes whatever the engines do while the pass is in place, so
 recheck with the `scrollend` listener removed, which left the row 24.1px off in
 Firefox 157 and 24.0px off in WebKit 27.2, or by reading the row in the frame
 after the scroll, before `scrollend`.
-
-### A cached `elementFromPoint` answer in Chromium
-
-A `position: fixed` box anchored to scrolled content takes up a script's scroll
-as the next frame renders, since css-anchor-position-1 updates anchor positions
-once a frame, so a script reading the box in between finds it at its old place.
-Chromium also keeps the hit test it answers then. On 2026-11-03, after an
-instant `scrollBy` brought a margin row in a carrier to a third of a 390 × 844
-phone window, Playwright's Chromium headless shell 156.0.8078.4 returned the
-heading beneath, not the row, from `elementFromPoint` at one point where the row
-was drawn for 23 to 28 frames when that point was first tested in the scrolling
-task; a point not tested before found the row as soon as the frame rendered.
-Firefox 157 answered from the new place once the frame rendered, and WebKit
-27.2 already in the scrolling task. A real tap or click at that point three
-frames after the scroll reached the row in 12 of 12 runs, so only scripts are
-misled, such as a Playwright tap aimed from the box in that window, which
-scrolled to the old place and missed.
-
-Rows the document's scroll alone moves stand in the root lane, where layout
-moves them in the scrolling task (`carrierAnchor` in
-`browser/runtime/annotation-overlay/margin-layout.js`). Rows a pane, an inner
-scroller, a sticky or fixed box, or a sticky header carries keep this. Recheck
-by testing one point under a carried row in the task that scrolls it into
-place, then the same point at each frame after.
 
 ### A `left`-inset anchored control after a resize in Firefox
 
@@ -1044,7 +1074,7 @@ bars). Once they match in both, the attribute and its rule can go.
 `test_a_card_that_scrolls_gives_its_scrollbar_room` in
 `tests/browser/margin/test_card_reply.py` covers the card in Chromium.
 
-### A landing in a skipped `content-visibility: auto` box in Firefox
+### A landing in a skipped `content-visibility: auto` box in Firefox and WebKit
 
 Firefox 157 (Playwright's build, macOS) leaves a `content-visibility: auto` box skipped
 after script scrolls to an element inside it until the box itself intersects the view
@@ -1062,8 +1092,25 @@ sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), but long
 tokens, which Firefox also breaks after a slash, fill more lines than that: with the
 run left skipped, a jump past them stopped 104 px short and a second scroll followed.
 `test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` covers it
-in both engines. To recheck, drop `drawForLanding` and travel past long tokens in
-Firefox.
+in both engines.
+
+A row at the head of its run moves even with the run drawn, in Firefox and WebKit. On
+2026-11-20 a plain page held 200 runs of 20 wrapped rows, each run
+`content-visibility: auto; contain-intrinsic-size: auto 400px`, never drawn and
+several times taller drawn than that estimate, in a 400 by 600 px window. An instant
+scroll write put a row 150 px below the window's top, so the run above it stood
+partly in view, and the row's top was read over the next five frames. Playwright
+Chromium 159.0.8154.6 (build 1255) held every row at 150 px. In Firefox 159.0
+(build 1572) a row inside its run moved 2,000 px up at the second frame, and held
+with its run drawn for the jump, as `drawForLanding` draws it; the run's first row moved
+2,000 px down at the second frame either way. In WebKit 27.2 (build 2388) rows
+inside the run held without drawing, and the run's first row moved 1,400 px down at
+the first frame either way. A `scrollIntoView` to the window's top landed every row
+in all three engines. Whether a text document's landings, with its runs sized to
+their lines, meet the head-row case was not assessed. To recheck, drop
+`drawForLanding` and travel past long tokens in Firefox, and run that page in
+Firefox and WebKit: the first gap stands while a row inside an undrawn run moves, and
+the second while the run's first row moves with its run drawn.
 
 ### A skipped `content-visibility: auto` box keeps its drawn height
 
@@ -1153,7 +1200,7 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+taken out. The first is Firefox's to change. The eyebrow rules (`reading.css`) now end at an
 `hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
@@ -1182,6 +1229,22 @@ placement stood it; Firefox's blur still leaves focus on `body` after Back.
 and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
+
+### Forward to a same-document entry names no destination in Firefox
+
+In Playwright's Firefox 159.0 (build 1572, macOS), after Back from a same-document
+entry a followed fragment link added, `navigation.entries()` no longer lists that
+entry, and Forward to it fires a `traverse` navigate event whose `destination.key` is
+empty and `destination.index` is -1; once applied, `navigation.currentEntry` is null.
+Chromium 156 names the entry. So `browser/runtime/history.js` finds no working-place
+checkpoint for it: Forward restores only the browser's saved offset and leaves focus
+on `body`, and a thread view Back reopened stays open over the place the link landed
+on, where Chromium's Forward puts it away again. Observed 2026-11-21 on an installed
+test engine, not a stable release; disposition: recorded, not corrected, since
+Forward after Back is a rare path. To recheck, follow a fragment link, go Back, and read
+`destination.key` in Forward's `navigate` event:
+`tests/browser/threads/test_navigation.py::test_back_reopens_the_thread_its_departure_put_away`
+runs Forward in Chromium only.
 
 ### Highlight hit testing
 
@@ -1256,8 +1319,15 @@ and shows again by its next target in one task, so two targets with the same wor
 turn would stand the second preview by the first. Where a new source comes with the
 words the last one had, it moves the preview to the other side of a sibling, its
 stage's mark, which re-lays it out and which the page's write watch reads as a change,
-as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
-once it logs 0, drop the move in `open`.
+as a re-insertion at the same place it would not.
+
+On 2026-11-20 the page above logged 0 in Playwright Firefox 159.0 (build 1572) when it
+ran more than a few frames after load, but holding the first show for half a second
+before the hide and show, as a preview is held, still stood the popover 380 px off by
+`a`, a second after load and with or without a read of its box between; Chromium
+159.0.8154.6 and WebKit 27.2 stood it by `b`. To recheck, run the page a second after
+load with `await new Promise((r) => setTimeout(r, 500))` in place of the first frame;
+once Firefox logs 0, drop the move in `open`.
 
 ### A touch long press in WebKit
 

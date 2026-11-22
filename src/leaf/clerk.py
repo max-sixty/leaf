@@ -31,10 +31,9 @@ Four principles, the user's, bound what the fork may do:
   second entity on the page.
 - The agent stays sovereign. The agent hears each record at its next step, with its
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
-  wrote. Leaf opens no thread whose title a thread the agent opened on the page to
-  ask something already has. It shows the fork the questions On Me no longer holds,
-  answered or closed, each with its id, so the fork doesn't
-  word one anew and asks one again under its id. It writes no record once a turn
+  wrote. Leaf shows the fork the questions On Me no longer holds, answered or
+  closed, each with its id, so the fork doesn't word one anew and asks one again
+  under its id. It writes no record once a turn
   has opened since the fork read the conversation (`basis`), since that turn's
   agent, or the user who opened it, has the newer reading. A finding still
   reaches the agent then, naming the turn it came from, since the agent judges
@@ -133,9 +132,11 @@ The fork asks a question again as the agent would, under its id in its thread,
 rather than asking a second one beside it, as the user asked: a fork that opens every
 ask in a new thread, and sees neither a question the user closed nor any way to ask
 it again, opens a second thread on the same subject when the agent restates the step
-only in chat. A new question on an old subject still opens a thread of its own. The
-title check above is needed too: without it the fork asks again, in a new thread
-under the same title, a question the agent withdrew as already asked on the page.
+only in chat. A new question on an old subject still opens a thread of its own. Leaf
+drops no ask for its title, as the user decided: matching it against the threads the
+agent opened to ask dropped, telling no one, a new question that shared an old
+one's title, while the ended questions the fork sees with their ids already keep it
+from wording a withdrawn one anew.
 
 The user asked for the routes a question asked well takes, a widget that asks or a
 thread, rather than an ask written as a to-do on the user titled from the chat line,
@@ -174,8 +175,8 @@ lines: the questions stay On Me and `leaf page state` lists them, but the agent 
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
-A line queued with `wake` tells the session of work it now owes, such as a to-do a
-fork opened (`forks.ended`) or a finding Leaf changed nothing for. Until a hook has
+A line queued with `wake` tells the session of work it now owes, such as a finding
+Leaf changed nothing for. Until a hook has
 printed it, the watch between turns wakes the session for it once the turn has closed
 (`waking`, `session.watch_between_turns`), and a session no watch follows is nudged
 (`presence.nudge_unwatched`). The turn that ends a stretch of work is the one most
@@ -353,25 +354,24 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one as each fork "
-        "of the conversation takes a thread and as its run ends (`forks`). Each says "
-        "whether it wakes the session (`wake`): a line that tells it of work it now "
-        "owes wakes it while it is idle, until a hook has printed the line. A line "
-        "that tells of an agent's running turn names it (`turn`), and leaves the "
-        "queue unheard once that turn ends (`unqueue`).",
+        "clerk wrote and each finding it passes on (`clerk`), one for each summary "
+        "a summary fork wrote or left to the agent (`summary_fork`), and one for "
+        "each time the session's hooks moved to a copy of Leaf with another skill "
+        "(`hooks.copy_changed`). Each says whether it wakes the session (`wake`): a "
+        "line that tells it of work it now owes wakes it while it is idle, until a "
+        "hook has printed the line.",
         object_schema(
             {
                 "lines": {
                     "type": "array",
                     "items": object_schema(
                         {"line": STRING, "wake": {"type": "boolean"}},
-                        {"turn": STRING},
                     ),
                 }
             }
         ),
     ),
-    since=44,
+    since=52,
 )
 
 # The words that open the fork's question, which the replay and the transcript carry.
@@ -856,66 +856,45 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     the line, which the agent owes, hands the agent the ask and why, so it asks the
     user itself. One that asks an earlier question `again` asks it in its
     thread (`ask_again`), which the message reopens if it was closed; any other opens
-    a thread of its own, none whose title a thread the agent opened there to ask
-    something already has. Where Leaf can't ask the question again, as where its
+    a thread of its own. Where Leaf can't ask the question again, as where its
     thread owes the user a reply, the ask is taken as one naming none."""
     from .findings import Rejected
     from .registry.storage import require_registry
-    from .thread import fit_title, widget_asks
-    from .thread_context import thread_structure
+    from .thread import fit_title
     from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
-    # The asks the agent made there, by title: the threads it opened to ask
-    # something, in words or with a widget that asks.
-    drawing = thread_structure(page.events).fragments
-    asked_in = {
-        event["title"].casefold()
-        for event in page.events
-        if event["kind"] == "comment"
-        and event["author"] == "agent"
-        and "title" in event
-        and (event.get("obligation") or widget_asks(drawing.get(event["id"]), registry))
-    }
     for item in asks:
         title, text = fit_title(item["title"]), item["text"]
         passage, again = item["passage"].strip(), item["again"].strip()
         ask = (page_dir, page, title, text, passage, again, identity, registry)
         try:
             checked_text(page_dir, text, html=True)
-            record = _ask_one(*ask, asked_in)
+            record = _ask_one(*ask)
         except Rejected as error:
             yield None, _unasked(str(page_dir), title, text, error)
             continue
-        if record is not None:
-            yield record, _told(str(page_dir), title, text, passage, record, again)
+        yield record, _told(str(page_dir), title, text, passage, record, again)
 
 
-def _ask_one(
-    page_dir, page, title, text, passage, again, identity, registry, asked_in
-) -> dict | None:
+def _ask_one(page_dir, page, title, text, passage, again, identity, registry) -> dict:
     """The message putting one ask On Me: in the thread of the question it asks
     `again` where Leaf can ask it there, and otherwise in a thread of its own, on
-    `passage` where the page shows it once, unless the agent opened one to ask
-    something under its title (`asked_in`), where there is none. A refusal of its
-    HTML reaches the caller from either thread (`_ask`)."""
+    `passage` where the page shows it once. A refusal of its HTML reaches the caller
+    from either thread (`_ask`)."""
     from .findings import Rejected
     from .thread import ask_again, drawn_markup, markup_asks
 
     if again and (record := ask_again(page, again, text, identity)):
         return record
-    if title.casefold() in asked_in:
-        return None
     asks = markup_asks(drawn_markup(text), registry)
     put = (page_dir, page, title, text, identity, not asks)
     try:
-        record = _put(*put, passage)
+        return _put(*put, passage)
     except Rejected:
         if not passage:
             raise
-        record = _put(*put, "")
-    asked_in.add(title.casefold())
-    return record
+        return _put(*put, "")
 
 
 def _found(
@@ -1153,46 +1132,21 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
-def queue(
-    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
-) -> None:
+def queue(session_id: str, lines: list[str], *, wake: bool = False) -> None:
     """Queue `lines` for the session's next step (`queued`), lines that wake an idle
-    session where they tell it of work it now owes (`wake`, `waking`); lines that
-    tell of the agent turn `turn` while it runs leave the queue unheard once it
-    ends (`unqueue`)."""
+    session where they tell it of work it now owes (`wake`, `waking`)."""
     if lines:
         with flocked(session_lock_path(session_id)):
-            _append(session_id, lines, wake=wake, turn=turn)
+            _append(session_id, lines, wake=wake)
 
 
-def _append(
-    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
-) -> None:
+def _append(session_id: str, lines: list[str], *, wake: bool = False) -> None:
     """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
-        added = [
-            {"line": line, "wake": wake, **({"turn": turn} if turn else {})}
-            for line in lines
-        ]
+        added = [{"line": line, "wake": wake} for line in lines]
         QUEUED.write(path, {"lines": [*held["lines"], *added]})
-
-
-def unqueue(session_id: str, turns: set[str]) -> None:
-    """Take off the queue, unheard, the lines that tell of the agent turns `turns`,
-    which have ended: a fork's take, which tells the session to leave the thread to
-    the fork, no longer holds once the fork's end is the line it hears."""
-    path = session_file(session_id, QUEUED.kind)
-    with flocked(session_lock_path(session_id)):
-        held = QUEUED.read(path) or {"lines": []}
-        kept = [entry for entry in held["lines"] if entry.get("turn") not in turns]
-        if len(kept) == len(held["lines"]):
-            return
-        if kept:
-            QUEUED.write(path, {"lines": kept})
-        else:
-            path.unlink(missing_ok=True)
 
 
 def _put(page_dir, page, title, text, identity, obligation, passage) -> dict:
@@ -1281,8 +1235,7 @@ def _held(session_id: str) -> list[dict]:
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk and from forks that took a
-    thread's work."""
+    """The lines queued for the session's next step (`QUEUED`)."""
     return [held["line"] for held in _held(session_id)]
 
 
@@ -1294,8 +1247,7 @@ def waking(session_id: str) -> list[str]:
 
 def heard(session_id: str, lines: list[str]) -> None:
     """Take `lines`, which a hook handed the agent, off the queue, each once; lines
-    queued since stay for the next step, and a line taken off meanwhile
-    (`unqueue`) is no longer there to take."""
+    queued since stay for the next step."""
     if not lines:
         return
     path = session_file(session_id, QUEUED.kind)

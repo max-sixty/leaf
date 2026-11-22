@@ -1061,8 +1061,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_ink = resolved_color("--lf-ink-2")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
-    expected_label_ink = resolved_color("--lf-paper")
-    expected_label_background = resolved_color("--lf-ink")
+    expected_label_ink = resolved_color("--lf-tip-ink")
+    expected_label_background = resolved_color("--lf-tip-bg")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at

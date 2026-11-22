@@ -44,9 +44,11 @@ measured in the tab:
 
 - the card's side and size, or the floating panel where the thread opens there;
 - how much narrower the card stands than it could, and which limit that is: the width
-  its contents take unwrapped, the measure (`cardMeasure`), or its room, which runs
+  its contents take unwrapped, the measure (`cardMeasure`), its room, which runs
   from the card's inner edge to the far edge of the placement boundary
-  (`commentBoundary`) beside its subject, and is the boundary's width above or below;
+  (`commentBoundary`) beside its subject, and is the boundary's width above or below,
+  or, for a card that declares it stands slim (`data-lf-widens`), the least width
+  (`cardMinimum`);
 - how much wider the card stands than its contents take unwrapped;
 - the part of its subject's block it covers, and whether it covers the quoted words,
   a fault where card and block would fit in the boundary together, side by side for a
@@ -476,6 +478,9 @@ READ = """async () => {
     boundary: box(placement.commentBoundary()),
     card: box(shown(card)?.getBoundingClientRect()),
     natural: shown(card) && natural(card),
+    // A card at the least width declares it (`data-lf-widens`) until a message it shows
+    // stands tall enough to widen it.
+    least: shown(card)?.hasAttribute('data-lf-widens') ? placement.cardMinimum() : null,
     side: shown(card)?.getAttribute('data-lf-thread-placement') ?? null,
     panel: box(shown(panel)?.getBoundingClientRect()),
     block: box((target.element ?? target.place).getBoundingClientRect()),
@@ -699,6 +704,8 @@ def findings(reading: dict) -> dict:
             "left": card["right"] - boundary["left"],
         }.get(side, boundary["right"] - boundary["left"]),
     }
+    if reading["least"]:
+        limits["the least width, until a message stands tall"] = reading["least"]
     limit = min(limits, key=lambda name: limits[name])
     window = {
         "left": 0,
@@ -832,7 +839,7 @@ def tile(case: Case, window: Window, arms: dict[str, dict]) -> str:
         if not got.get("image"):
             return f"Failed: {html.escape(got['failed'])}"
         chips = "".join(
-            f' <small class="tag{" " + tone if tone else ""}">{html.escape(text)}</small>'
+            f' <small class="lf-tag{" " + tone if tone else ""}">{html.escape(text)}</small>'
             for tone, text in got["tags"]
         )
         return html.escape(got["sentence"]) + chips

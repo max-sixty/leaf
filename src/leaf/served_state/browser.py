@@ -181,9 +181,7 @@ def browser_state(
         thread, thread_reading = browser_thread(
             viewed,
             work.live_reply,
-            lambda event: turn_runs(
-                event, work.presence, work.turn, work.holding.running
-            ),
+            lambda event: turn_runs(event, work.presence, work.turn),
         )
         # The view's obligations are its own document's beside its threads', and
         # the page's updates', served once: a list row names a

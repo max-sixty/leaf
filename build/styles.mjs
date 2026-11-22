@@ -18,9 +18,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const NATIVE = "node_modules/@awesome.me/webawesome/dist/styles/native.css";
 
-/** Leaf owns the type and the focus band of every control (surfaces.css), and its
- * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
- * properties out. A transition would also report a control's old colour to whatever
+/** Leaf owns the type and the focus band of every control (control-face.css,
+ * surfaces.css), and its motion (`--lf-motion-*`), so the rules taken from a dependency
+ * leave these properties out. A transition would also report a control's old colour to whatever
  * reads it during the fade, as a test reading a state just set does. */
 const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
 

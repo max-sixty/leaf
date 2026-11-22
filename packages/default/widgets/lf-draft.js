@@ -552,7 +552,7 @@ customElements.define(
     }
 
     // The body `render` painted draws its code and formulas once it stands
-    // (module-state.md, "Rendering").
+    // (module-state.md, "The widget controller").
     /** @param {Map<PropertyKey, unknown>} changed */
     updated(changed) {
       super.updated(changed);

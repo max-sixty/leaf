@@ -25,7 +25,9 @@ import shutil
 import time
 from pathlib import Path
 
+from leaf.data import read_data
 from leaf.media import media_name
+from leaf.registry.storage import load_registry
 from leaf.render_gate import command as render_command_model
 from leaf_dev.arms import (
     author_failure,
@@ -167,6 +169,10 @@ def execute(
             else {}
         )
         if leaf:
+            # Packages the user installed on this machine, as `metadata.installed`
+            # names them, before the page the agent writes.
+            for package in metadata.get("installed", ()):
+                run_leaf(payload, state, "package", "install", package, check=True)
             run_leaf(payload, state, "page", "init", str(page), check=True)
         else:
             page.mkdir()
@@ -244,6 +250,18 @@ def execute(
 
             document = page / "index.html"
             output = document.read_text() if document.is_file() else ""
+            # What each widget bound to a `source` draws, which the HTML names but
+            # doesn't hold, so a rubric can read a patch or a code view as the
+            # reader sees it.
+            sources = (
+                read_data(page, load_registry(page))["sources"]
+                if page_valid and is_leaf(condition)
+                else {}
+            )
+            page_data = {
+                source: reading.get("value", reading.get("error"))
+                for source, reading in sources.items()
+            }
             summary = trace_summary(trace)
             response = {
                 "output": output,
@@ -290,6 +308,7 @@ def execute(
                     "setup_seconds": setup_seconds,
                     "author_seconds": author_seconds,
                     "input_media": inputs,
+                    "page_data": page_data,
                     **(
                         {
                             "capture_evidence": capture_evidence(

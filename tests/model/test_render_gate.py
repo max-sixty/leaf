@@ -8,12 +8,13 @@ from types import SimpleNamespace
 import pytest
 
 from leaf import render_checks, user_views
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import (
     PIN_VARIABLE,
     BrowserCheck,
+    WidgetQuality,
     desktop_viewport,
     user_engine,
 )
@@ -152,7 +153,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
-        "severity": "error",
+        "severity": "advice",
         "at": "<div id=wide>",
         "widths": [360, 400],
         "values": {"place": "#wide", "past": 74},
@@ -163,19 +164,58 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert len({finding, finding.but(values={})}) == 1
     with pytest.raises(ValueError):
         Finding("no-such-code")
+    # A refusing code's words end with the guarantee its declaration names: input
+    # a check refuses, or a page the browser's check fails. Only such a code refuses.
+    upgrades = Finding("missing-upgrades", values={"tags": ["lf-x"]})
+    assert (upgrades.severity, str(upgrades)) == (
+        "error",
+        "upgraded widgets did not define their elements: <lf-x> (fails the check so"
+        " that the user sees the page's widgets and scripts work as written)",
+    )
+    assert upgrades.said == "upgraded widgets did not define their elements: <lf-x>"
+    duplicate = Finding("duplicate-ids", values={"ids": ["a"]})
+    assert str(duplicate).endswith(
+        "(refused so that each id names one element for comments and commands to reach)"
+    )
+    with pytest.raises(ValueError):
+        Rejected([finding])
 
 
 def test_page_check_json_names_only_the_gates_that_read_the_page():
     """Failing page code ends the check before the render gate reads anything, so
-    `--json` says the render check was asked for and did not run."""
+    `--json` says the render check was asked for and did not run. A gate whose browser
+    could not read the page, as one that crashed, ran no more than one no browser ran,
+    and its finding fails nothing."""
     failed = Finding("page-report", values={"text": "leaf: <lf-x> failed"})
-    check = BrowserCheck(
-        ["page code", "render check"], "Chrome", page_code=[failed]
-    ).json()
-    assert (check["asked"], check["ran"]) == (
-        ["page code", "render check"],
-        ["page code"],
+    gates = ["page code", "render check"]
+    check = BrowserCheck(gates, "Chrome", page_code=[failed]).json()
+    assert (check["asked"], check["ran"]) == (gates, ["page code"])
+    crashed = Finding("browser-error", values={"error": "Target closed"})
+    stopped = Finding("server-stopped", values={"error": "Timeout 30000ms"})
+    unread = BrowserCheck(
+        gates,
+        "Chrome",
+        page_code=[],
+        render=render_gate_model.RenderReading([stopped], []),
     )
+    assert (unread.ran, unread.status) == (["page code"], 0)
+    assert BrowserCheck(["page code"], "Chrome", page_code=[crashed]).ran == []
+    # A thread the page can't open is the page's own failure, read once the browser
+    # has read the rest, so it fails the render check rather than leaving it unread.
+    undrawn = Finding("thread-not-drawn", values={"thread": "t1", "error": "no card"})
+    reading = render_gate_model.RenderReading([undrawn], [])
+    drawn = BrowserCheck(gates, "Chrome", page_code=[], render=reading)
+    assert (drawn.ran, drawn.status) == (gates, 1)
+    # No browser at all reads the same way, and says what went unchecked for it.
+    missing = Finding("no-browser", values={"error": "no browser launched: none"})
+    assert missing.unread and missing.said.startswith("no browser launched: none; ")
+    assert missing.said.endswith(
+        "; the browser checks did not run, so a failure only they would find shows"
+        " when a browser first draws the page"
+    )
+    # So with the widget quality gate, where a crash once failed the package check.
+    quality = WidgetQuality(1, "Chrome", findings=(crashed,))
+    assert (quality.status, quality.json()["ran"]) == (0, [])
 
 
 def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
@@ -267,7 +307,7 @@ def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
     class SwingingPage:
         readings = itertools.cycle((["arrived", 2], ["arrived", 3]))
 
-        def wait_for_function(self, expression, *, arg, timeout):
+        def wait_for_function(self, expression, *, arg, timeout, polling="raf"):
             reading = (
                 "arrived"
                 if expression == render_checks.OUTSTANDING
@@ -283,21 +323,23 @@ def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
     assert unready.value.stage == "arrived"
 
 
-def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):
-    """The retry policy over whole attempts (`render_version`): a notice is ignored
-    only when a later complete attempt is clean, ordinary failures from both attempts
-    stand once each, and an incomplete confirmation pardons nothing. Advice is the
-    first attempt's. What an attempt hears is the browser's half, read by
+def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
+    monkeypatch,
+):
+    """The retry policy over whole attempts (`render_version`): a notice fails the
+    check only when a later complete attempt repeats it and is ignored when that
+    attempt is clean, ordinary failures from both attempts stand once each, and a
+    notice no complete attempt settles is dropped for what stopped that attempt.
+    Advice is the first attempt's. What an attempt hears is the browser's half, read by
     `test_a_recurring_resize_notice_fails_the_render_gate`."""
     notice = Finding("resize-loop", values={"text": "ResizeObserver loop completed"})
     error = Finding("console-error", values={"text": "first attempt"})
     later = Finding("console-error", values={"text": "later"})
-    failed = Finding("probe-failed", values={"error": "probe failed"})
+    failed = Finding("page-exception", values={"text": "confirming attempt"})
     first = Finding(
         "grows-with-content",
         "<lf-x id=a>",
         {"layout": "column", "box": "div", "height": 20},
-        severity="advice",
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
@@ -331,24 +373,24 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     # On every rendering, which is a layout feedback loop.
     recurring = policy(attempt(notices=[notice]), attempt(notices=[notice])).failures
     assert recurring == [confirmed("recurred")]
-    assert str(recurring[0]) == (
+    assert recurring[0].said == (
         "window error: ResizeObserver loop completed"
         " (recurred on the confirming render attempt)"
     )
-    # A confirmation that did not finish cannot say the notice was transient.
+    # A confirmation that did not finish settles nothing: what stopped it stands, a
+    # crash leaving the page unread and the page's own failure failing it, each once.
+    crashed = Finding("browser-error", values={"error": "Target closed"})
+    unread = policy(attempt([error], [notice]), attempt([crashed], complete=False))
+    assert unread.findings == [error, crashed]
     assert policy(
         attempt([error], [notice]), attempt([failed], complete=False)
-    ).failures == [error, failed, confirmed("incomplete")]
+    ).findings == [error, failed]
     # Nor can an attempt that did not finish ask for one.
-    assert policy(attempt([error], [notice], complete=False)).failures == [
-        error,
-        notice,
-    ]
+    assert policy(attempt([error], [notice], complete=False)).findings == [error]
 
 
 def test_output_contract_failures_refuse_page_and_package_checks():
     from leaf.data_contracts import output_findings
-    from leaf.render_gate.command import WidgetQuality
     from leaf.render_gate.version import RenderReading
 
     registry = {
@@ -382,7 +424,7 @@ def test_output_contract_failures_refuse_page_and_package_checks():
         },
     )
     assert len(found) == 1
-    assert str(found[0]) == (
+    assert found[0].said == (
         "<lf-counter id=count> (package producer): output 'total' value is invalid "
         "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
     )

@@ -37,6 +37,7 @@ from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import open_on_me as open_on_me_by_pointer
 from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -45,14 +46,13 @@ ON_ME = panel_view("queue")
 
 
 def open_on_me(page):
-    """Open On Me by its mark, unless it stands open, and return its view; another
-    view standing open is put away first, by the ✕ in the mark's seat."""
+    """Open On Me by pointer, unless it stands open, and return its view; another view
+    standing open is put away first, by its ✕."""
     shown = page.locator(PANEL).get_attribute("data-lf-open")
-    if shown not in (None, "queue"):
+    if shown not in (None, "menu", "queue", "threads"):
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
-    if shown != "queue":
-        page.locator(".lf-fp-on-user").click()
+    open_on_me_by_pointer(page)
     panel_settled(page, view="queue")
     return page.locator(ON_ME)
 
@@ -63,7 +63,7 @@ def on_card(page, at):
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
-    """The panel's On Me mark lists every open obligation under On Me, in document order, and
+    """The panel's On Me lists every open obligation, in document order, and
     every answered one folded under Done with its current answer, so the user can review
     and revise. A twelfth widget joins by declaring `awaits`.
 
@@ -75,7 +75,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="queue")
     show_done(page)
@@ -376,19 +376,26 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On Me's tabs name its view, so the first starts its controls, where another
-    view's way back stands, rather than standing among the presses at their end; no
-    name bar stands over the view, the heading naming it to assistive tech alone. The
-    strip holding the tabs reaches past them for their focus ring, so the tab is read."""
+    """On Me's tabs name its view, so the first starts its controls' line, its words on
+    the panel's text line and its frame on the field's edge, rather than standing among
+    the presses at their end; no name bar stands over the view, the heading naming it to
+    assistive tech alone. The strip holding the tabs reaches past them for their focus
+    ring, so the tab is read."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     resized(page, 1440, 900)
     open_on_me(page)
-    start, tabs = page.locator(".lf-fp-controls").evaluate(
-        """c => [c.getBoundingClientRect().left
-            + parseFloat(getComputedStyle(c).paddingLeft),
-          c.querySelector('.lf-fp-filters > .lf-fp-tab').getBoundingClientRect().left]"""
+    start, words, frame, field = page.locator(".lf-floating-panel").evaluate(
+        """p => {
+          const c = p.querySelector('.lf-fp-controls');
+          const tab = c.querySelector('.lf-fp-filters > .lf-fp-tab');
+          return [c.getBoundingClientRect().left + parseFloat(getComputedStyle(c).paddingLeft),
+            tab.querySelector('.lf-fp-tab-words').getBoundingClientRect().left,
+            tab.getBoundingClientRect().left,
+            p.querySelector('.lf-fp-field').getBoundingClientRect().left];
+        }"""
     )
-    assert tabs == start, (tabs, start)
+    assert words == start, (words, start)
+    assert frame == field, (frame, field)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
@@ -799,9 +806,9 @@ CARD_OPTIONS_PAGE = leaf_page(
     """<h1 id="title">Sidebar</h1>
 <lf-group id="stick-ask" label="How should a long sidebar stick?"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
-  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small> <strong>Wrap the blocks in one box</strong>
+  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="lf-tag">two days</small> <strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
-    <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
+    <svg class="lf-drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
   <lf-option id="stick-aside" label="Stick the aside itself"><strong>Stick the aside itself</strong> It covers the
     footer.</lf-option>
   <lf-option id="stick-rule" label="Keep the one-block rule">    <strong>Keep the one-block rule</strong> <p>Authors keep writing one block.</p></lf-option>
@@ -1156,7 +1163,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
@@ -1167,7 +1174,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
         ["widget:ship", []],
         ["widget:timeline", [f"message:{reply}"]],
     ]
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held[0].continue_()
     page.unroute("**/api/event")
 

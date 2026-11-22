@@ -10,8 +10,6 @@ from ..events import (
     progress_completions,
     seat_root,
     spoken_turns,
-    turn_message,
-    unanswered_agent_turn,
     unanswered_turns,
 )
 from ..projection import ThreadMarkupReading
@@ -89,8 +87,8 @@ def progress_ends(
 
     A step toward an answer still owed stands until the agent next speaks in its
     thread (`events.progress_completions`), whichever turn or session writes that, as
-    the line a line fork writes for the session does (`forks.py`): its line turn ends
-    as it hands the thread on, long before the session answers. The user chose that a
+    the line a line fork writes for the session does (`forks.py`), which names no
+    turn of its own. The user chose that a
     step otherwise goes with its turn, rather than standing as the thread's last word
     until the agent next speaks there, and that owed work keeps the rule before, under
     which every step stood until then, even past its session's end, when its On it
@@ -112,7 +110,7 @@ def browser_thread(
 ) -> tuple[dict, ThreadMarkupReading]:
     """Serialize the shared thread-markup work reading, adding presentation only.
     Messages and closing events carry their canonical display name; provisional
-    replies and unread/summary protection never become durable work authority.
+    replies and unread state never become durable work authority.
 
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
@@ -122,7 +120,7 @@ def browser_thread(
     (`progress_ends`), where `runs` says whether the turn that wrote an event still
     runs."""
     events, threads = work.events, work.threads
-    reading, thread_obligations = work.thread, work.thread_obligations
+    reading = work.thread
     fragments = reading.structure.fragments
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
@@ -138,29 +136,6 @@ def browser_thread(
         owed_since[thread_id] = (
             unanswered_turns(thread)[0]["seq"] if awaits_agent(thread) else None
         )
-        protected = set()
-        if awaits_agent(thread):
-            turn = unanswered_agent_turn(thread)
-            assert turn is not None
-            protected.add(turn_message(turn))
-        protected.update(
-            item["message"]
-            for item in thread_obligations["unanswered"]
-            if item["thread"] == thread_id and item["source"]["kind"] == "message"
-        )
-        obligation_sources = {
-            item["source"]["id"]
-            for item in thread_obligations["unanswered"]
-            if item["thread"] == thread_id and item["source"]["kind"] == "widget"
-        }
-        for message_id, fragment in fragments.items():
-            if obligation_sources.intersection(fragment.by_id):
-                protected.add(message_id)
-        summaries = summaries_for[thread_id]
-        for summary in summaries:
-            summary["protected"] = [
-                identity for identity in summary["covers"] if identity in protected
-            ]
         messages = [
             {
                 **_named(message),
@@ -188,7 +163,7 @@ def browser_thread(
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
-                "summaries": summaries,
+                "summaries": summaries_for[thread_id],
                 "unread": unread[thread_id],
             }
         )

@@ -538,11 +538,12 @@ const BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
 /** @param {Element} el */
 const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // What no label can speak through, however it is marked: an inline script, the
-// stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
+// stylesheet a rendered diagram carries inside its <svg>, a slot the user's decision
+// took off the page, a native field's default-value markup, and the fallback a
+// browser running scripts never draws (<noscript>). Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
 // runtime's.
-const SILENT_TAGS = new Set(["script", "style", "textarea"]);
+const SILENT_TAGS = new Set(["script", "style", "textarea", "noscript"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // Automatic control capture uses authored words, which the file reads too, never
@@ -567,7 +568,7 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // (`inline`). Every other element, a widget included, starts a block of its own,
 // its words parted from those around it (`enter`).
 /** @param {Element} element */
-const phrasing = (element) =>
+export const phrasing = (element) =>
   PHRASING.has(element.localName) || Boolean(registry[element.localName]?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
@@ -806,6 +807,8 @@ const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // what is assigned to it, and a declared root's host what the root holds. Native
 // `contains` stops at the first and is wrong for the second.
 export { readingUnder };
+// The values of `white-space-collapse` under which a newline in the text breaks the line.
+const BREAKS_KEPT = ["preserve", "break-spaces", "preserve-breaks"];
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -857,6 +860,15 @@ export function textNodesUnder(
   };
   let breakBefore = false;
   let lineBefore = "";
+  // Whether the words read so far end on a line break their own text draws, as a boxed
+  // code line's do (code-lines.js): a block's edge there starts no further line.
+  const lineEnded = () => {
+    const last = segments.at(-1);
+    return (
+      last?.node.data[last.end - 1] === "\n" &&
+      BREAKS_KEPT.includes(last.whiteSpace ?? "")
+    );
+  };
   const styles = new Map();
   /** @param {Element} element */
   const style = (element) => {
@@ -889,9 +901,7 @@ export function textNodesUnder(
         if (wordAfter(text, 0)) cutShort();
         return;
       }
-      const newlines =
-        breaks !== Infinity &&
-        ["preserve", "break-spaces", "preserve-breaks"].includes(whiteSpace);
+      const newlines = breaks !== Infinity && BREAKS_KEPT.includes(whiteSpace);
       if (wanted !== Infinity || newlines) {
         const marks = newlines ? /\S|\n/gu : /\S/gu;
         for (let mark; (mark = marks.exec(text));) {
@@ -929,7 +939,8 @@ export function textNodesUnder(
           if (display === "table-cell") {
             if (!entering && lineBefore !== "\n") lineBefore = "\t";
           } else if (
-            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
+            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display) &&
+            !lineEnded()
           ) {
             lineBefore = "\n";
           }
@@ -1096,10 +1107,12 @@ function firstPassing(items, test, from = 0) {
 // the end's own text node. A range with both ends in one part touches that part alone,
 // as a passage in a datum is captured in its datum's words (anchor-resolution.js), so
 // selecting a line of one document reads that document. Any other touches the frame and
-// the parts it covers, with the part its start stands in. The frame's marks are in
-// reading order, so the parts it covers run from the first mark not before its start to
-// the first not before its end, with the start's part just before them, and finding
-// them costs a binary search however many parts the page holds. A walk from the range's
+// the parts it covers, with the parts its start and end stand in. The frame's marks are
+// in reading order, so the parts it covers run from the first mark not before its start
+// to the first not before its end. The start's part is the mark just before them. The
+// end's part is the mark they stop at where the range ends at an offset of that part's
+// own root, as a range over a whole part does. Finding them costs a binary search
+// however many parts the page holds. A walk from the range's
 // own root reads whatever that root holds: select-all beside a `shadow` widget
 // composes a range over <html>, and the reading has no position for its <title>.
 /** @param {AbstractRange} range */
@@ -1130,7 +1143,8 @@ export function segmentsIn(range) {
     const [first, stop] = spanOf(own);
     const runs = [];
     let at = first;
-    for (const mark of marks.slice(marks[lo - 1]?.root === head ? lo - 1 : lo, hi)) {
+    const from = marks[lo - 1]?.root === head ? lo - 1 : lo;
+    for (const mark of marks.slice(from, marks[hi]?.root === tail ? hi + 1 : hi)) {
       runs.push(own.slice(at, mark.at), clipped(partCollected(mark.root).segments));
       at = Math.max(at, mark.at);
     }
@@ -2254,9 +2268,11 @@ export function fencePassageParts(root, children = root.children) {
 // `pageText()` is the frame's reading: the page's words outside its parts, with a fence
 // where each part stands. A quote in prose never stands in a part, since every part is a
 // datum, which the projection stamps a passage cell of its own (projection/data.js), and
-// a selection whose words all lie in one datum is captured on that datum
+// a selection whose words all lie in one datum is captured on that datum, and one that
+// runs from one datum into another of the same drawing on the two
 // (anchor-resolution.js, `anchorForPassage`). So prose is searched, captured and snapped
-// in the frame alone, and no reader puts the parts' words together with it.
+// in the frame alone. Only a passage across data reads parts' words together, with the
+// frame's words between them (`runReading`).
 //
 // `within` asks for the words under one element, read alone with its edges as the
 // reading's ends, so a neighbourhood read inside it stops there. A quote anchored in a
@@ -2303,6 +2319,30 @@ const readingPieces = new WeakMap();
 /** @param {Node} node */
 export const readingHolding = (node) =>
   pageText(inPage(node) ? readingPart(node) : null);
+// The words from datum `first` through `last`, a later datum its widget drew from the
+// same value, read as one passage cell: a passage across a widget's data, as a drag
+// across lines of a diff holds, is captured and found again in these words
+// (anchor-resolution.js, `anchorForPassage`). The page's reading fences every datum as
+// a cell of its own, since the file can't read generated words beside its prose, and
+// fences fields and generated words inside a datum the same way. This reading has no
+// fence at all: no file reads a datum's words, and the passage found in it is one a
+// selection over the same words made. It reads the parts it covers and the frame's words
+// between them (`segmentsIn`), and is read afresh each time it is asked.
+/** @param {Element} first @param {Element} last @returns {PageReading} */
+export function runReading(first, last) {
+  const segments = segmentsIn(
+    new StaticRange({
+      startContainer: first,
+      startOffset: 0,
+      endContainer: last,
+      endOffset: last.childNodes.length,
+    }),
+  );
+  return indexed(
+    segments,
+    segments.map(() => null),
+  );
+}
 // The roots of the page's parts, in reading order.
 export function readingParts() {
   catchUpReading();

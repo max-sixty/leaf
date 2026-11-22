@@ -139,12 +139,12 @@ their own activation and editing.
 Leaf already answers Enter, Space and the opening arrow on a `details > summary` or a
 button with `aria-expanded`; a row that names the same press uses `DISCLOSE(element)` as
 its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text direction,
-and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for a
-tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
+and `PRESS` is Enter and Space. `labelOf(row)` is a row's key text for a tooltip;
+`saying(rows)` names, for an announcement, the keys that would run the rows now.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
-the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
-shows, as its `::before`, turning with its state; the widget's own rules place it.
+the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
+its `::before`, turning with its state; the widget's own rules place it.
 
 ### Decisions and forwarded keys
 
@@ -328,7 +328,7 @@ once each time the preview shows, with the route that asked: `"pointer"`, `"focu
 stands, so what it says follows the page without tracking its own inputs; words that
 come back the same leave the preview as it is. It returns:
 
-- `{name, keys, detail, list, at, about, excerpt}`, every field optional. `name`
+- `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
   lists presses the register can't see, each as the steps its chips draw, as a control's
@@ -338,7 +338,8 @@ come back the same leave the preview as it is. It returns:
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
-  beneath it. `about` is the element the preview is about, which Leaf leaves
+  beneath it. Readings standing by one element redraw in place as the aim moves among
+  them. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view, and the preview shows only while some
   of that box does, so a point scrolled out of view takes its preview with it, though
@@ -349,7 +350,9 @@ come back the same leave the preview as it is. It returns:
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
-  are hidden from sight and from a screen reader alike.
+  are hidden from sight and from a screen reader alike. `unseen: true` keeps the face
+  from sight where the element draws its own; its words still describe what has
+  focus.
 - `null` where the element adds nothing now, including where the words it would say
   already show on it or beside it: a control keeps its own preview, and the search goes
   on to what holds the element.

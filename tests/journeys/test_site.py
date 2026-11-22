@@ -341,7 +341,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
     """The data-structures reference's tables, generated from the schemas, read at a
     phone's width: on a narrow column each field's description takes the row's whole
     width under its name, type and flag, so no table scrolls sideways or squeezes a
-    cell to a word a line (`squeezedBoxes`), as 31 of them did with four columns side
+    cell to a word a line (`squeezedTables`), as 31 of them did with four columns side
     by side. At 640px the column is just wide enough for the four-column table, which
     has to fit there too."""
     page = browser.new_page(viewport={"width": 640, "height": PHONE["height"]})
@@ -355,7 +355,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
                 ".filter((table) => table.scrollWidth - table.clientWidth > 1)"
                 ".map((table) => table.closest('section').id)"
             )
-            squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
+            squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
             assert (scrolling, squeezed) == ([], [])
 
 
@@ -926,7 +926,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
         "data-lf-startup-error", re.compile("planted fault")
     )
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     # The supervisor sets the timer for its next round only once the last round's
@@ -1409,7 +1409,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Ready — comment to revise this copy"
+            "aria-label", re.compile(r" · Ready — comment to revise this copy$")
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1636,7 +1636,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     ).to_have_text("running")
     # The inventory includes request Decisions beside state obligations.
     expect_obligations_answered(page, "0/5")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -1690,7 +1690,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-fp-on-user")
+    decisions = page.locator(".lf-fp-leaf")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
     chosen = (

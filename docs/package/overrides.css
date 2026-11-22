@@ -111,11 +111,6 @@ body.site-page footer.site-footer p + p {
   padding-inline-start: var(--lf-sp-3);
   margin-block: var(--lf-sp-3);
 }
-#anatomy pre.from,
-#anatomy .from pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 #anatomy .said {
   background: var(--from-said);
   border-radius: 3px;

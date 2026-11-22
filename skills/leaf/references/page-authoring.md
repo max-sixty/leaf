@@ -25,15 +25,13 @@ in its own form:
   grouped or sorted by the fact they scan first. Values the user looks up, and
   measures in units that can't share an axis, go in a table too.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
-  passage whole, conditions included, so the reader can check the claim on the page.
-  When the point is what code does, such as what it draws or which rule wins, show
-  that effect in one of the forms above, with the code beside it.
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
 
 The page's vocabulary provides most of these forms as widgets whose entries say what
 each shows ("Read the registry"). Use the one it offers rather than building the form
 yourself, and where the page has none, select the package that adds it
-(`packages.md`, "Package reach").
+(`leaf package list`).
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
 sizes, and what contains or links them. Add one where that geometry makes a
@@ -46,6 +44,25 @@ and cost, leave the case in words and draw nothing.
 
 `authoring-evidence.md` says how to present each kind of evidence, and how to draw a
 figure of your own.
+
+## Show what a claim rests on
+
+A claim the page makes about the work, such as a count, a cause, what code does or
+what a change changes, rests on material you read: the cases behind the count, the
+records of what happened, the code, the diff. Put that material on the page with the
+claim, quoted rather than retold, so the user can see what the claim means and check it
+without asking you or leaving the page. They often see in it what your summary left
+out. Quote a rule or other passage the claim turns on whole, conditions included, and
+excerpt a log or a diff to the lines that show the claim.
+
+How long the material is decides where it goes, not whether it goes on the page. The
+case or the few lines that show the claim most plainly stand beside it, and the rest,
+such as every case behind a count or a whole diff, stays on the page; "Reading cost"
+says when to collapse it. A link to where the material lives goes beside the material
+rather than in its place, except where the reader has no reason to check the claim,
+as with a fact they already hold or a status they take on trust, such as a passing CI
+run. Where the cases are too many, too large or private to show, show those the claim
+turns on and say how to reach the rest.
 
 ## Develop the work
 
@@ -77,10 +94,10 @@ interaction operable when trying it reveals more than seeing its states together
 
 Use real material where available. Fill gaps needed to demonstrate a proposal with
 plausible fictional content, clearly labeled as illustrative. This lets the reader
-judge a design before it is implemented or tested; claims about real behavior
-still require evidence. Keep the distinction visible beside the demonstration.
-`authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
-operable Leaf examples.
+judge a design before it is implemented or tested, while a claim about real behavior
+rests on real material ("Show what a claim rests on"). Keep the distinction visible
+beside the demonstration. `authoring-evidence.md` says how to present each kind of
+evidence; `live-samples.md` owns operable Leaf examples.
 
 Compose the page from that material. Explain the conclusion, reasons, costs and
 limits beside the result they concern, and remove descriptions the result makes
@@ -92,7 +109,7 @@ Give the main result and the material supporting it the most attention and space
 Write headings that tell a scanning reader what each part establishes. Use the
 user's context to leave out explanations and background they already have.
 
-A panel's heading (`section.panel`, as on a dashboard) is set in small capitals,
+A panel's heading (`section.lf-panel`, as on a dashboard) is set in small capitals,
 which read as a region's name and not as a sentence, so name the region there in a
 few words and state its finding in the panel's first line.
 
@@ -119,7 +136,7 @@ lines, a question's answer, and the threads about it.
 Arrange the material so the reader can do the task with little navigation or memory.
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
-widgets and class idioms for those roles, including the theme's `.metric` entry
+widgets and class idioms for those roles, including the `.lf-metric` entry
 for a metric. Arrange an experiment's results so each variant's effect against its
 baseline reads without arithmetic, and show what each variant changed beside its
 effect.
@@ -175,15 +192,15 @@ page of parts, whose column parts each take their own outline.
 ## Style the page
 
 A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
-tables, code, controls) in both colour schemes and adds the class idioms, such as
-`.callout`, so a page of ordinary content needs no CSS of its own: polish it through
-clearer content and hierarchy within that treatment. Where the task calls for a design
-of its own, such as an instrument, an arrangement, or a look the user asks for, write
-it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
+tables, code, controls) in both colour schemes, and Leaf draws its class idioms, such
+as `.lf-callout`, on every page, so a page of ordinary content needs no CSS of its
+own: polish it through clearer content and hierarchy within that treatment. Where the
+task calls for a design of its own, such as an instrument, an arrangement, or a look
+the user asks for, write it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
 mockup or a page the user brings, takes no theme instead (`leaf page init <page>
 --no-theme`), so it starts from the browser's defaults, its tables, code blocks and
 controls included, and none of the theme shows through its rules; Leaf's widgets,
-threads and panel keep their own faces either way.
+idioms, threads and panel keep their own faces either way.
 `leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
 themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as
@@ -252,14 +269,14 @@ rely on, in full:
 ```bash
 leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)'
-leaf page vocabulary <page> | jq '.["lf-options"], .[".lede"], .["$series"]'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".lf-lede"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .lede | jq -r '.author // empty'
+leaf page instructions <page> --use lf-options --use .lf-lede | jq -r '.author // empty'
 ```
 
 The output is a JSON map from audience to text. When you or an agent you assign takes
@@ -335,17 +352,19 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 `page-layout.md`, "Bounds and widths".
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
-reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content. A `<pre>` asks its
-container for no width, so a box that takes its width from its content can leave it
-too narrow to read, which `page check --render` reports. A table scrolls inside a box
-that sets its own width, such as the column, a panel or any
-other block. A box that takes its width from its content, such as a flex item or a
-grid `auto` track, widens to the table's columns instead, past a phone's window if
-they need it, so give that box `min-width: 0` to keep the table scrolling inside it.
-A page without the face keeps the browser's tables and code blocks, so it puts one
-that can outgrow a narrow window in a box of its own that scrolls sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+reading face, as a page in the `reading` theme does (`package-themes.md`, "Personal
+themes"), Leaf also wraps a `<pre>`'s long lines, and a table's columns size to their
+content. It puts each line of a `<pre>` in a `<span data-lf-pre-line>`, so the rows a line wraps onto
+hang from its indent behind a mark; a selector such as `pre span` reaches those spans
+too. A block whose columns must line up past its container's width, such as a diagram
+drawn in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such
+a block or a table scrolls inside a box that sets its own width, such as the column, a
+panel or any other block. A box that takes its width from its content, such as a flex
+item or a grid `auto` track, widens to its lines or the table's columns instead, past
+a phone's window if they need it, so give that box `min-width: 0` to keep it scrolling
+inside. A page without the face keeps the browser's tables and code blocks, so it puts
+one that can outgrow a narrow window in a box of its own that scrolls sideways, as
+above. Text that can't break, such as a bare identifier or a cell kept on
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,

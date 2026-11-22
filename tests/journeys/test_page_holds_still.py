@@ -168,7 +168,7 @@ def thread_page(serve):
     )["id"]
     # The first two steps take a line each, so with `read` at the reading line the
     # last message starts inside the window and the reply box below it.
-    for n in range(4):
+    for n in range(3):
         user(notes, f"And then {n}?")
         append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
@@ -228,11 +228,17 @@ def diff_page(serve):
 
 
 def dial_page(serve, repeat=1):
-    """The detail example's incident report, with the words of the cause's first
-    paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds behind
-    the section's gist."""
-    source = named_source("detail").read_text()
-    start = source.index('<p id="detail-cause-1">') + len('<p id="detail-cause-1">')
+    """The incident report example without its chart, with the words of the cause's
+    first paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds
+    behind the section's gist. The places below were measured on the report's words
+    alone: the chart, a gist Skim keeps, moves where each line stands and which block
+    the browser anchors on."""
+    source = named_source("incident-report").read_text()
+    chart = source.index('<figure class="gist" id="incident-impact-chart">')
+    source = (
+        source[:chart] + source[source.index("</figure>", chart) + len("</figure>") :]
+    )
+    start = source.index('<p id="incident-cause-1">') + len('<p id="incident-cause-1">')
     end = source.index("</p>", start)
     words = " ".join([source[start:end]] * repeat)
     source = f"{source[:start]}<em>{words}</em>{source[end:]}"
@@ -721,7 +727,7 @@ GUTTER_COMMENT = f"""() => {{
 def put_dial(motion, at=900 * 0.25 - 10):
     def put(page, built):
         page.emulate_media(reduced_motion=motion)
-        scroll_to(page, "#detail-cause-1", at)
+        scroll_to(page, "#incident-cause-1", at)
 
     return put
 
@@ -731,9 +737,9 @@ def put_dial(motion, at=900 * 0.25 - 10):
 # on through the turn back to Read. Each is read as the box of its first word's first
 # letter, so the em's inline box and the gist's block compare line for line.
 DIAL_READING = """() => {
-  const em = document.querySelector('#detail-cause-1 em');
+  const em = document.querySelector('#incident-cause-1 em');
   if (!em.checkVisibility()) window.__lfDialFolded = true;
-  const read = window.__lfDialFolded ? document.getElementById('detail-cause-gist') : em;
+  const read = window.__lfDialFolded ? document.getElementById('incident-cause-gist') : em;
   const text = read.firstChild;
   const at = text.data.search(/\\S/);
   const range = document.createRange();
@@ -748,9 +754,9 @@ DIAL_READING = """() => {
 # own letters half a leading lower, 2.1-2.5px, a step below what the eye takes in
 # across a fold.
 DIAL_WORDS = """() => {
-  const em = document.querySelector('#detail-cause-1 em');
+  const em = document.querySelector('#incident-cause-1 em');
   if (!em.checkVisibility()) window.__lfDialFolded = true;
-  if (window.__lfDialFolded) return document.getElementById('detail-cause-gist');
+  if (window.__lfDialFolded) return document.getElementById('incident-cause-gist');
   if (window.__lfDialWords) return window.__lfDialWords;
   const {offsetNode: text, offset} = document.caretPositionFromPoint(
     em.parentElement.getBoundingClientRect().left + 1, innerHeight / 4);
@@ -776,7 +782,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -801,7 +807,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
@@ -1116,7 +1122,7 @@ PLACES = [
         "dial",
         put_dial("no-preference"),
         DIAL_READING,
-        {"dial": None, "glided": "detail-impact-gist"},
+        {"dial": None, "glided": "incident-impact-gist"},
     ),
     Place("dial-reduced", "dial", put_dial("reduce"), DIAL_READING, {"dial": None}),
     Place(
@@ -1540,7 +1546,7 @@ def turn(page, label):
     "Controls stay where the user aims"), so the frames from the press until it ends
     are marked `gliding` (`ARM`) and the place's check passes over them; the frame it
     ends in and every one after are held to the place."""
-    depth = page.get_by_role("radio", name=label, exact=True)
+    depth = page.get_by_role("radio", name=re.compile(rf"^{label} \d+ min$"))
     box = depth.bounding_box()
     page.evaluate("() => { window.__lfPlaceRecord.turning = true; }")
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -1553,11 +1559,11 @@ def turn(page, label):
 def dial_turn(page, built, target, place):
     """Skim, which folds the paragraph read behind its section's gist, then Read."""
     turn(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
     settle(page)
     checkpoint(page, "skimmed")
     turn(page, "Read")
-    expect(page.locator("#detail-cause-1")).to_be_visible()
+    expect(page.locator("#incident-cause-1")).to_be_visible()
 
 
 LATE_IMAGE = (
@@ -1585,7 +1591,7 @@ def grown_after_glide(page, built, target, place):
     )
     holding(page, held, 1, "the image's load")
     turn(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
     settle(page)
     checkpoint(page, "skimmed")
     held[0].fulfill(status=200, content_type="image/svg+xml", body=LATE_IMAGE)

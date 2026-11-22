@@ -2,6 +2,7 @@
 conditions, replay and undo, and suggestion settlements retiring their slots."""
 
 import json
+import re
 
 import pytest
 from interact_support import (
@@ -46,6 +47,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -118,7 +120,9 @@ customElements.define("lf-conditional", class extends LeafElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
     view = page.locator(panel_view("queue"))
     items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
 
@@ -143,7 +147,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         if view.count():
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
-        page.locator(".lf-fp-on-user").click()
+        open_on_me(page)
         panel_settled(page, view="queue")
         expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
         if not count:

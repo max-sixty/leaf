@@ -62,6 +62,21 @@ def named_package(name: str) -> Path | None:
     return bundled if bundled.is_dir() else None
 
 
+def selectable_packages() -> dict[str, Path]:
+    """Each package a bare name selects, in name order, resolved as
+    `named_package` resolves it: an installed package in place of a bundled one of
+    its name."""
+    names = {path.name for path in BUNDLED_PACKAGES.iterdir() if path.is_dir()}
+    installed = package_store() / "names"
+    if installed.is_dir():
+        names |= {path.name for path in installed.iterdir()}
+    return {
+        name: root
+        for name in sorted(names)
+        if (root := named_package(name)) is not None
+    }
+
+
 def resolve_packages(selected: tuple[str, ...], base: Path) -> list[Path]:
     """Resolve package selections without changing their order.
 
@@ -77,8 +92,9 @@ def resolve_packages(selected: tuple[str, ...], base: Path) -> list[Path]:
             named = named_package(value)
             if named is None:
                 raise Refused(
-                    f"unknown package {value!r}; run `leaf package install` to add "
-                    f"it, or use './{value}' for a project-relative package path"
+                    f"unknown package {value!r}; `leaf package list` prints the names "
+                    f"this machine can select, or use './{value}' for a "
+                    "project-relative package path"
                 )
             if named != DEFAULT_PACKAGE:
                 packages.append(named)
@@ -458,7 +474,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
-    such as the bundled `reading` look. A thread's transcript holds layer markup
+    such as the bundled `reading` look's. A thread's transcript holds layer markup
     wherever it is drawn, and a widget can seat one in its shadow tree, such as a
     diff's line threads, so every shadow tree also takes defaults.css within
     `@scope (.lf-thread-transcript)`, in lf-shadow after the package's

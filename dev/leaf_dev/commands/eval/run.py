@@ -155,9 +155,10 @@ def native_provider(
     """A read-only native agent and its explicitly invocable installed skill.
 
     Besides reading, it can ask the arm's Leaf what a page's packages tell an author,
-    the route an author takes to a widget's instructions (`PAGE_PROMPT`): Claude Code
-    through `leaf page instructions` and `leaf page vocabulary` alone, Codex through the
-    plugin's `leaf` tool, which runs any `leaf` command outside its read-only sandbox."""
+    the route an author takes to a widget's instructions (`PAGE_PROMPT`), and which
+    packages it could select: Claude Code through `leaf page instructions`, `leaf page
+    vocabulary` and `leaf package list` alone, Codex through the plugin's `leaf` tool,
+    which runs any `leaf` command outside its read-only sandbox."""
     if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         reading = [
@@ -165,6 +166,7 @@ def native_provider(
             "Read",
             "Bash(leaf page instructions:*)",
             "Bash(leaf page vocabulary:*)",
+            "Bash(leaf package list:*)",
             "Bash(jq:*)",
         ]
         return {
@@ -337,17 +339,6 @@ def grading(test: dict, condition: str, judge: Callable[[], dict]) -> dict:
     ]
     for assertion in assertions:
         value = assertion.get("value")
-        if isinstance(value, str) and value.endswith("/authoring_assertion.mjs"):
-            assert isinstance(assertion["config"], dict)
-            assertion["config"]["judge"] = {
-                "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
-                "config": {
-                    "pythonExecutable": sys.executable,
-                    # Allow setup and retirement around the native judge's
-                    # 20-minute turn, for workflows and short authoring alike.
-                    "timeout": 30 * 60 * 1000,
-                },
-            }
         if isinstance(value, str) and value.startswith("file://"):
             assertion["value"] = (
                 f"file://{ROOT / 'evals' / value.removeprefix('file://')}"

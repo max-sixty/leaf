@@ -26,6 +26,7 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.browser import open_on_me
 
 CUSTOM_WIDGET_PAGE = leaf_page(
     "custom widget",
@@ -310,12 +311,17 @@ BARE_IDENTIFIERS_PAGE = prose_beside_identifiers(lambda name: name)
 # The honest third case with every line an author can write and no wrap: a token split
 # around an inline <code>, which is set smaller and stands 3px lower on the same line
 # (a reading of rect tops called it a wrap and told the author to write <code>); a
-# <br>; a newline under <pre>; loose words either side of a nested table. Each is a
-# line the author drew, and none stands shorter with soft wrapping off.
+# <br>; a newline under a <pre> that keeps its lines (the reading face wraps a <pre>
+# otherwise, and the squeezed cell would wrap its longer line on fonts as wide as
+# macOS's); loose words either side of a nested table. Each is a line the author
+# drew, and none stands shorter with soft wrapping off.
 AUTHORED_LINES_PAGE = (
     WIDE_TABLE_PAGE.replace("<td>value_number_7</td>", "<td>value <code>7</code></td>")
     .replace("<td>value_number_6</td>", "<td>value<br>six</td>")
-    .replace("<td>value_number_5</td>", "<td><pre>def go():\n    return 5</pre></td>")
+    .replace(
+        "<td>value_number_5</td>",
+        '<td><pre style="white-space: pre">def go():\n    return 5</pre></td>',
+    )
     .replace(
         "<td>value_number_4</td>",
         "<td>before <table><tr><td>four</td></tr></table> after</td>",
@@ -580,9 +586,12 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On Me view from its mark, or close it from the same seat, where
-    its ✕ stands while the view does, and wait for it to stand or go."""
-    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
+    """Open the panel's On Me view from the leaf, or close it by its ✕, and wait for it
+    to stand or go."""
+    if open:
+        open_on_me(page)
+    else:
+        page.locator(".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -1212,7 +1221,7 @@ UNBREAKABLE_PAGE = leaf_page(
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-token" class="metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
+  <dl id="m-token" class="lf-metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>

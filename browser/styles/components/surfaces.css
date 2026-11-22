@@ -82,7 +82,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
  * `shadow` widget's stage (runtime/widget-upgrade.js). Its face is the sans the
- * theme gives other labels (.tag, figcaption), with figures of one width. */
+ * theme gives other labels (.lf-tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
   background: var(--lf-danger-tint);
@@ -94,17 +94,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   white-space: normal;
   --lf-block-frame: 1;
 }
-/* The box sets `white-space: normal`, so the source inside it restores preformatting,
-   and outranks the reading sheet's print wrap by specificity until it answers paper
-   itself. */
 .lf-error pre {
   margin: 8px 0 0;
-  white-space: pre;
-}
-@media print {
-  .lf-error pre {
-    white-space: pre-wrap;
-  }
 }
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
@@ -140,20 +131,27 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :host {
   --lf-external-icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22black%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5%22/%3E%3C/svg%3E");
 }
+/* The mark after a link that leaves the page, on the page and in a field
+   (composing/field-editor.js, `ExternalMark`). It is the padding of an empty inline box
+   at the link's end. Line breaks fall between characters, and an empty inline box
+   adds none, so the mark stays on the line of the link's last character; an
+   inline-block would allow a break on each side of it (CSS Text 3, "Line Breaking
+   Details"). The icon is centred in the box, which is as tall as the link's font. Its
+   height applies only in a link that lays out its contents as a flex or grid
+   container, which makes the mark a block. The second, transparent mask layer stops
+   WebKit painting the box's background where the icon doesn't reach. */
 a[data-lf-external]::after,
-.lf-external-mark {
+::part(lf-external-mark)::after {
   content: "";
-  display: inline-block;
-  width: 0.75em;
-  height: 0.75em;
   margin-inline-start: 0.24em;
-  vertical-align: 0.03em;
+  padding-inline-start: 0.75em;
+  height: 0.75em;
   background: currentColor;
-  mask: var(--lf-external-icon) center / contain no-repeat;
-  user-select: none;
-  -webkit-user-select: none;
+  mask:
+    var(--lf-external-icon) center / 0.75em no-repeat,
+    linear-gradient(transparent, transparent);
 }
-/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against.
+/* Pressable, said once per layer, and .lf-tag (Leaf's tag idiom) is what it is said against.
  * Without it, a chip that opens a section and a badge that counts something are the
  * same object at rest — one ground, one ink, one corner, one size — and the user has
  * to press one to find out.
@@ -167,7 +165,7 @@ a[data-lf-external]::after,
  * and a family that wants its own says so in its own theme rules, which come after this
  * file in the merged sheet and outrank it at equal specificity.
  *
- * .tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
+ * .lf-tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
  * is the line the rule draws — not "does this look like a control" but "did a widget
  * build this to be worked", which is a fact the runtime holds rather than a judgement
  * a stylesheet re-makes.
@@ -248,7 +246,10 @@ a[data-lf-external]::after,
      declares that it wears the band (`--lf-wears-ring`, base.css); its header and
      footer are not children it rings, and its own focus wears the ordinary band;
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
-     positioned contents would paint over its outline.
+     positioned contents would paint over its outline. It wears no outline of its own
+     while focused, the browser's ring included, which `:focus-visible` gives it before
+     the focus paint marks it (focus.js), when a moving card reads its rings
+     (box-motion.js).
    Either is a positioned box, so its ::after covers it. That ::after is at no weight
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
@@ -260,7 +261,7 @@ a[data-lf-external]::after,
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
-.lf-ring-overlay[data-lf-focus-visible],
+.lf-ring-overlay:is([data-lf-focus-visible], :focus-visible),
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])
   > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
@@ -275,8 +276,8 @@ a[data-lf-external]::after,
   outline: var(--lf-focus-ring);
   outline-offset: var(--lf-focus-ring-inset);
 }
-/* Every mark on a box is drawn by the box itself, as its outline, so it moves with the
-   box through every scroll, transform and layout change in every engine, and passes
+/* Every mark on a box is drawn by the box itself, as its outline, or as its border
+   image beside a list marker (below), so it moves with the box through every scroll, transform and layout change in every engine, and passes
    under what the page stacks over the box as the box's own words do. The Alt aim
    (`[data-lf-aimed]`), the margin trace (`[data-lf-traced]`), a comment's mark (`data-lf-mark`,
    visual-mark-paint.js), the location ring round the decision the user stands in
@@ -298,6 +299,7 @@ a[data-lf-external]::after,
 :where([data-lf-mark]),
 :where([data-lf-projected-location]) {
   --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
+  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent));
   outline-offset: var(--lf-band-gap);
@@ -310,6 +312,41 @@ a[data-lf-external]::after,
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
+}
+/* A box beside a list marker (`[data-lf-beside-marker]`, geometry.js, `markerReach`)
+   reaches its marks over the marker by the list inset, on the side the stamp names,
+   since the browser draws an outside marker beyond the item's box and an outline
+   stands the same distance out on every side. The box draws the band as a border image
+   instead, which stands where the outline would on the other sides and further out on
+   that one. A border image stands outside the box or on its edge, never further in, so
+   the band's room stops at 0. The image takes the place of any border the box draws of
+   its own while the mark shows. Focus alone keeps the outline, so a page's
+   `:focus { outline: none }` still hides it. */
+:where([data-lf-beside-marker="left"]) {
+  --lf-band-reach-left: var(--lf-list-inset);
+}
+:where([data-lf-beside-marker="right"]) {
+  --lf-band-reach-right: var(--lf-list-inset);
+}
+:where([data-lf-beside-marker]):where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark]:not([data-lf-mark="focus"]),
+  [data-lf-projected-location]
+) {
+  --lf-band-room: max(
+    0px,
+    var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w))
+  );
+  outline-style: none !important;
+  border-image: linear-gradient(
+      var(--lf-band-ink, var(--lf-accent)),
+      var(--lf-band-ink, var(--lf-accent))
+    )
+    1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
+    calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
+    calc(var(--lf-band-room) + var(--lf-band-reach-left)) !important;
 }
 :where([data-lf-aimed]):where(
   a[href],
@@ -396,12 +433,30 @@ a[data-lf-external]::after,
   }
 }
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
-   one box. */
+   one box. Where the brackets reach over a list marker, the veil reaches with them:
+   one shadow can't stand further out on one side, so it stands half the reach toward
+   the marker and spreads half the reach wider, and the brackets' clip cuts what the
+   wider spread adds above and below (`--lf-band-over`). */
 :where([data-lf-aimed]) {
   --lf-aim-veil: color-mix(in srgb, var(--lf-accent) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
-    0 0 0 max(0px, var(--lf-band-gap)) var(--lf-aim-veil);
+    var(--lf-aim-veil-shift) 0 0
+      calc(max(0px, var(--lf-band-gap)) + var(--lf-band-over)) var(--lf-aim-veil);
+}
+:where(
+  [data-lf-aimed][data-lf-beside-marker]:not(
+      [data-lf-projected-location],
+      [data-lf-proxied],
+      [data-lf-mark~="focus"],
+      [data-lf-focus-visible],
+      [data-lf-control-focus-visible]
+    )
+) {
+  --lf-band-over: calc((var(--lf-band-reach-left) + var(--lf-band-reach-right)) / 2);
+  --lf-aim-veil-shift: calc(
+    (var(--lf-band-reach-right) - var(--lf-band-reach-left)) / 2
+  );
 }
 /* A gesture's mark is brackets: the box clips the middle of its outline's top and
    bottom runs, leaving 8px at each end. The clip cuts only the band the mark takes, so
@@ -440,7 +495,11 @@ a[data-lf-external]::after,
     [data-lf-control-focus-visible]
   )
 ) {
-  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
+  /* The band's start and end, past any reach over a list marker. The clip's last two
+     cuts take what the aim's veil spreads above and below the band where it reaches
+     over one (`--lf-band-over`), and are empty elsewhere. */
+  --lf-band-from: calc(-1 * var(--lf-band-room) - var(--lf-band-reach-left));
+  --lf-band-to: calc(100% + var(--lf-band-room) + var(--lf-band-reach-right));
   clip-path: polygon(
     evenodd,
     -9999px -9999px,
@@ -448,17 +507,45 @@ a[data-lf-external]::after,
     calc(100% + 9999px) calc(100% + 9999px),
     -9999px calc(100% + 9999px),
     -9999px -9999px,
-    calc(8px - var(--lf-band-room)) calc(-0.5px - var(--lf-band-room)),
-    calc(100% + var(--lf-band-room) - 8px) calc(-0.5px - var(--lf-band-room)),
-    calc(100% + var(--lf-band-room) - 8px) calc(0.5px - var(--lf-band-gap)),
-    calc(8px - var(--lf-band-room)) calc(0.5px - var(--lf-band-gap)),
-    calc(8px - var(--lf-band-room)) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-to) - 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-to) - 8px)
+      calc(0.5px + var(--lf-band-w, var(--lf-focus-ring-w)) - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px)
+      calc(0.5px + var(--lf-band-w, var(--lf-focus-ring-w)) - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px) calc(-0.5px - var(--lf-band-room)),
     -9999px -9999px,
-    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-gap) - 0.5px),
-    calc(100% + var(--lf-band-room) - 8px) calc(100% + var(--lf-band-gap) - 0.5px),
-    calc(100% + var(--lf-band-room) - 8px) calc(100% + var(--lf-band-room) + 0.5px),
-    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-room) + 0.5px),
-    calc(8px - var(--lf-band-room)) calc(100% + var(--lf-band-gap) - 0.5px),
+    calc(var(--lf-band-from) + 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    calc(var(--lf-band-to) - 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    calc(var(--lf-band-to) - 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-from) + 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-from) + 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    -9999px -9999px,
+    calc(var(--lf-band-from) - 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    calc(var(--lf-band-to) + 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    calc(var(--lf-band-to) + 1px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) - 1px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) - 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    -9999px -9999px,
+    calc(var(--lf-band-from) - 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-to) + 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-to) + 1px)
+      calc(100% + var(--lf-band-room) + var(--lf-band-over) + 0.5px),
+    calc(var(--lf-band-from) - 1px)
+      calc(100% + var(--lf-band-room) + var(--lf-band-over) + 0.5px),
+    calc(var(--lf-band-from) - 1px) calc(100% + var(--lf-band-room) + 0.5px),
     -9999px -9999px
   );
 }
@@ -707,21 +794,30 @@ button.lf-inline-action,
 summary {
   align-content: center;
 }
-/* --lf-entry-floor under every field, beside --lf-aim-floor under every aim. iOS Safari zooms
-   the page onto a text field set under 16px as the field takes focus, and leaves the page
+/* --lf-entry-floor under each of Leaf's own fields: its composers (`leaf-text`), and
+   every field in its chrome or offered by a widget (`.lf-ui`). iOS Safari zooms the
+   page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
    panning sideways across a page wider than the screen. The zoom answers the field's
-   computed size, so the floor outranks every face a field is given — the layer's own
-   13px find box and 14px response field among them — and 1em keeps a field no smaller
-   than the type around it. The query gates the rule rather than leaving it to the token,
-   because at a zero floor the rule would still pull every field to its surroundings.
-   A radio or checkbox takes no typing, so iOS doesn't zoom onto it, and its mark keeps
-   the size of its label's type (controls.css, `.lf-choice`). */
+   computed size, so the floor outranks every face Leaf gives a field — its 13px find
+   box and 14px response field among them — and 1em keeps a field no smaller than the
+   type around it. A field the page wrote takes the floor only from the default face
+   (control-face.css), so the size its author gives it stands. The query gates the rule
+   rather than leaving it to the token, because at a zero floor the rule would still
+   pull each field to its surroundings. A radio or checkbox takes no typing, so iOS
+   doesn't zoom onto it, and its mark keeps the size of its label's type (controls.css,
+   `.lf-choice`). */
 @media (pointer: coarse) {
-  input:not([type="radio"], [type="checkbox"]),
-  textarea,
   leaf-text,
-  select {
+  .lf-chrome input:not([type="radio"], [type="checkbox"]),
+  .lf-chrome textarea,
+  .lf-chrome select,
+  .lf-ui input:not([type="radio"], [type="checkbox"]),
+  .lf-ui textarea,
+  .lf-ui select,
+  input.lf-ui:not([type="radio"], [type="checkbox"]),
+  textarea.lf-ui,
+  select.lf-ui {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }
@@ -743,57 +839,66 @@ summary {
   color: var(--lf-ink);
   overflow-wrap: anywhere;
 }
-/* A whole thread holding focus wears a quiet ground. A primary reader's part is one
-   message of a thread its presentation draws whole around it (`.lf-primary-part`
-   below), and a thread drawn in a view that stands for it whole, as the floating
-   panel's is (`data-lf-thread-view`, thread/selectors.js), is drawn inside that
-   drawing, so focus inside either leaves that ground to the drawing and the focused
-   control to its own ring. */
-.lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
-  outline: none;
-  border-radius: var(--lf-r);
-  --lf-ground: var(--lf-focus-surface);
+/* A whole thread a widget seats in its own flow (`data-lf-thread-surface`,
+   thread/surfaces.js) stands as a card in the margin card's face
+   (annotation-chrome.css, `.lf-margin-preview-card`): its frame, corners and inset,
+   and the margin card's reply field and words (response.css), so a thread looks the
+   same under a diff's line as beside a paragraph. As the margin card takes the box its
+   placement gives and the ground of the page it stands on, a seated card fills the box
+   its outlet gives and stands on the ground its host declares (`--lf-ground`), so any
+   widget can seat it in whatever shape it has (the user's choice); the widget's sheet
+   places the outlet and draws nothing of the card. The card is the thread's one frame,
+   as the margin card is, and its words end as far inside it as they start. Focus
+   within it paints no ground; focus on the thread itself rings the card's edge, on a
+   ring overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree
+   order and so paints over the positioned ones without a z-index that would also lift
+   it over the page. The frame is a shadow inside the edge rather than a border, since
+   a resolved card gives its room back by folding (thread/inline.js), and a border
+   keeps its last pixel until the fold ends. A seat's cards stand a gap apart; between
+   live neighbors may stand the inert pixels of one folding away.
+   Rejected: an unframed thread that wore a quiet ground and an inset ring while it
+   held focus, a frame drawn only on focus with the words running into its ring; a
+   widget setting the thread's insets and measure in its own sheet, which drew the
+   thread differently in each widget; a card painted in the page's paper at the
+   margin card's measure, which stood on a diff's white code as a box of another
+   colour with the row's end empty beside it; and a frameless band across the host,
+   which no longer read as the margin card. */
+[data-lf-thread-surface] > .lf-page-thread,
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+  padding: calc(var(--lf-comment-inset) + 1px);
+  border-radius: var(--lf-r-l);
+  box-shadow: inset 0 0 0 1px var(--lf-border);
   background: var(--lf-ground);
 }
-/* The thread itself holding focus wears the ring, inset over the quiet ground its
-   containing state paints; chrome.css says the same of the panel's card. A positioned
-   row inside the thread paints over the thread's own outline, so the thread is a ring
-   overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree order
-   and so paints over them without a z-index that would also lift it over the page. */
+/* A forced palette drops shadows, so there the frame is an outline on the card's edge. */
+@media (forced-colors: active) {
+  [data-lf-thread-surface] > .lf-page-thread,
+  [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+    outline: 1px solid;
+    outline-offset: 0px;
+  }
+}
+/* However wide the box its host gives, each message keeps the width it has in a margin
+   card at the card's own width, so a reply wraps where it would beside a passage; its
+   head, and the thread's controls on it, keep the card's whole width. The reply box
+   keeps the margin card's width too, so its words wrap where they will once sent and a
+   message's rewrite is as wide as the reply box (response.css, `.lf-msg-editor`). */
+[data-lf-thread-surface] {
+  --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
+}
+[data-lf-thread-surface] .lf-msg-body {
+  max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
+}
+[data-lf-thread-surface] .lf-thread-reply {
+  max-inline-size: var(--lf-seat-column);
+}
 .lf-page-thread::after {
   border-radius: inherit;
 }
-/* A forced palette paints every ground in Canvas, so the quiet ground of a thread
-   holding focus would vanish; the thread wears the ring instead. */
-@media (forced-colors: active) {
-  .lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
-    outline: var(--lf-focus-ring);
-    --lf-ring-at: var(--lf-focus-ring-inset);
-  }
-}
-/* Adjacent whole threads are ruled apart; parts belong to their author's
-   transcript. An outlet contains only whole cards, its resolved group and the comment
-   box; there, inert outgoing pixels may stand between the live neighbors. */
-.lf-page-thread:not(.lf-primary-part, [inert])
-  + .lf-page-thread:not(.lf-primary-part, [inert]),
-.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads,
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
-[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads {
-  margin-top: var(--lf-sp-3);
-}
-.lf-page-thread:not(.lf-primary-part, [inert])
-  + .lf-page-thread:not(.lf-primary-part, [inert])::before,
-.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads::before,
-[data-lf-thread-surface]
-  > .lf-page-thread:not([inert])
-  ~ .lf-page-thread:not([inert])::before,
-[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads::before {
-  content: "";
-  position: absolute;
-  inset-inline: var(--lf-sp-1);
-  inset-block-start: calc(-1 * var(--lf-sp-2));
-  border-top: 1px solid var(--lf-rule);
-  pointer-events: none;
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads,
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+  margin-top: var(--lf-sp-2);
 }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
@@ -979,36 +1084,21 @@ summary {
   white-space: nowrap;
 }
 /* A long name is cut at 40% of its head, which leaves its time and receipt room, and a
-   short one stands whole in a narrow head up to 5em.
-
-   Every word on a head's line stands on one baseline. The head centres each of its
-   boxes separately. The time, a receipt and a notice of news are each a line in the
-   head's face, but the name is set larger, and larger text centred on its own line
-   sits with its baseline lower, here by about a pixel. So the name's box takes its
-   line from a strut, a zero-width character in the head's face, rather than from the
-   name's own face (`line-height: 0`), and the name stands on the strut's baseline.
-   Each engine places a baseline alike in boxes of the same line and face, so the
-   name's meets the others' exactly. The strut opens only the first line, so the name
-   keeps to one line. Its box clips only sideways, since its line is shorter than the
-   name's face and clipping it would cut accents.
-
-   Rejected: aligning the head's boxes by baseline, which puts the words at the top of
-   the head, taller than their line, rather than centred on it; and a strut in the
-   metadata on the name's line, which left the notice of news, centred beside the
-   head, a pixel or more above the rest. */
+   short one stands whole in a narrow head up to 5em. The head centres each of its
+   boxes on its line, so the name, set larger than the time beside it, stands its
+   baseline a little lower than the time's, a gap Leaf leaves (browser/AGENTS.md,
+   "Words share a baseline by layout alone"). Rejected: aligning the head's boxes by
+   baseline. Alone, it stands the words at the top of the head, which is taller than
+   their line; with `flex-wrap: wrap` and `align-content: center` it keeps them
+   centred, but a narrow head then wraps its time below the name. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
   max-inline-size: max(40%, 5em);
   min-width: 0;
-  overflow: clip visible;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: var(--lf-font-name);
-  line-height: 0;
   color: var(--lf-ink);
-  &::before {
-    content: "\200b" / "";
-    font: var(--lf-font-small);
-  }
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
@@ -1091,7 +1181,7 @@ summary {
   margin-bottom: 0;
 }
 /* A thread's disclosure, an inline press (controls.css): a summary's "N earlier
-   messages" at its head, and a retained quote's Full quote (floating-panel.js). */
+   messages" at its head. */
 .lf-thread-disclosure {
   display: inline-flex;
   align-items: center;
@@ -1100,11 +1190,6 @@ summary {
   max-inline-size: 100%;
   flex-shrink: 0;
   padding: 4px 0;
-}
-.lf-summary-required {
-  margin-top: 6px;
-  color: var(--lf-turn-ink);
-  font: var(--lf-font-heading);
 }
 /* A step's face, the working message among them: the step, where it was said
    (thread/transcript.js). It takes a message's head and body faces, but its
@@ -1174,13 +1259,12 @@ summary {
   }
 }
 /* Held news and header words spend separate retained allocations. A receipt may
-   change inside its metadata box, but cannot grow underneath the notice. The box
-   clips only sideways, so a name's accents above its line still show (above). */
+   change inside its metadata box, but cannot grow underneath the notice. */
 .lf-msg-head > .lf-held-header-item {
   flex: 0 0 var(--lf-held-header-width);
   max-inline-size: var(--lf-held-header-width);
   box-sizing: border-box;
-  overflow: clip visible;
+  overflow: hidden;
 }
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;
@@ -1380,19 +1464,22 @@ button.lf-thread-news {
   overflow: clip;
 }
 /* A quote of the words a thread is about, where its container asks for one, as the
-   floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
-   chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. Only the quoted words stand behind the
-   rule, which with the quiet ink says they are quoted, so they take no marks. Leaf's
-   words about them form a label over the rule in the status face: first a status word
-   in Leaf's italic (voice.js) where the page no longer reads as the quote does, such as
-   a passage a revision took out of the latest version, which a finger reads as a
-   pointer does (`quoteReading`), then where they stand (`anchorPlace`,
-   thread/messages.js). A thread on a place with no quoted words draws the label alone.
-   The words stand over the thread's messages in three lines, the whole on Full quote,
-   its press above the words it grows. The head only says what the thread is about,
-   since the container's way to the words, as the panel's Show on page, goes there: it
-   takes no press, no aim's room and no title. The rule stands on the thread's edge, and
+   floating panel's view does, or where the page no longer reads as the quote does
+   (thread-card.js, `#drawQuote`). The panel and a margin card stand in the chrome and a
+   thread drawn by a package's reader stands in the page, so the face is stated here,
+   where every surface reads it. Only the quoted words stand behind the rule, which
+   with the quiet ink says they are quoted, so they take no marks. Leaf's words about
+   them form a label over the rule in the status face: first a status word in Leaf's
+   italic (voice.js) where the page no longer reads as the quote does, such as a
+   passage a revision took out of the latest version, which a finger reads as a pointer
+   does (`quoteReading`), then where they stand (`anchorPlace`, thread/messages.js),
+   which a margin card's bracket already shows. A thread on a place with no quoted
+   words draws the label alone.
+   The words stand over the thread's messages in three lines. Where three lines cut
+   words the page no longer shows, the label is the press that opens them whole, above
+   the words it grows. The head only says what the thread is about, since the
+   container's way to the words, as the panel's Show on page, goes there: it takes no
+   other press, no aim's room and no title. The rule stands on the thread's edge, and
    the words and the label start on its text. */
 .lf-quote-label {
   margin: 0;
@@ -1426,19 +1513,24 @@ button.lf-thread-news {
   display: block;
   overflow: visible;
 }
-/* Full quote, an inline press (controls.css) at the quote's size, its disclosure's
-   marker before its word. Its reach (the aim floor, above) lies inside the scroller
-   holding the thread, as the panel's view, which clips what passes its 8px top
-   padding, so under a finger it stands low enough for the reach above it. */
-.lf-thread-quote-head > .lf-quote-expand {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+/* The label as the press that opens the quote, an inline press (controls.css) in the
+   label's quiet face (`data-lf-hint`). Its box starts on the quote's rule and its
+   disclosure arrow stands the arrow's usual gap before its words, so the words keep
+   the quote's edge whether or not the label takes a press, and its ring and reach take
+   in the arrow, which a panel's narrower inset stands just past the rule. Its
+   reach (the aim floor, above) lies inside the scroller holding the thread, as the
+   panel's view, which clips what passes its 8px top padding, so under a finger a label
+   that can take the press stands low enough for the reach above it. */
+.lf-quote-label[data-lf-opens] {
   margin-block-start: max(0px, (var(--lf-aim-floor) - 1lh) / 2 - 8px);
-  min-height: 0;
-  padding: 0;
 }
-.lf-thread-quote-head > .lf-quote-expand::before {
-  inline-size: 1em;
-  text-align: center;
+.lf-quote-label > .lf-quote-expand {
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+  padding-inline-start: var(--lf-thread-text-inset);
+  text-align: start;
+}
+.lf-quote-label > .lf-quote-expand::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--lf-thread-text-inset) - 0.9em);
 }

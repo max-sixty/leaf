@@ -146,8 +146,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     owner = page.locator(selector)
     editor = owner.locator("leaf-text")
     rendered(page)
+    # A seated card's reply box stands at most the margin card's width, so widening the
+    # window sheds only a sixth of the narrow box's lines: the draft is long enough that
+    # this is two lines or more in any platform's fonts.
     draft = (
-        "A stable native draft that wraps at the narrow width. " * 8
+        "A stable native draft that wraps at the narrow width. " * 16
         if edit.startswith("resize")
         else "First line\n\n\n\n"
     )
@@ -328,6 +331,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         expect(editor).to_have_js_property("value", "First line")
         if edit == "mirrored":
             # The other tab, still holding the tall draft, mirrors these words in turn.
+            # Its moves are judged once they have painted, so the judgement waits for
+            # the words to reach it.
+            expect(other.locator(selector).locator("leaf-text")).to_have_js_property(
+                "value", "First line"
+            )
             consume_moves_below_the_reply(other)
         return
 

@@ -5,10 +5,8 @@ this module. A page loads with its startup and the errors that stop it observed
 (`load_presented`), reads its state through connection resets (`read_state`), and
 leaves the edge for a private container when it activates (`activation_url`,
 `activation_read`); `agent_session` opens a user session whose container serves a
-release, waiting while a rollout reaches the allocations. A container still on the
-previous image fails to start, since the page store refuses its release
-(`worker/src/storage.ts`), so until the rollout reaches an allocation its activation
-answers an error. On this machine,
+release, waiting while the edge still serves another release or activation loses its
+connection. On this machine,
 `local_adapter` builds the site and serves it with the website's Python server,
 sharing the host's login, and `local_worker` serves the site `leaf-dev site build`
 last wrote (`SITE`) through `wrangler dev`: the Worker and its page container. A build
@@ -25,6 +23,7 @@ import base64
 import gzip
 import hashlib
 import json
+import os
 import select
 import shutil
 import subprocess
@@ -215,6 +214,20 @@ def load_presented(
     return failures, response
 
 
+def write_fully(fd: int, data: bytes) -> None:
+    """Write all of `data` to `fd`, waiting whenever the pipe behind it is full.
+
+    Playwright's Node driver shares this process's stderr and makes the pipe
+    non-blocking, so one large write to it can stop partway with `BlockingIOError`.
+    """
+    view = memoryview(data)
+    while view:
+        try:
+            view = view[os.write(fd, view) :]
+        except BlockingIOError:
+            select.select([], [fd], [])
+
+
 @contextmanager
 def capture_script_responses(page: Page):
     """Keep the reload's actual script responses if its verification fails.
@@ -271,12 +284,11 @@ def capture_script_responses(page: Page):
                     encoded[start : start + 4096]
                     for start in range(0, len(encoded), 4096)
                 ]
-        print(
-            json.dumps(
-                {"scriptResponses": [script for script, _ in scripts]}, indent=2
-            ),
-            file=sys.stderr,
+        evidence = json.dumps(
+            {"scriptResponses": [script for script, _ in scripts]}, indent=2
         )
+        sys.stderr.flush()
+        write_fully(sys.stderr.fileno(), f"{evidence}\n".encode())
         raise
     finally:
         page.remove_listener("requestfinished", finished)
@@ -389,9 +401,8 @@ def agent_session(
     browser, release: str | None, *, origin: str, direct_agent: bool = False
 ) -> AgentSession:
     """Open one user session whose private container is serving `release`, retrying
-    with a fresh context for up to 180 s while the rollout reaches allocations (they
-    fail to activate, or answer as another release) or activation loses its
-    connection. Nothing here writes."""
+    with a fresh context for up to 180 s while the edge serves another release or
+    activation loses its connection. Nothing here writes."""
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     deadline = time.monotonic() + 180
@@ -453,7 +464,8 @@ def logged(log: Path) -> Generator[IO[str]]:
             yield output
         except BaseException:
             output.flush()
-            sys.stderr.write(log.read_text())
+            sys.stderr.flush()
+            write_fully(sys.stderr.fileno(), log.read_bytes())
             raise
 
 

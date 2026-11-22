@@ -305,10 +305,10 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
     }
 
 
-def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
-    """A comment a fork of the conversation decided on carries the fork's outcome,
-    time and tokens beside the breakdown of the session's reply, whether the fork
-    posted a working line as it handed the thread over or Leaf handed it."""
+def test_a_comment_a_line_fork_ran_on_keeps_the_forks_record(tmp_path):
+    """A comment a line fork ran on carries the fork's outcome, time and tokens
+    beside the breakdown of the session's reply, whether its line went in or Leaf
+    dropped it."""
     events = [
         {
             "kind": "comment",
@@ -361,7 +361,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_outcome",
             "thread": "c1",
             "inputs": ["c1"],
-            "outcome": "hand_over",
+            "outcome": "posted",
             "text": "Looking at how it is served.",
             "line": "w1",
             "elapsedMs": 3200.0,
@@ -373,8 +373,9 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_outcome",
             "thread": "c2",
             "inputs": ["c2"],
-            "outcome": "hand_over",
-            "why": "it asks for a change",
+            "outcome": "dropped",
+            "why": "the agent spoke in the thread, or a turn joined its round, first",
+            "text": "Renaming it.",
             "elapsedMs": 2100.0,
         },
     ]
@@ -392,26 +393,31 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         user.ids[name], user.profiles[name] = comment, profile
         user.sent.append(name)
     assert user.timing("mid-turn") == (
-        "`mid-turn` picked up after 20.0 s, answered after 4.0 s; a fork's hand_over "
+        "`mid-turn` picked up after 20.0 s, answered after 4.0 s; a fork's posted "
         'after 3200 ms on 12 in, 80 out, 9000 cache read tokens: "Looking at how it '
         'is served."'
+    )
+    assert user.timing("ending") == (
+        "`ending` picked up after 10.0 s, answered after 20.0 s; a fork's dropped "
+        "after 2100 ms: the agent spoke in the thread, or a turn joined its round, "
+        'first: "Renaming it."'
     )
     user.passed("forks", time.monotonic())
 
     [step] = user.sample()["steps"]
-    answered, handed = step["comments"]["mid-turn"], step["comments"]["ending"]
-    assert answered["fork"] == {
-        "outcome": "hand_over",
+    lined, dropped = step["comments"]["mid-turn"], step["comments"]["ending"]
+    assert lined["fork"] == {
+        "outcome": "posted",
         "elapsedMs": 3200.0,
         "usage": usage,
     }
-    assert answered["reply"] is not None
-    assert handed["fork"] == {
-        "outcome": "hand_over",
-        "why": "it asks for a change",
+    assert lined["reply"] is not None
+    assert dropped["fork"] == {
+        "outcome": "dropped",
+        "why": "the agent spoke in the thread, or a turn joined its round, first",
         "elapsedMs": 2100.0,
     }
-    assert handed["reply"] is not None
+    assert dropped["reply"] is not None
 
 
 PROMPT = """
@@ -1147,3 +1153,11 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"
+
+
+def test_release_name_matches_its_words_whatever_joins_them():
+    # An agent may write the word pair as a title, as in `Valley Summit`.
+    for written in ("valley-summit", "Valley Summit", "VALLEY_SUMMIT", "Valley–Summit"):
+        assert journey.names_release(f"Release {written} passed", "valley-summit")
+    assert not journey.names_release("Summit valley passed", "valley-summit")
+    assert not journey.names_release("Valley passed; summit next", "valley-summit")

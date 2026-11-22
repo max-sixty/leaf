@@ -52,8 +52,8 @@
    tint a message arriving and a revision's changed block take (motion.js,
    `backgroundFlash`), so the page marks every change it shows the same way. It tints
    the widget, message, thread or passage the undo changed, and a message the undo took
-   away tints the thread that held it. The undo's notice stands until the user's next
-   input rather than for its time (notifications.js, `holds`). Under reduced motion
+   away tints the thread that held it. The undo's notice stands its time and then until
+   the user's next input (notifications.js, `showNotice`). Under reduced motion
    there is no tint, and the held notice says it alone. An exact control's withdrawal
    tints nothing, since the user pressed it where the gesture is drawn. The tint and the
    hold are the user's decision, over keeping a notice that leaves after 4 s, holding it

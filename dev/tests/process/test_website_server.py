@@ -251,7 +251,7 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, *, arg, timeout: int):
+    def wait_for_function(self, expression: str, *, arg, timeout: int, polling=None):
         if expression == OUTSTANDING:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":
@@ -1258,7 +1258,7 @@ def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
 
 
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
-    monkeypatch, capsys
+    monkeypatch, capfd
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
@@ -1352,7 +1352,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The startup profile the run reports, and the verifier's own readings.
     assert page.init_scripts == [startup.SCRIPT, website.SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
-    reported = capsys.readouterr().err
+    reported = capfd.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
     assert '"responseVisible": 12500.0' in reported
     # On a website the journey reads the log the page serves, which says when the
@@ -1747,3 +1747,26 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
             {"event": "comment-id"},
         ),
     ]
+
+
+WRITE_THROUGH_DRIVER = """
+import sys
+from playwright.sync_api import sync_playwright
+from leaf_dev import website
+
+with sync_playwright():
+    website.write_fully(2, b"x" * int(sys.argv[1]))
+"""
+
+
+def test_script_evidence_reaches_a_stderr_pipe_the_driver_made_non_blocking():
+    # The Node driver leaves the inherited stderr pipe non-blocking, so a dump
+    # larger than the pipe's buffer must wait for the reader rather than stop.
+    size = 4 << 20
+    run = subprocess.run(
+        [sys.executable, "-c", WRITE_THROUGH_DRIVER, str(size)],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr[-2000:].decode(errors="replace")
+    assert run.stderr == b"x" * size

@@ -18,6 +18,7 @@ from browser.test_render_gate import (
     _author_lying_callout,
     _author_stateful_verbatim_widget,
     adopted_sheet_findings,
+    axe_findings,
     held_scroller_findings,
     pressable_paper_findings,
     resize_findings,
@@ -268,10 +269,10 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     from 1600 units as well as the one fitted from 900."""
     compared = """
 <figure id="compare">
-  <svg class="drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
+  <svg class="lf-drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
     <text x="20" y="40">before</text>
   </svg>
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
     <text x="20" y="40">canary</text>
     <text x="560" y="40">region</text>
     <text x="1100" y="40">global</text>
@@ -356,9 +357,11 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
 
         page.route("**/checks/index.js", never_finishes)
 
+    # A probe that never loads reads nothing of the page, which the check says
+    # beside a passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
-    ).failures
+    ).findings
 
     assert asked, "the probe route was never requested, so no module load stalled"
     errors = [failure.values["error"] for failure in failures]
@@ -383,10 +386,12 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
             ),
         )
 
+    # A probe that fails reads nothing of the page, which the check says beside a
+    # passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser.unwatched, failing_probe),
         serve(LONG_PAGE),
-    ).failures
+    ).findings
     assert len(failures) == 1, failures
     assert {failure.code for failure in failures} == {"probe-failed"}, failures
     # A dynamic import's failure is no page fault. The gate's own wait must not echo it
@@ -592,7 +597,10 @@ def test_page_fixture_renders(browser, serve, source):
     Code the page shows reads at 4.5:1 or better in both schemes, and no widget puts a
     declared label inside a form control, where no selection reaches it. Both are the
     layer's own, the syntax palette and its widget modules, so the suite holds them over
-    the shipped pages rather than the gate asking them of every authored one.
+    the shipped pages rather than the gate asking them of every authored one. Axe
+    finds no serious WCAG A/AA violation in either scheme, such as text under 4.5:1, a
+    control under 24px with a neighbour too close, or a role holding children it may
+    not own, in the page's own styles or in a widget's.
 
     The journeys share one page because each reads only what its own journey changes,
     and the page the journey before handed over is one a reader could have reached.
@@ -648,10 +656,11 @@ def test_page_fixture_renders(browser, serve, source):
         "typed boxes": typed_box_findings(page),
         "unshown context keys": unshown_key_findings(page, source),
         "held scrollers": held_scroller_findings(page, source),
-        # Last on this page: it moves the page through both color schemes.
+        # Last on this page: these move the page through both color schemes.
         "unread syntax": [
             f"[{scheme}] {finding}" for scheme, finding in unread_syntax(page)
         ],
+        "axe": axe_findings(page),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
         ),
@@ -1402,7 +1411,7 @@ body { max-width: 768px; margin-inline: auto; }
     url = serve(source)
     failures = render_gate_model.render_version(
         primed(browser, scroll_it), url
-    ).failures
+    ).findings
 
     def reported(code, at):
         return [f for f in failures if f.code == code and f.at == at]
@@ -1447,7 +1456,10 @@ body { max-width: 768px; margin-inline: auto; }
     )
 
 
-from browser.test_render_gate import _panel
+from browser.test_render_gate import (
+    SAMPLE_FAULT,
+    _panel,
+)
 from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
@@ -1462,14 +1474,12 @@ def test_the_render_gate_reports_a_compact_spill(browser, serve):
         head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
     )
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    overflow = [
-        finding for finding in reading.failures if finding.code == "page-scrolls"
-    ]
-    assert [f.widths for f in overflow] == [(360, 600)], reading.failures
+    overflow = [finding for finding in reading.advice if finding.code == "page-scrolls"]
+    assert [f.widths for f in overflow] == [(360, 600)], reading.findings
 
 
 @pytest.mark.shifts_unsurveyed
-def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
+def test_the_render_gate_reads_a_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: the
@@ -1523,12 +1533,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } - {("clipped-content", *box) for box in cut} == {
-        ("page-scrolls", "", (600, 880)),
-    }, reading.failures
-    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
-    # last line only under the pointer, and the room is the author's to choose.
-    [strip] = reading.advice
+    } - {("clipped-content", *box) for box in cut} == set(), reading.failures
+    # The row that spills between 600 and 880px scrolls the page sideways, which keeps
+    # every word in reach, and a strip that leaves no room for an overlay scrollbar
+    # covers its last line only under the pointer: both are the author's to judge.
+    [scrolls] = [f for f in reading.advice if f.code == "page-scrolls"]
+    assert (scrolls.at, scrolls.widths) == ("", (600, 880)), reading.advice
+    [strip] = [f for f in reading.advice if f.code == "scrollbar-clearance"]
     assert (strip.code, strip.at, strip.widths) == (
         "scrollbar-clearance",
         "<div id=strip>",
@@ -1636,7 +1647,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     # holding that too is a page that departed, not a restore case that leaked.
     arranged = {a["key"] for a in restore_cases}
     for finding, restore_case in zip(arrived, restore_cases, strict=True):
-        held = set(finding.split("returned holding ")[1].split(","))
+        held = set(finding.split("returned holding ")[1].split()[0].split(","))
         assert held & arranged == {restore_case["key"]}, finding
 
 
@@ -1960,3 +1971,99 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
             + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
         )
     assert take_browser_errors(page) == []
+
+
+def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
+    """A page whose deferred work lands a piece at a time is waited for however long
+    the whole takes, as a gallery's samples load on a starved machine, while a page
+    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
+    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
+    step_ms = EXPECTED_STALL_MS // 10
+    # Fifteen arrivals a step apart: one and a half bounds in all.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          for (let i = 1; i <= 15; i++)
+            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+        }""",
+        step_ms,
+    )
+    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+
+    # One arrival never lands, and above it each new one lands a step after the next
+    # has taken its place, so the arrivals left swing between two and three.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          deferredArrival(new Promise(() => {}));
+          window.churn = setInterval(() => {
+            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+          }, step);
+        }""",
+        step_ms,
+    )
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    page.evaluate("() => clearInterval(window.churn)")
+    assert unready.value.stage == "arrived", unready.value
+
+
+# A widget whose module draws a 120px box, where its authored markup holds nothing.
+@pytest.mark.parametrize("resource", ["module", "theme"])
+def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, resource):
+    """A missing response fails navigation rather than admitting an unread page."""
+    holding = []
+
+    def configure(page):
+        page.set_default_timeout(EXPECTED_STALL_MS)
+
+        def hold(route):
+            if holding:
+                route.continue_()
+            else:
+                holding.append(route)
+
+        page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
+
+    failures, _, completed = render_gate_scheme._render_page(
+        primed(browser.unwatched, configure),
+        serve(
+            leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
+            packages=(),
+        ),
+        {"width": 1200, "height": 900},
+        EXPECTED_STALL_MS,
+        [],
+    )
+    assert holding, "the positive control held no resource"
+    assert completed is False
+    assert [failure.code for failure in failures] == ["no-runtime"]
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
+def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
+    """A live sample starts its page only as the reader nears it, but the gate reads
+    every document the page can show (`start_near_work`), so it refuses a page whose
+    sample's own script throws wherever on the page the sample stands, a sample far
+    down inside another one included: each started child starts its own."""
+    content = SAMPLE_FAULT
+    if nested:
+        content = (
+            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
+            '<lf-sample id="inner"><template id="inner-source" data-sample>'
+            f"{SAMPLE_FAULT}</template></lf-sample>"
+        )
+    source = leaf_page(
+        "Far fault",
+        '<p id="words">Words.</p><div style="height: 400vh"></div>'
+        '<lf-sample id="far"><template id="far-source" data-sample>'
+        f"{content}</template></lf-sample>",
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched, serve(source)
+    ).failures
+    assert any(
+        failure.code == "page-exception"
+        and "thrown in the sample" in failure.values["text"]
+        for failure in failures
+    ), failures

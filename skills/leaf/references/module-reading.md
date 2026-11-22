@@ -10,8 +10,10 @@ comments read them; `textContent` also returns words a widget generated that pas
 leave out. For text to copy or send, `says(element, {format: "lines"})` keeps rendered
 block boundaries, explicit line breaks and preformatted whitespace. Read a connected
 element so its computed styles supply these boundaries; a closed popover is supported.
-Inline values stay in their sentence, and ordinary HTML source indentation collapses. To
-name one of the widget's own parts, use `named(element)`, which returns only the words
+Inline values stay in their sentence, and ordinary HTML source indentation collapses.
+`phrasing(element)` says whether an element stands within a line of words, as HTML's
+phrasing content and a widget declaring `inline` do, rather than starting a block.
+To name one of the widget's own parts, use `named(element)`, which returns only the words
 the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
 `<pre>` body with `bodyText(this)`, which trims leading blank lines and trailing
 whitespace. A widget that also declares an input
@@ -24,9 +26,9 @@ in an agent's message, that message's own markup. `elementById(id, root)` finds 
 within `root`, or the whole document, including the shadow trees `getElementById`
 misses. `under(node, root)` says whether `node` is in `root` across shadow boundaries,
 and `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread
-reply is. A widget that acts on the document around it, as a contents list or a depth
-dial does, reads it with `viewDocument(node)`: the view member holding the node
-(`views`, `module-authoring.md`), else the `main` holding it, else null.
+reply is. A widget that acts on the document around it, as a contents list does, reads
+it with `viewDocument(node)`: the view member holding the node (`views`,
+`module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 

@@ -163,10 +163,10 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "anchor": current,
             "title": None,
             "detached_from": None,
+            "rewritten_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
             "attention": None,
-            "holder": {"kind": "main"},
         }
     ]
 
@@ -410,10 +410,10 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "anchor": None,
             "title": None,
             "detached_from": root["anchor"],
+            "rewritten_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
             "attention": None,
-            "holder": {"kind": "main"},
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
@@ -526,6 +526,8 @@ from interact_support import (
     response_reference,
 )
 
+from leaf import passages as passages_model
+
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     """A Claude comment's markup lands in the panel exactly as a reply's does, so it
@@ -572,3 +574,41 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         ],
     )
     assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output
+
+
+def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
+    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
+    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
+    so the code loses its blank lines, indents and marks while the HTML stays well
+    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
+    published(page_dir)
+    code = "def a():\n    return 1\n\ndef b():\n    return 2"
+    for split in (code, "steps:\n\n- build\n- ship"):
+        refused = comment(
+            page_dir,
+            "--text",
+            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
+        )
+        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
+    for kept in (
+        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
+        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
+    ):
+        assert code in passages_model.message_markup(kept)
+        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
+
+
+def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
+    page_dir,
+):
+    """A widget whose opening tag shares its line with its content is inline HTML, so
+    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
+    refusal names that repair alone, not the widget the parser emptied, which the
+    agent wrote whole."""
+    published(page_dir)
+    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
+    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
+    assert refused.exit_code != 0
+    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
+    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
+    assert kept.exit_code == 0, kept.output

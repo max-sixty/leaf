@@ -1,7 +1,10 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
-that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
+that its harness supports hook delivery (`Harness.hooks_carry`), and the plugin
+root it ran from (`leases.mark_root`). The first hook to run from another copy of
+Leaf, where that copy's skill differs, queues a notice telling the agent to read
+the skill again (`copy_changed`). An explicit
 `leaf wait` always prints the envelope; it does not depend on another hook
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
@@ -68,11 +71,13 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 import json
 import os
 import time
+from pathlib import Path
 
-from .leases import first_hook_for_tool, mark_hooks
+from .leases import first_hook_for_tool, mark_hooks, mark_root
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
+    PLUGIN_ROOT,
     advance_turn,
     close_session_turn,
     flocked,
@@ -98,15 +103,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
+    if (before := mark_root(sid)) is not None:
+        copy_changed(sid, before)
     assert isinstance(event, str)
-    if event == "PostToolBatch" and (agent := payload.get("agent_id")):
-        # A boundary of an agent running a turn of the session's own
-        # (`state.worker_tool_batch`), which carries only that turn's input.
-        from .harness import hook_harness
-        from .hook_transport import carry_agent_turn
-
-        carry_agent_turn(hook_harness(harness, sid), sid, agent, started=started)
-        return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):
@@ -229,6 +228,56 @@ def reload_skill(session_id: str) -> str | None:
     )
 
 
+def copy_changed(session_id: str, before: Path) -> None:
+    """Queue a notice telling the session's agent to read the leaf skill again, where
+    `before`, the plugin root the session's hooks last ran from, holds a leaf skill
+    that differs from this copy's, or none.
+
+    A session's hooks move to another copy of Leaf when Claude Code loads one, which
+    it does as a process starts, on a resume or a background job's wake, and at
+    `/reload-plugins`, and when `session_runtime` hands the session's delivery to
+    another Leaf. The transcript carries over, so the agent still holds the skill
+    and references it read under the old copy, while its hooks and `leaf` commands
+    run the new one.
+
+    The notice joins the lines the next prompt or tool boundary carries beside the
+    input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
+    reads it once. Those hooks carry it only in a session holding a page, as
+    `reload_skill` sends its notice only there. The hook that prints the notice
+    asks whether the session holds a page, rather than this one, since a resumed
+    session's claims stay inactive until its first prompt serves its pages again
+    (`reconnect`), after this hook marked the root.
+
+    Two copies whose skills match byte for byte, as an update that changed only
+    code leaves them, need no notice. Only a hook whose root moved compares them
+    (`leases.mark_root`), so reading both trees whole costs the hooks of an
+    unchanged root nothing."""
+
+    def skill(root: Path) -> dict[str, bytes]:
+        directory = root / "skills" / "leaf"
+        return {
+            path.relative_to(directory).as_posix(): path.read_bytes()
+            for path in directory.rglob("*")
+            if path.is_file()
+        }
+
+    if skill(before) == skill(PLUGIN_ROOT):
+        return
+    from .clerk import queue
+    from .schema import SKILL_FILE
+
+    queue(
+        session_id,
+        [
+            "This session's hooks and leaf commands now run another copy of Leaf, "
+            "with a different skill, so the leaf skill and references you read "
+            "earlier may describe commands and rules that have changed. Before you "
+            f"next reply or run a leaf command, read {SKILL_FILE} again, then the "
+            "references your work in progress needs."
+        ],
+    )
+
+
 def cmd_watch(harness: str, payload: dict) -> str | None:
     """The watch `harness`'s Stop hook or extension starts as a turn ends, or Claude
     Code's prompt hook as a turn starts, watching the session's pages until input,
@@ -269,38 +318,34 @@ def cmd_pages(payload: dict) -> None:
     object, `{"pages": [...], "do": [...]}`, then again each time either changes,
     until the session holds no page. The module draws the pages beside the prompt
     and runs each instruction once: a completion each page server asks of the
-    session (`completions.listed`) and each thread a line turn keeps back
-    (`forks.listed`).
+    session (`completions.listed`) and a line fork for each round of the user's that
+    awaits the agent's working line (`forks.look`).
 
     Read the pages every presence interval: a dead server leaves its row behind, so
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    The follower is the session's forks lane (`forks.take_lane`) while it runs,
-    and lists each thread a line turn holds (`forks.look`). Between presence reads
-    it waits on each page's subscription
-    (`file_changes.page_changes`) and on the lane's name, so it looks again as a
-    message is admitted or as a later follower takes the lane. It reads a page again
-    only once its reading has moved, since admission opens the line turn.
+    The follower is the session's forks lane (`forks.take_lane`) while it runs, and
+    lists the line forks while it holds it. Between presence reads it waits on each
+    page's subscription (`file_changes.page_changes`) and on the lane's name, so it
+    looks again as a message is admitted or as a later follower takes the lane. It
+    reads a page again only once its reading has moved. Its first look at a page
+    takes the log as it stands, so it lists no round older than itself, and a
+    follower started again lists none an earlier one listed.
 
     It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
-    under that Leaf. A follower runs as long as its session, while the session's
-    hooks hand themselves at each call to the Leaf delivering for it: a newer copy
-    Claude Code installed, a checkout the session selected, or the same checkout
-    moved past a protocol bump. That newer Leaf reads an older follower's lane as no
-    one's: its line fork's step refuses the messages that follower keeps back, so
-    each would wait out a line turn's grace (`activity.STARTING_GRACE`) with no
-    line.
+    under that Leaf. A follower runs as long as its session, while the Leaf the
+    session's hooks run can change between calls: to a checkout the session selected
+    since, or to the same checkout moved past a protocol bump.
 
     The module that reads the list stays the one the session loaded until
-    `/reload-plugins`, so a follower under a newer Leaf may print it to an older
-    module, which runs its instructions as any (`carrier.py`).
+    `/reload-plugins`, so a follower under a checkout's newer Leaf may print it to an
+    older module, which runs its instructions as any (`carrier.py`).
 
     The follower notes once in each page it holds that it runs
-    (`interaction_log.record_follower`), so a message admission found with no lane
-    (`forks.kept_from_main_at_admission`) says whether no follower had run or the
-    one that held the lane had gone (`leaf-dev logs timeline`)."""
+    (`interaction_log.record_follower`), so a round that got no line fork says
+    whether a follower had run (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module
@@ -358,11 +403,11 @@ def cmd_pages(payload: dict) -> None:
                     ),
                 ]
                 if forking and not still_named(lane.fileno(), named):
-                    # A later follower took the lane, and lists what this one would.
+                    # A later follower took the lane, and lists the line forks now.
                     forking = False
                     renamed.close()
-                kept = (
-                    {page: _kept_back(sid, page, looked) for page in held}
+                lines = (
+                    {page: _lines(sid, page, looked) for page in held}
                     if forking
                     else {}
                 )
@@ -374,7 +419,7 @@ def cmd_pages(payload: dict) -> None:
                         ],
                         "do": [
                             *completions_listed(sid),
-                            *(item for items in kept.values() for item in items),
+                            *(item for items in lines.values() for item in items),
                         ],
                     }
                 )
@@ -394,13 +439,15 @@ def cmd_pages(payload: dict) -> None:
 
 
 def _moved_on(sid: str) -> bool:
-    """Whether the session's delivery now runs another Leaf than this process: one
-    selected or installed since it started, which its hooks hand themselves to as
-    `main` does (`session_runtime.delivering_launcher`), or its own install moved
-    under it to another page protocol (`registry.kernel.installed_protocol`), or
-    removed, as a selected checkout's is when its worktree goes: the module starts
-    the follower again from its own launcher, which hands it to the Leaf delivering
-    now. A registry read mid-write reads as unmoved until it settles."""
+    """Whether the session's delivery now runs another Leaf than this process: a
+    checkout selected since it started, which its hooks hand themselves to as `main`
+    does (`session_runtime.delivering_launcher`), or its own checkout moved under it
+    to another page protocol (`registry.kernel.installed_protocol`), or its own tree
+    removed, as a selected checkout's is when its worktree goes. The module then
+    starts the follower again from the launcher of the copy the session loaded,
+    which hands it to the Leaf delivering now; where the removed tree is that copy's
+    own, no follower starts again until `/reload-plugins`. A registry read mid-write
+    reads as unmoved until it settles."""
     from .registry.kernel import installed_protocol, kernel_protocol
     from .session_runtime import delivering_launcher, own_launcher
 
@@ -415,23 +462,22 @@ def _moved_on(sid: str) -> bool:
         return False
 
 
-def _kept_back(sid: str, page_dir, looked: dict) -> list[dict]:
-    """The instructions for the page's kept-back threads (`forks.look`,
-    `forks.listed`), read again only once the page's reading has moved."""
-    from .forks import listed, look
+def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
+    """The line forks to list for the page (`forks.look`), read again only once the
+    page's reading has moved, from the seq the follower's first look took."""
+    from .forks import look
     from .served_state.reading import page_reading
 
     try:
         stamp = page_reading(page_dir)
         kept = looked.get(page_dir)
         if kept is not None and kept[0] == stamp:
-            return kept[1]
-        threads = look(sid, page_dir)
+            return kept[2]
+        requests, after = look(sid, page_dir, kept[1] if kept is not None else None)
     except FileNotFoundError:
         looked.pop(page_dir, None)
         return []
-    requests = [listed(thread, page_dir) for thread in threads]
-    looked[page_dir] = (stamp, requests)
+    looked[page_dir] = (stamp, after, requests)
     return requests
 
 

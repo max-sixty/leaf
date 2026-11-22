@@ -1,3 +1,6 @@
+Select this package to show a patch with commentable lines, the call-tree diff of a
+change, or a set of worktree snapshots.
+
 ## A patch review
 
 `lf-diff` has its own file listing. When directory hierarchy helps the reader navigate
@@ -77,7 +80,7 @@ Inside each member, use ordinary authored markup followed by the real `lf-diff`:
     <p>Preserve a composer draft while switching threads.</p>
     <details>
       <summary>Snapshot details</summary>
-      <dl class="facts">
+      <dl class="lf-facts">
         <dt>Repository</dt>
         <dd><code>/workspace/leaf</code></dd>
         <dt>Current commit</dt>

@@ -124,7 +124,6 @@ class DevtoolsIssues:
                     "devtools-issue",
                     node["at"] if node else "",
                     {"issue": issue["code"], "details": details},
-                    severity="advice",
                 )
             )
         return list(dict.fromkeys(found))
@@ -266,10 +265,7 @@ def _page_findings(context: _PageContext) -> list[Finding]:
     found += context.devtools.findings()
     found += map(Finding.read, retired)
     found += context.unsettled
-    found += (
-        Finding.read(block, severity="advice")
-        for block in evaluate_probe(page, "uncolouredCode")
-    )
+    found += (Finding.read(block) for block in evaluate_probe(page, "uncolouredCode"))
     found += _unreduced_motion(page)
     return found
 
@@ -285,10 +281,7 @@ def _unreduced_motion(page) -> list[Finding]:
         return []
     page.emulate_media(reduced_motion="reduce")
     one_frame(page)
-    found = [
-        Finding.read(m, severity="advice")
-        for m in evaluate_probe(page, "unreducedMotion")
-    ]
+    found = [Finding.read(m) for m in evaluate_probe(page, "unreducedMotion")]
     page.emulate_media(reduced_motion="null")
     return found
 
@@ -358,8 +351,8 @@ def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding
         answer = evaluate_probe(page, "threadOpening", thread)
         if not answer["shown"]:
             error = answer.get("error", "nothing drew it")
-            failed = f"opening thread {thread} to read its widgets: {error}"
-            found[Finding("gate-failed", values={"error": failed})] = None
+            values = {"thread": thread, "error": error}
+            found[Finding("thread-not-drawn", values=values)] = None
         else:
             rendered(page)
             wait_for_probe(page, "pageSettled")
@@ -367,13 +360,13 @@ def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding
     return [finding for finding in found if finding not in known]
 
 
-def _keyed(records: list, severity: str = "error") -> dict[tuple[str, str], Finding]:
+def _keyed(records: list) -> dict[tuple[str, str], Finding]:
     """Width-dependent readings, such as overlay track collisions and clipped
     controls, each keyed by its element's place and kind. Covered words name the
     places of both elements as theirs."""
     return {
         (json.dumps(record["place"], sort_keys=True), record["code"]): Finding.read(
-            record, severity=severity
+            record
         )
         for record in records
     }
@@ -506,11 +499,11 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
 def swept_faults(samples) -> list[Finding]:
     """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
     clipped controls and covered words across the gate's geometry samples, with the
-    widths each run spans and what it reads at the narrowest. Each refuses the version,
-    since a control cut off at 400px is as far out of reach as one cut off at 540px,
-    except scrollbar clearance, a broken flow track chain and a declared breakout's
-    containment, which are advice: the author decides how much clearance to leave and whether a holder
-    should share the document's wider tracks.
+    widths each run spans and what it reads at the narrowest. Whether each fails the
+    check is its code's (`findings._TEXT`): a control cut off at 400px is as far out
+    of reach as one cut off at 540px, while a page that scrolls sideways, a box set past
+    the column or its frame, and scrollbar clearance leave every word in reach, so the
+    author decides them.
 
     `samples` are (width, `geometryReading`) pairs, two at the desktop's width, read as
     the page loaded and again in the sweep (`version._render_version_attempt`). A fault any
@@ -520,8 +513,8 @@ def swept_faults(samples) -> list[Finding]:
     def faults(reading):
         return (
             _overflow(reading["overflow"], reading["misplaced"])
-            | _keyed(reading["scrollbars"], severity="advice")
-            | _keyed(reading["contained"], severity="advice")
+            | _keyed(reading["scrollbars"])
+            | _keyed(reading["contained"])
             | _keyed(reading["clipped"])
             | _keyed(reading["covered"])
         )
@@ -545,9 +538,8 @@ def swept_faults(samples) -> list[Finding]:
 
 
 def squeezed_advice(readings) -> list[Finding]:
-    """Advice naming each table that scrolls sideways with a cell wrapped, each table
-    that breaks a short name inside itself (`brokenNames`), and each code block that
-    scrolls its lines in too little width to read them.
+    """Advice naming each table that scrolls sideways with a cell wrapped, and each table
+    that breaks a short name inside itself (`brokenNames`).
 
     The sweep is the reading's only home, and it takes in the desktop's width.
     Advice rather than a failure because the box still scrolls and every word in it
@@ -556,15 +548,12 @@ def squeezed_advice(readings) -> list[Finding]:
     `<code>`) is a choice of composition only the author can make. Its words say what
     the reader keeps and what hiding a column at the narrow width would take: authors
     told only the remedies chased the advice for up to eight render checks, hiding
-    columns at phone widths, which a phone reader then missed. For a code block, the
-    cost is a line read a few letters at a time, and the remedy (a width for the block
-    or its holder, or for a block in a table cell, inline code or a place outside the
-    table) is the author's choice."""
+    columns at phone widths, which a phone reader then missed."""
     return _swept(
         readings,
         lambda reading: {
             (json.dumps(table["place"], sort_keys=True), table["code"]): Finding.read(
-                table, severity="advice"
+                table
             )
             for table in [*reading["squeezed"], *reading["broken"]]
         },
@@ -593,7 +582,6 @@ def shrunk_label_advice(readings) -> list[Finding]:
                     "drawn": d["drawn"],
                     "set": d["set"],
                 },
-                severity="advice",
             )
             for d in reading["labels"]["drawings"]
         }
@@ -611,7 +599,4 @@ def drawn_height_advice(page) -> list[Finding]:
     (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
     is, has another height at another width, and the one `data-height` that holds it
     still holds it at one width, so it is read only as the page loaded."""
-    return [
-        Finding.read(height, severity="advice")
-        for height in evaluate_probe(page, "drawnHeights")
-    ]
+    return [Finding.read(height) for height in evaluate_probe(page, "drawnHeights")]

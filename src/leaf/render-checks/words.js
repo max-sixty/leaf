@@ -442,7 +442,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
 // asked for colour-contrast alone on an example with a beige comment, it passed the
 // page without checking one of its spans.
 //
-// Which shadow roots it crosses into is OPEN_ROOTS' answer (that module says why it
+// Which shadow roots it crosses into is openRoots' answer (that module says why it
 // crosses at all), which is the choice everything else here makes — colour is
 // asked of what the browser painted, so where it painted is too, and a root a widget
 // attached without declaring one still holds code the user has to read.
@@ -534,7 +534,7 @@ export function shrunkLabelReading(drawn = drawnPage()) {
 }
 
 // Labels a drawing shrank past reading. An inline <svg> states its size in its own
-// units and the theme fits it to its box (`svg.drawing` takes the figure's width), so
+// units and Leaf fits it to its box (`svg.lf-drawing` takes the figure's width), so
 // what the author wrote as an 11px label is drawn at 11px times whatever the box made
 // of the viewBox. Nothing in the source says what that is: the page is correct, the
 // labels are all there, and every other reading passes it. So the size is asked of the

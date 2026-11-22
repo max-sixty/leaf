@@ -57,7 +57,7 @@ from leaf.files import (
     revision_names,
     revision_path,
 )
-from leaf.findings import Finding, Rejected
+from leaf.findings import Finding, Rejected, note
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import MODULES
@@ -376,8 +376,10 @@ def _is_stylesheet_url(url: str) -> bool:
 
 def _css_references(tokens, refused: list[Finding], invalid: list):
     """Yield each token in parsed CSS whose value is a URL the stylesheet loads, add
-    each one it refuses to `refused`, and each parse error to `invalid`, which
-    `_read_css` reports as the sheet's syntax error rather than a refused URL.
+    each finding about one that it doesn't yield to `refused`, whose code says whether
+    it refuses (`css-import`) or advises (`css-url`), and each parse error to
+    `invalid`, which `_read_css` reports as the sheet's syntax error rather than a
+    refused URL.
 
     Those are a `url()` in either spelling, a string argument of `image-set()`, and
     the string form of a top-level `@import`. An `@import` nested in a block is
@@ -403,9 +405,17 @@ def _css_references(tokens, refused: list[Finding], invalid: list):
             if len(values) == 1 and values[0].type == "string":
                 yield values[0]
             # A parse error among its arguments is the sheet's syntax error, which
-            # the walk into them below records, so the url() isn't refused too.
+            # the walk into them below records, so the url() isn't reported too.
             elif not any(value.type == "error" for value in values):
-                refused.append(_capture_finding("css-url"))
+                refused.append(
+                    Finding(
+                        "css-url",
+                        values={
+                            "row": token.source_line,
+                            "column": token.source_column,
+                        },
+                    )
+                )
         elif token.type == "function" and token.lower_name in {
             "image-set",
             "-webkit-image-set",
@@ -448,7 +458,9 @@ class _CssReading:
     `refused` holds what the walk refused, which no address can deliver, and
     `invalid` each syntax error in the parse, which none can deliver either: this
     reader is the one judge of what a sheet must not hold, and `styles.dropped_css`
-    reports only what it reads but a browser drops.
+    reports only what it reads but a browser drops. `advice` holds what the walk
+    found that delivery carries as written but a browser drops, such as a url() of
+    two values (`css_drops`).
     `references` holds each URL token as `_css_references` finds it, as its value,
     its written representation and its type. `segments` is the serialized sheet
     split around them, one more segment than references, or None where the split
@@ -464,6 +476,7 @@ class _CssReading:
     order: tuple[int, ...] = ()
     refused: tuple[Finding, ...] = ()
     invalid: tuple[Finding, ...] = ()
+    advice: tuple[Finding, ...] = ()
 
 
 # Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
@@ -482,9 +495,11 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     The bound is in entries: a document's `style` attributes are sheets too, and a
     few large layer sheets must outlast a page's worth of them."""
     tokens = _parse_css(source, declarations)
-    refused = []
+    problems = []
     invalid = []
-    found = list(_css_references(tokens, refused, invalid))
+    found = list(_css_references(tokens, problems, invalid))
+    refused = [problem for problem in problems if problem.refuses]
+    advice = tuple(problem for problem in problems if not problem.refuses)
     references = tuple(
         (token.value, token.representation, token.type) for token in found
     )
@@ -500,6 +515,7 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
             references,
             None,
             refused=tuple(refused),
+            advice=advice,
             invalid=tuple(
                 {
                     (node.source_line, node.source_column, node.message): Finding(
@@ -523,8 +539,8 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     )
     order = tuple(int(index) for index in parts[1::2])
     if sorted(order) != list(range(len(found))):
-        return _CssReading(references, None)
-    return _CssReading(references, tuple(parts[0::2]), order)
+        return _CssReading(references, None, advice=advice)
+    return _CssReading(references, tuple(parts[0::2]), order, advice=advice)
 
 
 def css_dependencies(
@@ -554,13 +570,18 @@ def css_dependencies(
 def css_drops(
     source: str, sheet: str, declarations: bool = False
 ) -> tuple[Finding, ...]:
-    """What a browser drops from a sheet delivery's reader reads whole
-    (`styles.dropped_css`), and nothing from one it refuses, whose syntax error
-    `css_dependencies` reports and whose later rules a reparse would only misread.
-    `sheet` names it as `css_dependencies` does."""
-    if _read_css(source, declarations).invalid:
+    """What a browser drops from a sheet delivery's reader reads whole: what the
+    reader's walk advises (`_CssReading.advice`) and what `styles.dropped_css` finds,
+    and nothing from one it refuses, whose syntax error `css_dependencies` reports
+    and whose later rules a reparse would only misread. `sheet` names it as
+    `css_dependencies` does."""
+    reading = _read_css(source, declarations)
+    if reading.invalid:
         return ()
-    return dropped_css(source, sheet, block=declarations)
+    return (
+        *(finding.but(values={"sheet": sheet}) for finding in reading.advice),
+        *dropped_css(source, sheet, block=declarations),
+    )
 
 
 def document_drops(document: SourceDocument) -> list[Finding]:
@@ -939,10 +960,8 @@ def _capture_artifact(
             path = admit(
                 resolve_dependency, script["attrs"]["src"], "/index.html", module=True
             )
-            if path is None:
-                continue
-            if not path.startswith("/page/"):
-                refused.append(_capture_finding("script-outside-page", path))
+            # A public runtime module, which delivery serves, is no file of the page's.
+            if path is None or not path.startswith("/page/"):
                 continue
             entries.append(path)
         for link in links_with_rel(authored.authoring.links, "stylesheet"):
@@ -1592,11 +1611,11 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
 
     Page modules resolve through :func:`resolve_dependency`, whose public-import
     boundary is intentionally narrower. The layer's modules and the runtime's are
-    trusted, so their imports need only be local and among `resources`, which a
-    caller passes as the revision runs them (`runtime_selection.executing`). A
-    computed import,
-    such as widget loading from the captured registry, binds at execution time and is
-    not yielded.
+    trusted, so a local import need only be among `resources`, which a caller passes
+    as the revision runs them (`runtime_selection.executing`). An import from another
+    server is left to load from there, as a page module's is, and noted
+    (`layer-import-remote`). A computed import, such as widget loading from the
+    captured registry, binds at execution time and is not yielded.
     """
     if logical_path.startswith("/page/"):
         yield from authored_imports(data, logical_path)
@@ -1604,7 +1623,8 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     for start, end, specifier in javascript_imports(data, logical_path):
         reference = dependency_reference(specifier, logical_path, module=True)
         if reference is None:
-            raise artifact_error("layer-import-remote", logical_path, specifier)
+            note(_capture_finding("layer-import-remote", logical_path, specifier))
+            continue
         target, _suffix = reference
         if target not in resources:
             raise artifact_error("layer-import-missing", logical_path, specifier)

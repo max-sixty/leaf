@@ -56,9 +56,10 @@ and reintroduced is told again. A failure told once isn't told again while it st
 an agent that can't fix it isn't woken for each attempt, and a version the agent checked
 itself is neither read twice nor told back to it.
 
-A reading a browser couldn't finish (`UNFINISHED`) says nothing of the page, so it
-leaves no reading. A reading refuses nothing: recording a layout fault breaks no
-guarantee a stamp keeps, so `page stamp` takes a version whatever its reading found.
+A reading a browser couldn't finish (`findings.Finding.unread`) says nothing of the
+page, so it leaves no reading. A reading refuses nothing: recording a layout fault
+breaks no guarantee a stamp keeps, so `page stamp` takes a version whatever its
+reading found.
 """
 
 import os
@@ -94,9 +95,6 @@ DEADLINE_S = 1800
 # Lower than the user's and other sessions' work, without the throttling of a background
 # QoS, which holds headless Chrome to about 10 fps and breaks a timed reading.
 NICENESS = 10
-# The findings of a browser that failed rather than of the page it was reading.
-UNFINISHED = frozenset({"gate-failed", "probe-failed"})
-
 READING = Record(
     "render-reading",
     described(
@@ -140,7 +138,7 @@ def _finished(checked) -> list[dict] | None:
     """Every finding of a browser that finished reading the page, as
     `findings.Finding.json` gives it, or None where it didn't."""
     findings = checked.findings()
-    if checked.unavailable is not None or any(f.code in UNFINISHED for f in findings):
+    if any(f.unread for f in findings):
         return None
     return [finding.json() for finding in findings]
 

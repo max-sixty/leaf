@@ -717,10 +717,13 @@
         // A focus preview stands clear of its control and of what the user could work
         // next, and may cover the rest of the page (preview.js), such as the
         // question around the control, so only the focused control's own ring is read
-        // under it.
+        // under it. One that lets the pointer through (`data-lf-covers`) may stand over
+        // its control too, as a chart's point's words do past the chart's edge, so no
+        // ring is read under it.
         const preview = document.getElementById("lf-preview");
         const previewed =
-          !own && preview?.matches(":popover-open")
+          (!own || preview?.hasAttribute("data-lf-covers")) &&
+          preview?.matches(":popover-open")
             ? preview.getBoundingClientRect()
             : null;
         const inside = (r, x, y) =>
@@ -810,17 +813,6 @@
   // The layer's focus ring is the second, on the stop, a child, or an ancestor: an option group
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
-  //
-  // What this cannot see, said out loud so a green is not read as more than it is. A
-  // joined `lf-options` carrying log news — restated, pending, reported — deliberately
-  // stands its ring down, because an element takes one outline and the log has claimed it;
-  // the layer's own comment (packages/default/defaults.css) names the carriers that stand in
-  // its place as the washed cell and the key badges, and neither is an outline nor an
-  // accent shadow. That is a fifth way of drawing "here" and this reading has no honest
-  // test for it: accepting a background would pass every stop on a tinted page. No corpus
-  // example reaches the state — none carries `restated`, the one shipped log carries no
-  // report, and the samples make no gesture — so nothing here is being excused today. A
-  // reading of the wash has to come with the corpus case that shows it.
   //
   // A marked element answers the keyboard with the same accent ring as any other
   // focusable passage. Its hover and current-thread contours are written out rather

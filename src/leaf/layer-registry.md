@@ -38,12 +38,14 @@ The layer record holds the selection and two identities:
   theme, the page's look, `{name, source}` with `source` explicit or default. A new
   page takes the user's default or else Leaf's bundled `reading`; null records taking
   none.
-  The reading look and then the theme compose right after the default package,
-  before the content packages (`themes.with_theme`), so a theme restates the look
-  and a content package restates either. Re-running `page init` preserves
-  the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
-  catalogue changes affect new pages; `themes.py` owns selection and
-  `package-themes.md` documents its authoring interface.
+  The record names only the theme; the theme's own registry may name the theme it
+  builds on (`$theme.base`), and every Leaf that composes the page reads that from
+  the package it finds. The bases, base-most first, and then the theme compose right
+  after the default package, before the content packages (`themes.with_theme`), so a
+  theme restates its base and a content package restates either. Re-running
+  `page init` preserves the recorded choice until `--theme` replaces it or
+  `--no-theme` clears it. User catalogue changes affect new pages; `themes.py` owns
+  selection and `package-themes.md` documents its authoring interface.
 - `generation`, a fresh epoch whenever the selection or the page protocol changes.
   The served registry names it under `$layer`, a served document names the
   generation of the revision it shows, event requests carry it, and contract
@@ -127,5 +129,7 @@ The kernel registry, `browser/runtime/kernel-registry.json`, declares the other 
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
 header, and the classifications on each `$events.kinds` entry). It is part of the
 runtime, so both read the serving Leaf's copy, the browser through
-`runtime/kernel-facts.js`. Composition lays each layer over it, none is stamped for
-the browser to read, and a layer that changes one is refused.
+`runtime/kernel-facts.js`. Composition lays each layer over it and keeps the
+kernel's value of each, none is stamped for the browser to read, and the commands that
+check a layer's own declarations name a change to one to its author
+(`registry.layer.kernel_fact_advice`).

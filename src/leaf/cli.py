@@ -217,8 +217,6 @@ class LeafGroup(click.Group):
         from leaf.refusals import Refused
 
         try:
-            if (ctx.obj or {}).get("turn"):
-                _refuse_a_turn_not_open()
             return super().invoke(ctx)
         except Refused as error:
             reason = sandbox_refusal(error) or str(error)
@@ -249,7 +247,6 @@ class LeafGroup(click.Group):
 
             record_command(
                 invocation.get("leaf_command", ""),
-                turn=invocation.get("turn"),
                 refused=invocation.get("refused"),
             )
 
@@ -299,49 +296,7 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
-def _refuse_a_turn_not_open() -> None:
-    """Refuse a command naming a turn that isn't one of its session's open agent
-    turns, or run where no session is, whatever the command
-    (`state.acting_agent_turn`), so a fork resumed or running late acts neither in
-    its closed turn nor as the main thread. The command names no page yet, so its
-    refused record goes to each page the session holds."""
-    from leaf.harness import session_harness
-    from leaf.interaction_log import acting_on
-    from leaf.refusals import Refused
-    from leaf.service import owned_pages
-    from leaf.state import acting_agent_turn
-
-    session = harness.session if (harness := session_harness()) else None
-    try:
-        acting_agent_turn(session)
-    except Refused:
-        for page_dir in owned_pages(session) if session else []:
-            acting_on(page_dir)
-        raise
-
-
-def _acting_turn(ctx: click.Context, _param: click.Parameter, value) -> None:
-    """Run the command in the agent turn `value` of its session, for this command
-    alone (`state.acting_in`). Its diagnostics name the turn (`record_command`), and
-    a turn that isn't open has the command refused (`_refuse_a_turn_not_open`)."""
-    if not value:
-        return
-    from leaf.state import acting_in
-
-    ctx.with_resource(acting_in(value))
-    ctx.ensure_object(dict)["turn"] = value
-
-
 @click.group(cls=LeafGroup)
-@click.option(
-    "--turn",
-    metavar="TURN",
-    expose_value=False,
-    is_eager=True,
-    hidden=True,
-    callback=_acting_turn,
-    help="Act in this agent turn of the session, which Leaf gives a fork it starts.",
-)
 @click.option(
     "--version",
     is_flag=True,
@@ -438,7 +393,7 @@ def page() -> None:
     "selected",
     multiple=True,
     metavar="PACKAGE",
-    help="include an installed or bundled name, or an explicit "
+    help="include a name from `leaf package list`, or an explicit "
     "project-relative/~ path; repeat for more",
 )
 @click.option(
@@ -574,6 +529,17 @@ def package_install(package_path: Path) -> dict:
     from leaf.packages import cmd_package_install
 
     return cmd_package_install(package_path)
+
+
+@package.command("list", short_help="List the packages a page can select by name.")
+def package_list() -> dict:
+    """Print each package `page init --package NAME` can select, bundled or
+    installed, with the first paragraph of its author instructions and the
+    description of each entry it declares. Every page already has `default`, and
+    `leaf theme list` offers its theme."""
+    from leaf.packages import cmd_package_list
+
+    return cmd_package_list()
 
 
 @package.command(
@@ -1071,10 +1037,8 @@ def thread_summarize(
 ) -> dict:
     """Replace --from through --through in the panel with a Markdown summary.
 
-    Both name messages in one thread, which is the thread summarized. No message but
-    the thread's first may stay unsummarized above any summary; a refusal names a
-    wider range that keeps this. An empty summary, such as `--text ''`, folds them
-    without prose. The original messages remain in the append-only transcript and can
+    Both name messages in one thread, which is the thread summarized. An empty
+    summary, such as `--text ''`, folds them without prose. The original messages remain in the append-only transcript and can
     always be revealed. A later overlapping summary replaces this one.
     """
     from leaf.thread import cmd_summarize
@@ -1640,8 +1604,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    A to-do on a widget needs a widget that declares `work` or holds an
-    unsettled update. A thread attachment provides discussion context;
+    A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""
     from leaf.todos import cmd_create
@@ -1658,13 +1621,15 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     "--text", "line", required=True, help="what you are doing, in one sentence"
 )
 def task_start(page_dir: Path, item: str, line: str) -> dict:
-    """Mark ID Working for this turn, with --text saying what you are doing.
+    """Mark ID Working, with --text saying what you are doing.
 
     ID is the event id of a user update you owe, as its delivery names it, or an
     open to-do's id. --text names the work and its subject in one sentence; it shows
     beside the update or to-do and in Leaf's panel. Your answer to the update, or the
-    to-do's end, ends the start. If your turn ends first, the update or to-do reads stalled
-    until you answer it or start it again."""
+    to-do's end, ends the start. The start lasts through your turn, and after it while
+    your harness reports agents you started working in the background, as Claude Code
+    does. Once nothing holds it, the update or to-do reads stalled until you answer it
+    or start it again."""
     from leaf.todos import cmd_start
 
     return cmd_start(page_dir, item, line)

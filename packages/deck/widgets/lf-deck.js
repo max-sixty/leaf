@@ -335,10 +335,13 @@ customElements.define(
       );
       // Where motion plays, the card that goes keeps its box over the deck while it
       // moves; where it doesn't, as under reduced motion, the cards change places at once.
+      // It takes no focus while it moves, since it stands before the card that came up,
+      // so Shift+Tab from that card would otherwise land in the one flying off.
       const moving = card !== null && running.length > 0;
       if (moving) {
         card.style.setProperty("--lf-deck-leave-top", `${card.offsetTop}px`);
         keeps(card, "data-lf-deck-leaving", side);
+        keeps(card, "inert", "");
       }
       keepView(this, next, moving ? card : null);
       for (const each of this.#cards) {
@@ -374,6 +377,7 @@ customElements.define(
         if (!leaving) return;
         departing = null;
         keeps(leaving, "data-lf-deck-leaving", null);
+        keeps(leaving, "inert", null);
         leaving.style.removeProperty("--lf-deck-leave-top");
         keepView(this, this.#open.value, leaving === upcoming ? leaving : null);
       };

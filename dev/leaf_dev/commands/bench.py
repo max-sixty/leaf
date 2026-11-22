@@ -300,9 +300,11 @@ TAB_CENTRES = """() => {
     return [box.x + box.width / 2, box.y + box.height / 2];
   });
 }"""
-# The leaf's menu, its Annotations, and Capture area's row there.
+# The leaf, the menu's tab at the On view's foot, which the leaf may have opened on
+# another, its Annotations, and Capture area's row there.
 MENU_ROWS = (
     ".lf-fp-leaf",
+    ".lf-fp-controls .lf-fp-filters > button:first-child",
     '.lf-fp-item[data-lf-row="group:annotate"]',
     '.lf-fp-item[data-lf-row="command:capture.region.open"]',
 )

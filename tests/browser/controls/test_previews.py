@@ -38,6 +38,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -205,6 +206,72 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
         tab_onto(control)
         rendered(page)
         assert not preview.is_visible(), preview.inner_text()
+
+
+# Controls whose faces show marks: a case's check beside its title, a bare symbol, and a
+# short form inside a word its markup splits. A module names each mark in a quiet word
+# (`QUIET_WORDS`), which a page's own markup can't declare.
+QUIET_MARKS = """<h1>Cases</h1>
+<p><button id="case" type="button"><span>Optional packages get focused destinations</span>
+<span id="check">✓</span></button></p>
+<p><button id="symbol" type="button">✓</button></p>
+<p><button id="short" type="button"><b>Re</b>ads <span id="short-form"
+><span aria-hidden="true">M</span></span> 100</button></p>"""
+QUIET_WORDS = {
+    "#check": "Looks right",
+    "#symbol": "Approve",
+    "#short-form": "Main thread",
+}
+
+
+def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serve):
+    """A control's quiet words say what the screen doesn't show in words, such as a
+    check's verdict, a symbol's action or a short form's full name. A resting pointer
+    and Tab read those words alone, not the words the face shows whole."""
+    page = open_page(browser, serve(leaf_page("Cases", QUIET_MARKS)))
+    page.evaluate(
+        """(words) => { for (const [selector, word] of Object.entries(words))
+          document.querySelector(selector).dataset.lfQuiet = word; }""",
+        QUIET_WORDS,
+    )
+    named = {"#case": "Looks right", "#symbol": "Approve", "#short": "Main thread"}
+    quiet = page.locator(", ".join(f"{control} .lf-quiet" for control in named))
+    expect(quiet).to_have_count(len(named))
+    for route in ("pointer", "focus"):
+        for control, words in named.items():
+            assert preview_parts(page.locator(control), route) == [words], control
+
+
+# A visual review's Add feedback, which `c` presses, given a mark its quiet word names
+# (`dataset.lfQuiet`, as a module writes one), then the chip its face draws for `c`.
+QUIET_BESIDE_KEYS = """(button) => {
+  const mark = Object.assign(document.createElement('span'), {textContent: ' ●'});
+  mark.dataset.lfQuiet = 'Unsaved changes';
+  button.append(mark);
+}"""
+DRAWN_CHIP = """(button) => button.append(Object.assign(document.createElement('kbd'),
+  {className: 'lf-key-badge', ariaHidden: 'true', textContent: 'c'}))"""
+
+
+def test_beside_a_key_chip_a_control_previews_its_whole_name(browser, serve):
+    """An approved case's row previews its check's verdict, its quiet word, alone. A
+    control a key presses previews its whole name as the head of that key's chip, since
+    the key presses the control, not the mark its quiet word names; once its face draws
+    the chip, the quiet word alone is what the face leaves unsaid."""
+    page = open_page(browser, serve(named_source("visual-review-gallery")))
+    widget = page.locator("#visual-review-run")
+    widget.locator(".lf-vr-approval-input").first.check()
+    row = widget.locator('.lf-vr-case-button:has([data-lf-approved="true"])')
+    assert preview_parts(row) == ["Looks right"]
+    feedback = widget.locator(".lf-vr-feedback").first
+    feedback.evaluate(QUIET_BESIDE_KEYS)
+    expect(feedback.locator(".lf-quiet")).to_have_text("Unsaved changes")
+    chips = page.locator(f"{PREVIEW} .lf-preview-keys kbd")
+    assert preview_parts(feedback, "focus") == ["Add feedback Unsaved changes ●"]
+    expect(chips).to_have_text(["c"])
+    feedback.evaluate(DRAWN_CHIP)
+    assert preview_parts(feedback, "focus") == ["Unsaved changes"]
+    expect(chips).to_have_count(0)
 
 
 # Option cards whose picks Done completes.
@@ -418,6 +485,95 @@ def test_a_mark_s_preview_stands_clear_of_the_mark_on_the_next_line(
     ), f"the preview {tip} covers the next mark {second}"
     page.mouse.click(second["x"] + 8, second["y"] + second["height"] / 2)
     expect(page.locator(CARD)).to_contain_text("About the second words?")
+
+
+LOOSE = leaf_page(
+    "Loose",
+    '<p id="stacked" style="font-size: 20px; line-height: 3">The first line says '
+    "little.<br>Nor does the second.<br>Here the thread's words stand on it.<br>"
+    "And the line after.<br>The last line closes it.</p>" + "<p>More words.</p>" * 12,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_s_preview_stands_by_its_words_on_loosely_leaded_type(
+    engine, request, serve
+):
+    """Where a paragraph's leading is deeper than the gap a preview keeps from its line,
+    the preview's rows of hit tests land in its own line's leading, which reads as that
+    line's mark. That line is the preview's own, so the preview still stands below the
+    words it is about, at their start (preview.js, `clearRoom`)."""
+    words = "the thread's words"
+    url = serve(
+        LOOSE,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "About these words?",
+                "anchor": {"section": "stacked", "quote": words},
+            }
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    line = page.evaluate(WORDS_LINE, words)
+    page.mouse.move(line["x"] + 8, line["y"] + line["height"] / 2)
+    expect(page.locator(PREVIEW)).to_be_visible()
+    tip = page.locator(PREVIEW).bounding_box()
+    assert tip["y"] >= line["bottom"] and abs(tip["x"] - line["left"]) < 1, (tip, line)
+
+
+# The thread's words start the second of 100 px lines, whose glyphs end near 162 px, so
+# the button stands just below them in that line's leading, under their start.
+DEEP = leaf_page(
+    "Deep",
+    '<div style="position: relative"><p id="stacked" style="margin: 0; '
+    'font-size: 20px; line-height: 100px">The first line says little.<br>the '
+    "thread's words stand on it.<br>And the line after.</p>"
+    '<button id="beside" type="button" style="position: absolute; left: 0; '
+    'top: 164px; height: 24px">Press</button></div>' + "<p>More words.</p>" * 12,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_s_preview_keeps_clear_of_a_control_in_its_line_s_leading(
+    engine, request, serve
+):
+    """The preview's own line goes untested only for marks: a control standing in that
+    line's deep leading, just below the words, is still one the preview keeps clear of
+    (preview.js, `clearRoom`)."""
+    words = "the thread's words"
+    url = serve(
+        DEEP,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "About these words?",
+                "anchor": {"section": "stacked", "quote": words},
+            }
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    line = page.evaluate(WORDS_LINE, words)
+    button = page.evaluate(
+        "() => document.getElementById('beside').getBoundingClientRect().toJSON()"
+    )
+    assert line["bottom"] <= button["top"] < line["bottom"] + 7, (button, line)
+    assert button["left"] < line["right"] and line["left"] < button["right"]
+    page.mouse.move(line["x"] + 8, line["y"] + line["height"] / 2)
+    expect(page.locator(PREVIEW)).to_be_visible()
+    tip = page.locator(PREVIEW).bounding_box()
+    assert (
+        tip["y"] >= button["bottom"]
+        or tip["y"] + tip["height"] <= button["top"]
+        or tip["x"] >= button["right"]
+        or tip["x"] + tip["width"] <= button["left"]
+    ), f"the preview {tip} covers the button {button}"
 
 
 # A passage a thread is about, the words its mark paints, and where they stand.
@@ -815,14 +971,22 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 )
 
 
-# Places longer than a card shows: a log of long lines, a paragraph and a list whose first
-# item each run past what a card holds.
+# Places longer than a card shows: a log of long lines, a paragraph, a table of more rows
+# than a card holds and a list whose first item each run past what a card holds. Their
+# links stand fixed at the window's top, 24 px tall, and a bar stands fixed 55 px of room
+# below them, so every card holds its name and one line of detail, not two, whatever the
+# face its words are set in; above them the window holds no line at all.
 LONG_LINE = "x" * 300
 CUT_PAGE = leaf_page(
     "Places that run on",
     """
-<p><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>
-and <a id="to-items" href="#items">the items</a></p>
+<p style="position: fixed; top: 40px; left: 8px; margin: 0"
+><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>,
+<a id="to-table" href="#table">the table</a> and <a id="to-items" href="#items">the
+items</a></p>
+<button id="bar" style="position: fixed; left: 0; top: 130px; width: 100%; height: 24px"
+>Bar</button>
+<div style="height: 200px"></div>
 <pre id="log">"""
     + "\n".join(f"L{n} {LONG_LINE}" for n in range(1, 41))
     + """</pre>
@@ -832,16 +996,28 @@ and <a id="to-items" href="#items">the items</a></p>
 <ul id="items"><li>"""
     + " ".join(["A first item that runs on and on."] * 30)
     + """</li><li>Second.</li></ul>
+<table id="table"><thead><tr><th>Session</th><th>Room</th></tr></thead><tbody>"""
+    + "".join(f"<tr><td>Row {n}</td><td>Workshop hall</td></tr>" for n in range(1, 21))
+    + """</tbody></table>
 """,
+    head="<style>#to-log, #to-prose, #to-table, #to-items"
+    " { display: inline-block; height: 24px }</style>",
 )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
-    """A card reads no more of a place than it shows, and says so where the place runs
-    on: a log of long lines shows its first four lines whole and then an ellipsis, and a
-    paragraph and a list's first item longer than the card holds end in one."""
+    """A card cut short says so where its place runs on: a log of long lines takes its
+    first four lines, each whole, and ends in an ellipsis, and a paragraph and a list's
+    first item longer than the card holds end in one. A table shows its first rows
+    after a card that ended in a clamp: the card draws each place into the elements the
+    last one used, and a clamp holds back none of a table's rows, so the fit reads the
+    lines a block shows off its box, not off the count the clamp was given. Read off
+    the count, the table would be one line taller than the room, and the card would
+    show only its name."""
     page = open_page(request.getfixturevalue(engine), serve(CUT_PAGE))
+    # Too narrow for a card beside a link, so each stands below it.
+    page.set_viewport_size({"width": 390, "height": 600})
     preview = page.locator(PREVIEW)
 
     def card(link):
@@ -857,14 +1033,18 @@ def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
     assert lines[-1].endswith("…"), lines[-1][-20:]
     card("#to-prose")
     assert preview.locator(".lf-place-text").inner_text().endswith("…")
+    card("#to-table")
+    assert preview.locator(".lf-place-cell").first.inner_text() == "Session"
     card("#to-items")
     assert preview.locator(".lf-place-item").first.inner_text().endswith("…")
 
 
+# The links stand well above the places they lead to, so a preview below the last lines
+# of links has room for its name and its first part clear of the first place's summary.
 DRAWN_PAGE = leaf_page(
     "What a place draws",
     """
-<p id="lede"><a id="to-closed" href="#closed">a closed disclosure</a>,
+<p id="lede" style="margin-block-end: 5em"><a id="to-closed" href="#closed">a closed disclosure</a>,
 <a id="to-held" href="#held">a block holding one</a>,
 <a id="to-spans" href="#spans">a paragraph with hidden words</a>,
 <a id="to-titled" href="#titled">a section with a hidden word in its title</a>,
@@ -910,39 +1090,6 @@ CV</div><div hidden="until-found">SECRET FOUND</div></div>
 )
 
 
-def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
-    """A message's markup is outlined as the page is, and an edit the log accepts
-    outlines it again: the paragraph after a heading the edit changed stands under the
-    new heading."""
-    url = serve(PANEL_PAGE)
-    thread = panel_comment(
-        serve.page_dir, "## Original heading\n\nWords after the heading."
-    )
-    page = open_page(browser, url)
-    view = open_panel_thread(page, thread)
-    part = """async () => {
-      const {partOver} = await import('/runtime/thread/placement.js');
-      const words = [...document.querySelectorAll('.lf-msg-body p')]
-        .find((p) => p.textContent.includes('Words after the heading'));
-      return partOver(words)?.textContent.trim() ?? null;
-    }"""
-    expect(view.locator("h2")).to_have_text("Original heading")
-    assert page.evaluate(part) == "Original heading"
-    view.locator(".lf-msg-text").dblclick()
-    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.type("### Changed heading")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Words after the heading.")
-    page.keyboard.press("Enter")
-    expect(view.locator(".lf-msg-editor")).to_have_count(0)
-    expect(view.locator(".lf-edited")).to_have_text("edited")
-    told(page)
-    expect(view.locator("h3")).to_have_text("Changed heading")
-    assert page.evaluate(part) == "Changed heading"
-
-
 SECTION_PAGE = leaf_page(
     "A thread on a section",
     """
@@ -974,7 +1121,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )
@@ -1036,16 +1183,17 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
 def test_an_entry_holding_several_threads_says_each(engine, request, serve):
     """A margin entry holding several threads is named by their count and gives every
     thread a line of its name and where it stands, as the card a press opens lists
-    them all."""
+    them all. The names are short enough that each thread's line stays one line, so
+    the room beside the entry holds all four."""
     url = serve(PANEL_PAGE)
     for n in range(1, 5):
-        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+        panel_comment(serve.page_dir, f"Question {n}?", {"section": "lede"})
     page = open_page(request.getfixturevalue(engine), url)
     entry = page.locator('[data-lf-margin-for="lede"] > .lf-margin-marker')
     parts = preview_parts(entry)
     assert parts[0] == "4 threads", parts
     assert [part.split(" · ")[0] for part in parts[1:]] == [
-        f"Question {n} on the lede?" for n in range(1, 5)
+        f"Question {n}?" for n in range(1, 5)
     ], parts
 
 
@@ -1663,7 +1811,7 @@ def _held(page, cdp, selector, words):
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
-    '<lf-group id="opts-q" label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="tag">small cohort'
+    '<lf-group id="opts-q" label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="lf-tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2" label="Start wide"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options></lf-group>'
@@ -2702,7 +2850,7 @@ def test_a_line_that_ends_in_an_ellipsis_keeps_to_its_room(engine, request, serv
                 "Cut line",
                 '<span id="aim" tabindex="0" style="position: fixed; left: 8px;'
                 ' top: 40px; width: 300px; height: 24px">Aim</span>'
-                '<button id="bar" style="position: fixed; left: 0; top: 115px;'
+                '<button id="bar" style="position: fixed; left: 0; top: 125px;'
                 ' width: 100%; height: 24px">Bar</button>',
             )
         ),
@@ -2803,6 +2951,115 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     page.evaluate(aim, "Third item detail")
     expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Third item detail")
+
+
+# Two controls that each stand their preview by the row holding them, the second's six
+# lines long, and a third that stands its own by itself, in a row near the window's foot
+# that a finger's slide doesn't scroll; `window.lfLog` records each reading, each ending
+# with what it declared, and each time the preview closes.
+SHARED_ROW = leaf_page(
+    "Shared row",
+    '<div id="row" style="display: flex; touch-action: none; position: fixed;'
+    ' left: 40px; bottom: 60px">'
+    '<button id="one">One</button>'
+    '<button id="two">Two</button><button id="three">Three</button></div>'
+    + "<p>More.</p>"
+    * 5,
+)
+SHARED_ROW_LOG = """() => {
+  const row = document.getElementById('row');
+  window.lfLog = [];
+  for (const id of ['one', 'two', 'three']) {
+    const el = document.getElementById(id);
+    el.lfPreview = () => {
+      window.lfLog.push(`read ${id}`);
+      return {name: `Reads ${id}`, at: id === 'three' ? undefined : row,
+        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : []};
+    };
+    el.addEventListener('lf-preview-ended', (event) =>
+      window.lfLog.push(`ended ${event.detail.declared.name}`));
+  }
+  document.getElementById('lf-preview').addEventListener('beforetoggle', (event) => {
+    if (event.newState === 'closed') window.lfLog.push('closed');
+  });
+}"""
+
+
+def _crossed(page):
+    """The log since the last call, emptied."""
+    return page.evaluate("() => window.lfLog.splice(0)")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_crosses(
+    engine, request, serve
+):
+    """A pointer crossing from one control to the next whose preview stands by the same
+    element, as each of a widget's controls may stand its preview by the widget, redraws
+    the preview where it stands without closing it, on the side it stood, even where
+    the next reading is longer than that side's room; the control it left hears its
+    reading end after the next was read. Crossing to a control whose preview stands by
+    itself closes the preview and shows the next."""
+    page = open_page(request.getfixturevalue(engine), serve(SHARED_ROW))
+    page.evaluate(SHARED_ROW_LOG)
+    tip = page.locator(PREVIEW)
+    word = tip.locator(".lf-preview-word")
+    page.mouse.move(2, 2)
+    page.locator("#one").hover()
+    expect(word).to_have_text("Reads one")
+    expect(tip).to_have_attribute("data-lf-y", "below")
+    _crossed(page)
+
+    two = page.locator("#two").bounding_box()
+    page.mouse.move(two["x"] + two["width"] / 2, two["y"] + two["height"] / 2, steps=4)
+    expect(word).to_have_text("Reads two")
+    rendered(page)
+    assert _crossed(page) == ["read two", "ended Reads one"]
+    expect(tip).to_have_attribute("data-lf-y", "top")
+
+    three = page.locator("#three").bounding_box()
+    page.mouse.move(
+        three["x"] + three["width"] / 2, three["y"] + three["height"] / 2, steps=4
+    )
+    expect(word).to_have_text("Reads three")
+    assert "closed" in _crossed(page)
+
+
+def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_place(
+    browser, serve
+):
+    """A finger holding one control and sliding onto the next whose preview stands by
+    the same element redraws the preview where it stands without closing it, as the
+    pointer does, and the control it left stops wearing the hold's mark."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(SHARED_ROW), context=context)
+    page.evaluate(SHARED_ROW_LOG)
+    cdp = context.new_cdp_session(page)
+    word = page.locator(PREVIEW).locator(".lf-preview-word")
+
+    def centre(selector):
+        box = page.locator(selector).bounding_box()
+        return {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+
+    def touch(kind, at=None):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [at] if at else []},
+        )
+
+    touch("touchStart", centre("#one"))
+    long_press(page, centre("#one"))
+    expect(word).to_have_text("Reads one")
+    _crossed(page)
+    touch("touchMove", centre("#two"))
+    expect(word).to_have_text("Reads two")
+    rendered(page)
+    assert _crossed(page) == ["read two", "ended Reads one"]
+    expect(page.locator("#two")).to_have_attribute("data-lf-held", "")
+    expect(page.locator("#one")).not_to_have_attribute("data-lf-held", "")
+    touch("touchEnd")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

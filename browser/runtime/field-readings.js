@@ -89,8 +89,8 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {{message: string} | null} error the newest error the field can say
  * @property {string | null} held keys pressed before the page was ready, which wait
  * @property {string | null} selected the words selected on the page, as quoted
- * @property {{message: Words, press: BoxPress | null, holds: boolean} | null} notice a
- * notice while it shows, and whether it stands until the user's next input
+ * @property {{message: Words, press: BoxPress | null, news: boolean} | null} notice a
+ * notice while it shows, and whether it is news, which answers no gesture of the user's
  * @property {string | null} goTo the Go-to filter's word while its sequence waits
  * @property {string | null} step a walk's position for its step's moment, in the words
  * the field's own leave unsaid
@@ -115,15 +115,15 @@ export const FIELD_READINGS = Object.freeze([
   // user did, or the page, went wrong. One about the field's editor covers the words, as
   // at any box (composing/input.js). The user chose this over errors riding the
   // passing notice, which would fade after four seconds and go unsaid while the user
-  // writes. A notice holding a press after the user's own gesture until their next
-  // input (notifications.js, `holds`) is newer, so while it stands with the caret
+  // writes. A notice offering a press after the user's own gesture, rather than news
+  // (notifications.js, `showNotice`), is newer, so while it stands with the caret
   // elsewhere the error waits in the menu's Errors, as one the field has passed does,
   // and the field says it again once the notice has gone or the caret comes back, since
   // the field says nothing that passes under the caret.
   {
     says: "error",
     claims: (f) =>
-      f.error && !(f.notice?.press && f.notice.holds && !f.writing)
+      f.error && !(f.notice?.press && !f.notice.news && !f.writing)
         ? leafSays(f.error.message)
         : null,
     end: "key",
@@ -199,8 +199,8 @@ export const FIELD_READINGS = Object.freeze([
 
 /** What passes in the panel's one seat for words that pass, which the field says
  * (`notice`) and the folded leaf's peek, where no field shows (floating-panel.js,
- * `peekPresentation`): a notice for its moment, or until the user's next input where it
- * is held (notifications.js, `holds`); else the Go-to filter's word while its sequence
+ * `peekPresentation`): a notice for its moment, and past it until the user's next input
+ * where it stays (notifications.js, `showNotice`); else the Go-to filter's word while its sequence
  * waits for a key; else on the page a walk's position for a notice's moment from each
  * step (notifications.js, `answerStep`). In a thread the position stands before Reply
  * instead (floating-panel.js, `turnLead`): the user asked for that, since "Thread 11 of

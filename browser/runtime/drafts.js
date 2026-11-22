@@ -630,8 +630,7 @@ const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 // refusal's error offers no press, so it says only that the words are kept
 // (`keepRefusedWords`), and Resume writing still reaches them.
 export function noticeDraftKept() {
-  const press = writingPlace && RESUME_WRITING;
-  notice("Draft kept", { press, holds: press !== null });
+  notice("Draft kept", { press: writingPlace && RESUME_WRITING });
 }
 /** @type {import("./notifications.js").NoticePress} */
 const RESUME_WRITING = {

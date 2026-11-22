@@ -90,7 +90,7 @@ import { offeredAction } from "../widget-elements.js";
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
  * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string, alternate: boolean) => unknown} Sender
- * @typedef {{word: string, keys: readonly string[], run: () => unknown, stands?: (() => boolean) | undefined}} BoxPress
+ * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
  * @typedef {Object} InputOptions
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]

@@ -71,6 +71,9 @@ liveEl.setAttribute("aria-live", "polite");
 export const NOTICE_MS = 4000;
 
 let noticeTimer = 0;
+// Whether the standing notice's time is up and it stays until the user's next input
+// (`showNotice`).
+let holding = false;
 // Ends the watch on what the standing notice says (`showNotice`).
 let stopWatching = () => {};
 /** @type {Background | null} */
@@ -80,17 +83,17 @@ const waitingBackground = [];
 let userContext = false;
 // What the seat says, whether it shows, the press it offers, or null: the action it
 // is, the page command whose key makes the same press, what it does, and whether it
-// still can, as `{action, command, run, stands}`; and whether it stands until the
-// user's next input (`holds`, below). Errors are no notices: they go through errors.js,
-// which keeps them until they are dealt with.
-/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null, about: string | null, holds: boolean}>>} */
+// still can, as `{action, command, run, stands}`; and whether it is news, which answers
+// no gesture of the user's. Errors are no notices: they go through errors.js, which
+// keeps them until they are dealt with.
+/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null, about: string | null, news: boolean}>>} */
 const noticePresentation = signal(
   Object.freeze({
     message: "",
     visible: false,
     press: null,
     about: null,
-    holds: false,
+    news: false,
   }),
 );
 
@@ -117,9 +120,9 @@ export const noticeWords = (message) =>
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
 /** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press]
- * @param {string | null} [about] @param {boolean} [holds] */
-const presentNotice = (message, visible, press = null, about = null, holds = false) => {
-  noticePresentation.value = Object.freeze({ message, visible, press, about, holds });
+ * @param {string | null} [about] @param {boolean} [news] */
+const presentNotice = (message, visible, press = null, about = null, news = false) => {
+  noticePresentation.value = Object.freeze({ message, visible, press, about, news });
 };
 
 /** @param {Words} msg */
@@ -151,12 +154,18 @@ function showNotice(
   about = null,
   holds = false,
 ) {
-  presentNotice(msg, true, press, about, holds);
+  presentNotice(msg, true, press, about, Boolean(background));
   if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatching();
-  if (!holds) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+  holding = false;
+  // How long a notice stands, decided here alone (below).
+  const stays = holds || Boolean(press && !background);
+  noticeTimer = setTimeout(
+    () => (stays ? (holding = true) : retireNotice()),
+    NOTICE_MS,
+  );
   // What the words say, and that the press can still act.
   const premises = [stands, press?.stands].filter((premise) => premise != null);
   if (!premises.length) return;
@@ -168,39 +177,34 @@ function showNotice(
   });
 }
 function retireNotice() {
+  holding = false;
   stopWatching();
   if (!userContext && !stepping.peek() && showBackground(waitingBackground.shift()))
     return;
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
-// A notice its caller holds (`holds`) stands until the user's next input rather than
-// for its time: an undo's (undo.js), and one whose press is the step the user most
-// likely takes next after their gesture, as Next thread after a Resolve and Resume
-// writing after a box put words away are, which the user may take by its key after
-// reading for longer than a notice's moment. Any other press passes with its notice,
-// news's included: the user chose that news never hold the seat for the agent's
-// status until they act (since-seen.js). A pointer resting on the panel keeps
-// whichever press the field's end shows past its moment, while it can still act
-// (floating-panel.js, `steady`), so none passes from under a hand on its way to press
-// it. A press
-// stands no longer than it can act: a gesture the log refused, or one taken back by any
-// route, takes its notice away. An input on the press itself, which `keepsNotice`
-// marks, keeps it.
+// How long a notice stands is one rule, kept in one place (`showNotice`) so a better
+// guess at what the user still needs can replace it whole. Every notice stands its
+// time. One answering the user's own gesture with a press, or one its caller holds
+// (`holds`), as an undo's is (undo.js), then stays until the user's next input: the
+// panel says the press at the field's end, so one leaving on its timer would take it
+// from under a hand on its way there. The user's inputs within its time leave it
+// standing, so the Escape that takes the caret out of a reply box, where the field shows
+// no press, shows Restore edit rather than ending its notice. News passes on its time,
+// its press with it, since it answers nothing the user did: the user chose that news
+// never hold the seat until they act (since-seen.js). A press stands no longer than it
+// can act: a gesture the log refused, or one taken back by any route, takes its notice
+// away. An input on the press itself, which `keepsNotice` marks, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
 export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
-/** Whether an input lands on a press `keepsNotice` marks: that press being made, which
- * no hold it keeps should end before its click.
- * @param {Event} event */
-export const pressesNotice = (event) =>
-  (event.composedPath?.() ?? []).some(
-    (node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS),
-  );
 onUserInput((event) => {
-  const { holds, visible } = noticePresentation.peek();
-  if (!holds || !visible || pressesNotice(event)) return;
+  if (!holding || !noticePresentation.peek().visible) return;
+  const path = event.composedPath?.() ?? [];
+  if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
+    return;
   retireNotice();
 });
 
@@ -257,8 +261,8 @@ function queueBackground(entry, front = false) {
 // A held status line coalesces each producer's news; the live region announces it now.
 // `stands` says whether what the words say still holds, by signals it reads; a notice
 // offering a press stands while its press does too. `about` names the fact where the
-// user stands that the notice reports a change to (the header). `holds` keeps the
-// notice until the user's next input rather than for its time (above).
+// user stands that the notice reports a change to (the header). `holds` keeps a notice
+// past its time until the user's next input, as one with a press stays (above).
 /** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
  * press?: NoticePress | null, stands?: (() => boolean) | null, about?: string | null,
  * holds?: boolean}} options */
@@ -291,10 +295,9 @@ export function notice(
 // A notice's press, or a page's own (floating-panel.js, `pagePress`), as the field's end
 // offers it (composing/input.js, `BoxPress`): its action's word, the keys that would make
 // its command's press now, read at each ask, so a box standing it rechecks its keys
-// without reading the field's words again (composing/input.js, `pressing`), what it
-// does, and a notice's press's premise, which the field's end reads where it keeps the
-// press past its notice (floating-panel.js, `steady`).
-/** @param {Omit<NoticePress, "stands"> & {stands?: NoticePress["stands"]}} press
+// without reading the field's words again (composing/input.js, `pressing`), and what it
+// does.
+/** @param {Omit<NoticePress, "stands">} press
  * @returns {import("./composing/input.js").BoxPress} */
 export const pressReading = (press) => ({
   word: actionName(press.action),
@@ -302,7 +305,6 @@ export const pressReading = (press) => ({
     return commandKeysNow(press.command);
   },
   run: press.run,
-  stands: press.stands,
 });
 // Take the notice down for something the user asked for, putting a background notice
 // it was showing back at the front of the queue. Unlike the notice's own timer, which

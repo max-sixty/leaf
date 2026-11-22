@@ -307,7 +307,6 @@ import {
   gestureReading,
   noticeReading,
   noticeWords,
-  pressesNotice,
   pressReading,
 } from "./notifications.js";
 import {
@@ -331,7 +330,6 @@ import {
   letGo,
   onCurrentLocation,
   onPressAway,
-  onUserInput,
   openLayer,
   pressHolds,
   pressLed,
@@ -418,8 +416,8 @@ const leafMarks = (onUser, news, kept) =>
 // The page's field's name where no selection is offered, which the field the document
 // serves wears too (`panelTemplate`, `initial`).
 const PAGE_FIELD_NAME = "Comment on the page";
-// The field's end at rest while On Me lists anything (`pagePress`): the walk's route `m`
-// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pagePress`
+// The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
+// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
 // decides when it stands.
 /** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
 /** @type {FieldPress} */
@@ -1002,20 +1000,9 @@ export function createFloatingPanel({
   host.addEventListener("pointerleave", () => {
     pointer = null;
     readCorner();
-    // What a field's end held while the pointer stood on the panel takes its change
-    // once it leaves (`steady`).
-    if (steadied) {
-      steadied = false;
-      paint();
-    }
-  });
-  // So does the user's next input, which may paint nothing else, as an arrow key that
-  // scrolls the page doesn't. An input on the kept press is that press being made, and
-  // a paint now would take it from under the click.
-  onUserInput((event) => {
-    if (!steadied || pressesNotice(event)) return;
-    steadied = false;
-    paint();
+    // A press offered while the pointer stood on the panel stands once it leaves
+    // (`pagePress`).
+    if (shownOffer !== pageOffer()) paint();
   });
   const leaf = shell("leaf");
   const field = shell("field");
@@ -1236,7 +1223,7 @@ export function createFloatingPanel({
       notice: notice && {
         message: notice.message,
         press: notice.press ? pressReading(notice.press) : null,
-        holds: notice.holds,
+        news: notice.news,
       },
       goTo,
       step,
@@ -1324,37 +1311,26 @@ export function createFloatingPanel({
   }
   // The page's own press at the field's end: Open latest while the page shows an older
   // version (`latestPress`), else Next On Me while On Me lists anything, or null, where
-  // Comment and c stand.
-  const pagePress = () =>
-    latestPress() ?? (onUserCount() ? pressReading(NEXT_ON_ME) : null);
-  // The press at a field's end comes and goes without the user's input too: the page's
-  // own with the server's reading (`pagePress`), and a notice's as its moment passes.
-  // So while the pointer rests on the panel each field's end keeps what it showed, and
-  // takes the change at the user's next input or once the pointer leaves: a press
-  // arriving or passing there would put another, or none, where the user was about to
-  // press (browser/AGENTS.md, "The page holds still under the user's aim"). A notice's
-  // press appears with its notice, whose words beside it say why it is there. That
-  // includes the notice of the user's own gesture, which can arrive after a paint the
-  // same gesture caused, so no input separates the two. A press kept past its notice
-  // goes once it can no longer act (`stands`), as a refused Resolve takes Next thread
-  // away with the user back on the thread.
-  let steadied = false;
-  /** @param {() => string | import("./composing/input.js").BoxPress | null} read */
-  function steady(read) {
-    /** @type {string | import("./composing/input.js").BoxPress | null} */
-    let shown = null;
-    let at = -1;
-    return () => {
-      const now = read();
-      const { visible, press } = noticeReading();
-      const acts = typeof shown !== "object" || (shown?.stands?.() ?? true);
-      if (pointer !== null && inputCount() === at && !(visible && press) && acts) {
-        steadied = true;
-        return shown;
-      }
-      at = inputCount();
-      return (shown = now);
-    };
+  // Comment and c stand (`pageOffer`). It comes and goes with the server's reading
+  // rather than with the user's input, so while the pointer rests on the panel the
+  // field's end keeps what it showed, and takes the change at the user's next input or
+  // once the pointer leaves: a press arriving there would stand where the user was
+  // about to press another (browser/AGENTS.md, "The page holds still under the user's
+  // aim"). A notice's press needs no such hold: it comes and goes with its words, which
+  // say why the end changed (notifications.js, `showNotice`).
+  /** @returns {FieldPress | "latest" | null} */
+  const pageOffer = () =>
+    latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
+  /** @type {ReturnType<typeof pageOffer>} */
+  let shownOffer = null;
+  let offerShownAt = -1;
+  function pagePress() {
+    if (pointer === null || inputCount() !== offerShownAt) {
+      shownOffer = pageOffer();
+      offerShownAt = inputCount();
+    }
+    if (shownOffer === "latest") return latestPress();
+    return shownOffer ? pressReading(shownOffer) : null;
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
@@ -1454,9 +1430,8 @@ export function createFloatingPanel({
     const sync = wireInput(input, {
       hint: () => saying(null, input),
       hintParts: () => fieldHint(null, input),
-      // The one press the moment offers at the field's end (field-readings.js, `end`),
-      // still under a resting pointer (`steady`).
-      enters: steady(() => fieldReading(null, input).end),
+      // The one press the moment offers at the field's end (field-readings.js, `end`).
+      enters: () => fieldReading(null, input).end,
       // While a stance stands the field takes no words (field-readings.js, `still`).
       closed: stanceHolds,
       // Named for what a press there does, as the field's reading says it, once the
@@ -1544,8 +1519,8 @@ export function createFloatingPanel({
           hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
           hintLead: (drawn) => turnLead(key, replyInput(), drawn),
           // A notice passing over the thread's field offers its press at the field's
-          // end, as over the page's (field-readings.js, `end`; `steady`).
-          enters: steady(() => fieldReading(key, replyInput()).end),
+          // end, as over the page's (field-readings.js, `end`).
+          enters: () => fieldReading(key, replyInput()).end,
           closed: stanceHolds,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,

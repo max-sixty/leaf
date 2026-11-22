@@ -3798,38 +3798,31 @@ def test_on_a_touchscreen_hiding_annotations_offers_no_press(browser, serve):
     expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
 
 
-def test_a_press_at_the_field_s_end_stays_under_a_resting_pointer(browser, serve):
-    """A notice's press passes with its moment, but not from under a pointer resting on
-    the panel, where a hand may be on its way to press it: the field's end keeps the
-    press until the pointer leaves, and a click there makes it."""
+def test_a_gesture_s_notice_with_a_press_stays_until_the_next_input(browser, serve):
+    """Hiding the annotations answers the user's own gesture with a press, Show
+    annotations, so its notice stands its time and then until the user's next input:
+    an input within its time leaves it standing, and the first one after takes it."""
     page = floating(clocked(browser), serve(LONG_PAGE, comments=1))
-    hidden = page.locator(".lf-chrome[data-lf-annotations-hidden]")
     offered = page.locator(
         ".lf-fp-field .lf-compose-press", has_text="Show annotations"
     )
-    moment = page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS") + 1000
-    for ends in ("pointer leaves", "click"):
-        page.locator("body").focus()
-        field(page).hover()
-        page.keyboard.press("o")
-        expect(offered).to_have_count(1)
-        page.clock.run_for(moment)
-        rendered(page)
-        expect(field(page)).not_to_have_attribute("data-lf-says", "notice")
-        expect(offered).to_have_count(1)
-        if ends == "pointer leaves":
-            page.mouse.move(5, 5)
-            expect(offered).to_have_count(0)
-            page.keyboard.press("o")
-        else:
-            offered.click()
-        expect(hidden).to_have_count(0)
+    moment = page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    expect(offered).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    page.clock.run_for(moment * 2)
+    rendered(page)
+    expect(field(page)).to_have_attribute("data-lf-says", "notice")
+    expect(offered).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    expect(offered).to_have_count(0)
 
 
 def test_a_refused_resolve_takes_next_thread_from_under_the_pointer(held_events, serve):
-    """The field's end keeps a press under a resting pointer only while it can act. A
-    Resolve the log refuses puts the user back on its thread, so Next thread, which
-    would walk them away from it, leaves the field's end though the pointer stays."""
+    """A Resolve's notice stands no longer than its gesture does. A Resolve the log
+    refuses puts the user back on its thread, so Next thread, which would walk them
+    away from it, leaves the field's end, though the pointer rests on the panel."""
     browser, held = held_events
     url = serve(LONG_PAGE)
     for words in ("Is the window long enough?", "Who watches the weekend?"):

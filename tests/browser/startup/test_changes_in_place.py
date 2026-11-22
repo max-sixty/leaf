@@ -291,13 +291,11 @@ def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):
     expect(page.locator("main .lf-ins-block")).to_have_count(2)
 
 
-def test_news_s_press_stays_under_a_resting_pointer_until_the_next_input(
-    browser, serve
-):
+def test_news_s_press_goes_with_its_words_under_a_resting_pointer(browser, serve):
     """With the pointer parked on the panel, as after a return by Cmd-Tab, Show changes
-    stays at the field's end once the news's words pass, and goes at the user's next
-    input, though an arrow key that scrolls the page changes nothing else in the
-    panel (floating-panel.js, `steady`)."""
+    stands at the field's end while the news's words say what changed, and leaves with
+    them, with no input between: news answers nothing the user did, and its words say
+    why the end changed, so the panel holds no notice's press still."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -312,9 +310,8 @@ def test_news_s_press_stays_under_a_resting_pointer_until_the_next_input(
 
     visibility(page, "visible")
     expect_panel_says(page, "2 changes since v1")
-    expect_panel_says(page, "2 changes since v1", says=False)
     expect(show).to_have_count(1)
-    page.keyboard.press("ArrowDown")
+    expect_panel_says(page, "2 changes since v1", says=False)
     expect(show).to_have_count(0)
 
 

@@ -403,8 +403,8 @@ export function createObligationView({
   }
 
   // The user's current location on an obligation, said in terms a replaced document can still answer.
-  // Focus by shape does not cross a document replacement — version.js says why — but an
-  // obligation is not a shape. Its id is a declared identity that the inventory, the On
+  // Focus on an unnamed control does not cross a document replacement (carry.js), but an
+  // obligation is not unnamed. Its id is a declared identity that the inventory, the On
   // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an obligation when a revision lands is put back on the same obligation rather
   // than dropped to `body`.
@@ -413,8 +413,8 @@ export function createObligationView({
   // handed back. Which control inside it they held is not something this can answer: the
   // controls are the widget's, most carry no id of their own, and the first
   // answering control is the walk's landing rule rather than a restore. Handing that back
-  // is the failure version.js's header names — a user holding the second option would be
-  // given the first, and their next press would choose it. The obligation's own opening
+  // would guess: a user holding the second option would be given the first, and their
+  // next press would choose it. The obligation's own opening
   // is the one place that cannot misfire, because it holds a lent tab stop rather than
   // a decision: the widget's context routes are live there and Space decides nothing.
   //

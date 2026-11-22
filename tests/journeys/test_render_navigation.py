@@ -748,7 +748,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         },
     )
     _the_atlas_shows_every_margin_entry_face_in_its_treatment(page)
-    _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page)
+    _a_pin_on_a_wide_figure_hides_with_the_annotations_while_the_rail_stays(page)
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
@@ -1073,10 +1073,10 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
 
-def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
+def _a_pin_on_a_wide_figure_hides_with_the_annotations_while_the_rail_stays(page):
     """The gallery's rail-and-pins sample: a comment on the schedule, which is wider
     than the column, stands on it as a pin while the prose beside it keeps the rail, and
-    `o` hides the pin while the rail stays. The quiet-status example starts with
+    `g H` hides the pin while the rail stays. The quiet-status example starts with
     a visible receipt, without requiring a practice gesture to create it."""
     resized(page, 1440, 900)
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
@@ -1086,10 +1086,12 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
     assert rail.count() > 0
     page.keyboard.press("Escape")
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(pin).to_be_hidden()
     expect(rail.first).to_be_visible()
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(pin).to_be_visible()
 
     sample = page.locator("#bg-margin-layer-status")

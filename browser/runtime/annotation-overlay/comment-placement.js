@@ -151,6 +151,7 @@ import {
   shownRect,
   shownRectHeld,
 } from "../geometry.js";
+import { markRoom } from "../mark-room.js";
 import { clamp, union } from "../rect.js";
 import {
   glideTo,
@@ -182,7 +183,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{side: Side | null, boundary: BoundaryKey | null, moved: boolean}} CapturedPlacement */
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
 /** @typedef {{top: number, foot: number}} HeldBox */
-/** @typedef {{clear: Extent | null, row: number, lastRow?: number,
+/** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
  * stood: number, stationary: boolean, fromSubject: boolean,
@@ -192,8 +193,9 @@ import { floatingGeometry, positioningScale } from "./floating.js";
  * placement: import("@floating-ui/dom").Placement,
  * middleware: import("@floating-ui/dom").Middleware[],
  * plane: (answer: Position) => "page" | "window" | Element}} PlacementOptions */
+/** @typedef {import("../mark-room.js").MarkRoom} MarkRoom */
 /** @typedef {{element: Element, contextNode: Node,
- * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent,
+ * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent, room: MarkRoom,
  * row: number, lastRow: number, column: number | null,
  * margin: ReturnType<typeof marginSpot>, scroller: Element}} Attachment */
 /** @typedef {{target: Element | null, point?: Element | null,
@@ -220,6 +222,7 @@ export function commentAttachment({
       geometry: floatingGeometry([element]),
       clear: null,
       extent,
+      room: NO_ROOM,
       row: extent.top,
       lastRow: extent.top,
       column: null,
@@ -251,6 +254,7 @@ export function commentAttachment({
     geometry,
     clear,
     extent,
+    room: markRoom(target, whole, COMMENT_GAP),
     row: (passage?.attachment ?? extent).top,
     lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
@@ -274,6 +278,9 @@ export function commentReference(place, reference) {
 // The gap a surface keeps from the edge of its room, and beside its text, from above
 // the text's first line.
 export const COMMENT_GAP = 8;
+// The room no mark takes, round a surface with no subject.
+/** @type {MarkRoom} */
+const NO_ROOM = { left: 0, top: 0, right: 0, bottom: 0 };
 // The least room a surface stands in: a floor chosen to hold the comment box's words
 // and its controls over a few lines, which the room under the words must reach for a
 // touch screen to prefer it, and a reading region must show for a surface to stand in it.
@@ -389,9 +396,9 @@ function roomTravel(side, scroller, from = scroller.scrollTop) {
 
 // The room on `side` of `extent` the page can make: what shows there plus the scroll
 // travel `scroller` has left that way, never more than the boundary holds.
-/** @param {Side} side @param {Extent} extent @param {Boundary} boundary @param {Element} scroller */
-function reachableRoom(side, extent, boundary, scroller) {
-  const gap = subjectGap();
+/** @param {"top" | "bottom"} side @param {Extent} extent @param {MarkRoom} room @param {Boundary} boundary @param {Element} scroller */
+function reachableRoom(side, extent, room, boundary, scroller) {
+  const gap = subjectGap(room, side);
   const shown =
     side === "top"
       ? extent.top - boundary.top - gap
@@ -414,9 +421,9 @@ function reachableRoom(side, extent, boundary, scroller) {
 // pressed while the page glides acts as though the glide had landed, and a glide under
 // way takes the move into its goal (`glideTo`), so the page lands once, with the room
 // made.
-/** @param {Side} side @param {Extent} clear @param {Extent} extent @param {number} height @param {Boundary} boundary @param {Element} scroller */
-export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  const gap = subjectGap();
+/** @param {"top" | "bottom"} side @param {Extent} clear @param {Extent} extent @param {MarkRoom} room @param {number} height @param {Boundary} boundary @param {Element} scroller */
+export function makeRoom(side, clear, extent, room, height, boundary, scroller) {
+  const gap = subjectGap(room, side);
   if (extent.height + gap + height > boundary.height) return false;
   const goal = scrollGoal(scroller);
   const { available: travel, projection, direction } = roomTravel(side, scroller, goal);
@@ -439,15 +446,22 @@ export function makeRoom(side, clear, extent, height, boundary, scroller) {
 }
 
 // The side a comment's surface takes, as a Floating UI side.
-/** @param {{clear: Extent, extent: Extent, boundary: Boundary, width: number, scroller: Element, coarse: boolean}} reading @returns {Side} */
-export function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
-  /** @param {number} room */
-  const fits = (room) => Math.ceil(room) >= Math.ceil(width);
-  const gap = subjectGap();
-  if (fits(boundary.right - clear.right - gap)) return "right";
-  if (fits(clear.left - boundary.left - gap)) return "left";
-  const below = reachableRoom("bottom", extent, boundary, scroller);
-  const above = reachableRoom("top", extent, boundary, scroller);
+/** @param {{clear: Extent, extent: Extent, room: MarkRoom, boundary: Boundary, width: number, scroller: Element, coarse: boolean}} reading @returns {Side} */
+export function commentSide({
+  clear,
+  extent,
+  room,
+  boundary,
+  width,
+  scroller,
+  coarse,
+}) {
+  /** @param {number} space */
+  const fits = (space) => Math.ceil(space) >= Math.ceil(width);
+  if (fits(boundary.right - clear.right - subjectGap(room, "right"))) return "right";
+  if (fits(clear.left - boundary.left - subjectGap(room, "left"))) return "left";
+  const below = reachableRoom("bottom", extent, room, boundary, scroller);
+  const above = reachableRoom("top", extent, room, boundary, scroller);
   // Prefer a side that already shows the compact surface. Reachable room breaks
   // the tie; a fresh card may then use makeRoom to open clear of its target.
   const fitsBelow = below.shown >= LEAST_HEIGHT;
@@ -489,12 +503,14 @@ export const standsTall = (texts) => {
   }
   return false;
 };
-// How far a surface stands from what it is about (`place-clear`): the room a mark on a
-// region takes (`--lf-focus-region-room`), then the gap it keeps from the edge of its room,
-// so the mark's line and the surface's edge have that gap between them too. It holds
-// whether or not a mark shows, since one comes and goes under the pointer and the
-// surface stays where it stands.
-export const subjectGap = () => rootLength("--lf-focus-region-room") + COMMENT_GAP;
+// How far a surface on `side` stands from what it is about (`place-clear`): the room the
+// marks round it take past its box on that side (the attachment's `room`, mark-room.js
+// `markRoom`), their gap and band and any reach over a list marker, then the gap the
+// surface keeps from the edge of its room, so the mark's line and the surface's edge
+// have that gap between them too. It holds whether or not a mark shows, since one
+// comes and goes under the pointer and the surface stays where it stands.
+/** @param {MarkRoom} room @param {Side} side */
+export const subjectGap = (room, side) => room[side] + COMMENT_GAP;
 
 // The block edge a surface on `side` is attached by, which it holds as it grows unless
 // asked to hold another (`edge`): its foot above what it is about, its top elsewhere.
@@ -593,6 +609,7 @@ export function commentPlacement() {
     ui,
     {
       clear,
+      room = NO_ROOM,
       row,
       lastRow = row,
       column = null,
@@ -606,8 +623,9 @@ export function commentPlacement() {
     const minimumWidth = cardMinimum();
     const across = vertical(side);
     const unanchored = !clear;
-    // A surface with no subject stands by the room's edge, which wears no mark.
-    const gap = unanchored ? COMMENT_GAP : subjectGap();
+    // A surface with no subject stands by the room's edge, which wears no mark
+    // (`NO_ROOM`).
+    const gap = subjectGap(room, side);
     // Floating UI reads a window attachment point for the unanchored posture,
     // sharing the same sizing, shift and coordinate conversion as an anchored box.
     clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
@@ -897,10 +915,11 @@ export function commentPlacement() {
     scrolled() {
       input = null;
     },
-    /** @param {{clear: Extent | null, extent?: Extent | null, boundary: Boundary, row?: number, column?: number | null, scroller: Element, coarse: boolean}} request */
+    /** @param {{clear: Extent | null, extent?: Extent | null, room?: MarkRoom, boundary: Boundary, row?: number, column?: number | null, scroller: Element, coarse: boolean}} request */
     choose({
       clear,
       extent = clear,
+      room = NO_ROOM,
       boundary,
       row = clear?.top ?? boundary.top,
       column = null,
@@ -973,6 +992,7 @@ export function commentPlacement() {
         : commentSide({
             clear,
             extent,
+            room,
             boundary,
             width: cardMinimum(),
             scroller,

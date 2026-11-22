@@ -11,7 +11,9 @@
    resizes its hit box with it. */
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
    box with the action inset on either side of it. A surface that sets its own
-   action inset restates this and the field's height. */
+   action inset restates this and the field's height. A field that runs over its
+   frame's padding stands its actions that much further in from its end
+   (`--lf-compose-action-end`, below), so they keep their place in the frame. */
 leaf-composition-field {
   display: contents;
 }
@@ -20,7 +22,8 @@ leaf-composition-field {
 [data-lf-thread-surface],
 .lf-compose-field {
   --lf-compose-send-end: calc(
-    var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
+    var(--lf-icon-action-hit) + var(--lf-compose-action-inset) +
+      var(--lf-compose-action-end, var(--lf-compose-action-inset))
   );
 }
 :root,
@@ -224,7 +227,10 @@ leaf-composition-field {
     )
     > leaf-text:not(.lf-fab-input) {
     --lf-field-end-room: 0px;
-    --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
+    --lf-field-corner: calc(
+      var(--lf-icon-action-hit) +
+        var(--lf-compose-action-end, var(--lf-compose-action-inset))
+    );
     min-height: 0;
   }
   /* An empty field's actions stand in that corner with no words to give way to, so
@@ -328,7 +334,7 @@ leaf-composition-field {
 .lf-compose-dictate {
   position: absolute;
   z-index: 1;
-  inset-inline-end: var(--lf-compose-action-inset);
+  inset-inline-end: var(--lf-compose-action-end, var(--lf-compose-action-inset));
   inset-block-end: var(--lf-compose-action-inset);
 }
 /* The microphone's slash marks a dictation that failed, so any microphone not on a failed
@@ -702,6 +708,54 @@ leaf-composition-field {
 .lf-response-control,
 .lf-response-face {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
+}
+/* A card's reply box, beside a passage or seated in a widget, runs over the card's
+   padding to its sides and foot (annotation-chrome.css, surfaces.css), as the floating
+   panel's field runs to the panel's edges, so the card holds one frame and the box is
+   its region the words go in. Its padding takes the card's back, so its words and
+   Send stand where they would in a box at the card's padding, and its pictures stand
+   on its words' edge, so their removal's reach stays inside the card. Under a mouse, where Send takes only a free
+   corner (above), it ends the line as the card's own symbols end theirs, hanging past
+   the words' end by the symbol's inset (controls.css); under a finger it keeps its
+   place in the line's room every message keeps for it (`--lf-comment-text-end`). It wears
+   the card's rounding at the card's corners and stands square at its top, inside the
+   card (browser/AGENTS.md, "Visual treatment carries meaning"). At rest it draws only
+   a rule over its words, inset as far as they are, as the panel's row does under an
+   open thread; holding the caret it takes the card's ground, lighter than the card's
+   paper, and the ring one band inside its edge. The user chose this
+   over the box at the card's padding in a field's frame and corners, which the panel's
+   field had already left. */
+:is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field {
+  --lf-compose-pad-inline-start: calc(
+    var(--lf-thread-text-inset) - 1px + var(--lf-comment-inset)
+  );
+  --lf-compose-action-end: calc(
+    var(--lf-compose-action-inset) + var(--lf-comment-inset)
+  );
+  --lf-field-ground: var(--lf-ground);
+  border-color: transparent;
+  border-radius: 0 0 calc(var(--lf-r-l) - 1px) calc(var(--lf-r-l) - 1px);
+  background: linear-gradient(var(--lf-rule), var(--lf-rule)) top center /
+    calc(100% - 2 * var(--lf-compose-pad-inline-start)) 1px no-repeat;
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field {
+    --lf-compose-action-end: calc(
+      var(--lf-compose-pad-inline-start) - var(--lf-symbol-inset)
+    );
+  }
+}
+:is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-composer-media {
+  padding-inline: calc(
+    var(--lf-media-room) + var(--lf-comment-inset) + var(--lf-thread-text-inset)
+  );
+}
+:is(.lf-margin-preview, [data-lf-thread-surface])
+  .lf-thread-reply
+  .lf-compose-field[data-lf-control-focus-visible] {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+  --lf-field-ground: var(--lf-card);
+  background: var(--lf-card);
 }
 /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */

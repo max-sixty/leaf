@@ -1873,6 +1873,15 @@ export const onLetGo = (read) => {
 /** @param {Element | null} [from] */
 export function letGo(from = focused()) {
   letGoes++;
+  landAtReading(from);
+  if (from && from !== document.body) for (const read of letGoReaders) read(from);
+}
+// The landing alone: the user at nothing, with Tab starting from the block read on
+// screen beside `from`, as a move, so no hold takes the node they left for a place a
+// change dropped them from. A return to a working place lands so where it puts focus
+// nowhere (history.js, `returnPlace`).
+/** @param {Element | null} [from] */
+export function landAtReading(from = null) {
   const held = /** @type {HTMLElement | null} */ (focused());
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
@@ -1882,7 +1891,6 @@ export function letGo(from = focused()) {
   }
   // A page an open modal holds inert takes no focus, so the landing above moved nothing.
   held?.blur();
-  if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,

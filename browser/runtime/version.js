@@ -49,13 +49,15 @@
  * selections and module state cannot cross documents. Drafts and chrome preferences
  * use their own stores.
  *
- * A reload Leaf asks for stores a page-scoped, one-use handoff (`handOff`): reading
- * position, comparison, pointer, margin and panel location, editing continuity,
- * mechanical carry, and obligation location. A fresh-document install asks for one, and
- * so does a server restarted under another Leaf, whose reload lands this revision under
- * that Leaf's runtime (layer-client.js, `reloadNow`). The document that reload loads
- * consumes it, at that revision or a newer one; ordinary reloads and history travel find
- * none to replay.
+ * A reload Leaf asks for (layer-client.js, `reloadDocument`) stores a page-scoped,
+ * one-use handoff as the document goes (`handOff`): reading position, comparison,
+ * pointer, margin and panel location, editing continuity, mechanical carry, and
+ * obligation location. A fresh-document install asks for one, and so does a delivery
+ * that moved on, such as a server restarted under another Leaf, whose reload lands this
+ * revision (`reloadNow`). The document that reload loads consumes the handoff, at that
+ * revision or a newer one. Since it describes the moment the document went, a reload
+ * that ends the document later, as after the user stays at a page's own leave prompt,
+ * hands over the place they then left; any other reload or history travel finds none.
  * Explicit historical travel carries reading position and the decision landmark, without
  * mechanical carry or obligation location. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
@@ -176,7 +178,8 @@ import { pointerAt, restorePointer } from "./pointer.js";
 import {
   LayerRefused,
   admitReading,
-  handOffReloads,
+  leafReloads,
+  reloadDocument,
   reportPageError,
 } from "./layer-client.js";
 import { projectDocument, readApplication } from "./semantic-state.js";
@@ -2283,10 +2286,12 @@ export function createVersionController({
     };
   }
 
-  // The continuity handoff to the fresh document a reload is about to load, at
-  // `revision` or a newer one; installArrival consumes it once after upgrade.
-  /** @param {number} revision */
-  function handOff(revision) {
+  // The continuity handoff to the fresh document a reload Leaf asked for loads, written
+  // as this document goes (`installArrival`), so it holds the place the user left, keys
+  // typed while the reload loaded included. The reload lands at `revision` or a newer
+  // one, at `url`; installArrival consumes the handoff once after upgrade.
+  /** @param {{revision: number, url: string}} landing */
+  function handOff({ revision, url }) {
     const live = pageDocument();
     const source = authoredSource;
     if (!live || !source)
@@ -2298,7 +2303,7 @@ export function createVersionController({
       HANDOFF_KEY,
       JSON.stringify({
         revision,
-        url: location.href,
+        url,
         view,
         retainedCurrentLocation: captureRetainedCurrentLocation(),
         ...editingContinuity,
@@ -2308,16 +2313,20 @@ export function createVersionController({
       }),
     );
   }
+  // Where a revision's reload lands, at the address the user sees once the arriving
+  // document takes its mark off; a reload into another runtime lands this one's.
+  /** @type {{revision: number, url: string} | null} */
+  let reloadLanding = null;
 
   // Changed executable identity requires a fresh document.
   const reloadInto =
     (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
       forceActivation = false;
-      handOff(target.revision);
+      reloadLanding = { revision: target.revision, url: location.href };
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
       replaceEntry(marked);
-      location.reload();
+      reloadDocument();
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.
       return new Promise(() => {});
@@ -3061,10 +3070,6 @@ export function createVersionController({
     // for and the user didn't, which hands over their whole place (`handOff`). Into a
     // different authored revision, a passage is also a better landmark than the old
     // document's pixels.
-    handOffReloads(() => {
-      if (anchoringIsReady() && runtime.currentRevision !== null)
-        handOff(runtime.currentRevision);
-    });
     const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
       performance.getEntriesByType("navigation")[0]
     )?.type;
@@ -3079,8 +3084,7 @@ export function createVersionController({
           value?.url === location.href &&
           Number.isInteger(value.revision) &&
           value.revision <= currentRevision &&
-          Number.isInteger(value.view?.revision) &&
-          value.view.revision <= currentRevision
+          Number.isInteger(value.view?.revision)
           ? value
           : null;
       } catch {
@@ -3097,7 +3101,10 @@ export function createVersionController({
     })();
     addEventListener("pagehide", () => {
       if (!anchoringIsReady()) return;
-      tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
+      const revision = runtime.currentRevision;
+      if (leafReloads() && revision !== null)
+        handOff(reloadLanding ?? { revision, url: location.href });
+      else tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     const currentIntent = retainUserIntent({ fallback: compositionInput, since: 0 });
     const restoreCarryScroll =

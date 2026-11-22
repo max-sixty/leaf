@@ -552,10 +552,11 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     consume_browser_errors(page, "read failed: Unexpected token")
 
 
-def restart_under_another_runtime(page, serve):
+def restart_under_another_runtime(page, serve, answer=None):
     """The page's server restarting under another Leaf, as the tab sees it: its answers
     name another runtime until the tab's source has said so once, which is the reading
-    the reload lands on. Returns once the reload has landed."""
+    the reload lands on. `answer` makes the tab ask the server something, by default
+    news of a comment. Returns once the reload has landed."""
     restarted = {"answers": True}
 
     def another_runtime(route):
@@ -570,14 +571,19 @@ def restart_under_another_runtime(page, serve):
         if route.request.url.endswith("/registry.json"):
             restarted["answers"] = False
 
-    page.route("**/api/state", another_runtime)
+    page.route("**/api/**", another_runtime)
     page.route("**/registry.json", another_runtime)
     with page.expect_navigation():
-        append_carried_log_record(
-            serve.page_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
-        )
+        if answer:
+            answer()
+        else:
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
     wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
 
 
 def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):
@@ -656,12 +662,33 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
     assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 11]
     expect(page.locator("#why")).to_have_js_property("open", True)
 
-    page.unroute("**/api/state")
-    page.unroute("**/registry.json")
     page.reload()
     wait_until_ready(page)
     expect(thread).to_have_count(0)
     expect(page.locator("#why")).to_have_js_property("open", False)
+
+
+def test_words_typed_as_the_server_restarts_go_with_the_reload_unasked(browser, serve):
+    """The restarted server refuses the old tab's draft writes, so the words typed as it
+    restarts wait in the tab. The reload Leaf then asks for carries them, with the
+    caret, and puts no leave prompt in front of the user, which they would have to
+    answer for a reload they never asked for (drafts.js, `beforeunload`)."""
+    page = open_page(browser, serve(leaf_page("Restarted", "<h1>Rehearsal</h1>")))
+    # A user who meets the prompt for a reload they never asked for stays, and the
+    # tab is left on the server it can no longer read.
+    prompts = []
+    page.on("dialog", lambda dialog: (prompts.append(dialog.type), dialog.dismiss()))
+    field = page.locator(".lf-fp-field leaf-text")
+    write(field, "Hello")
+
+    restart_under_another_runtime(
+        page, serve, answer=lambda: page.keyboard.insert_text(" world")
+    )
+
+    assert prompts == []
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Hello world")
+    assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [11, 11]
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):

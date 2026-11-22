@@ -76,15 +76,16 @@ async function sourceMovedOn() {
   return generation ? generation !== layerGeneration : undefined;
 }
 
-// What this document hands the one its reload loads: the user's place, which the
-// version controller captures as it does for a revision that needs a fresh document
-// (version.js, `handOff`). A reload before the page has its anchors leaves the browser's
-// own restoration.
-let handOff = () => {};
-/** @param {() => void} capture */
-export const handOffReloads = (capture) => {
-  handOff = capture;
-};
+// A reload Leaf asks for, as a delivery that moved on and a revision that needs a fresh
+// document do, rather than the user. The document going hands the one it loads the
+// user's place (version.js, `handOff`) and their unsent words (drafts.js), so leaving
+// asks the user nothing.
+let leafReloading = false;
+export const leafReloads = () => leafReloading;
+export function reloadDocument() {
+  leafReloading = true;
+  location.reload();
+}
 
 let layerReloading = false;
 /** @param {string} message */
@@ -92,14 +93,7 @@ function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
   notice(message);
-  // The reload goes ahead whatever the capture meets: this document can no longer read
-  // its server.
-  try {
-    handOff();
-  } catch (error) {
-    reportPageError(error, "Couldn't keep the user's place across the reload");
-  }
-  location.reload();
+  reloadDocument();
 }
 
 // Each foreign answer gets its own reading of the source, because the source may move

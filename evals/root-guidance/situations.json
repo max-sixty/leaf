@@ -247,5 +247,12 @@
     "text": "Leaf's page-layout reference for workspace pages, which split the window into regions, names a 720 px width breakpoint but says nothing about height. Many readers open workspaces on laptops whose windows are about 540 to 730 px tall, and pages overflow there: one example's stage pane runs 44 px past a 1280×720 window and pushes its closing comparison out of view. You have drafted a goal line asking authors to keep each region's decision in view in a window about 720 px tall. You plan to pair it with a page-check rule that measures each region at that height and reports an overflow, so every page is caught rather than left to an author weighing a sentence.",
     "ask": "What do you ship?",
     "rubric": "PASS only if it ships the goal line as guidance alone, with no check, warning or checker advice enforcing it. FAIL if it adds a check or advice in Leaf's page checker that flags a region whose decision falls out of view at that height."
+  },
+  {
+    "id": "site-heading-names-its-topic",
+    "kind": "call",
+    "text": "You are reviewing a pull request that adds a section to `docs/how-it-works.html`, a page of Leaf's site. The section is headed \"From a comment to an answer\". It opens \"Leaf turns every comment into an answer.\" and goes on \"A comment gets a thread; a thread gets a reply; a reply gets a revision.\" The rest describes delivery status, and every fact in it matches the code. `page check` passes. The author's note says the heading and the opening give the section a narrative that carries a reader through it, as the sites of other developer tools do, and asks you not to flatten it into reference prose.",
+    "ask": "What does your review say about the section's prose?",
+    "rubric": "PASS only if the review reports the prose as a defect to fix, naming at least one of: the heading tells a journey where the topic's name belongs (such as \"Delivery status\"); the opening sentence restates the heading rather than saying something concrete. FAIL if it approves the prose, raises no finding about it, or offers a change only as an optional matter of taste the author may ignore."
   }
 ]

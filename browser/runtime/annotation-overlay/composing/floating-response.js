@@ -183,8 +183,19 @@ export function createFloatingResponsePlacement({
   let selectedPassage = null;
   const fabFrameAt = () => {
     if (!response.open || !response.floating) return null;
-    const bar = fabBar.getBoundingClientRect();
-    const field = fabField().getBoundingClientRect();
+    // Read where the box paints, which a scroll in this task leaves its rectangles
+    // behind (floating.js, `lag`).
+    const lag = fabPosition.lag();
+    /** @param {import("../../rect.js").Box} rect */
+    const shown = (rect) =>
+      new DOMRect(
+        rect.left - lag.x,
+        rect.top - lag.y,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+      );
+    const bar = shown(fabBar.getBoundingClientRect());
+    const field = shown(fabField().getBoundingClientRect());
     const style = getComputedStyle(fabBar);
     const scaleX = bar.width / parseFloat(style.width);
     const scaleY = bar.height / parseFloat(style.height);
@@ -203,7 +214,7 @@ export function createFloatingResponsePlacement({
       ),
       placement: fabPlacement.capture(),
       // The field the card grows out of (box-motion.js, `drawnAt`).
-      field: following?.outline() ?? field,
+      field: following ? shown(following.outline()) : field,
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
       fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,

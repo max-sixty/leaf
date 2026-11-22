@@ -2369,3 +2369,54 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     scroll_settled(page)
     expect(bar).to_have_attribute("data-lf-plane", "page")
     assert abs(bar.bounding_box()["width"] - width) <= 1
+
+
+def test_a_send_in_the_task_that_scrolls_the_page_opens_the_card_where_the_box_stood(
+    browser, serve
+):
+    """A comment sent in the task that scrolled the page opens its card where the box
+    stood once the page scrolled, not where the box stood before. Chrome reports an
+    anchored box's old client rectangle for a frame or two after a scroll, so a frame
+    read then is off by the scroll."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Send in the task that scrolls",
+                '<div style="height:900px"></div>'
+                '<p id="subject">Keep this comment by the passage it is about.</p>'
+                '<div style="height:1800px"></div>',
+            )
+        ),
+    )
+    resized(page, 1280, 800)
+    target = page.locator("#subject")
+    target.evaluate(
+        "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 200)"
+    )
+    rendered(page)
+    page.keyboard.press("/")
+    page.keyboard.insert_text("the passage it is about")
+    page.keyboard.press("Enter")
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Why this passage?")
+    rendered(page)
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    before = page.evaluate(RECT, ".lf-fab-bar")
+    words = page.evaluate(RECT, "#subject")
+    # Enter scrolls the page, and the composer's own handler sends in that same task,
+    # with no frame drawn between them.
+    page.evaluate("""() => addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') scrollBy({top: 120, behavior: 'instant'});
+    }, {capture: true, once: true})""")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    rendered(page)
+    after = page.evaluate(RECT, ".lf-margin-preview")
+    moved = page.evaluate(RECT, "#subject")
+    assert moved["top"] == pytest.approx(words["top"] - 120, abs=1)
+    # The card keeps the box's offset from the words it is about.
+    assert after["top"] - moved["top"] == pytest.approx(
+        before["top"] - words["top"], abs=2
+    ), (before, words, after, moved)

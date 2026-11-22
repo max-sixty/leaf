@@ -181,11 +181,10 @@ export function createFloatingResponsePlacement({
   // posture.
   /** @type {{anchor: Anchor, range: Range, start: Node, end: Node} | null} */
   let selectedPassage = null;
-  const fabFrameAt = () => {
+  // The box's frame as its rectangles read, shifted back by `lag`.
+  /** @param {{x: number, y: number}} lag */
+  const frameShifted = (lag) => {
     if (!response.open || !response.floating) return null;
-    // Read where the box paints, which a scroll in this task leaves its rectangles
-    // behind (floating.js, `lag`).
-    const lag = fabPosition.lag();
     /** @param {import("../../rect.js").Box} rect */
     const shown = (rect) =>
       new DOMRect(
@@ -220,6 +219,9 @@ export function createFloatingResponsePlacement({
       fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
     };
   };
+  // Where the box paints, which a scroll in this task leaves its rectangles behind
+  // (floating.js, `lag`). Send opens its card from this frame.
+  const fabFrameAt = () => frameShifted(fabPosition.lag());
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
   // transparent footer reserved for the future card when space is short.
@@ -478,7 +480,9 @@ export function createFloatingResponsePlacement({
       // Resolution may move from quoted words to their subject after saved state
       // arrives, including for a resumed draft with no retained native Range. Carry
       // the seated editor's frame through that handoff, before choosing its new seat.
-      const frame = fabFrameAt();
+      // Its rectangles as read: `lag` measures from the anchor's box read now, which
+      // the saved state has just moved, so it would count that move as a scroll.
+      const frame = frameShifted({ x: 0, y: 0 });
       if (frame) {
         fabPlacement.adopt(frame);
         nativeAttachment = false;

@@ -2118,9 +2118,8 @@ export function createFloatingPanel({
   function followBox() {
     // How far the box reaches up from the window's foot, with the gap above the box and
     // at least the foot's room (`--lf-foot-band`, base.css): the band Leaf's landings
-    // keep clear of where the box stands across what they land (geometry.js,
-    // `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or an On Me row's Show lands
-    // what it reaches above an open view rather than under it.
+    // keep clear of (geometry.js, `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or
+    // an On Me row's Show lands what it reaches above an open view rather than under it.
     const box = card.getBoundingClientRect();
     const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
     const root = document.documentElement;

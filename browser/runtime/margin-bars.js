@@ -76,7 +76,8 @@ import { el, offerAction, reveal } from "./widget-elements.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { onCurrentLocation } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { markerReach, scrollContainer } from "./geometry.js";
+import { inkedBox, scrollContainer } from "./geometry.js";
+import { union } from "./rect.js";
 import { scrollBehavior } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
 import { LAYOUT } from "./widget-upgrade.js";
@@ -121,19 +122,11 @@ export function outlineChange(change) {
   outlined.value = change;
 }
 
-// Where a block draws: `rect`, reaching out on its start side over a list marker beside
-// it (geometry.js, `markerReach`), as the marks the block draws round itself do. So the
-// paint beside an item stands clear of its marker.
+// What a block draws (geometry.js, `inkedBox`), reaching over a list marker beside it,
+// as the marks it draws round itself do, so the paint beside an item stands clear of
+// its marker; or `rect`, its placement's reading, where no part of it shows.
 /** @param {Element} target @param {Box} rect @returns {Box} */
-function inked(target, rect) {
-  const reach = markerReach(target);
-  return {
-    left: rect.left - reach.left,
-    top: rect.top,
-    right: rect.right + reach.right,
-    bottom: rect.bottom,
-  };
-}
+const inked = (target, rect) => inkedBox(target) ?? rect;
 // Where a bar stands: `gap` from the start edge of what the target draws, which is its
 // right in right-to-left text, and a table's edge for a cell, so the bar stands in the
 // margin rather than in the cell before it. A target with no room before it, such as a
@@ -142,7 +135,7 @@ function inked(target, rect) {
 /** @param {Element} target @param {Box} rect @param {number} gap */
 function barLeft(target, rect, gap) {
   const ink = inked(target, rect);
-  const edge = (target.closest("table") ?? target).getBoundingClientRect();
+  const edge = target.closest("table")?.getBoundingClientRect() ?? ink;
   return target.matches(":dir(rtl)")
     ? Math.min(
         Math.max(ink.right, edge.right) + gap,
@@ -217,24 +210,15 @@ function gapRange(change) {
   return range;
 }
 // What a change covers on the page: what its blocks draw together, or its gap the width
-// of what the block it stands by draws. `rect` is that block's, as its placement read
-// it.
+// of what the block it stands by draws. `rect` is that block's box, as its placement
+// read it.
 /** @param {Change} change @param {Box} rect @returns {Box} */
 function extentOf(change, rect) {
   if (!change.blocks.length) {
     const { left, right } = inked(change.at, rect);
     return { left, right, ...gapOf(change, rect) };
   }
-  const boxes = change.blocks
-    .map((block, at) => ({ block, box: at ? block.getBoundingClientRect() : rect }))
-    .filter(({ box }) => box.right > box.left || box.bottom > box.top)
-    .map(({ block, box }) => inked(block, box));
-  return {
-    left: Math.min(...boxes.map((box) => box.left)),
-    top: Math.min(...boxes.map((box) => box.top)),
-    right: Math.max(...boxes.map((box) => box.right)),
-    bottom: Math.max(...boxes.map((box) => box.bottom)),
-  };
+  return union(change.blocks.flatMap((block) => inkedBox(block) ?? [])) ?? rect;
 }
 
 // The open change's card: a head saying what the change did between which versions,

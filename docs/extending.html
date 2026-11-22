@@ -304,7 +304,7 @@
           gap: var(--lf-sp-1);
         }
       }
-      /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
+      /* The Layout tab's drawings are Leaf's svg.lf-drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
       .panels {
@@ -344,31 +344,31 @@
       #layouts-table td:first-child code {
         white-space: nowrap;
       }
-      /* Marks particular to these drawings, on the same tokens as the theme's
-         svg.drawing idiom: the rail, a surface drawn over the page, an
+      /* Marks particular to these drawings, on the same tokens as Leaf's
+         svg.lf-drawing idiom: the rail, a surface drawn over the page, an
          attribute's outline, a split that lands somewhere new, and a scroll thumb. */
-      svg.drawing .rail {
+      svg.lf-drawing .rail {
         fill: var(--lf-accent-tint);
       }
-      svg.drawing .over {
+      svg.lf-drawing .over {
         fill: var(--lf-paper);
         fill-opacity: 0.92;
         stroke: var(--lf-accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
-      svg.drawing .attr {
+      svg.lf-drawing .attr {
         fill: none;
         stroke: var(--lf-ok);
         stroke-width: 1.5;
         stroke-dasharray: 2 3;
       }
-      svg.drawing .split {
+      svg.lf-drawing .split {
         stroke: var(--lf-danger);
         stroke-width: 1.2;
         stroke-dasharray: 4 3;
       }
-      svg.drawing .thumb {
+      svg.lf-drawing .thumb {
         fill: var(--lf-muted);
         opacity: 0.6;
       }
@@ -398,7 +398,7 @@
           <p>extending</p>
           <h1>Extending Leaf</h1>
         </hgroup>
-        <p class="lede" id="lede">
+        <p class="lf-lede" id="lede">
           A page is ordinary HTML that Leaf's widgets, themes and layouts extend, and
           packages add reusable widgets, themes and behavior to Leaf. Their contracts
           let each contribution work alongside other packages and the page's own
@@ -449,9 +449,9 @@
                 requiring CSS classes. These elements provide most of a page's content.
               </li>
               <li id="src-idioms">
-                <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.lede</code> and
-                <code>.callout</code>.
+                <strong>Leaf's classes.</strong> Leaf supplies classes for common
+                presentation patterns on every page, whatever its theme, including
+                <code>.lf-lede</code> and <code>.lf-callout</code>.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -657,11 +657,13 @@ flowchart TD
                 <code>leaf theme list</code> exposes the user's named themes and their
                 author instructions. <code>page init --theme NAME</code> selects one; a
                 new page otherwise uses the user's default, or Leaf's reading theme. A
-                page with a design wholly its own takes none with
-                <code>--no-theme</code> and starts from the browser's defaults, while
-                Leaf's widgets, threads and panel keep their faces. Re-initializing
-                keeps the captured choice unless explicitly changed. The author follows
-                the user's request first, then the task and the theme's instructions.
+                theme either stands alone or names a theme it builds on, such as the
+                reading theme, which Leaf composes under it. A page with a design wholly
+                its own takes none with <code>--no-theme</code> and starts from the
+                browser's defaults, while Leaf's widgets, classes, threads and panel
+                keep their faces. Re-initializing keeps the captured choice unless
+                explicitly changed. The author follows the user's request first, then
+                the task and the theme's instructions.
               </p>
               <p id="styles-platform-preferences">
                 The reading theme supports light and dark schemes. Authors preserve
@@ -802,7 +804,7 @@ flowchart TD
             <div class="panels two" id="kind-figure">
               <figure id="kind-column">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="Prose in the reading column, with a wide block growing past it"
@@ -897,7 +899,7 @@ flowchart TD
               </figure>
               <figure id="kind-sidebar">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A sidebar page: a body beside its side column, each block starting at its region's left edge"
@@ -958,7 +960,7 @@ flowchart TD
               </figure>
               <figure id="kind-workspace">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A workspace fills the window, and each pane scrolls separately"
@@ -1120,7 +1122,7 @@ flowchart TD
               </figure>
               <figure id="kind-tiles">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A tile block within a page: equal cells wrap into rows"
@@ -1224,7 +1226,7 @@ flowchart TD
 
             <figure class="fig small" id="vocabulary-attribute">
               <svg
-                class="drawing"
+                class="lf-drawing"
                 viewBox="0 0 240 160"
                 role="img"
                 aria-label="data-width on a figure extends it past the reading column"
@@ -1256,8 +1258,9 @@ flowchart TD
 
             <p id="column-bound">
               A log, feed, or long listing with <code>data-bound</code> scrolls within a
-              limited height and opens at its newest entry. Its growing content
-              therefore does not make the whole page longer.
+              limited height: <code>start</code> opens at its first line, and
+              <code>end</code> follows its newest entry. Its growing content therefore
+              does not make the whole page longer.
             </p>
 
             <h3 id="margins-heading">Margins</h3>
@@ -1310,7 +1313,7 @@ flowchart TD
             <p id="sidebar-page-panels">
               For a reading page, give the body <code>layout-column</code>: prose keeps
               its reading measure while wide exhibits use the remaining room. A
-              <code>section.panel</code> groups a region by its compact heading and
+              <code>section.lf-panel</code> groups a region by its compact heading and
               spacing, without a surrounding card.
             </p>
             <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;
@@ -1350,7 +1353,7 @@ flowchart TD
             <div class="panels two" id="workspace-figure">
               <figure id="workspace-full-height">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A workspace fills the window and its panes scroll"
@@ -1492,7 +1495,7 @@ flowchart TD
               </figure>
               <figure id="workspace-flows">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="In a small window, a workspace's panes take their natural height and the page scrolls"
@@ -1670,7 +1673,7 @@ flowchart TD
 
             <figure class="fig" id="narrow-figure">
               <svg
-                class="drawing"
+                class="lf-drawing"
                 viewBox="0 0 360 190"
                 role="img"
                 aria-label="A sidebar page's regions, numbered in source order, stack into one column on a phone"

@@ -1090,39 +1090,6 @@ CV</div><div hidden="until-found">SECRET FOUND</div></div>
 )
 
 
-def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
-    """A message's markup is outlined as the page is, and an edit the log accepts
-    outlines it again: the paragraph after a heading the edit changed stands under the
-    new heading."""
-    url = serve(PANEL_PAGE)
-    thread = panel_comment(
-        serve.page_dir, "## Original heading\n\nWords after the heading."
-    )
-    page = open_page(browser, url)
-    view = open_panel_thread(page, thread)
-    part = """async () => {
-      const {partOver} = await import('/runtime/thread/placement.js');
-      const words = [...document.querySelectorAll('.lf-msg-body p')]
-        .find((p) => p.textContent.includes('Words after the heading'));
-      return partOver(words)?.textContent.trim() ?? null;
-    }"""
-    expect(view.locator("h2")).to_have_text("Original heading")
-    assert page.evaluate(part) == "Original heading"
-    view.locator(".lf-msg-text").dblclick()
-    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.type("### Changed heading")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Words after the heading.")
-    page.keyboard.press("Enter")
-    expect(view.locator(".lf-msg-editor")).to_have_count(0)
-    expect(view.locator(".lf-edited")).to_have_text("edited")
-    told(page)
-    expect(view.locator("h3")).to_have_text("Changed heading")
-    assert page.evaluate(part) == "Changed heading"
-
-
 SECTION_PAGE = leaf_page(
     "A thread on a section",
     """
@@ -1844,7 +1811,7 @@ def _held(page, cdp, selector, words):
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
-    '<lf-group id="opts-q" label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="tag">small cohort'
+    '<lf-group id="opts-q" label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="lf-tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2" label="Start wide"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options></lf-group>'

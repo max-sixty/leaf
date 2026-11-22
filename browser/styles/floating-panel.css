@@ -490,8 +490,8 @@
      (`.lf-fp-response`) alike, one of which shows at a time. With no view open the
      row's top is the panel's, so the shelf hangs over the panel. With a view open, and
      the editors holding the shelf showing, which a search hides, the row stands a band
-     below the view, the shelf's tallest picture and its gap on either side, and the
-     shelf stands in it, covering neither the view nor the box. The panel grows by the
+     below the view, the height a picture may take (`--lf-media-h`, tokens.css) and its
+     gap on either side, and the shelf stands in it, covering neither the view nor the box. The panel grows by the
      band; where it already reaches the window's top, the view gives the band up at its
      top and keeps its foot (scrolling.js, `keepFoot`), so the message being answered
      stays in view. A shorter picture stands at the band's foot, by the box.
@@ -1533,7 +1533,8 @@
   .lf-fp-error {
     --lf-line: var(--lf-fp-press);
   }
-  .lf-fp-dismiss {
+  .lf-fp-dismiss,
+  .lf-fp-error-press {
     flex: none;
     font: var(--lf-font-small);
   }
@@ -1796,8 +1797,10 @@
      onto the thread's edge. The transcript keeps the room around it a card's box gives
      its own, but on the side the quote's rule stands, its first author 16px under the
      quote, the quote head's 12px included, and at its foot, its last words a message's
-     gap over the field (`--lf-fp-transcript-end`, above). Each message's controls
-     stand in that room at its end, so react and copy end under the head's ✕. */
+     gap over the field (`--lf-fp-transcript-end`, above). Each message's head reaches
+     into that room at its end, so its controls, the head's last item, end react and
+     copy under the view head's ✕, and the head's cut (surfaces.css) stands a gap past
+     them rather than across copy. */
   .lf-fp-messages > .lf-page-thread {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding: 0;
@@ -1807,7 +1810,7 @@
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
     padding-inline-end: var(--lf-fp-transcript-room);
   }
-  .lf-fp-messages .lf-msg-control-room {
+  .lf-fp-messages .lf-msg-head {
     margin-inline-end: calc(-1 * var(--lf-fp-transcript-room));
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,

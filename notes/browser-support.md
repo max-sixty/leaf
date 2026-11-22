@@ -624,7 +624,7 @@ tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among th
 Leaf counts what a sample's page does after loading only while its frame shows
 (`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
 waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
-`tests/browser/startup/test_hosting.py`,
+`tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
 
@@ -1200,7 +1200,7 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+taken out. The first is Firefox's to change. The eyebrow rules (`reading.css`) now end at an
 `hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
@@ -1229,6 +1229,22 @@ placement stood it; Firefox's blur still leaves focus on `body` after Back.
 and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
+
+### Forward to a same-document entry names no destination in Firefox
+
+In Playwright's Firefox 159.0 (build 1572, macOS), after Back from a same-document
+entry a followed fragment link added, `navigation.entries()` no longer lists that
+entry, and Forward to it fires a `traverse` navigate event whose `destination.key` is
+empty and `destination.index` is -1; once applied, `navigation.currentEntry` is null.
+Chromium 156 names the entry. So `browser/runtime/history.js` finds no working-place
+checkpoint for it: Forward restores only the browser's saved offset and leaves focus
+on `body`, and a thread view Back reopened stays open over the place the link landed
+on, where Chromium's Forward puts it away again. Observed 2026-11-21 on an installed
+test engine, not a stable release; disposition: recorded, not corrected, since
+Forward after Back is a rare path. To recheck, follow a fragment link, go Back, and read
+`destination.key` in Forward's `navigate` event:
+`tests/browser/threads/test_navigation.py::test_back_reopens_the_thread_its_departure_put_away`
+runs Forward in Chromium only.
 
 ### Highlight hit testing
 

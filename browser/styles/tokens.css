@@ -208,7 +208,7 @@
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
-  /* The compact label every layer draws a small fact in: .tag here and the
+  /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
      height and one inset; each wearer states only its ground, ink, and where it sits.
@@ -298,6 +298,9 @@
      (comment-placement.js). */
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
+  /* The room inside a thread card's border, wherever the card stands: over the page
+     in the margin, or in a widget's flow (surfaces.css). */
+  --lf-comment-inset: 12px;
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus
@@ -390,11 +393,11 @@
   --lf-t-1: 1.9375rem;
   --lf-code-size: 0.84375rem;
   --lf-code-line: 1.25rem;
-  /* A drawing's words (`svg.drawing`, the reading theme). These two are fixed, in pixels,
-     which an inline SVG reads as its own units, because the shapes around the words are
-     numbers in those units. In rem, or at a rung a density restates, a reader's larger
-     default size or a working page would change the words and leave the boxes that hold
-     them as drawn. The viewBox scales words and shapes together. */
+  /* A drawing's words (`svg.lf-drawing`, components/drawing.css). These two are fixed,
+     in pixels, which an inline SVG reads as its own units, because the shapes around the
+     words are numbers in those units. In rem, or at a rung a density restates, a
+     reader's larger default size or a working page would change the words and leave the
+     boxes that hold them as drawn. The viewBox scales words and shapes together. */
   --lf-drawing-size: 11.5px;
   --lf-drawing-small-size: 10px;
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
@@ -610,8 +613,6 @@
        in hand; at 1px in the contour ink, the target of an action.
      - A drawing's part, a shape or a group of them: any of these whole, along the
        contour of each shape it draws (surfaces.css).
-     - A quiet ground (--lf-focus-surface): a large composite holding focus, such as a
-       thread, where a band would be a second box round the box.
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
@@ -675,7 +676,6 @@
      alone, a code block Tab brings to a pane's top can stand 1.5px short of the ring's
      5px. */
   --lf-focus-ring-landing: calc(var(--lf-focus-region-room) + 2px);
-  --lf-focus-surface: color-mix(in srgb, var(--lf-accent) 4%, var(--lf-card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
      the field and its choices keep one silhouette, and an item hint, a chip in a layer

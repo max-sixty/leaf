@@ -40,7 +40,7 @@ OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
     # The floating panel's field, whose empty placeholder says the page's status.
     ".lf-fp-field .lf-compose-placeholder": ".SF NS",
-    ".lede": "Charter",
+    ".lf-lede": "Charter",
 }
 
 

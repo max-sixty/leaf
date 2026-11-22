@@ -71,7 +71,7 @@
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. A box that stands in that position and has one declares the frame itself,
- * one level in, which is the answer `.facts` takes. Reaching a level further from out
+ * one level in, which is the answer `.lf-facts` takes. Reaching a level further from out
  * here is the fix that suggests itself, and it trades a silent failure for a worse one:
  * the grandchild whose margin shows is the grandchild of a *boxless* parent, and the
  * same selector over a padded one — a callout leading a sample — closes up that box's

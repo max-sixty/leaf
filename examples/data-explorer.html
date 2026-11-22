@@ -208,7 +208,7 @@
             const table = document.createElement("table");
             table.className = "query-results";
             table.innerHTML =
-              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
+              "<thead><tr><th>Service</th><th>Region</th><th class='lf-numeric'>Risk</th><th>Owner</th></tr></thead>";
             table.append(this.#results);
             const tableFrame = document.createElement("div");
             tableFrame.className = "query-table-frame";
@@ -378,7 +378,7 @@
                   for (const value of Object.values(release)) {
                     const cell = document.createElement("td");
                     cell.textContent = value;
-                    if (typeof value === "number") cell.className = "num";
+                    if (typeof value === "number") cell.className = "lf-numeric";
                     row.append(cell);
                   }
                   return row;

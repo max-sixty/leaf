@@ -267,7 +267,9 @@ message.
 
 `announce(message)` announces words already on screen: it dispatches an `lf-announce`
 event on the window carrying `message` as its `detail`, which Leaf says in its live
-region and a page without Leaf leaves unsaid.
+region and a page without Leaf leaves unsaid. A `message` that reads the page, as one
+naming keys with `saying(rows)` does, is a function returning the words, which Leaf
+reads as it says them.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

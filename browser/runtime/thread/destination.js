@@ -51,8 +51,10 @@
    reply part without focus.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
    surface covering the native reader before disclosure, focus and placement. A
-   travelling arrival captures its return place before releasing held content or
-   changing layout and commits it only after the destination is reached.
+   travelling arrival captures its return place before it releases held content,
+   changes layout or asks any reader, since the panel puts its view away as it
+   declines a thread the page draws. It commits that place only after the destination
+   is reached.
 
    Held identity is the focused Thread across shadow roots. An unheld conversation
    drawn with its page target, by the preview accompanying the target or by a widget's
@@ -232,6 +234,8 @@ export function createThreadDestinations({
     const page = reader === "page";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
+    // The return place, read before any reader is asked (the header).
+    const departure = navigationStep && history ? prepareNavigationStep() : null;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     const primary =
@@ -269,8 +273,6 @@ export function createThreadDestinations({
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
-      const departure =
-        focus !== false && navigationStep && history ? prepareNavigationStep() : null;
       if (resort) lastResort.add(thread.key);
       else lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
@@ -344,7 +346,7 @@ export function createThreadDestinations({
           // opens first.
           if (surface) await reveal(surface, intent).ready;
           if (!mayPresent()) return null;
-          if (!(await scrollToThread(id, { part, focus, intent, history })))
+          if (!(await scrollToThread(id, { part, focus, intent, departure })))
             return null;
         } else if (focus === false) {
           if (scroll) await reveal(surfaceFocusTarget(id, { part }), intent).ready;
@@ -396,7 +398,7 @@ export function createThreadDestinations({
               focus,
               presented: opened.presented,
               intent,
-              history,
+              departure,
             }))
           )
             return null;
@@ -457,7 +459,7 @@ export function createThreadDestinations({
         part: null,
         focus: focus && !control,
         intent,
-        history,
+        departure,
       });
       if (!arrived) return null;
       if (focus && surfaceFocusTarget(id, { part })) {

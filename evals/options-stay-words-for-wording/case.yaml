@@ -55,7 +55,7 @@ assert:
       detail versus concise reporting. The candidate wording itself may supply the
       title when it shows that distinction.
       Labels need not duplicate information already supplied by titles, nor appear in
-      a fixed order. Only the detailed, actionable wording has a recommended small.tag.
+      a fixed order. Only the detailed, actionable wording carries `recommended`.
       Neither option has `selected`, since the user has not picked.
   - type: llm-rubric
     metric: reason-beside-options

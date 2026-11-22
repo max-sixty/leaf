@@ -53,9 +53,9 @@ ACROSS_OBLIGATION = """
   <lf-group id="{id}" label="How long should logs be kept?">
     <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
-      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
-      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
-        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+      <thead><tr><th>Store</th><th class="lf-numeric">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="lf-numeric">40</td></tr>
+        <tr><td>Warm</td><td class="lf-numeric">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7" label="7 days"><strong>7 days</strong> The cheapest.
@@ -94,13 +94,13 @@ PICTURED_OBLIGATION = """
     <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes" label="Show the goal and step"><strong>Show the goal and step</strong> A line over each item.
-        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
+        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="lf-drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
           aria-label="Items under their step">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
       <lf-option id="{id}-no" label="Leave the list as it is"><strong>Leave the list as it is</strong> Items as today.
-        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
+        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="lf-drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
@@ -136,7 +136,7 @@ CAPTURED_OPTION = """
 
 ROWED_OPTION = """
       <lf-option id="rowed-{side}">{title}
-        <svg id="rowed-{side}-picture" class="drawing" viewBox="0 0 300 60" width="300"
+        <svg id="rowed-{side}-picture" class="lf-drawing" viewBox="0 0 300 60" width="300"
           height="60" role="img" aria-label="{title}">
           <rect width="300" height="60" fill="none" stroke="currentColor" /></svg>
       </lf-option>"""
@@ -278,13 +278,13 @@ def chipped_obligation(id, cards):
     (chips, title, attributes), its chips written before its title."""
     options = "".join(
         f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
-        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + "".join(f'<small class="lf-tag">{chip}</small>' for chip in chips)
         + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
         f'<lf-group id="{id}" label="Which fix first?"><h3 id="{id}-h">Which fix first?</h3>'
-        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<svg class="lf-drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
         f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-group>'
     )

@@ -2061,8 +2061,11 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     browser, serve, width, touch
 ):
     """Reaction belongs to its own header, including an agent-authored root, and
-    stands clear of the view's Resolve. Both actions stay reachable, and a touch
-    trigger reaches its floor without its face covering the message's first line."""
+    stands clear of the view's Resolve. It stands on the head's line, and a control
+    that ends the line may hang into the room the transcript keeps at its end
+    (floating-panel.css, `.lf-fp-messages .lf-msg-head`) but no further. Both actions
+    stay reachable, and a touch trigger reaches its floor without its face covering the
+    message's first line."""
     url = serve(PANEL_PAGE)
     text = (
         "Step three now requires the supervisor to reap every process "
@@ -2098,6 +2101,9 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const box = trigger.getBoundingClientRect();
           const message = trigger.closest('.lf-msg');
           const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+          const transcript = message.closest('.lf-thread-transcript');
+          const transcriptEnd = transcript.getBoundingClientRect().left +
+            transcript.clientLeft + transcript.clientWidth;
           const metadata = [
             ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
           ].map(node => node.getBoundingClientRect());
@@ -2120,7 +2126,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
             opacity: getComputedStyle(trigger).opacity,
             metadataClear: metadata.every(words => words.right <= box.left ||
               words.left >= box.right || words.bottom <= box.top || words.top >= box.bottom),
-            insideHeader: box.right <= head.right && box.left >= head.left,
+            onHeadLine: box.left >= head.left && box.right <= transcriptEnd &&
+              box.top < head.bottom && box.bottom > head.top,
             disjoint: box.right <= action.left || box.left >= action.right ||
               box.bottom <= action.top || box.top >= action.bottom,
             triggerHit: hit(trigger), resolveHit: hit(resolve)};
@@ -2132,7 +2139,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
             "covered": 0,
             "opacity": "1",
             "metadataClear": True,
-            "insideHeader": True,
+            "onHeadLine": True,
             "disjoint": True,
             "triggerHit": True,
             "resolveHit": True,

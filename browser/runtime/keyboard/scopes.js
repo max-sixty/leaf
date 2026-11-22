@@ -49,7 +49,6 @@ import {
   untracked,
 } from "/runtime/framework.js";
 import {
-  activeRows,
   ariaShortcuts,
   bindings,
   checked,
@@ -65,8 +64,6 @@ import {
   titleOf,
   descriptionOf,
   live,
-  parsed,
-  spokenBinding,
   validateRows,
   word,
 } from "./bindings.js";
@@ -1293,29 +1290,6 @@ function claimPaintedRoots() {
   paintedRoots.clear();
   mark(PAGE_SOURCE);
 }
-/** What a scope answers right now, as a listener hears it read out — key names rather than
- * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
- * so an announcement cannot name a key the rows stopped binding.
- */
-/** @param {readonly Command[]} rows */
-export const saying = (rows) =>
-  activeRows(rows, "an announced scope")
-    .map((row) => `${spoken(row)} ${titleOf(row)}`)
-    .join(", ");
-// A row's own label where it has one, read the way every other surface reads a cell, and
-// the bindings where it has none — which is what keeps a listener hearing "Escape" rather
-// than the keycap's "esc". Asking whether the label was written as a string made the same fact
-// announce two ways by accident: an option group's digits are spelled "1–3" because its label
-// happens to be a string, while the sequence's were read out as "1 or 2 or 3" because its label
-// counts what the page holds and so has to be a function.
-/** @param {Command} row */
-const spoken = (row) => {
-  const active = bindings(row);
-  if (active.some((binding) => parsed(binding).mods.length))
-    return active.map(spokenBinding).join(" or ");
-  return word(row.label) ?? active.map(spokenBinding).join(" or ");
-};
-
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a
 // shadow tree declares them the same way. Generated margin controls own their visible

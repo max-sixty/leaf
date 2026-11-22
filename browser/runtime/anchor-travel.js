@@ -601,11 +601,13 @@ export function createAnchorTravel({
     return { where, focus: target, scroll };
   };
 
+  // `departure` is the route's, read where the user stood before the route changed
+  // anything (thread/destination.js), or null for an arrival that adds no entry.
   /** @param {string} id
-   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, history?: boolean}} [options] */
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null}} options */
   async function scrollToThread(
     id,
-    { part = null, focus = true, presented = null, intent, history = true } = {},
+    { part = null, focus = true, presented = null, intent, departure },
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
@@ -616,7 +618,6 @@ export function createAnchorTravel({
     const destination = threadDestination(id);
     // Decided before the navigation step awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
-    const departure = history ? prepareNavigationStep() : null;
     if (destination || hydrationTarget) departure?.plan(destination);
     if (hydrationTarget) {
       const source = sectionOf(hydrationTarget);

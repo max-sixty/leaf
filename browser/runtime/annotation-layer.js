@@ -10,14 +10,14 @@
    with a reload, and a new page opens with the layer shown: a lasting "never show
    markers" would hide every arrival on every page.
 
-   `g X` hides or shows it, one of Go-to's named rows (go-to-sequence.js), rather than a
-   key of its own: the user hides it rarely, so it spends none of the few single letters
-   the page has free. `g H` would read as the changes `h` walks, as `g T` and `g M` open
-   the lists `t` and `m` walk. Hiding it is no mode, though it lasts until the user
-   shows it again: it changes what the page shows, not what a key or the panel's field
-   does. So the field keeps taking words, and its standing words say the layer is hidden
-   ("Annotations hidden", floating-panel.js, `STANDING_PARTS`); a mode's chip would take
-   the field's place.
+   `g H` (Hidden) hides or shows it, one of Go-to's named rows (go-to-sequence.js),
+   rather than a key of its own: the user hides it rarely, so it spends none of the few
+   single letters the page has free. The user chose H for Hidden over leaving H to the
+   changes `h` walks, as `g T` and `g M` open the lists `t` and `m` walk. Hiding it is
+   no mode, though it lasts until the user shows it again: it changes what the page
+   shows, not what a key or the panel's field does. So the field keeps taking words, and
+   its standing words say the layer is hidden ("Annotations hidden", floating-panel.js,
+   `STANDING_PARTS`); a mode's chip would take the field's place.
 
    `setAnnotationsHidden` is the one writer. It states the fact on the chrome's root
    (`data-lf-annotations-hidden`) for the stylesheets, keeps it for the tab, and tells
@@ -50,11 +50,11 @@ export function watchAnnotations(watcher) {
 }
 
 // Go-to's row for the layer, which Go-to also declares to the page (leaf.js,
-// `directDestinations`), so the leaf's menu and a finger reach it as `g X` does.
+// `directDestinations`), so the leaf's menu and a finger reach it as `g H` does.
 /** @type {import("./keyboard/bindings.js").Command} */
 export const ANNOTATIONS_TOGGLE = {
   id: "annotations.toggle",
-  keys: ["Shift+x"],
+  keys: ["Shift+h"],
   title: () => (hidden.value ? "show annotations" : "hide annotations"),
   touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
   menu: "annotate",

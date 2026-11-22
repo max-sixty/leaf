@@ -121,7 +121,7 @@ def test_marked_words_are_seen_and_told_apart(request, serve, engine):
 def test_hiding_annotations_gives_marked_words_their_own_colours_back(
     request, serve, engine
 ):
-    """Hiding the annotations (`g X`) takes the durable marks down, and the words they
+    """Hiding the annotations (`g H`) takes the durable marks down, and the words they
     covered wear the page's own colours again: a link's blue, prose's ink, and a text
     document's syntax colour, which is a highlight under the mark's. While the marks
     show, their ink is over the syntax colour however late the document colours the
@@ -178,7 +178,7 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
             )
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("g")
-        page.keyboard.press("Shift+X")
+        page.keyboard.press("Shift+H")
         expect(page.locator(CHROME_ROOT)).to_have_attribute(
             "data-lf-annotations-hidden", ""
         )
@@ -209,7 +209,7 @@ def test_hiding_annotations_gives_marked_words_their_own_colours_back(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("g")
-        page.keyboard.press("Shift+X")
+        page.keyboard.press("Shift+H")
         expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
             "data-lf-annotations-hidden", re.compile(".*")
         )

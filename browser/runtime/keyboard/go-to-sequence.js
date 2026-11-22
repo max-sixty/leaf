@@ -19,7 +19,7 @@
    its card at an edge of the list; `g p` returns focus to the page while leaving open
    surfaces in place. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g M` On Me, `g A` On <agent>, `g L` All pages,
-   `g P` the searchable Page Map and `g V` Versions, and one named view, `g X`, which
+   `g P` the searchable Page Map and `g V` Versions, and one named view, `g H`, which
    hides or shows the annotation layer (annotation-layer.js). `g T`, `g M`, `g A` and
    `g L` open the floating panel's view of that name, and `g V` its Versions, through
    the panel's own doors (`doors`, floating-panel.js), as its leaf, tabs and menu rows

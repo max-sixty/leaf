@@ -173,7 +173,7 @@ export function createAnchorPaint({
   let pointed = false;
 
   // A comment's and a reaction's marks on words are the annotation layer's, and hiding
-  // the layer (`g X`) registers their highlights empty, so the words wear whatever the page
+  // the layer (`g H`) registers their highlights empty, so the words wear whatever the page
   // and the highlights under them give them. Restyling them instead fails in Firefox and
   // WebKit, which read a highlight's `color: currentColor` as the element's colour and
   // paint it over a text document's syntax colours. The marks of a gesture (hover, the

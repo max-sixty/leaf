@@ -159,7 +159,7 @@ usually a `layout-sidebar` page with its regions side by side, so they share the
 rather than stacking past it.
 
 Comment markers appear in the margin or over their targets; the reader hides them with
-`g X`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
+`g H`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
 
 ## Contents navigation
 

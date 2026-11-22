@@ -835,7 +835,7 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     draft = page.locator("#local")
     # Hidden before the box opens: Go-to doesn't arm over a box that claims Escape.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+X")
+    page.keyboard.press("Shift+H")
     expect(page.locator(CHROME_ROOT)).to_have_attribute(
         "data-lf-annotations-hidden", ""
     )

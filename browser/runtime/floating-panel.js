@@ -1289,7 +1289,7 @@ export function createFloatingPanel({
   // in the order they are said (`STANDING_PARTS`): the version the
   // page shows where it is older than the latest (version.js, `shownBehind`), how many
   // changes the page marks since the version it compares with (`v`, version.js), whose
-  // bars say only that a block changed, and that the user hid the annotation layer (`g X`,
+  // bars say only that a block changed, and that the user hid the annotation layer (`g H`,
   // annotation-layer.js), which a reload keeps, or a page whose marks are hidden would
   // read as one with none. What passes on the page field leaves to these words the
   // facts they say (`STANDING`, `passingFacts`). They stand in the field's words, so

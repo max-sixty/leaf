@@ -74,22 +74,24 @@
         <p id="fix-ship-coverage">
           The recordings show Escape in Chrome. The regression test also closes the
           preview with its close button and with a press outside it, in the page comment
-          and in a thread reply in the floating panel, and fails on each without the
+          and in a thread reply in the floating panel, and fails in both without the
           fix.
         </p>
         <figure id="fix-test-run">
-          <pre class="lf-terminal"><b>$ git stash &amp;&amp; uv run pytest tests/browser/test_comment_images.py</b>
+          <pre class="lf-terminal"><b>$ git checkout HEAD^ -- skills/leaf/assets/runtime</b>
+<b>$ uv run pytest tests/browser/test_render_threads.py -k draft_s_image</b>
 <i>…</i>
-<mark>FAILED test_comment_images.py::test_closing_the_preview_keeps_the_comment[escape]</mark>
-<mark>FAILED test_comment_images.py::test_closing_the_preview_keeps_the_comment[close-button]</mark>
-<mark>FAILED test_comment_images.py::test_closing_the_preview_keeps_the_comment[outside]</mark>
+<mark>FAILED tests/browser/test_render_threads.py::test_a_draft_s_image_closes_back_to_the_draft[card] - AssertionError: Locator expected to be focused</mark>
+<mark>FAILED tests/browser/test_render_threads.py::test_a_draft_s_image_closes_back_to_the_draft[floating] - AssertionError: Locator expected to be focused</mark>
+======================== 2 failed in 131.38s (0:02:11) =========================
+<b>$ git checkout HEAD -- skills/leaf/assets/runtime</b>
+<b>$ uv run pytest tests/browser/test_render_threads.py -k draft_s_image</b>
 <i>…</i>
-6 failed in 14.2s
-<b>$ git stash pop &amp;&amp; uv run pytest tests/browser/test_comment_images.py</b>
-<i>…</i>
-6 passed in 13.8s</pre>
+============================== 2 passed in 10.19s ==============================</pre>
           <figcaption>
-            The regression test with the fix set aside, then with it back.
+            The regression test at the fix's commit, with the fix's runtime files set
+            back to their parent's, then restored. Without the fix, Escape closes the
+            draft along with the preview, so the test finds no thumbnail to focus.
           </figcaption>
         </figure>
         <lf-options id="fix-ship">

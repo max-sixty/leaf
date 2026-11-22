@@ -813,6 +813,37 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     expect_walk_position(page, None)
 
 
+def test_the_page_s_press_holds_under_a_resting_pointer_until_a_key(browser, serve):
+    """While the pointer rests on the panel, a revision that empties On Me leaves Next
+    On Me where the user may be about to press it; their next key, here an arrow that
+    scrolls the page and paints nothing in the panel, takes it away."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+        '<lf-options id="only">'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    box = page.locator(".lf-fp-field").bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+    stamp_page(
+        serve.page_dir,
+        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
+        "remove the last obligation",
+    )
+    wait_for_revision(page, 2)
+    expect_on_me(page, 0)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    page.keyboard.press("ArrowDown")
+    expect(press).to_have_count(0)
+
+
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     """An empty On Me list says the panel rendered, rather than looking broken."""
     source = leaf_page(

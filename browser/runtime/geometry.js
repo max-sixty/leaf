@@ -775,10 +775,17 @@ export function seenRect(item, clips, box = placeBox(item), rest = false) {
   const holder = placeHolder(item);
   // What clips a box only cuts it, so a box the visible viewport's height doesn't reach
   // shows nothing in front of the user, and its walk goes unread.
-  const { offsetTop, height } = visualViewport;
-  if (!holder || box.bottom <= offsetTop || box.top >= offsetTop + height) return null;
+  if (!holder || outOfWindow(box)) return null;
   const shown = clippedPlace(item, clips, box);
   return shown ? inFront(shown, holder, rest) : null;
+}
+// Whether `box` stands wholly above or below the visible viewport, where none of it is
+// in front of the user. It answers for a box with no height too, such as an empty
+// outlet a comment box would be seated in (composing/surface.js, `seatFab`).
+/** @param {Box} box */
+export function outOfWindow({ top, bottom }) {
+  const { offsetTop, height } = visualViewport;
+  return bottom <= offsetTop || top >= offsetTop + height;
 }
 // What of `box`, already cut by every box clipping `item`, is in front of the user: its
 // part within the visible viewport's height, less the boxes the chrome covers

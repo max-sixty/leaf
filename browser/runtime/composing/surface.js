@@ -86,7 +86,7 @@ import { sameAnchor } from "../anchor-coordinate.js";
 import { threadNamed } from "../thread/state.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
-import { covered, placeBox, seenRect } from "../geometry.js";
+import { covered, outOfWindow, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { landGlides, stopGlide } from "../scrolling.js";
 import { carriersOf } from "../scroll-containers.js";
@@ -312,9 +312,7 @@ export function createResponseSurface({
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor.value || !composerOpen) return false;
     // A seat the chrome covers, as under the room a panel takes, cannot take the user
-    // even where it paints, so the editor stays at its home instead. A seat merely
-    // scrolled out of the window can, as a file's comment below a long hunk: the
-    // editor's focus brings it in, and it stays beside its subject. The seat is
+    // even where it paints, so the editor stays at its home instead. The seat is
     // judged, not the editor moved into it, which measures no width until the outlet
     // renders it; a boxless outlet is judged by the box that lays out what it holds,
     // by the same rule. The editor may land anywhere in that box, under the cover too,
@@ -325,7 +323,25 @@ export function createResponseSurface({
     /** @type {Element | null} */
     let seat = outlet;
     while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
-    if (seat && covered(placeBox(seat), seat)) return false;
+    const box = seat && placeBox(seat);
+    if (seat && box && covered(box, seat)) return false;
+    // A seat merely scrolled out of the window can take an editor as it opens, as a
+    // file's comment below a long hunk: the opening's landing brings it in
+    // (`landFabFocus`), and it stays beside its subject. An editor the user already
+    // sees stays where it is rather than move to such a seat. The move itself scrolls
+    // the page to the editor, and a resize's restore of the reader's place (version.js,
+    // `restoreShifted`) can then scroll back to the place read while the editor stood
+    // outside the page, which leaves the editor and the draft in it below the window,
+    // as when a window widened from a phone's width offers a visual case's discussion
+    // as the seat of the box floating beside the case.
+    if (
+      box &&
+      fabBar.parentNode !== outlet &&
+      !fabFocusHandoff &&
+      outOfWindow(box) &&
+      seenRect(fabInput, new Map())
+    )
+      return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.

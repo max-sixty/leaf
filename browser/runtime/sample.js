@@ -34,17 +34,23 @@
  * The page counts each document the frame loads, on mount, Reset or a reload, as
  * arriving: its presentation and then whatever it deferred, the samples it started
  * included. An allocation counts from when it begins until its frame loads, wherever
- * the frame stands, since loading needs no rendering. What the document does after,
- * until it reports its arrival, fails or departs, may wait on a rendering, which a
- * frame off screen or in a closed disclosure doesn't get (rendering.js): a chart sized
- * by its first layout waits, and so does the upgrade of the widget layer holding it.
- * So the page counts that part until the browser's first reading of the frame, and
- * after that only while the browser renders the frame (`rendered`), as rendering
- * readiness reads such a document as settled; meanwhile the frame carries
- * `data-lf-unseen`. Counting it wherever the frame stands would keep a page with a
- * chart in a sample below the window arriving for as long as it stays open; a check
- * that reads every document brings each `data-lf-unseen` frame into view instead
- * (render_checks.py, `start_near_work`). A reload's document counts once it connects;
+ * the frame stands, since loading needs no rendering. What a block's document does
+ * after counts wherever the frame stands too, until the document reports its arrival,
+ * fails or departs, since the frame takes the document's height as it arrives
+ * (sample-child.js), which moves this page's boxes on screen or off. That part may wait
+ * on a rendering, which a frame off screen or in a closed disclosure may not get
+ * (rendering.js; notes/browser-support.md, "A sample's page out of view in Chromium"):
+ * a chart sized by its first layout waits, and so does the upgrade of the widget layer
+ * holding it. A deadline caps that wait (`SIZING_MS`). Past it, and for a window from
+ * the start, whose frame keeps its height whatever its document does, the page counts
+ * that part until the browser's first reading of the frame, and after that only while
+ * the browser renders the frame (`rendered`), as rendering readiness reads such a
+ * document as settled; meanwhile the frame carries `data-lf-unseen`. Counting it
+ * wherever the frame stands with no cap would keep a page with a chart in a sample
+ * below the window arriving for as long as it stays open; a check that reads every
+ * document brings each `data-lf-unseen` frame into view instead (render_checks.py,
+ * `start_near_work`).
+ * A reload's document counts once it connects;
  * the parent cannot tell its departure from one to a page outside Leaf, whose load can
  * land before the departure's notice, so nothing counts between. Work a child starts
  * after it has arrived, such as one of its own samples' Reset or the near work a check
@@ -105,6 +111,11 @@ import { deferredArrival, onAllNear } from "./presentation.js";
 // finishes loading its module graph. Bound simultaneous loads across this page. A
 // loaded child can keep reading slow state without holding up the next sample.
 const MAX_LOADING_SAMPLES = 3;
+// How long a block's document counts while it arrives out of view (header). It caps
+// how long a reader of this page waits on a sample whose page waits on a rendering, and
+// is ten times the longest arrival off screen on a loaded machine, so a sample page
+// that will arrive does so within it.
+const SIZING_MS = 20_000;
 let loadingSamples = 0;
 /** @type {(() => void)[]} */
 const loadWaiters = [];
@@ -291,21 +302,38 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     arrive();
   }
   // Where the frame's document stands in its arrival: `loading` from an allocation
-  // until its frame loads, counted wherever the frame stands, and `drawing` from then
-  // or from a reload's connection until it reports its arrival or departs, counted
-  // while this page shows, until the browser's first reading of the frame and then
-  // only while `rendered`.
+  // until its frame loads, and `drawing` from then or from a reload's connection until
+  // it reports its arrival or departs. `loading` counts wherever the frame stands;
+  // `drawing` counts while this page shows, for a block wherever the frame stands
+  // until its deadline, and otherwise until the browser's first reading of the frame
+  // and then only while `rendered`.
   /** @typedef {"loading" | "drawing" | null} Arriving */
   /** @type {Arriving} */
   let arriving = null;
   /** @type {(() => void) | null} */
   let counted = null;
+  // A block's deadline for its document's arrival out of view (`SIZING_MS`).
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let sizing;
+  let overdue = false;
   /** @param {Arriving} [stage] */
   function arrive(stage = arriving) {
     arriving = stage;
+    const heightOwed = stage === "drawing" && !asWindow;
+    if (!heightOwed) {
+      clearTimeout(sizing);
+      sizing = undefined;
+      overdue = false;
+    } else
+      sizing ??= setTimeout(() => {
+        overdue = true;
+        arrive();
+      }, SIZING_MS);
     const counts =
       stage === "loading" ||
-      (stage === "drawing" && pageShows() && (!seen.read() || seen.shown()));
+      (stage === "drawing" &&
+        pageShows() &&
+        ((heightOwed && !overdue) || !seen.read() || seen.shown()));
     frame.toggleAttribute("data-lf-unseen", stage === "drawing" && !counts);
     if (counts && !counted) {
       const { promise, resolve } = Promise.withResolvers();
@@ -677,6 +705,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     // Full view keeps the realm, log and native editor; only its allocation changes.
     setWindow(value) {
       asWindow = value;
+      arrive();
       return call("window", { window: value });
     },
     on(type, callback) {

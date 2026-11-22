@@ -260,8 +260,7 @@ lf-shot {
 }
 /* Each view is the screen's: paper prints every source whole (print, below). */
 @media screen {
-  lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
-    .lf-shotstage {
+  lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="pair"]) .lf-shotstage {
     overflow-x: auto;
   }
 }
@@ -281,7 +280,7 @@ lf-shot {
   overflow: clip;
 }
 @media screen {
-  lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
+  lf-shot[data-lf-shot-mode="pair"] .lf-shotframe {
     inline-size: calc(var(--lf-shot-viewport-width) + 2px);
   }
 }
@@ -292,14 +291,14 @@ lf-shot {
 /* Each capture's window keeps the height the fit gave it, and at actual size the reader
    scrolls the capture inside it, so both frames keep one size. */
 @media screen {
-  lf-shot[data-lf-shot-mode="compare"] .lf-shotviewport {
+  lf-shot[data-lf-shot-mode="pair"] .lf-shotviewport {
     --lf-holds-height: 1;
     inline-size: var(--lf-shot-viewport-width);
     block-size: var(--lf-shot-viewport-height);
     overflow: hidden;
     overscroll-behavior: auto;
   }
-  lf-shot[data-lf-shot-mode="compare"][data-lf-shot-scale="actual"] .lf-shotviewport {
+  lf-shot[data-lf-shot-mode="pair"][data-lf-shot-scale="actual"] .lf-shotviewport {
     overflow: auto;
   }
 }
@@ -310,11 +309,11 @@ lf-shot {
   block-size: var(--lf-shot-label-height);
   border-block-end: 1px solid var(--lf-rule);
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
 }
 /* Stacked frames carry their own labels; the toolbar only holds controls. */
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   .lf-shot-toolbar
   > .lf-shotcap {
   display: none;
@@ -375,13 +374,13 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   padding: 0;
   margin: 0;
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="side"] .lf-shotcanvas {
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"] .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
-lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
+lf-shot:not([data-lf-shot-mode="pair"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
@@ -514,7 +513,7 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
     --lf-holds-height: 1;
   }
   @media screen {
-    lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
+    lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="pair"])
       > .lf-shotstage {
       overflow-y: auto;
     }

@@ -78,7 +78,9 @@
           fix.
         </p>
         <figure id="fix-test-run">
-          <pre class="lf-terminal"><b>$ git checkout HEAD^ -- skills/leaf/assets/runtime</b>
+          <pre
+            class="lf-terminal"
+          ><b>$ git checkout HEAD^ -- skills/leaf/assets/runtime</b>
 <b>$ uv run pytest tests/browser/test_render_threads.py -k draft_s_image</b>
 <i>…</i>
 <mark>FAILED tests/browser/test_render_threads.py::test_a_draft_s_image_closes_back_to_the_draft[card] - AssertionError: Locator expected to be focused</mark>

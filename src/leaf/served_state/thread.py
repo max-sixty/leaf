@@ -150,7 +150,14 @@ def browser_thread(
                 **{
                     key: value
                     for key, value in thread.items()
-                    if key not in ("turns", "closures", "closings", "answered_by")
+                    if key
+                    not in (
+                        "turns",
+                        "closures",
+                        "closings",
+                        "answered_by",
+                        "closed_by_user",
+                    )
                 },
                 "msgs": messages,
                 "root": next(

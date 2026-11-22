@@ -2,7 +2,7 @@
 
 from bisect import insort
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from math import inf
 from operator import itemgetter
 from typing import NamedTuple
@@ -236,9 +236,11 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``closings`` holds each closing still in force, in log order, however the thread
     reopened since, which ends every question asked before it (`obligations`).
     ``answered_by`` is the closing that answers for a closed thread
-    (`_ClosureHistory.answering`), or null (`owed_turns`). Only the server reads
-    these three. ``resolved`` is the closing that stands at the end of the log, or
-    null.
+    (`_ClosureHistory.answering`), or null (`owed_turns`), and ``closed_by_user`` says
+    whether the user's own resolve is among the closings in force since the thread
+    last stood open, whatever closed it after (`thread.post_reply`). Only the server
+    reads these four. ``resolved`` is the closing that stands at the end of the log,
+    or null.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
@@ -351,6 +353,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "closings": [],
                 "resolved": None,
                 "answered_by": None,
+                "closed_by_user": False,
             }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
@@ -403,6 +406,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     for thread in threads.values():
         thread["resolved"] = closures.standing(thread)
         thread["answered_by"] = closures.answering(thread)
+        thread["closed_by_user"] = any(
+            _users_resolve(closing) for closing in closures.since_open(thread)
+        )
         thread["closings"] = closures.closings(thread)
     return threads
 
@@ -424,11 +430,6 @@ def _users_resolve(closing: dict) -> bool:
     """Whether a closing is the user's own resolve, which takes the thread off their
     list and answers nothing in it (`owed_turns`)."""
     return closing["kind"] == "resolve" and closing["author"] == "user"
-
-
-def closed_by_user(thread: dict) -> bool:
-    """Whether the user's own resolve is what holds the thread closed."""
-    return thread["resolved"] is not None and _users_resolve(thread["resolved"])
 
 
 class _ClosureHistory:
@@ -454,14 +455,23 @@ class _ClosureHistory:
         takes the thread off their list and settles nothing the agent owes
         (`owed_turns`). The user resolving a thread the agent already closed leaves
         the agent's closing answering for it."""
+        return next(
+            (
+                closing
+                for closing in self.since_open(thread)
+                if not _users_resolve(closing)
+            ),
+            None,
+        )
+
+    def since_open(self, thread: dict) -> Iterator[dict]:
+        """The closings in force since the thread last stood open, newest first."""
         for _place, _identity, closes, event in reversed(
             self._held.get(thread["id"], ())
         ):
             if not closes:
-                break
-            if not _users_resolve(event):
-                return event
-        return None
+                return
+            yield event
 
     def closings(self, thread: dict) -> list[dict]:
         """The thread's closings in force, in log order."""

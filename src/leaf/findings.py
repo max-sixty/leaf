@@ -2639,11 +2639,6 @@ _TEXT = {
         f"the thread is already titled {v['title']!r}, so the reply's title went"
         " unused; `leaf thread edit` with --title renames the thread"
     ),
-    "reply-kept-closed": lambda at, v: (
-        "the user resolved this thread, so your message is in it without reopening"
-        " it and nothing on their lists announces it; say in the chat what they"
-        " should know, and a question to them there reopens it"
-    ),
 }
 
 # What a browser shows the person whose gesture a refusal turned down, where the

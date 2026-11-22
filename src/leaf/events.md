@@ -307,8 +307,7 @@ the reply that answers it goes into the thread and leaves it closed
 (`events.owed_turns`). A thread the user resolved reopens only when they reopen it or
 the agent asks them something there, in words or with a widget. Whatever else the agent
 says in it, the result of promised work included, is a `reply` with `unannounced: true`,
-which reopens nothing; `thread.post_reply` sets it and tells the agent so
-(`reply-kept-closed`). The agent's
+which reopens nothing; `thread.post_reply` sets it. The agent's
 `resolve` answers for its thread, as does the user's answer on a widget whose `resolves`
 names it: from either until the thread reopens, the thread owes nothing.
 

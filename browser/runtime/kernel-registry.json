@@ -989,6 +989,9 @@
               },
               {
                 "required": ["obligation"]
+              },
+              {
+                "required": ["unannounced"]
               }
             ]
           }

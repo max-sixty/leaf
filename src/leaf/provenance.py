@@ -155,8 +155,9 @@ def _latest_open(
     closures: list[dict], places: list[int]
 ) -> Callable[[float, float], int | None]:
     """For a thread whose closures are `closures`, the latest of `places`, ascending,
-    after `start` and not after `end` at which it stood open, or None: by a bisect,
-    after one pass over its closures for the latest open place before each began."""
+    after `start` and not after `end` at which no closing answered for it, or None: by
+    a bisect, after one pass over its closures for the latest such place before each
+    began."""
     closed = [closure["closed"] for closure in closures]
     before: list[int | None] = []
     for index, starts in enumerate(closed):

@@ -75,7 +75,9 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
         browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
     )
     resized(page, 1440, 900)
-    page.locator("#open").scroll_into_view_if_needed()
+    # The paragraph stands mid-window, so the page has room to scroll either way at the
+    # thread's edges.
+    page.locator("#open").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
@@ -130,7 +132,9 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     )
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
-    page.locator("#open").scroll_into_view_if_needed()
+    # The paragraph stands mid-window, so the page has room to scroll either way at the
+    # thread's edges.
+    page.locator("#open").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card.locator("leaf-text")).to_be_focused()

@@ -187,7 +187,7 @@ def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice">').replace(
             '<lf-option id="flag-first" label="Flag first">',
-            '<lf-option id="old"><small class="tag">x</small> <strong>Old</strong> w.'
+            '<lf-option id="old"><small class="lf-tag">x</small> <strong>Old</strong> w.'
             '</lf-option><lf-option id="bare">Keep <strong>it</strong></lf-option>'
             '<lf-option id="flag-first" label="Flag first">',
         )

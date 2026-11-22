@@ -109,7 +109,7 @@ Give the main result and the material supporting it the most attention and space
 Write headings that tell a scanning reader what each part establishes. Use the
 user's context to leave out explanations and background they already have.
 
-A panel's heading (`section.panel`, as on a dashboard) is set in small capitals,
+A panel's heading (`section.lf-panel`, as on a dashboard) is set in small capitals,
 which read as a region's name and not as a sentence, so name the region there in a
 few words and state its finding in the panel's first line.
 
@@ -136,7 +136,7 @@ lines, a question's answer, and the threads about it.
 Arrange the material so the reader can do the task with little navigation or memory.
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
-widgets and class idioms for those roles, including the theme's `.metric` entry
+widgets and class idioms for those roles, including the `.lf-metric` entry
 for a metric. Arrange an experiment's results so each variant's effect against its
 baseline reads without arithmetic, and show what each variant changed beside its
 effect.
@@ -269,14 +269,14 @@ rely on, in full:
 ```bash
 leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)'
-leaf page vocabulary <page> | jq '.["lf-options"], .[".lede"], .["$series"]'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".lf-lede"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .lede | jq -r '.author // empty'
+leaf page instructions <page> --use lf-options --use .lf-lede | jq -r '.author // empty'
 ```
 
 The output is a JSON map from audience to text. When you or an agent you assign takes

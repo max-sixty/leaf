@@ -39,7 +39,7 @@ WORKSPACE_PAGE = leaf_page(
     """
   <header>
     <h1>Review queue</h1>
-    <p id="review-status"><span class="tag warn">3 waiting</span></p>
+    <p id="review-status"><span class="lf-tag warn">3 waiting</span></p>
   </header>
   <div id="review-regions">
     <lf-pane id="queue" label="Items">
@@ -362,7 +362,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
                 "A phone queue",
                 '<header><h1>Which alerts should still page?</h1><p id="status">'
                 '<lf-tally id="left" for="queue" next></lf-tally>'
-                '<span class="tag warn">7 mostly noise</span></p></header>'
+                '<span class="lf-tag warn">7 mostly noise</span></p></header>'
                 '<lf-tabs id="queue" list="side">'
                 + item("first")
                 + item("second")
@@ -1569,16 +1569,16 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<dl id="lp-k-traffic" class="metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
-            '<dl id="lp-k-traffic" class="metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="lf-metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="lf-metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
-            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="lf-metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="lf-metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
-            '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',
-            '<li id="lp-step-checks"><small class="tag ok">done · 14:25</small>',
+            '<li id="lp-step-checks"><small class="lf-tag danger">blocked · now</small>',
+            '<li id="lp-step-checks"><small class="lf-tag ok">done · 14:25</small>',
         ),
         (
             (
@@ -1588,8 +1588,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
         (
-            '<li id="lp-step-promote"><small class="tag">planned</small>',
-            '<li id="lp-step-promote"><small class="tag warn">active · now</small>',
+            '<li id="lp-step-promote"><small class="lf-tag">planned</small>',
+            '<li id="lp-step-promote"><small class="lf-tag warn">active · now</small>',
         ),
         (
             "Four checks pass. One blocks promotion.",

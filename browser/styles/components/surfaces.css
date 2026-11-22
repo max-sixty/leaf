@@ -82,7 +82,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
  * `shadow` widget's stage (runtime/widget-upgrade.js). Its face is the sans the
- * theme gives other labels (.tag, figcaption), with figures of one width. */
+ * theme gives other labels (.lf-tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
   background: var(--lf-danger-tint);
@@ -151,7 +151,7 @@ a[data-lf-external]::after,
     var(--lf-external-icon) center / 0.75em no-repeat,
     linear-gradient(transparent, transparent);
 }
-/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against.
+/* Pressable, said once per layer, and .lf-tag (Leaf's tag idiom) is what it is said against.
  * Without it, a chip that opens a section and a badge that counts something are the
  * same object at rest — one ground, one ink, one corner, one size — and the user has
  * to press one to find out.
@@ -165,7 +165,7 @@ a[data-lf-external]::after,
  * and a family that wants its own says so in its own theme rules, which come after this
  * file in the merged sheet and outrank it at equal specificity.
  *
- * .tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
+ * .lf-tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
  * is the line the rule draws — not "does this look like a control" but "did a widget
  * build this to be worked", which is a fact the runtime holds rather than a judgement
  * a stylesheet re-makes.

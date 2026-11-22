@@ -232,9 +232,8 @@ is refused as an idiom holding keys an idiom can't have.
 An element declaration holds the JSON Schema of the element's attributes under
 `attributes`, and beside it each fact that says how Leaf treats the tag, such as
 `content`, its action `verbs`, whether it `awaits` the user on On Me, its `owners`, and
-its typed `inputs`. Declare a fact only where some part of Leaf, such as the server,
-`page check` or the first paint, must act on it without running the widget's module,
-and the module can't enforce the same rule itself:
+its typed `inputs`. Each is declared because some part of Leaf, such as the server or
+`page check`, needs it without running the widget's module:
 
 ```json
 "lf-merge-film": {
@@ -253,10 +252,10 @@ and the module can't enforce the same rule itself:
 The merged registry's `$keys` entry defines each fact by its name; `$verbs` defines the members of `verbs`, and `$awaits` an
 obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
-widget's markup that the module can check as it draws: the module reports a breach
-with `reportFailure` ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)),
-which fails `page check --render`, as a board reports a card whose `shows` names a
-widget with no answer. Every declaration has
+widget's markup that no declared fact states: the module checks it as it draws and
+reports a breach with `reportFailure`
+([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
+card whose `shows` names a widget with no answer. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
 `example`. The optional `instructions` gives the choices and obligations
 of using it; a package's shared author instructions own guidance spanning its widgets.

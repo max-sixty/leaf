@@ -30,12 +30,29 @@
  * section's control sends; a column the widget has no answer for takes no drop and
  * offers no button. Such a card keeps its authored order, and the arrows only change
  * its column: an order of the board's own would be a second fact placed among columns
- * the answer decides. This module is the rule's one keeper. The registry declares
- * `shows` only as an attribute naming an element (`refers`), and neither `page check`
- * nor the append door reads it, so the board never sends its own move for a card
- * carrying it (#movable, #send). A card whose `shows` names no answer the board can
- * show stands where the markup puts it and takes no move, and the board reports it
- * to the author as the page's error (#reportUnshown).
+ * the answer decides.
+ *
+ * Only this module holds a card to the answer it shows. The registry declares `shows`
+ * as an attribute naming an element (`refers`), so `page check` and message admission
+ * require only that the element exists, and the append door admits a board move of
+ * such a card. The board therefore never sends its own move for one (#movable, #send)
+ * and draws it by its answer whatever the board's move state holds. A card whose
+ * `shows` names no answer the board can show stands where the markup puts it and takes
+ * no move, and the board reports it to the author as the page's error, as it reports a
+ * card naming a widget none of whose members carries a `value` (#reportUnshown).
+ * Nothing draws a message before the user opens its thread, so there the user meets
+ * such a card before the author hears of it.
+ *
+ * The user chose this over keeping the same rules in `page check` and the append door:
+ * a fact is declared only where Leaf must act on it without the module and the module
+ * can't keep the rule itself (`browser/AGENTS.md`, "The widget vocabulary stays open").
+ * A change that wants the static refusal back can give `shows` a typed `refers`
+ * contract, which `page check` and message admission already hold, at the cost of a
+ * registry map listing each widget a card may show. Two other designs fail: an Answer
+ * record, or a value on the question's group, moves the answer off the widget that owns
+ * its words, options and obligation; and a field on the event naming the view that
+ * sent it is bookkeeping no reader needs, since the widget's own declaration admits or
+ * refuses the value alone.
  *
  * An answer names a value when it is one string: a `value` record's attribute, or the
  * members an `attribute` record picks when every one of them carries the same `value`
@@ -118,19 +135,26 @@ const namedValue = (answer, valueOf) => {
   return only !== undefined && other === undefined ? only : null;
 };
 
+// The id a card's `shows` names, or null for a card that shows no answer: one without
+// the attribute, or with it empty.
+/** @param {Element} card */
+const showsId = (card) => card.getAttribute("shows") || null;
+
 /** The widget whose answer a card shows, with the verb that writes the answer and
- * that verb's record; `{fault}`, saying what the author got wrong, where the card's
- * `shows` names no answer a board can show; or null for a card without `shows`. A
- * board can show the answer of a widget in the card's own page or message whose
+ * that verb's record; `{fault}`, telling the author what to write instead, where the
+ * card's `shows` names no answer a board can show; or null for a card that shows none.
+ * A board can show the answer of a widget in the card's own page or message whose
  * `awaits.value` verb records a value or members. */
 /** @param {Element} card */
 function shownWidget(card) {
-  const id = card.getAttribute("shows");
+  const id = showsId(card);
   if (id === null) return null;
   const owner = elementById(id, authoredScope(card));
   if (!owner)
     return {
-      fault: `shows="${id}" names no element in the page or message the card stands in`,
+      fault:
+        `shows="${id}" names no element beside the card; a card shows a widget in` +
+        " the same page, or in the same message",
     };
   const declaration = declarationFor(owner);
   const verb = declaration?.awaits?.value;
@@ -139,9 +163,25 @@ function shownWidget(card) {
     return {
       fault:
         `shows="${id}" names <${owner.localName}>, which has no answer a board can` +
-        " show: its `awaits` value verb must record a value or members",
+        " show; name the widget the user answers, such as a question's <lf-options>",
     };
   return { owner, verb, record };
+}
+
+/** What to tell the author of a card showing a widget whose answer picks members when
+ * none of them carries a `value`, so no pick can put the card in a column; null
+ * otherwise, and while the widget's state has not loaded. */
+/** @param {Element} card @param {Exclude<ReturnType<typeof shownWidget>, null | {fault: string}>} shown */
+function valuelessFault(card, { owner, record }) {
+  if (record.kind !== "attribute") return null;
+  const members = widgetController(owner).read().memberships?.[record.attr];
+  if (!members?.length) return null;
+  const scope = authoredScope(owner);
+  return members.some((member) => elementById(member, scope)?.hasAttribute(VALUE))
+    ? null
+    : `shows="${showsId(card)}" names <${owner.localName}>, none of whose members ` +
+        `carries a \`${VALUE}\`, so no pick puts the card in a column; give each ` +
+        `member the \`${VALUE}\` of the column its pick belongs in`;
 }
 
 /** The answer a card shows, or null where it shows none: no `shows`, one naming no
@@ -370,7 +410,7 @@ customElements.define(
     // shows none, and every other card when the board's own move can.
     /** @param {Element} card */
     #movable(card) {
-      if (!card.hasAttribute("shows")) return this.#available();
+      if (!showsId(card)) return this.#available();
       return Boolean(shownAnswer(card)?.available);
     }
 
@@ -439,7 +479,7 @@ customElements.define(
       const held = () => this.#grabbed?.grip === grip;
       // Whether the card is authored to show an answer, read off its markup since the
       // answer's own state may not have loaded yet.
-      const shows = card.hasAttribute("shows");
+      const shows = Boolean(showsId(card));
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.
@@ -734,7 +774,7 @@ customElements.define(
     // snapshot: that snapshot may be another queued move the server also refused.
     /** @param {Element} card @param {Element} from @param {Element} to */
     #send(card, from, to) {
-      if (card.hasAttribute("shows")) {
+      if (showsId(card)) {
         // The answer moves the card, through its widget's own command; a move within
         // its column changes nothing, and the release below puts it back. So does a
         // card showing no answer by the time it drops, since the board's own move
@@ -870,13 +910,17 @@ customElements.define(
       return nothing;
     }
 
-    // Tell the author of each card whose `shows` names no answer the board can show.
-    // Such a card stands where the markup puts it and takes no move, and neither
-    // `page check` nor the page says why.
+    // Tell the author of each card whose `shows` names no answer the board can show,
+    // or a widget whose picks can name no column. Neither card can follow an answer,
+    // and neither `page check` nor the page says why.
     #reportUnshown() {
       for (const card of this.#allCards()) {
         const shown = shownWidget(card);
-        const fault = shown && "fault" in shown ? shown.fault : null;
+        const fault = !shown
+          ? null
+          : "fault" in shown
+            ? shown.fault
+            : valuelessFault(card, shown);
         if (fault === null) this.#reported.delete(card);
         else if (this.#reported.get(card) !== fault) {
           this.#reported.set(card, fault);

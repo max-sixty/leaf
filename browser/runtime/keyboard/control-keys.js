@@ -41,14 +41,16 @@
    works, and keeps `x` after a nearer declaration takes `x`. A close control says
    Escape where a row says Escape presses it, as the image viewer's does. */
 import {
+  advertisesKeys,
   ariaBindings,
   bindings,
   commandEntries,
   labelOf,
+  live,
   spell,
   word,
 } from "./bindings.js";
-import { availableCommandRoutes } from "./dispatch.js";
+import { activeCommandBinding, availableCommandRoutes } from "./dispatch.js";
 import { ELEMENTS, pageScopes } from "./register.js";
 import { projectControlShortcuts, reflectElementShortcuts } from "./scopes.js";
 import { nativeActivationAt } from "./text-entry.js";
@@ -74,6 +76,36 @@ export function commandSteps(id) {
     for (const row of scope?.rows ?? [])
       if (row.id === id && bindings(row).length) return stepsIn(scope, row);
   return [];
+}
+
+// The Go-to sequence's opening command, whose key starts every destination's steps.
+const GO_TO_OPEN = "navigation.go-to.open";
+/** How a key would make a command's press now, as the dispatcher reads it, or null: the
+ * command's own binding, else, for a live destination of the Go-to sequence while `g`
+ * would open the sequence, the sequence's steps before the destination's binding, as
+ * `g i` makes Resume writing's. Null where no key would make it, as with the caret in a
+ * box, where each is a letter typed.
+ * @param {string} id @returns {{before: readonly string[], binding: string} | null} */
+function pressNow(id) {
+  const own = activeCommandBinding([id]);
+  if (own !== null) return { before: [], binding: own };
+  const goTo = activeCommandBinding([GO_TO_OPEN]);
+  if (goTo === null) return null;
+  for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
+    for (const row of scope?.rows ?? []) {
+      if (row.id !== id || !live(row)) continue;
+      const [binding] = bindings(row);
+      const before = stepsBefore(scope);
+      if (binding && before[0] === spell(goTo)) return { before, binding };
+    }
+  return null;
+}
+/** The keys that would make a command's press now (`pressNow`), each spelled as a key
+ * chip spells it, or none, as on a page that shows no keys, a touchscreen's. */
+/** @param {string} id */
+export function commandKeysNow(id) {
+  const now = advertisesKeys() ? pressNow(id) : null;
+  return now ? [...now.before, spell(now.binding)] : [];
 }
 
 /** @typedef {{revision: number, available: ReturnType<typeof availableCommandRoutes>, controls: Map<Element, string[]>}} Reaching */

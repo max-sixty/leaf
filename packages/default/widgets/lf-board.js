@@ -27,10 +27,12 @@
  * widget's state in this render, so a pick there, an undo, a refusal and a revision's
  * retraction move the card with no state of the board's own. Dropping it in another
  * column sends the widget's own answer for that column's value, the same command the
- * section's control sends; a column whose value none of the widget's members carries,
- * or more than one, takes no drop and offers no button. Such a card keeps its authored
- * order, and the arrows only change its column: an order of the board's own would be a
- * second fact placed among columns the answer decides.
+ * section's control sends. Where the answer picks members, a column with a `value`
+ * takes a drop, and offers a button, only when exactly one member carries that value:
+ * with none there is no answer to send, and with several a drop wouldn't say which. A
+ * card that no other column takes has its grip disabled. A card with `shows` keeps its
+ * authored order, and the arrows only change its column: an order of the board's own
+ * would be a second fact placed among columns the answer decides.
  *
  * Only this module holds a card to the answer it shows. The registry declares `shows`
  * as an attribute naming an element (`refers`), so `page check` and message admission
@@ -358,6 +360,11 @@ customElements.define(
                   elementById(button.getAttribute("data-lf-board-target")),
                 ),
             );
+          // With no button to show, the group's "Move to" would name no destination.
+          keepsHidden(
+            card.querySelector(":scope > .lf-board-destinations"),
+            [...destinations].every((button) => button.hidden),
+          );
         }
       }
     }
@@ -406,12 +413,20 @@ customElements.define(
       return Boolean(this.reading?.actions.move?.available);
     }
 
-    // A card with `shows` moves when the answer it shows can change, so never where it
-    // shows none, and every other card when the board's own move can.
+    // A card with `shows` moves when the answer it shows can change and a column other
+    // than its own takes it, so never where it shows none, and every other card when
+    // the board's own move can. A card no column takes would offer a grip that grabs
+    // and then moves nowhere.
     /** @param {Element} card */
     #movable(card) {
       if (!showsId(card)) return this.#available();
-      return Boolean(shownAnswer(card)?.available);
+      const shown = shownAnswer(card);
+      return Boolean(
+        shown?.available &&
+        [...this.#columns()].some(
+          (column) => column !== card.parentElement && shown.takes(this.#holds(column)),
+        ),
+      );
     }
 
     // The value a column holds for a card showing an answer, null for none.
@@ -822,7 +837,14 @@ customElements.define(
       const scroller = scrollerFor(this);
       const sortable = new Sortable(col, {
         disabled: !this.#available(),
-        group: `board-${this.id}`, // per board: two boards on a page don't cross-drag
+        // Named per board, so two boards on a page don't cross-drag. A column opens a
+        // slot only for a card it takes (#takes), as the arrows and the destination
+        // buttons offer it. Sortable asks this of every column but the one the drag
+        // began in, which always takes its card back.
+        group: {
+          name: `board-${this.id}`,
+          put: (to, _from, card) => Boolean(this.#takes(card, to.el)),
+        },
         draggable: "lf-card",
         handle: ".lf-grip",
         // Movability is the card's own where it shows an answer (#movable).

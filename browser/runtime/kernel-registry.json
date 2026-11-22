@@ -381,7 +381,7 @@
       ],
       "resolve": [
         {
-          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual, and your answer goes into the thread without reopening it."
+          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it, unless you ask them something there."
         }
       ],
       "unresolve": [
@@ -866,6 +866,7 @@
               "not": { "pattern": "[\\r\\n]" }
             },
             "ephemeral": { "const": true },
+            "unannounced": { "const": true },
             "start": {
               "type": "object",
               "properties": {
@@ -918,6 +919,17 @@
                   { "required": ["todo"] },
                   { "required": ["failure"] },
                   { "required": ["anchor"] }
+                ]
+              }
+            },
+            "unannounced": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["ephemeral"] },
+                  { "required": ["failure"] },
+                  { "required": ["obligation"] }
                 ]
               }
             },

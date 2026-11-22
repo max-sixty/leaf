@@ -18,7 +18,8 @@ of everything they hold. So one fold of the log before the version's last revisi
 went live, under that revision's containment, reads every message as it was said,
 none taken back, and from its histories each message's waits follow, each turn of it
 from its own place until the first of its answer (`events.settlements`), its being
-taken back, or the message's, cut where its thread stood closed (``closures``). A bisect of the version's sorted
+taken back, or the message's, cut where a closing answered for its thread
+(``closures``). A bisect of the version's sorted
 places finds the latest it waited at, after one pass over each thread's closings, so
 the work grows with the log and the turns, not with the threads times the
 revisions. The reply or note that answered a message may itself have published the
@@ -104,8 +105,8 @@ def saved_after(
     taken back, so its histories keep the place of each turn, answer, closing,
     reopening and rewrite, beside the place each gesture was taken back. A message
     waited at a revision's place where, by the log before it, it had been sent and not
-    taken back, had no answer yet, and its thread stood open; the reply or note that
-    answered it stands at its end."""
+    taken back, had no answer yet, and no closing answered for its thread
+    (`events.owed_turns`); the reply or note that answered it stands at its end."""
     if any(base < revision < shown for revision in stamped):
         return None
     span = sorted(

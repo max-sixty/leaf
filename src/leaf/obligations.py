@@ -46,7 +46,7 @@ actor. A `done` one ended one of two ways: answered, its typed answer in the rec
 (`standing.answered`), or `dropped`, an obligation the document no longer makes. A
 question asked in a thread message, in words or by a widget in it, also ends when either
 side resolves its thread after the message now asking it: it stays `waiting` with
-nobody's move, though a later reply reopens the thread, until a message asks it again
+nobody's move, even where a later reply reopens the thread, until a message asks it again
 under its id (`question_ids`) or the resolve is taken back. That is how the agent ends
 one the user answered on another surface, or that no longer applies, so the thread reads
 as settled wherever it shows. The user asked for this over an agent end of its own

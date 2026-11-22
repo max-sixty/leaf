@@ -279,12 +279,16 @@ summary that gives the answer as it now stands, as short as any summary ("Summar
 long discussion"): `leaf thread summarize <page> --from <earlier-reply> --through
 <correction> --text "<the current answer>"`.
 
-An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
-answer; the user usually resolves it. Resolve it yourself only when the user asks,
-when an event's `handling` says to, when its question was settled elsewhere
-(`conversation-loop.md`, "The On lists"), or when no review or follow-up could change
-the outcome, which finishing the work does not show by itself. When unsure, leave it
-open. First answer any unanswered user message in it:
+An ordinary reply leaves the thread open, or reopens one you resolved, so the user can
+inspect the answer; the user usually resolves it. A thread the user resolved stays
+closed: resolving takes the thread off their lists and takes back nothing they asked
+there, so your answer, or a result you promised, goes into it with nothing on their
+lists to announce it. Tell them in the chat what they should know of it. Only a question
+to them there, in words or as a pick, reopens it. Resolve a thread yourself only when
+the user asks, when an event's `handling` says to, when its question was settled
+elsewhere (`conversation-loop.md`, "The On lists"), or when no review or follow-up could
+change the outcome, which finishing the work does not show by itself. When unsure, leave
+it open. First answer any unanswered user message in it:
 
 ```bash
 leaf thread resolve <page> <message>

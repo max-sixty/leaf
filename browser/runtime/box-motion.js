@@ -135,7 +135,7 @@ import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
-import { contentRides } from "./scrolling.js";
+import { contentRides, laidOutHeight } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
 import { shifted } from "./rect.js";
 
@@ -351,9 +351,10 @@ export function boxMotion({
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   /** @type {Timing | null} */
   let timing = null;
-  // How tall each scroller's content stood at the last reading, which tells news that
-  // changed what a scroller holds from news that changed only the box around it
-  // (`joins`).
+  // How tall each scroller's content stood in its layout at the last reading, which
+  // tells news that changed what a scroller holds from news that changed only the box
+  // around it (`joins`). Its scroll height would count a ride's drawing, and follow the
+  // box where the content is shorter than it.
   /** @type {WeakMap<Element, number>} */
   const contentHeights = new WeakMap();
   // Each part moving, from the box it was drawn at to its rest, on one clock.
@@ -694,8 +695,9 @@ export function boxMotion({
     /** @type {Set<Element>} */
     const changed = new Set();
     for (const scroller of scrollers) {
-      if (scroller.scrollHeight !== contentHeights.get(scroller)) changed.add(scroller);
-      contentHeights.set(scroller, scroller.scrollHeight);
+      const height = laidOutHeight(scroller);
+      if (height !== contentHeights.get(scroller)) changed.add(scroller);
+      contentHeights.set(scroller, height);
     }
     // A send's scroll moves a scroller's content without changing any part's layout,
     // as in a view already at its cap: that content still rides. Every other scroll

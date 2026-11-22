@@ -5608,7 +5608,7 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     expect(row).to_have_css("margin-top", "0px")
 
 
-@pytest.mark.parametrize("by", ["key", "menu"])
+@pytest.mark.parametrize("by", ["key", "menu", "menu-after-send"])
 def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box(
     browser, serve, by
 ):
@@ -5619,7 +5619,8 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     the panel already reached the window's top and the band takes its room from the
     view. That holds for a paste from a menu too, which comes with no key: the band
     then reads as news, which leaves the thread's messages where its scroll puts them,
-    since it changed none of them."""
+    since it changed none of them, even just after a reply the user sent rode into the
+    view, whose ride a reading may have caught mid-way."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -5644,6 +5645,14 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     view.evaluate("view => { view.scrollTop = view.scrollHeight; }")
     field(page).click()
     settled(page)
+    if by == "menu-after-send":
+        page.emulate_media(reduced_motion="no-preference")
+        count = view.locator(".lf-msg").count()
+        page.keyboard.insert_text("And the weekend?")
+        with sending(page, "the reply"):
+            page.keyboard.press("Enter")
+        expect(view.locator(".lf-msg")).to_have_count(count + 1)
+        settled(page)
     last = view.locator(".lf-msg").last
 
     def foot():
@@ -5704,7 +5713,7 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     after = foot()
     assert after[1] < before[1], "the fixture must take the band from the view"
     assert after[0] == pytest.approx(before[0], abs=1), (before, after)
-    if by == "menu":
+    if by != "key":
         # A menu's paste reaches the page with no key or press the hold-still watch can
         # credit, so the band moving the view's head up reads to it as news.
         consume_browser_errors(page, {"code": "moved-without-input"})

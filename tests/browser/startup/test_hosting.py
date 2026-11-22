@@ -20,7 +20,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -425,13 +425,10 @@ MOVED_BOARD = (
 )
 
 
-def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_height(
-    browser, serve
-):
-    """A block sample that starts just below the window takes its page's height as that
-    page arrives, moving what follows it, so the containing page reads as arriving
-    until then though the frame is off screen, and a reader that waits for the page
-    finds the frame at the height the page arrived at, not the one it upgraded at."""
+def held_block_sample(browser, serve):
+    """A page with `MOVED_BOARD` half a window below the window's foot, within a window
+    of it, so it starts off screen, its page loaded and its registry held so that page
+    doesn't upgrade. Returns the page, the frame, its page and the held requests."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
@@ -440,7 +437,6 @@ def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_hei
         serve(
             leaf_page(
                 "Sample below",
-                # Half a window below the window's foot, within a window of it.
                 '<h1>Containing page</h1><div style="height: 150vh"></div>'
                 + MOVED_BOARD
                 + "<p id=after>After the sample</p>",
@@ -454,6 +450,17 @@ def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_hei
     assert child is not None
     child.wait_for_load_state("load")
     rendered(page)
+    return page, frame, child, held
+
+
+def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_height(
+    browser, serve
+):
+    """A block sample that starts just below the window takes its page's height as that
+    page arrives, moving what follows it, so the containing page reads as arriving
+    until then though the frame is off screen, and a reader that waits for the page
+    finds the frame at the height the page arrived at, not the one it upgraded at."""
+    page, frame, child, held = held_block_sample(browser, serve)
     assert readiness(page) == "arrived"
     page.unroute(SAMPLE_REGISTRY)
     for each in held:
@@ -461,6 +468,21 @@ def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_hei
     wait_until_ready(page)
     body = "() => Math.ceil(document.body.getBoundingClientRect().height)"
     assert frame.evaluate("frame => frame.clientHeight") == child.evaluate(body)
+
+
+def test_a_check_asking_for_near_work_takes_over_a_block_sample_s_wait(browser, serve):
+    """A check that asks for all near work brings each frame whose page the containing
+    page stopped counting into view itself (`start_near_work`), so once it asks, the
+    page stops waiting for an off-screen block sample's height and marks its frame for
+    the check."""
+    page, frame, _, held = held_block_sample(browser, serve)
+    evaluate_probe(page, "startNearWork")
+    rendered(page)
+    assert readiness(page) is None
+    assert frame.evaluate("frame => frame.hasAttribute('data-lf-unseen')")
+    page.unroute(SAMPLE_REGISTRY)
+    for each in held:
+        each.continue_()
 
 
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(

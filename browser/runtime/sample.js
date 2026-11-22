@@ -41,15 +41,16 @@
  * on a rendering, which a frame off screen or in a closed disclosure may not get
  * (rendering.js; notes/browser-support.md, "A sample's page out of view in Chromium"):
  * a chart sized by its first layout waits, and so does the upgrade of the widget layer
- * holding it. A deadline caps that wait (`SIZING_MS`). Past it, and for a window from
- * the start, whose frame keeps its height whatever its document does, the page counts
- * that part until the browser's first reading of the frame, and after that only while
- * the browser renders the frame (`rendered`), as rendering readiness reads such a
- * document as settled; meanwhile the frame carries `data-lf-unseen`. Counting it
- * wherever the frame stands with no cap would keep a page with a chart in a sample
- * below the window arriving for as long as it stays open; a check that reads every
- * document brings each `data-lf-unseen` frame into view instead (render_checks.py,
- * `start_near_work`).
+ * holding it. A deadline caps that wait (`SIZING_MS`). Past it, once a check has asked
+ * for all near work (`nearWork`), and for a window from the start, whose frame keeps
+ * its height whatever its document does, the page counts that part until the
+ * browser's first reading of the frame, and after that only while the browser renders
+ * the frame (`rendered`), as rendering readiness reads such a document as settled;
+ * meanwhile the frame carries `data-lf-unseen`. Counting it wherever the frame stands
+ * with no cap would keep a page with a chart in a sample below the window arriving for
+ * as long as it stays open; a check that reads every document brings each
+ * `data-lf-unseen` frame into view instead (render_checks.py, `start_near_work`), so
+ * once it has asked, the wait for a block's height would only delay it.
  * A reload's document counts once it connects;
  * the parent cannot tell its departure from one to a page outside Leaf, whose load can
  * land before the departure's notice, so nothing counts between. Work a child starts
@@ -305,8 +306,8 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   // until its frame loads, and `drawing` from then or from a reload's connection until
   // it reports its arrival or departs. `loading` counts wherever the frame stands;
   // `drawing` counts while this page shows, for a block wherever the frame stands
-  // until its deadline, and otherwise until the browser's first reading of the frame
-  // and then only while `rendered`.
+  // until its deadline or a check's ask for near work, and otherwise until the
+  // browser's first reading of the frame and then only while `rendered`.
   /** @typedef {"loading" | "drawing" | null} Arriving */
   /** @type {Arriving} */
   let arriving = null;
@@ -319,7 +320,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   /** @param {Arriving} [stage] */
   function arrive(stage = arriving) {
     arriving = stage;
-    const heightOwed = stage === "drawing" && !asWindow;
+    const heightOwed = stage === "drawing" && !asWindow && !near.asked();
     if (!heightOwed) {
       clearTimeout(sizing);
       sizing = undefined;
@@ -697,7 +698,10 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     askedNear = connectedNonce;
     deferredArrival(call("near-work", {}).catch(() => {}));
   }
-  const near = onAllNear(nearWork);
+  const near = onAllNear(() => {
+    nearWork();
+    arrive();
+  });
   /** @type {SampleHost} */
   const host = {
     ready: replace(),

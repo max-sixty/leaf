@@ -1,4 +1,5 @@
-"""Serve again the pages a session still means to serve, as its next prompt opens.
+"""Serve again the pages a session still means to serve, and restart those another
+installed copy of Leaf serves, as its next prompt opens.
 
 A resumed session holds the claims its earlier process made, which name a lifetime
 that has ended, and the servers of those pages retired with it; a server can also die
@@ -27,6 +28,32 @@ watches (`session.Watch`), and the next prompt tries again where that failed.
 
 Telling the agent to run `leaf server start` instead leaves the user's tab without
 a server until the agent acts, which an agent can put off or never do.
+
+A session moves to another copy of Leaf at `/reload-plugins` or in a new process of
+the session, such as a background job's wake or a resume, which loads the copy Claude
+Code has installed since (`session_runtime.py`). Its agent then reads `page check`
+from that copy, while each page's server goes on running the copy that started it, so
+what the user's tab draws may differ from what the agent checked. So once the prompt
+has served pages again, it restarts the server of each page the session holds that
+another installed copy started, where the hook runs an installed copy too
+(`state.plugin_cache_copy`). It finds another Leaf by the test `leaf server start`
+makes (`hosting.other_serving_leaf`), and restarts the server as that command does,
+at the same address (`hosting.restarting_server`).
+
+As that command does, the hook first asks whether this Leaf can serve the page, as a
+fresh bind decides it (`http.page_endpoint`), and leaves a page it can't serve to the
+copy serving it. A page at an older protocol is restarted by its renewal instead, as
+the hook reads it (`hook_transport`). A restart the hook has no time left for waits
+for a later prompt, and the agent hears of a server that did not start again. A hook
+from an installed copy reads each held page's service record and server lease; one
+from a checkout reads nothing more.
+
+The maintainer chose to restart only a server an installed copy started, and only
+from an installed copy's hook. Also restarting a server a checkout started, or
+restarting from a checkout's hook, would move a session's pages between a checkout
+and an installed copy. Whether a checkout's command should move a session at all
+(`session_runtime.select_checkout`) is a question the maintainer has left open, and
+this rule holds whichever way it is settled.
 """
 
 import time
@@ -37,12 +64,14 @@ from .findings import Finding
 from .harness import Harness
 from .refusals import Refused
 from .schema import PREVIEW_FILE
-from .service import claim_is_active, claim_records, prepare_claim
+from .service import claim_is_active, claim_records, claimant_matches, prepare_claim
+from .state import PLUGIN_ROOT, plugin_cache_copy
 
 
 def serve_again(harness: Harness, started: float) -> list[Finding]:
     """Serve each page `harness`'s session still means to serve whose ownership or
-    server is down, and say what kept any of them from serving.
+    server is down, then restart each it holds whose server another installed copy
+    of Leaf started (`to_restart`), and say what kept any of them from serving.
 
     The starts share the hook's one deadline, `CONFIRM_WITHIN` after `started`, its
     `time.monotonic()` as it began. A start takes about a second, or several on a
@@ -50,37 +79,71 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
     the hook exits inside its timeout; a start that took the time the hook had to
     hand over input inline leaves that input to a pointer instead
     (`hook_transport`). A port another process holds refuses at once
-    (`hosting.listening_socket`)."""
-    pages = to_serve(harness)
-    if not pages:
-        # Most prompts, which load no page servers.
-        return []
-    from .hook_transport import CONFIRM_WITHIN
-    from .hosting import claim_and_start
-    from .vendoring import renew_layer
-
-    deadline = started + CONFIRM_WITHIN
+    (`hosting.listening_socket`). A restart left no time doesn't begin. The restarts
+    come after the serves, since a serve keeps a server still running through the
+    grace its earlier session left it, whichever copy started it."""
     found = []
-    for page_dir in pages:
-        if unready := renew_layer(page_dir, harness, command=False):
-            found.append(unready)
-        try:
-            if time.monotonic() >= deadline:
-                raise Refused("the prompt had no time left to start it")
-            prepared = prepare_claim(harness, page_dir)
-            with (
-                harness.preparing_delivery(),
-                claim_and_start(page_dir, prepared_claim=prepared, deadline=deadline),
-            ):
-                pass
-        except Refused as error:
-            found.append(
-                Finding(
-                    "revive-refused",
-                    values={"page": str(page_dir), "error": str(error)},
+    if pages := to_serve(harness):
+        from .hosting import claim_and_start
+        from .vendoring import renew_layer
+
+        deadline = _deadline(started)
+        for page_dir in pages:
+            if unready := renew_layer(page_dir, harness, command=False):
+                found.append(unready)
+            try:
+                if time.monotonic() >= deadline:
+                    raise Refused("the prompt had no time left to start it")
+                prepared = prepare_claim(harness, page_dir)
+                with (
+                    harness.preparing_delivery(),
+                    claim_and_start(
+                        page_dir, prepared_claim=prepared, deadline=deadline
+                    ),
+                ):
+                    pass
+            except Refused as error:
+                found.append(
+                    Finding(
+                        "revive-refused",
+                        values={"page": str(page_dir), "error": str(error)},
+                    )
                 )
-            )
+    if pages := to_restart(harness):
+        from .hosting import restarting_server
+        from .http import page_endpoint
+        from .leases import page_locked
+        from .server import host_key
+
+        deadline = _deadline(started)
+        for page_dir in pages:
+            if time.monotonic() >= deadline:
+                break
+            try:
+                with page_locked(page_dir):
+                    page_endpoint(page_dir, host_key())
+            except Refused:
+                # This Leaf can't serve the page, so the copy serving it goes on.
+                continue
+            try:
+                with restarting_server(page_dir, harness, deadline=deadline):
+                    pass
+            except Refused as error:
+                found.append(
+                    Finding(
+                        "restart-refused",
+                        values={"page": str(page_dir), "error": str(error)},
+                    )
+                )
     return found
+
+
+def _deadline(started: float) -> float:
+    """When the prompt hook's starts must be ready and confirmed, given its
+    `time.monotonic()` as it began (`serve_again`)."""
+    from .hook_transport import CONFIRM_WITHIN
+
+    return started + CONFIRM_WITHIN
 
 
 def to_serve(harness: Harness) -> list[Path]:
@@ -104,5 +167,24 @@ def to_serve(harness: Harness) -> list[Path]:
             and service["lifetime"] == "session"
             and not (claim_is_active(claim) and running_server(page_dir) is not None)
         ):
+            pages.append(page_dir)
+    return pages
+
+
+def to_restart(harness: Harness) -> list[Path]:
+    """The pages `harness`'s session holds whose running server another installed
+    copy of Leaf started, where this Leaf is an installed copy too, by the rules the
+    module header gives."""
+    if not plugin_cache_copy(PLUGIN_ROOT):
+        return []
+    from .hosting import other_serving_leaf
+
+    pages = []
+    for claim in claim_records(harness.session):
+        page_dir = Path(claim["page"])
+        if not (claimant_matches(claim, harness) and claim_is_active(claim)):
+            continue
+        served = other_serving_leaf(page_dir)
+        if served is not None and plugin_cache_copy(Path(served["path"])):
             pages.append(page_dir)
     return pages

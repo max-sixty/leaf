@@ -53,12 +53,13 @@ records the receipt of what its transcript shows entered the model's context
 (`ClaudeCodeHarness.hook_payload`).
 
 Before it opens its turn, the prompt hook serves again each page the session still
-means to serve whose ownership or server is down, as a resumed session's are, and the
-turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
-turn and claims nothing; after a compaction it tells an agent holding a page which of
-Leaf's instructions the compaction removed (`reload_skill`). Claude Code runs Leaf's
-start hook only then (`hooks.json`), since a resumed session's first reply waits for
-its start hooks.
+means to serve whose ownership or server is down, as a resumed session's are, and
+restarts under its own Leaf each server of the session's pages that another installed
+copy started. The turn hears only of a page that did not start (`reconnect`). A
+SessionStart opens no turn and claims nothing; after a compaction it tells an agent
+holding a page which of Leaf's instructions the compaction removed (`reload_skill`).
+Claude Code runs Leaf's start hook only then (`hooks.json`), since a resumed
+session's first reply waits for its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A

@@ -139,7 +139,8 @@ a user preview selected or one that claimed or re-vendored a page the session ho
 or else the copy the session loaded, until `/reload-plugins` or a new process of the
 session loads the one Claude Code has installed since (`session_runtime.py`). A page
 server keeps the Leaf that started it, and `server start` from another Leaf restarts
-it under that one at the same address (`hosting.start_page`).
+it under that one at the same address (`hosting.start_page`), as the session's next
+prompt does for a page it holds ("Serving again at the next prompt").
 
 ## Watchers
 
@@ -218,7 +219,11 @@ were.
 Before it opens its turn or reads a page, the prompt hook serves again, as
 `leaf server start` would, each page the session still means to serve whose ownership
 or server is down, such as a resumed session's (`reconnect.py`, which lists the
-exclusions). The turn hears only of a page that did not start.
+exclusions). Then it restarts at the same address, as `leaf server start` would, the
+server of each page the session holds that another installed copy of Leaf started,
+where the hook runs an installed copy too. A server a checkout started, and every
+server when the hook runs from a checkout, keeps running. The turn hears only of a
+page that did not start.
 
 ### Nudging a session with no watcher
 

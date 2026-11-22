@@ -31,6 +31,8 @@ from leaf import files as files_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import reconnect as reconnect_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -261,3 +263,50 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [left["id"]]
     assert hook_transport_model.ATTENTION_OPENING not in context
+
+
+def test_a_prompt_restarts_a_server_another_installed_copy_started(
+    claimed, tmp_path, monkeypatch, capsys
+):
+    """A session moves to the copy of Leaf installed since it started, while its
+    page's server keeps the copy that started it. Its next prompt restarts that
+    server under the session's own copy, at the same address, where both are
+    installed copies. A server a checkout started keeps running, and so does every
+    server when the hook runs from a checkout."""
+    started = start_server_command(claimed, session_id="s1")
+    assert started.returncode == 0, started.stderr
+    serving = server_model.running_server(claimed)
+    assert serving is not None
+    checkout = serving["runtime"]
+    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
+    older, newer = cache / "0a0a0a0a0a0a", cache / "1b1b1b1b1b1b"
+    installed = {**checkout, "path": str(older), "commit": older.name}
+
+    def started_by(runtime):
+        service = read_record(claimed / "service.json")
+        write_record(claimed / "service.json", {**service, "runtime": runtime})
+
+    def kept(case):
+        capsys.readouterr()
+        prompt()
+        assert capsys.readouterr().out == "", case
+        running = server_model.running_server(claimed)
+        assert running is not None, case
+        assert running["server_id"] == serving["server_id"], case
+
+    started_by(installed)
+    kept("a hook from a checkout")
+
+    for module in (reconnect_model, layer_model):
+        monkeypatch.setattr(module, "PLUGIN_ROOT", newer)
+    started_by(checkout)
+    kept("a server a checkout started")
+
+    started_by(installed)
+    prompt()
+    assert capsys.readouterr().out == ""
+    restarted = server_model.running_server(claimed)
+    assert restarted is not None
+    assert restarted["server_id"] != serving["server_id"]
+    assert restarted["url"] == serving["url"]
+    assert restarted["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)

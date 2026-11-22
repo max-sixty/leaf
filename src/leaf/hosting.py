@@ -785,8 +785,11 @@ def start_server(
     revive: bool = False,
     *,
     harness: Harness | None,
+    deadline: float | None = None,
 ) -> PageStart:
-    """Start or reuse a server for `harness` without acquiring page ownership.
+    """Start or reuse a server for `harness` without acquiring page ownership,
+    refusing a start not ready and confirmed by `deadline`, a `time.monotonic()`
+    reading.
 
     A revival commits only while the desired service remains enabled and
     `harness`'s session still owns it. The detached producer checks those facts
@@ -794,7 +797,7 @@ def start_server(
     the page transition lock. Every revival retains the recorded address.
     """
     with _starting_server(
-        page_dir, host, persistent, revive, harness=harness
+        page_dir, host, persistent, revive, harness=harness, deadline=deadline
     ) as started:
         pass
     return started
@@ -867,11 +870,12 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
     once the page is taken, since a session service comes back only for the
     session holding it; one that can't start again leaves the service enabled and
-    down, for a revival to bring back. Only this command restarts: a hook or watch
-    reviving a page may run an older Leaf than the server it finds."""
+    down, for a revival to bring back. The prompt hook restarts the server of a
+    page its session holds by the same test, where it and that server both run an
+    installed copy (`reconnect`); a watch reviving a page restarts nothing."""
     from .http import page_endpoint
 
-    replacing = _served_by_another_leaf(page_dir)
+    replacing = other_serving_leaf(page_dir) is not None
     if replacing:
         with page_locked(page_dir):
             page_endpoint(page_dir, host_key())
@@ -883,18 +887,20 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     return started
 
 
-def _served_by_another_leaf(page_dir: Path) -> bool:
-    """Whether the page's running server records a Leaf other than this one, by
-    path or commit (`start_page`)."""
+def other_serving_leaf(page_dir: Path) -> dict | None:
+    """The Leaf the page's running server records (`payload_provenance`), where it
+    is another Leaf than this one by path or commit (`start_page`), or None where no
+    server runs or this Leaf started it."""
     from .layer import payload_provenance
 
     existing = running_server(page_dir)
     if not existing:
-        return False
+        return None
+    served = existing["runtime"]
     here = payload_provenance(include_path=True)
-    return any(
-        existing["runtime"].get(key) != here.get(key) for key in ("path", "commit")
-    )
+    if all(served.get(key) == here.get(key) for key in ("path", "commit")):
+        return None
+    return served
 
 
 class _StopScope(Enum):
@@ -977,7 +983,9 @@ def cmd_stop(
 
 
 @contextlib.contextmanager
-def restarting_server(page_dir: Path, harness: Harness | None):
+def restarting_server(
+    page_dir: Path, harness: Harness | None, *, deadline: float | None = None
+):
     """Hold a page's service down for the block, and start it again after, for the
     session `harness` names.
 
@@ -1007,8 +1015,9 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     this writes carries a mark of its own, which any other stop replaces, and the
     service is enabled again only while the mark is still there. The start that
     follows is a revival, "only if still enabled", so a stop after that is kept
-    too. A start the server then refuses leaves the service enabled and down, as
-    a dead server is, for a watching `leaf wait` to revive or report. Nothing but
+    too. A start the server then refuses, or one not ready by `deadline`, a
+    `time.monotonic()` reading, leaves the service enabled and down, as a dead
+    server is, for a watching `leaf wait` to revive or report. Nothing but
     this block reads the mark, so one a killed restart leaves behind is inert: the
     next start or stop writes a record without it.
     """
@@ -1055,7 +1064,13 @@ def restarting_server(page_dir: Path, harness: Harness | None):
         note(Finding("stopped-during-init", values={"page": str(page_dir)}))
         return
     try:
-        start_server(page_dir, persistent=persistent, revive=True, harness=harness)
+        start_server(
+            page_dir,
+            persistent=persistent,
+            revive=True,
+            harness=harness,
+            deadline=deadline,
+        )
     except StartRefused as error:
         raise Refused(f"{page_dir}'s server did not start again: {error}") from error
 

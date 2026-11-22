@@ -55,8 +55,10 @@ A message is Markdown, and HTML in it draws where you write it, as on GitHub: a
 formula inside a sentence, a native table, a bounded log, or a choice ("Ask for a
 pick" below). Native HTML needs no widget wrapper. Leaf reads it by CommonMark's
 rules, as GitHub does. Start a block of HTML after a blank line, with its opening tag
-alone on its line. The next blank line ends the block and Markdown resumes, so a blank
-line inside a widget or `<details>` splits it. Text whose blank lines matter, such as
+alone on its line. Markdown doesn't read the block's own lines, so backticks in a
+`<summary>` or a choice's option show as typed; mark code there with `<code>`. The
+next blank line ends the block and Markdown resumes, so a blank line inside a widget
+or `<details>` splits it. Text whose blank lines matter, such as
 code, goes in a Markdown fence or in a `<pre>` opening its own line after a blank
 line; inside a widget, leave a blank line before and after it. HTML among words
 belongs to their paragraph, and Markdown still reads the words inside it. Write a `<`
@@ -70,7 +72,7 @@ leaf thread reply <answer.ref> --done <<'EOF'
 The deploy passed.
 
 <details>
-<summary>Deploy log</summary>
+<summary>Log of <code>make deploy</code></summary>
 <pre>Ready
 Done</pre>
 </details>

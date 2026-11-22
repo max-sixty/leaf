@@ -37,6 +37,7 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     WIDE_TABLE_PAGE,
     arrival_findings,
+    serious_axe_violations,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -1476,22 +1477,36 @@ READING_SCROLLER = (
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
+def in_each_scheme(page):
+    """Put the page in each colour scheme in turn, yielding the scheme once its
+    colours have landed."""
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions, shadow trees' included, such
+        # as a search field's ground; read where they end.
+        render_checks_model.evaluate_probe(page, "finishMoving")
+        yield scheme
+
+
 def unread_syntax(page):
     """Code tokens the page paints too faint to read, each with the colour scheme it
     was read in."""
-    unread = []
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        # The scheme's colours land through transitions; read where they end.
-        page.evaluate(
-            "() => document.getAnimations().forEach("
-            "(a) => a instanceof CSSTransition && a.finish())"
-        )
-        unread += [
-            (scheme, Finding.read(u))
-            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
-        ]
-    return unread
+    return [
+        (scheme, Finding.read(u))
+        for scheme in in_each_scheme(page)
+        for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+    ]
+
+
+def axe_findings(page):
+    """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
+    that has any."""
+    findings = []
+    for scheme in in_each_scheme(page):
+        violations, report = serious_axe_violations(page)
+        if violations:
+            findings.append(f"[{scheme}] {report}")
+    return findings
 
 
 def scroll_findings(page):

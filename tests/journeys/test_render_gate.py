@@ -18,6 +18,7 @@ from browser.test_render_gate import (
     _author_lying_callout,
     _author_stateful_verbatim_widget,
     adopted_sheet_findings,
+    axe_findings,
     held_scroller_findings,
     pressable_paper_findings,
     resize_findings,
@@ -596,7 +597,10 @@ def test_page_fixture_renders(browser, serve, source):
     Code the page shows reads at 4.5:1 or better in both schemes, and no widget puts a
     declared label inside a form control, where no selection reaches it. Both are the
     layer's own, the syntax palette and its widget modules, so the suite holds them over
-    the shipped pages rather than the gate asking them of every authored one.
+    the shipped pages rather than the gate asking them of every authored one. Axe
+    finds no serious WCAG A/AA violation in either scheme, such as text under 4.5:1, a
+    control under 24px with a neighbour too close, or a role holding children it may
+    not own, in the page's own styles or in a widget's.
 
     The journeys share one page because each reads only what its own journey changes,
     and the page the journey before handed over is one a reader could have reached.
@@ -652,10 +656,11 @@ def test_page_fixture_renders(browser, serve, source):
         "typed boxes": typed_box_findings(page),
         "unshown context keys": unshown_key_findings(page, source),
         "held scrollers": held_scroller_findings(page, source),
-        # Last on this page: it moves the page through both color schemes.
+        # Last on this page: these move the page through both color schemes.
         "unread syntax": [
             f"[{scheme}] {finding}" for scheme, finding in unread_syntax(page)
         ],
+        "axe": axe_findings(page),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
         ),

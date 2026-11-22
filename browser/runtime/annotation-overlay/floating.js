@@ -600,23 +600,6 @@ export function floatingPlacement({ floating, update }) {
       return moved;
     },
     clientBox,
-    // How far the box's client rectangle stands from where its last placement stands it
-    // now, measured at the edges that hold it from its anchor's box read now. Chrome
-    // reports an anchored box's rectangle from before a scroll for up to two frames
-    // after it, while it paints where the scroll carried it, so a rectangle read in the
-    // task that scrolled lags by the scroll; subtracting this places it where it paints.
-    // Nothing for a box no anchor holds.
-    lag() {
-      const selection = stood.get(floating);
-      if (!selection?.frame) return { x: 0, y: 0 };
-      const frame = anchorBox(selection.frame);
-      const box = floating.getBoundingClientRect();
-      const { edges, point } = selection;
-      return {
-        x: box[edges.left] - (frame.left + point.left),
-        y: box[edges.top] - (frame.top + point.top),
-      };
-    },
     // What holds the box where its last placement stood it, as box-motion.js reads it:
     // the edges its spot is written from; null while no placement stands it.
     held: () => holding,

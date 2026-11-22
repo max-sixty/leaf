@@ -34,8 +34,13 @@
   const overlay = (el, over) =>
     !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome") ||
     closestAcross(over, TOP) !== closestAcross(el, TOP);
+  // A press that lands on a surface of another layer, as on a message's reaction list
+  // open in the top layer over the panel's row, is that surface's to take, though the
+  // message holding the list stands in the row's own layer.
   const reachedBy = (el, x, y) => {
-    for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
+    const hit = pressed(x, y);
+    if (overlay(el, hit)) return false;
+    for (let at = hit; at; at = at.parentNode || at.host) {
       if (at === el) return false;
       if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
       return !overlay(el, at);
@@ -50,6 +55,9 @@
   // strip's paging edge or a page's sticky header. At the page's foot that is the
   // floating panel's band, which the page states for Leaf's landings rather than in its
   // padding (`landingInsets`, geometry.js), so each sweep reads it before it measures.
+  // No scroller around a box fixed in the window carries it, so the walk stops there:
+  // the panel's own controls are pressed where they stand, whether or not the page
+  // behind them scrolls.
   let rootFoot = 0;
   const readRootFoot = async () => {
     const { landingInsets } = await window.__lfWidgetApi();
@@ -59,12 +67,18 @@
     const root = document.scrollingElement;
     let [left, top, right, bottom] = [0, 0, innerWidth, innerHeight];
     const up = (at) => at.assignedSlot || at.parentNode || at.host;
-    for (let at = up(el); at; at = up(at)) {
+    for (let at = el; at; at = up(at)) {
       if (at.nodeType !== 1) continue;
+      const style = getComputedStyle(at);
+      if (at !== el) narrow(at, style);
+      if (style.position === "fixed") break;
+    }
+    return { left, top, right, bottom };
+
+    function narrow(at, style) {
       const overX = at.scrollWidth - at.clientWidth;
       const overY = at.scrollHeight - at.clientHeight;
-      if (overX < 1 && overY < 1) continue;
-      const style = getComputedStyle(at);
+      if (overX < 1 && overY < 1) return;
       const box = at === root ? new DOMRect() : at.getBoundingClientRect();
       const [x0, y0] = [box.left + at.clientLeft, box.top + at.clientTop];
       const pad = (side, size) => {
@@ -94,7 +108,6 @@
         );
       }
     }
-    return { left, top, right, bottom };
   }
   // Whether a reach that takes a press at a point lies over a field there, which then
   // loses that press: a control's reach is for room nothing else uses. What would take

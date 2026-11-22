@@ -22,31 +22,42 @@ page use `pageScope`, `pageCommand` and `pageRung` in
 `register.js`. A new scope, page command or Escape step also needs its place in
 `register.js`'s `STACK`, `PAGE_COMMANDS` or `RUNG_LADDER`.
 
+Every key in Leaf's runtime and its packages' widgets is declared, as
+`test_the_register_is_the_only_way_a_key_enters_the_runtime`
+(`tests/model/test_interact_layer.py`) pins. A page's own code may instead answer a key
+itself, with a listener on its own element that prevents the key ("Scope resolution").
+That key works while focus is in the element and reaches no Leaf command there, but it
+gets none of what a declared row gets: a row in the command reference, a tooltip and
+`aria-keyshortcuts`, forwarding from an obligation's margin entry or thread
+(`contextKeys`), and a command in the interaction log. The command reference still lists
+Leaf's own command for that key there, since nothing tells the register that the page
+takes it.
+
 ## Scope resolution
 
-A press goes to scopes from the focused element outward, ending at the page and then
-the browser. A scope owns every binding it declares while the user is in it, so when its
+A press goes to scopes from the focused element outward, ending at the page and then the
+browser. A scope owns every binding it declares while the user is in it, so when its
 command is unavailable the press reaches no other Leaf command. A text field keeps
 characters, composition, caret movement and deletion, and a native control keeps its
 activation press, ahead of any widget or page scope around it (`dispatch.js`). A key
-other than typing or Escape, pressed while the user has scrolled the focused control
-out of sight, lets go of it first, without closing what stands beside it, and then
-acts from what they see, so no Leaf command, listener on the control or browser
-default acts on what they can't see (`controller.js`). A key
-typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
-the field and the dispatcher have read it there (`field-keys.js`), so the page never
-hears it bubble, and any other Leaf listener that needs keys typed into a field listens
-in capture. Leaf reads a printed letter in capture, before the page's listeners, and,
-while Go-to or reactions are armed, every key they answer. A widget whose ARIA pattern
-types ahead, such as a menu, a tree or a select-only combobox, keeps the letters and
-digits typed while focus is in it, as a text field and a select keep theirs
-(`text-entry.js`). Leaf reads every other key on the root element: after the listeners
-on the focused control and on each element around it, the page's own among them, and
-before the page's listeners on the document and the window, which hear only a key Leaf
-leaves. A key aimed inside `body` whose default is already prevented there is the
-page's, and Leaf takes no step for it. A row that `waits`, as Escape letting go of a
-control in the page, is read last, on the window, after every listener the page has,
-and only if none prevented the key (`controller.js`).
+other than typing or Escape, pressed while the user has scrolled the focused control out
+of sight, lets go of it first, without closing what stands beside it, and then acts from
+what they see, so no Leaf command, listener on the control or browser default acts on
+what they can't see (`controller.js`). A key typed into one of Leaf's fields, a
+`leaf-text` or a search box, stops at the field once the field and the dispatcher have
+read it there (`field-keys.js`), so the page never hears it bubble, and any other Leaf
+listener that needs keys typed into a field listens in capture. While Go-to or reactions
+are armed, Leaf reads every key they answer in capture, before the page's listeners.
+Leaf reads every other key, printed letters included, on the root element: after the
+listeners on the focused control and on each element around it, the page's own among
+them, and before the page's listeners on the document and the window, which hear only a
+key Leaf leaves. A key aimed inside `body` whose default is already prevented there is
+the page's, and Leaf takes no step for it. A widget whose ARIA pattern types ahead, such
+as a menu, a tree or a select-only combobox, keeps the letters and digits typed while
+focus is in it, whether or not it prevents them, as a text field and a select keep
+theirs (`text-entry.js`). A row that `waits`, as Escape letting go of a control in the
+page, is read last, on the window, after every listener the page has, and only if none
+prevented the key (`controller.js`).
 
 ## Escape
 

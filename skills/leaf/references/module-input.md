@@ -14,7 +14,7 @@ presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a sc
 whose own Escape step comes before every step outside it.
 
 Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
-the command reference and hints, and is the only writer of `aria-keyshortcuts`. A page
+the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
 widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
 exists; it may still be out of the page.
@@ -112,19 +112,20 @@ a widget's state or the threads. For any other state it reads, hold the value in
 
 ### How scopes compose
 
-A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A key pressed inside an outlet Leaf fills with a Thread
+A key goes first to listeners on the focused element and around it, then to the scope on
+the focused control, the widgets around it and the page. A widget's own listener keeps a
+key, even a page key, by preventing its default; declare keys the reader should find in
+the command reference. A key pressed inside an outlet Leaf fills with a Thread
 (`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
 presentation") skips the widgets around the outlet: it goes to the scopes inside the
-outlet and on it, then to the page. A scope takes only keys whose rows make a press, by a `run` or by
-naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
-different meaning further out; an unavailable Escape, though, passes on to the next
-Escape. Text fields keep their editing keys ahead of every widget scope. A key other
-than typing or Escape, pressed while the user has scrolled the focused control out of
-sight, lets go of the control first and goes to the page, so neither a widget's command
-nor the browser's own Enter and Space acts on what the user can't see. That key stops at
-the document, so a listener on the control or the widget doesn't hear it, and a script's
-own listener on the document or window hears it only in capture.
+outlet and on it, then to the page. A scope takes only keys whose rows make a press, by
+a `run` or by naming a `control` Leaf clicks, so other keys pass outward. A row keeps
+its key while unavailable, so the key never falls through to a different meaning further
+out; an unavailable Escape, though, passes on to the next Escape. Text fields keep their
+editing keys ahead of every widget scope. A key other than typing or Escape, pressed
+while the user has scrolled the focused control out of sight, lets go of the control
+first and goes to the page, so neither a widget's command or listener nor the browser's
+Enter and Space acts on what the user can't see.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the

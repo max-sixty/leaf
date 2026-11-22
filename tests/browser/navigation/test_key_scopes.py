@@ -778,13 +778,15 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     letting go of a control is what Leaf does with an Escape nothing else took, read
     after every listener the page has.
 
-    Every other key Leaf reads on the root element, after a listener on any element and
-    before the page's on the document and the window. So a command declared on a
-    focused element runs before a page-wide shortcut for the same key, which hears only
-    what Leaf leaves; Escape leaves Design mode before a page listener that prevents
-    every Escape hears it, from a focused page control too, and that listener hears the
-    next Escape. Go-to owns the keyboard while it is armed, so its Escape closes it before
-    that listener hears the key."""
+    Every other key, printed letters included, Leaf reads on the root element, after a
+    listener on any element and before the page's on the document and the window. So a
+    page widget that answers a letter Leaf's page also uses, as a film plays on `k`,
+    keeps it while focus is in the widget, and a letter it leaves unprevented goes on to
+    Leaf's page command. A command declared on a focused element runs before a page-wide
+    shortcut for the same key, which hears only what Leaf leaves; Escape leaves Design
+    mode before a page listener that prevents every Escape hears it, from a focused page
+    control too, and that listener hears the next Escape. Go-to owns the keyboard while it
+    is armed, so its Escape closes it before that listener hears the key."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -915,6 +917,28 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     assert page.evaluate("() => window.arrows") == 0
     page.keyboard.press("ArrowLeft")
     assert page.evaluate("() => window.arrows") == 1
+
+    # A page widget's own listener, declaring nothing.
+    page.evaluate("""() => {
+      const film = document.createElement('section');
+      film.id = 'film';
+      film.tabIndex = 0;
+      film.textContent = 'A film';
+      window.played = 0;
+      film.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.played += 1;
+      });
+      document.querySelector('main').append(film);
+      window.ran = [];
+      document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+      film.focus();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, []]
+    page.keyboard.press("j")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, ["scroll.down"]]
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
@@ -1602,12 +1626,14 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     says whether it repeats and the default is no.
 
     No gesture Playwright makes carries the repeat flag, so the press is dispatched with
-    it set. That is the event a held key sends and the handler under test is the one the
-    page installed; the tap below it, dispatched the same way and answered, is what says
-    so rather than leaving the held press to pass for want of reaching anything."""
+    it set, at the focused element as a real key is. That is the event a held key sends
+    and the handler under test is the one the page installed; the tap below it,
+    dispatched the same way and answered, is what says so rather than leaving the held
+    press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=3))
-    press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
+    press = """([key, repeat, shiftKey = false]) =>
+      (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent('keydown',
           {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
 

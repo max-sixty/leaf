@@ -241,13 +241,13 @@ of controls the user moves through with arrow keys offers one Tab stop with
 `rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
-events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
-it with `completed: true`; cancellation, a native context menu, or leaving the document
-calls it with `false`. The function returned by `end` runs when that press is over,
-after any compatibility mouseup and click it owes. Keep press-local work in these
-callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
-presses, and the connection's abort signal ends any work still running when the widget
-disconnects.
+events. `begin(pointerdown, path)`, a passive listener, may return
+`end(event, completed)`: release calls it with `completed: true`; cancellation, a
+native context menu, or leaving the document calls it with `false`. The function `end`
+returns runs when that press is over, after any compatibility mouseup and click it
+owes. Keep press-local work in these callbacks. Register inside `whileConnected`; the
+returned unsubscribe stops new presses, and the connection's abort signal ends work
+still running when the widget disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;

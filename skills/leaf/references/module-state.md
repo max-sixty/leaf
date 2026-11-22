@@ -33,7 +33,10 @@ markup has a controller, and only under the `id` it had at upgrade: if the id ch
 user adds through a `creates` verb, such as a new option, has none; its parent draws it
 from its own state and passes the member's asynchronous drawing to
 `controller.present(promise)`. Leaf itself draws what the declaration alone decides,
-such as hiding a suggestion's `lf-old` once it is accepted (`retired-when`).
+such as hiding a suggestion's `lf-old` once it is accepted (`retired-when`). Off Leaf
+(`module-authoring.md`, "A widget that also runs off Leaf") `this.reading` is `null`,
+and `this.state` and `this.controller` throw, so a widget that also runs there reads
+`this.reading?.state` and records only where `this.reading` exists.
 
 `read()` returns an immutable `{authored, state, memberships, thread, provenance,
 actions}`. `authored` is the state the page's markup sets, and `state` that with every
@@ -49,17 +52,24 @@ for the action. Before the document has loaded, `authored` and `state` may be mi
 Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})`, and
 undo one with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the
 action's Undo candidates. `says` names the gesture in the widget's words, such as
-`Chose “Fast”`, and Leaf's acknowledgement and Undo show it, so post no notice of your
-own for it. `dispatch` returns `null` when the action isn't available, throws for a verb
-the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
-already shows the result; `delivery` resolves to the event the server admitted, or
-`null`, and a refusal restores the server's state.
+`Chose “Fast”`. Leaf's acknowledgement shows it, and so does Undo in the tab that made
+the gesture, so post no notice of your own for it; another tab, or this one after a
+reload, names the gesture in Leaf's own words. `dispatch` returns `null` when the action
+isn't available, throws for a verb the widget doesn't declare, and otherwise returns
+`{reading, delivery}`. The reading already shows the result; `delivery` resolves to the
+event the server admitted, or `null`, and a refusal restores the server's state.
 
-During a live edit, or while the user rearranges the widget by pointer or keyboard, call
-`const resume = this.controller.defer()` before your first change to the DOM, so Leaf
-doesn't redraw under the user. Call `resume()` once `dispatch` has returned, or after
-cancelling has put the DOM back; it draws the newest reading. A dragged widget
-(`dragging`, `module-input.md`, "Pointer presses") defers for the whole drag.
+The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with the Undo
+row in the leaf's menu.
+
+A gesture in which the module itself changes the widget's nodes, such as a live edit or
+a drag that moves them, calls `const resume = this.controller.defer()` before its first
+change to the DOM, so no redraw puts the nodes back under the user. `render()` doesn't
+run while the hold stands, so a widget that shows a gesture's progress through
+`render()`, as a slider previewing its value does, leaves `defer()` alone. Call
+`resume()` once `dispatch` has returned, or after cancelling has put the DOM back; it
+draws the newest reading. A dragged widget (`dragging`, `module-input.md`, "Pointer
+presses") defers for the whole drag.
 
 Pass asynchronous preparation the page should wait for, such as a renderer loading, to
 `present(promise)`, or, from a widget that also runs off Leaf, dispatch it as a
@@ -104,7 +114,8 @@ shape of its `unit`:
   other declared fields.
 - With a per-part unit, it holds `units`, each part's `{action, value, detail}` by id.
 - A position verb's `value` maps each container id to its ordered member ids, and
-  `ranks` gives each member's rank.
+  `ranks` gives each member's rank. Leaf moves no member: `render()` places each
+  container's members in that order (`module-authoring.md`, "Retained nodes").
 
 `detail` follows the payload [package-data.md, "User state"](package-data.md#user-state)
 gives each record kind. A recorded body, attribute or value sends `detail: {value}`. A
@@ -182,15 +193,16 @@ that key as outdated. `data-lf-origin-path` is an optional JSON array naming the
 datum's place in the value. Take a mark off a node you keep once it no longer shows
 data; a node you remove takes its marks with it.
 
-The detail names the property and the value drawn from it, and Leaf stamps the marks
-with that value's source and revision, so a draw that finishes after a newer value
-arrived keeps the revision it drew. Name the value Leaf set, not a copy, or `null` for
-words no bound value supplied, such as records the widget composed itself. A string or
-number value can be one you still hold or one Leaf set after the value you last
-reported; after reporting a newer one, don't go back to an older one. A widget
-with several bound inputs marks the items of one of them and names that one, since a
-widget's marks carry one source. Marks on nodes inside a nested widget belong to that
-widget. On a page without Leaf, nothing listens and the marks mean nothing.
+The detail holds one key, the property its input names (`value` above), with the value
+drawn from it. Leaf stamps the marks with that value's source and revision, so a draw
+that finishes after a newer value arrived keeps the revision it drew. Name the value
+Leaf set, not a copy, or `null` for words no bound value supplied, such as records the
+widget composed itself. A string or number value can be one you still hold or one Leaf
+set after the value you last reported; after reporting a newer one, don't go back to an
+older one. A widget with several bound inputs marks the items of one of them and names
+that one, since a widget's marks carry one source. Marks on nodes inside a nested
+widget belong to that widget. On a page without Leaf, nothing listens and the marks
+mean nothing.
 
 ### Time readings
 

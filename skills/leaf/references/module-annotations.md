@@ -77,14 +77,22 @@ node. Use the focus query when retaining a focused entry while updating its read
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
 part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and
-calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
-parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
+calls `registerVisualParts(source, read, {reveal, label})` once, where the widget
+builds itself (`setup()`, or behind `once()`). The registration lasts as long as the
+element, with nothing to undo, and a second call for the same element throws. `read()`
+returns the parts drawn now as `{id, element, label}`, each id a nonempty string with
+no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
 already, so cancel work that would hide it. `label(id)` names a part in Threads, in its
 margin entry and in Page Map without changing the visual, or returns `null`. Call the
 returned `update()` after the parts or their positions change: a part's margin entry
 stands level with the part, and Leaf learns that a part moved inside the visual only
 from `update()`.
+
+The user picks a part as they pick any element that isn't words, with Alt-click or in
+Select mode (`page-authoring.md`, "Stable anchors"). Leaf finds the part under the
+pointer by hit-testing, so paint each part across the area a user aims at: an SVG shape
+with `fill: none` takes a press only along its stroke.
 
 A visual with too many parts to list, such as a chart's points, also passes `find` and
 `at`, and its `read()` may return none, since `read()` is what the target picker and a

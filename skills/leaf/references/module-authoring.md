@@ -33,24 +33,24 @@ of the module `widget-api.js` re-exports it from. Every export is public for ind
 and bundled packages alike. A DOM helper takes the element it acts for as its first
 argument.
 
-`/vendor/lit.js` is Lit's own module, the one path its names come from: `render`,
-`html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`, `classMap`,
-`styleMap`, `guard`, `unsafeHTML` and `noChange`. From Preact Signals `widget-api.js`
-exports `signal`, for private state a command's `when` reads (`module-input.md`,
-"Command rows").
+`/vendor/lit.js` is Lit's own module, the one path its names come from, such as
+`render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`,
+`classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. From Preact Signals
+`widget-api.js` exports `signal`, for private state a command's `when` reads
+(`module-input.md`, "Command rows").
 
 ### A widget that also runs off Leaf
 
 A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
-`widget-api.js`. The portable helpers are the names that file exports
-([`browser/runtime/portable-api.js`](../../../browser/runtime/portable-api.js)). Each
-loads in a page Leaf didn't compose, where `widget-api.js` itself fails to load.
-Retained-node helpers, writes and generated controls work on both hosts. The host maps
-`/runtime/` and `/vendor/` to a Leaf install with its own import map and gives the
-element its drawing box. For the widget's look it links the layer's `portable.css`,
-served beside `/widgets/` (`packages.md`, "Styles and composition"). Use `LeafElement`
-("Drawing what a widget reads") or extend `HTMLElement`. Leaf adds its services through
-events and element declarations that a plain host can ignore:
+`widget-api.js`. The portable helpers are
+[that file's exports](../../../browser/runtime/portable-api.js): each loads on a page
+without Leaf, where `widget-api.js` can't. Retained-node helpers, writes and generated
+controls work on both hosts. The host maps `/runtime/` and `/vendor/` to
+a Leaf install with its own import map and gives the element its drawing box. For the
+widget's look it links the layer's `portable.css`, served beside `/widgets/`
+(`packages.md`, "Styles and composition"). Use `LeafElement` ("Drawing what a widget
+reads") or extend `HTMLElement`. Leaf adds its services through events and element
+declarations that a plain host can ignore:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -423,6 +423,8 @@ ${offered("my-tools")}>` does the same, with an input's `type` binding placed be
 A button that looks like Leaf's own controls is built by its role, so every control of
 one kind wears one face: `offerAction(role, className, label, {title, action})`, or
 `<button ${offeredAction(role, className, label, {action})}></button>` in a template.
+There `label` is a symbol's or mark's accessible name, and the template writes any other
+role's words.
 `offerActionElement(node, role, className, label, {title, action})` applies the same
 face, symbol and name to an existing node. The roles are:
 

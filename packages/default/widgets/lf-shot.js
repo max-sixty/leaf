@@ -51,7 +51,6 @@ import {
   setScroll,
   canvas2D,
   afterPresentation,
-  announce,
   once,
   offer,
   failSoft,
@@ -154,7 +153,7 @@ export class Shot extends HTMLElement {
     render(drawing.render(), this, { host: this });
     drawing.fit();
     render(drawing.render(), this, { host: this });
-    drawing.chooseView = (view, label) => this.#chooseView(view, label);
+    drawing.chooseView = (view) => this.#chooseView(view);
     drawing.chooseScale = (scale) => {
       this.#drawing.actual = scale === "actual";
       this.#fit();
@@ -335,15 +334,15 @@ export class Shot extends HTMLElement {
     layoutChanged(this);
   }
 
-  /** @param {string} view @param {string} label */
-  #chooseView(view, label) {
+  // The view's own radio says which view shows, as focus lands on it.
+  /** @param {string} view */
+  #chooseView(view) {
     if (view === this.#drawing.view) return;
     if (view === "pixels") void this.#showPixels();
     else {
       this.#drawing.view = view;
       this.#fit();
     }
-    announce(`Showing ${label.toLowerCase()}`);
   }
 
   #syncComparison() {

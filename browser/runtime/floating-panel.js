@@ -2896,23 +2896,19 @@ export function createFloatingPanel({
     return html`
       ${
         latest.failed
-          ? html`<div class="lf-fp-failed" role="none">
+          ? html`<div class="lf-fp-failed">
               <b>${latest.label}</b>
               <p class="lf-fp-failed-error" data-lf-scroll>${latest.error}</p>
             </div>`
           : nothing
       }
-      <div class="lf-fp-versions lf-rows" role="none">
+      <div class="lf-fp-versions lf-rows">
         ${repeat(
           versions,
           (entry) =>
             `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
           (entry) =>
-            html`<div
-              class="lf-fp-version"
-              role="none"
-              ?data-lf-current=${entry.current}
-            >
+            html`<div class="lf-fp-version" ?data-lf-current=${entry.current}>
               ${menuItem(
                 html`${entry.name}${
                   entry.note
@@ -2952,7 +2948,7 @@ export function createFloatingPanel({
       ${
         versions.length
           ? nothing
-          : html`<p class="lf-rows-empty" role="none">Showing ${picker.token}</p>`
+          : html`<p class="lf-rows-empty">Showing ${picker.token}</p>`
       }
     `;
   }
@@ -2986,8 +2982,7 @@ export function createFloatingPanel({
   /** @param {RouteFor<"errors">} route */
   function errorsList({ errors }) {
     const live = new Set(errorsReading().map((error) => error.id));
-    if (!errors.length)
-      return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
+    if (!errors.length) return html`<p class="lf-rows-empty">No errors.</p>`;
     /** @param {number | null} dismissed */
     const movePast = (dismissed) => {
       const presses = [...stage.querySelectorAll(".lf-fp-error button")];
@@ -3028,7 +3023,6 @@ export function createFloatingPanel({
         html`<div
           class="lf-fp-error"
           data-lf-key=${error.id}
-          role="none"
           style=${live.has(error.id) ? nothing : "visibility: hidden"}
         >
           <p class="lf-fp-error-words" aria-hidden="true">

@@ -156,7 +156,6 @@ export const mediaViewer = document.createElement("dialog");
 mediaViewer.id = "lf-media-viewer";
 mediaViewer.className = "lf-ui lf-media-viewer";
 mediaViewer.setAttribute("closedby", "any");
-mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
 presentViewer(null);
 

@@ -17,7 +17,7 @@ import {
   segmentsIn,
   spanIn,
 } from "../passages.js";
-import { textUnits } from "../text-alignment.js";
+import { sentenceUnits, textUnits } from "../text-alignment.js";
 import { anchorForRange, anchoringIsReady } from "../anchor-resolution.js";
 import { takesLetters, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -116,7 +116,6 @@ const sameRun = (left, right) =>
   right !== null &&
   segmentBlock(left.segment) === segmentBlock(right.segment) &&
   left.segment.gen === right.segment.gen;
-const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
 // An EDGE in the reading: a position inside it that holds no character.
 /** @param {import("../passages.js").PageReading} reading @param {number} i */

@@ -267,16 +267,12 @@
   // links. CSS draws the mark; no generated child can change a link's line breaks.
   /** @type {Window["lfLinks"]["opensElsewhere"]} */
   const opensElsewhere = (href) => {
-    try {
-      const url = href === null ? null : new URL(href, document.baseURI);
-      return (
-        url !== null &&
-        ["http:", "https:"].includes(url.protocol) &&
-        url.origin !== location.origin
-      );
-    } catch {
-      return false;
-    }
+    const url = href === null ? null : URL.parse(href, document.baseURI);
+    return (
+      url !== null &&
+      ["http:", "https:"].includes(url.protocol) &&
+      url.origin !== location.origin
+    );
   };
   /** @type {Window["lfLinks"]["markExternalLink"]} */
   const markExternalLink = (link) => {

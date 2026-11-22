@@ -362,7 +362,7 @@ customElements.define(
       return html`<div class="lf-vr-dashboard">
         <header class="lf-vr-heading">
           <h2 ${generated({ says: true })}>${run.title}</h2>
-          <div class="lf-vr-progress" role="status" aria-live="polite">
+          <div class="lf-vr-progress" role="status">
             <span ${generated({ says: true })}
               ><strong>${approvedCount}</strong> of ${run.cases.length} look right</span
             >

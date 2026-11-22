@@ -107,7 +107,6 @@ commandReferenceDialog.id = "lf-command-reference";
 commandReferenceDialog.className = "lf-ui lf-command-reference";
 commandReferenceDialog.setAttribute("aria-label", "Command reference");
 commandReferenceDialog.setAttribute("closedby", "any");
-commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
 /** @type {(() => void) | null} */

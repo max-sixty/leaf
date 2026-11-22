@@ -1288,8 +1288,6 @@ function blockWords(target) {
   const words = diffWordsOf.get(target);
   return words && words.is === comparisonWords(target) ? words : null;
 }
-const plural = (/** @type {string} */ word, /** @type {number} */ n) =>
-  `${n} ${n === 1 ? word : `${word}s`}`;
 // One word for a set of blocks: theirs where they share one, else "block".
 const nounOf = (/** @type {string[]} */ words) => {
   const [first = "block", ...rest] = words.map((word) =>
@@ -1324,7 +1322,7 @@ export function changeAccount({ blocks, removed }) {
     parts.push([changed.length, nounOf(changed.map(addressableWord)), "changed"]);
   return parts
     .map(([n, noun, verb], i) =>
-      parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`,
+      parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${counted(n, noun)} ${verb}`,
     )
     .join(", ");
 }

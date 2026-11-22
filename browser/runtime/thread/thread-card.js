@@ -442,7 +442,7 @@ const lastTurn = (model) =>
  * reply: import("./replies.js").ReplyCommands & import("./messages.js").MessageCommands["reply"],
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback" | "observeSummary" | "firstUnread" | "afterPass">,
  * reaction: Omit<import("./messages.js").MessageCommands["reaction"], "pressed">,
- * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding" | "reader">,
+ * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding">,
  * placedAt: Parameters<typeof quoteReading>[1]["placedAt"],
  * landInThread: import("./replies.js").ReplyCommands["landInThread"]}} ThreadCommands */
 
@@ -466,21 +466,15 @@ const lastTurn = (model) =>
      step that takes the user where Resolve or Reopen leaves them, or null for the
      thread's own: Reopen in its reply box, Resolve where the user stands (folding.js,
      `settleThread`).
-   Only Leaf's own containers say the rest (`ViewOutlets`):
-   - `reader`, the reader a way back reopens the thread in once a settlement is taken
-     back (folding.js): the page, for a margin card, which stands for the thread there;
-     the primary reader, for a whole thread it draws whose nomination lands the user
-     elsewhere, as the floating panel's view does. A seat, and a primary reader's thread
-     that keeps the user where they pressed, name none and leave the route to choose.
-   - The margin card's own (`CardOutlets`): `line`, its head line, which it arranges
-     around the boxes the thread draws its notice and settlement in, and which the thread
-     stands after its messages, where it shares their heads' track
-     (annotation-chrome.css) and the notice takes only the room the heads leave
-     (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which
-     grows the floating card at the edge it does not hold, would move what the user is
-     on (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in
-     it scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the
-     end the card's transcript follows, as its keeper says (scrolling.js, `followEnd`).
+   Only the margin card says the rest (`CardOutlets`): `line`, its head line, which it
+   arranges around the boxes the thread draws its notice and settlement in, and which
+   the thread stands after its messages, where it shares their heads' track
+   (annotation-chrome.css) and the notice takes only the room the heads leave
+   (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which grows the
+   floating card at the edge it does not hold, would move what the user is on
+   (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in it
+   scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the end
+   the card's transcript follows, as its keeper says (scrolling.js, `followEnd`).
    The thread draws each part apart in a box of its own (`apart`), which the container
    places in the place it names before the thread draws it, as it places the thread's
    box in its outlet. The reply's options are read as the box is made, once for the
@@ -507,7 +501,7 @@ const lastTurn = (model) =>
  * endNewsMoves?: () => boolean,
  * standsAtEnd?: () => boolean,
  * }} CardOutlets */
-/** @typedef {ThreadOutlets & CardOutlets & {reader?: "page" | "primary"}} ViewOutlets */
+/** @typedef {ThreadOutlets & CardOutlets} ViewOutlets */
 
 // A box a thread draws a part in where its container stands the part apart: it lays
 // out as what it holds (surfaces.css) and, as the thread's own box is, is Leaf's.
@@ -1480,9 +1474,6 @@ export class ThreadView {
       // moves on to the next thread and a margin card to the next at its passage, else
       // closes onto it (`ThreadOutlets`, `landing`), else the thread's own.
       prepareLanding: () => landing?.(model.resolved) ?? this.#prepareThreadLanding(),
-      // The reader a way back reopens the thread in, which its container names
-      // (`ViewOutlets`, `reader`).
-      reader: this.#outlets.reader ?? null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };

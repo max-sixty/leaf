@@ -166,6 +166,9 @@ const cardThread = () => focusedThreadTarget();
 /** @param {Element | null} thread */
 const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
+// So does the press that moves it between its card and the floating panel.
+/** @param {Element | null} thread */
+const movingControl = (thread) => (thread ? threadPart(thread, "move") : null);
 
 // The Copy of the message the user is in, by focus or by the caret a click on its words
 // leaves, else of the thread's latest message.
@@ -215,8 +218,9 @@ export const landInThread = (box, route = null) => landIn({ box, route });
  * The keys are live wherever the user is at a thread: in it, on the card, the message a
  * click on its words focuses, the quote, a link in a reply; and on the element whose
  * thread a card shows beside it, which is one place with it, as `c` there continues that
- * thread. `r` settles the thread from any of them, since a control, a widget, or a text
- * box that owns a letter is walked first. Enter replies only from the card, where no
+ * thread. `r` settles the thread from any of them, and `p` moves it between its card
+ * and the floating panel, since a control, a widget, or a text box that owns a letter
+ * is walked first. Enter replies only from the card, where no
  * control inside has an Enter of its own to lose; where a resolved thread draws no reply
  * box, as a resolved card doesn't, it reopens the thread into the box instead. The
  * platform's copy key with nothing selected presses Copy on the message the user is in,
@@ -264,6 +268,20 @@ export function declareThreadKeys(threadHere) {
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
         control: () => resolutionControl(threadHere()),
+      },
+      // `p` presses the thread's press that moves it to Leaf's other place for it, a
+      // card's Open in panel or the panel's Show on page, each of which also chooses
+      // where the threads after it open (threads-in-panel.js), whose notice offers `p`
+      // to take the choice back.
+      {
+        id: "thread.move",
+        touch: false,
+        keys: ["p"],
+        title: () =>
+          (
+            movingControl(threadHere())?.getAttribute("aria-label") ?? "Open in panel"
+          ).toLowerCase(),
+        control: () => movingControl(threadHere()),
       },
       {
         id: "message.copy",

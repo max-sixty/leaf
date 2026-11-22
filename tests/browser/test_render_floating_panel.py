@@ -67,7 +67,7 @@ from render_harness import (
 )
 from render_harness import leaf_page as titled_page
 
-from browser.threads import dispatch_paste, paste_image
+from browser.threads import choose_threads_in_panel, dispatch_paste, paste_image
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
@@ -952,6 +952,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
     page = floating(browser, url)
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="About this bit.").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
@@ -5244,8 +5245,9 @@ def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve
     card.locator(".lf-msg-edit").click()
     assert card.locator(".lf-msg-editor leaf-text").evaluate(face) == message
     card.locator(".lf-msg-edit-cancel").click()
-    open_threads(page)
-    page.locator(f"{panel_view('threads')} .lf-fp-thread").click()
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Open in panel"
+    ).click()
     reader = page.locator(f"{panel_view('thread')} .lf-msg")
     expect(reader).to_contain_text("Which job should come first?")
     assert reader.locator(".lf-msg-body").evaluate(face) == message

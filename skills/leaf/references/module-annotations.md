@@ -241,8 +241,11 @@ and `primary` reads false until the next `update()` takes them back.
 `reveal(key, request)` shows the requested part in the package's layout, or returns
 `false` to leave the part to the thread's place on the page, such as its margin card.
 Where nothing there shows it, Leaf asks again with `request.last` set, and a second
-`false` leaves the thread unopened. `request` also carries `part`, `message`, `focus`,
-`signal` and `current()`; Leaf handles focus, scrolling and arrival. The feature
+`false` leaves the thread unopened. Where the user asked for the thread's place on the
+page, as Leaf's Show on page does, and the page now shows the thread, Leaf asks with
+`request.page` set, and a reader that draws the thread elsewhere returns `false` to
+put its view away. `request` also carries `part`, `message`, `focus`, `signal` and
+`current()`; Leaf handles focus, scrolling and arrival. The feature
 gallery's `lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement

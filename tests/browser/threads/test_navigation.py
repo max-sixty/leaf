@@ -146,10 +146,12 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
             if left in ("passage thread's link", "Show on page")
             else page_root
         )
+        open_panel_thread(page, root)
         if left in ("walk", "Show on page"):
             # From the page's foot, so going to the passage at its top moves the page.
+            # Opening the passage's thread in the panel brought its passage into view.
             page.evaluate("scrollTo({top: 1e6, behavior: 'instant'})")
-        open_panel_thread(page, root)
+            scroll_settled(page)
         thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     if left == "walk":
         page.keyboard.press("Escape")

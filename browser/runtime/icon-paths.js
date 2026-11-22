@@ -140,10 +140,14 @@ export const ACTIONS = {
   // own (notifications.js, `pressReading`), in the title case the user asked for.
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
+  // A thread's way between Leaf's two places for it, its card beside the passage and the
+  // floating panel (thread/threads-in-panel.js).
+  "open-in-panel": { name: "Open in panel", icon: "expand" },
   "resume-writing": { name: "Resume writing", icon: "edit" },
   "restore-edit": { name: "Restore edit", icon: "undo" },
   "show-annotations": { name: "Show annotations", icon: "locate" },
   "show-changes": { name: "Show changes", icon: "locate" },
+  "show-on-page": { name: "Show on page", icon: "locate" },
   "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },

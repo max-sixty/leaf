@@ -1349,10 +1349,11 @@ def test_the_row_back_from_a_thread_returns_focus_to_previews_nothing(
 ):
     """Back from a thread returns focus to the thread's row in Threads, which is the
     user going back where they came from rather than aiming at the row, so the row
-    previews nothing until they step onto it again."""
+    previews nothing until they step onto it again. Threads about the whole page open
+    in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
     for n in ("one", "two"):
-        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+        panel_comment(serve.page_dir, f"Question {n} on the lede?")
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
     page.keyboard.press("g")

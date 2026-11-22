@@ -81,7 +81,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread, thread_row
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -105,7 +105,10 @@ def comment_ids(page_dir):
 def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
-    where they stand."""
+    where they stand. The tab chooses the panel for threads, and the thread opens by
+    its route without travel (`threadActions.open`), so reading its head moves and
+    reveals nothing on the page, as a row of Threads, which travels to the passage,
+    would."""
     page.evaluate(
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
@@ -113,8 +116,19 @@ def thread_head(page, thread_id):
         "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
-    open_panel_thread(page, thread_id)
-    return page.locator(PANEL_THREAD).locator(".lf-thread-quote-head")
+    choose_threads_in_panel(page)
+    page.evaluate(
+        """async (id) => {
+          const api = window.__lfThreadsApi;
+          const thread = api.readThreads().threads.find((t) => t.id === id);
+          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+        }""",
+        thread_id,
+    )
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
+    expect(view).to_be_visible()
+    panel_settled(page, view="thread")
+    return view.locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -4481,8 +4495,8 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     if superseded:
         expect(search).to_be_focused()
-        thread_head(page, thread)
-        show_on_page(page)
+        # Its file now seats the thread, so the thread's row opens it there.
+        thread_row(page, thread).click()
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)

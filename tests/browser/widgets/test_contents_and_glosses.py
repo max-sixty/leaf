@@ -22,6 +22,7 @@ from render_harness import (
     told,
 )
 
+from browser.threads import choose_threads_in_panel
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
@@ -1717,6 +1718,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread").click()
     page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()

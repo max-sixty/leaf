@@ -109,7 +109,9 @@
  *   leave the panel's thread under the card it opens). A card's Open in panel
  *   moves the other way, closing the card for this view (`openThread`), which the
  *   user chose for a long thread read in a card's narrow room beside
- *   the column; rejected was opening it wider than other views. The view stands right
+ *   the column; rejected was opening it wider than other views. It also chooses this
+ *   panel for the threads after it, until the view's Show on page chooses cards again
+ *   (thread/threads-in-panel.js). The view stands right
  *   on the row, with no room between them that typing would show or hide.
  *   The user chose that over a blank line's room kept under every
  *   open view, which reads in Threads as a missing row. Rejected there: the line pushing
@@ -261,9 +263,16 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
+import { openingPart } from "./thread/focus.js";
 import { inPageOrder, threadPlace } from "./thread/placement.js";
 import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
+import {
+  BESIDE_PASSAGES,
+  chooseThreadsInPanel,
+  threadsInPanel,
+  wouldChoose,
+} from "./thread/threads-in-panel.js";
 import { landSent } from "./thread/landing.js";
 import {
   PAGE_DRAFT,
@@ -1961,6 +1970,24 @@ export function createFloatingPanel({
       message,
     });
   }
+  // A row of a list here that names a thread, in Threads, On Me's Reply and Discuss or
+  // the menu's search, opens it by the route every opening of a thread takes, so it
+  // follows the user's choice of where threads open (thread/destination.js): in this
+  // panel, over the list, which its way back returns to (`reveal`), or beside its
+  // passage, where the list goes once the thread stands there, since the user has gone
+  // on to the page. It lands in the reply, by a key as by a press, since what the user
+  // types after picking a row is an answer (thread/focus.js, `openingPart`); a finger
+  // lands on the thread, since the keyboard a reply takes would rise over what the user
+  // opened to read.
+  /** @param {string} key */
+  function openRow(key) {
+    const intent = retainUserIntent();
+    const part = coarsePointer.matches ? "thread" : "reply";
+    void threadActions.open(key, { part, intent }).then((landed) => {
+      if (!landed || !intent() || renderedUnder(landed, host)) return;
+      if (trail.value.length) close();
+    });
+  }
   // Opening a thread shows it at its first unread reply, as its card does, else at its
   // end, where the latest turn is. The user chose that over opening at
   // the end with Next unread, which leaves a long unread reply's head, with its New,
@@ -2009,11 +2036,14 @@ export function createFloatingPanel({
       if (!mayLand() || trail.value.at(-1) !== route) return false;
       const kept = openThreads();
       const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
-      if (next) {
-        open({ view: "thread", thread: next.key }, { replace: true, focus: false });
-        const view = shownView();
-        if (view) focusDestination(view, "move");
-      } else back();
+      // The next thread opens where every route to a thread opens it
+      // (thread/destination.js): here, in place of the resolved one, or beside its
+      // passage, where this view goes.
+      if (next)
+        return threadActions
+          .open(next.key, { part: "thread", intent: mayLand })
+          .then(Boolean);
+      back();
       return true;
     };
   }
@@ -2757,12 +2787,9 @@ export function createFloatingPanel({
           row: `group:${group.name}`,
         }),
       )}${reached.map(rowFor)}${named.map((thread) =>
-        menuItem(
-          threadName(thread),
-          kind("Thread"),
-          () => open({ view: "thread", thread: thread.key }),
-          { row: `thread:${thread.key}` },
-        ),
+        menuItem(threadName(thread), kind("Thread"), () => openRow(thread.key), {
+          row: `thread:${thread.key}`,
+        }),
       )}${versions.map((entry) =>
         menuItem(
           html`${entry.name}${
@@ -3384,7 +3411,7 @@ export function createFloatingPanel({
             [thread],
             route === "focus" && attention ? wordsText(attention.word) : null,
           )}
-        @click=${() => open({ view: "thread", thread: thread.key })}
+        @click=${() => openRow(thread.key)}
       >
         <span class="lf-row-lead"
           ><span class="lf-fp-news-mark lf-unread-dot"
@@ -3603,6 +3630,7 @@ export function createFloatingPanel({
       openIn(view)
         ? head.querySelector(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
         : null,
+    move: (view) => (openIn(view) ? head.querySelector(".lf-thread-move") : null),
     whole: (view) => (openIn(view) ? openView() : null),
   });
   /** @param {Element | undefined} view */
@@ -4133,7 +4161,7 @@ export function createFloatingPanel({
       ? html`<button
           type="button"
           ${offeredAction("word", "lf-fp-discuss")}
-          @click=${() => open({ view: "thread", thread: conversation.key })}
+          @click=${() => openRow(conversation.key)}
         >
           Discuss
         </button>`
@@ -4190,7 +4218,7 @@ export function createFloatingPanel({
             ? html`<button
                 type="button"
                 ${offeredAction("word", "lf-fp-reply")}
-                @click=${() => open({ view: "thread", thread: waiting.thread.key })}
+                @click=${() => openRow(waiting.thread.key)}
               >
                 Reply
               </button>`
@@ -4257,7 +4285,7 @@ export function createFloatingPanel({
       answers = html`<button
         type="button"
         ${offeredAction("word", "lf-fp-reply")}
-        @click=${() => open({ view: "thread", thread: thread.key })}
+        @click=${() => openRow(thread.key)}
       >
         Reply
       </button>`;
@@ -4906,12 +4934,21 @@ export function createFloatingPanel({
       opening.onPageSeat
         ? html`<button
             type="button"
-            ${offeredAction(
-              "symbol",
-              "lf-fp-on-page",
-              inMessage ? "Show in message" : "Show on page",
-              { action: "show" },
-            )}
+            ${
+              inMessage
+                ? offeredAction("symbol", "lf-fp-on-page", "Show in message", {
+                    action: "show",
+                  })
+                : // The press that moves the thread to Leaf's other place for it
+                  // (`lf-thread-move`, thread/selectors.js), which `p` presses.
+                  offeredAction("symbol", "lf-fp-on-page lf-thread-move", undefined, {
+                    action: "show-on-page",
+                  })
+            }
+            .lfPreview=${() =>
+              !inMessage && wouldChoose(false)
+                ? { detail: [`${BESIDE_PASSAGES} from now on`] }
+                : null}
             ?disabled=${!thread.anchor}
             ?data-lf-unoffered=${!thread.anchor}
             @click=${() => {
@@ -4919,6 +4956,11 @@ export function createFloatingPanel({
                 void openThreadSubject(thread.id, { intent: retainUserIntent() });
                 return;
               }
+              // On a window wide enough for cards the press chooses them for the
+              // threads after this one too, which its preview says
+              // (thread/threads-in-panel.js), and the route then opens this one in its
+              // card. On a narrower one it leaves the choice as it stood.
+              chooseThreadsInPanel(false);
               // The words come into view in the press's own task, so a widget
               // hiding them, as a diff's file filter does, gives them up to this
               // press rather than after the route's awaits (widget-elements.js,
@@ -5658,13 +5700,15 @@ export function createFloatingPanel({
   }
 
   // A margin card's Open in panel hands its thread here, where a long thread reads
-  // wider than in the card's room beside the column (thread-preview.js), as its row in
-  // Threads opens it.
+  // wider than in the card's room beside the column (thread-preview.js). It lands where
+  // opening a thread does (thread/focus.js, `openingPart`): by a press in the reply, the
+  // reply being written in the card along with it, and by `p` on the thread, where the
+  // next `p` shows it on the page again.
   /** @param {string} id */
   function openThread(id) {
     const thread = threadByKey(id);
     if (!thread) return;
-    open({ view: "thread", thread: thread.key }, { reopen: true });
+    open({ view: "thread", thread: thread.key }, { reopen: true, part: openingPart() });
   }
 
   // A promise's word in a message's head hands its to-do here (thread/messages.js):
@@ -5789,22 +5833,26 @@ export function createFloatingPanel({
         const key = top.thread;
         return () => openInPackage(key, { focus, message });
       },
-      // A thread about the whole page opens here; one about a passage opens beside it,
-      // where the page draws it, widgets in its messages included, and here only where
-      // nothing on the page shows it, as on a page drawing no margin or a window with no
-      // room for the rail, the destination's last resort (`request.last`,
-      // thread/destination.js), or for one of its messages
+      // A thread about the whole page opens here, and so does one about a passage once
+      // the user has chosen the panel for threads (thread/threads-in-panel.js; the rule
+      // is thread/destination.js's), even where a widget's seat draws it on the page
+      // too. Under the cards choice one about a passage opens beside it, where the page draws it, widgets in its messages included, and here
+      // only where nothing on the page shows it, as on a page drawing no margin or a
+      // window with no room for the rail, the destination's last resort
+      // (`request.last`), or for one of its messages
       // while the view already shows it, so a walk to an ask in it leaves the user
-      // where they read. Where the user lands in it is the route's (`request.part`),
+      // where they read. A route to the page alone, as Show on page is, has the view go
+      // under either choice once the page shows the thread (`request.page`). Where the user lands in it is the route's (`request.part`),
       // which Leaf's destinations take them to once it is drawn: the reply, a message,
       // or the thread itself, the view, where the `t` walk goes on from.
       /** @type {import("./thread/destination.js").OpenPrimary} */
-      reveal: (key, { part, last }) => {
+      reveal: (key, { part, last, page }) => {
         const thread = threadByKey(key);
         if (!thread) return false;
         const top = trail.value.at(-1);
         const shown = threadOf(top)?.key === thread.key;
-        if (thread.anchor && !(part === "message" && shown)) {
+        const declines = page || !threadsInPanel();
+        if (thread.anchor && declines && !(part === "message" && shown)) {
           if (!last) {
             // The page draws it, so a thread's view here goes, its own or another's, as
             // Show on page puts it away: the thread shows once, and the one the user

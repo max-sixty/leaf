@@ -175,7 +175,7 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
                 f"{owed.get(name, own)}: {shown}"
             )
         page.evaluate(RELEASE_FOCUS)
-        page.keyboard.press("o")
+        page.keyboard.press("a")
         expect(page.locator(CHROME_ROOT)).to_have_attribute(
             "data-lf-annotations-hidden", ""
         )
@@ -205,7 +205,7 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
         wait_current_location(page, "")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
         page.evaluate(RELEASE_FOCUS)
-        page.keyboard.press("o")
+        page.keyboard.press("a")
         expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
             "data-lf-annotations-hidden", re.compile(".*")
         )

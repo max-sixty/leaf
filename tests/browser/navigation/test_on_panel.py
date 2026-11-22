@@ -438,6 +438,49 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     assert page.evaluate(SEEN_SHARE, "#tail") > 0.99
 
 
+def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serve):
+    """`o` presses the leaf, which names it, so with a question waiting it opens On Me
+    with the question's card under the user, and a second `o` puts the view away. ←
+    and → turn the view's tabs round from either end, landing on each list as a key
+    opening it lands, or, from the tab strip, on the tab. `g A` opens the agent's list
+    as `g M` opens the user's, and closes it again."""
+    page = open_page(browser, serve(QUEUE_PAGE))
+    shown = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    tab = page.locator('.lf-fp-tab[aria-pressed="true"]')
+    agent = re.compile(r"On (?!Me\b)\w")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute("aria-keyshortcuts", "o")
+    page.locator("#h").click()
+    page.keyboard.press("o")
+    expect(tab).to_contain_text("On Me")
+    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    for name, route in (
+        (agent, "queue"),
+        ("Threads", "threads"),
+        ("Menu", "menu"),
+        ("On Me", "queue"),
+    ):
+        page.keyboard.press("ArrowRight")
+        expect(tab).to_contain_text(name)
+        expect(shown).to_have_attribute("data-lf-route", route)
+        expect(page.locator(f"{PANEL} .lf-fp-tab:focus")).to_have_count(0)
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Menu")
+    menu_row = page.locator(f"{panel_view('menu')} .lf-fp-item:not(:disabled)")
+    expect(menu_row.first).to_be_focused()
+    tab.focus()
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Threads")
+    expect(tab).to_be_focused()
+    page.keyboard.press("o")
+    expect(shown).to_have_count(0)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(tab).to_contain_text(agent)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(shown).to_have_count(0)
+
+
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next On Me is `m` within the region: a

@@ -63,7 +63,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     before = page.evaluate(boxes)
 
     page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("o")
+    page.keyboard.press("a")
     expect(page.locator(CHROME_ROOT)).to_have_attribute(
         "data-lf-annotations-hidden", ""
     )
@@ -112,7 +112,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
         "data-lf-annotations-hidden", ""
     )
 
-    page.keyboard.press("o")
+    page.keyboard.press("a")
     expect(pin).to_be_visible()
     assert page.evaluate(marked) == passage
     expect(page.locator(CHROME_ROOT)).not_to_have_attribute(

@@ -144,9 +144,9 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
     beta = page.locator('.lf-change-bar[data-lf-for="b"]')
-    page.keyboard.press("o")
+    page.keyboard.press("a")
     expect(beta).to_have_css("background-color", clear)
-    page.keyboard.press("o")
+    page.keyboard.press("a")
     expect(beta).not_to_have_css("background-color", clear)
     # A changed block the agent is at work on shows both bars, the change's nearer it.
     _start(d, _comment_on(d, "b", BETA[1], revision=3)["id"], "Rewriting Beta")

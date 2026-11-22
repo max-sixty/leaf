@@ -1086,10 +1086,10 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
     assert rail.count() > 0
     page.keyboard.press("Escape")
-    page.keyboard.press("o")
+    page.keyboard.press("a")
     expect(pin).to_be_hidden()
     expect(rail.first).to_be_visible()
-    page.keyboard.press("o")
+    page.keyboard.press("a")
     expect(pin).to_be_visible()
 
     sample = page.locator("#bg-margin-layer-status")

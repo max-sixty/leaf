@@ -308,9 +308,9 @@ def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve)
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
-    hiding = restyled(lambda: page.keyboard.press("o"))
+    hiding = restyled(lambda: page.keyboard.press("a"))
     expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
-    showing = restyled(lambda: page.keyboard.press("o"))
+    showing = restyled(lambda: page.keyboard.press("a"))
     expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
     moves = {"hiding": hiding, "showing": showing, "whole page": whole}
     assert max(hiding, showing) < whole / 4, moves

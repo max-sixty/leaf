@@ -219,6 +219,7 @@ import {
   advertisesKeys,
   labelOf,
   parsed,
+  rowArrows,
   spell,
   titleOf as rowTitle,
 } from "./keyboard/bindings.js";
@@ -440,6 +441,8 @@ const GROUPS = Object.freeze([
 ]);
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
+// The leaf's press by key (`pressLeaf`), which the leaf itself is the finger's route to.
+const LEAF = "panel.floating.leaf";
 // Versions, a destination of the Go-to sequence, whose keys Open latest wears before
 // Versions' own key for the latest (`latestPress`).
 const VERSIONS = "version.open";
@@ -1276,7 +1279,7 @@ export function createFloatingPanel({
   // in the order they are said (`STANDING_PARTS`): the version the
   // page shows where it is older than the latest (version.js, `shownBehind`), how many
   // changes the page marks since the version it compares with (`v`, version.js), whose
-  // bars say only that a block changed, and that the user hid the annotation layer (`o`,
+  // bars say only that a block changed, and that the user hid the annotation layer (`a`,
   // annotation-layer.js), which a reload keeps, or a page whose marks are hidden would
   // read as one with none. What passes on the page field leaves to these words the
   // facts they say (`STANDING`, `passingFacts`). They stand in the field's words, so
@@ -3721,12 +3724,19 @@ export function createFloatingPanel({
     if (view && trail.value.at(-1)?.view === "queue")
       moveScrollerBy(view, -view.scrollTop);
   }
-  // The On Me door, as `g M` presses it: the view on the user's list, turned to it where
-  // the view shows another tab, else opened or closed.
-  function openOnMe() {
-    const turned = chooseQueueTab("you");
-    if (turned && showing({ view: "queue" })) paint();
-    else open({ view: "queue" });
+  // A list's door, as `g M` presses On Me's and `g A` On <agent>'s: the view on that
+  // list, turned to it where the view shows the other, else opened or closed. Turning
+  // lands the user on the list as opening it does (`focusView`), since the row they
+  // stood on went with the other list.
+  /** @param {"you" | "agent"} tab */
+  function openOnList(tab) {
+    const turned = chooseQueueTab(tab);
+    if (!turned || !showing({ view: "queue" })) {
+      open({ view: "queue" });
+      return;
+    }
+    paint();
+    focusView(trail.value.at(-1), null);
   }
   // An On list's empty text (queues.js, `emptyOnList`), a sentence but for the
   // ellipsis of one still loading.
@@ -5225,7 +5235,11 @@ export function createFloatingPanel({
   // ---------- gestures ----------
   // The leaf unfolds a folded panel, and otherwise opens the On view on the tab its
   // marks point at (`leafOpens`), or puts the view away where it stands, a view it leads
-  // to included.
+  // to included. `o` presses it (`LEAF`). A key lands on the tab's first row, as every
+  // key that opens a list does (`focusView`), so ← and → go on to the other tabs from
+  // there, and ↑ or `/` reaches the menu's search. A mouse's press on the menu puts
+  // the caret in its search, so the words the user types narrow it; a finger reads the
+  // menu first, as it reads a thread before the keyboard rises (`focusView`).
   function pressLeaf() {
     if (host.dataset.lfRest === "mark") {
       prefs().setRest("row");
@@ -5240,13 +5254,14 @@ export function createFloatingPanel({
       fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()),
     );
     query = "";
-    if (opens === "you") openOnMe();
+    if (opens === "you") openOnList("you");
     else if (opens === "threads") {
       refit();
       open({ view: "threads" });
     } else {
       open({ view: "menu" });
-      if (!coarsePointer.matches) focusDestination(threadSearchInput, "move");
+      if (pressLed() && !coarsePointer.matches)
+        focusDestination(threadSearchInput, "move");
     }
   }
   // What the leaf's marks count: what waits on the user, the threads with news, and the
@@ -5389,6 +5404,49 @@ export function createFloatingPanel({
     const rows = listRows();
     return rows.length > 0 && (at === shownView() || rows.some((row) => row === at));
   };
+  // The On view's tabs, in their strip's order (`onTabs`), and the one it shows, or
+  // null where the view standing is no tab of it, as a thread or Versions is.
+  /** @type {readonly ("menu" | "you" | "agent" | "threads")[]} */
+  const ON_TABS = Object.freeze(["menu", "you", "agent", "threads"]);
+  const shownTab = () => {
+    const top = trail.value.at(-1)?.view;
+    return top === "queue"
+      ? queueTab
+      : top === "menu" || top === "threads"
+        ? top
+        : null;
+  };
+  /** @returns {HTMLElement | null} */
+  const tabOn = () => focused()?.closest?.(".lf-fp-tab") ?? null;
+  // Whether the user stands where ← and → turn the On view's tabs: on a tab, or where
+  // ↑ and ↓ walk its rows, a list that holds none included.
+  const atTabs = () =>
+    shownTab() !== null &&
+    (Boolean(tabOn()) || inList() || (focused() !== null && focused() === shownView()));
+  // ← and → turn the On view to the tab beside the one it shows, round from either
+  // end, as ↑ and ↓ walk its rows, so its lists stand on a grid the arrows cross. From
+  // the list the user lands on the new tab's list as a key opening it lands
+  // (`focusView`); from the tab strip, on the new tab, as a press on a tab keeps them
+  // (`onTab`). The arrows on a card's own controls keep their meaning there, as with
+  // the rows' walk.
+  /** @param {string} binding */
+  function turnTab(binding) {
+    const from = shownTab();
+    if (from === null) return;
+    const strip = tabOn();
+    const ahead = binding === rowArrows(strip ?? host)[1] ? 1 : -1;
+    const to =
+      ON_TABS[(ON_TABS.indexOf(from) + ahead + ON_TABS.length) % ON_TABS.length];
+    if (to === undefined) return;
+    if (to === "menu" || to === "threads") query = "";
+    onTab(to);
+    if (!strip) {
+      focusView(trail.value.at(-1), null);
+      return;
+    }
+    const pressed = controls.querySelector('.lf-fp-tab[aria-pressed="true"]');
+    if (pressed) focusDestination(pressed, "move");
+  }
   keys(host, "In the floating panel", [
     ...rowWalk({
       id: "panel.floating.rows",
@@ -5400,6 +5458,15 @@ export function createFloatingPanel({
       position: () => null,
       landed: (row) => rove(listRows(), row),
     }).map((row) => ({ ...row, when: inList })),
+    {
+      id: "panel.floating.tabs",
+      keys: ["ArrowLeft", "ArrowRight"],
+      title: "move through the tabs",
+      description: () => `Menu, On Me, On ${agentName()} and Threads`,
+      travels: true,
+      when: atTabs,
+      runKey: turnTab,
+    },
   ]);
   keys(
     stage,
@@ -5511,6 +5578,26 @@ export function createFloatingPanel({
     menu: "page",
     run: foldPanel,
   });
+  // The leaf's press by key, `o` for On. The leaf is its control, so the key presses
+  // the leaf (`pressLeaf`), the leaf's preview names the key, and the leaf is the
+  // finger's route. The user asked for keys that reach On Me and On <agent> and move
+  // through them: this one opens the On view where the leaf points, ← and → turn its
+  // tabs (`turnTab`), and Go-to's `g M` and `g A` open each list by name.
+  pageCommand({
+    id: LEAF,
+    keys: ["o"],
+    title: () =>
+      prefs().rest === "mark"
+        ? "unfold"
+        : onViewStands()
+          ? "close"
+          : LEAF_PRESSES[
+              leafOpens(fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()))
+            ],
+    description: "Press the leaf: the list its marks point at, or the menu",
+    control: leaf,
+    touch: false,
+  });
   // Where the reader stood before stepping into the panel, which a row's command that
   // acts on that place gets back (history.js, `readPlace`).
   /** @type {ReturnType<typeof readPlace> | null} */
@@ -5597,9 +5684,10 @@ export function createFloatingPanel({
   // The doors to the panel's views and to Versions, as Go-to's named destinations
   // (keyboard/go-to-sequence.js) and version travel (`g V`, version.js) press them:
   // each opens what it names, or puts it away where it already stands, so the press
-  // that opened it closes it. The On Me door turns the On view to the user's list where
-  // it shows another tab, and the Threads door to Threads.
-  // `shows` says whether the press would put its view away.
+  // that opened it closes it. The On Me and On <agent> doors turn the On view to their
+  // list where it shows another tab (`openOnList`), and the Threads door to Threads.
+  // `shows` says whether the press would put its view away, and `name` what a door
+  // with no fixed name opens.
   function putVersionsAway() {
     const inside = currentLocationIn(host);
     close();
@@ -5616,7 +5704,12 @@ export function createFloatingPanel({
     },
     queue: {
       shows: () => showing({ view: "queue" }) && queueTab === "you",
-      press: openOnMe,
+      press: () => openOnList("you"),
+    },
+    agent: {
+      name: () => tabLabel("agent"),
+      shows: () => showing({ view: "queue" }) && queueTab === "agent",
+      press: () => openOnList("agent"),
     },
     leaves: {
       shows: () => showing({ view: "leaves" }),

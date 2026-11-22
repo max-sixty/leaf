@@ -462,11 +462,20 @@ def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
     find's two moves: it opens the tree and scrolls the row into view natively. The
     browser's reveal stops at the window's foot rather than above the floating panel,
     as Leaf's landings do, so the row is shown where the browser put it.
+
+    Those two moves are no input of the reader's, so the shift watch judges what they
+    move as moving by itself, once the reader's last input has finished rendering. The
+    closed tree stands below the window, as a find's match often does, so the opening
+    moves nothing the reader sees and the find scrolls the page to the match.
     """
     user, widget, _ = scrolled_closed_tree(browser, serve, "reduce")
-    # The reader goes back to reading the page, which takes focus off the summary.
-    user.get_by_text("Review note 0 on").click()
+    # The reader goes back to the top of the page, which takes focus off the summary.
+    user.get_by_role("heading", name="Saved element", level=1).click()
     rendered(user)
+    assert widget.locator(".lf-trace-tree").evaluate(
+        "tree => tree.getBoundingClientRect().top >= innerHeight"
+    )
+    user.wait_for_function("() => !lfInputRenderingOpen()")
     revealed = widget.locator(".lf-trace-node").last.evaluate(
         "row => { row.closest('details').open = true;"
         " row.scrollIntoView({block: 'nearest'});"

@@ -249,13 +249,16 @@ document.addEventListener(
   },
   { capture: true },
 );
-// Opening a closed `<details>` onto its match fires no `beforematch`, and its `toggle`
-// follows in a task of its own. A disclosure the reader opens activates its summary,
-// which dispatches a click first; one that opens without that, as find-in-page opens
-// one, travels into it, until the sequence the travel starts has ended. That travel
-// counts only for the disclosure and the boxes inside it, since Leaf itself opens
-// disclosures too, carrying one open across a revision (carry.js) while layout moves
-// the page around it.
+// Opening a closed `<details>` onto its match fires no `beforematch`. A disclosure the
+// reader opens activates its summary, which dispatches a click first; one that opens
+// without that, as find-in-page opens one, travels into it, until the sequence the
+// travel starts has ended. That travel counts only for the disclosure and the boxes
+// inside it, since Leaf itself opens disclosures too, carrying one open across a
+// revision (carry.js) while layout moves the page around it. The opening is read from
+// its `open` attribute, whose record arrives before the next rendering update, rather
+// than from `toggle`, which follows in a task of its own: on a busy main thread the
+// rendering update that ends the travel's sequence can run first, and that end would
+// read as layout's, so continuity would put back the place the travel left.
 /** @type {Element | null} */
 let activated = null;
 /** @type {Element | null} */
@@ -270,13 +273,13 @@ document.addEventListener(
   },
   { capture: true },
 );
-document.addEventListener(
-  "toggle",
-  ({ target }) => {
-    if (!(target instanceof HTMLDetailsElement) || !target.open) return;
+new MutationObserver((records) => {
+  for (const { target, oldValue } of records) {
+    if (!(target instanceof HTMLDetailsElement) || !target.open || oldValue !== null)
+      continue;
     if (activated === target) {
       activated = null;
-      return;
+      continue;
     }
     opened = target;
     nextFrame(() =>
@@ -284,9 +287,12 @@ document.addEventListener(
         if (opened === target) opened = null;
       }),
     );
-  },
-  { capture: true },
-);
+  }
+}).observe(document, {
+  subtree: true,
+  attributeFilter: ["open"],
+  attributeOldValue: true,
+});
 /** @param {EventTarget | null} target */
 const eventScroller = (target) =>
   target === document ? pageScroller : target instanceof Element ? target : null;

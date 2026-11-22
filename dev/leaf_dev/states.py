@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
@@ -2187,10 +2187,32 @@ def frame_edges(page: Page) -> None:
     )
 
 
+def samples_drawn(page: Page) -> None:
+    """Wait until every live sample near the window has drawn its page and fit its
+    frame to it. A state calls this after its last scroll.
+
+    A sample starts its page when the window comes near its frame, and the frame keeps
+    a placeholder height until the page draws. `settle` waits for the page to load,
+    but not for it to draw once the browser has read the frame as out of sight; the
+    frame carries `data-lf-unseen` until the page arrives (sample.js). Where the frame
+    stands above the window, its fit changes the height above the window, and scroll
+    anchoring takes that change from the document's scroll offset. The window keeps
+    showing the same content, but the scrollbar's thumb moves, and a screenshot taken
+    across the change shows the window displaced, since Playwright reads the offset
+    and then captures that region of the document. One rendering passes first, so the
+    observer that starts each sample (geometry.js, `nearObserver`) has read where the
+    scroll left the window."""
+    one_frame(page)
+    settle(page)
+    page.wait_for_function("() => !document.querySelector('iframe[data-lf-unseen]')")
+    settle(page)
+
+
 def gallery_metrics(page: Page) -> None:
     """Headline values and charts, reached through the gallery's page tab."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-metrics-and-chart").scroll_into_view_if_needed()
+    samples_drawn(page)
 
 
 def chart_preview(page: Page) -> None:
@@ -2198,9 +2220,10 @@ def chart_preview(page: Page) -> None:
     the baseline's point, its rule to the axis, and the preview above them saying the
     run, the series and the value (lf-chart.js). A runtime whose charts say no values
     shows the chart alone."""
-    gallery_metrics(page)
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
     chart = page.locator("#bg-chart")
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    samples_drawn(page)
     run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
         "2", exact=True
     )

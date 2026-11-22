@@ -25,7 +25,11 @@ import {
   savedReadingSettled,
   setQuickShortcuts,
 } from "../../browser/runtime/keyboard/bindings.js";
-import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
+import {
+  activeCommandBinding,
+  dispatchKey,
+  keyReady,
+} from "../../browser/runtime/keyboard/dispatch.js";
 import { coarsePointer } from "../../browser/runtime/pointer.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
 import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
@@ -2431,7 +2435,7 @@ test("command aliases conflict by their canonical meaning while shifted Space st
     );
 });
 
-test("an announced scope says the keys that reach its rows from where the user is", (t) => {
+test("a key is named beside a row only while its press would run the row", (t) => {
   const owner = document.createElement("div");
   owner.tabIndex = -1;
   const inner = document.createElement("button");
@@ -2450,13 +2454,16 @@ test("an announced scope says the keys that reach its rows from where the user i
   keys(owner, commandScope("Fixture", rows));
   owner.focus();
   assert.equal(saying(rows), "Escape cancel, g top, w or q leave");
-  // A nearer scope takes `g`, so from inside it the outer row's `g` goes unsaid.
+  assert.equal(activeCommandBinding(["fixture.top"]), "g");
+  // A nearer scope takes `g`, so from inside it the outer row's `g` goes unsaid, in an
+  // announcement and beside the command alike.
   keys(
     inner,
     commandScope("Inner", [{ id: "fixture.inner", keys: ["g"], title: "inner", run }]),
   );
   inner.focus();
   assert.equal(saying(rows), "Escape cancel, w or q leave");
+  assert.equal(activeCommandBinding(["fixture.top"]), null);
 });
 
 test("an announced scope says no key on a touchscreen", (t) => {

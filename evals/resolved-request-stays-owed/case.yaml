@@ -1,0 +1,243 @@
+# The user ends most threads with a last word and then Resolve: the delivery carries
+# their message with its `answer` and, seconds later, their resolve of the thread. The
+# resolve takes the thread off their lists and leaves the message owed, so the session
+# does the work and answers at the message's `answer.ref`, and the answer goes into
+# the closed thread. The failure it invites is reading the resolve as the request
+# taken back: no work and no answer, or the session's own resolve in place of one.
+# The `thanks` variant is the control: a last word that asks for nothing is ended
+# without work. The envelope is as `freeze_delivery` writes it for a hook, handling
+# included, with ids, page, claim and times substituted.
+description: resolved-request-stays-owed
+metadata:
+  purpose: "A message the user resolved its thread over is still answered, at its
+    `answer.ref`; a last word that asks for nothing is ended without work."
+  tags: [threads, wait-loop]
+vars:
+  now: "2026-11-21T18:13:20-08:00"
+  prompt: |
+    You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context.
+
+    Leaf's prompt hook has just handed you this complete delivery:
+
+    ```json
+    {
+     "format": "leaf-delivery/52",
+     "id": "c41d07e2",
+     "created_at": 1795313586.19,
+     "acknowledge": null,
+     "batches": [
+      {
+       "page": "/Users/max/.local/state/leaf/pages/review-rules",
+       "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+       "through_seq": 18,
+       "threads": [
+        {
+         "id": "9be2f4a1",
+         "title": null,
+         "anchor": {
+          "section": "review"
+         },
+         "detached_from": null,
+         "rewritten_from": null,
+         "resolved": "user",
+         "elided": {
+          "messages": 0,
+          "actions": 0
+         },
+         "messages": [],
+         "summaries": [],
+         "actions": []
+        }
+       ],
+       "handling": {
+        "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+        "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+        "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply.",
+        "h4": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual, and your answer goes into the thread without reopening it."
+       },
+       "events": [
+        {
+         "author": "user",
+         "revision": 1,
+         "kind": "comment",
+         "text": "Ensure we're clear about this in our CLAUDE.md.",
+         "anchor": {
+          "section": "review"
+         },
+         "id": "9be2f4a1",
+         "attention": true,
+         "ts": "2026-11-21T18:13:06.190-08:00",
+         "seq": 17,
+         "subject": {
+          "kind": "thread",
+          "id": "9be2f4a1"
+         },
+         "threads": [
+          "9be2f4a1"
+         ],
+         "handling": [
+          "h1",
+          "h2",
+          "h3"
+         ],
+         "answer": {
+          "kind": "reply",
+          "parent": "9be2f4a1",
+          "responds": "9be2f4a1",
+          "ref": "c41d07e2:0:9be2f4a1",
+          "writer": "agent"
+         }
+        },
+        {
+         "kind": "resolve",
+         "author": "user",
+         "parent": "9be2f4a1",
+         "id": "e07c33d9",
+         "attention": false,
+         "ts": "2026-11-21T18:13:15.402-08:00",
+         "seq": 18,
+         "subject": {
+          "kind": "thread",
+          "id": "9be2f4a1"
+         },
+         "threads": [
+          "9be2f4a1"
+         ],
+         "handling": [
+          "h4"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+    ```
+
+    The page is already served. Only Skill and Read run here, so write out, in order, each command you would run for this delivery, with a line between them saying what you would do there. Then end your answer.
+assert:
+  - type: llm-rubric
+    metric: request-stays-owed
+    value: |
+      Pass only if the session treats the user's message as a request it still owes:
+      it does or plans the CLAUDE.md work, and a written command answers the message
+      at its reference, `leaf thread reply c41d07e2:0:9be2f4a1` with a declaration
+      such as `--done`, `--obligation` or `--todo`. A progress line first
+      (`--ephemeral`, or `leaf task start`) is fine, and so is reading the page or
+      CLAUDE.md first. Fail if it reads the resolve as cancelling the request and
+      does no work or writes no answer, if `leaf thread resolve` stands in place of
+      the answer, or if it reopens the thread with `leaf thread unresolve` or asks
+      the user to reopen it.
+variants:
+  thanks:
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/52",
+         "id": "c41d07e2",
+         "created_at": 1795313586.19,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 18,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": "user",
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply.",
+            "h4": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual, and your answer goes into the thread without reopening it."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "ok, thanks",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "agent"
+             }
+            },
+            {
+             "kind": "resolve",
+             "author": "user",
+             "parent": "9be2f4a1",
+             "id": "e07c33d9",
+             "attention": false,
+             "ts": "2026-11-21T18:13:15.402-08:00",
+             "seq": 18,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h4"
+             ]
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served. Only Skill and Read run here, so write out, in order, each command you would run for this delivery, with a line between them saying what you would do there. Then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: last-word-ends-without-work
+        value: |
+          Pass only if the session ends the exchange without doing work on the page
+          or any file: a written command either resolves the thread itself
+          (`leaf thread resolve` naming the page and the message 9be2f4a1) or answers
+          the message at its reference in a line (`leaf thread reply
+          c41d07e2:0:9be2f4a1 --done`). Fail if it writes no command for the message
+          at all, edits the page or a file, asks the user a question, or reopens the
+          thread with `leaf thread unresolve`.

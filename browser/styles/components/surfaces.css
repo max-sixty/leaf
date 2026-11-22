@@ -791,12 +791,17 @@ summary {
 }
 /* However wide the box its host gives, each message keeps the width it has in a margin
    card at the card's own width, so a reply wraps where it would beside a passage; its
-   head, and the thread's controls on it, keep the card's whole width. */
+   head, and the thread's controls on it, keep the card's whole width. The reply box
+   keeps the margin card's width too, so its words wrap where they will once sent and a
+   message's rewrite is as wide as the reply box (response.css, `.lf-msg-editor`). */
+[data-lf-thread-surface] {
+  --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
+}
 [data-lf-thread-surface] .lf-msg-body {
-  max-inline-size: calc(
-    var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px) -
-      var(--lf-thread-text-inset)
-  );
+  max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
+}
+[data-lf-thread-surface] .lf-thread-reply {
+  max-inline-size: var(--lf-seat-column);
 }
 .lf-page-thread::after {
   border-radius: inherit;

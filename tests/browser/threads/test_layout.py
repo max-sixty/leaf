@@ -403,7 +403,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     does, keeping at its end only the inset its words start with, where its rewrite's
     frame stands. Keeping the room Send takes in the field they were typed in, the
     user's lines would stop short of the agent's, so every message the user sent would
-    wrap narrower than the reply under it."""
+    wrap narrower than the reply under it. A seated card ends every message's words
+    that inset in, as the margin card does (`--lf-msg-text-end`), so there the two
+    end together."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -426,7 +428,8 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     expect(agent).to_contain_text("Check that these")
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
-    assert theirs["end"] - mine["end"] == pytest.approx(mine["inset"], abs=0.5), (
+    shorter = mine["inset"] if surface == "panel" else 0
+    assert theirs["end"] - mine["end"] == pytest.approx(shorter, abs=0.5), (
         mine,
         theirs,
     )

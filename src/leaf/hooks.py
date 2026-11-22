@@ -1,7 +1,10 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
-that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
+that its harness supports hook delivery (`Harness.hooks_carry`), and the plugin
+root it ran from (`leases.mark_root`). The first hook to run from another copy of
+Leaf, where that copy's skill differs, queues a notice telling the agent to read
+the skill again (`copy_changed`). An explicit
 `leaf wait` always prints the envelope; it does not depend on another hook
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
@@ -68,11 +71,13 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 import json
 import os
 import time
+from pathlib import Path
 
-from .leases import first_hook_for_tool, mark_hooks
+from .leases import first_hook_for_tool, mark_hooks, mark_root
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
+    PLUGIN_ROOT,
     advance_turn,
     close_session_turn,
     flocked,
@@ -98,6 +103,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
+    if (before := mark_root(sid)) is not None:
+        copy_changed(sid, before)
     assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
@@ -218,6 +225,56 @@ def reload_skill(session_id: str) -> str | None:
         "instructions` printed are gone, and the skill may be too. Before you next "
         f"reply or run a leaf command, read {SKILL_FILE} again, then the references "
         "and widget instructions your work in progress needs."
+    )
+
+
+def copy_changed(session_id: str, before: Path) -> None:
+    """Queue a notice telling the session's agent to read the leaf skill again, where
+    `before`, the plugin root the session's hooks last ran from, holds a leaf skill
+    that differs from this copy's, or none.
+
+    A session's hooks move to another copy of Leaf when Claude Code loads one, which
+    it does as a process starts, on a resume or a background job's wake, and at
+    `/reload-plugins`, and when `session_runtime` hands the session's delivery to
+    another Leaf. The transcript carries over, so the agent still holds the skill
+    and references it read under the old copy, while its hooks and `leaf` commands
+    run the new one.
+
+    The notice joins the lines the next prompt or tool boundary carries beside the
+    input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
+    reads it once. Those hooks carry it only in a session holding a page, as
+    `reload_skill` sends its notice only there. The hook that prints the notice
+    asks whether the session holds a page, rather than this one, since a resumed
+    session's claims stay inactive until its first prompt serves its pages again
+    (`reconnect`), after this hook marked the root.
+
+    Two copies whose skills match byte for byte, as an update that changed only
+    code leaves them, need no notice. Only a hook whose root moved compares them
+    (`leases.mark_root`), so reading both trees whole costs the hooks of an
+    unchanged root nothing."""
+
+    def skill(root: Path) -> dict[str, bytes]:
+        directory = root / "skills" / "leaf"
+        return {
+            path.relative_to(directory).as_posix(): path.read_bytes()
+            for path in directory.rglob("*")
+            if path.is_file()
+        }
+
+    if skill(before) == skill(PLUGIN_ROOT):
+        return
+    from .clerk import queue
+    from .schema import SKILL_FILE
+
+    queue(
+        session_id,
+        [
+            "This session's hooks and leaf commands now run another copy of Leaf, "
+            "with a different skill, so the leaf skill and references you read "
+            "earlier may describe commands and rules that have changed. Before you "
+            f"next reply or run a leaf command, read {SKILL_FILE} again, then the "
+            "references your work in progress needs."
+        ],
     )
 
 

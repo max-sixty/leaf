@@ -45,7 +45,7 @@ from .schema import (
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
 )
-from .state import PLUGIN_ROOT, plugin_cache_copy
+from .state import PLUGIN_ROOT, installed_copy
 
 
 def named_package(name: str) -> Path | None:
@@ -899,10 +899,10 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
-    # version unset, so that component is the source commit SHA. Codex's copy is a
-    # clone, which Git reads below. The default root follows this module: a newer
+    # version unset, so that component is the source commit SHA. Codex's and Pi's
+    # copies are clones, which Git reads below. The default root follows this module: a newer
     # sibling cannot change the running copy's identity.
-    if plugin_cache_copy(root) and not (root / ".git").exists():
+    if installed_copy(root) and not (root / ".git").exists():
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
@@ -940,7 +940,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         text=True,
         check=True,
     ).stdout.strip()
-    if plugin_cache_copy(root):
+    if installed_copy(root):
         # Nobody edits a harness's clone, but Codex's lacks what it strips on
         # install, such as the `.agents/skills` link, and adds its own record,
         # which Git would count as changes; and a status costs a hook that asks

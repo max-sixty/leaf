@@ -48,7 +48,7 @@ from .refusals import Refused
 from .state import (
     PLUGIN_ROOT,
     flocked,
-    plugin_cache_copy,
+    installed_copy,
     session_live,
     session_lock_path,
     session_record,
@@ -94,7 +94,7 @@ def hand_off_command(argv: list[str]) -> None:
     this process, where this Leaf is a copy a harness installed. A checkout's
     launcher is one someone chose to run, so it runs as it is; a hook hands itself
     off with its payload's session (`hooks.main`)."""
-    if not plugin_cache_copy(PLUGIN_ROOT) or argv[:1] == ["hook"]:
+    if not installed_copy(PLUGIN_ROOT) or argv[:1] == ["hook"]:
         return
     from .harness import session_harness
 
@@ -125,7 +125,7 @@ def select_checkout(session_id: str) -> bool:
     adapter about to leave. Only a command selects: a hook runs the delivering Leaf
     already, and a write to the lifecycle record would change the snapshot its own
     readings compare against."""
-    return not plugin_cache_copy(PLUGIN_ROOT) and select_launcher(
+    return not installed_copy(PLUGIN_ROOT) and select_launcher(
         session_id, own_launcher()
     )
 

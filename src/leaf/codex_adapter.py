@@ -140,8 +140,8 @@ from .state import (
     described,
     ensure_session,
     flocked,
+    installed_copy,
     object_schema,
-    plugin_cache_copy,
     session_file,
     session_record,
     start_session_turn,
@@ -974,7 +974,7 @@ def run_adapter(
         from .session_runtime import own_launcher, selected_launcher
 
         copy = None
-        if plugin_cache_copy(PLUGIN_ROOT):
+        if installed_copy(PLUGIN_ROOT):
             copy = os.open(PLUGIN_ROOT, os.O_RDONLY)
             resources.callback(os.close, copy)
         lease = take_lease(adapter_lease_path(harness.session))

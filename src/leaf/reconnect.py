@@ -34,8 +34,8 @@ runs a session") reads `page check` from it, while each page's server goes on ru
 the Leaf that started it, so what the user's tab draws may differ from what the agent
 checked. So once the prompt has served pages again, it restarts the server of each
 page the session holds that another installed Leaf started, where the hook runs an
-installed copy too (`state.plugin_cache_copy`): another copy, or the same copy at
-another commit, as Codex's is once Codex replaces it in place. It finds another Leaf
+installed copy too (`state.installed_copy`): another copy, or the same copy at
+another commit, as Codex's and Pi's are once their harness updates them in place. It finds another Leaf
 by the test `leaf server start` makes (`server.other_serving_leaf`), and restarts the
 server as that command does, at the same address (`hosting.restarting_server`).
 
@@ -68,7 +68,7 @@ from .harness import Harness
 from .refusals import Refused
 from .schema import PREVIEW_FILE
 from .service import claim_is_active, claim_records, claimant_matches, prepare_claim
-from .state import PLUGIN_ROOT, plugin_cache_copy
+from .state import PLUGIN_ROOT, installed_copy
 
 # How much of the hook's deadline a restart needs left to begin: the old server
 # notices its stop within the 2 s between its lifetime checks
@@ -184,7 +184,7 @@ def to_restart(harness: Harness) -> list[Path]:
     """The pages `harness`'s session holds whose running server another installed
     Leaf started, where this Leaf is an installed copy too, by the rules the module
     header gives."""
-    if not plugin_cache_copy(PLUGIN_ROOT):
+    if not installed_copy(PLUGIN_ROOT):
         return []
     from .server import other_serving_leaf
 
@@ -194,6 +194,6 @@ def to_restart(harness: Harness) -> list[Path]:
         if not (claimant_matches(claim, harness) and claim_is_active(claim)):
             continue
         served = other_serving_leaf(page_dir)
-        if served is not None and plugin_cache_copy(Path(served["path"])):
+        if served is not None and installed_copy(Path(served["path"])):
             pages.append(page_dir)
     return pages

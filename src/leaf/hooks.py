@@ -1,10 +1,10 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
-that its harness supports hook delivery (`Harness.hooks_carry`), and the skill its
-Leaf ships (`leases.mark_skill`). The first hook whose Leaf ships another skill
-than the session's previous hook ran with queues a notice telling the agent to read
-the skill again (`skill_changed`). An explicit
+that its harness supports hook delivery (`Harness.hooks_carry`), and the Leaf it
+runs with the skill that Leaf ships (`leases.mark_skill`). The first hook to run
+another Leaf, shipping another skill, queues a notice telling the agent to read the
+skill again (`skill_changed`). An explicit
 `leaf wait` always prints the envelope; it does not depend on another hook
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
@@ -69,7 +69,6 @@ session; `harness.hook_harness` says why neither comes from the environment. A
 developer-selected session runtime (`session_runtime`) owns the entire hook;
 `main` execs it before this module publishes lifecycle or reads pages."""
 
-import hashlib
 import json
 import os
 import time
@@ -78,10 +77,12 @@ from .leases import first_hook_for_tool, mark_hooks, mark_skill
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
+    PLUGIN_ROOT,
     advance_turn,
     close_session_turn,
     flocked,
     held_claims,
+    installed_copy,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -103,8 +104,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
-    if mark_skill(sid, skill_digest()):
-        skill_changed(sid)
+    if (before := mark_skill(sid, now := skill_mark())) is not None:
+        skill_changed(sid, before, now)
     assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
@@ -228,28 +229,29 @@ def reload_skill(session_id: str) -> str | None:
     )
 
 
-def skill_digest() -> str:
-    """A digest of the leaf skill this Leaf ships, every file under `skills/leaf/` by
-    its path and content, which names the skill whichever copy holds it and however
-    that copy was updated. Each hook takes it (`leases.mark_skill`), which costs
-    about a millisecond."""
+def skill_mark() -> str:
+    """The Leaf this hook runs, by its plugin root, and the leaf skill it ships, by
+    the identity of every file under `skills/leaf/` (`layer.files_identity`), which
+    names the skill however its copy was made or updated. Each hook reads and hashes
+    the skill's files to take it (`leases.mark_skill`)."""
+    from .layer import files_identity
     from .schema import SKILL_FILE
 
     directory = SKILL_FILE.parent
-    digest = hashlib.sha256()
-    for path in sorted(directory.rglob("*")):
-        if path.is_file():
-            content = path.read_bytes()
-            name = path.relative_to(directory).as_posix()
-            digest.update(f"{name}\0{len(content)}\0".encode())
-            digest.update(content)
-    return digest.hexdigest()
+    skill = files_identity(
+        {
+            path.relative_to(directory).as_posix(): path.read_bytes()
+            for path in directory.rglob("*")
+            if path.is_file()
+        }
+    )
+    return f"{PLUGIN_ROOT}\n{skill}"
 
 
-def skill_changed(session_id: str) -> None:
-    """Queue a notice telling the session's agent to read the leaf skill again, since
-    the Leaf its hooks run now ships another skill than its previous hook ran with
-    (`leases.mark_skill`).
+def skill_changed(session_id: str, before: str, now: str) -> None:
+    """Queue a notice telling the session's agent to read the leaf skill again, where
+    `now`, the mark this hook took (`skill_mark`), names another Leaf than `before`,
+    the previous hook's, and another skill.
 
     The Leaf a session's hooks run changes when Claude Code loads another copy, which
     it does as a process starts, on a resume or a background job's wake, and at
@@ -258,7 +260,11 @@ def skill_changed(session_id: str) -> None:
     The transcript carries over, so the agent still holds the skill and references
     it read under the old Leaf, while its hooks and `leaf` commands run the new one.
     Two versions whose skills match byte for byte, as an update that changed only code
-    leaves them, need no notice.
+    leaves them, need no notice. An installed copy at the same root is another Leaf
+    once its skill changed, since only its harness writes it
+    (`state.installed_copy`). A checkout at the same root is the same Leaf: a
+    session whose hooks run a checkout is developing Leaf, and its edits to the
+    skill are changes it makes rather than instructions it missed.
 
     The notice joins the lines the next prompt or tool boundary carries beside the
     input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
@@ -267,6 +273,10 @@ def skill_changed(session_id: str) -> None:
     asks whether the session holds a page, rather than this one, since a resumed
     session's claims stay inactive until its first prompt serves its pages again
     (`reconnect`), after this hook marked the skill."""
+    root, _, skill = before.rpartition("\n")
+    here, _, shipped = now.rpartition("\n")
+    if skill == shipped or (root == here and not installed_copy(PLUGIN_ROOT)):
+        return
     from .clerk import queue
     from .schema import SKILL_FILE
 

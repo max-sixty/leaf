@@ -265,24 +265,25 @@ a user preview selected or one that claimed or re-vendored a page the session ho
 (`session_runtime.py`), or else the copy of Leaf its harness loaded, whose `bin/leaf`
 its hooks run. Claude Code installs each update as a new copy and keeps a running
 process on the copy it loaded until `/reload-plugins`, or until a new process of the
-session, such as a resume or a background job's wake, loads the update. Codex keeps one
-copy and replaces it in place, so a Codex session's next hook runs the update. A path
-names no version there, so Leaf identifies a copy by its path and commit
-(`state.plugin_cache_copy`, `layer.payload_provenance`).
+session, such as a resume or a background job's wake, loads the update. Codex and Pi
+each keep one copy and update it in place, so the session's next hook runs the update.
+A path names no version there, so Leaf identifies a copy by its path and commit
+(`state.installed_copy`, `layer.payload_provenance`).
 
 At the session's next hook, Leaf brings what outlives a process to the Leaf that hook
 runs. A page at an older protocol is renewed (`layer-registry.md`, "Page protocol"). A
 page server keeps the Leaf that started it, and `server start` from another Leaf
 restarts it under that one at the same address (`hosting.start_page`), as the
 session's next prompt does for a page it holds where both are installed copies
-("Serving again at the next prompt"). Where the skill the hook's Leaf ships differs
-from the one the session's previous hook ran with, the agent is told to read it again
-(`hooks.skill_changed`). Codex's adapter follows its copy without waiting for a hook.
-Within a pass of Codex replacing the copy the adapter started from, the adapter
-releases its leases and starts a successor from the new copy. It holds the task's
-start lock until the successor holds its leases and its transport answers, so a claim
-meanwhile waits and then joins the successor (`codex_adapter.py`). Until then, a hook
-that reads the adapter lease without the start lock finds no adapter.
+("Serving again at the next prompt"). Where the hook runs another Leaf than the
+session's previous hook, and that Leaf ships another skill, the agent is told to read
+it again (`hooks.skill_changed` says when an edit counts). Codex's adapter follows its
+copy without waiting for a hook. Within a pass of Codex replacing the copy the adapter
+started from, the adapter releases its leases and starts a successor from the new copy.
+It holds the task's start lock until the successor holds its leases and its transport
+answers, so a claim meanwhile waits and then joins the successor (`codex_adapter.py`).
+Until then, a hook that reads the adapter lease without the start lock finds no
+adapter.
 
 ### A session's files
 
@@ -290,8 +291,9 @@ Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
 session lock stay, since the page shows that session's turn from the lifecycle, and
-so does the digest of the skill its hooks last ran with (`leases.mark_skill`), which
-the first hook of a resumed session compares with its own. A
+so does the record of the Leaf its hooks last ran and the skill it ships
+(`leases.mark_skill`), which the first hook of a resumed session compares with its
+own. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one

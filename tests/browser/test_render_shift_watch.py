@@ -1258,6 +1258,7 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     [
         ("", False, False),
         ("", True, False),
+        ("retimed", False, False),
         ("part_at_once", False, False),
         ("unstanding", False, True),
         ("unstanding", True, True),
@@ -1273,7 +1274,8 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
     parts, may draw the step news's append growth takes as travel: a ResizeObserver
     delivery no input owns begins a carry that draws the standing port's head where it
     was and slides it to where its rise puts it, or draws part of the step at once, as
-    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    news may draw all of it, and a carry re-timed before any frame draws it is the
+    same carry. The step itself is judged as if drawn at once, so a carry
     of a step the port may not take still fails, as does one that draws the head below
     where it was, past where its rise puts it, or past it on the way. A key pressed
     elsewhere while the carry runs changes none of that, though it starts a new run:
@@ -1310,10 +1312,17 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
                 unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
                   { '--carry': '0px 0px' }],
               }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
-              window.carries = [row, port].map((part) => {
+              const carry = () => [row, port].map((part) => {
                 part.style.translate = 'var(--carry)';
                 return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
               });
+              window.carries = carry();
+              // Re-timed from where it is drawn before any frame draws it, as
+              // box-motion.js re-times a carry a second delivery reaches.
+              if (fault === 'retimed') {
+                window.carries.forEach((carry) => carry.cancel());
+                window.carries = carry();
+              }
             }).observe(port);
             </script></body>"""
         )

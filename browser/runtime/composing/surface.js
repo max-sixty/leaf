@@ -316,19 +316,16 @@ export function createResponseSurface({
     // scrolled out of the window can, as a file's comment below a long hunk: the
     // editor's focus brings it in, and it stays beside its subject. The seat is
     // judged, not the editor moved into it, which measures no width until the outlet
-    // renders it; a boxless outlet is judged by the box that lays out what it holds.
-    // That box only says the editor lands somewhere in it, so a cover crossing it, as
-    // a phone's bottom bar crosses a tall card whose empty outlet lays out nothing,
-    // refuses it only where the user sees none of it.
+    // renders it; a boxless outlet is judged by the box that lays out what it holds,
+    // by the same rule. The editor may land anywhere in that box, under the cover too,
+    // where the next judgment, of the outlet's own box, would send it home, and the
+    // emptied outlet would take it back, over and over. So an outlet that shows only
+    // while it holds something still lays out where its editor will stand, as a visual
+    // case's discussion does (packages/visual-review/defaults.css).
     /** @type {Element | null} */
     let seat = outlet;
     while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
-    if (
-      seat &&
-      covered(placeBox(seat), seat) &&
-      (seat === outlet || !seenRect(seat, new Map()))
-    )
-      return false;
+    if (seat && covered(placeBox(seat), seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.

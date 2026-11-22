@@ -7,9 +7,23 @@
  * Travel prepares its outgoing checkpoint before revealing a destination and commits
  * it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
- * A working-place checkpoint owns the viewport offset, focus and selection together,
- * and the thread views open in the chrome, which a return opens again where they have
- * closed (`returnPlace`).
+ * Only a route the user's gesture began on the entry being left adds an entry: a
+ * followed link, a walk's step, a list's row, Undo's trip (anchor-travel.js,
+ * `prepareNavigationStep`, which renames instead where the browser saw no user
+ * activation as the route began). A return, a revision or news never adds one, nor
+ * does a view opened or put away where the user stands, which renames the entry at
+ * most (thread views, thread/address.js). Browsers keep that rule too: Chromium marks
+ * a document's entries skippable by Back once one is added without the user's
+ * activation, and Firefox 135 and later skip such entries, so an entry added without a
+ * gesture would cost the user the Back steps they made. A rename waits for a
+ * navigation under way to end (`replaceEntry`), since a history write aborts it.
+ *
+ * Which thread view an entry shows is its URL's (`?thread=`, thread/address.js), which
+ * claims each traversal first, to open or put away that view. A working-place
+ * checkpoint owns the viewport offset, focus and selection together, and where focus
+ * was in a thread view, that thread, the route's request for that view, and its
+ * scroll, since the view the return opens is a new drawing of it (`returnPlace`).
+ *
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
  * A traversal cancels the outgoing placement, waits for that cancellation's rendering
@@ -22,8 +36,11 @@
  * to a since-hidden `#tabbed` left it 471px down in Firefox, where Chromium landed it
  * at 59px. So once the browser has applied the traversal (`traversalApplied`), the
  * page scrolls back by however far the first block on screen moved since the
- * placement. Scroll anchoring holds that block still through a change above it, but a
- * change inside it in that frame moves it as the browser does, and a pinned block
+ * placement, and focus Firefox dropped to the body as it applied the traversal goes
+ * back to where the return put it (notes/browser-support.md, "Firefox drops focus as
+ * it applies a same-document traversal"). Scroll anchoring holds that block still
+ * through a change above it, but a change inside it in that frame moves it as the
+ * browser does, and a pinned block
  * stays put while the browser scrolls. The claimant and travel read the page before
  * the browser applies the traversal, while it still hides what the user hid since.
  * Rejected: placing only after the browser applies the traversal, which let Firefox
@@ -74,21 +91,29 @@ import {
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
-import { upFrom } from "./shadow-tree.js";
+import { closestAcross, inChrome, upFrom } from "./shadow-tree.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { readingBlock } from "./reading-place.js";
-import { pageScroller, scrollGoal, stopBrowserScroll, stopGlide } from "./scrolling.js";
+import {
+  moveScrollerBy,
+  pageScroller,
+  scrollGoal,
+  stopBrowserScroll,
+  stopGlide,
+} from "./scrolling.js";
+import { drawnThreadId, THREAD, THREAD_VIEW, wholeThread } from "./thread/selectors.js";
 import { nextRender } from "./rendering.js";
 import { aborted } from "./abort.js";
 
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
+ * @typedef {{id: string, reader: "primary" | null, scroll: number | null}} ThreadPlace
  * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
  * caret: import("./focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
- * chrome: unknown, offset: [number, number]}} WorkingPlace
+ * thread: ThreadPlace | null, offset: [number, number]}} WorkingPlace
  * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
  * @typedef {(url: URL) => TraversalHandler | null | undefined} TraversalClaim
- * @typedef {{capture(at: Element | null): unknown, restore(location: unknown): Promise<boolean>}} ChromeLocation
+ * @typedef {(url: URL, place: WorkingPlace | null) => TraversalHandler | null | undefined} ThreadClaim
  */
 /** @type {Set<TraversalClaim>} */
 const claims = new Set();
@@ -97,9 +122,9 @@ const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
 // stepping into the floating panel, whose place-keeping commands hand it back. `focus` is
-// the node they had focused, when the reading comes after focus has left it. `chrome`
-// is where that node stood in the chrome's thread views, as each view reads its own
-// (`mountHistory`), and outlasts the view that drew the node (`returnPlace`). Plain
+// the node they had focused, when the reading comes after focus has left it. `thread`
+// is the thread view that node stood in, which outlasts the view's drawing
+// (`returnPlace`). Plain
 // endpoints keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
 // keeps its working end. The offset is where the page is headed (`scrollGoal`), as a
@@ -122,41 +147,58 @@ export function readPlace(focus = deepFocus()) {
     place: place && new WeakRef(place),
     caret: readCaret(focus),
     ends,
-    chrome: chrome?.capture(focus) ?? null,
+    thread: threadPlaceOf(focus),
     offset: [scrollX, scrollGoal(pageScroller)],
+  };
+}
+
+// The thread view `focus` stands in, which the field's presence says the user was in:
+// the whole of the thread drawn there, a margin card's or the floating panel's; the
+// route's `reader` request that opens it in that view again (thread/destination.js),
+// the primary reader's for a chrome's view of one thread; and its scroll where that box
+// scrolls the thread, as the panel's view does. A card keeps its own reading as it
+// closes and opens.
+/** @param {Element | null} focus @returns {ThreadPlace | null} */
+function threadPlaceOf(focus) {
+  const drawn = focus && closestAcross(focus, THREAD);
+  if (!drawn || !inChrome(drawn)) return null;
+  const whole = wholeThread(drawn);
+  const id = drawnThreadId(whole);
+  if (!id) return null;
+  return {
+    id,
+    reader: whole.matches(THREAD_VIEW) ? "primary" : null,
+    scroll: whole.scrollHeight > whole.clientHeight ? whole.scrollTop : null,
   };
 }
 
 // Put the user back in a place `readPlace` read. A live revision may have removed or
 // shortened what it named since, so a node no longer drawn is not returned to, and a
 // selection end past its node's current length returns to what is left of that node,
-// its end. The view that drew the focused node may have closed since: travel puts the
-// panel's view away where it would stand over the place it lands on, and a card closes
-// as the user leaves its passage. The chrome then opens its thread views again as a
-// revision does, at the reply the user had read to and with the user in the one they
-// were in; a margin card whose passage the page no longer shows opens in the panel.
-// Where nothing reopens, the user returns to the node's page target, the same working
-// place seen from the page. The return settles once they are there, so a command acting
-// on the returned place awaits it.
+// its end. The thread view that drew the focused node may have closed since: travel
+// puts the panel's view away where it would stand over the place it lands on, and a
+// card closes as the user leaves its passage. The traversal's claimant has opened the
+// view the entry names again by then (thread/address.js), a new drawing, so the user
+// goes into that drawing of the thread they were in, at the offset they had read it to.
+// Elsewhere the user returns to the node's page target, the same working place seen
+// from the page. The return settles once they are there, so a command acting on the
+// returned place awaits it.
 /** @param {WorkingPlace} checkpoint @returns {Promise<void>} */
 export async function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
-  /** @type {Promise<boolean> | null} */
-  let reopened = null;
+  const thread = checkpoint.thread;
+  const drawing = thread && threadDrawing?.(thread.id);
   if (focus !== document.body && focus?.isConnected && presented(focus)) {
     focusDestination(focus, "return", { caret: checkpoint.caret });
     // A field's caret is its whole selection, and clearing the document's would
     // collapse it.
     if (checkpoint.caret) return;
-  } else if (checkpoint.chrome && chrome) {
-    // The user leaves where they are as a move, not a drop, so a reply box the return
-    // leaves doesn't carry them back to it (thread/focus.js, `holdThreadPlace`).
-    landAtReading();
-    reopened = chrome.restore(checkpoint.chrome);
+  } else if (thread && drawing && presented(drawing)) {
+    focusDestination(drawing, "return");
+    if (thread.scroll !== null)
+      moveScrollerBy(drawing, thread.scroll - drawing.scrollTop);
   } else returnToPlace(checkpoint);
   returnSelection(checkpoint);
-  const intent = retainUserIntent();
-  if (reopened && !(await reopened) && intent()) returnToPlace(checkpoint);
 }
 
 /** @param {WorkingPlace} checkpoint */
@@ -207,9 +249,20 @@ export function pushEntry(url, state = null) {
   write("pushState", state, url);
 }
 
-/** @param {string | URL | null | undefined} url @param {unknown} state */
-export function replaceEntry(url, state = history.state) {
-  write("replaceState", state, url);
+// A rename waits for a navigation under way to end, then renames the entry the user is
+// on: a history write aborts the navigation in Chromium and Firefox alike, and a rename
+// is no step of the user's that should end one, as a tab set naming the view a
+// traversal's claimant opened would end that traversal before its place came back.
+// Without `state`, the entry keeps its own, read when the rename is written.
+/** @param {string | URL | null | undefined} url @param {unknown} [state] */
+export function replaceEntry(url, state) {
+  const transition = window.navigation.transition;
+  if (transition) {
+    const rename = () => replaceEntry(url, state);
+    void transition.finished.then(rename, rename);
+    return;
+  }
+  write("replaceState", state === undefined ? history.state : state, url);
 }
 
 // A route can reveal or hydrate before it knows whether arrival will succeed. Capture
@@ -228,7 +281,7 @@ export function prepareEntry() {
     // Exposing another view renames this entry. Its original URL and state belong to
     // the outgoing checkpoint; the exposed destination belongs to the new entry.
     if (window.location.href !== sourceUrl || history.state !== sourceState)
-      replaceEntry(sourceUrl, sourceState);
+      write("replaceState", sourceState, sourceUrl);
     setScroll(pageScroller, { left: offset[0], top: offset[1], behavior: "instant" });
     pushEntry(url);
     setScroll(pageScroller, { ...arrival, behavior: "instant" });
@@ -237,7 +290,8 @@ export function prepareEntry() {
 }
 
 // `claim(url)` returns the handler that reveals the destination of a traversal, or
-// nothing when the entry is not the claimant's. The first claim to answer takes it.
+// nothing when the entry is not the claimant's. The thread view the entry names is
+// claimed first (`mountHistory`), then the first claim to answer takes it.
 // A handler places the viewport itself unless it resolves to false, handing placement
 // back to the entry's checkpoint (or the browser when no checkpoint was captured).
 // Travel follows it where the entry's fragment names a place its view doesn't show.
@@ -247,17 +301,20 @@ export function claimTraversals(claim, { signal } = {}) {
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
 }
 
-// Where the user is in the chrome's thread views, the panel's and a margin card, which
-// each view reads and restores itself, as a revision carries them (version.js,
-// `captureRetainedCurrentLocation`).
-/** @type {ChromeLocation | null} */
-let chrome = null;
+// The thread view an entry names (thread/address.js): `claim` opens it or puts it away
+// on a traversal, as it reads the entry's saved place, and `drawing` is the drawing of
+// a thread a return puts the user in (`returnPlace`), wherever the thread's route drew
+// it (thread/destination.js).
+/** @type {((id: string) => Element | null) | null} */
+let threadDrawing = null;
 let mounted = false;
-/** @param {{followFragment: TraversalClaim, returnToFragment: TraversalClaim, chrome: ChromeLocation}} options */
-export function mountHistory({ followFragment, returnToFragment, chrome: views }) {
+/** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
+ * returnToFragment: (url: URL) => TraversalHandler | null | undefined,
+ * thread: {claim: ThreadClaim, drawing: (id: string) => Element | null}}} options */
+export function mountHistory({ followFragment, returnToFragment, thread }) {
   if (mounted) return;
   mounted = true;
-  chrome = views;
+  threadDrawing = thread.drawing;
   const navigation = window.navigation;
   navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
@@ -269,8 +326,8 @@ export function mountHistory({ followFragment, returnToFragment, chrome: views }
       if (key) places.set(key, readPlace());
     }
     if (event.navigationType === "traverse") {
-      const claim = claimed(url);
       const place = places.get(event.destination.key);
+      const claim = thread.claim(url, place ?? null) || claimed(url);
       const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
       const applied = traversalApplied(event.signal);
       event.intercept({
@@ -318,11 +375,26 @@ export function mountHistory({ followFragment, returnToFragment, chrome: views }
           if (place) mayReturn.handoff(() => void returnPlace(place));
           // Firefox and WebKit may apply the traversal after this placement and move
           // the page as they do (above). Once they have, the first block on screen goes
-          // back to where the placement stood it.
+          // back to where the placement stood it. Firefox also drops focus to the body
+          // as it applies the traversal (Firefox 160), so the node the return put the
+          // user on takes it back.
+          const returned = place ? deepFocus() : null;
           const mark = readingBlock() ?? document.documentElement;
           const stood = mark.getBoundingClientRect().top;
           await applied;
-          if (!mayReturn() || !mark.isConnected) return;
+          if (!mayReturn()) return;
+          if (
+            returned &&
+            returned !== document.body &&
+            returned.isConnected &&
+            deepFocus() === document.body
+          )
+            mayReturn.handoff(() =>
+              focusDestination(returned, "return", {
+                caret: returned === place?.focus?.deref() ? place.caret : null,
+              }),
+            );
+          if (!mark.isConnected) return;
           const moved = mark.getBoundingClientRect().top - stood;
           if (moved)
             mayReturn.handoff(() =>

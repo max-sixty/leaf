@@ -7,7 +7,8 @@ import { TEXT_FIELD } from "../control-selectors.js";
 // are), whose reply and Resolve the presentation draws outside it and declares on it
 // (`threadPart`, below). Each names its thread's id in `data-lf-thread`, so focus
 // anywhere in one stands in that thread for every reading of it, `c` included.
-export const THREAD = ".lf-page-thread, [data-lf-thread-view]";
+export const THREAD_VIEW = "[data-lf-thread-view]";
+export const THREAD = `.lf-page-thread, ${THREAD_VIEW}`;
 // The logged id a drawn thread carries. Each reader of the id takes it from here.
 /** @param {Element | null | undefined} node */
 export const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;

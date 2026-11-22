@@ -433,11 +433,11 @@ export function createUndo({
   // Put the user on a thread, under the intent of the gesture that asked for it: in the
   // reader a settlement named (thread/folding.js), else where they see it drawn on the
   // page, which needs no travel, else where a route to it opens it.
-  /** @param {string} id @param {UserIntent} intent @param {Reader} [reader] */
-  async function returnToThread(id, intent, reader = null) {
-    if (reader) return openThread(id, { part: "thread", intent, reader });
+  /** @param {string} id @param {UserIntent} intent @param {Reader} [reader] @param {boolean} [travel] */
+  async function returnToThread(id, intent, reader = null, travel = true) {
+    if (reader) return openThread(id, { part: "thread", intent, reader, travel });
     const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
-    if (!seated) return openThread(id, { part: "thread", intent });
+    if (!seated) return openThread(id, { part: "thread", intent, travel });
     intent.handoff(() => focusDestination(seated, "move"));
     return seated;
   }
@@ -449,11 +449,12 @@ export function createUndo({
 
   // Go to what the gesture changed, under the intent of the press that asked for it: a
   // thread in the `reader` its settlement was made in, where it was made here.
-  /** @param {UndoEvent} event @param {UserIntent} intent @param {Reader} [reader] */
-  function show(event, intent, reader) {
+  /** @param {UndoEvent} event @param {UserIntent} intent @param {Reader} [reader] @param {boolean} [travel] */
+  function show(event, intent, reader, travel = true) {
     const place = placeOf(event);
-    if (place?.message) return openThread(place.message, { part: "message", intent });
-    if (place?.thread) return returnToThread(place.thread, intent, reader);
+    if (place?.message)
+      return openThread(place.message, { part: "message", intent, travel });
+    if (place?.thread) return returnToThread(place.thread, intent, reader, travel);
     if (place?.fragment === undefined || !intent()) return;
     // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so
     // Back returns to where the user was reading.
@@ -491,16 +492,20 @@ export function createUndo({
   // made, its thread in the reader it was made in, else the place where it stood out of
   // view when they pressed. Both are read before the withdrawal, which takes the
   // settlement's reader with it. What it changed is tinted once the user is there.
+  // Only a place out of view is travel there, a Back step by travel's rule
+  // (anchor-travel.js, `prepareNavigationStep`); a thread in view opens where the user
+  // stands. Undo keeps no history of its own.
   /** @param {UndoEvent} event */
   function walkTo(event) {
     const settled = settledHere(event);
-    const travels = Boolean(settled) || outOfView(event);
+    const away = outOfView(event);
+    const travels = Boolean(settled) || away;
     const intent = retainUserIntent();
     const answer = withdraw(event);
     if (!answer) return null;
     void whenDocumentPresented()
       .then(async () => {
-        if (travels) await show(event, intent, settled?.reader);
+        if (travels) await show(event, intent, settled?.reader, away);
         tint(event);
       })
       .catch(() => {});

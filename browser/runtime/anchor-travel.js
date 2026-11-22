@@ -23,16 +23,19 @@
  * application root, so geometry code never imports the presenter. A navigation step keeps the
  * user's original intent while data loads, the target opens and the page paints;
  * newer input or another navigation step cancels its landing, but not the loading. Each navigation step
- * records where the user is before it moves anything, then checks whether the user is
- * already there. Every arrival that succeeds and moves the page adds that departure to
- * history, so Back returns the user to the item they were on, one step at a time, as
- * Back does after a followed link. Leaf once let a run of steps share one entry while
+ * records where the user is before it moves anything. Every arrival that succeeds and
+ * moves the page or lands the user on a stop they weren't on adds that departure to
+ * history (`prepareNavigationStep`), so Back returns the user to the item they were on,
+ * one step at a time, as Back does after a followed link, which the browser adds as an
+ * entry though its target already shows. Leaf once let a run of steps share one entry while
  * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
  * the item a step left: after `t` then `m`, Back passed over the thread, and once the
  * user answered an obligation, which takes it out of On Me, neither Back nor Shift+m
  * returned to it. Limiting the sharing to one walk still missed the second case, so no
- * steps share an entry. A fragment link's
- * navigation step (`followFragment`) uses the history entry the browser added for the link as
+ * steps share an entry. Rejected: a step only where the arrival moves the page, under
+ * which the first `t` to a thread on screen added none, so Back from its card left the
+ * page, and a walk among stops the window shows left no way back along it. A fragment
+ * link's navigation step (`followFragment`) uses the history entry the browser added for the link as
  * its departure, and Back or Forward to a place the page has since hidden
  * (`returnToFragment`) is a navigation step that adds no entry.
  */
@@ -42,7 +45,7 @@
  * present?: () => unknown, hasContent?: boolean}} EditorDestination */
 
 import { selectEnds } from "./native-selection.js";
-import { focusElement } from "./focus.js";
+import { focusElement, focused } from "./focus.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import {
@@ -306,13 +309,22 @@ export function createAnchorTravel({
     return (onFrame ? arrived?.frame?.() : arrived?.input()) ?? null;
   }
 
-  // Travel's departure transaction. Capture where the user is before any reveal; plan
-  // answers whether the caller moves the page, since a destination the user can already
-  // read where they are is no departure, and arrive commits only its successful handoff.
-  // Failure or newer intent leaves history untouched. A destination not yet placed (a
-  // datum a widget has yet to hydrate) is somewhere else. `there` is the caller's reading
-  // of already being there where it asks more than the destination's own (an obligation's
-  // arrival region), built on the reading it is handed.
+  // Travel's departure transaction, the one rule for whether a route that travels is a
+  // Back step: it is where it moves the page, or lands the user on a stop they weren't
+  // on, which is where its arrival puts focus on something the user's focus wasn't in
+  // (current-target.js, "on a stop"). So every stop of a walk is a step, as each
+  // followed link is, though the stop already shows: the first `t` to a thread on
+  // screen, which once left Back leaving the page from the card it opened, and `m` or
+  // `t` between stops the window already shows. An arrival that puts focus nowhere new,
+  // as on the stop the user is on, is a step only where it moves the page. A route that
+  // opens or puts away a view where the user stands doesn't travel (`travel: false`,
+  // thread/destination.js) and takes no departure. Capture where the user is before any
+  // reveal; plan answers whether the arrival moves the page, which a caller may use to
+  // decide its scroll, and arrive commits only its successful handoff, after it has
+  // placed focus. Failure or newer intent leaves history untouched. A destination not
+  // yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
+  // caller's reading of already being there where it asks more than the destination's
+  // own (an obligation's arrival region), built on the reading it is handed.
   /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
     // Travel lands a destination at its start or centre, alike for one taller than its
@@ -320,6 +332,10 @@ export function createAnchorTravel({
     /** @param {Destination} where */
     const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
+    const left = focused();
+    // Only a route the user's gesture began adds an entry (history.js): one begun
+    // without the browser's user activation, as on news or a revision, renames.
+    const begun = navigator.userActivation.isActive;
     /** @type {boolean | undefined} */
     let moving;
     return {
@@ -328,9 +344,12 @@ export function createAnchorTravel({
         return moving;
       },
       commit() {
-        if (moving) write(url ?? window.location.href);
+        if (moving === undefined) return;
+        const on = focused();
+        const stayed = on === left || (left !== document.body && under(left, on));
+        if (begun && (moving || !stayed)) write(url ?? window.location.href);
         // No departure, but the entry the user stays on now names where they are.
-        else if (moving === false && url) replaceEntry(url);
+        else if (url) replaceEntry(url);
       },
     };
   }

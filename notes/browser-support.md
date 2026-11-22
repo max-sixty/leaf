@@ -1230,21 +1230,35 @@ and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll i
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
 
-### Forward to a same-document entry names no destination in Firefox
+### Forward to a same-document entry names no destination in Playwright's Firefox
 
 In Playwright's Firefox 159.0 (build 1572, macOS), after Back from a same-document
 entry a followed fragment link added, `navigation.entries()` no longer lists that
 entry, and Forward to it fires a `traverse` navigate event whose `destination.key` is
 empty and `destination.index` is -1; once applied, `navigation.currentEntry` is null.
-Chromium 156 names the entry. So `browser/runtime/history.js` finds no working-place
-checkpoint for it: Forward restores only the browser's saved offset and leaves focus
-on `body`, and a thread view Back reopened stays open over the place the link landed
-on, where Chromium's Forward puts it away again. Observed 2026-11-21 on an installed
-test engine, not a stable release; disposition: recorded, not corrected, since
-Forward after Back is a rare path. To recheck, follow a fragment link, go Back, and read
-`destination.key` in Forward's `navigate` event:
-`tests/browser/threads/test_navigation.py::test_back_reopens_the_thread_its_departure_put_away`
-runs Forward in Chromium only.
+Stock Firefox 160.0 (macOS) and Chromium 156 name the entry. So in the test engine
+`browser/runtime/history.js` finds no working-place checkpoint for Forward: it
+restores only the browser's saved offset and leaves focus on `body`. The entry's URL
+still names the thread view it shows (`?thread=`, `thread/address.js`), so the view
+opens or goes as in Chromium. Observed 2026-11-21 on the installed test engine, and
+2026-11-22 in stock Firefox 160 through Marionette; disposition: recorded, not
+corrected, since no stable release shows it. To recheck, follow a fragment link, go
+Back, and read `destination.key` in Forward's `navigate` event:
+`tests/browser/navigation/test_threads.py::test_back_and_forward_show_the_thread_each_entry_names`
+asserts focus after Forward in Chromium only.
+
+### Firefox drops focus as it applies a same-document traversal
+
+Stock Firefox 160.0 (macOS) blurs the focused element, leaving focus on `body`, as it
+applies a same-document traversal, in the task that fires `popstate`, though Leaf
+intercepts the traversal with `focusReset: "manual"`. Leaf returns the user's place
+before the browser applies the traversal (`history.js`), so after Forward to a
+followed link's target, focus was on `body` rather than on the target, and the next
+command started from the top of the page. Observed 2026-11-22 through Marionette;
+disposition: corrected, since Back and Forward are a path users take often:
+`history.js` puts focus back on the node the return placed it on once the traversal
+has applied. To recheck, log `focusout` during Forward in stock Firefox: a
+`focusout` with no script on its stack just before `popstate` is the drop.
 
 ### Highlight hit testing
 

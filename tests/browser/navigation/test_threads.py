@@ -1325,14 +1325,16 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
     expect(thread).to_be_focused()
     assert page.evaluate("history.length") == entries
     if name == "anchor01":
-        # Leaving the passage puts its card away. Back reveals that thread again.
+        # Leaving the passage puts its card away, renaming the entry, so Back returns
+        # to the link the user left by with no thread open, as they left it.
         link = page.get_by_role("link", name="Back to the heading")
         link.click()
         expect(page.locator("#start")).to_be_in_viewport()
         expect(thread).not_to_be_visible()
         page.go_back()
-        expect(thread).to_be_visible()
-        expect(page.locator("#target")).to_be_in_viewport()
+        expect(link).to_be_focused()
+        expect(thread).not_to_be_visible()
+        assert "thread" not in dict(parse_qsl(urlsplit(page.url).query))
     else:
         # A primary reader stays shown while the user reads elsewhere on the page.
         # Returning to its URL must keep that reading position as well.
@@ -1362,10 +1364,69 @@ def test_following_a_thread_url_uses_native_history(browser, serve):
     assert page.evaluate("history.length") == entries + 1
 
 
-def test_authored_fragment_takes_precedence_over_thread_query(browser, serve):
+def test_a_thread_url_with_a_fragment_lands_there_with_the_thread_open(browser, serve):
+    """The fragment places the page, and the thread the URL names opens beside it
+    without moving it, so a reload of an entry that showed both shows both again."""
     page = open_page(browser, thread_url(thread_page(serve), "general1", "target"))
+    expect(linked_thread(page, "general1")).to_be_visible()
     expect(page.locator("#target")).to_be_in_viewport()
-    expect(page.locator('.lf-page-thread[data-lf-thread="general1"]')).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engine):
+    """An entry's `?thread=` names the thread view standing open on it, renamed as views
+    open and close where the user stands. A link followed out of a thread a URL opened
+    puts the view away and leaves an entry naming no thread; Back returns to the
+    thread, with the user in it and the page where it was, and Forward to the link's
+    target with the view put away again. Escape puts the view away by renaming the
+    entry, never by a traversal."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "See [the last paragraph](#p59).",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), thread_url(url, root))
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(thread).to_be_focused()
+
+    def query():
+        return dict(parse_qsl(urlsplit(page.url).query))
+
+    start = page.evaluate("navigation.currentEntry.index")
+    thread.get_by_role("link", name="the last paragraph").click()
+    expect(page.locator("#p59")).to_be_focused()
+    expect(thread).to_be_hidden()
+    page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
+    entries = page.evaluate("navigation.entries().length")
+
+    page.go_back()
+    expect(thread).to_be_focused()
+    assert query()["thread"] == root
+    page.wait_for_function("scrollY === 0")
+    page.go_forward()
+    expect(thread).to_be_hidden()
+    expect(page.locator("#p59")).to_be_in_viewport()
+    assert "thread" not in query()
+    if engine == "browser":
+        # Playwright's Firefox names no destination for Forward
+        # (notes/browser-support.md), so no place of the entry's comes back there.
+        expect(page.locator("#p59")).to_be_focused()
+
+    page.go_back()
+    expect(thread).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
+    assert page.evaluate("navigation.entries().length") == entries
+    assert page.evaluate("navigation.currentEntry.index") == start
 
 
 def test_unknown_thread_url_reports_the_missing_destination(browser, serve):
@@ -1445,45 +1506,23 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
     expect(linked_thread(page, "anchor01")).to_be_focused()
     expect(page.locator("#target")).to_be_in_viewport()
     assert page.evaluate("history.length") == 2
-    assert urlsplit(page.url).fragment == ""
+    # The tab set names the view it opened beside the thread, and the entry keeps both.
+    assert urlsplit(page.url).fragment == "second"
+    assert dict(parse_qsl(urlsplit(page.url).query))["thread"] == "answer01"
     page.reload()
     wait_until_ready(page)
-    expect(linked_thread(page, "anchor01")).to_be_focused()
-    page.emulate_media(reduced_motion="no-preference")
-    page.evaluate(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          preview.addEventListener('transitionrun', function hold(event) {
-            if (event.propertyName !== 'opacity' || !preview.inert) return;
-            for (const animation of preview.getAnimations()) animation.pause();
-            preview.removeEventListener('transitionrun', hold);
-          });
-        }"""
-    )
-    # The hold catches only a fade the tab press starts, so the card still stands
-    # placed when the press lands; a card already put away fails here, not in the wait.
-    expect(page.locator(".lf-margin-preview")).to_have_attribute(
-        "data-lf-thread-placement", re.compile(r".+")
-    )
+    expect(linked_thread(page, "anchor01")).to_be_visible()
+    # A press on the other tab puts the card away, so the entry it leaves names no
+    # thread, and Back returns to the tab with the card put away.
     page.get_by_role("tab", name="First", exact=True).click()
     expect(page.locator("#first")).to_be_visible()
     assert urlsplit(page.url).fragment == "first"
-    page.wait_for_function(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
-        }"""
-    )
     page.go_back()
     wait_until_ready(page)
-    assert page.locator("#second").is_visible()
-    expect(linked_thread(page, "anchor01")).to_be_visible()
-    assert urlsplit(page.url).fragment == ""
-    # The card stands under its passage at the full measure, over the link below it,
-    # so the reader puts it away before the press.
-    preview = page.locator(".lf-margin-preview")
-    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
-    expect(preview).to_be_hidden()
+    expect(page.locator("#target")).to_be_visible()
+    expect(linked_thread(page, "anchor01")).to_be_hidden()
+    assert urlsplit(page.url).fragment == "second"
+    assert "thread" not in dict(parse_qsl(urlsplit(page.url).query))
     # Opening an authored fragment link in a new document inherits the query,
     # just as Copy Link or Open in New Tab does.
     heading_url = page.get_by_role("link", name="Return to the heading").evaluate(

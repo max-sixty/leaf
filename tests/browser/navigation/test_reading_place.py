@@ -189,6 +189,95 @@ def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serv
     )
 
 
+TWO_LINE_PATCH = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+-a = 1
+-b = 2
++a = 10
++b = 20
+"""
+
+
+@pytest.mark.parametrize("walk", ["first t", "t between seats", "m between asks"])
+def test_a_walk_to_a_stop_already_on_screen_is_a_back_step(browser, serve, walk):
+    """Each stop a walk lands on is a Back step, as each followed link is, though the
+    window already shows it: Back from the second stop returns to the first, and Back
+    from the card the first `t` opens returns to the page with no thread open rather
+    than leaving the page."""
+    events = []
+    if walk == "first t":
+        body = "<p id=a>The first passage.</p><p id=b>The second passage.</p>"
+        anchored = [("a", "first passage"), ("b", "second passage")]
+    elif walk == "t between seats":
+        body = '<lf-diff id="patch" source="review-patch"></lf-diff>'
+        anchored = []
+        events = [
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About line {line}.",
+                "anchor": {
+                    "section": "patch",
+                    "datum": f'["app.py","new",{line}]',
+                    "source": "review-patch",
+                    "data_revision": 1,
+                },
+            }
+            for line in (1, 2)
+        ]
+    else:
+        body = "".join(
+            f'<lf-group id="ask-{n}" label="Which route?"><h2>Which route?</h2>'
+            f'<lf-options id="routes-{n}"><lf-option id="left-{n}">Left</lf-option>'
+            f'<lf-option id="right-{n}">Right</lf-option></lf-options></lf-group>'
+            for n in (1, 2)
+        )
+        anchored = []
+    url = serve(
+        leaf_page("Stops on screen", f"<h1>Stops</h1>{body}"), anchored=anchored
+    )
+    if walk == "t between seats":
+        data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_LINE_PATCH)
+        for event in events:
+            append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    key = "m" if walk == "m between asks" else "t"
+    scope = "lf-diff" if walk == "t between seats" else ".lf-margin-preview"
+    threads = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    stops = (
+        [page.locator("#ask-1"), page.locator("#ask-2")]
+        if key == "m"
+        else [
+            page.locator(f'{scope} .lf-page-thread[data-lf-thread="{thread}"]')
+            for thread in threads
+        ]
+    )
+    entries = page.evaluate("history.length")
+    loaded = page.evaluate("navigation.currentEntry.index")
+    page.keyboard.press(key)
+    expect(stops[0]).to_be_focused()
+    assert page.evaluate("history.length") == entries + 1
+    if walk == "first t":
+        page.wait_for_function("navigation.transition === null")
+        page.go_back()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        assert page.evaluate("navigation.currentEntry.index") == loaded
+        return
+    page.keyboard.press(key)
+    expect(stops[1]).to_be_focused()
+    assert page.evaluate("history.length") == entries + 2
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(stops[0]).to_be_focused()
+
+
 @pytest.mark.parametrize("close_source", [False, True])
 def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     """A caret in prose is a working place even when no element holds focus."""

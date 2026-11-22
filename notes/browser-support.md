@@ -1230,6 +1230,22 @@ and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll i
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
 
+### Forward to a same-document entry names no destination in Firefox
+
+In Playwright's Firefox 159.0 (build 1572, macOS), after Back from a same-document
+entry a followed fragment link added, `navigation.entries()` no longer lists that
+entry, and Forward to it fires a `traverse` navigate event whose `destination.key` is
+empty and `destination.index` is -1; once applied, `navigation.currentEntry` is null.
+Chromium 156 names the entry. So `browser/runtime/history.js` finds no working-place
+checkpoint for it: Forward restores only the browser's saved offset and leaves focus
+on `body`, and a thread view Back reopened stays open over the place the link landed
+on, where Chromium's Forward puts it away again. Observed 2026-11-21 on an installed
+test engine, not a stable release; disposition: recorded, not corrected, since
+Forward after Back is a rare path. To recheck, follow a fragment link, go Back, and read
+`destination.key` in Forward's `navigate` event:
+`tests/browser/threads/test_navigation.py::test_back_reopens_the_thread_its_departure_put_away`
+runs Forward in Chromium only.
+
 ### Highlight hit testing
 
 `CSS.highlights.highlightsFromPoint(x, y, {shadowRoots})` (CSS Custom Highlight API)

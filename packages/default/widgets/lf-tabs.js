@@ -99,7 +99,6 @@ import {
   tally,
   under,
   backgroundFlash,
-  flashDuration,
   beginWalk,
   capturePlace,
   comparisonChanges,
@@ -602,7 +601,7 @@ export class TabSet extends LeafElement {
       // motion's shared gate answers reduced motion and initial presentation.
       if (previous && reason === "reveal") {
         const name = button.querySelector(":scope > .lf-tab-name");
-        if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
+        if (name) this.#revealMotion = backgroundFlash(name);
       }
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });

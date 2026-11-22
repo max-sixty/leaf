@@ -124,7 +124,7 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
-import { backgroundFlash, flashDuration } from "./motion.js";
+import { backgroundFlash } from "./motion.js";
 import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
@@ -475,7 +475,7 @@ export function createUndo({
       place.thread ??
       (event.kind === "reply" && event.parent ? threadIdNamed(event.parent) : null);
     for (const node of new Set(drawn.length ? drawn : thread ? drawingsOf(thread) : []))
-      if (node) backgroundFlash(node, flashDuration());
+      if (node) backgroundFlash(node);
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an

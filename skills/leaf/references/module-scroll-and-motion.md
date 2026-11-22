@@ -258,10 +258,9 @@ A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter
 `returnDuration()`.
 
-`backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
+`backgroundFlash(element)` gives an element a brief yellow tint that fades to its
 own background, and tints each box inside it that paints a background of its own too.
-`flashDuration()` is how long Leaf's own arrival tint lasts, as on a newly arrived
-message.
+It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 
 ## Notices and spoken words
 

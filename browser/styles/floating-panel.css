@@ -489,8 +489,8 @@
      (`.lf-fp-response`) alike, one of which shows at a time. With no view open the
      row's top is the panel's, so the shelf hangs over the panel. With a view open, and
      the editors holding the shelf showing, which a search hides, the row stands a band
-     below the view, the shelf's tallest picture and its gap on either side, and the
-     shelf stands in it, covering neither the view nor the box. The panel grows by the
+     below the view, the height a picture may take (`--lf-media-h`, tokens.css) and its
+     gap on either side, and the shelf stands in it, covering neither the view nor the box. The panel grows by the
      band; where it already reaches the window's top, the view gives the band up at its
      top and keeps its foot (scrolling.js, `keepFoot`), so the message being answered
      stays in view. A shorter picture stands at the band's foot, by the box.

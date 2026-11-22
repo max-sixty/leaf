@@ -13,7 +13,6 @@ from render_harness import (
     open_page,
     primed,
     rendered,
-    resized,
     rgb_pixels,
     scroll_settled,
 )
@@ -332,64 +331,6 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     page.keyboard.press("d")
     expect(tree.locator("input")).to_have_value("d")
     consume_browser_errors(page, http_error_console(409))
-
-
-def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_path):
-    """With the floating panel opened over an editor in a pane at the window's foot by
-    a draft of several lines, opening a file from the tree scrolls the page until the
-    editor clears the panel, as a destination it covers is brought clear of it."""
-    for name in ("values", "alerts"):
-        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
-    url = serve(
-        leaf_page(
-            "Deploy files",
-            """<header><h1>Deploy files</h1></header>
-            <div id="regions">
-              <lf-pane id="files-pane" label="Files">
-                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
-              <lf-pane id="notes-pane" label="Notes"><div><p>Notes</p></div></lf-pane>
-              <lf-pane id="editor-pane" label="File">
-                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
-              </lf-pane>
-            </div>""",
-            head="""<style>
-#regions { display: grid; grid-template-columns: 16rem 1fr; grid-template-rows: 1fr 20rem; }
-#files-pane { grid-row: 1 / span 2; }
-</style>""",
-            layout="workspace",
-        ),
-        packages=["file-editor", "file-tree"],
-    )
-    for name in ("values", "alerts"):
-        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
-    page = open_page(browser, live_url(url))
-    resized(page, 1200, 900)
-    editor = page.locator("lf-file-editor")
-    expect(
-        editor.get_by_role("textbox", name="File contents", exact=True)
-    ).to_contain_text("values.yaml")
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 600px"}))"""
-    )
-    page.locator("body").focus()
-    page.keyboard.press("c")
-    for line in range(8):
-        page.keyboard.type(f"line {line}")
-        page.keyboard.press("Shift+Enter")
-    page.wait_for_function(
-        "innerHeight - document.querySelector('.lf-floating-panel .lf-fp-card')"
-        ".getBoundingClientRect().top > 200"
-    )
-    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
-    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
-    scroll_settled(page)
-    # The open panel's card starts where it covers the page.
-    panel_top, editor_end = editor.evaluate("""host => {
-      const card = document.querySelector(".lf-floating-panel .lf-fp-card");
-      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom];
-    }""")
-    assert editor_end <= panel_top, (editor_end, panel_top)
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):

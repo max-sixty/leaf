@@ -4087,7 +4087,12 @@
       const drawn = animationMotion(node, began, at, carries);
       return box && { left: box.left - drawn.left, top: box.top - drawn.top };
     };
-    const landed = stands(first),
+    // Where the step put the node, read at the node's first reading once the carries
+    // drew. Their first sample can come from a read that reads no node, as cancelling
+    // a carry to re-time it takes one, and the ledger then still holds the node where
+    // it stood before the carries drew.
+    const drew = readings.find((reading) => reading.at >= first)?.at ?? first;
+    const landed = stands(drew),
       last = layout(readings[index].at);
     if (
       landed &&

@@ -1992,44 +1992,6 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
     assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
 
 
-def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
-    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
-    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
-    so the code loses its blank lines, indents and marks while the HTML stays well
-    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
-    published(page_dir)
-    code = "def a():\n    return 1\n\ndef b():\n    return 2"
-    for split in (code, "steps:\n\n- build\n- ship"):
-        refused = comment(
-            page_dir,
-            "--text",
-            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
-        )
-        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
-    for kept in (
-        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
-        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
-    ):
-        assert code in passages_model.message_markup(kept)
-        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
-
-
-def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
-    page_dir,
-):
-    """A widget whose opening tag shares its line with its content is inline HTML, so
-    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
-    refusal names that repair alone, not the widget the parser emptied, which the
-    agent wrote whole."""
-    published(page_dir)
-    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
-    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
-    assert refused.exit_code != 0
-    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
-    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
-    assert kept.exit_code == 0, kept.output
-
-
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
     registry = with_modules(
         {

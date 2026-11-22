@@ -6,6 +6,7 @@ import json
 import os
 import socket
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -252,11 +253,18 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     assert events[2]["revision"] == 2
 
 
+import http.client
+import shutil
+
 from interact_support import (
+    PLUGIN_ROOT,
     command_findings,
     record_claim,
 )
-from model.test_server_lifetime import reaper_retires
+from model.test_server_lifetime import (
+    PROCESS_LISTING_REFUSED,
+    reaper_retires,
+)
 
 from leaf import harness as harness_model
 from leaf import schema as schema_model
@@ -583,3 +591,118 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server_model.running_server(page) == before
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(LEAF_COMMAND, id="module"),
+        pytest.param([str(PLUGIN_ROOT / "bin" / "leaf")], id="launcher"),
+        pytest.param(
+            [
+                "sandbox-exec",
+                "-p",
+                PROCESS_LISTING_REFUSED,
+                str(PLUGIN_ROOT / "bin" / "leaf"),
+            ],
+            id="sandboxed launcher",
+            marks=pytest.mark.skipif(
+                not shutil.which("sandbox-exec"), reason="macOS's sandbox"
+            ),
+        ),
+    ],
+)
+def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
+    page_dir, spawn, command
+):
+    """A temporary server leaves nothing `server stop` could reach, so a caller
+    that dies without stopping it, as a killed test does, must not leave it serving.
+    The caller here is a shell that starts it in the background and exits. Through
+    the launcher, the server's own parent is the `uv run` that `bin/leaf` execs,
+    which waits on it and so outlives the caller. Codex's macOS sandbox refuses a
+    listing of every process, so finding that caller must not take one."""
+    # The caller hands its stdout and stderr to the server and closes its own, so
+    # they reach their end when the server exits, whether it served or failed.
+    caller = spawn(
+        [
+            "sh",
+            "-c",
+            '"$@" & exec >&- 2>&-; read _',
+            "sh",
+            *command,
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page_dir),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    started = caller.stdout.readline()
+    assert started, caller.communicate(timeout=STATED_TIMEOUT)[1]
+    state = urllib.parse.urlsplit(json.loads(started)["url"])
+    state = state._replace(path="/api/state").geturl()
+    assert urllib.request.urlopen(state).status == 200
+
+    # Closing its stdin ends the caller, and reading the server's stdout and stderr
+    # to their end waits for the server to exit.
+    _, error = caller.communicate(timeout=STATED_TIMEOUT)
+    assert error == ""
+    with pytest.raises(urllib.error.URLError):
+        urllib.request.urlopen(state)
+
+
+def test_server_stop_closes_accepted_keep_alive_connections(
+    page_dir, persistent_server
+):
+    server = persistent_server(page_dir)
+    service = read_record(page_dir / "service.json")
+    connection = http.client.HTTPConnection(service["host"], service["port"])
+    connection.request("GET", f"/api/state?t={server_model.host_key()}")
+    response = connection.getresponse()
+    assert response.status == 200
+    response.read()
+    accepted = connection.sock
+    accepted.sendall(
+        (
+            f"GET /api/state?t={server_model.host_key()} HTTP/1.1\r\n"
+            f"Host: {service['host']}\r\n"
+        ).encode()
+    )
+
+    assert hosting_model.cmd_stop(page_dir) is True
+    server.wait(timeout=STATED_TIMEOUT)
+
+    # A closed connection reads as end of stream or a reset. A socket still open,
+    # as one a surviving child process inherited would be, times out instead, and
+    # `TimeoutError` is an `OSError` this must not take for a close.
+    accepted.settimeout(STATED_TIMEOUT)
+    try:
+        accepted.sendall(b"\r\n")
+        remainder = accepted.recv(1)
+    except (ConnectionResetError, BrokenPipeError):
+        remainder = b""
+    assert remainder == b""
+
+
+def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
+    page_dir, persistent_server, monkeypatch
+):
+    server = persistent_server(page_dir)
+    write_service = hosting_model.write_service
+
+    def write_and_wait_for_exit(directory, value):
+        write_service(directory, value)
+        if not value["enabled"]:
+            wait_for(
+                lambda: leases_model.lock_is_held(page_dir / "server.lock"),
+                lambda held: not held,
+                failure="server did not release its lease after stop",
+            )
+
+    monkeypatch.setattr(hosting_model, "write_service", write_and_wait_for_exit)
+    assert hosting_model.cmd_stop(page_dir) is True
+    server.wait(timeout=STATED_TIMEOUT)

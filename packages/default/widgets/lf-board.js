@@ -842,11 +842,11 @@ customElements.define(
         // slot only for a card it takes (#takes), as the arrows and the destination
         // buttons offer it. Sortable asks this of every column but the one the drag
         // began in, which always takes its card back. A column that takes the card
-        // answers with the group's name, which Sortable matches against the board the
-        // drag began in; `true` would take a card from any board.
+        // answers with the groups it takes from, which Sortable matches against the
+        // board the drag began in; `true` would take a card from any board.
         group: {
           name: group,
-          put: (to, _from, card) => (this.#takes(card, to.el) ? group : false),
+          put: (to, _from, card) => (this.#takes(card, to.el) ? [group] : false),
         },
         draggable: "lf-card",
         handle: ".lf-grip",

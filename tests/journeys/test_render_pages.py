@@ -175,7 +175,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 f"{example.stem}: duplicate {event['id']}"
             )
             previous.add(event["id"])
-        assert {event["id"] for event in events} <= previous
+        # A seed may leave an event's id to admission; each id it names survives.
+        assert {event["id"] for event in events if "id" in event} <= previous
         by_id = {event["id"]: event for event in logged}
 
         def thread_of(event_id, by_id=by_id):

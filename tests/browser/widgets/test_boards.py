@@ -16,6 +16,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -889,8 +890,9 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     """The board's module alone holds a card with `shows` to the answer it shows:
     neither `page check` nor the append door reads the attribute. A board move of such
     a card that reaches the log, which the module never sends, leaves the card in its
-    answer's column, and a card whose `shows` names an element with no answer stands
-    where the markup puts it and takes no move."""
+    answer's column. A card whose `shows` names an element with no answer stands
+    where the markup puts it and takes no move, and the board tells the author so
+    once, as the page's error."""
     source = ANSWERS_BOARD_PAGE.replace(
         '<lf-column id="col-open" label="Undecided"></lf-column>',
         '<lf-column id="col-open" label="Undecided">'
@@ -899,6 +901,11 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    report = (
+        '<lf-card id="card-section"> failed: shows="rail-section" names <lf-group>,'
+        " which has no answer a board can show"
+    )
+    reported_browser_errors(page, report)
 
     stray = append_command(
         serve.page_dir,
@@ -920,8 +927,11 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     for press in ("Enter", "ArrowRight", "Enter"):
         page.keyboard.press(press)
     expect(page.locator("#col-open > #card-section")).to_have_count(1)
+    events = events_model.read_events(serve.page_dir)
+    assert [event["id"] for event in events if event["kind"] == "action"] == [
+        stray["id"]
+    ]
+    # The draws since, for the stray move and the refused grab, report nothing more.
     assert [
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action"
-    ] == [stray["id"]]
+        event["text"].startswith(report) for event in events if event["kind"] == "error"
+    ] == [True]

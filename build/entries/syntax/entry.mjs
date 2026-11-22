@@ -118,7 +118,48 @@ export async function registerLanguage(lang, grammar) {
  * state the one before it ended in, is coloured as the whole text would be. */
 /** @param {string} source @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
 export async function tokenize(source, lang, state) {
+  return (await tokenizer(lang))(source, state);
+}
+
+/** `tokenize` for `lang` as a synchronous call, once its grammar and the theme have
+ * loaded, for a caller that colours text as it lays it out, a line at a time. */
+/** @param {string} lang */
+export async function tokenizer(lang) {
   const instance = await createHighlighter({ langs: [lang] });
+  /** @param {string} source @param {import("@shikijs/core").GrammarState} [state] */
+  return (source, state) => tokenized(instance, source, lang, state);
+}
+
+/** Each declaration a token's style can hold, as `tokenize` writes it, once: each colour
+ * Leaf's theme names, and each font style. A token's style holds one colour and the
+ * font styles of every rule that matches it, as a comment's italic joins the colour
+ * of a keyword inside it, so a caller that styles tokens by name, as an editor's
+ * highlighter does, names these and gives a token the names its style holds. */
+/** @returns {[string, string][]} */
+export const tokenDeclarations = () => {
+  /** @type {Map<string, [string, string]>} */
+  const declarations = new Map();
+  /** @param {Record<string, string>} style */
+  const add = (style) => {
+    for (const [property, value] of Object.entries(style))
+      declarations.set(`${property}: ${value}`, [property, value]);
+  };
+  for (const { settings } of leafTheme.tokenColors)
+    if ("foreground" in settings && settings.foreground !== foreground)
+      add({ color: settings.foreground });
+  // Shiki's font styles are bits: italic, bold, underline and strikethrough.
+  for (let fontStyle = 1; fontStyle < 16; fontStyle++)
+    add(
+      getTokenStyleObject(
+        /** @type {Parameters<typeof getTokenStyleObject>[0]} */ ({ fontStyle }),
+      ),
+    );
+  return [...declarations.values()];
+};
+
+/** @param {Awaited<ReturnType<typeof createHighlighter>>} instance @param {string} source
+ * @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
+function tokenized(instance, source, lang, state) {
   const lines = instance.codeToTokensBase(source, {
     lang,
     theme: themeName,

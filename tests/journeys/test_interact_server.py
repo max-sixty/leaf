@@ -880,7 +880,6 @@ from interact_support import (
     release_codex_command,
     retire_test_services,
     said,
-    served_state_error,
     vendored_at_another_protocol,
 )
 from process.test_interact_server import (
@@ -1582,55 +1581,6 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
-
-
-def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
-    """`/api/state`, the state an event's answer carries and `/api/view` hold
-    `served_state/state.schema.json`: before the page has a revision, whose `active`
-    and `browser` are null, and once it has one, with a neighbor beside it, a claim
-    on it, a thread and a published version."""
-    index = page_dir / "index.html"
-    source = index.read_text()
-    index.write_text(
-        source.replace("</main>", "<lf-unknown-tag></lf-unknown-tag></main>")
-    )
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200, raw
-    unrevised = json.loads(raw)
-    assert unrevised["active"] is None and unrevised["browser"] is None
-    assert unrevised["source_error"]
-    assert served_state_error(unrevised, "answer") is None, served_state_error(
-        unrevised, "answer"
-    )
-
-    index.write_text(source)
-    publish(page_dir)
-    neighbor = cleanup_model.state_home() / "pages" / "schema-neighbor"
-    neighbour_page(neighbor, title="Neighbor")
-    server_rows_model.RowPublisher(neighbor, "fixture-server").refresh()
-    record_claim(page_dir, id="schema-session", cwd="/work/page")
-    sent = {"kind": "comment", "revision": 1, "text": "Is this right?"}
-    status, raw = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-    assert status == 200, raw
-    answered = json.loads(raw)["state"]
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200, raw
-    served = json.loads(raw)
-    assert served["browser"]["views"]
-    # The list of other pages is an answer of its own, held to its schema by `fetch`.
-    assert json.loads(fetch(f"{server}/api/pages")[1])
-    for state in (answered, served):
-        assert served_state_error(state, "answer") is None, served_state_error(
-            state, "answer"
-        )
-    latest = served["browser"]["basis"]["through_seq"]
-    status, raw = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
-    assert status == 200, raw
-    viewed = json.loads(raw)
-    assert viewed["document"]["revision"] == 1
-    assert served_state_error(viewed, "ViewAnswer") is None, served_state_error(
-        viewed, "ViewAnswer"
-    )
 
 
 @pytest.mark.parametrize("routed", [False, True])

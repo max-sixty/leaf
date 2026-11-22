@@ -32,6 +32,7 @@ from interact_support import (
     command_notes,
     declare_on_page,
     element_declaration,
+    fetch,
     install_payload,
     js_facts,
     lock_contention,
@@ -53,6 +54,7 @@ from packaging.specifiers import SpecifierSet
 
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -201,6 +203,102 @@ def test_agent_interaction_command_help(regtest):
         )
         assert result.exit_code == 0, result.output
         outputs.append(f"## leaf {command} --help\n{result.output}")
+    regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
+
+
+def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
+    """Actual CLI recovery after two user messages arrive in one delivery."""
+    page = claimed
+    publish(page)
+    runner = CliRunner()
+    ids = []
+    outputs = []
+    references = []
+
+    def record(args, code):
+        result = runner.invoke(cli_model.cli, args, prog_name="leaf")
+        assert result.exit_code == code, result.output
+        output = result.output
+        if code == 0:
+            # A write prints its record, whose own id and time differ each run, and
+            # the words of what it notes beside it.
+            output = "".join(
+                json.dumps(
+                    {key: record[key] for key in ("kind", "parent")}
+                    | {"notes": [found["text"] for found in record.get("findings", [])]}
+                )
+                + "\n"
+                for record in map(json.loads, output.splitlines())
+            )
+        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
+        text = text.replace(str(page), "/page")
+        for ref in references:
+            text = text.replace(ref, "response-ref")
+        for number, event_id in enumerate(ids, 1):
+            text = text.replace(event_id, f"user-{number}")
+        outputs.append(text)
+
+    record(["thread", "reply", "--text", "Answer"], 2)
+    for text in ("Why this plan?", "What will it cost?"):
+        code, response = fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "revision": 1, "text": text}).encode(),
+        )
+        assert code == 200, response
+        ids.append(events_model.read_events(page)[-1]["id"])
+    # A message by id answers nothing. Undelivered, the owed message has no
+    # reference yet: the note names the wait that delivers one.
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
+    woke = runner.invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
+    delivery_model.receive(envelope, "s1")
+    [batch] = envelope["batches"]
+    assert len(batch["events"]) == 2
+    reference = batch["events"][0]["answer"]["ref"]
+    references.append(reference)
+    # Delivered, the note names the delivery's exact reference.
+    record(["thread", "reply", str(page), "--text", "Answer", "--done"], 1)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
+
+    def response_args(*extra):
+        return ["thread", "reply", reference, "--text", "Answer", "--done", *extra]
+
+    record(response_args(), 0)
+    answered_events = events_model.read_events(page)
+    record(response_args(), 0)
+    assert events_model.read_events(page) == answered_events
+    for addressed_option in (["--done"],):
+        record(
+            [
+                "thread",
+                "reply",
+                str(page),
+                ids[0],
+                "--text",
+                "Follow-up",
+                *addressed_option,
+            ],
+            2,
+        )
+    assert events_model.read_events(page) == answered_events
+    record(
+        ["thread", "reply", str(page), ids[0], "--text", "Follow-up", "--obligation"],
+        0,
+    )
+    followup = events_model.read_events(page)[-1]
+    assert followup["parent"] == ids[0]
+    assert followup["obligation"] is True
+    # A page reaction can close without an answer: it never owed a reply.
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "token": "keep"}).encode(),
+    )
+    assert code == 200, response
+    ids.append(events_model.read_events(page)[-1]["id"])
+    record(["thread", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
+    record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -2827,6 +2925,25 @@ def test_identical_init_preserves_the_installed_layer(tmp_path):
         if path.is_file()
     } == files
     assert served_layer() == first
+
+
+def test_site_page_accepts_events_across_build_and_container_python_versions(
+    claimed, server, monkeypatch
+):
+    """The build host and serving container can run different Python releases."""
+    page = claimed
+    publish(page)
+    monkeypatch.setattr(sys, "version", "container Python version")
+    planned = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--dry-run", str(page)]
+    )
+    assert planned.exit_code == 0, planned.output
+    assert not json.loads(planned.output)["changed"]
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
 
 
 PLAIN_PAGE = (

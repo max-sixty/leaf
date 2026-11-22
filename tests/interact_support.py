@@ -51,6 +51,7 @@ from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import codex_state as codex_state_model
+from leaf import completions as completions_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -1802,6 +1803,14 @@ def retire_test_services(tmp_path, isolated_session):
     ):
         record = files_model.read_json(path)
         if isinstance(record, dict) and isinstance(record.get("id"), str):
+            # No hooks module runs for a test's Claude Code session, so a title
+            # worker's completion would wait out its whole deadline; answer each
+            # as a failed call, as the module reports one.
+            for asked in completions_model.pending(record["id"]):
+                completions_model.replied(
+                    record["id"],
+                    {"basis": {"completion": asked["id"]}, "failed": "test ended"},
+                )
             cleanup_model.end_session(record["id"])
     # A Claude Code hook leaves Leaf's bridge running while its session lives.
     for lock in (isolated_session / "bridge").glob("*.lock"):

@@ -21,10 +21,11 @@ document.documentElement.style.setProperty("--lf-thread-card", "592px");
 document.documentElement.style.setProperty("--lf-focus-region-room", "8px");
 
 // A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
-// beside any columns, so its room across them is itself.
+// beside any columns, so its room across them is itself, and the window holds it.
 const windowBoundary = (left, top, width, height) => {
   const boundary = Object.assign(new DOMRect(left, top, width, height), {
     cut: null,
+    holders: { top: null, bottom: null },
     key: [left, top, left + width, top + height],
   });
   return Object.assign(boundary, { across: () => boundary });

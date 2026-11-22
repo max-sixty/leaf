@@ -453,20 +453,36 @@ export function stickyHolder(sticky, stop = null) {
     parent = renderedParent(parent);
   return parent;
 }
-// Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
-// box that clips what it holds, as a tab strip does, still sticks in that scroller.
-/** @param {Element} sticky */
-function sticks(sticky) {
+// Where `sticky` sticks: the scroller around it, that scroller's shown band and padding,
+// and the lines its top and its foot stick at, each NaN on a side it doesn't stick to.
+// A sticky box that clips what it holds, as a tab strip does, still sticks in that
+// scroller.
+/** @param {Element} sticky @param {CSSStyleDeclaration} style */
+function stickLines(sticky, style) {
   let scroller = renderedParent(sticky);
   while (scroller?.nodeType === 1 && !scrollContainer(scroller))
     scroller = renderedParent(scroller);
-  if (scroller?.nodeType !== 1) return false;
+  if (scroller?.nodeType !== 1) return null;
   const band = shownBand(scroller);
-  if (!band) return false;
-  const style = getComputedStyle(sticky);
+  if (!band) return null;
   const room = getComputedStyle(scroller);
   const padTop = Number.parseFloat(room.paddingTop) || 0;
   const padBottom = Number.parseFloat(room.paddingBottom) || 0;
+  return {
+    scroller,
+    band,
+    padTop,
+    padBottom,
+    top: band.top + padTop + Number.parseFloat(style.top),
+    foot: band.bottom - padBottom - Number.parseFloat(style.bottom),
+  };
+}
+// Whether `sticky` stands where sticking holds it, in the scroller around it.
+/** @param {Element} sticky */
+function sticks(sticky) {
+  const lines = stickLines(sticky, getComputedStyle(sticky));
+  if (!lines) return false;
+  const { scroller, band, padTop, padBottom, top: topLine, foot: footLine } = lines;
   const box = sticky.getBoundingClientRect();
   // Where that holder is the scroller itself, its scrolled content rather than its frame.
   const parent = stickyHolder(sticky, scroller);
@@ -476,8 +492,6 @@ function sticks(sticky) {
       ? { top: content + padTop, bottom: content + scroller.scrollHeight - padBottom }
       : parent && shownBox(parent);
   if (!holder) return false;
-  const topLine = band.top + padTop + Number.parseFloat(style.top);
-  const footLine = band.bottom - padBottom - Number.parseFloat(style.bottom);
   if (box.top <= topLine + 1 && holder.top < box.top - 1) return true;
   if (Math.abs(box.bottom - footLine) <= 1) return true;
   return box.bottom > footLine && holder.bottom > box.bottom + 1;
@@ -573,27 +587,49 @@ function displaced(sticky, style, axis) {
 // A scroller's landing band: its shown band less the room its landings keep at each
 // edge (`landingInsets`); the root's ends at the foot band the panel states
 // (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
-// scroller inside the page can reach under it. Where nothing outside such a scroller
-// can carry it clear of the chrome, as where the page doesn't scroll, in a workspace
-// that fills the window, or where the scroller stands stuck or fixed in the window, a
-// landing names the columns its destination stands in (`across`), and where a surface
-// stands across them the band ends where the root's does: a landing in a pane brings
-// its destination clear of the panel as one in the page does. Where the page carries
-// the scroller, the root's band brings the destination clear as it moves the scroller.
+// scroller inside the page can reach under it. A landing names the columns its
+// destination stands in (`across`), and where a surface stands across them the band
+// ends no further below the root's than the page can still carry the scroller up
+// (`pageCarry`): the root's band brings the destination the rest of the way clear as
+// the page moves the scroller, and a landing in a scroller nothing carries, in a
+// workspace that fills the window or stuck in it, brings its destination clear of the
+// panel as one in the page does.
 /** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
 export const landingBand = (scroller, across = null) => {
   const band = insetBand(scroller, landingInsets(scroller));
-  const root = document.documentElement;
-  if (!band || !across || footBand === null || scroller === root) return band;
-  if (root.scrollHeight - root.clientHeight > 1 && !stuckBox(scroller)) return band;
+  if (!band || !across || footBand === null) return band;
+  if (scroller === document.documentElement) return band;
   const foot = layoutWindow().bottom - footBand;
   if (
     band.bottom > foot &&
     coverBoxes(scroller).some((box) => overlapsAcross(box, across))
   )
-    band.bottom = Math.max(band.top, foot);
+    band.bottom = Math.max(band.top, Math.min(band.bottom, foot + pageCarry(scroller)));
   return band;
 };
+// How far scrolling the page on can still carry `scroller` up the window: as far as the
+// page scrolls before its end, and no further than a sticky box around the scroller
+// travels before it sticks in the page, after which the page scrolls past it. So a
+// landing in a side list standing a pixel short of the line it sticks at counts on the
+// page for that pixel alone: counting on it for more would scroll the item beside the
+// list away and leave the list's row where it stands. Nothing carries a scroller stuck
+// or fixed in the window (`stuckBox`).
+/** @param {Element} scroller */
+export function pageCarry(scroller) {
+  if (stuckBox(scroller)) return 0;
+  const root = document.documentElement;
+  let carry = root.scrollHeight - root.clientHeight - root.scrollTop;
+  /** @type {Element | null} */
+  let box = scroller;
+  for (; box instanceof Element; box = renderedParent(box)) {
+    const style = getComputedStyle(box);
+    if (style.position !== "sticky") continue;
+    const lines = stickLines(box, style);
+    if (lines?.scroller === root && !Number.isNaN(lines.top))
+      carry = Math.min(carry, box.getBoundingClientRect().top - lines.top);
+  }
+  return Math.max(0, carry);
+}
 /** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
 function insetBand(scroller, inset) {
   const band = shownBand(scroller);

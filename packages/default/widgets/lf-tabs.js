@@ -87,7 +87,6 @@
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
-  afterScript,
   authoredTitle,
   setScroll,
   actionTemplate,
@@ -272,11 +271,13 @@ export class TabSet extends LeafElement {
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
-      // sight, the tab would lose focus to the next key (keyboard/controller.js).
+      // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
+      // paint for the end of this script, so a microtask queued after the move runs
+      // behind it. Left out of sight, the tab would lose focus to the next key
+      // (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
-      afterScript(() => this.#showTab(next, null));
+      queueMicrotask(() => this.#showTab(next, null));
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()), {
         list: () => [tabs()[0], tabs().at(-1)],
       });

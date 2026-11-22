@@ -237,7 +237,7 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
 def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     """The card is the thread's one frame. The thread the keyboard opens a card onto
     fills it with no tint and no ring of its own, and the card wears the ring, whole,
-    at its own edge. The reply field keeps its box, standing at the card's padding.
+    at its own edge. The reply field keeps its box, running to the card's sides.
 
     It doesn't ring and tint the thread inside the card's border, a frame in a frame
     with the reply field a third box inside that.
@@ -282,10 +282,10 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     # The thread paints no ground, so the card's paper shows through it.
     assert frame["ground"] == "rgba(0, 0, 0, 0)", frame
     assert frame["fieldBorder"] == "solid", frame
-    # The field's box stands at the card's padding; words share the conversation's
-    # reading inset, rather than gaining a second frame.
-    assert frame["field"][0] - frame["card"] == 13, frame
-    assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
+    # The field's box runs to the card's sides, inside its border; words share the
+    # conversation's reading inset, rather than gaining a second frame.
+    assert frame["field"][0] - frame["card"] == 1, frame
+    assert frame["inset"] == 15, frame
 
 
 def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
@@ -1097,9 +1097,10 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
             for seen in row
         ) / len(row)
 
-    # The ring stands two pixels outside the field's box: its top band ends at the
-    # field's top, 4 px into the clip, and its bottom band starts at the field's foot.
-    edges = {"top": ringed(3), "bottom": ringed(stood["height"] + 5)}
+    # The ring stands one band inside the field's box, which runs to the card's sides
+    # and foot: its top band starts at the field's top, 4 px into the clip, and its
+    # bottom band ends at the field's foot.
+    edges = {"top": ringed(5), "bottom": ringed(stood["height"] + 3)}
     page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
     assert min(edges.values()) > 0.8, edges
 
@@ -1310,18 +1311,18 @@ def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visi
     clearance = image.evaluate(
         """image => {
           const field = image.closest('.lf-thread-reply').querySelector('.lf-compose-field');
-          const ring = Math.max(...[field, field.querySelector('leaf-text')].map(box => {
-            const style = getComputedStyle(box);
-            return style.outlineStyle === 'none'
-              ? 0 : parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-          }));
+          const worn = [field, field.querySelector('leaf-text')].map(getComputedStyle)
+            .filter(style => style.outlineStyle !== 'none');
+          const ring = Math.max(0, ...worn.map(style =>
+            parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset)));
           const shelf = getComputedStyle(image.closest('.lf-composer-media'));
-          return {ring, gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
+          return {worn: worn.length, ring,
+                  gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
                   clear: field.getBoundingClientRect().top - ring
                     - image.getBoundingClientRect().bottom};
         }"""
     )
-    assert clearance["ring"] > 0, clearance
+    assert clearance["worn"], clearance
     assert clearance["clear"] >= clearance["gap"] - 0.5, clearance
     write(
         editor, "\n".join(f"A reply with several lines, line {n}." for n in range(30))

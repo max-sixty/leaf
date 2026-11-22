@@ -299,8 +299,10 @@
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
   /* The room inside a thread card's border, wherever the card stands: over the page
-     in the margin, or in a widget's flow (surfaces.css). */
-  --lf-comment-inset: 12px;
+     in the margin, or in a widget's flow (surfaces.css). With the border it comes to
+     the floating panel's padding and the hairline round it (`--lf-thread-text-inset`,
+     surfaces.css). */
+  --lf-comment-inset: 6px;
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus

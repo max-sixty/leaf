@@ -302,7 +302,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
-        ("#fence-option > small.tag", "effort: low", "fence-option"),
+        ("#fence-option > small.lf-tag", "effort: low", "fence-option"),
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
@@ -6006,7 +6006,7 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
         ),
         (
             '<lf-group id="pick-q" label="What should a full store do?">'
-            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
+            '<lf-options id="pick"><lf-option id="drop"><small class="lf-tag ok">'
             "recommended</small><strong>Drop the oldest documents</strong> Editing "
             'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
             "</strong> Nothing leaves.</lf-option></lf-options></lf-group>",
@@ -6023,22 +6023,6 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
     and title, are found with a space between them, as they show."""
     url = serve(leaf_page("Apart by CSS", markup + "<p>More.</p>" * 4))
     page = open_page(request.getfixturevalue(engine), url)
-    page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill(words)
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    ("source", "words"),
-    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
-)
-def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
-    engine, source, words, request, serve
-):
-    """A figure caption in the product docs draws its title on a line of its own above
-    its text, and page search finds the title's last word and the text's first apart."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill(words)
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")

@@ -97,7 +97,7 @@
    update, which may land after the check), what vendored bundles schedule for
    themselves, and a layout change no counted callback or observer takes part in. A
    reader outside the page that caused such a change lets one rendering update pass
-   before it asks (`rendered` in scripts/leaf/render_checks.py).
+   before it asks (`rendered` in src/leaf/render_checks.py).
 
    A document nobody can see gets no rendering updates: a hidden page, and a child page
    whose frame is not on screen — scrolled away, or in an inactive tab's panel or a

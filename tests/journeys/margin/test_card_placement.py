@@ -4,7 +4,7 @@ import json
 import re
 
 import pytest
-from browser.margin import WORDS_RIGHT, leave_card, resized_shell
+from browser.margin import WORDS_RIGHT, _comment_on, leave_card, resized_shell
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -803,3 +803,40 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
             && send.top >= list.top && send.bottom <= list.bottom + 1;
         }""")
+
+
+def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
+    """The rail's one Tab stop is its highest row in view, whichever way the page got
+    there. A row on a line a box scrolls sideways stands in a carrier, which the browser
+    moves with the page's scroll but whose own box reads a frame late: read there, a
+    scroll back to the top left the stop on the second row, below the first, until
+    something else re-read the rail."""
+    line = " ".join(["A line wider than its box, which scrolls it sideways."] * 4)
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
+    body = (
+        "<h1>Carried rows</h1>"
+        f'<div style="overflow-x: auto"><p id="first" style="white-space: nowrap">{line}'
+        f'</p></div>{filler[: len(filler) // 3]}<p id="second">The second finding.</p>'
+        f"{filler}"
+    )
+    events = [_comment_on("first"), _comment_on("second")]
+    page = open_page(browser, serve(leaf_page("Carried rows", body), events=events))
+    resized(page, 1440, 900)
+    rendered(page)
+    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
+    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
+        "the fixture's first row no longer stands in a carrier"
+    )
+    expect(first).to_have_attribute("tabindex", "0")
+
+    page.mouse.move(300, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    rendered(page)
+    expect(second).to_have_attribute("tabindex", "0")
+    page.mouse.wheel(0, -600)
+    scroll_settled(page)
+    rendered(page)
+    expect(first).to_have_attribute("tabindex", "0")
+    expect(second).to_have_attribute("tabindex", "-1")

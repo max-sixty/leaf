@@ -274,8 +274,8 @@ export const dismissReplyAt = (node) => {
 
 // The giver lets go before the taker attaches, and draws its fresh row only once the
 // taker has moved this one out, so the row never leaves the document between them.
-/** @param {Composition} target @param {Composition} owner @param {Binding} binding */
-function handOver(target, owner, binding) {
+/** @param {Composition} owner @param {Binding} binding */
+function handOver(owner, binding) {
   const redrawGiver = owner.binding?.give();
   binding.take(owner);
   redrawGiver?.();
@@ -298,7 +298,7 @@ function carry(target, owner) {
     return target;
   const session = compositions.get(owner.context);
   if (session && session.owner !== owner && session.owner !== target) return target;
-  return handOver(target, owner, target.binding);
+  return handOver(owner, target.binding);
 }
 
 // Where a released row waits for the next view of its thread: in the chrome, so a user

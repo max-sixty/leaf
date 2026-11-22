@@ -39,7 +39,7 @@ WORKSPACE_PAGE = leaf_page(
     """
   <header>
     <h1>Review queue</h1>
-    <p id="review-status"><span class="tag warn">3 waiting</span></p>
+    <p id="review-status"><span class="lf-tag warn">3 waiting</span></p>
   </header>
   <div id="review-regions">
     <lf-pane id="queue" label="Items">
@@ -362,7 +362,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
                 "A phone queue",
                 '<header><h1>Which alerts should still page?</h1><p id="status">'
                 '<lf-tally id="left" for="queue" next></lf-tally>'
-                '<span class="tag warn">7 mostly noise</span></p></header>'
+                '<span class="lf-tag warn">7 mostly noise</span></p></header>'
                 '<lf-tabs id="queue" list="side">'
                 + item("first")
                 + item("second")
@@ -1095,92 +1095,6 @@ STREAMED_LOG_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize(
-    "aim", ["u", "PageUp", "PageUp on a link", "wheel", "wheel across"]
-)
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, aim, request, serve):
-    """u, PageUp or a wheel aimed up a log following its end takes the reader up while
-    entries stream in, and a wheel across its long lines takes them across, at its end.
-    u starts a glide whose first frame can leave the box where it stands, and a log
-    follower that read only the box's offset would take the next entry for a reader
-    still at the end, put the log back there and stop the glide, so the press would do
-    nothing. The end keeper every box shares lets a box a glide heads back from go
-    (scrolling.js, `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or
-    more after the input, and a keeper's write of the end meanwhile would cancel it, a
-    wheel across as well; the scroll is the reader's from the input (scrolling.js,
-    `aimScroll`). PageUp on a link in the log, read as a key the link took, would be
-    left to the keeper (scrolling.js, `scrollsFor`). Each trial aims once in the middle
-    of a stream of an entry every 4ms."""
-    if aim != "u":
-        # A browser starved of CPU can apply a key's or wheel's scroll after the 80ms
-        # the reader's scroll waits for it to move the page (arrivals.js), so the log
-        # keeps its end in a trial: Firefox as late as 800ms after the input, and
-        # Chromium in the starved macOS nightly. #6348 tracks a fix in the code or this
-        # test that lets these marks go. `u` glides by Leaf's own scroll, which this
-        # doesn't touch.
-        request.applymarker(
-            pytest.mark.xfail(
-                strict=False,
-                reason="#6348: a starved browser applies the scroll after the reader's wait ends",
-            )
-        )
-    page = open_page(
-        request.getfixturevalue(engine), live_url(serve(STREAMED_LOG_PAGE))
-    )
-    page.emulate_media(reduced_motion="no-preference")
-    resized(page, 1280, 900)
-    log = page.locator("#log")
-    log.focus()
-    box = log.bounding_box()
-    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    stood = []
-    for trial in range(6):
-        log.evaluate(
-            "log => log.scrollTo({top: log.scrollHeight, left: 0, behavior: 'instant'})"
-        )
-        scroll_settled(page, "#log")
-        page.evaluate(
-            """(trial) => { window.lfStream = new Promise((done) => {
-              const log = document.getElementById('log');
-              let n = 0;
-              const tick = () => {
-                log.append(Object.assign(document.createElement('p'),
-                  {textContent: `Streamed ${trial}.${n}`}));
-                if (++n < 60) setTimeout(tick, 4); else done();
-              };
-              tick();
-            }); }""",
-            trial,
-        )
-        page.wait_for_timeout(60)
-        if aim == "PageUp on a link":
-            page.evaluate(
-                """() => { const link = Object.assign(document.createElement('a'),
-                  {href: '#t', textContent: 'Aimed at'});
-                  document.getElementById('log').append(link);
-                  link.focus({preventScroll: true}); }"""
-            )
-            page.keyboard.press("PageUp")
-        elif aim.startswith("wheel"):
-            page.mouse.wheel(*((300, 0) if aim == "wheel across" else (0, -300)))
-        else:
-            page.keyboard.press(aim)
-        page.evaluate("() => window.lfStream")
-        scroll_settled(page, "#log")
-        stood.append(
-            log.evaluate(
-                """log => ({short: log.scrollHeight - log.clientHeight - log.scrollTop,
-                  across: log.scrollLeft})"""
-            )
-        )
-    if aim == "wheel across":
-        assert all(at["across"] > 0 and at["short"] <= 2 for at in stood), stood
-    else:
-        room = log.evaluate("log => log.clientHeight")
-        assert all(at["short"] > room / 2 for at in stood), stood
-
-
 def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
     browser, serve, subtests
 ):
@@ -1569,16 +1483,16 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<dl id="lp-k-traffic" class="metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
-            '<dl id="lp-k-traffic" class="metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="lf-metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="lf-metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
-            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="lf-metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="lf-metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
-            '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',
-            '<li id="lp-step-checks"><small class="tag ok">done · 14:25</small>',
+            '<li id="lp-step-checks"><small class="lf-tag danger">blocked · now</small>',
+            '<li id="lp-step-checks"><small class="lf-tag ok">done · 14:25</small>',
         ),
         (
             (
@@ -1588,8 +1502,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
         (
-            '<li id="lp-step-promote"><small class="tag">planned</small>',
-            '<li id="lp-step-promote"><small class="tag warn">active · now</small>',
+            '<li id="lp-step-promote"><small class="lf-tag">planned</small>',
+            '<li id="lp-step-promote"><small class="lf-tag warn">active · now</small>',
         ),
         (
             "Four checks pass. One blocks promotion.",

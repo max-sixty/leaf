@@ -174,7 +174,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     nav = page.get_by_role("navigation", name="On this page")
     links = nav.get_by_role("link")
     expect(links).to_have_count(4)
-    expect(links.first).to_have_css("opacity", "0")
+    expect(nav.locator(".lf-toc-labels")).to_have_css("opacity", "0")
 
     page.keyboard.press("g")
     chips = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
@@ -183,7 +183,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     assert first_code
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, Migration plan. Press Enter to go there."
+        f"Hint {first_code}: Link, Migration plan. Enter go to target"
     )
     prepare_link = links.nth(1)
     prepare_href = prepare_link.get_attribute("href")
@@ -273,7 +273,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     for _ in range(under_index + 1):
         page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {under_code}: Link, Over the top. Press Enter to go there."
+        f"Hint {under_code}: Link, Over the top. Enter go to target"
     )
     page.keyboard.press("Enter")
     expect(over_top).to_have_attribute("data-activated", "true")
@@ -872,7 +872,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     # Every hint stands on screen, the heard one marked, so the walk says no position.
     expect_walk_position(page, None)
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, First destination. Press Enter to go there."
+        f"Hint {first_code}: Link, First destination. Enter go to target"
     )
     expect(page.locator(f'{CHIPS}[data-lf-go-to-target="first"]')).to_have_class(
         re.compile(r"\blf-current\b")

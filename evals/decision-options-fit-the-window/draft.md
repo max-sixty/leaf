@@ -99,7 +99,7 @@ handoff and save it.
     <main class="layout-column">
       <header id="top">
         <h1>Open a long thread in the panel?</h1>
-        <p class="lede">
+        <p class="lf-lede">
           The panel already reads a whole thread at full width: a thread opened from
           Threads stands in its view, and a card's thread can go there in one press. At
           reading size, the thread from your screenshot fits with no scrolling.
@@ -170,8 +170,8 @@ handoff and save it.
                 as the only way in</label
               >
               <p>
-                <small class="tag">no change</small> Close the card, press the Threads
-                mark, then the thread's row: three presses. The view opens at
+                <small class="lf-tag">no change</small> Close the card, press the
+                Threads mark, then the thread's row: three presses. The view opens at
                 540&#8239;px.
               </p>
               <div class="route-frames">
@@ -199,8 +199,8 @@ handoff and save it.
                 the card</label
               >
               <p>
-                <small class="tag">one press</small>
-                <small class="tag">today's size</small> The view opens where Threads
+                <small class="lf-tag">one press</small>
+                <small class="lf-tag">today's size</small> The view opens where Threads
                 would open it, 540&#8239;px wide, still scrolling about a quarter of
                 this thread.
               </p>
@@ -229,8 +229,8 @@ handoff and save it.
                 panel, opening at reading size</label
               >
               <p>
-                <small class="tag">one press</small>
-                <small class="tag">recommended</small> The view opens at More room to
+                <small class="lf-tag">one press</small>
+                <small class="lf-tag">recommended</small> The view opens at More room to
                 write's 760&#8239;px, and may rise to 24&#8239;px from the window's top
                 rather than 160&#8239;px. This thread fits whole. The panel goes back to
                 its usual size when the view closes.
@@ -268,7 +268,9 @@ handoff and save it.
             >
               <header id="sample-top">
                 <h1>Issue triage</h1>
-                <p class="lede">A fixture holding one long thread beside a decision.</p>
+                <p class="lf-lede">
+                  A fixture holding one long thread beside a decision.
+                </p>
               </header>
               <section id="sample-intro">
                 <h2>Where things stand</h2>

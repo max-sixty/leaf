@@ -82,7 +82,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
  * `shadow` widget's stage (runtime/widget-upgrade.js). Its face is the sans the
- * theme gives other labels (.tag, figcaption), with figures of one width. */
+ * theme gives other labels (.lf-tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
   background: var(--lf-danger-tint);
@@ -151,7 +151,7 @@ a[data-lf-external]::after,
     var(--lf-external-icon) center / 0.75em no-repeat,
     linear-gradient(transparent, transparent);
 }
-/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against.
+/* Pressable, said once per layer, and .lf-tag (Leaf's tag idiom) is what it is said against.
  * Without it, a chip that opens a section and a badge that counts something are the
  * same object at rest — one ground, one ink, one corner, one size — and the user has
  * to press one to find out.
@@ -165,7 +165,7 @@ a[data-lf-external]::after,
  * and a family that wants its own says so in its own theme rules, which come after this
  * file in the merged sheet and outrank it at equal specificity.
  *
- * .tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
+ * .lf-tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
  * is the line the rule draws — not "does this look like a control" but "did a widget
  * build this to be worked", which is a fact the runtime holds rather than a judgement
  * a stylesheet re-makes.
@@ -246,7 +246,10 @@ a[data-lf-external]::after,
      declares that it wears the band (`--lf-wears-ring`, base.css); its header and
      footer are not children it rings, and its own focus wears the ordinary band;
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
-     positioned contents would paint over its outline.
+     positioned contents would paint over its outline. It wears no outline of its own
+     while focused, the browser's ring included, which `:focus-visible` gives it before
+     the focus paint marks it (focus.js), when a moving card reads its rings
+     (box-motion.js).
    Either is a positioned box, so its ::after covers it. That ::after is at no weight
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
@@ -258,7 +261,7 @@ a[data-lf-external]::after,
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
-.lf-ring-overlay[data-lf-focus-visible],
+.lf-ring-overlay:is([data-lf-focus-visible], :focus-visible),
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])
   > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
@@ -750,57 +753,66 @@ summary {
   color: var(--lf-ink);
   overflow-wrap: anywhere;
 }
-/* A whole thread holding focus wears a quiet ground. A primary reader's part is one
-   message of a thread its presentation draws whole around it (`.lf-primary-part`
-   below), and a thread drawn in a view that stands for it whole, as the floating
-   panel's is (`data-lf-thread-view`, thread/selectors.js), is drawn inside that
-   drawing, so focus inside either leaves that ground to the drawing and the focused
-   control to its own ring. */
-.lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
-  outline: none;
-  border-radius: var(--lf-r);
-  --lf-ground: var(--lf-focus-surface);
+/* A whole thread a widget seats in its own flow (`data-lf-thread-surface`,
+   thread/surfaces.js) stands as a card in the margin card's face
+   (annotation-chrome.css, `.lf-margin-preview-card`): its frame, corners and inset,
+   and the margin card's reply field and words (response.css), so a thread looks the
+   same under a diff's line as beside a paragraph. As the margin card takes the box its
+   placement gives and the ground of the page it stands on, a seated card fills the box
+   its outlet gives and stands on the ground its host declares (`--lf-ground`), so any
+   widget can seat it in whatever shape it has (the user's choice); the widget's sheet
+   places the outlet and draws nothing of the card. The card is the thread's one frame,
+   as the margin card is, and its words end as far inside it as they start. Focus
+   within it paints no ground; focus on the thread itself rings the card's edge, on a
+   ring overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree
+   order and so paints over the positioned ones without a z-index that would also lift
+   it over the page. The frame is a shadow inside the edge rather than a border, since
+   a resolved card gives its room back by folding (thread/inline.js), and a border
+   keeps its last pixel until the fold ends. A seat's cards stand a gap apart; between
+   live neighbors may stand the inert pixels of one folding away.
+   Rejected: an unframed thread that wore a quiet ground and an inset ring while it
+   held focus, a frame drawn only on focus with the words running into its ring; a
+   widget setting the thread's insets and measure in its own sheet, which drew the
+   thread differently in each widget; a card painted in the page's paper at the
+   margin card's measure, which stood on a diff's white code as a box of another
+   colour with the row's end empty beside it; and a frameless band across the host,
+   which no longer read as the margin card. */
+[data-lf-thread-surface] > .lf-page-thread,
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+  padding: calc(var(--lf-comment-inset) + 1px);
+  border-radius: var(--lf-r-l);
+  box-shadow: inset 0 0 0 1px var(--lf-border);
   background: var(--lf-ground);
 }
-/* The thread itself holding focus wears the ring, inset over the quiet ground its
-   containing state paints; chrome.css says the same of the panel's card. A positioned
-   row inside the thread paints over the thread's own outline, so the thread is a ring
-   overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree order
-   and so paints over them without a z-index that would also lift it over the page. */
+/* A forced palette drops shadows, so there the frame is an outline on the card's edge. */
+@media (forced-colors: active) {
+  [data-lf-thread-surface] > .lf-page-thread,
+  [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+    outline: 1px solid;
+    outline-offset: 0px;
+  }
+}
+/* However wide the box its host gives, each message keeps the width it has in a margin
+   card at the card's own width, so a reply wraps where it would beside a passage; its
+   head, and the thread's controls on it, keep the card's whole width. The reply box
+   keeps the margin card's width too, so its words wrap where they will once sent and a
+   message's rewrite is as wide as the reply box (response.css, `.lf-msg-editor`). */
+[data-lf-thread-surface] {
+  --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
+}
+[data-lf-thread-surface] .lf-msg-body {
+  max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
+}
+[data-lf-thread-surface] .lf-thread-reply {
+  max-inline-size: var(--lf-seat-column);
+}
 .lf-page-thread::after {
   border-radius: inherit;
 }
-/* A forced palette paints every ground in Canvas, so the quiet ground of a thread
-   holding focus would vanish; the thread wears the ring instead. */
-@media (forced-colors: active) {
-  .lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
-    outline: var(--lf-focus-ring);
-    --lf-ring-at: var(--lf-focus-ring-inset);
-  }
-}
-/* Adjacent whole threads are ruled apart; parts belong to their author's
-   transcript. An outlet contains only whole cards, its resolved group and the comment
-   box; there, inert outgoing pixels may stand between the live neighbors. */
-.lf-page-thread:not(.lf-primary-part, [inert])
-  + .lf-page-thread:not(.lf-primary-part, [inert]),
-.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads,
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
-[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads {
-  margin-top: var(--lf-sp-3);
-}
-.lf-page-thread:not(.lf-primary-part, [inert])
-  + .lf-page-thread:not(.lf-primary-part, [inert])::before,
-.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads::before,
-[data-lf-thread-surface]
-  > .lf-page-thread:not([inert])
-  ~ .lf-page-thread:not([inert])::before,
-[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads::before {
-  content: "";
-  position: absolute;
-  inset-inline: var(--lf-sp-1);
-  inset-block-start: calc(-1 * var(--lf-sp-2));
-  border-top: 1px solid var(--lf-rule);
-  pointer-events: none;
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads,
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+  margin-top: var(--lf-sp-2);
 }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */

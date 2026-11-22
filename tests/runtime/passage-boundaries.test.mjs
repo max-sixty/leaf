@@ -90,9 +90,9 @@ test("an edge outside prose shows a space, but none before closing or after open
   document.body.innerHTML =
     '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps ' +
     "<code>Foo</code>'s place (<code>beta</code>).</lf-option>" +
-    '<lf-option id="chipped"><small class="tag">recommended</small><strong>Apply</strong>' +
+    '<lf-option id="chipped"><small class="lf-tag">recommended</small><strong>Apply</strong>' +
     "Ship it.</lf-option>" +
-    '<lf-option id="quoted"><small class="tag">recommended</small>' +
+    '<lf-option id="quoted"><small class="lf-tag">recommended</small>' +
     '<strong>"Update" for mixed input</strong></lf-option></main>';
   assert.equal(
     says(document.querySelector("main")),

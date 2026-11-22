@@ -223,7 +223,7 @@ lf-worktree > details > summary {
   font-weight: 500;
 }
 
-/* The snapshot's facts (the reading theme's `dl.facts`) keep their values in ink inside the
+/* The snapshot's facts (`dl.lf-facts`) keep their values in ink inside the
    muted disclosure. */
 lf-worktree dd {
   color: var(--lf-ink);

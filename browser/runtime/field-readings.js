@@ -208,7 +208,7 @@ export const FIELD_READINGS = Object.freeze([
 
 /** What passes in the panel's one seat for words that pass, which the field says
  * (`notice`) and the folded leaf's peek, where no field shows (floating-panel.js,
- * `peekPresentation`): a notice for its moment, or until the user's next input where it
+ * `peekPresentation`): a notice for its moment, then until the user's next input where it
  * offers a press or is an undo's (notifications.js); else the Go-to filter's word while its sequence
  * waits for a key; else on the page a walk's position for a notice's moment from each
  * step (notifications.js, `answerStep`). In a thread the position stands before Reply

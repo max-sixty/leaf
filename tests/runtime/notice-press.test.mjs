@@ -1,7 +1,7 @@
 /* How long a notice's press stands, and what a listener hears of it
    (notifications.js): news and its press pass on the notice's time, while the press of
-   the user's own gesture stands until their next input while the panel shows it; the
-   live region hears the press
+   the user's own gesture stands its time and then until their next input; the live
+   region hears the press
    and the keys that would make it after the words, in their spoken form
    (keyboard/control-keys.js, `commandPress`). */
 import assert from "node:assert/strict";
@@ -17,8 +17,8 @@ const press = (action, keys) =>
     spoken: () => keys.join(" "),
   });
 
-test("news's press passes on its time; the user's own stands until their next input while the panel shows it", async (t) => {
-  const { NOTICE_MS, endHeldNotice, notice, noticeReading } =
+test("news's press passes on its time; the user's own stands its time, then until their next input", async (t) => {
+  const { NOTICE_MS, notice, noticeReading } =
     await import("/runtime/notifications.js");
   t.mock.timers.enable({ apis: ["setTimeout"] });
   t.after(() => window.happyDOM.cancelAsync());
@@ -37,10 +37,12 @@ test("news's press passes on its time; the user's own stands until their next in
   assert.equal(seat(), null);
 
   notice("Draft kept", { press: press("resume-writing", ["g", "i"]) });
+  // An input within its time, such as the Escape that takes the caret out of a box
+  // where the field shows no notice, leaves it standing.
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
   t.mock.timers.tick(NOTICE_MS);
   assert.deepEqual(seat(), ["Draft kept", "resume-writing", false]);
-  // The panel passes on an input made while it shows the notice (floating-panel.js).
-  endHeldNotice(new KeyboardEvent("keydown", { key: "x" }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "x" }));
   assert.equal(seat(), null);
 });
 

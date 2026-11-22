@@ -748,8 +748,9 @@ def test_a_discarded_rewrite_comes_back(browser, serve, surface):
     A listener hears that shortcut with the notice, though the caret is in the reply box
     where it types letters, since the words are said once. With the caret there the
     panel's field shows no Restore edit: in the panel's view the field is that box, and
-    beside a margin card `g` would type a letter. So the notice waits, and the Escape
-    that leaves the box shows the press rather than ending the notice."""
+    beside a margin card `g` would type a letter. The notice stands its time whatever
+    the user presses, so the Escape that leaves the box shows the press rather than
+    ending the notice."""
     page, _, message = _rewrite_surface(browser, serve, surface)
     editor = message.locator(".lf-msg-editor leaf-text")
     rewritten = "  Fit both brackets and keep the longer explanation.  "

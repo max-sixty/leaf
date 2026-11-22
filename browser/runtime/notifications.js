@@ -44,6 +44,7 @@ import { keeps } from "./keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
+import { onUserInput } from "./focus.js";
 import { actionName } from "./icon-paths.js";
 
 /** @typedef {import("./voice.js").Words} Words
@@ -69,7 +70,8 @@ export const NOTICE_MS = 4000;
 let noticeTimer = 0;
 // Ends the watch on what the standing notice says (`showNotice`).
 let stopWatching = () => {};
-// Whether the standing notice stands until the user's next input (`holds`, below).
+// Whether the standing notice's time is up and it stays until the user's next input
+// (`holds`, below).
 let holding = false;
 /** @type {Background | null} */
 let showingBackground = null;
@@ -159,8 +161,12 @@ function showNotice(
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatching();
-  holding = holds || Boolean(press && !background);
-  if (!holding) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+  holding = false;
+  const stays = holds || Boolean(press && !background);
+  noticeTimer = setTimeout(
+    () => (stays ? (holding = true) : retireNotice()),
+    NOTICE_MS,
+  );
   // What the words say, and that the press can still act.
   const premises = [stands, press?.stands].filter((premise) => premise != null);
   if (!premises.length) return;
@@ -178,27 +184,32 @@ function retireNotice() {
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
-// A notice of the user's own gesture that offers a press, or one its caller holds
-// (`holds`), as an undo's is (undo.js), stands until the user's first input while the
-// panel shows it, which the panel passes to `endHeldNotice` (floating-panel.js), rather
-// than for its time: the panel says the press at the field's end (field-readings.js,
-// `end`), so one leaving on a timer would take it from under a hand on its way there.
-// News passes on its time, its press with it, since it answers nothing the user did.
-// A press stands no longer than it
-// can act: a gesture the log refused, or one taken back by any route, takes its notice
-// away. An input on the press itself, which `keepsNotice` marks, keeps it.
+// Every notice holds its seat for its time. A notice of the user's own gesture that
+// offers a press, or one its caller holds (`holds`), as an undo's is (undo.js), then
+// stays until the user's next input rather than leaving on its timer: the panel says
+// the press at the field's end (field-readings.js, `end`), so one leaving on a timer
+// would take it from under a hand on its way there. The user's inputs within its time
+// leave it standing, so the Escape that takes the caret out of a reply box, where the
+// field shows no notice, shows the notice rather than ending it. One hidden when its
+// time is up, as under a draft or with the caret still in that box, goes unseen at that
+// next input; the live region has said it. Rejected: holding a notice until the panel
+// had shown it, which kept it, and the news waiting behind it, for as long as a draft
+// or an error hid it, and then showed it long after what it answered. News passes on
+// its time, its press with it, since it answers nothing the user did. A press stands no
+// longer than it can act: a gesture the log refused, or one taken back by any route,
+// takes its notice away. An input on the press itself, which `keepsNotice` marks, keeps
+// it.
 const NOTICE_PRESS = "data-lf-notice-press";
 export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
-/** @param {Event} event an input of the user's while the panel shows the notice */
-export function endHeldNotice(event) {
+onUserInput((event) => {
   if (!holding || !noticeVisible()) return;
   const path = event.composedPath?.() ?? [];
   if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
     return;
   retireNotice();
-}
+});
 
 // A producer may retire a deferred assertion before it reaches the seat, as news whose
 // words no longer hold has. Skip it without spending a visible interval, then take the

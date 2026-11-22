@@ -392,7 +392,14 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # to the checkpoint that owns its saved tree.
     user.keyboard.press("Escape")
     body = widget.locator(".lf-trace-body")
-    body.hover()
+    # The pointer goes where the body already shows, as a user's does: `hover` would
+    # first scroll the body by Chromium's reveal rule, a scroll no user makes.
+    shown = body.bounding_box()
+    window = user.viewport_size["height"]
+    user.mouse.move(
+        shown["x"] + shown["width"] / 2,
+        (max(shown["y"], 0) + min(shown["y"] + shown["height"], window)) / 2,
+    )
     user.mouse.wheel(0, 80)
     rendered(user)
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")

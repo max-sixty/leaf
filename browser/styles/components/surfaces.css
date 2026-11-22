@@ -246,7 +246,10 @@ a[data-lf-external]::after,
      declares that it wears the band (`--lf-wears-ring`, base.css); its header and
      footer are not children it rings, and its own focus wears the ordinary band;
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
-     positioned contents would paint over its outline.
+     positioned contents would paint over its outline. It wears no outline of its own
+     while focused, the browser's ring included, which `:focus-visible` gives it before
+     the focus paint marks it (focus.js), when a moving card reads its rings
+     (box-motion.js).
    Either is a positioned box, so its ::after covers it. That ::after is at no weight
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
@@ -258,7 +261,7 @@ a[data-lf-external]::after,
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
-.lf-ring-overlay[data-lf-focus-visible],
+.lf-ring-overlay:is([data-lf-focus-visible], :focus-visible),
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])
   > :not(header, footer)[data-lf-focus-visible] {
   outline: none;

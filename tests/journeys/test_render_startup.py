@@ -466,7 +466,7 @@ def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, 
     source = leaf_page(
         "View observation",
         '<h1 id="view-heading">Service capacity</h1>'
-        '<svg id="capacity-drawing" class="drawing" viewBox="0 0 1200 80">'
+        '<svg id="capacity-drawing" class="lf-drawing" viewBox="0 0 1200 80">'
         '<text x="20" y="40" font-size="12">Ten thousand requests</text></svg>',
     )
     url = serve(source)

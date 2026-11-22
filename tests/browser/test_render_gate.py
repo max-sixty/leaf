@@ -37,6 +37,7 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     WIDE_TABLE_PAGE,
     arrival_findings,
+    serious_axe_violations,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -216,27 +217,27 @@ DRAWN_LABELS_PAGE = leaf_page(
     """
 <h1>Rollout</h1>
 <figure id="squeezed">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
     <text x="20" y="40">canary</text>
     <text x="560" y="40">region</text>
     <text x="1100" y="40">global</text>
   </svg>
 </figure>
 <figure id="large">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
     <text x="20" y="60" font-size="28">canary</text>
     <text x="1100" y="60" font-size="28">global</text>
   </svg>
 </figure>
 <figure id="natural">
-  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+  <svg class="lf-drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
     <circle class="mark" cx="20" cy="20" r="7" />
     <text class="glyph" style="font-size: 9px" x="20" y="20">1</text>
     <text class="small" x="40" y="24">note</text>
   </svg>
 </figure>
 <figure id="undrawn">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
     <defs><text x="20" y="40">draft</text></defs>
     <rect class="mark" x="20" y="60" width="200" height="40" />
     <text x="20" y="40"><tspan display="none">paused</tspan></text>
@@ -1476,22 +1477,36 @@ READING_SCROLLER = (
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
+def in_each_scheme(page):
+    """Put the page in each colour scheme in turn, yielding the scheme once its
+    colours have landed."""
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions, shadow trees' included, such
+        # as a search field's ground; read where they end.
+        render_checks_model.evaluate_probe(page, "finishMoving")
+        yield scheme
+
+
 def unread_syntax(page):
     """Code tokens the page paints too faint to read, each with the colour scheme it
     was read in."""
-    unread = []
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        # The scheme's colours land through transitions; read where they end.
-        page.evaluate(
-            "() => document.getAnimations().forEach("
-            "(a) => a instanceof CSSTransition && a.finish())"
-        )
-        unread += [
-            (scheme, Finding.read(u))
-            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
-        ]
-    return unread
+    return [
+        (scheme, Finding.read(u))
+        for scheme in in_each_scheme(page)
+        for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+    ]
+
+
+def axe_findings(page):
+    """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
+    that has any."""
+    findings = []
+    for scheme in in_each_scheme(page):
+        violations, report = serious_axe_violations(page)
+        if violations:
+            findings.append(f"[{scheme}] {report}")
+    return findings
 
 
 def scroll_findings(page):

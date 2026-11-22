@@ -115,13 +115,21 @@ export async function registerLanguage(lang, grammar) {
 /** Offsets preserve original line endings even when Shiki normalizes its lines. Returns
  * the tokens and the grammar state their last line ends in, which a later call takes as
  * `state` to continue from it: a text tokenized a part at a time, each part from the
- * state the one before it ended in, is coloured as the whole text would be. */
+ * state the one before it ended in, is coloured as the whole text would be.
+ *
+ * A line is tokenized to its end however long it takes. Shiki's default stops a line
+ * after 500 ms and leaves its rest uncoloured, and a grammar's first line pays for
+ * compiling the rules it reaches, which on a loaded machine can run past that, so a
+ * block's first line would keep its tail in plain ink. The limit bounds only the loop
+ * between matches, not a single regex match, so without it a very long line pauses and
+ * then ends coloured. */
 /** @param {string} source @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
 export async function tokenize(source, lang, state) {
   const instance = await createHighlighter({ langs: [lang] });
   const lines = instance.codeToTokensBase(source, {
     lang,
     theme: themeName,
+    tokenizeTimeLimit: 0,
     ...(state && { grammarState: state }),
   });
   /** @type {{text: string, style: import("@shikijs/core").TokenStyles}[]} */

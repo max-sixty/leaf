@@ -38,7 +38,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import PANEL_REPLY, open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import asked_again, wait_until_ready
 from leaf.render_gate.page_code import run_page_code
@@ -592,15 +592,21 @@ def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve
     assert page.evaluate("() => window.lfSameDocument") is None
 
 
-@pytest.mark.parametrize("address", ["live", "version"])
+# Where the user is writing a reply, and the page's address: its live root or a
+# version's own.
+@pytest.mark.parametrize(
+    ("view", "address"),
+    [("card", "live"), ("card", "version"), ("panel", "live")],
+    ids=["card", "card-at-version", "panel"],
+)
 def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
-    browser, serve, address
+    browser, serve, view, address
 ):
     """Leaf reloads the tab, not the user, so their place rides across the reload, as
     it does into a revision that needs a fresh document (version.js, `handOff`): the
-    thread card they had open, its reply box with the words they had selected, and a
-    disclosure they opened. That holds at a version's own address as at the live one.
-    The handoff is spent on that reload, so an ordinary one after it keeps only what a
+    thread they had open, in the margin card or the floating panel they had it in, its
+    reply box with the words they had selected, and a disclosure they opened. The
+    handoff is spent on that reload, so an ordinary one after it keeps only what a
     reload keeps."""
     version_url = serve(
         leaf_page(
@@ -615,6 +621,7 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
             "kind": "comment",
             "author": "user",
             "revision": 1,
+            "id": "rows",
             "text": "Which rows?",
             "anchor": {"section": "result"},
         },
@@ -623,9 +630,15 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
         browser, live_url(version_url) if address == "live" else version_url
     )
     page.locator("#why > summary").click()
-    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
-    card = page.locator(".lf-margin-preview .lf-page-thread")
-    reply = card.locator(".lf-thread-reply leaf-text")
+    if view == "card":
+        page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+        thread = page.locator(
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"]'
+        )
+        reply = thread.locator(".lf-thread-reply leaf-text")
+    else:
+        thread = open_panel_thread(page, "rows")
+        reply = page.locator(PANEL_REPLY)
     write(reply, "Hello there world")
     page.keyboard.press("Home")
     for _ in range(5):
@@ -637,6 +650,7 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
     restart_under_another_runtime(page, serve)
 
     assert page.evaluate("performance.timeOrigin") != original_document
+    expect(thread).to_be_visible()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "Hello there world")
     assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 11]
@@ -646,7 +660,7 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
     page.unroute("**/registry.json")
     page.reload()
     wait_until_ready(page)
-    expect(card).to_have_count(0)
+    expect(thread).to_have_count(0)
     expect(page.locator("#why")).to_have_js_property("open", False)
 
 

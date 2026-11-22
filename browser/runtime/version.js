@@ -101,7 +101,8 @@ import {
   draftEditingStands,
   restoreDraftEditing,
 } from "./drafts.js";
-import { heldThreadId, replyDestination } from "./thread/focus.js";
+import { heldThread, replyDestination } from "./thread/focus.js";
+import { drawnThreadId } from "./thread/selectors.js";
 import { restoreReplyEditing } from "./thread/replies.js";
 import {
   focusDestination,
@@ -1634,6 +1635,7 @@ function revisionDocument(revision) {
  *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: Element | null,
  *   openThread: Parameters<typeof replyDestination>[1],
+ *   threadReader: (node: Node) => "primary" | null,
  *   refreshThread: () => unknown,
  *   midComposition: ReturnType<typeof import("./composing/engagement.js").createEngagement>["midComposition"],
  *   hasPending: () => boolean,
@@ -1649,6 +1651,7 @@ export function createVersionController({
   initialDocument,
   compositionInput,
   openThread,
+  threadReader,
   refreshThread,
   midComposition,
   hasPending,
@@ -1950,9 +1953,14 @@ export function createVersionController({
   // replacement nodes recover eligible state through carry and obligation restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
+    const thread = draftEditing?.mirrored ? heldThread() : null;
     return {
       draftEditing,
-      replyThread: draftEditing?.mirrored ? heldThreadId() : null,
+      replyThread: drawnThreadId(thread),
+      // The reader the reply was written in: the primary, as the floating panel's view
+      // is, or null for the page's own. Its continuation opens the thread there again,
+      // since a route left to choose opens a thread about a passage beside the passage.
+      replyReader: thread && threadReader(thread),
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it was where the user is (user-place.js, `focusPlace`).
       replyInView: focusPlace() !== null,
@@ -1979,8 +1987,13 @@ export function createVersionController({
   /** @param {ReturnType<typeof captureEditingContinuity>} continuity @param {ReturnType<typeof retainUserIntent>} currentIntent */
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, obligationCurrentLocation } =
-      continuity;
+    const {
+      draftEditing,
+      replyThread,
+      replyReader,
+      replyInView,
+      obligationCurrentLocation,
+    } = continuity;
     restoreObligationCurrentLocation(obligationCurrentLocation);
     if (!draftEditing) return;
     const mayRestore = restrictUserIntent(currentIntent, () =>
@@ -1994,9 +2007,12 @@ export function createVersionController({
           // Present that session before its route reads the annotation directory.
           await refreshThread();
           return mayRestore()
-            ? replyDestination(replyThread, openThread, mayRestore, {
-                scroll: replyInView,
-              })
+            ? replyDestination(
+                replyThread,
+                (id, options) => openThread(id, { ...options, reader: replyReader }),
+                mayRestore,
+                { scroll: replyInView },
+              )
             : null;
         })
       : draftEditingDestination(draftEditing, mayRestore.handoff);

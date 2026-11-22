@@ -395,6 +395,7 @@ async function boot() {
     compositionInput: fabInput,
     openThread: (id, options) =>
       app.threadDestinations.openPageThread(id, { ...options, travel: false }),
+    threadReader: (node) => app.threadDestinations.readerOf(node),
     refreshThread: () => app.refreshThread(),
     midComposition: (...args) => app.midComposition(...args),
     hasPending: () => app.hasPending(),

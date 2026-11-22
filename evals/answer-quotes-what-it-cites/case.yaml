@@ -15,7 +15,7 @@
 # wording.
 description: answer-quotes-what-it-cites
 metadata:
-  purpose: A reply resting on a source quotes the source's words in the thread, and links a page section only where the result shows away from the thread's own passage.
+  purpose: A reply resting on a source quotes the source's words in the thread, marks code in a quotation's summary with HTML, and links a page section only where the result shows away from the thread's own passage.
   tags:
     - threads
 vars:
@@ -191,6 +191,11 @@ assert:
   - type: not-regex
     metric: no-link-to-its-own-passage
     value: \]\(#mark-guidance[\s)]|href=[\"']#mark-guidance[\"']
+  # A `<summary>` is a line of HTML that Markdown doesn't read, so backticks in it
+  # show as typed; the quotation's file name invites them.
+  - type: not-regex
+    metric: summary-marks-code-in-html
+    value: '<summary>(?:(?!</summary>)[\s\S])*`'
 variants:
   earlier-decision:
     vars:

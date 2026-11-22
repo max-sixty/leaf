@@ -4910,12 +4910,13 @@ export function createFloatingPanel({
               // `openingPart`). Where the page draws no view of the thread, as a
               // window with no room for the rail does, it lands on the thread's place
               // (thread/destination.js, `reader: "page"`) and the view goes once it
-              // has, keeping its reply's words as a close does.
+              // has, keeping its reply's words as a close does. A route that lands
+              // nowhere leaves the view where the user was.
               void threadActions
                 .open(thread.key, { part: null, intent, reader: "page" })
-                .then(() => {
-                  if (intent() && threadOf(trail.value.at(-1))?.key === thread.key)
-                    close();
+                .then((landed) => {
+                  if (!landed || !intent()) return;
+                  if (threadOf(trail.value.at(-1))?.key === thread.key) close();
                 });
             }}
           ></button>`

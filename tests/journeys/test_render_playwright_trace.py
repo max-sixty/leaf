@@ -974,8 +974,11 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     expect_after_checkpoint(
         phone, (stop_time(record, actions[0]["phases"]["after"]) - origin) / 1000
     )
+    # The reader scrolls the tools up the window. Playwright's own reveal stops with
+    # them at the window's foot, under the floating panel, and scrolling by whole
+    # pixels leaves a third of a pixel of them past it.
     tools = phone.locator(".lf-trace-image-tools")
-    tools.scroll_into_view_if_needed()
+    tools.evaluate("tools => tools.scrollIntoView({block: 'center'})")
     expect(tools).to_be_in_viewport(ratio=1)
     stage_box = phone.locator(".lf-trace-stage").bounding_box()
     metadata_box = phone.locator(".lf-trace-metadata").bounding_box()

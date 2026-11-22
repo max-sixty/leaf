@@ -557,6 +557,7 @@ export function createFloatingResponsePlacement({
     };
     const seat = fabPlacement.choose({
       clear: place.clear,
+      room: place.room,
       row: place.row,
       column: place.column,
       extent: place.extent,
@@ -588,6 +589,7 @@ export function createFloatingResponsePlacement({
         );
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
+          room: place.room,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,

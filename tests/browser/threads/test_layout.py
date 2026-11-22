@@ -912,7 +912,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             },
         )
     page = open_page(browser, url)
-    resized(page, 1200, 900)
+    # A height whose scroll limit stands a head on the top row, rather than the gap
+    # between two turns there (the known edge below).
+    resized(page, 1200, 880)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
@@ -1062,7 +1064,7 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
                 "kind": "reply",
                 "author": author,
                 "parent": root,
-                "text": f"Turn {turn}. " + LANDING_WORDS * 4,
+                "text": f"Turn {turn}. " + LANDING_WORDS * 6,
             },
         )
     context = browser.new_context(

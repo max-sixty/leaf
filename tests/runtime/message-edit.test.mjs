@@ -87,7 +87,12 @@ test("g D restores the discarded rewrite", (t) => {
   });
   const door = { shows: () => false, press: () => {} };
   const goTo = createGoToSequence({
-    doors: { threads: door, queue: door, leaves: door },
+    doors: {
+      threads: door,
+      queue: door,
+      agent: { ...door, name: () => "On Agent" },
+      leaves: door,
+    },
     hintChrome: { barriers: () => [] },
     directDestinations: () => [restore],
     openPageMap: () => {},

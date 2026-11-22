@@ -82,7 +82,7 @@ from .state import (
     close_session_turn,
     flocked,
     held_claims,
-    plugin_cache_copy,
+    installed_copy,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -262,7 +262,7 @@ def skill_changed(session_id: str, before: str, now: str) -> None:
     Two versions whose skills match byte for byte, as an update that changed only code
     leaves them, need no notice. An installed copy at the same root is another Leaf
     once its skill changed, since only its harness writes it
-    (`state.plugin_cache_copy`). A checkout at the same root is the same Leaf: a
+    (`state.installed_copy`). A checkout at the same root is the same Leaf: a
     session whose hooks run a checkout is developing Leaf, and its edits to the
     skill are changes it makes rather than instructions it missed.
 
@@ -275,7 +275,7 @@ def skill_changed(session_id: str, before: str, now: str) -> None:
     (`reconnect`), after this hook marked the skill."""
     root, _, skill = before.rpartition("\n")
     here, _, shipped = now.rpartition("\n")
-    if skill == shipped or (root == here and not plugin_cache_copy(PLUGIN_ROOT)):
+    if skill == shipped or (root == here and not installed_copy(PLUGIN_ROOT)):
         return
     from .clerk import queue
     from .schema import SKILL_FILE

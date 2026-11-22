@@ -52,20 +52,37 @@ if TYPE_CHECKING:
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 
-def plugin_cache_copy(root: Path) -> bool:
-    """Whether `root` is a copy a harness installed from a marketplace into its
-    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
-    than a checkout. Claude Code installs each update as a new copy without `.git`,
-    whose version component is the source commit's SHA, since Leaf leaves its
-    manifest version unset. Codex keeps one clone, at the version `local`, and
-    replaces it in place, so there only the commit the clone holds tells two
-    versions apart (`layer.payload_provenance`)."""
+def installed_copy(root: Path) -> bool:
+    """Whether `root` is a copy of Leaf a harness installed, which only that harness
+    writes, rather than a checkout someone develops in.
+
+    Claude Code and Codex install a plugin from a marketplace into their plugin
+    cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`. Claude Code
+    installs each update as a new copy without `.git`, whose version component is
+    the source commit's SHA, since Leaf leaves its manifest version unset. Codex
+    keeps one clone, at the version `local`, and replaces it in place. Pi clones a
+    git package into `~/.pi/agent/git/<host>/<path>`, or a project's
+    `.pi/git/<host>/<path>`, and resets the clone in place to update it. Where a
+    copy is updated in place, only the commit it holds tells two versions apart
+    (`layer.payload_provenance`)."""
     parents = root.parents
-    return (
+    if (
         len(parents) >= 4
         and root.parent.name == "leaf"
         and parents[2].name == "cache"
         and parents[3].name == "plugins"
+    ):
+        return True
+    return any(
+        directory.name == "git"
+        and (
+            directory.parent.name == ".pi"
+            or (
+                directory.parent.name == "agent"
+                and directory.parent.parent.name == ".pi"
+            )
+        )
+        for directory in parents
     )
 
 

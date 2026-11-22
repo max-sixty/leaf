@@ -265,10 +265,10 @@ a user preview selected or one that claimed or re-vendored a page the session ho
 (`session_runtime.py`), or else the copy of Leaf its harness loaded, whose `bin/leaf`
 its hooks run. Claude Code installs each update as a new copy and keeps a running
 process on the copy it loaded until `/reload-plugins`, or until a new process of the
-session, such as a resume or a background job's wake, loads the update. Codex keeps one
-copy and replaces it in place, so a Codex session's next hook runs the update. A path
-names no version there, so Leaf identifies a copy by its path and commit
-(`state.plugin_cache_copy`, `layer.payload_provenance`).
+session, such as a resume or a background job's wake, loads the update. Codex and Pi
+each keep one copy and update it in place, so the session's next hook runs the update.
+A path names no version there, so Leaf identifies a copy by its path and commit
+(`state.installed_copy`, `layer.payload_provenance`).
 
 At the session's next hook, Leaf brings what outlives a process to the Leaf that hook
 runs. A page at an older protocol is renewed (`layer-registry.md`, "Page protocol"). A
@@ -277,9 +277,9 @@ restarts it under that one at the same address (`hosting.start_page`), as the
 session's next prompt does for a page it holds where both are installed copies
 ("Serving again at the next prompt"). Where the hook runs another Leaf than the
 session's previous hook, and that Leaf ships another skill, the agent is told to read
-it again (`hooks.skill_changed` says when an edit counts). Codex's adapter keeps the code it started with until its task
-owns no page or the session selects another Leaf (`codex_adapter.run_adapter`), so it
-runs that code across an in-place update.
+it again (`hooks.skill_changed` says when an edit counts). Codex's adapter keeps the
+code it started with until its task owns no page or the session selects another Leaf
+(`codex_adapter.run_adapter`), so it runs that code across an in-place update.
 
 ### A session's files
 

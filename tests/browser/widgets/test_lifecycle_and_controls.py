@@ -444,8 +444,8 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
       // face, its text cursor included (annotation-chrome.css).
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
-      const said = [document.querySelector('#intro > .tag'),
-                    document.querySelector('#owner-fact > .tag')];
+      const said = [document.querySelector('#intro > .lf-tag'),
+                    document.querySelector('#owner-fact > .lf-tag')];
       return {
         presses: presses.map(kind), said: said.map(kind),
         saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),
@@ -482,7 +482,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         f"the control under the pointer says nothing about being pressed: "
         f"{before!r} -> {washed!r}"
     )
-    tag = page.locator("#intro > .tag")
+    tag = page.locator("#intro > .lf-tag")
     tag_rest = tag.evaluate(shadow)
     tag.hover()
     assert tag.evaluate(shadow) == tag_rest, (

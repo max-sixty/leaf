@@ -229,15 +229,15 @@ The queue recovered after reverting the timeout change.
 <b>The owner confirmed that the shorter connection timeout caused the incident.</b></p></div>
 <div class="facts prose-box" id="card-facts"><div>24 queued requests</div>
 <div>The oldest request is waiting for review.</div></div>
-<dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
+<dl class="lf-facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
 <lf-group id="routes-q" label="What happens to the queue?"><lf-options id="routes">
-<lf-option id="route-one" label="Keep the queue"><strong>Keep the queue</strong> <dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
+<lf-option id="route-one" label="Keep the queue"><strong>Keep the queue</strong> <dl class="lf-facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
 <lf-option id="route-two" label="Review the queue"><strong>Review the queue</strong> <p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
 </lf-options></lf-group>
-<dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
+<dl class="lf-facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
         head="""<style>
 .prose-box {inline-size:280px;overflow:hidden;}
 p.facts, div.facts {font-size:12px;}
@@ -1818,7 +1818,9 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
     """A row of metric tiles reads as figures compared across it, so each figure stands
     on one line whichever labels wrap and whichever figures carry a change beside them.
     A label wrapping to a second line could set its own figure a line lower."""
-    tile = '<dl id="{}" class="metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    tile = (
+        '<dl id="{}" class="lf-metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    )
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1837,7 +1839,7 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
                 '<div id="custom-metrics"><div class="metric" id="custom-metric">'
                 '<div>Pages per month</div><div class="number">37</div>'
                 "<small>Today’s configuration</small></div>"
-                '<dl class="metric" id="qualified-metric"><dt>Error rate</dt>'
+                '<dl class="lf-metric" id="qualified-metric"><dt>Error rate</dt>'
                 "<dd><strong>0.42%</strong></dd><small>Baseline 0.31%</small></dl></div>",
                 head="""<style>
 #custom-metrics { display: grid; grid-template-columns: repeat(2, 1fr); }
@@ -1893,7 +1895,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         '<lf-option id="asked-reload" label="Reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave" label="Leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
         "</lf-options></lf-group>"
-        '<section class="panel" id="panel"><h2>Framed</h2>'
+        '<section class="lf-panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"
         '<figure data-width="available">' + table.format(id="in-figure") + "</figure>"

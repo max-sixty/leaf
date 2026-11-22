@@ -255,7 +255,7 @@ export function overflowingRegions() {
 // clear of the column. Where the box sits is what separates margin content from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
 // and run out. So a float that merely overflows is still reported, and a widget's
-// own float inside the column (an option's .facts rail) is never in question.
+// own float inside the column (an option's .lf-facts rail) is never in question.
 //
 // Margin content answers for what it holds, which is why both readings are made up the
 // ancestors and not of the element alone. Margin prose carries <code>, links and

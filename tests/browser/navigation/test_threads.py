@@ -949,7 +949,9 @@ def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
-    """The system focus outline replaces the surface paint high contrast removes."""
+    """A forced palette drops the shadow that frames a seated card, so the card keeps
+    its frame as an outline on its edge, and the reply box focused in it still draws
+    its own ring."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -966,18 +968,22 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     reply.click()
     expect(reply).to_be_focused()
     assert thread.evaluate("el => el.matches(':focus-within')")
-    focus = thread.evaluate(
+    frame = thread.evaluate(
         """el => { const s = getComputedStyle(el); return {
               style: s.outlineStyle, width: s.outlineWidth,
               offset: s.outlineOffset, shadow: s.boxShadow,
             }; }"""
     )
-    assert focus == {
+    assert frame == {
         "style": "solid",
-        "width": "2px",
-        "offset": "-2px",
+        "width": "1px",
+        "offset": "0px",
         "shadow": "none",
     }
+    ring = thread.locator(".lf-compose-field").evaluate(
+        "el => { const s = getComputedStyle(el); return [s.outlineStyle, s.outlineWidth]; }"
+    )
+    assert ring == ["solid", "2px"], ring
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
@@ -1017,15 +1023,16 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"a sibling separator remained inside the current region: {frame}"
     )
 
-    separator = thread.evaluate(
-        """el => { const s = getComputedStyle(el, '::before'); return {
-          content: s.content, borderTop: s.borderTopWidth,
-        }; }"""
+    # Seated threads are framed cards a gap apart, not rules between bare threads.
+    apart = thread.evaluate(
+        """el => { const s = getComputedStyle(el);
+          const before = getComputedStyle(el, '::before');
+          const previous = el.previousElementSibling.getBoundingClientRect();
+          return {gap: el.getBoundingClientRect().top - previous.bottom,
+                  frame: s.boxShadow !== 'none', rule: before.content}; }"""
     )
-    assert separator == {
-        "content": '""',
-        "borderTop": "1px",
-    }, f"the gap between inline threads lost its separator: {separator}"
+    assert apart["gap"] > 0 and apart["frame"], apart
+    assert apart["rule"] == "none", apart
 
     resolve = thread.locator(":scope .lf-thread-meta-actions > .lf-resolve")
     expect(resolve).to_have_css("position", "relative")

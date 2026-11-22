@@ -11,7 +11,7 @@ lf-atlas-task {
   padding-inline-start: 1rem;
   border-inline-start: 1px solid var(--lf-rule);
 }
-section.panel > lf-atlas-plan > lf-atlas-task:last-child {
+section.lf-panel > lf-atlas-plan > lf-atlas-task:last-child {
   margin-block-end: 0;
 }
 lf-atlas-task > strong {

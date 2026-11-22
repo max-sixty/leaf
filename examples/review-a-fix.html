@@ -13,7 +13,7 @@
         <p id="fix-eyebrow">fix review · page comments</p>
         <h1 id="fix-title">A comment now survives opening its screenshot</h1>
       </hgroup>
-      <p class="lede" id="fix-lede">
+      <p class="lf-lede" id="fix-lede">
         Pressing Escape on a screenshot's preview used to close the page comment it was
         attached to. I recorded one journey before and after the fix. Choose a moment,
         then switch recordings to see the same step in the other.
@@ -74,9 +74,28 @@
         <p id="fix-ship-coverage">
           The recordings show Escape in Chrome. The regression test also closes the
           preview with its close button and with a press outside it, in the page comment
-          and in a thread reply in the floating panel, and fails on each without the
+          and in a thread reply in the floating panel, and fails in both without the
           fix.
         </p>
+        <figure id="fix-test-run">
+          <pre
+            class="lf-terminal"
+          ><b>$ git checkout HEAD^ -- skills/leaf/assets/runtime</b>
+<b>$ uv run pytest tests/browser/test_render_threads.py -k draft_s_image</b>
+<i>…</i>
+<mark>FAILED tests/browser/test_render_threads.py::test_a_draft_s_image_closes_back_to_the_draft[card] - AssertionError: Locator expected to be focused</mark>
+<mark>FAILED tests/browser/test_render_threads.py::test_a_draft_s_image_closes_back_to_the_draft[floating] - AssertionError: Locator expected to be focused</mark>
+======================== 2 failed in 131.38s (0:02:11) =========================
+<b>$ git checkout HEAD -- skills/leaf/assets/runtime</b>
+<b>$ uv run pytest tests/browser/test_render_threads.py -k draft_s_image</b>
+<i>…</i>
+============================== 2 passed in 10.19s ==============================</pre>
+          <figcaption>
+            The regression test at the fix's commit, with the fix's runtime files set
+            back to their parent's, then restored. Without the fix, Escape closes the
+            draft along with the preview, so the test finds no thumbnail to focus.
+          </figcaption>
+        </figure>
         <lf-options id="fix-ship">
           <lf-option id="fix-ship-now" label="Ship it" recommended>
             <strong>Ship it</strong>

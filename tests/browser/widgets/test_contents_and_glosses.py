@@ -1096,7 +1096,7 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     ("layout", "holder"),
     [
         # A sidebar page's track, as pr-walkthrough holds its contents.
-        ("sidebar", '<section class="panel">{toc}</section>'),
+        ("sidebar", '<section class="lf-panel">{toc}</section>'),
         # A column's margin sidebar holding the map beside other notes.
         ("column", "{toc}<p>Owner: platform.</p>"),
     ],

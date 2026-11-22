@@ -53,9 +53,9 @@ ACROSS_OBLIGATION = """
   <lf-group id="{id}" label="How long should logs be kept?">
     <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
-      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
-      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
-        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+      <thead><tr><th>Store</th><th class="lf-numeric">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="lf-numeric">40</td></tr>
+        <tr><td>Warm</td><td class="lf-numeric">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7" label="7 days"><strong>7 days</strong> The cheapest.
@@ -278,7 +278,7 @@ def chipped_obligation(id, cards):
     (chips, title, attributes), its chips written before its title."""
     options = "".join(
         f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
-        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + "".join(f'<small class="lf-tag">{chip}</small>' for chip in chips)
         + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )

@@ -450,7 +450,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     pre.focus()
     page.keyboard.press("ArrowRight")
     page.wait_for_function("document.querySelector('#colored').scrollLeft > 0")
-    scroll_settled(page)
+    scroll_settled(page, "#colored", axis="x")
     after = control.bounding_box()
     block = pre.bounding_box()
     assert after and block
@@ -568,7 +568,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         )
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     touch.wait_for_function("document.querySelector('#plain').scrollLeft > 0")
-    scroll_settled(touch)
+    scroll_settled(touch, "#plain", axis="x")
     touch_pre.evaluate("pre => pre.scrollLeft = pre.scrollWidth")
 
     def suffix_uncovered():

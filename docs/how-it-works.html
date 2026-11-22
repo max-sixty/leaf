@@ -3576,14 +3576,15 @@ flowchart TD
             <code>$.model.fork</code> and hands back what came of it. It adds only what
             it alone sees, such as the tool calls the main thread is running and the end
             of a main thread's turn. Claude Code keeps the module it loaded until
-            <code>/reload-plugins</code>, while each hook runs the newest Leaf, so a
-            session's module is often older than its Python. That is why the module only
-            carries out Python's instructions: a change to what Leaf forks for, what it
-            asks a fork or what it does with the answer changes only the Python, and an
-            older module carries it out as it does any instruction. The module changes
-            only for a Claude Code call or event Leaf starts to use. The fork subagent
-            is no instruction of Leaf's: the main thread spawns it with Claude Code's
-            Agent tool, and the module leaves a subagent's calls and turns alone.
+            <code>/reload-plugins</code>, while a session whose hooks run a Leaf
+            checkout runs each hook from that checkout as it stands, so the session's
+            module can be older than its Python. That is why the module only carries out
+            Python's instructions: a change to what Leaf forks for, what it asks a fork
+            or what it does with the answer changes only the Python, and an older module
+            carries it out as it does any instruction. The module changes only for a
+            Claude Code call or event Leaf starts to use. The fork subagent is no
+            instruction of Leaf's: the main thread spawns it with Claude Code's Agent
+            tool, and the module leaves a subagent's calls and turns alone.
           </p>
 
           <section id="path">

@@ -30,13 +30,18 @@ import { ShotView } from "./shot-view.js";
  * the focus rectangle. Pixel comparison runs after presentation, one comparison at a
  * time and a frame apart, so a page of shots stays responsive. A difference reading
  * waits its turn; a mask the reader pressed for goes to the front and waits only for
- * the comparison already running. Slider is the first view. The divider and the view
- * radios are Web Awesome's, and this module loads those three controls with itself
- * (`webawesome-views`), so every view takes the first press the reader makes once the
- * page shows. That puts them on the startup path; loading them after presentation
- * kept them off, but left the radios inert until they arrived. Pixels needs only the
- * two images, so choosing it shows the view at once, and its mask follows. Masks are
- * computed only on selection. The divider's exact position survives switching views.
+ * the comparison already running.
+ *
+ * A pair opens in the view its `view` attribute names, Slider by default, and the
+ * reader chooses from there. The maintainer chose to let the author name it, because
+ * Slider's even split shows only one version of a change that sits in one half of the
+ * frame. The divider and the view radios are Web Awesome's, and this module loads
+ * those three controls with itself (`webawesome-views`), so every view takes the first
+ * press the reader makes once the page shows. That puts them on the startup path;
+ * loading them after presentation kept them off, but left the radios inert until they
+ * arrived. Pixels needs only the two images, so it shows at once, and its mask
+ * follows. Masks are computed only once Pixels shows. The divider's exact position
+ * survives switching views.
  * Replacing either capture refreshes evidence inside the retained controls and
  * viewports, preserving the reader's inspection.
  * `difference` reads the requested pair, with its `description` in words; a superseded
@@ -151,6 +156,7 @@ export class Shot extends HTMLElement {
       return true;
     });
     const drawing = this.#drawing;
+    drawing.view = this.getAttribute("view") ?? drawing.view;
     render(drawing.render(), this, { host: this });
     drawing.fit();
     render(drawing.render(), this, { host: this });
@@ -180,7 +186,7 @@ export class Shot extends HTMLElement {
       viewport.addEventListener(
         "scroll",
         () => {
-          if (this.#drawing.view !== "compare" || !this.#drawing.actual) return;
+          if (this.#drawing.view !== "pair" || !this.#drawing.actual) return;
           const peer = index === 0 ? drawing.viewports[1] : drawing.viewports[0];
           if (
             peer.scrollLeft !== viewport.scrollLeft ||
@@ -347,7 +353,7 @@ export class Shot extends HTMLElement {
   }
 
   #syncComparison() {
-    if (this.#drawing.view !== "flip" && this.#comparison) {
+    if (this.#drawing.view !== "slider" && this.#comparison) {
       this.#drawing.position = this.#comparison.position;
       for (const frame of this.#drawing.frames) {
         frame.removeAttribute("slot");
@@ -356,7 +362,7 @@ export class Shot extends HTMLElement {
       this.#comparison.remove();
       this.#comparison = null;
     }
-    if (this.#drawing.view === "flip" && !this.#comparison) {
+    if (this.#drawing.view === "slider" && !this.#comparison) {
       const comparison = shotBox("wa-comparison", "lf-shotcomparison lf-media-frame");
       comparison.position = this.#drawing.position;
       const handle = offer("span", "lf-shot-handle");

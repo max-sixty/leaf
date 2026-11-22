@@ -2075,7 +2075,8 @@ _TEXT = {
         lambda at, v: (
             f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
             f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
-            " write the page. Use a newer Leaf."
+            " write the page. Use a newer Leaf; in Claude Code, /reload-plugins loads"
+            " the installed copy."
         ),
     ),
     "no-registry": _refuses(

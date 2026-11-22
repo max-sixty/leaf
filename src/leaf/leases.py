@@ -25,6 +25,8 @@ from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     MODULE_SUFFIX,
+    PLUGIN_ROOT,
+    ROOT_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
     flocked_descriptor,
@@ -242,6 +244,33 @@ def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
     session_file(session_id, HOOKS_SUFFIX).touch()
+
+
+def mark_root(session_id: str) -> Path | None:
+    """Record the plugin root this Leaf runs from as the one the session's hooks last
+    ran from, and return the root they ran from before, where that was another.
+
+    Unlike the hooks mark, this one outlives the harness instance while a claim
+    names the session (`state._retire`), so the first hook of a resumed or woken
+    process compares its root with the root of the process before. An unchanged
+    root costs one read. Hooks that run at once, as PreToolUse's registrations do,
+    change the mark under its lock, so only one of them returns the earlier
+    root."""
+    path = session_file(session_id, ROOT_SUFFIX)
+    here = str(PLUGIN_ROOT)
+    try:
+        if path.read_text() == here:
+            return None
+    except FileNotFoundError:
+        pass
+    with flocked(path) as held:
+        held.seek(0)
+        before = held.read().decode()
+        if before == here:
+            return None
+        held.truncate(0)
+        held.write(here.encode())
+    return Path(before) if before else None
 
 
 def mark_module(session_id: str, pid: int) -> None:

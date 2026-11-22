@@ -76,7 +76,7 @@ import { el, offerAction, reveal } from "./widget-elements.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { onCurrentLocation } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { scrollContainer } from "./geometry.js";
+import { markerReach, scrollContainer } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
 import { LAYOUT } from "./widget-upgrade.js";
@@ -121,24 +121,16 @@ export function outlineChange(change) {
   outlined.value = change;
 }
 
-// Where a block draws: `rect`, reaching out on its start side from the edge of the list
-// item the block stands in by its list's inset, since the browser draws the item's
-// marker outside the item's box, in that inset. So the paint beside an item, or beside
-// anything in one, stands clear of the marker. The reach starts at the item rather than
-// the list, so an item in a list laid out as a grid or a row of cards keeps its paint
-// beside it rather than beside the list's first item.
+// Where a block draws: `rect`, reaching out on its start side over a list marker beside
+// it (geometry.js, `markerReach`), as the marks the block draws round itself do. So the
+// paint beside an item stands clear of its marker.
 /** @param {Element} target @param {Box} rect @returns {Box} */
 function inked(target, rect) {
-  const item = target.closest("li");
-  if (!item?.parentElement) return rect;
-  const inset = parseFloat(getComputedStyle(item.parentElement).paddingInlineStart);
-  const box = item.getBoundingClientRect();
-  const edge = { left: box.left - inset, right: box.right + inset };
-  const rtl = target.matches(":dir(rtl)");
+  const reach = markerReach(target);
   return {
-    left: rtl ? rect.left : Math.min(rect.left, edge.left),
+    left: rect.left - reach.left,
     top: rect.top,
-    right: rtl ? Math.max(rect.right, edge.right) : rect.right,
+    right: rect.right + reach.right,
     bottom: rect.bottom,
   };
 }

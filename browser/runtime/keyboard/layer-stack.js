@@ -7,10 +7,10 @@
    those that stand as a mode (`nativeModes`) and makes a modal a floor.
 
    A layer may open through a prototype method or through declarative popover activation,
-   and a popover need not move focus into itself, so each opening is heard here: from
-   `beforetoggle` and `toggle` at the document and at each declared shadow boundary,
-   which every dialog and popover fires, and from the `showPopover` patch. `beforetoggle`
-   makes an opening visible synchronously to the command that caused it; `toggle` follows the
+   and a popover need not move focus into itself, so every opener declares its own
+   opening here: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle`
+   at the document and at each declared shadow boundary. `beforetoggle` makes a declarative
+   opening visible synchronously to the command that caused it; `toggle` follows the
    completed native transition, and carries an opening whose earlier declarations this
    module was not yet listening for. An opening arrives once, so a declaration naming a
    layer the stack already holds leaves its entry where the arrival put it, however many
@@ -19,9 +19,11 @@
    the toggle names it, and a scripted one's from the `showPopover` call itself, since
    the event retargets a source inside a shadow root to its host and goes unheard from a
    root nobody staged. Dismissal stays each layer's own `popover` or `closedby` value. A
-   popover opened declaratively, or a modal opened, inside a shadow root nobody staged
-   fires a `toggle` this module cannot hear, so it never reaches the stack;
-   `shadowStage` is the declared route for a widget's shadow tree.
+   popover opened declaratively inside a shadow root nobody staged fires a `toggle` this
+   module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
+   for a widget's shadow tree. A modal a script opens there, as a web component's
+   dialog is, still joins the stack through the `showModal` patch, so page keys don't
+   act behind it; its own `beforetoggle` goes unheard from that root too.
 
    Where a press on a declarative control (`popovertarget`, `commandfor`) opens a layer,
    this module also does what that press owes the control. The platform's return on
@@ -120,6 +122,7 @@ export function carryChromeStyles(layer) {
 /** @type {NativeLayer[]} */
 let entries = [];
 const watchedRoots = new WeakSet();
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
 // The popover a `showPopover` call is opening, and the source the call names, while it
 // opens: its `beforetoggle` is a scripted opening rather than a press on its control,
@@ -204,6 +207,15 @@ function closing(event) {
   )
     releaseFocus();
 }
+
+HTMLDialogElement.prototype.showModal = function () {
+  const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+  try {
+    return nativeDialogShowModal.call(this);
+  } finally {
+    if (entry) entry.opening = false;
+  }
+};
 
 HTMLElement.prototype.showPopover = function (options) {
   const opening = nativeLayerKind(this) !== "popover";
@@ -369,8 +381,8 @@ const changed = (event) => {
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
-  // A dialog announces its opening here, whether `showModal` or a native command
-  // opens it. Nonmodal show() entries are pruned by isNativeLayer().
+  // Native dialog commands also announce their opening here, without invoking
+  // the patched prototype. Nonmodal show() entries are pruned by isNativeLayer().
   /** @param {ToggleEvent} event */
   const opened = (event) => {
     if (

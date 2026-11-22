@@ -170,11 +170,7 @@ customElements.define(
         const numbers = numbering(this);
         const rows = lines.map((tokens) => ({ tokens, n: numbers.next().value }));
         const hi = within(this.getAttribute("hi"));
-        const byLine = new Map();
-        for (const note of notes) {
-          const at = Number(note.getAttribute("at"));
-          byLine.set(at, [...(byLine.get(at) ?? []), note]);
-        }
+        const byLine = Map.groupBy(notes, (note) => Number(note.getAttribute("at")));
         // Reading commands remain reachable when wrapping removes overflow.
         const pre = document.createElement("pre");
         pre.setAttribute("data-lf-carry", "source");

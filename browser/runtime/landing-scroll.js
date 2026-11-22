@@ -87,7 +87,7 @@
  * fits the room. Its own scroll margin already reserves the outline's gap.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
-import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
+import { deepFocus, onCurrentLocation, onUserInput, ringBox } from "./focus.js";
 import {
   clippedPlace,
   fixedInWindow,
@@ -114,7 +114,7 @@ import {
   stopGlide,
 } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
-import { nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 
@@ -592,23 +592,40 @@ function landsStill(where, block) {
 export const keepInBand = (where) =>
   scrollIntoReadingBand(where, holderOf(where), "nearest", "instant", false, true);
 
-// A Tab's arrival (see the header), read once the browser's own reveal has moved.
+// A Tab's arrival (see the header), read once the browser's own reveal has moved: at
+// the next render, or at the user's next key where that comes first. The key's readers
+// then find the page as the same keys typed slowly leave it: a control Tab reached
+// under the floating panel, which this landing brings above it, is where the user is
+// (user-place.js, `focusPlace`), so Enter pressed before the frame follows it rather
+// than letting go of it.
+/** @type {{node: Element, render: number} | null} */
+let arrival = null;
+/** @param {Element} node */
+function landArrival(node) {
+  arrival = null;
+  if (deepFocus() !== node) return;
+  scrollIntoView(node, { block: "nearest" });
+  // A decision's attention ring is worn by its box, even while Tab stands on
+  // a control inside it. Native focus reveal knows only the control's box.
+  /** @type {Element | null} */
+  let box = node;
+  for (; box; box = renderedParent(box)) {
+    if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
+    if (locationStandsDown(box)) continue;
+    scrollIntoView(box, { block: "nearest" });
+    break;
+  }
+}
 onCurrentLocation(
   /** @param {Element | null} node @param {string | null} cause */ (node, cause) => {
     if (cause !== "step" || !node) return;
-    nextRender(() => {
-      if (deepFocus() !== node) return;
-      scrollIntoView(node, { block: "nearest" });
-      // A decision's attention ring is worn by its box, even while Tab stands on
-      // a control inside it. Native focus reveal knows only the control's box.
-      /** @type {Element | null} */
-      let box = node;
-      for (; box; box = renderedParent(box)) {
-        if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
-        if (locationStandsDown(box)) continue;
-        scrollIntoView(box, { block: "nearest" });
-        break;
-      }
-    });
+    cancelRender(arrival?.render);
+    arrival = { node, render: nextRender(() => landArrival(node)) };
   },
 );
+// A pointer press aims where things are drawn, so only a key lands the arrival early.
+onUserInput((event) => {
+  if (event.type !== "keydown" || !arrival) return;
+  cancelRender(arrival.render);
+  landArrival(arrival.node);
+});

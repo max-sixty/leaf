@@ -33,8 +33,9 @@
  * the answer decides. This module is the rule's one keeper. The registry declares
  * `shows` only as an attribute naming an element (`refers`), and neither `page check`
  * nor the append door reads it, so the board never sends its own move for a card
- * carrying it (#movable, #send), and it draws a card whose `shows` names no answer it
- * can read where the markup puts it, taking no move.
+ * carrying it (#movable, #send). A card whose `shows` names no answer the board can
+ * show stands where the markup puts it and takes no move, and the board reports it
+ * to the author as the page's error (#reportUnshown).
  *
  * An answer names a value when it is one string: a `value` record's attribute, or the
  * members an `attribute` record picks when every one of them carries the same `value`
@@ -93,6 +94,7 @@ import {
   authoredScope,
   widgetController,
   commandsChanged,
+  reportFailure,
 } from "/runtime/widget-api.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
@@ -116,25 +118,45 @@ const namedValue = (answer, valueOf) => {
   return only !== undefined && other === undefined ? only : null;
 };
 
-/** The answer a card shows, or null where it shows none: no `shows`, no widget by that
- * id in the card's own page or message, a widget whose `awaits.value` verb records
- * neither a value nor members, or one whose state has not loaded. Reading it reads
- * that widget's own published state, and changing it sends the widget's own command
- * through its controller, the same command its own control sends.
+/** The widget whose answer a card shows, with the verb that writes the answer and
+ * that verb's record; `{fault}`, saying what the author got wrong, where the card's
+ * `shows` names no answer a board can show; or null for a card without `shows`. A
+ * board can show the answer of a widget in the card's own page or message whose
+ * `awaits.value` verb records a value or members. */
+/** @param {Element} card */
+function shownWidget(card) {
+  const id = card.getAttribute("shows");
+  if (id === null) return null;
+  const owner = elementById(id, authoredScope(card));
+  if (!owner)
+    return {
+      fault: `shows="${id}" names no element in the page or message the card stands in`,
+    };
+  const declaration = declarationFor(owner);
+  const verb = declaration?.awaits?.value;
+  const record = verb ? declaration?.verbs?.[verb]?.record : undefined;
+  if (!verb || (record?.kind !== "value" && record?.kind !== "attribute"))
+    return {
+      fault:
+        `shows="${id}" names <${owner.localName}>, which has no answer a board can` +
+        " show: its `awaits` value verb must record a value or members",
+    };
+  return { owner, verb, record };
+}
+
+/** The answer a card shows, or null where it shows none: no `shows`, one naming no
+ * answer a board can show (`shownWidget`), or a widget whose state has not loaded.
+ * Reading it reads that widget's own published state, and changing it sends the
+ * widget's own command through its controller, the same command its own control sends.
  * `value` is the value the answer names now (null for none), `available` whether the
  * user can change it, `takes(value)` whether the widget can answer `value` (null
  * clears a pick), and `answer(value, says)` sends the widget's command, returning
  * what `dispatch` returns, or null where the widget can't take `value`. */
 /** @param {Element} card */
 function shownAnswer(card) {
-  const id = card.getAttribute("shows");
-  const owner = id ? elementById(id, authoredScope(card)) : null;
-  if (!owner) return null;
-  const declaration = declarationFor(owner);
-  const verb = declaration?.awaits?.value;
-  if (!verb) return null;
-  const record = declaration?.verbs?.[verb]?.record;
-  if (record?.kind !== "value" && record?.kind !== "attribute") return null;
+  const shown = shownWidget(card);
+  if (!shown || "fault" in shown) return null;
+  const { owner, verb, record } = shown;
   const controller = widgetController(owner);
   const reading = controller.read();
   const state = reading.state?.[verb];
@@ -187,6 +209,10 @@ customElements.define(
     #sortables = new Set();
     /** @type {(() => void) | null} */
     #resumeProjection = null;
+    // The fault last reported for each card, so the author hears of it once rather
+    // than at every draw.
+    /** @type {WeakMap<Element, string>} */
+    #reported = new WeakMap();
 
     setup() {
       this.toggleAttribute("data-lf-scroll", true);
@@ -838,9 +864,25 @@ customElements.define(
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
       if (!this.reading) return nothing;
+      this.#reportUnshown();
       this.#arrange(this.#placement());
       this.#paintAvailability();
       return nothing;
+    }
+
+    // Tell the author of each card whose `shows` names no answer the board can show.
+    // Such a card stands where the markup puts it and takes no move, and neither
+    // `page check` nor the page says why.
+    #reportUnshown() {
+      for (const card of this.#allCards()) {
+        const shown = shownWidget(card);
+        const fault = shown && "fault" in shown ? shown.fault : null;
+        if (fault === null) this.#reported.delete(card);
+        else if (this.#reported.get(card) !== fault) {
+          this.#reported.set(card, fault);
+          reportFailure(card, new Error(fault));
+        }
+      }
     }
 
     get #position() {

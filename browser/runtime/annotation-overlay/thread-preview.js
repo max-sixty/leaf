@@ -679,7 +679,7 @@ export function createThreadPreview({
   // frame fits the card again.
   /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered */
   function measureThreadCard(room, cap, reading, session, delivered) {
-    if (delivered && Math.abs(preview.offsetWidth - room) >= 0.5) {
+    if (delivered && preview.style.getPropertyValue("width") !== layoutPx(room)) {
       scheduleThreadPreviewPosition();
       return preview.getBoundingClientRect().height;
     }

@@ -11,7 +11,7 @@ import {
   renderMarkdown,
 } from "/runtime/widget-api.js";
 
-// A check's state is a status, drawn as the page's other statuses are (`.tag`), toned
+// A check's state is a status, drawn as the page's other statuses are (`.lf-tag`), toned
 // where the forge's word says how it went.
 const TONES = { passed: "ok", success: "ok", failed: "danger", failure: "danger" };
 
@@ -73,7 +73,7 @@ customElements.define(
                 <p>Opened by ${record.author}</p>
                 <p>${record.base} → ${record.head} · revision ${record.revision}</p>
               </header>
-              <dl class="facts">
+              <dl class="lf-facts">
                 <dt>Files</dt>
                 <dd>${record.diff.files}</dd>
                 <dt>Added</dt>
@@ -105,7 +105,7 @@ customElements.define(
                             html`<tr>
                               <th scope="row">${name}</th>
                               <td>
-                                <small class=${`tag ${TONES[status] ?? ""}`}
+                                <small class=${`lf-tag ${TONES[status] ?? ""}`}
                                   >${status}</small
                                 >
                               </td>

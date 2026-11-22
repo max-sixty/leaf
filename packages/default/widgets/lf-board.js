@@ -482,11 +482,10 @@ customElements.define(
       previewChanged(grip);
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
-      announce(
-        `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
-          index + 1
-        } of ${cards.length} — ${saying(rows)}`,
-      );
+      const grabbed = `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
+        index + 1
+      } of ${cards.length}`;
+      announce(() => [grabbed, saying(rows)].filter(Boolean).join(" — "));
     }
 
     /** @param {BoardCard} card @param {HTMLElement} grip @param {number} dCol @param {number} dRow */

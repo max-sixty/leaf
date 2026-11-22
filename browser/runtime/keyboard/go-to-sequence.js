@@ -79,7 +79,8 @@ import { addressableSays } from "../addressable-names.js";
 import { announce } from "../notifications.js";
 import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
-import { claimsEsc, saying } from "./scopes.js";
+import { claimsEsc } from "./scopes.js";
+import { saying } from "./control-keys.js";
 import { repaint } from "../repaint.js";
 import { landGlides } from "../scrolling.js";
 import { counted } from "../words.js";
@@ -445,7 +446,6 @@ export function createGoToSequence({
     },
     words: {
       describe: (candidate) => `${candidate.kind}, ${candidate.says}`,
-      take: "go there",
       all: "All go-to hints.",
     },
     chrome: hintChrome,
@@ -472,7 +472,8 @@ export function createGoToSequence({
     // to exactly the user who cannot see them.
     hints.arm((found) =>
       announce(
-        `Go to — ${found.length ? `${counted(found.length, "visible target")}; ${hearThem(found.length)}. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+        () =>
+          `Go to — ${found.length ? `${counted(found.length, "visible target")}.` : "No visible targets."} ${saying(GO_TO_SCOPE.rows)}`,
       ),
     );
     repaint();
@@ -493,15 +494,13 @@ export function createGoToSequence({
     const found = hints.narrow();
     announce(
       found.length
-        ? `${counted(found.length, ...visible(chosen))}; ${hearThem(found.length)}.`
+        ? () =>
+            `${counted(found.length, ...visible(chosen))}. ${saying(GO_TO_SCOPE.rows)}`
         : `No visible ${chosen.words[1]}`,
     );
   }
   /** @param {TargetFilter} filter @returns {[string, string]} */
   const visible = ({ words: [one, many] }) => [`visible ${one}`, `visible ${many}`];
-  /** @param {number} count */
-  const hearThem = (count) =>
-    `type a hint or press Tab to hear ${count === 1 ? "it" : "them"}`;
 
   // Hint chips show the eye that the sequence waits for a key. Where none shows, the
   // page's targets or a filter's being out of view, the field says so for as long as

@@ -2261,7 +2261,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Pick this passage." in said.text_content():
                 break
         else:
@@ -2340,7 +2340,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Volume ·" in said.text_content():
                 break
         else:
@@ -2464,11 +2464,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if (
-                f": {inventory[1]['label']}. Press Enter to choose."
-                in said.text_content()
-            ):
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {inventory[1]['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The middle control lost its spoken context")
@@ -2887,7 +2884,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             previous = live.text_content()
             page.keyboard.press("Tab")
             expect(live).not_to_have_text(previous)
-            expect(live).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(live).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             heard.append(live.text_content())
         missing = [
             target["label"]
@@ -2895,7 +2892,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             for target in got
             if "part" in target["anchor"]
             and not any(
-                f": {target['label']}. Press Enter to choose." in said for said in heard
+                f": {target['label']}. Enter choose target" in said for said in heard
             )
         ]
         assert not missing, (missing, heard)
@@ -4936,7 +4933,7 @@ def test_design_hint_faces_follow_controls_and_their_native_labels(browser, serv
         before = said.text_content()
         page.keyboard.press("Tab")
         expect(said).not_to_have_text(before)
-        expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+        expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
         heard.append(said.text_content())
         name = next(
             (
@@ -5003,8 +5000,8 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if f": {target['label']}. Press Enter to choose." in said.text_content():
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {target['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The Choice B control was not offered")
@@ -5463,3 +5460,58 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect_design_mode(page, on=False)
+
+
+def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, so the aim on an
+    item, or on the paragraph that opens one, reaches over a marker that fits the
+    list's inset rather than running between it and the words, where it would cross
+    a number's full stop."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul><li id="i">An item.</li><li><p id="p">A paragraph in an item.</p></li></ul>
+<ol start="9"><li id="n">A numbered item.</li></ol>
+""",
+            )
+        ),
+    )
+
+    def beside(target):
+        clip = page.evaluate(
+            """(id) => {
+              const box = document.getElementById(id).getBoundingClientRect();
+              return { x: box.left - 48, y: box.top, width: 48, height: 18 };
+            }""",
+            target,
+        )
+        rgb = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        data = rgb.tobytes()
+        return [
+            (i // 3 % rgb.width, data[i], data[i + 1], data[i + 2])
+            for i in range(0, len(data), 3)
+        ]
+
+    for target in ("i", "p", "n"):
+        page.locator(f"#{target}").hover(position={"x": 4, "y": 4})
+        before = beside(target)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(target)
+        after = beside(target)
+        page.keyboard.up("Alt")
+        # The marker is the text's near-black before the aim. The band is the
+        # accent's blue the aim adds, so the coloured edges of text that a
+        # subpixel-smoothed font draws, blue before as after, aren't band.
+        marker = [x for x, r, g, b in before if max(r, g, b) < 110]
+        band = [
+            x
+            for (x, r, _, b), (_, r0, _, b0) in zip(after, before, strict=True)
+            if b - r > 40 and b0 - r0 <= 40
+        ]
+        assert band and marker, f"#{target}: no band or no marker beside the item"
+        assert max(band) < min(marker), (
+            f"#{target}: the aim's band runs across the list marker"
+        )

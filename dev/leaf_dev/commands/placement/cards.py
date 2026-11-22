@@ -839,7 +839,7 @@ def tile(case: Case, window: Window, arms: dict[str, dict]) -> str:
         if not got.get("image"):
             return f"Failed: {html.escape(got['failed'])}"
         chips = "".join(
-            f' <small class="tag{" " + tone if tone else ""}">{html.escape(text)}</small>'
+            f' <small class="lf-tag{" " + tone if tone else ""}">{html.escape(text)}</small>'
             for tone, text in got["tags"]
         )
         return html.escape(got["sentence"]) + chips

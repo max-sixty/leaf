@@ -11,6 +11,7 @@ from browser.controls.test_previews import (
     _comment_on,
     _reads,
 )
+from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -280,7 +281,10 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
             'title="Inspect the rollout">Inspect the small group</button></p>'
             '<p id="glossed">Roll out behind <lf-gloss id="gloss">a gate<span '
             "popover>Check every gate before expanding.</span></lf-gloss> today.</p>"
-            '<div id="info" tabindex="0"><p id="info-words">Informational marked '
+            # Room under the gloss for its explanation's preview, clear of the card.
+            + "<p>Room for the explanation.</p>"
+            * 2
+            + '<div id="info" tabindex="0"><p id="info-words">Informational marked '
             "words with facts.</p></div>"
             '<p id="prose">Plain prose with marked words in it.</p>'
             + "<p>More words.</p>"
@@ -510,3 +514,36 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
     ):
         tab_onto(page.locator(cut))
         expect(tip.locator(".lf-preview-word")).to_have_text(says)
+
+
+def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
+    """A message's markup is outlined as the page is, and an edit the log accepts
+    outlines it again: the paragraph after a heading the edit changed stands under the
+    new heading."""
+    url = serve(PANEL_PAGE)
+    thread = panel_comment(
+        serve.page_dir, "## Original heading\n\nWords after the heading."
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, thread)
+    part = """async () => {
+      const {partOver} = await import('/runtime/thread/placement.js');
+      const words = [...document.querySelectorAll('.lf-msg-body p')]
+        .find((p) => p.textContent.includes('Words after the heading'));
+      return partOver(words)?.textContent.trim() ?? null;
+    }"""
+    expect(view.locator("h2")).to_have_text("Original heading")
+    assert page.evaluate(part) == "Original heading"
+    view.locator(".lf-msg-text").dblclick()
+    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("### Changed heading")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("Words after the heading.")
+    page.keyboard.press("Enter")
+    expect(view.locator(".lf-msg-editor")).to_have_count(0)
+    expect(view.locator(".lf-edited")).to_have_text("edited")
+    told(page)
+    expect(view.locator("h3")).to_have_text("Changed heading")
+    assert page.evaluate(part) == "Changed heading"

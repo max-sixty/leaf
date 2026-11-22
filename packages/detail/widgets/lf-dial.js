@@ -144,7 +144,7 @@ const DEPTHS = [
 const RANKED = "h1, h2, h3, h4, h5, h6";
 const HEADING = `${RANKED}, hgroup`;
 // What Skim keeps for its own sake; a heading stands for the ones it heads.
-const SUMMARY = ".lede, .gist";
+const SUMMARY = ".lf-lede, .gist";
 // Blocks the dial keeps whole whatever they hold: a table, whose cells stand in its
 // grid, a figure, whose caption labels all it holds, and a disclosure, whose summary is
 // its control.

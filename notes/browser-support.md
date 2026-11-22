@@ -624,7 +624,7 @@ tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among th
 Leaf counts what a sample's page does after loading only while its frame shows
 (`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
 waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
-`tests/browser/startup/test_hosting.py`,
+`tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
 
@@ -1200,7 +1200,7 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+taken out. The first is Firefox's to change. The eyebrow rules (`reading.css`) now end at an
 `hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with

@@ -61,20 +61,32 @@ def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     shows(":state(more-below):state(more-above)")
 
 
-from browser.test_render_floating_panel import FOOT
+from browser.test_render_floating_panel import (
+    CUT_STATUS,
+    FOOT,
+)
 from interact_support import (
     append_carried_log_record,
+    working,
 )
 from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
     all_pages_offered,
+    clocked,
+    dwelt,
+    long_press,
     open_threads,
     panel_view,
     sending,
+    show_resolved,
     told,
+    undo,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 
 def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
@@ -797,3 +809,171 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     assert field(page).evaluate(where, shown) == pytest.approx(midway, abs=1)
     finish_held(page)
     assert field(page).evaluate(where, shown) > stood + 20
+
+
+def test_a_thread_s_keys_answer_in_its_view(browser, serve):
+    """The thread open in the panel answers the keys a card in Threads does, though its
+    reply is the field and its Resolve stands on the view's head line: Enter on the
+    view puts the caret back in the reply with its words, and so does `c`, from the
+    view an Escape left the user on and from a message in it, the thread staying open.
+    `r` resolves the thread from the view, a message in it or its Resolve and moves the
+    user on, here back to Threads with no other thread open, ⌘Z takes the resolve back
+    and opens the thread again, Enter on a resolved thread puts the caret in its reply,
+    which a reply reopens, `r` there reopens it, and `e` on a message opens the agent's
+    reactions."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "Forty-eight hours covers the first cohort.",
+        },
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(panel_view("thread"))
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    expect(thread).to_be_visible()
+    field(page).click()
+    page.keyboard.type("Make it the weekend.")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+
+    page.keyboard.press("Enter")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(field(page)).to_have_js_property("value", "Make it the weekend.")
+    expect(thread).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(field(page)).to_have_js_property("value", "Make it the weekend.")
+    expect(thread).to_be_visible()
+
+    thread.locator(".lf-msg").first.focus()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(thread).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    threads = page.locator(panel_view("threads"))
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(threads).to_be_visible()
+    undo(page)
+    expect(thread).to_be_focused()
+    expect(settle).to_have_accessible_name("Resolve thread")
+
+    # A click on a message's words stands on the thread drawing it.
+    message = thread.locator(".lf-page-thread", has_text="Is the window long enough?")
+    message.click()
+    expect(message).to_be_focused()
+    page.keyboard.press("e")
+    strip = thread.locator(".lf-msg[data-lf-author=agent] > .lf-react-strip")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
+    message.click()
+    with sending(page, "the resolve from a message"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(threads).to_be_visible()
+
+    # A resolved thread opened from under Threads' Resolved heading keeps its reply.
+    show_resolved(page).first.click()
+    expect(settle).to_have_accessible_name("Reopen")
+    thread.focus()
+    page.keyboard.press("Enter")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(settle).to_have_accessible_name("Reopen")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    with sending(page, "the reopen"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    expect(settle).to_have_accessible_name("Resolve thread")
+
+
+def test_the_field_reads_a_status_it_cuts_short_whole(browser, serve):
+    """A finger holding the panel's field reads the status whole where the field cuts it
+    short, as a phone's field cuts most statuses, and the hold presses nothing; a
+    pointer resting on the field reads it too. A status the field shows whole previews
+    nothing, whoever says it, so the row repeats no words over the page and a hold
+    there keeps the platform's own menu. A draft, which hides the status, previews
+    nothing either."""
+    url = serve(LONG_PAGE)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    context.clock.install()
+    phone = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(phone)
+
+    def hold():
+        box = field(phone).bounding_box()
+        point = {"x": box["x"] + 40, "y": box["y"] + box["height"] / 2}
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
+        )
+        dwelt(phone, "HOLD")
+        menu = long_press(phone, point)
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        rendered(phone)
+        return menu
+
+    # Leaf's own words, the status of a page no agent has opened.
+    expect(field(phone)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
+    rendered(phone)
+    assert hold() is True, "a hold on whole words kept the platform's menu shut"
+    expect(phone.locator(PREVIEW)).to_be_hidden()
+    # Chromium's injected touch, ending where no hold read, presses the field.
+    field(phone).blur()
+
+    working(serve.page_dir, CUT_STATUS)
+    expect(field(phone)).to_have_attribute(
+        "placeholder", re.compile(re.escape(CUT_STATUS))
+    )
+    assert hold() is False, "the platform's menu opened"
+    expect(phone.locator(PREVIEW)).to_have_text(CUT_STATUS)
+    expect(field(phone)).not_to_be_focused()
+    context.close()
+
+    page = floating(clocked(browser), url)
+    preview = page.locator(PREVIEW)
+    field(page).hover()
+    dwelt(page)
+    expect(preview).to_have_text(CUT_STATUS)
+
+    page.mouse.move(5, 5)
+    working(serve.page_dir, "Drafting the rollout")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Drafting the rollout ")
+    )
+    field(page).hover()
+    dwelt(page)
+    expect(preview).to_be_hidden()
+
+    page.mouse.move(5, 5)
+    working(serve.page_dir, CUT_STATUS)
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(re.escape(CUT_STATUS))
+    )
+    write(field(page), "Keep my unfinished question")
+    # The caret elsewhere, the field's words are the status again, under the draft.
+    page.mouse.click(5, 5)
+    field(page).hover()
+    dwelt(page)
+    expect(preview).to_be_hidden()

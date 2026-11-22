@@ -1258,6 +1258,7 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     [
         ("", False, False),
         ("", True, False),
+        ("retimed", False, False),
         ("part_at_once", False, False),
         ("unstanding", False, True),
         ("unstanding", True, True),
@@ -1273,7 +1274,8 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
     parts, may draw the step news's append growth takes as travel: a ResizeObserver
     delivery no input owns begins a carry that draws the standing port's head where it
     was and slides it to where its rise puts it, or draws part of the step at once, as
-    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    news may draw all of it, and a carry re-timed before any frame draws it is the
+    same carry. The step itself is judged as if drawn at once, so a carry
     of a step the port may not take still fails, as does one that draws the head below
     where it was, past where its rise puts it, or past it on the way. A key pressed
     elsewhere while the carry runs changes none of that, though it starts a new run:
@@ -1310,10 +1312,17 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
                 unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
                   { '--carry': '0px 0px' }],
               }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
-              window.carries = [row, port].map((part) => {
+              const carry = () => [row, port].map((part) => {
                 part.style.translate = 'var(--carry)';
                 return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
               });
+              window.carries = carry();
+              // Re-timed from where it is drawn before any frame draws it, as
+              // box-motion.js re-times a carry a second delivery reaches.
+              if (fault === 'retimed') {
+                window.carries.forEach((carry) => carry.cancel());
+                window.carries = carry();
+              }
             }).observe(port);
             </script></body>"""
         )
@@ -2049,51 +2058,6 @@ def _far_sample(sample_id, after_id):
         f'<p>Practice</p><div style="height: 100px"></div></template></lf-sample>'
         f'<p><button id="{after_id}">After the sample</button></p>'
     )
-
-
-def test_a_jump_owns_the_fit_of_the_live_sample_it_brings_near(browser, serve):
-    """A link that jumps to a live sample far down starts its page there (`whenNear`),
-    and the frame fits that page as soon as it draws, carrying what follows it: the
-    jump owns that landing, however late it comes. It owns nothing after the landing,
-    so a control that moves once the frame has fitted is reported. A sample a script
-    brings near, with no input, fits as news, and its fit is reported too."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Fit on arrival",
-                '<p><a id="jump" href="#far">Jump to the sample</a></p>'
-                '<div style="height: 400vh"></div>'
-                + _far_sample("far", "after")
-                + '<div style="height: 400vh"></div>'
-                + _far_sample("scripted", "later")
-                + '<div style="height: 100vh"></div>',
-            )
-        ),
-    )
-    fitted = """sample => {
-        const frame = sample.querySelector('iframe');
-        return sample.ready.then(() => frame.clientHeight < 300);
-    }"""
-    page.locator("#jump").click()
-    page.wait_for_function(f"({fitted})(document.querySelector('#far'))")
-    rendered(page)
-    judge_watches()
-    assert page.lf_errors == []
-
-    page.locator("#after").evaluate("node => { node.style.marginTop = '40px'; }")
-    rendered(page)
-    judge_watches()
-    consume_browser_errors(page, moved_within("button#after"))
-
-    page.locator("#scripted").evaluate(
-        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
-    )
-    page.wait_for_function(f"({fitted})(document.querySelector('#scripted'))")
-    rendered(page)
-    judge_watches()
-    moved = consume_browser_errors(page, {"code": "moved-without-input"})
-    assert names_move(moved, "button#later"), moved
 
 
 @pytest.mark.parametrize("retired_at", ["click", "resolve-remove", "remove-resolve"])

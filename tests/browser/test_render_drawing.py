@@ -710,7 +710,8 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 
 def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     """Drawing is a drag, not a new click meaning. A click is swallowed without
-    opening a comment or activating the page, and Escape restores ordinary reading."""
+    opening a comment or activating the page, and Escape restores ordinary reading. A
+    listener hears the keys that leave the mode as it begins."""
     page = open_page(browser, serve(TARGETS_PAGE))
     target = page.locator("#prose")
     target.evaluate(
@@ -720,6 +721,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.move(*point)
     page.keyboard.press("w")
+    expect(page.locator(".lf-live")).to_contain_text("w or Escape exit Draw mode")
 
     page.mouse.click(*point)
 

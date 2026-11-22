@@ -543,11 +543,12 @@ holds the measurement.
   faces by element, where its theme turns on markup's reading face, never by writing
   Leaf's names (`styles/components/controls.css`, "The faces of Leaf's control
   roles"); the `lf-` classes a page may write are those a kernel idiom declares, such
-  as `lf-scroll`, which `page check` therefore lets it write. A drawing's rules
-  (`svg.lf-drawing`) name the marks its entry tells an author to write inside one, such
-  as `.box`, since they reach nothing outside a drawing. The kernel's other
-  classes for authors are the Layouts' (`layout-column`, `density-working`), and a
-  theme's idioms, such as the reading theme's `.tag`, come with the theme a page takes.
+  as `lf-scroll` or `lf-tag`, which `page check` therefore lets it write. An idiom's
+  rules name the bare words its entry tells an author to write with it, since they
+  reach nothing outside the idiom: a variant beside its class, as `.warn` in
+  `.lf-tag.warn`, and a drawing's marks inside `svg.lf-drawing`, such as `.box`. The
+  kernel's other classes for authors are the Layouts' (`layout-column`,
+  `density-working`).
   A library's names on an element Leaf draws for that library, such as Pierre's row
   attributes, stay the library's.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,

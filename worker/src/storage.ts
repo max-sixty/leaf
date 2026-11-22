@@ -55,6 +55,12 @@ import type {
   ServedNewsAnswer,
   ServedState,
 } from "../../browser/types/contract.js";
+import { hex } from "./routing";
+
+// The lowercase hex SHA-256 of `bytes`: a chunk's name and a publication's identity.
+async function sha256Hex(bytes: BufferSource): Promise<string> {
+  return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+}
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -207,13 +213,7 @@ export class PageStore {
             )
           : value,
     );
-    const identity = Array.from(
-      new Uint8Array(
-        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(descriptor)),
-      ),
-    )
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+    const identity = await sha256Hex(new TextEncoder().encode(descriptor));
     return this.storage.transactionSync(() => {
       const root = publication.root;
       this.erase(root, true);
@@ -250,11 +250,7 @@ export class PageStore {
     digest.parse(name);
     if (bytes.byteLength > CHUNK_BYTES)
       throw new Error("page storage chunk exceeds 1 MiB");
-    const actual = Array.from(
-      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-    )
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+    const actual = await sha256Hex(bytes);
     if (actual !== name)
       throw new Error("page storage chunk digest does not match bytes");
     if (!this.references(true).includes(name)) {

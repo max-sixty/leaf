@@ -806,7 +806,7 @@ CARD_OPTIONS_PAGE = leaf_page(
     """<h1 id="title">Sidebar</h1>
 <lf-group id="stick-ask" label="How should a long sidebar stick?"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
-  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small> <strong>Wrap the blocks in one box</strong>
+  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="lf-tag">two days</small> <strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
     <svg class="lf-drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
   <lf-option id="stick-aside" label="Stick the aside itself"><strong>Stick the aside itself</strong> It covers the

@@ -38,9 +38,9 @@
    another tab. The notice that follows a discard offers it as its press, Restore edit
    (notifications.js, `press`), which the panel field's end shows only while `g D`
    would make it. Escape lands the caret in the reply box, where `g` types a letter, so
-   the press shows only once the user leaves the box within the notice's moment, and the
-   live region, which hears the notice as it arrives, hears no key. Holding the notice
-   until the next input would not lengthen that: the Escape that leaves the box is one.
+   the press shows only once the user leaves the box within the notice's moment. Holding
+   the notice until the next input would not lengthen that: the Escape that leaves the
+   box is one.
    Rejected: a timed Undo chip after the discard, a target the user cannot learn
    (notifications.js), and a row of every page's menu for a pointer or finger, which put
    a command on each page for a mishap of one keyboard gesture (the user's decision).

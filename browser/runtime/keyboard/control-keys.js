@@ -48,7 +48,6 @@ import {
   labelOf,
   live,
   spell,
-  spokenBinding,
   word,
 } from "./bindings.js";
 import { activeCommandBinding, availableCommandRoutes } from "./dispatch.js";
@@ -102,26 +101,12 @@ function pressNow(id) {
   return null;
 }
 /** The keys that would make a command's press now (`pressNow`), each spelled as a key
- * chip spells it, or none. */
+ * chip spells it, or none, as on a page that shows no keys, a touchscreen's. */
 /** @param {string} id */
 export function commandKeysNow(id) {
-  const now = pressNow(id);
+  const now = advertisesKeys() ? pressNow(id) : null;
   return now ? [...now.before, spell(now.binding)] : [];
 }
-/** The same keys as a listener hears them, every modifier said (bindings.js,
- * `spokenBinding`). */
-/** @param {string} id */
-export function spokenKeysNow(id) {
-  const now = pressNow(id);
-  return now ? [...now.before, spokenBinding(now.binding)] : [];
-}
-/** What a press says where Leaf offers it beside a seat's words, as the panel field's
- * end does (composing/input.js, `BoxPress`): its word and the keys that would make it
- * now, its word alone where the page shows no keys, since a finger presses the word, or
- * nothing where the page shows keys and none would make it.
- * @param {string} word @param {readonly string[]} keys */
-export const pressWords = (word, keys) =>
-  !advertisesKeys() ? word : keys.length ? [word, ...keys].join(" ") : "";
 
 /** @typedef {{revision: number, available: ReturnType<typeof availableCommandRoutes>, controls: Map<Element, string[]>}} Reaching */
 /** @type {Reaching | null} */

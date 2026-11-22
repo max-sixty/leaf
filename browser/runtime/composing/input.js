@@ -54,7 +54,6 @@ import {
   spell,
   PRESS,
 } from "../keyboard/bindings.js";
-import { pressWords } from "../keyboard/control-keys.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, keepsNotice } from "../notifications.js";
 import { selectableOffered } from "../element-markers.js";
@@ -355,10 +354,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // so the words never move between parts as focus comes and goes. Or, as a
       // `BoxPress`, the one press the box offers at rest in that place, such as a
       // passing notice's Undo: its word and the keys of the command that makes it, read
-      // as the entering word and its key are, and pressed where they read, by a pointer
-      // or a finger, since it stands where the box's own words do and goes when they go
-      // (`pressAtRest`). It stands only while one of its keys would make it now, and a
-      // finger, shown no keys, is shown its word alone.
+      // as the entering word and its key are, and pressed where they read by a pointer,
+      // since it stands where the box's own words do and goes when they go
+      // (`pressAtRest`). It stands only while one of its keys would make it now, so never
+      // on a touchscreen, which is shown no keys: there a word alone reads as status
+      // rather than a control, the user judged, and the panel's menu and lists reach each
+      // press's result.
       // Null where no key enters the box at rest, so not even its key stands there, as
       // while the page holds keys pressed before it loaded, which a key would only join.
       enters = () => "",
@@ -615,9 +616,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey = lineKeyOf(sendKeys);
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && typeof offered === "string" ? offered : "";
-      // What a press says at rest, or nothing where it stands nowhere (`enters`).
+      // What a press says at rest: its word and the keys that would make it now, or
+      // nothing where none would (`enters`).
       /** @param {BoxPress} reading */
-      const said = (reading) => pressWords(reading.word, reading.keys);
+      const said = (reading) =>
+        reading.keys.length ? [reading.word, ...reading.keys].join(" ") : "";
       const pressText = press ? said(press) : "";
       // The press as drawn, whose keys its owner reads at each ask, so the recheck
       // costs that reading alone rather than the box's words.

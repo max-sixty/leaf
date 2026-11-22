@@ -36,7 +36,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD, scroll_settled
+from leaf_dev.browser import PANEL_THREAD, panel_tab, scroll_settled
 
 PAGE = leaf_page(
     "Since",
@@ -253,7 +253,7 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes v")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
     expect_panel_says(page, "2 changes since v1 · Show changes v")
     expect(marked).to_have_count(0)
     page.keyboard.press("v")
@@ -265,10 +265,10 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     assert "Show changes" not in (panel_field(page).get_attribute("placeholder") or "")
 
 
-def test_on_a_touchscreen_the_news_names_no_key(browser, serve):
-    """A touchscreen has no `v` to press, so neither the panel's field nor the live
-    region names one: each offers Show changes as its word alone, the finger's route to
-    the changes."""
+def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):
+    """A touchscreen shows no keys, and a press's word alone at the field's end reads as
+    status rather than a control, so the news offers no press there: the panel's menu
+    has Show changes."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     context = browser.new_context(
@@ -281,9 +281,14 @@ def test_on_a_touchscreen_the_news_names_no_key(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes")
-    expect_panel_says(page, "2 changes since v1 · Show changes")
-    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_text("Show changes")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect_panel_says(page, "2 changes since v1")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
+    page.locator(".lf-fp-leaf").tap()
+    panel_tab(page, "Menu").tap()
+    page.locator(".lf-fp-item", has_text="Annotations").first.tap()
+    page.locator(".lf-fp-item", has_text="Show changes").tap()
+    expect(page.locator("main .lf-ins-block")).to_have_count(2)
 
 
 def test_news_s_press_stays_under_a_resting_pointer_until_the_next_input(
@@ -331,7 +336,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     wait_for_revision(page, 3)
 
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2. Show changes v")
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
     page.keyboard.press("v")
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
@@ -358,7 +363,7 @@ def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serv
     revise(d, DELTA)
     wait_for_revision(page, 3)
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes v")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
     assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 

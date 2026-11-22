@@ -50,10 +50,11 @@
  * otherwise the end shows nothing: with the caret in a card's reply, `m` types a letter,
  * so Next On Me leaves the end; with a thread opened inside a stance, Escape closes the
  * thread before the stance, so Close leaves it (composing/input.js, `enters`). A finger,
- * which is shown no keys, is shown the press's word alone, its route to the press, but
- * for Close, whose route is the ✕ beside it (floating-panel.js, `stanceClose`). The user
- * chose this, since the end is there to show shortcuts, over a press standing without
- * its key wherever the caret stood. They chose a notice's press, so a Resolve that moves the
+ * which is shown no keys, is shown no press there: the user judged that a word alone at
+ * the end reads as status rather than a control, and the panel's menu and lists reach
+ * each press's result, as the ✕ beside a stance's name is Close's (floating-panel.js,
+ * `stanceClose`). The user chose this, since the end is there to show shortcuts, over a
+ * press standing without its key wherever the caret stood. They chose a notice's press, so a Resolve that moves the
  * panel on says which thread it resolved and offers its next step there, over Undo and
  * ⌘Z after a Resolve. They chose Next On Me at rest while On Me lists anything over
  * Comment and c, since from reading or backing out `m` is the press they most often make

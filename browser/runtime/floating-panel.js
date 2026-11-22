@@ -478,13 +478,17 @@ const NO_STANDING = new Set();
 // the words the screen lacks (walk-position.js, `walkWords`). `says` is what the
 // surface's own words say of where the user stands: the page field's say each fact
 // `standing` does (`STANDING`), so a notice about one of them is left to those words,
-// unless it offers a press, which those words don't, and a walk over its list says its
+// unless the field's end shows its press, which those words don't say. The end shows it
+// only with a key that would make it now (control-keys.js, `commandKeysNow`), so never on
+// a touchscreen. A walk over its list says its
 // place alone; the folded leaf's peek and a thread's field say none.
 /** @param {ReadonlySet<string>} says */
 function passingFacts(says) {
   const notice = noticeReading();
   const { goTo, walk } = statusContextReading();
-  const said = notice.about !== null && !notice.press && says.has(notice.about);
+  const offers =
+    notice.press !== null && commandKeysNow(notice.press.command).length > 0;
+  const said = notice.about !== null && !offers && says.has(notice.about);
   return {
     notice: notice.visible && !said ? notice : null,
     goTo,

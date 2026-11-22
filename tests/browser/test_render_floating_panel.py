@@ -3759,9 +3759,7 @@ def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, se
     page.locator("body").focus()
     page.keyboard.press("o")
     expect_panel_says(page, "Annotations hidden · Show annotations o")
-    expect(page.locator(".lf-live")).to_have_text(
-        "Annotations hidden. Show annotations o"
-    )
+    expect(page.locator(".lf-live")).to_have_text("Annotations hidden")
     page.keyboard.press("o")
     # Read once the press has drawn, while its notice's moment still stands.
     rendered(page)
@@ -3778,6 +3776,26 @@ def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, se
     expect_panel_says(page, "Annotations hidden")
     page.keyboard.press("o")
     expect_panel_says(page, "Annotations shown")
+
+
+def test_on_a_touchscreen_hiding_annotations_offers_no_press(browser, serve):
+    """A touchscreen shows no keys, and a press's word alone at the field's end reads as
+    status rather than a control, so hiding the annotations from the menu offers no
+    Show annotations there, and the field's standing words say where the user stands,
+    with no notice repeating them."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
+    page.locator(".lf-fp-leaf").tap()
+    panel_tab(page, "Menu").tap()
+    page.locator(".lf-fp-item", has_text="Annotations").first.tap()
+    page.locator(".lf-fp-item", has_text="Hide annotations").tap()
+    expect(page.locator(".lf-chrome[data-lf-annotations-hidden]")).to_have_count(1)
+    expect_panel_says(page, "Annotations hidden")
+    rendered(page)
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
 
 
 def test_a_press_at_the_field_s_end_stays_under_a_resting_pointer(browser, serve):

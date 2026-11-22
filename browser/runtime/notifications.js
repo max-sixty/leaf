@@ -12,10 +12,12 @@
    `offerUndo`), and with news, the press that shows what it reports, as Show changes
    does for the changes since the version the user last saw (since-seen.js). The
    floating panel's field says the press at its end, after the words, as "Resolved “One
-   reconnect in about 40” … Next thread t", and the live region hears it after them,
-   each with the keys that would make it now (`pressReading`; keyboard/control-keys.js,
-   `pressWords`). So a notice's words name no key: one written into them would stand
-   where it makes no press, as on a touchscreen or with the caret in a box.
+   reconnect in about 40” … Next thread t", with the keys that would make it now, and
+   only while some would (`pressReading`; keyboard/control-keys.js, `commandKeysNow`):
+   so never on a touchscreen, where the panel's menu and lists reach what it does. The
+   live region hears the words alone, and a screen reader meets the press as the button
+   it is, its key inside. So a notice's words name no key: one written into them would
+   stand where it makes no press, as on a touchscreen or with the caret in a box.
    A notice of a gesture stands no longer than its gesture does, so its press never
    acts for anything else. Any notice stands no longer than what its words say holds
    (`stands`), shown or waiting: news that a comparison would show changes goes once a
@@ -47,7 +49,7 @@ import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
 import { actionName } from "./icon-paths.js";
-import { commandKeysNow, pressWords, spokenKeysNow } from "./keyboard/control-keys.js";
+import { commandKeysNow } from "./keyboard/control-keys.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
@@ -274,7 +276,7 @@ export function notice(
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
-  if (speak) announce(spokenNotice(msg, press));
+  if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg, stands, press);
     if (userContext || stepping.peek() || noticeVisible())
@@ -302,16 +304,6 @@ export const pressReading = (press) => ({
   run: press.run,
   stands: press.stands,
 });
-// What the live region hears of a notice: its words, then its press as the field's end
-// says it, its keys as a listener hears them.
-/** @param {Words} msg @param {NoticePress | null} press @returns {Words} */
-function spokenNotice(msg, press) {
-  const said = press
-    ? pressWords(actionName(press.action), spokenKeysNow(press.command))
-    : "";
-  return said ? `${wordsText(msg)}. ${said}` : msg;
-}
-
 // Take the notice down for something the user asked for, putting a background notice
 // it was showing back at the front of the queue. Unlike the notice's own timer, which
 // retires it, this keeps the news for later.

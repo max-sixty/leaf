@@ -283,8 +283,8 @@ An ordinary reply leaves the thread open, or reopens one you resolved, so the us
 inspect the answer; the user usually resolves it. A thread the user resolved stays
 closed: resolving takes the thread off their lists and takes back nothing they asked
 there, so your answer, or a result you promised, goes into it with nothing on their
-lists to announce it. Tell them in the chat what they should know of it. Only a question
-to them there, in words or as a pick, reopens it. Resolve a thread yourself only when
+lists to announce it. Only a question to them there, in words or as a pick, reopens it.
+Resolve a thread yourself only when
 the user asks, when an event's `handling` says to, when its question was settled
 elsewhere (`conversation-loop.md`, "The On lists"), or when no review or follow-up could
 change the outcome, which finishing the work does not show by itself. When unsure, leave

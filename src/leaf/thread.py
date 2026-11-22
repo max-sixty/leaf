@@ -20,7 +20,6 @@ from leaf.event_log import read_events
 from leaf.events import (
     active_summaries,
     build_threads,
-    closed_by_user,
     is_answer,
     taken_back,
 )
@@ -382,7 +381,7 @@ def ask_again(
 ) -> dict | None:
     """The agent's message asking `question` (`message:<id>`, or the bare id) again in
     its thread in `page`, an open transaction, from a `body` already checked; like
-    any spoken reply it reopens the thread if it was resolved. Where its HTML holds a widget that asks, such as a
+    a message that asks, it reopens the thread if it was resolved. Where its HTML holds a widget that asks, such as a
     choice, the message asks with it. Otherwise it asks in words: a question first
     asked in words stands open on it under its own id, as `leaf thread reply <page>
     <message> --obligation <question>` posts it, and one a widget asked is asked
@@ -1065,18 +1064,14 @@ def _compose_and_append(
         # A thread keeps the first title it was given (`events.build_threads`), so
         # the agent hears which one stands.
         note(Finding("title-kept", values={"title": before["title"]}))
-    if unannounced:
-        # Only the agent knows whether the user needs to see this message, and
-        # nothing on their lists will announce it.
-        note(Finding("reply-kept-closed"))
     return record, published
 
 
 def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
     """Whether the agent's message goes into `thread` without reopening it, which
-    the reply records as `unannounced` (`events.build_threads`): the user's own
-    resolve holds the thread closed, and the message asks them nothing, in words or
-    with a widget.
+    the reply records as `unannounced` (`events.build_threads`): the user resolved
+    the thread and has not reopened it, whatever closed it after, and the message
+    asks them nothing, in words or with a widget.
 
     A thread the user resolved stays off their lists until they reopen it or the
     agent asks them something there. The user chose that the answer to a request they
@@ -1089,7 +1084,7 @@ def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
     the answer alone reopened the thread for the result and left it closed for the
     promise. A message that asks reopens it, since the user answers a question in its
     thread and ends one they won't answer by resolving it."""
-    return closed_by_user(thread) and not asks
+    return thread["closed_by_user"] and not asks
 
 
 def post_response(

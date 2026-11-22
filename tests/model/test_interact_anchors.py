@@ -434,9 +434,8 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     """The user's resolve takes the thread off their list and leaves the request
     owed, so the reply the delivery addressed still answers it, in the thread the
-    user closed. The thread stays closed for whatever the agent says in it, and the
-    command says nothing announces the message; only a question to the user reopens
-    it."""
+    user closed. The thread stays closed for whatever the agent says in it; only a
+    question to the user reopens it."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -460,7 +459,6 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     events = events_model.read_events(page_dir)
     assert events[-1]["responds"] == root["id"]
     assert owed_answers(page_dir) == []
-    assert "reply-kept-closed" in answered.output
     [thread] = state_json(page_dir)["threads"]
     assert thread["resolved"] == "user"
 
@@ -471,10 +469,19 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
         )
         assert said.exit_code == 0, said.output
         [thread] = state_json(page_dir)["threads"]
-        return thread["resolved"], "reply-kept-closed" in said.output
+        return thread["resolved"], events_model.read_events(page_dir)[-1].get(
+            "unannounced"
+        )
 
     assert says() == ("user", True)
-    assert says("--obligation") == (None, False)
+    # The agent's own resolve on top of the user's leaves the thread the user's to
+    # reopen: a later message still goes in unannounced.
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert says() == ("agent", True)
+    assert says("--obligation") == (None, None)
 
 
 def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_dir):

@@ -29,12 +29,10 @@ watches (`session.Watch`), and the next prompt tries again where that failed.
 Telling the agent to run `leaf server start` instead leaves the user's tab without
 a server until the agent acts, which an agent can put off or never do.
 
-A session moves to another copy of Leaf at `/reload-plugins` or in a new process of
-the session, such as a background job's wake or a resume, which loads the copy Claude
-Code has installed since (`session_runtime.py`). Its agent then reads `page check`
-from that copy, while each page's server goes on running the copy that started it, so
-what the user's tab draws may differ from what the agent checked. So once the prompt
-has served pages again, it restarts the server of each page the session holds that
+A session that loads a newer installed copy (`session_runtime.py`) reads `page check`
+from it, while each page's server goes on running the copy that started it, so what
+the user's tab draws may differ from what the agent checked. So once the prompt has
+served pages again, it restarts the server of each page the session holds that
 another installed copy started, where the hook runs an installed copy too
 (`state.plugin_cache_copy`). It finds another Leaf by the test `leaf server start`
 makes (`hosting.other_serving_leaf`), and restarts the server as that command does,
@@ -42,16 +40,20 @@ at the same address (`hosting.restarting_server`).
 
 As that command does, the hook first asks whether this Leaf can serve the page, as a
 fresh bind decides it (`http.page_endpoint`), and leaves a page it can't serve to the
-copy serving it. A page at an older protocol is restarted by its renewal instead, as
-the hook reads it (`hook_transport`). A restart the hook has no time left for waits
-for a later prompt, and the agent hears of a server that did not start again. A hook
-from an installed copy reads each held page's service record and server lease; one
-from a checkout reads nothing more.
+copy serving it. A page at an older protocol fails that test; the hook's reading of
+the page renews it, which restarts its server (`hook_transport.read_plans`,
+`vendoring.renew_layer`). A restart takes a working server down before it starts
+the new one, so the hook begins one only while `RESTART_NEEDS` of its deadline is
+left, and leaves the rest to a later prompt, with the other copy serving the page
+meanwhile. The agent hears of a server that did not start again. A hook from an
+installed copy reads each held page's service record and server lease; one from a
+checkout reads nothing more.
 
 The maintainer chose to restart only a server an installed copy started, and only
-from an installed copy's hook. Also restarting a server a checkout started, or
-restarting from a checkout's hook, would move a session's pages between a checkout
-and an installed copy. Whether a checkout's command should move a session at all
+from an installed copy's hook. Restarting a checkout's server too would replace a
+server someone started from a checkout, such as a preview or a trial of a change,
+with the installed copy; restarting from a checkout's hook would move the session's
+pages onto that checkout. Whether a checkout should move a session's pages at all
 (`session_runtime.select_checkout`) is a question the maintainer has left open, and
 this rule holds whichever way it is settled.
 """
@@ -67,6 +69,12 @@ from .schema import PREVIEW_FILE
 from .service import claim_is_active, claim_records, claimant_matches, prepare_claim
 from .state import PLUGIN_ROOT, plugin_cache_copy
 
+# How much of the hook's deadline a restart needs left to begin: the old server
+# notices its stop within the 2 s between its lifetime checks
+# (`server.stop_when_service_ends`), and the new one starts in about a second, or
+# several on a loaded machine.
+RESTART_NEEDS = 5.0
+
 
 def serve_again(harness: Harness, started: float) -> list[Finding]:
     """Serve each page `harness`'s session still means to serve whose ownership or
@@ -79,9 +87,9 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
     the hook exits inside its timeout; a start that took the time the hook had to
     hand over input inline leaves that input to a pointer instead
     (`hook_transport`). A port another process holds refuses at once
-    (`hosting.listening_socket`). A restart left no time doesn't begin. The restarts
-    come after the serves, since a serve keeps a server still running through the
-    grace its earlier session left it, whichever copy started it."""
+    (`hosting.listening_socket`). A restart begins only with `RESTART_NEEDS` left.
+    The restarts come after the serves, since a serve keeps a server still running
+    through the grace its earlier session left it, whichever copy started it."""
     found = []
     if pages := to_serve(harness):
         from .hosting import claim_and_start
@@ -117,7 +125,7 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
 
         deadline = _deadline(started)
         for page_dir in pages:
-            if time.monotonic() >= deadline:
+            if deadline - time.monotonic() < RESTART_NEEDS:
                 break
             try:
                 with page_locked(page_dir):

@@ -2468,8 +2468,8 @@ _TEXT = {
         f"{v['page']}: server was down and did not start again: {v['error']}"
     ),
     "restart-refused": lambda at, v: (
-        f"{v['page']}: server ran another installed copy of Leaf, and this Leaf"
-        f" could not restart it: {v['error']}"
+        f"{v['page']}: this Leaf stopped the server another installed copy of Leaf"
+        f" ran, to restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

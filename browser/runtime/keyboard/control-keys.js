@@ -41,14 +41,19 @@
    works, and keeps `x` after a nearer declaration takes `x`. A close control says
    Escape where a row says Escape presses it, as the image viewer's does. */
 import {
+  advertisesKeys,
   ariaBindings,
   bindings,
   commandEntries,
   labelOf,
+  live,
+  parsed,
   spell,
+  spokenBinding,
+  titleOf,
   word,
 } from "./bindings.js";
-import { availableCommandRoutes } from "./dispatch.js";
+import { availableCommandRoutes, pressRuns } from "./dispatch.js";
 import { ELEMENTS, pageScopes } from "./register.js";
 import { projectControlShortcuts, reflectElementShortcuts } from "./scopes.js";
 import { nativeActivationAt } from "./text-entry.js";
@@ -136,3 +141,39 @@ export function paintCoreControls() {
   for (const control of new Set([...was.keys(), ...painted.keys()]))
     if (was.get(control) !== painted.get(control)) reflectElementShortcuts(control);
 }
+
+/** What a listener hears of the keys that would run `rows` if pressed now, each resolved
+ * as its press would be (dispatch.js, `pressRuns`), read out as key names, since a screen
+ * reader renders a chip's "esc" literally. Every announcement that names a key names it
+ * here, after words that name none, so it names no key a nearer scope, a focused field or
+ * an earlier step of Escape takes, as a drawing's composer takes `z` and a grabbed card
+ * Escape. Each key costs what its press would. Rows doing one thing under one title, as a
+ * mode's own key and the Escape that leaves it, are said once ("w or Escape exit Draw
+ * mode"). A touchscreen hears no keys, as it is shown none (`advertisesKeys`); a finger
+ * uses the controls on screen. */
+/** @param {readonly import("./bindings.js").Command[]} rows */
+export const saying = (rows) => {
+  if (!advertisesKeys()) return "";
+  /** @type {Map<string, string[]>} */
+  const said = new Map();
+  for (const row of rows) {
+    if (!live(row)) continue;
+    const reached = bindings(row).filter((binding) => pressRuns(binding, row));
+    if (!reached.length) continue;
+    const title = titleOf(row);
+    said.set(title, [...(said.get(title) ?? []), spoken(row, reached)]);
+  }
+  return [...said].map(([title, keys]) => `${keys.join(" or ")} ${title}`).join(", ");
+};
+// A row's own label where it has one, read the way every other surface reads a cell, and
+// the bindings where it has none — which is what keeps a listener hearing "Escape" rather
+// than the keycap's "esc". Asking whether the label was written as a string made the same fact
+// announce two ways by accident: an option group's digits are spelled "1–3" because its label
+// happens to be a string, while the sequence's were read out as "1 or 2 or 3" because its label
+// counts what the page holds and so has to be a function.
+/** @param {import("./bindings.js").Command} row @param {string[]} reached */
+const spoken = (row, reached) => {
+  if (reached.some((binding) => parsed(binding).mods.length))
+    return reached.map(spokenBinding).join(" or ");
+  return word(row.label) ?? reached.map(spokenBinding).join(" or ");
+};

@@ -83,6 +83,7 @@ import {
   answers,
   bindings,
   commandRun,
+  parsed,
   bindingEnabledFor,
   quickShortcuts,
   declaredBindings,
@@ -515,18 +516,35 @@ function resolveKey(ev) {
 }
 /** @param {KeyboardEvent} ev */
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
-// Escape with no key behind it, as the platform's close request asks for it
-// (close-requests.js): whether a press would take a step now, and taking it, through
-// the row's `keep` where it declares one (bindings.js).
-const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
+// A press of `binding` with no key behind it: Escape as the platform's close request
+// asks for it (close-requests.js), whether a press would take a step now, and taking
+// it, through the row's `keep` where it declares one (bindings.js); and each key an
+// announcement names (`pressRuns`).
+/** @param {string} binding */
+const pressOf = (binding) => {
+  const { key, mods } = parsed(binding);
+  return new window.KeyboardEvent("keydown", {
+    key,
+    shiftKey: mods.includes("Shift"),
+    metaKey: mods.includes("Mod"),
+    altKey: mods.includes("Alt"),
+  });
+};
 /** The step Escape would take now, or null: what a surface that names Escape's step
  * reads, as the floating panel's Close says `esc` only while Escape takes the stance
  * off. */
 export const escapeInvocation = () => {
-  const matched = resolveKey(escapePress());
+  const matched = resolveKey(pressOf("Escape"));
   return matched && matched !== INPUT_PENDING ? matched : null;
 };
 export const escapeTakesAStep = () => Boolean(escapeInvocation());
+/** Whether pressing `binding` now would run `row`, resolved as the press itself would be:
+ * what an announcement asks of each key it names (control-keys.js, `saying`). */
+/** @param {string} binding @param {Command} row */
+export const pressRuns = (binding, row) => {
+  const matched = resolveKey(pressOf(binding));
+  return Boolean(matched && matched !== INPUT_PENDING && matched.row === row);
+};
 export function answerCloseRequest() {
   const matched = escapeInvocation();
   if (!matched) return;

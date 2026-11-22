@@ -107,14 +107,17 @@ const presentNotice = (message, visible, press = null, about = null) => {
   noticePresentation.value = Object.freeze({ message, visible, press, about });
 };
 
-/** @param {Words} msg */
+/** @param {Words | (() => Words)} msg */
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
-  // fresh live-region change, including when two arrivals' delays overlap.
+  // fresh live-region change, including when two arrivals' delays overlap. Words read
+  // off the page, as the keys an announcement names (`saying`), come as a function,
+  // read as they are said: after the gesture's frame has laid the page out, so the
+  // reading lays out nothing in the gesture's own task.
   if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
     if (liveEl.firstChild) liveEl.replaceChildren();
-    liveEl.append(wordsText(msg));
+    liveEl.append(wordsText(typeof msg === "function" ? msg() : msg).trim());
   }, 30);
 }
 

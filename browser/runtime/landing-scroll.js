@@ -427,9 +427,8 @@ function readingBandMoves(where, holder, block) {
     // and as much as this region can show, rather than demanding its whole height.
     if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
     let by = nearestScrollBy(top, bottom, band.top, band.bottom);
-    // The page carries a region only as far as it carries it up the window
-    // (geometry.js, `pageCarry`): scrolled further, it moves what the reader reads
-    // beside a stuck region, and the destination not at all.
+    // Scrolled past how far it carries the region (geometry.js, `pageCarry`), the page
+    // moves what the reader reads beside the region and the destination not at all.
     if (outer === pageScroller && by > 0) by = Math.min(by, pageCarry(inner));
     ({ local, moved } = verticalTravel(outer, by));
     moves.push({ box: outer, local, moved, ahead });

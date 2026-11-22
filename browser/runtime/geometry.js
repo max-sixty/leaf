@@ -13,6 +13,7 @@ import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
+import { scrollLimit } from "./scrolling.js";
 import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
 
@@ -587,13 +588,10 @@ function displaced(sticky, style, axis) {
 // A scroller's landing band: its shown band less the room its landings keep at each
 // edge (`landingInsets`); the root's ends at the foot band the panel states
 // (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
-// scroller inside the page can reach under it. A landing names the columns its
-// destination stands in (`across`), and where a surface stands across them the band
-// ends no further below the root's than the page can still carry the scroller up
-// (`pageCarry`): the root's band brings the destination the rest of the way clear as
-// the page moves the scroller, and a landing in a scroller nothing carries, in a
-// workspace that fills the window or stuck in it, brings its destination clear of the
-// panel as one in the page does.
+// scroller inside the page can reach under it. Where a surface stands across the
+// columns a landing's destination stands in (`across`), the band ends at the root's
+// foot plus however far the page can still carry the scroller up (`pageCarry`), and
+// the root's band brings the destination the rest of the way clear.
 /** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
 export const landingBand = (scroller, across = null) => {
   const band = insetBand(scroller, landingInsets(scroller));
@@ -607,26 +605,28 @@ export const landingBand = (scroller, across = null) => {
     band.bottom = Math.max(band.top, Math.min(band.bottom, foot + pageCarry(scroller)));
   return band;
 };
-// How far scrolling the page on can still carry `scroller` up the window: as far as the
-// page scrolls before its end, and no further than a sticky box around the scroller
-// travels before it sticks in the page, after which the page scrolls past it. So a
-// landing in a side list standing a pixel short of the line it sticks at counts on the
-// page for that pixel alone: counting on it for more would scroll the item beside the
-// list away and leave the list's row where it stands. Nothing carries a scroller stuck
-// or fixed in the window (`stuckBox`).
+// How far scrolling the page on can still carry `scroller` up the window: to the page's
+// end, and no further than a box around the scroller that sticks at its top in the page
+// travels before it sticks, after which the page scrolls past it. So a side list
+// standing a pixel short of its line rides the page for that pixel alone. A box its
+// holder's end pushes past its line rides the page with the holder, and one that
+// sticks in a scroller inside the page rides it with that scroller. Nothing carries a
+// scroller fixed in the window, or one on a page that doesn't scroll, as a workspace
+// filling the window doesn't.
 /** @param {Element} scroller */
 export function pageCarry(scroller) {
-  if (stuckBox(scroller)) return 0;
   const root = document.documentElement;
-  let carry = root.scrollHeight - root.clientHeight - root.scrollTop;
+  let carry = scrollLimit(root) - root.scrollTop;
   /** @type {Element | null} */
   let box = scroller;
   for (; box instanceof Element; box = renderedParent(box)) {
     const style = getComputedStyle(box);
+    if (inWindow(box, style)) return 0;
     if (style.position !== "sticky") continue;
     const lines = stickLines(box, style);
-    if (lines?.scroller === root && !Number.isNaN(lines.top))
-      carry = Math.min(carry, box.getBoundingClientRect().top - lines.top);
+    const travel =
+      lines?.scroller === root ? box.getBoundingClientRect().top - lines.top : NaN;
+    if (travel > -1) carry = Math.min(carry, travel);
   }
   return Math.max(0, carry);
 }

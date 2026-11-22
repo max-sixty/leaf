@@ -290,12 +290,6 @@ open. First answer any unanswered user message in it:
 leaf thread resolve <page> <message>
 ```
 
-When the user resolves a thread holding a message or a pick you have not answered, they
-have taken the thread off their list, not the request back, so it stays owed. Answer it
-at its `answer.ref` like any other: your answer goes into the thread and leaves it
-closed, so nothing returns to their lists. Where it asks nothing of you, such as
-thanks, resolve the thread yourself, which answers for it.
-
 ## What the user has read
 
 Each thread in `leaf page state <page>` and `leaf page state <page> <message>`

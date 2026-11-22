@@ -696,16 +696,23 @@ export function markerReach(box) {
   if (own.display.startsWith("inline")) return none;
   const at = box.getBoundingClientRect();
   let style = own;
-  for (let item = box; !style.display.includes("list-item");) {
+  let item = box;
+  while (!style.display.includes("list-item")) {
     const holder = item.parentElement;
     if (!holder) return none;
     style = getComputedStyle(holder);
-    if (!opens(at, holder, style)) return none;
+    // A `display: contents` holder draws no box of its own to stand at the corner of.
+    if (style.display !== "contents" && !opens(at, holder, style)) return none;
     item = holder;
   }
+  // The marker's own `content` draws it where the list style draws none, and hides it.
+  const marker = getComputedStyle(item, "::marker").content;
   if (
     style.listStylePosition !== "outside" ||
-    (style.listStyleType === "none" && style.listStyleImage === "none")
+    marker === "none" ||
+    (marker === "normal" &&
+      style.listStyleType === "none" &&
+      style.listStyleImage === "none")
   )
     return none;
   const reach = Number.parseFloat(own.getPropertyValue("--lf-list-inset"));

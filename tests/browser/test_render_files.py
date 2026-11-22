@@ -2,6 +2,7 @@
 
 import io
 import re
+from datetime import UTC, datetime, timedelta
 
 from PIL import Image
 from playwright.sync_api import expect
@@ -768,3 +769,71 @@ def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(
         editor.get_by_role("textbox", name="File contents", exact=True)
     ).to_have_attribute("aria-readonly", "true")
     expect(editor.get_by_role("button", name="Retry")).to_be_hidden()
+
+
+def test_a_first_read_that_waits_a_second_says_the_file_is_loading(
+    browser, serve, tmp_path
+):
+    """A file's first read can wait seconds, as a first visit's does on leaf.page while
+    the visitor's container starts. Once it has waited a second, the empty editor says
+    the file is loading, in the line it already shows; a read answered sooner, as a
+    local page's is, shows no word."""
+    files = {name: tmp_path / f"{name}.md" for name in ("notes", "plan", "todo")}
+    for name, file in files.items():
+        file.write_text(f"{name.title()}.\n")
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<p><a href="#notes-file:plan">Plan</a> <a href="#notes-file:todo">To do</a></p>'
+            '<lf-file-editor id="notes-file" binding="notes plan todo"></lf-file-editor>',
+        ),
+        packages=["file-editor"],
+    )
+    for name, file in files.items():
+        bind_file(serve.page_dir, name, file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    placeholder = widget.locator(".cm-placeholder")
+    expect(editor).to_have_text("Notes.")
+
+    def editor_room():
+        return widget.evaluate(
+            """host => {
+              const edit = host.shadowRoot.querySelector('.lf-file-editor-edit');
+              const box = edit.getBoundingClientRect();
+              return [box.top - host.getBoundingClientRect().top, box.height];
+            }"""
+        )
+
+    room = editor_room()
+    widget.evaluate(
+        """host => {
+          window.placeholdersShown = [];
+          new MutationObserver(() => {
+            const shown = host.shadowRoot.querySelector('.cm-placeholder');
+            if (shown) window.placeholdersShown.push(shown.textContent);
+          }).observe(host.shadowRoot, {childList: true, subtree: true});
+        }"""
+    )
+    # The page starts on the browser's own time. From here on only the test moves it, so
+    # a read the server answers slowly still answers within the page's first second.
+    page.clock.install()
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.get_by_role("link", name="Plan").click()
+    page.clock.run_for(100)
+    expect(editor).to_have_text("Plan.")
+    assert page.evaluate("window.placeholdersShown") == []
+
+    held = []
+    page.route("**/api/files/todo", lambda route: held.append(route))
+    page.get_by_role("link", name="To do").click()
+    page.clock.run_for(900)
+    expect(placeholder).to_have_count(0)
+    page.clock.run_for(200)
+    expect(placeholder).to_have_text("Loading file…")
+    assert editor_room() == room
+    held[0].continue_()
+    expect(editor).to_have_text("Todo.")
+    expect(placeholder).to_have_count(0)
+    assert editor_room() == room

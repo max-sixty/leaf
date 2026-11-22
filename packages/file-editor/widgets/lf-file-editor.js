@@ -46,7 +46,11 @@
  * other choices still stand; it then reads "Not saved", the slot's one line having
  * no room for both, with the error as its description. Where no file
  * could be read at all, the status reads "Unavailable" and the empty editor shows
- * why, as its placeholder.
+ * why, as its placeholder. Once a file's first read has waited a second, as on
+ * leaf.page while a visitor's container starts, the placeholder says "Loading file…"
+ * until the read answers; a local page's read answers well within that second, so it
+ * shows no word. Rejected: the word in the status slot, which sits at the header's
+ * far end from the empty line the reader looks at.
  * The comparison of both versions opens below the editor only on the reader's
  * Compare, and shares the editing room with it. Rejected: a pane below
  * the editor holding the error, the choices and the comparison, which took the
@@ -97,7 +101,8 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
  *   base: FileSnapshot | null, latest: FileSnapshot | null,
  *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
  *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
- *   slow: boolean, generation: number, timer: number, slowTimer: number | null,
+ *   slow: boolean, loading: boolean, generation: number, timer: number,
+ *   slowTimer: number | null,
  *   kept: import("./editor.js").KeptFile | null, named: string | null,
  * }} OpenFile */
 
@@ -190,6 +195,7 @@ customElements.define(
             recovering: false,
             owed: false,
             slow: false,
+            loading: false,
             generation: 0,
             timer: 0,
             slowTimer: null,
@@ -394,9 +400,13 @@ customElements.define(
         const name = label(of);
         editor.setLabel(name);
         editor.readOnly = of.base === null || !of.api.writable;
-        // With no file to show, as on an export or an unbound page, the empty editor
-        // says why, where a finger and the eye already are.
-        editor.placeholder = of.base === null ? (of.failure?.message ?? "") : "";
+        // With no file to show, as on an export or an unbound page, or while a slow
+        // first read waits, the empty editor says why, where a finger and the eye
+        // already are.
+        editor.placeholder =
+          of.base === null
+            ? (of.failure?.message ?? (of.loading ? "Loading file…" : ""))
+            : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
         if (!of.latest && isNativeLayer(choices())) closeNativeLayer(choices());
@@ -629,6 +639,12 @@ customElements.define(
         of.busy = of.api.writable;
         of.owed = false;
         const seenGeneration = of.generation;
+        const slow = of.base
+          ? 0
+          : setTimeout(() => {
+              of.loading = true;
+              if (of === file) paint();
+            }, 1000);
         try {
           const current = await of.api.read();
           if (
@@ -655,6 +671,8 @@ customElements.define(
         } catch (fault) {
           of.failure = { kind: "read", message: describeFailure(fault) };
         } finally {
+          clearTimeout(slow);
+          of.loading = false;
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);

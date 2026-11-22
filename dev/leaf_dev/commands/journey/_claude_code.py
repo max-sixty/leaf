@@ -26,7 +26,7 @@ any input, while a line fork posts the agent's working line on it (`leaf.forks`)
 and the session decides who does its work: itself, or a subagent that would answer
 in its place. So each delivery step's comment asks for a change to the page, which
 the session makes itself, and the step tests the session's own delivery from then
-on; `withdrawn`'s comment needs none, since the user resolves it at once. The fork
+on; `withdrawn`'s comment needs none, since the user takes it back at once. The fork
 steps run right after `release`. Whether a message is worth a fork is the session's
 call, and it does a one-step lookup itself, so both fork steps send their message
 while the session runs the user's own turn, and the first asks for the work beside
@@ -72,8 +72,10 @@ Then the delivery steps:
   comment's wake runs its prompt hooks, and Escape lands once Leaf's has handed the
   comment over, so Claude Code drops what Leaf's hook returned. It submits the wake
   again, whose prompt hook hands the comment over anew, and a turn answers it;
-- `withdrawn`: the same for an update that owes nothing, a resolve of a thread whose
-  comment had no answer yet, which must still reach a hook's context after Escape;
+- `withdrawn`: the same for an update that owes nothing, the user taking back a
+  comment that had no answer yet, which must still reach a hook's context after
+  Escape. A resolve of that thread would not do: it leaves the comment owed and
+  reaches no hook;
 - `boundary`: a comment that arrives while a wake's turn answers another, handed over
   at the tool boundary after that answer, whose other hook sleeps, and Escape then
   ends that turn with neither comment half done. Another hook before each shell
@@ -629,13 +631,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         started = time.monotonic()
         url = require(running_server(page), "the page has no server")["url"]
         comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
-        resolved = PageClient(url).post(
-            {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
+        taken_back = PageClient(url).post(
+            {"kind": "undo", "undoes": comment, "attempt": attempt("undo")}
         )["id"]
-        held = drop(resolved)
+        held = drop(taken_back)
         cc.until(
-            lambda: delivery_ended(since(held), resolved),
-            "withdrawn: the resolve Escape dropped never reached the agent",
+            lambda: delivery_ended(since(held), taken_back),
+            "withdrawn: the take-back Escape dropped never reached the agent",
             120,
         )
         step("withdrawn", started)

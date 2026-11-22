@@ -156,8 +156,8 @@ def test_merge_film_steps_have_a_keyboard_route(browser, serve):
 def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser, serve):
     """Where the film's pane is narrow enough for its phone layout but the workspace
     still fills an 800x720 window, the stage keeps its content's height and the pane
-    scrolls to its end: the terminal below the drawing stays reachable and clear of
-    Leaf's panel rather than clipped inside a squeezed stage."""
+    scrolls to its end: the terminal below the drawing stays reachable in the window
+    rather than clipped inside a squeezed stage."""
     source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, 800, 720)
@@ -172,10 +172,12 @@ def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser,
             clipped: stage.scrollHeight - stage.clientHeight,
             terminalBottom: terminal.getBoundingClientRect().bottom,
             stageBottom: stage.getBoundingClientRect().bottom,
-            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+            shownBottom: Math.min(
+              film.getBoundingClientRect().top + film.clientTop + film.clientHeight,
+              innerHeight),
           };
         }"""
     )
     assert geometry["clipped"] <= 1, geometry
     assert geometry["terminalBottom"] <= geometry["stageBottom"], geometry
-    assert geometry["stageBottom"] <= geometry["panelTop"], geometry
+    assert geometry["stageBottom"] <= geometry["shownBottom"], geometry

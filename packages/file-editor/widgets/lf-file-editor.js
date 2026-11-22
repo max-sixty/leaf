@@ -32,12 +32,19 @@
  * The editor takes the open file from the page's state (`boundFile().read`) when it
  * connects, when the reader opens it and when the state carries the binding anew
  * (`boundFile().watch`), so the file is drawn with the page's state and the page
- * presents with it. A state read the server began before a save can arrive after the
- * save's answer, so a file the server read before the version the editor holds
- * (`taken`) is passed over; any later write moves the file's stamp, and its news
- * brings that version. A reading that arrives while a save is in
- * flight, or while a failed save or a conflict holds the file, stays owed until a
- * later reading or save covers it.
+ * presents with it. The page adopts its state answers in order, but a state read the
+ * server began before one of this tab's saves landed can arrive after the save's
+ * answer. A save lands only on the revision it names, so that reading can carry only a
+ * revision this tab's own saves moved the file off (`replaced`), and a reading of one
+ * of those is no news; any other reading came after those saves and empties the set.
+ * The cost: where something else puts back exactly the bytes the reader's save
+ * replaced before the page's state has caught up with that save, the editor keeps the
+ * reader's version, and its next save is refused and settles as any conflict does. A
+ * write from elsewhere the editor follows never enters the set, so an agent that edits
+ * a file and then reverts the edit is followed both times. A reading that says the
+ * file can't be read has no revision to judge and stands as a failure until the next
+ * reading. A reading that arrives while a save is in flight, or while a failed save
+ * or a conflict holds the file, stays owed until a later reading or save covers it.
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
@@ -105,7 +112,7 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
  *   base: FileSnapshot | null, latest: FileSnapshot | null,
  *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
  *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
- *   slow: boolean, timer: number, slowTimer: number | null,
+ *   replaced: Set<string>, slow: boolean, timer: number, slowTimer: number | null,
  *   kept: import("./editor.js").KeptFile | null, named: string | null,
  * }} OpenFile */
 
@@ -197,6 +204,7 @@ customElements.define(
             comparing: false,
             recovering: false,
             owed: false,
+            replaced: new Set(),
             slow: false,
             timer: 0,
             slowTimer: null,
@@ -304,7 +312,7 @@ customElements.define(
       let connected = false;
       // Settles as the editor's current connection ends.
       /** @type {Promise<unknown>} */
-      let leaving = Promise.resolve();
+      let ended = Promise.resolve();
       // Landing the reader back in the editor shows them where they type.
       const returnToEditor = () => {
         focusDestination(editor.contentDOM, "return");
@@ -598,11 +606,17 @@ customElements.define(
           }, 1000);
         if (of === file) paint();
         try {
-          of.base = await of.api.save({ revision: against.revision, text: submitted });
+          const saved = await of.api.save({
+            revision: against.revision,
+            text: submitted,
+          });
+          of.replaced.add(against.revision);
+          of.base = saved;
           of.latest = null;
           of.failure = null;
         } catch (fault) {
           if (fault instanceof RequestError && fault.current) {
+            of.replaced.add(against.revision);
             if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
@@ -646,7 +660,12 @@ customElements.define(
         } catch (fault) {
           of.failure = { kind: "read", message: describeFailure(fault) };
         }
-        if (current && !(of.base && current.taken < of.base.taken)) {
+        // A reading of a version this tab's own save moved the file off is one the
+        // server took before that save landed. Any other reading came after every such
+        // save, so none of them can arrive later.
+        if (current && of.replaced.has(current.revision)) current = null;
+        else if (current) of.replaced.clear();
+        if (current) {
           if (!of.base || (!of.recovering && !unsettled(of))) {
             // A first reading shows the file; a later one follows what was written
             // elsewhere and marks where.
@@ -656,13 +675,15 @@ customElements.define(
               if (first) {
                 editor.value = current.text;
                 // CodeMirror lays the text out in a frame of its own, which moves the
-                // gutter; the page presents once it has, or the editor has left.
+                // gutter; the page presents once it has, or the editor has left. A
+                // hidden tab runs no frame until it shows, and moves nothing anyone sees.
                 const laidOut = new Promise((done) => {
                   const view = EditorView.findFromDOM(editor.contentDOM);
                   if (!view) return done(undefined);
                   view.requestMeasure({ read() {}, write: () => done(undefined) });
                 });
-                element.controller.present(Promise.race([laidOut, leaving]));
+                if (!document.hidden)
+                  element.controller.present(Promise.race([laidOut, ended]));
               } else editor.follow(current.text);
             } else if (of.kept && text(of) !== current.text)
               of.kept = followKept(of.kept, current.text);
@@ -757,7 +778,7 @@ customElements.define(
       };
       whileConnected(this, (signal) => {
         connected = true;
-        leaving = aborted(signal);
+        ended = aborted(signal);
         editor.connect();
         comparison?.connect();
         window.addEventListener("beforeunload", beforeUnload, { signal });

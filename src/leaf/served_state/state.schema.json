@@ -121,19 +121,17 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it; its stamp, which moves with every write to the file; the file as a read finds it, its text with LF line endings and the revision a save names, or the error saying why it can't be read; and the moment that read began, which orders it against a save's answer.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and the file as a read finds it, its text with LF line endings and the revision a save names, or the error saying why it can't be read.",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
               "label": { "type": "string" },
-              "stamp": { "type": "string" },
               "text": { "type": "string" },
               "revision": { "type": "string" },
-              "error": { "type": "string" },
-              "taken": { "type": "number" }
+              "error": { "type": "string" }
             },
-            "required": ["label", "stamp", "taken"],
+            "required": ["label"],
             "oneOf": [
               { "required": ["text", "revision"], "not": { "required": ["error"] } },
               { "required": ["error"], "not": { "required": ["text"] } }
@@ -1796,15 +1794,14 @@
       "additionalProperties": false
     },
     "FileSnapshot": {
-      "description": "One bound file as a save's answer names it (`file_bindings.save_file`): its name, its text with LF line endings, the revision the next save names, and the moment the server began to read or write those bytes, which orders it against the files a state answer carries.",
+      "description": "One bound file as a save's answer names it (`file_bindings.save_file`): its name, its text with LF line endings, and the revision the next save names.",
       "type": "object",
       "properties": {
         "label": { "type": "string" },
         "text": { "type": "string" },
-        "revision": { "type": "string" },
-        "taken": { "type": "number" }
+        "revision": { "type": "string" }
       },
-      "required": ["label", "text", "revision", "taken"],
+      "required": ["label", "text", "revision"],
       "additionalProperties": false
     },
     "StaleFile": {

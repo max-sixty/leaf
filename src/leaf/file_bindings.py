@@ -31,22 +31,12 @@ The page's reading stamps each bound file (`bound_paths`), so the news token mov
 and the page's watchers wake when a bound file does, and a state answer carries each
 file as a read finds it (`bound_files`), so an editor shows its file with the page's
 state and takes in a write elsewhere from the state that news prompts. The state
-answer reads a file again only once its stamp moves (`_Reads`), and the stamp it
-carries moves with every write, so a write that puts back bytes the editor last read
-from the state is still news to it.
-
-A state read that started before a save can answer after it, and a revision says
-nothing of which version came first. So each file in the state, a save's answer and
-the newer file a stale save is refused with carry `taken`, the moment the server
-began to read or write those bytes, and a version read before another was taken is
-the older. A file keeps the `taken` of its first read under its stamp, since every
-later write moves the stamp.
+answer reads a file again only once its stamp moves (`_Reads`).
 """
 
 import hashlib
 import os
 import re
-import time
 from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
@@ -176,28 +166,27 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
 class _Reads:
     """Each bound file's reading (`_reading`), kept under its path's stamp. Every state
     answer carries every bound file, and reading and digesting one costs far more than
-    a stat. Readers share the kept reading and never change it."""
+    a stat. Readers share the kept reading and never change it. A change that leaves
+    the stamp as it was, such as a rewrite of the same length that puts back the
+    modification time, or a change of permissions alone, goes unseen until the stamp
+    next moves, as it does for the page's news."""
 
     def __init__(self) -> None:
         self.held: dict[Path, tuple] = {}
 
 
-def _reading(path: Path) -> dict:
-    """The file as a read finds it, its text and revision, or why it can't be read,
-    and the moment the read began (`taken`)."""
-    taken = time.time()
+def _reading(path: Path) -> dict[str, str]:
+    """The file as a read finds it, its text and revision, or why it can't be read."""
     try:
-        return {**_snapshot(_read(path)), "taken": taken}
+        return _snapshot(_read(path))
     except FileBindingError as error:
-        return {"error": str(error), "taken": taken}
+        return {"error": str(error)}
     except OSError as error:
-        return {"error": str(_refusal(error)), "taken": taken}
+        return {"error": str(_refusal(error))}
 
 
-def bound_files(page_dir: Path) -> dict[str, dict]:
-    """Each binding's label; a short stamp, moving whenever the file's path or what
-    the filesystem says of the file there (`file_stamp`) does; and the file as a read
-    finds it (`_reading`)."""
+def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
+    """Each binding's label and the file as a read finds it (`_reading`)."""
     paths = bound_paths(page_dir)
     named = labels(paths)
     held = memo(page_dir, _Reads).held
@@ -209,11 +198,7 @@ def bound_files(page_dir: Path) -> dict[str, dict]:
         kept = held.get(path)
         if kept is None or kept[0] != stamp or stamp is None:
             kept = held[path] = (stamp, _reading(path))
-        files[binding] = {
-            "label": named[binding],
-            "stamp": hashlib.sha256(repr((str(path), stamp)).encode()).hexdigest()[:16],
-            **kept[1],
-        }
+        files[binding] = {"label": named[binding], **kept[1]}
     return files
 
 
@@ -314,8 +299,7 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
 
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
-    """Compare and atomically replace one file; acknowledge exactly these bytes, with
-    their label and the moment their write began (`taken`)."""
+    """Compare and atomically replace one file; acknowledge exactly these bytes."""
     if set(posted) != {"revision", "text"} or not all(
         isinstance(posted[name], str) for name in ("revision", "text")
     ):
@@ -328,11 +312,10 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
             raise FileBindingError(f"No file is bound as {binding!r}.")
         path, label = target
         with path_lock(path):
-            read_at = time.time()
             before = _read(path)
             current = _snapshot(before)
             if posted["revision"] != current["revision"]:
-                raise StaleFileError({"label": label, **current, "taken": read_at})
+                raise StaleFileError({"label": label, **current})
             text = posted["text"]
             if "\r" in text:
                 raise FileBindingError("Editor text must use LF line endings.")
@@ -345,7 +328,6 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
             # Recheck path identity and contents immediately before replacement.
             latest = _snapshot(_read(path))
             if latest["revision"] != current["revision"]:
-                raise StaleFileError({"label": label, **latest, "taken": read_at})
-            written_at = time.time()
+                raise StaleFileError({"label": label, **latest})
             replace_bytes([(path, raw, True)])
-            return {"label": label, **submitted, "taken": written_at}
+            return {"label": label, **submitted}

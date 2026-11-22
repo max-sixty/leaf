@@ -36,6 +36,7 @@ codes and the records an operator reads.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -85,6 +86,7 @@ from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
 from leaf.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
 from leaf.served_state.context import read_page
+from leaf.served_state.reading import join_reading
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
@@ -1611,10 +1613,15 @@ def carrying_files(snapshot: PageSnapshot, page_dir: Path) -> PageSnapshot:
     """`snapshot` with the files the page binds, which a capture leaves out. The site
     answers a first visit, and a visitor whose container sleeps, with a capture's
     state, and the page's file editors show their files from it, as from a live
-    page's."""
+    page's. Its reading names the files too, so a tab holding an earlier capture hears
+    of one that differs only in a file."""
     files = bound_files(page_dir)
+    seen, presence = snapshot.reading.split(".")
+    named = hashlib.sha256(repr((seen, files)).encode()).hexdigest()[:16]
     return replace(
-        snapshot, context=replace(snapshot.context, bound_files=lambda: files)
+        snapshot,
+        reading=join_reading(named, presence),
+        context=replace(snapshot.context, bound_files=lambda: files),
     )
 
 

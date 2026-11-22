@@ -336,7 +336,8 @@ def test_a_saved_state_carries_the_files_the_page_binds(
 ):
     """While a visitor's container sleeps, the page's state is the one its last commit
     saved, so that state carries the page's files, as a live page's does, and the
-    page's file editor still shows them."""
+    page's file editor still shows them. A commit whose only change is to a file
+    moves the saved reading, so a tab holding the earlier one reads the file again."""
     from leaf_website.storage import PUBLISHER, restore
 
     site = tmp_path / "site"
@@ -358,12 +359,20 @@ def test_a_saved_state_carries_the_files_the_page_binds(
             with PageTransaction(private):
                 pass
 
+        def saved(path):
+            response = stored["publications"][-1]["responses"][path]
+            body = b"".join(stored["blobs"][digest] for digest in response["chunks"])
+            return json.loads(body)
+
         # Playwright's session fixture may already own this thread's event loop.
         with ThreadPoolExecutor(max_workers=1) as executor:
             executor.submit(commit).result()
-        response = stored["publications"][-1]["responses"]["api/state"]
-        saved = b"".join(stored["blobs"][digest] for digest in response["chunks"])
-    assert json.loads(saved)["files"]["notes"]["text"] == "Notes.\n"
+            assert saved("api/state")["files"]["notes"]["text"] == "Notes.\n"
+            reading = saved("api/news")["reading"]
+            notes.write_text("Notes, revised.\n")
+            executor.submit(commit).result()
+            assert saved("api/state")["files"]["notes"]["text"] == "Notes, revised.\n"
+            assert saved("api/news")["reading"] != reading
 
 
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(

@@ -1,8 +1,11 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import io
+import os
 import re
+from threading import Event
 
+from interact_support import STATED_TIMEOUT
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -526,6 +529,199 @@ def test_a_state_read_from_before_a_save_leaves_the_saved_draft(
             "words": "replicas: 4autoscaling:  minReplicas: 3",
         },
     )
+
+
+def test_a_state_read_made_while_a_save_lands_is_no_news_after_its_answer(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A state read the server makes while a save is landing still reads the bytes the
+    save replaces, and can reach the page after the save's answer. Its revision is the
+    one the save moved the file off, so the editor keeps the reader's saved line rather
+    than taking it back and marking it as written elsewhere."""
+    from leaf import file_bindings
+
+    file = tmp_path / "values.yaml"
+    file.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 3\n")
+    url = serve(
+        leaf_page(
+            "Values",
+            '<h1>Values</h1><lf-file-editor id="values-file" binding="values">'
+            "</lf-file-editor>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "values", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    landing, land, states = [], Event(), []
+    replace = file_bindings.replace_bytes
+
+    def held_replace(writes):
+        landing.append(writes)
+        assert land.wait(STATED_TIMEOUT), "the test never let the save land"
+        replace(writes)
+
+    monkeypatch.setattr(file_bindings, "replace_bytes", held_replace)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    page.keyboard.insert_text("4")
+    holding(page, landing, 1, "the reader's save, checked and about to land")
+    # A touch makes the server read the file again, while it still holds the old bytes;
+    # the page hears that reading only once the save has landed.
+    page.route("**/api/state*", lambda route: states.append((route, route.fetch())))
+    os.utime(file)
+    holding(page, states, 1, "the state read the touch prompts")
+    with page.expect_response(
+        lambda response: response.request.method == "POST" and response.status == 200
+    ):
+        land.set()
+    page.unroute("**/api/state*")
+    for route, answer in states:
+        route.fulfill(response=answer)
+    told(page)
+    saved = "replicas: 4\n\nautoscaling:\n  minReplicas: 3\n"
+    assert file.read_text() == saved
+    expect(editor).to_have_text("replicas: 4autoscaling:  minReplicas: 3")
+    expect(editor.locator(".cm-line.lf-written")).to_have_count(0)
+
+
+def test_file_editor_follows_an_agent_that_reverts_its_own_edit(
+    browser, serve, tmp_path
+):
+    """After the reader's own save, the editor follows each write from elsewhere: an
+    agent's edit, and then its revert of that edit to the bytes it followed before."""
+    file = tmp_path / "notes.md"
+    file.write_text("Line one.\nLine two.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    saved = "Line one.\nLine two.\nLine three."
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.status == 200
+            and response.request.post_data_json["text"] == saved
+        )
+    ):
+        editor.click()
+        page.keyboard.press("ControlOrMeta+End")
+        page.keyboard.insert_text("Line three.")
+    told(page)
+    file.write_text(saved.replace("Line one.", "Line one, edited."))
+    expect(editor).to_have_text("Line one, edited.Line two.Line three.")
+    file.write_text(saved)
+    expect(editor).to_have_text("Line one.Line two.Line three.")
+    # The agent's edit changed a line of the text the reader had typed in.
+    page.evaluate("lfWordsJudged()")
+    consume_browser_errors(
+        page,
+        {"code": "words-left-screen", "words": "Line one.Line two.Line three."},
+    )
+
+
+def test_a_binding_granted_again_moves_the_editor_to_the_new_file(
+    browser, serve, tmp_path
+):
+    """Granting the binding again to another file moves the editor there, under the new
+    file's name. Where the new file holds the same bytes, the reader's next edit saves
+    to it, as it did once a refused save had merged onto the same text; where it holds
+    others, the editor follows them as a write from elsewhere."""
+    first, second, third = (
+        tmp_path / name for name in ("first.md", "second.md", "third.md")
+    )
+    first.write_text("Same.\n")
+    second.write_text("Same.\n")
+    third.write_text("Other.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", first)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    name = widget.locator(".lf-file-editor-name")
+    expect(name).to_have_text("first.md")
+    bind_file(serve.page_dir, "notes", second)
+    expect(name).to_have_text("second.md")
+    with page.expect_response(
+        lambda response: response.request.method == "POST" and response.status == 200
+    ):
+        editor.click()
+        page.keyboard.press("ControlOrMeta+End")
+        page.keyboard.insert_text("Edited.")
+    assert (first.read_text(), second.read_text()) == ("Same.\n", "Same.\nEdited.")
+    told(page)
+    bind_file(serve.page_dir, "notes", third)
+    expect(name).to_have_text("third.md")
+    expect(editor).to_have_text("Other.")
+    page.evaluate("lfWordsJudged()")
+    consume_browser_errors(page, {"code": "words-left-screen", "words": "Same.Edited."})
+
+
+def test_a_stale_unreadable_reading_clears_and_autosave_resumes(
+    browser, serve, tmp_path
+):
+    """A state read made while the file was gone can reach the page after the reader's
+    save of the restored file. The editor stands on that failure only until the reading
+    the save prompts, and then saves the reader's typing again."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def receipt(text):
+        return page.expect_response(
+            lambda response: (
+                response.request.method == "POST"
+                and response.status == 200
+                and response.request.post_data_json["text"] == text
+            )
+        )
+
+    states = []
+    page.route("**/api/state*", lambda route: states.append((route, route.fetch())))
+    file.unlink()
+    holding(page, states, 1, "the state read the deletion prompts")
+    file.write_text("Notes.\n")
+    with receipt("Notes.\nSaved."):
+        editor.click()
+        page.keyboard.press("ControlOrMeta+End")
+        page.keyboard.insert_text("Saved.")
+    page.unroute("**/api/state*")
+    for route, answer in states:
+        route.fulfill(response=answer)
+    told(page)
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+    with receipt("Notes.\nSaved. Again."):
+        page.keyboard.insert_text(" Again.")
+    assert file.read_text() == "Notes.\nSaved. Again."
 
 
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(

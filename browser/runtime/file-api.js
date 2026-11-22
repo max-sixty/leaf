@@ -46,9 +46,9 @@ export function boundFile(binding) {
       if (file === undefined) return null;
       if (file === false) throw new Error(UNANSWERED);
       if (file === null) throw new Error(`No file is bound as '${binding}'.`);
-      const { text, revision, error, taken } = file;
+      const { text, revision, error } = file;
       if (text === undefined || revision === undefined) throw new Error(error);
-      return { label: file.label, text, revision, taken };
+      return { label: file.label, text, revision };
     },
     /** @param {Pick<import("../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
      * @returns {Promise<import("../types/contract.js").ServedFileSnapshot>} */

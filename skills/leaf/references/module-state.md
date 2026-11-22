@@ -214,13 +214,13 @@ beside it; keep no clock of your own. Return the answer rather than the time, as
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `label` is the file's path below the deepest folder holding every
 file the page binds, or `null` until the page's state names it. The page's state
-carries the file, so `read()` answers at once: `{label, text, revision, taken}`, with
-`text` in LF line endings and `taken` the moment the server read it, or `null` before
-the page has its state; it throws where there is no file to show, with the reason as
-its message. `save({revision, text})` writes only if the file is still at `revision`,
-and answers the same shape, or throws a `RequestError` whose `current` holds the newer
-file. A state read the server took before a save can arrive after its answer, so
-compare `taken` before letting a reading replace what a save answered.
+carries the file, so `read()` answers at once: `{label, text, revision}`, with `text`
+in LF line endings, or `null` before the page has its state; it throws where there is
+no file to show, with the reason as its message. `save({revision, text})` writes only
+if the file is still at `revision`, and answers the same shape, or throws a
+`RequestError` whose `current` holds the newer file. A state read the server took
+before a save landed can arrive after its answer, carrying the revision the save
+replaced, so a widget passes over a reading of a revision its own saves replaced.
 `RequestError` also carries the HTTP `status` and response `body`; distinguish it
 with `instanceof` when handling a server refusal. `watch(callback)` calls
 back whenever the page's state carries the file otherwise, after a write elsewhere or

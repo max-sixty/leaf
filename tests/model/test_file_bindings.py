@@ -353,9 +353,9 @@ def test_a_bound_file_write_moves_the_page_reading_and_the_file_in_state(
     server, page_dir, tmp_path
 ):
     """An editor takes its file from the page's state, so a write outside Leaf moves
-    the reading a visible tab polls, and the state carries the new text under a new
-    stamp. A write that puts back bytes the state carried before moves the stamp too,
-    so an editor that saved in between still hears it."""
+    the reading a visible tab polls, and the state carries the new text, read again
+    where the file's stamp moved. A write that puts back bytes the state carried
+    before reads as the revision it carried then."""
     target = tmp_path / "notes.txt"
     target.write_text("hello\n")
     bind_file(page_dir, "notes", target)
@@ -372,18 +372,7 @@ def test_a_bound_file_write_moves_the_page_reading_and_the_file_in_state(
 
     target.write_text("edited outside Leaf\n")
     assert page_reading(page_dir) != reading
-    edited = files()["notes"]
-    assert edited["text"] == "edited outside Leaf\n"
-    assert edited["stamp"] != first["notes"]["stamp"]
+    assert files()["notes"]["text"] == "edited outside Leaf\n"
 
     target.write_text("hello\n")
-    restored = files()["notes"]
-    assert restored["revision"] == first["notes"]["revision"]
-    assert restored["stamp"] != first["notes"]["stamp"]
-
-    # A file is as new as its read: the version a save wrote reads as newer than the
-    # save's answer, and one written before the save as older.
-    saved = save_file(
-        page_dir, "notes", {"revision": restored["revision"], "text": "saved\n"}
-    )
-    assert restored["taken"] < saved["taken"] < files()["notes"]["taken"]
+    assert files() == first

@@ -741,7 +741,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
-    """A `todo` event stands on a thread, a live widget, an element, or the page; a
+    """A `todo` event stands on a thread, a declared widget, an element, or the page; a
     `todo_end` names an open to-do; and a start names explicit agent work or an owed
     update (`todos.todo_error`)."""
     from leaf.todos import start_reading

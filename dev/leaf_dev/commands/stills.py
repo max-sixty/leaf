@@ -75,6 +75,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 
 from leaf.revision_artifact import resource_type
 from leaf.runtime_selection import read_runtime
+from leaf.schema import DEFAULT_PACKAGE
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import (
@@ -92,7 +93,7 @@ from leaf_dev.visits import Visit, said, visits
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "packages" / "default" / "widgets" / "image-difference.js"
+DIFFERENCE = DEFAULT_PACKAGE / "widgets" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 # The computed properties `style_changes` compares: the faces, boxes and flow a rule
@@ -370,7 +371,7 @@ def differences(out: Path, browser):
 
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
-        package = ROOT / "packages" / "default" / path.lstrip("/")
+        package = DEFAULT_PACKAGE / path.lstrip("/")
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/") and package.is_file():

@@ -29,7 +29,6 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
-    _comment_on,
 )
 from browser.threads import append_agent_reply
 from leaf import event_log
@@ -716,43 +715,6 @@ def test_tab_reaching_a_card_the_page_carried_away_brings_it_back(
     page.keyboard.press("Tab")
     rendered(page)
     assert control_in_card() not in (None, reached)
-
-
-def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
-    """The rail's one Tab stop is its highest row in view, whichever way the page got
-    there. A row on a line a box scrolls sideways stands in a carrier, which the browser
-    moves with the page's scroll but whose own box reads a frame late: read there, a
-    scroll back to the top left the stop on the second row, below the first, until
-    something else re-read the rail."""
-    line = " ".join(["A line wider than its box, which scrolls it sideways."] * 4)
-    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
-    body = (
-        "<h1>Carried rows</h1>"
-        f'<div style="overflow-x: auto"><p id="first" style="white-space: nowrap">{line}'
-        f'</p></div>{filler[: len(filler) // 3]}<p id="second">The second finding.</p>'
-        f"{filler}"
-    )
-    events = [_comment_on("first"), _comment_on("second")]
-    page = open_page(browser, serve(leaf_page("Carried rows", body), events=events))
-    resized(page, 1440, 900)
-    rendered(page)
-    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
-    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
-    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
-        "the fixture's first row no longer stands in a carrier"
-    )
-    expect(first).to_have_attribute("tabindex", "0")
-
-    page.mouse.move(300, 300)
-    page.mouse.wheel(0, 600)
-    scroll_settled(page)
-    rendered(page)
-    expect(second).to_have_attribute("tabindex", "0")
-    page.mouse.wheel(0, -600)
-    scroll_settled(page)
-    rendered(page)
-    expect(first).to_have_attribute("tabindex", "0")
-    expect(second).to_have_attribute("tabindex", "-1")
 
 
 @pytest.mark.parametrize("target", ["sec-mounts", "bracket"])

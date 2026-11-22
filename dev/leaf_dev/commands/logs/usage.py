@@ -32,7 +32,6 @@ packages describe each page as it stands.
 """
 
 import json
-import re
 from collections import Counter, defaultdict
 from datetime import datetime
 from html.parser import HTMLParser
@@ -41,10 +40,11 @@ from pathlib import Path
 import click
 
 from leaf.interaction_log import interaction_time, read_interactions
+from leaf.registry.contract import is_element_name
 from leaf.registry.storage import LAYER
 from leaf.schema import LAYER_FILE
 from leaf.state import state_home
-from leaf_dev import ROOT
+from leaf_dev.docs import registries
 
 
 class _Tags(HTMLParser):
@@ -59,13 +59,11 @@ class _Tags(HTMLParser):
 def declared_widgets() -> dict[str, str]:
     """Each element a bundled registry declares, with the package that declares it.
     A registry also keys layer facts under `$` and idioms under a selector."""
-    registries = [ROOT / "browser" / "registry.json"]
-    registries += sorted((ROOT / "packages").glob("*/registry.json"))
     return {
         key: "kernel" if path.parent.name == "browser" else path.parent.name
-        for path in registries
+        for path in registries()
         for key in json.loads(path.read_text())
-        if re.fullmatch(r"[a-z][a-z0-9]*(-[a-z0-9]+)+", key)
+        if is_element_name(key)
     }
 
 

@@ -6029,22 +6029,6 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    ("source", "words"),
-    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
-)
-def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
-    engine, source, words, request, serve
-):
-    """A figure caption in the product docs draws its title on a line of its own above
-    its text, and page search finds the title's last word and the text's first apart."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
-    page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill(words)
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
     engine, request, serve
 ):

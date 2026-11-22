@@ -1456,7 +1456,10 @@ body { max-width: 768px; margin-inline: auto; }
     )
 
 
-from browser.test_render_gate import _panel
+from browser.test_render_gate import (
+    SAMPLE_FAULT,
+    _panel,
+)
 from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
@@ -1968,3 +1971,99 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
             + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
         )
     assert take_browser_errors(page) == []
+
+
+def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
+    """A page whose deferred work lands a piece at a time is waited for however long
+    the whole takes, as a gallery's samples load on a starved machine, while a page
+    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
+    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
+    step_ms = EXPECTED_STALL_MS // 10
+    # Fifteen arrivals a step apart: one and a half bounds in all.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          for (let i = 1; i <= 15; i++)
+            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+        }""",
+        step_ms,
+    )
+    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+
+    # One arrival never lands, and above it each new one lands a step after the next
+    # has taken its place, so the arrivals left swing between two and three.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          deferredArrival(new Promise(() => {}));
+          window.churn = setInterval(() => {
+            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+          }, step);
+        }""",
+        step_ms,
+    )
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    page.evaluate("() => clearInterval(window.churn)")
+    assert unready.value.stage == "arrived", unready.value
+
+
+# A widget whose module draws a 120px box, where its authored markup holds nothing.
+@pytest.mark.parametrize("resource", ["module", "theme"])
+def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, resource):
+    """A missing response fails navigation rather than admitting an unread page."""
+    holding = []
+
+    def configure(page):
+        page.set_default_timeout(EXPECTED_STALL_MS)
+
+        def hold(route):
+            if holding:
+                route.continue_()
+            else:
+                holding.append(route)
+
+        page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
+
+    failures, _, completed = render_gate_scheme._render_page(
+        primed(browser.unwatched, configure),
+        serve(
+            leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
+            packages=(),
+        ),
+        {"width": 1200, "height": 900},
+        EXPECTED_STALL_MS,
+        [],
+    )
+    assert holding, "the positive control held no resource"
+    assert completed is False
+    assert [failure.code for failure in failures] == ["no-runtime"]
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
+def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
+    """A live sample starts its page only as the reader nears it, but the gate reads
+    every document the page can show (`start_near_work`), so it refuses a page whose
+    sample's own script throws wherever on the page the sample stands, a sample far
+    down inside another one included: each started child starts its own."""
+    content = SAMPLE_FAULT
+    if nested:
+        content = (
+            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
+            '<lf-sample id="inner"><template id="inner-source" data-sample>'
+            f"{SAMPLE_FAULT}</template></lf-sample>"
+        )
+    source = leaf_page(
+        "Far fault",
+        '<p id="words">Words.</p><div style="height: 400vh"></div>'
+        '<lf-sample id="far"><template id="far-source" data-sample>'
+        f"{content}</template></lf-sample>",
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched, serve(source)
+    ).failures
+    assert any(
+        failure.code == "page-exception"
+        and "thrown in the sample" in failure.values["text"]
+        for failure in failures
+    ), failures

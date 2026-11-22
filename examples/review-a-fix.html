@@ -77,6 +77,21 @@
           and in a thread reply in the floating panel, and fails on each without the
           fix.
         </p>
+        <figure id="fix-test-run">
+          <pre class="lf-terminal"><b>$ git stash &amp;&amp; uv run pytest tests/browser/test_comment_images.py</b>
+<i>…</i>
+<mark>FAILED test_comment_images.py::test_closing_the_preview_keeps_the_comment[escape]</mark>
+<mark>FAILED test_comment_images.py::test_closing_the_preview_keeps_the_comment[close-button]</mark>
+<mark>FAILED test_comment_images.py::test_closing_the_preview_keeps_the_comment[outside]</mark>
+<i>…</i>
+6 failed in 14.2s
+<b>$ git stash pop &amp;&amp; uv run pytest tests/browser/test_comment_images.py</b>
+<i>…</i>
+6 passed in 13.8s</pre>
+          <figcaption>
+            The regression test with the fix set aside, then with it back.
+          </figcaption>
+        </figure>
         <lf-options id="fix-ship">
           <lf-option id="fix-ship-now" label="Ship it" recommended>
             <strong>Ship it</strong>

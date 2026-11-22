@@ -1535,7 +1535,7 @@ export async function changesSince(base) {
   if (!loaded || !wanted()) return null;
   return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
 }
-// A press that ends a comparison says so, as `x` does when it hides annotations, so a
+// A press that ends a comparison says so, as `g X` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count; the page
 // field's standing words go with it, so it shows where they don't.
 export const endComparison = () => {

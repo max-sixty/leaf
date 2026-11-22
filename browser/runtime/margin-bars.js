@@ -24,7 +24,7 @@
    beside, and its bar is the same bar at zero blocks' length: a short one in the gap the
    blocks left, which the user asked for so that nothing breaks where a
    change's new side reaches zero. A change's mark is an annotation, so hiding
-   annotations (`x`) hides its bar. The bar marks the block, not its words: its change's
+   annotations (`g X`) hides its bar. The bar marks the block, not its words: its change's
    Change entry opens which words went and came. The user chose the bar
    over a wash of the block's own background, which hid whatever the block shades
    itself, an option's card and the chosen option's tint among them, and over leaving

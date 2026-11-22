@@ -122,7 +122,7 @@ const PAGE_COMMANDS = [
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
-  // Beside `x`, so the Annotations list reads its two hides together.
+  // The Annotations list's two hides, side by side.
   "changes.toggle",
   "annotations.toggle",
   // The panel's two keys together: the leaf's press, and folding to the leaf.

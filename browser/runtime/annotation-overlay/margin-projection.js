@@ -844,7 +844,7 @@ export function createMarginProjection({
     });
   }
 
-  // `x`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
+  // `g X`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
   // that the user could be in: the card closes through its ordinary close, an
   // unfolded cluster folds, and focus held by a pin goes to the pin's target, since the
   // browser would otherwise put it on body. An explicit request still shows what it asks

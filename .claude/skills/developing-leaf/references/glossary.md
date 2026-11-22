@@ -217,7 +217,7 @@ its link's preview counts them.
 | **Scope** | A registered boundary where commands apply and can hide outer ones |
 | **Design mode** | The `l` interaction that turns input into interface comments until the user exits |
 | **Draw mode** | The `w` interaction that turns pointer input into a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `x` toggles whether it shows |
+| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `g X` toggles whether it shows |
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
@@ -243,7 +243,7 @@ its link's preview counts them.
 | **Binding badge** | A key badge showing a command's current binding |
 | **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |
 
-Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `x`
+Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `g X`
 toggles what the page shows without changing what input means. Commands have stable
 dotted ids.
 

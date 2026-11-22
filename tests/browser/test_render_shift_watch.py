@@ -4373,6 +4373,58 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         assert errors == [], (before, after, errors)
 
 
+# A row in a carrier anchored to words the document scrolls, as Leaf's margin carries a
+# row whose target scrolls in a box short of the document. As margin-layout.js does,
+# `place` writes the carrier at the window's origin as it measures the anchor, and the
+# row level with the anchor's top, `by` pixels lower.
+CARRIED_ROW = """<!doctype html><body style="margin:0;height:3000px">
+<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>
+<div id="carrier" style="position:fixed;position-anchor:--words;left:0;top:0;width:0;height:0;display:grid;grid-template:0px/0px;position-visibility:always">
+<button id="row" style="grid-area:1/1;align-self:start;justify-self:start;margin-left:260px">Row</button></div>
+<script>function place(by = 0) {
+  const at = anchor.getBoundingClientRect().top;
+  carrier.style.top = `calc(anchor(top) - ${at}px)`;
+  row.style.marginTop = `${at + by}px`;
+}
+scrollTo(0, 600);
+place();</script>"""
+
+
+@pytest.mark.parametrize(
+    ("scroll", "fault"),
+    [("step", ""), ("step", "row"), ("smooth", ""), ("smooth", "row")],
+)
+def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault):
+    """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
+    frame callback can read the words moved and the row not yet. A row its script places
+    again in that frame, by the same offset from the words, and a row through a smooth
+    scroll no input makes, are credited; a row placed elsewhere still fails."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CARRIED_ROW))
+    paint(page)
+    paint(page)
+    moved = "5" if fault else "0"
+    if scroll == "step":
+        page.evaluate(f"scrollBy(0, -9); place({moved})")
+    else:
+        page.evaluate(
+            """by => new Promise((done) => {
+              addEventListener('scrollend', done, {once: true});
+              scrollBy({top: -300, behavior: 'smooth'});
+              setTimeout(() => place(by), 80);
+            })""",
+            int(moved),
+        )
+    paint(page)
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "button#row"), errors
+    else:
+        assert errors == [], errors
+
+
 @pytest.mark.parametrize(
     "fault", ["", "passive", "finished", "local", "ancestor_x", "ancestor_y"]
 )

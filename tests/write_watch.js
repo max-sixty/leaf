@@ -242,8 +242,8 @@
       hosts(node)[0]?.localName === "leaf-text",
     // CodeMirror's Tile.sync writes a line's style whenever any of the line's attributes
     // change, as its class does when the caret arrives or a write from elsewhere marks
-    // it, and its style is the same: a file editor's line states its indent there
-    // (editor.js, `hangs`).
+    // it, and its style is the same: a code line states its indent there (marks.css,
+    // `[data-lf-pre-line]`).
     (what, node) =>
       what === "style" && is(node, "div.cm-line") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces the children of a line, or of a mark in a

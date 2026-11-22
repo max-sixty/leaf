@@ -60,26 +60,8 @@ const theme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
   ".cm-content": { caretColor: "var(--lf-accent)" },
-  // A line's rows after the first hang two columns past its indent (`hangs`), up to the
-  // 24 columns a code block's stop at, behind the mark a code block's wrapped rows wear
-  // (reading.css, `[data-lf-pre-line]`), so a row a long line wraps onto reads as the
-  // rest of that line. Started at the editor's edge, it read as a line of its own, and
-  // in YAML as a new top-level key.
-  ".cm-line": {
-    padding: "0 .85rem",
-    position: "relative",
-    "--lf-code-hang": "calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch)",
-    textIndent: "var(--lf-code-hang) hanging",
-  },
-  ".cm-line::before": {
-    content: '""',
-    position: "absolute",
-    insetBlock: "1lh 0",
-    insetInlineStart: "calc(.85rem + var(--lf-code-hang) - 2ch)",
-    inlineSize: "1ch",
-    background: "var(--lf-code-muted)",
-    mask: "var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y",
-  },
+  // Its wrapped rows' mark stands past this padding (`hangs`).
+  ".cm-line": { padding: "0 .85rem", "--lf-pre-line-inset": ".85rem" },
   // A line another writer changed (`written`), tinted and barred in the accent.
   ".cm-line.lf-written": {
     background:
@@ -207,10 +189,12 @@ const loadLanguage = (name) => {
   }
   return pending;
 };
-// Each line in view states its indent (`--lf-code-indent`), which its wrapped rows hang
-// from (the theme's `.cm-line`), as code-lines.js boxes a code block's lines for it:
-// CSS can't read a line's leading columns. The indent is the line's leading spaces and
-// tabs, in the columns CodeMirror counts for it, as a code block counts it.
+// Each line in view is a line of code whose wrapped rows hang from its indent behind a
+// mark, as a code block's are (marks.css, `[data-lf-pre-line]`), so a row a long line
+// wraps onto reads as the rest of that line: started at the editor's edge, it read as a
+// line of its own, and in YAML as a new top-level key. The line states its indent
+// (`--lf-code-indent`), which CSS can't read: its leading spaces and tabs, in the
+// columns CodeMirror counts for them.
 /** @param {EditorView} view */
 const indents = (view) => {
   const marks = [];
@@ -218,12 +202,14 @@ const indents = (view) => {
     for (let at = from; at <= to;) {
       const { text, from: start, to: end } = view.state.doc.lineAt(at);
       const indent = countColumn(text, view.state.tabSize, text.search(/[^ \t]|$/));
-      if (indent)
-        marks.push(
-          Decoration.line({
-            attributes: { style: `--lf-code-indent: ${indent}` },
-          }).range(start),
-        );
+      marks.push(
+        Decoration.line({
+          attributes: {
+            "data-lf-pre-line": "",
+            ...(indent && { style: `--lf-code-indent: ${indent}` }),
+          },
+        }).range(start),
+      );
       at = end + 1;
     }
   return Decoration.set(marks);

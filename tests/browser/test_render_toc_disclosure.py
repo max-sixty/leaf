@@ -388,13 +388,18 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     page.mouse.move(track["x"] + 3, y)
     expect(toc.locator(".lf-toc-labels")).to_have_css("opacity", "1")
     page.mouse.move(track["x"] + 900, y)
-    page.evaluate(
+    # The fade is held and read at its start, midway and at its end, so no frame the
+    # browser skips on a slow machine can hide one of them.
+    frames = page.evaluate(
         """([x, y]) => {
           const toc = document.getElementById('contents');
           const words = [...toc.querySelectorAll('.lf-toc-link')]
             .filter(node => node.checkVisibility({visibilityProperty: true}));
-          window.fade = {frames: [], done: false};
-          const watch = () => {
+          const fades = document.getAnimations()
+            .filter(motion => motion instanceof CSSTransition);
+          for (const fade of fades) fade.pause();
+          return [0, 120, 240].map(time => {
+            for (const fade of fades) fade.currentTime = time;
             // What the reader sees of a word is its opacity times its ancestors'.
             const opacities = words.map(node => {
               let seen = 1;
@@ -402,24 +407,23 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
                 seen *= Number(getComputedStyle(at).opacity);
               return seen;
             });
-            const frame = {
+            return {
+              time,
               least: Math.min(...opacities),
               most: Math.max(...opacities),
               mapTakesProse: toc.contains(document.elementFromPoint(x, y)),
             };
-            window.fade.frames.push(frame);
-            if (frame.most === 0) window.fade.done = true;
-            else requestAnimationFrame(watch);
-          };
-          watch();
+          });
         }""",
         [track["x"] + track["width"] + 150, y],
     )
-    page.wait_for_function("() => window.fade.done")
-    frames = page.evaluate("() => window.fade.frames")
-    assert any(0 < f["most"] < 1 for f in frames), frames
+    start, middle, end = frames
+    assert start["most"] == 1 and 0 < middle["most"] < 1 and end["most"] == 0, frames
     wrong = [f for f in frames if f["most"] > f["least"] or f["mapTakesProse"]]
     assert wrong == [], frames
+    page.evaluate("""() => document.getAnimations()
+      .filter(motion => motion instanceof CSSTransition)
+      .forEach(fade => fade.finish())""")
     in_track = page.evaluate(
         """trackEnd => {
           const nav = document.querySelector('#contents .lf-toc-nav');

@@ -11,8 +11,8 @@ Leaf's own defaults; rules meant to win over widget defaults and Layouts belong 
 
 A theme styles the page's own native controls as well as its markup, so they stand
 beside Leaf's controls as one set. Leaf bundles one theme, `reading`: the reading look,
-which styles the body's type and colour, and turns on
-the reading face markup wears in Leaf's own surfaces (headings, prose, lists, tables,
+which styles the body's type and colour and turns on the reading face markup wears in
+Leaf's own surfaces (headings, prose, lists, tables,
 code, quotes, figures, disclosures, definitions, rules and pictures, with a wide table
 scrolling inside itself, a code block's long lines wrapping, and a `language-…` code
 block coloured by its tokens) by setting `--lf-reading-face: 1` on the root. The face
@@ -24,8 +24,8 @@ and a personal theme restyles the page's controls through the tokens they read o
 rules of its own. A new page takes it unless the user names another default. A page that
 takes none (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing
 of the look reaches it, its tables, code blocks and controls included, while Leaf's
-widgets, idioms, threads and panel keep their own faces, in the browser's own canvas and text
-colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
+widgets, idioms, threads and panel keep their own faces, in the browser's own canvas
+and text colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
 `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there. Each of
@@ -75,8 +75,8 @@ and demo recordings take `reading` rather than the developer's personal default.
 default under `layer.theme`.
 
 A page records its theme's name, and the Leaf serving, checking or exporting it
-composes the theme package it finds by that name, so each of those needs the package
-installed; an export carries the theme's bytes. Live samples inherit their parent's
+composes the theme package it finds by that name, after the bases that package names,
+so each of those needs the packages installed; an export carries the themes' bytes. Live samples inherit their parent's
 layer; a sample may deliberately show different theme inputs as a style reference
 (`live-samples.md`). Applying the catalogue's current default to already-authored
 pages remains a possible later change.

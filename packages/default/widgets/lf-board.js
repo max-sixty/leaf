@@ -835,15 +835,18 @@ customElements.define(
     /** @param {HTMLElement} col */
     #sortable(col) {
       const scroller = scrollerFor(this);
+      const group = `board-${this.id}`;
       const sortable = new Sortable(col, {
         disabled: !this.#available(),
         // Named per board, so two boards on a page don't cross-drag. A column opens a
         // slot only for a card it takes (#takes), as the arrows and the destination
         // buttons offer it. Sortable asks this of every column but the one the drag
-        // began in, which always takes its card back.
+        // began in, which always takes its card back. A column that takes the card
+        // answers with the group's name, which Sortable matches against the board the
+        // drag began in; `true` would take a card from any board.
         group: {
-          name: `board-${this.id}`,
-          put: (to, _from, card) => Boolean(this.#takes(card, to.el)),
+          name: group,
+          put: (to, _from, card) => (this.#takes(card, to.el) ? group : false),
         },
         draggable: "lf-card",
         handle: ".lf-grip",

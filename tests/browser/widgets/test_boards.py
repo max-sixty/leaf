@@ -1014,6 +1014,11 @@ def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
     ] == [("plan", "move", "card-own")]
 
 
+def centre(locator):
+    box = locator.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
 def test_a_column_two_options_name_takes_no_drop(browser, serve, subtests):
     """Two options carrying one `value` land a card in the same column, and a pick of
     either stands it there. A drop names only the value, not which of the two the user
@@ -1056,10 +1061,6 @@ def test_a_column_two_options_name_takes_no_drop(browser, serve, subtests):
             for event in events_model.read_events(serve.page_dir)
             if event["kind"] == "action"
         ]
-
-    def centre(locator):
-        box = locator.bounding_box()
-        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
     with subtests.test(card="one no other column takes"):
         # Each column with a value is named by two of the question's options, and the
@@ -1127,3 +1128,47 @@ def test_a_column_two_options_name_takes_no_drop(browser, serve, subtests):
             ("rail", "choose", {"value": ["rail-later"]}),
             ("rail", "choose", {"value": ["rail-soon"]}),
         ]
+
+
+TWO_BOARDS_PAGE = leaf_page(
+    "two boards",
+    """
+<h1 id="t">Two sprints</h1>
+<lf-board id="a">
+  <lf-column id="a-todo" label="Todo">
+    <lf-card id="card-a" label="Heated perch"><strong>Heated perch</strong></lf-card>
+  </lf-column>
+  <lf-column id="a-done" label="Done"></lf-column>
+</lf-board>
+<lf-board id="b">
+  <lf-column id="b-todo" label="Todo">
+    <lf-card id="card-b" label="Squirrel baffle"><strong>Squirrel baffle</strong></lf-card>
+  </lf-column>
+  <lf-column id="b-done" label="Done"></lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_card_stays_in_its_own_board(browser, serve):
+    """A pointer drag resting over another board's column opens no slot there, and the
+    same drag still drops in a column of the card's own board."""
+    page = open_page(clocked(browser), live_url(serve(TWO_BOARDS_PAGE)))
+    card = page.locator("#card-a")
+
+    page.mouse.move(*centre(card.locator(".lf-grip")))
+    page.mouse.down()
+    over_other = centre(page.locator("#b-todo"))
+    page.mouse.move(*over_other, steps=5)
+    expect(card).to_have_class(re.compile(r"\blf-ghost\b"))
+    page.mouse.move(over_other[0] + 2, over_other[1])
+    page.clock.run_for(120)
+    assert card.evaluate("card => card.parentElement.id") == "a-todo"
+
+    page.mouse.move(*centre(page.locator("#a-done")), steps=5)
+    page.clock.run_for(120)
+    expect(page.locator("#a-done > #card-a")).to_have_count(1)
+    with sending(page, "the pointer drop"):
+        page.mouse.up()
+    expect(page.locator("#a-done > #card-a")).to_have_count(1)
+    expect(page.locator("lf-board#b lf-card")).to_have_count(1)

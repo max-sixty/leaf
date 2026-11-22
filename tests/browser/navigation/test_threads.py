@@ -456,12 +456,13 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
-def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
+@pytest.mark.parametrize("enters", ["c", "Enter"])
+def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     """A comment the user began and put away is a stop of the thread walk, in the page's
     order among the open threads, as Threads lists the two together, a comment about a
     passage of a paragraph holding a thread included. The walk opens the comment's box
     on its words and stands the user on the box, not in it, so the next `t` walks on and
-    puts the box away, and `c` puts the caret after the words."""
+    puts the box away, and `c` or Enter puts the caret after the words."""
     url = serve(
         leaf_page(
             "drafts in the walk",
@@ -502,9 +503,10 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
     page.keyboard.press("t")
     expect(box).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
-    page.keyboard.press("c")
+    page.keyboard.press(enters)
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
+    expect(field).to_have_js_property("selectionStart", len("About the passage."))
 
 
 def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(

@@ -1157,7 +1157,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         page.keyboard.press("Enter")
     resolved = page.locator("lf-diff .lf-resolved-threads")
     summary = resolved.locator(":scope > summary")
-    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_have_text("Resolved · Keep this check beside the changed line")
     expect(summary).to_be_focused()
     expect(thread.locator(".lf-msg").first).to_be_hidden()
     summary.click()

@@ -2434,6 +2434,30 @@ def diff_file_resolved(page: Page) -> None:
     expect(resolved).to_have_attribute("open", "")
 
 
+def diff_line_threads(page: Page) -> None:
+    """Two conversations under a diff's lines, one holding an answer long enough to
+    wrap, standing as cards under their lines."""
+    diff = page.locator("#dfg-lines")
+    expect(diff.locator(".lf-page-thread")).to_have_count(2)
+    diff.evaluate("diff => diff.scrollIntoView({block: 'start'})")
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_thread_walked(page: Page) -> None:
+    """The long line conversation reached by Next thread (`t`), which rings its card
+    and brackets its line."""
+    diff_line_threads(page)
+    page.locator("#dfg-lines-guide").click()
+    thread = page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it")
+    for _ in range(3):
+        page.keyboard.press("t")
+        if thread.evaluate("t => t.hasAttribute('data-lf-focus-visible')"):
+            break
+    expect(thread).to_have_attribute("data-lf-focus-visible", "")
+    settle(page)
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -3364,6 +3388,18 @@ STATES = (
         diff_file_resolved_closed,
     ),
     State("diff-file-resolved", "diff-thread-gallery", diff_file_resolved),
+    State(
+        "diff-line-threads",
+        "diff-thread-gallery",
+        diff_line_threads,
+        region="#dfg-lines",
+    ),
+    State(
+        "diff-line-thread-walked",
+        "diff-thread-gallery",
+        diff_line_thread_walked,
+        region="#dfg-lines",
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(

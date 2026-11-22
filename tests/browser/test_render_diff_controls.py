@@ -765,7 +765,7 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
     with sending(page, "the resolution"):
         page.keyboard.press("Enter")
     summary = diff.locator(".lf-resolved-summary")
-    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_have_text("Resolved · A")
     for width in (1440, 390):
         resized(page, width, 900)
         rendered(page)

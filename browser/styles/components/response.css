@@ -17,6 +17,7 @@ leaf-composition-field {
 }
 .lf-fab-bar,
 .lf-margin-preview,
+[data-lf-thread-surface],
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -32,6 +33,7 @@ leaf-composition-field {
 :root,
 .lf-fab-bar,
 .lf-margin-preview,
+[data-lf-thread-surface],
 .lf-compose-field {
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
@@ -659,7 +661,8 @@ leaf-composition-field {
 }
 
 .lf-fab-bar,
-.lf-margin-preview {
+.lf-margin-preview,
+[data-lf-thread-surface] {
   --lf-response-height: var(--lf-line);
 }
 /* The comment box, card and card reply share one text column, so Send moves no
@@ -668,7 +671,8 @@ leaf-composition-field {
    where Send takes only a free corner (above), at the thread text inset, as at the
    start. The field spends one pixel of each inset on its frame. */
 .lf-fab-bar,
-.lf-margin-preview {
+.lf-margin-preview,
+[data-lf-thread-surface] {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
@@ -677,14 +681,15 @@ leaf-composition-field {
 }
 @media (hover: hover) and (pointer: fine) {
   .lf-fab-bar,
-  .lf-margin-preview {
+  .lf-margin-preview,
+  [data-lf-thread-surface] {
     --lf-comment-text-end: var(--lf-thread-text-inset);
   }
   leaf-text.lf-fab-input {
     --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
   }
 }
-.lf-margin-preview .lf-msg {
+:is(.lf-margin-preview, [data-lf-thread-surface]) .lf-msg {
   --lf-msg-text-end: var(--lf-comment-text-end);
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
@@ -693,7 +698,7 @@ leaf-composition-field {
    which made every short card taller than the box it came from for a rewrite the
    user may never open. */
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-thread-reply .lf-compose-field,
+:is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field,
 .lf-response-control,
 .lf-response-face {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
@@ -823,8 +828,12 @@ leaf-text.lf-fab-input {
   box-sizing: border-box;
   align-items: flex-end;
   gap: 4px;
+  /* The box stands where the card the comment becomes will, as wide as its seat
+     (surfaces.css), its field inside the card's frame and inset, so Send moves no word
+     sideways, as a margin comment box keeps its words where its card shows them
+     (annotation-chrome.css). */
   width: 100%;
-  max-width: 760px;
+  padding-inline: calc(var(--lf-comment-inset) + 1px);
   white-space: nowrap;
   color: var(--lf-ink);
 }

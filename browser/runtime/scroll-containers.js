@@ -5,9 +5,9 @@
    and a landing alike. Native input chains its scroll along it (`scrollChainOf`), so
    the box an input scrolls is read here too (`inputScroller`). A box Leaf anchors also
    moves with every scroll that moves its anchor, which a reading of the motions under
-   way counts (`carriersOf`), and the distance the glides under way have still to
-   scroll across both is read here too (`glideTravel`, `glideGap`), with what the user
-   sees of a node where they leave it (`seenGlided`, `seenAhead`). */
+   way counts (`carriersOf`), and how far the glides under way still carry a node
+   across both is read here too (`glideTravel`, `glideGap`), with what the user sees of
+   it where they leave it (`seenGlided`, `seenAhead`). */
 import { inputs } from "./inputs.js";
 import { isElement, renderedParent, renderedUnder } from "./shadow-tree.js";
 import { anchorHolder, anchorNamed } from "./css-anchors.js";
@@ -24,6 +24,7 @@ import {
   scrollsFor,
 } from "./scrolling.js";
 import {
+  carried,
   clippedPlace,
   fixedInWindow,
   inFront,
@@ -31,7 +32,6 @@ import {
   placeHolder,
   seenRect,
   shownWindow,
-  stuckBox,
   userScrollport,
 } from "./geometry.js";
 import { shifted } from "./rect.js";
@@ -95,19 +95,27 @@ export function* scrollersOf(node) {
 // moves only `scrollersOf`'s.
 /** @param {Element | null} node @returns {Generator<Element>} */
 export function* carriersOf(node) {
-  /** @type {Node | null} */
-  let fixed = node;
+  for (const [box] of carrying(node)) yield box;
+}
+// The same walk, each box paired with the element its scroll moves: `node` for the
+// first box, the box before it for each after, and for the first box past a fixed box
+// Leaf anchors, the element holding the anchor, since none of those boxes holds the
+// fixed box.
+/** @param {Element | null} node @returns {Generator<[Element, Element]>} */
+function* carrying(node) {
+  if (!node) return;
+  let on = node;
   for (const box of scrollersOf(node)) {
-    yield box;
-    fixed = box;
+    yield [box, on];
+    on = box;
   }
-  if (fixed === pageScroller) return;
-  while (fixed instanceof Element && !fixedInWindow(fixed))
-    fixed = renderedParent(fixed);
-  const anchor =
-    fixed instanceof Element && anchorNamed(getComputedStyle(fixed).positionAnchor);
+  if (on === pageScroller) return;
+  /** @type {Element | null} */
+  let fixed = on;
+  while (fixed && !fixedInWindow(fixed)) fixed = renderedParent(fixed);
+  const anchor = fixed && anchorNamed(getComputedStyle(fixed).positionAnchor);
   if (!anchor) return;
-  for (const box of carriersOf(anchorHolder(anchor))) if (box !== anchor) yield box;
+  for (const step of carrying(anchorHolder(anchor))) if (step[0] !== anchor) yield step;
 }
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
@@ -165,18 +173,17 @@ inputs.observe((event) => {
 export const holderOf = (node) =>
   node instanceof Range ? node.startContainer.parentElement : node;
 
-// The distance the glides under way have still to scroll the boxes that carry `node`
-// (`carriersOf`), each from where it stands to its glide's goal (scrolling.js,
-// `scrollGoal`), summed as a vector in client pixels through each box's transforms
-// (element-axes.js, `scrollAxes`), with the outermost box that glides; null where no
-// glide carries it. An element's own scroll moves what it holds and not its box
-// (`heldTravel` asks for what it holds), and a box's scroll leaves what sticks in it
-// where it stands, as a page's sticky header holding the focused tab (geometry.js,
-// `stuckBox`), asked of the boxes between that box and the one inside it; a sticky box
-// rides a scroll only until it sticks, and this counts it ridden by none. A scroll the
-// browser runs, as a wheel's, has no goal Leaf knows, so it adds nothing. Where a box
-// Leaf anchors will stand also depends on its placement, which solves again after a
-// scroll (floating.js), and this reads only the scrolls.
+// The distance the glides under way have still to carry `node`, through the boxes that
+// carry it (`carriersOf`): each box's glide, from where the box stands to its goal
+// (scrolling.js, `scrollGoal`), carries what it moves as far as geometry.js `carried`
+// says, so a page's sticky header holding the focused tab rides a glide of the page
+// only until it sticks, and none once it has. Summed as a vector in client pixels
+// through each box's transforms (element-axes.js, `scrollAxes`), with the outermost box
+// whose glide carries it; null where none does. An element's own scroll moves what it
+// holds and not its box (`heldTravel` asks for what it holds). A scroll the browser
+// runs, as a wheel's, has no goal Leaf knows, so it adds nothing. Where a box Leaf
+// anchors will stand also depends on its placement, which solves again after a scroll
+// (floating.js), and this reads only the scrolls.
 /** @param {Element | Range | Anchor} node */
 export const glideTravel = (node) =>
   travelFrom(
@@ -193,16 +200,13 @@ function travelFrom(holder, own) {
   let y = 0;
   /** @type {Element | null} */
   let outer = null;
-  let inner = holder;
-  for (const box of carriersOf(holder)) {
-    const from = inner;
-    inner = box;
+  for (const [box, on] of carrying(holder)) {
     if (box === own) continue;
-    const left = scrollGoal(box) - box.scrollTop;
-    if (!left || (from && stuckBox(from, box))) continue;
+    const ride = carried(on, box, scrollGoal(box) - box.scrollTop);
+    if (!ride) continue;
     const axis = scrollAxes(box).y;
-    x -= left * axis.x;
-    y -= left * axis.y;
+    x -= ride * axis.x;
+    y -= ride * axis.y;
     outer = box;
   }
   return outer && { x, y, outer };

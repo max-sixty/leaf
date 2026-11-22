@@ -130,6 +130,20 @@ const theme = EditorView.theme({
 /** @param {string} lang @returns {Promise<import("@codemirror/state").Extension>} */
 const colouredAs = async (lang) => {
   const { tokenize, declarations } = await syntaxNow(lang);
+  // The tokenizer runs inside CodeMirror's update, where a throw would take the
+  // keystroke that reached the line with it, and every one after. A line it fails on
+  // stays plain instead, and the failure is said once, where the render gate reads it.
+  let failed = false;
+  /** @param {string} line @param {LineState["grammar"]} grammar @returns {Tokenized} */
+  const lineTokens = (line, grammar) => {
+    try {
+      return tokenize(line, grammar);
+    } catch (error) {
+      if (!failed) console.error(`leaf: the ${lang} tokenizer failed`, error);
+      failed = true;
+      return /** @type {Tokenized} */ ({ tokens: [], state: grammar });
+    }
+  };
   const named = new Map(
     declarations.map(([property, value], n) => [`${property}: ${value}`, `t${n}`]),
   );
@@ -146,7 +160,7 @@ const colouredAs = async (lang) => {
       /** @param {import("@codemirror/language").StringStream} stream @param {LineState} state */
       token(stream, state) {
         if (stream.sol())
-          ({ tokens: state.line, state: state.grammar } = tokenize(
+          ({ tokens: state.line, state: state.grammar } = lineTokens(
             stream.string,
             state.grammar,
           ));
@@ -163,7 +177,7 @@ const colouredAs = async (lang) => {
       },
       /** @param {LineState} state */
       blankLine(state) {
-        state.grammar = tokenize("", state.grammar).state;
+        state.grammar = lineTokens("", state.grammar).state;
       },
       tokenTable,
     }),

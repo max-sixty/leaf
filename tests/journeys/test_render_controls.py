@@ -1487,7 +1487,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 settled = page.locator("#comparison-policy[settled] > .lf-settled")
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
-                    settled.click()
+                    # The row ends a workspace that fills the window, so the floating
+                    # panel's row stands over its middle; the user presses its words,
+                    # at its start.
+                    height = settled.bounding_box()["height"]
+                    settled.click(position={"x": 8, "y": height / 2})
             if scope == "the page":
                 pencil = any_draft_control(page, "edit").first
                 if pencil.count() and pencil.is_visible():

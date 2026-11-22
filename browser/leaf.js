@@ -352,7 +352,6 @@ async function boot() {
       app.threadDestinations.threadFocusTarget(id, options),
     clearFor: (destination, landed) =>
       floatingPanel?.clearFor(destination, landed) ?? null,
-    openThread: () => openThreadView()?.id ?? null,
     announce,
   });
   declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);

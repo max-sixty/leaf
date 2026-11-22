@@ -28,11 +28,14 @@
    there again rather than beside its passage.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
-   focus, unless the URL also names an element, which then places the page, or the
-   browser restored the page's place, as on a reload, and the thread opens beside it,
-   as a fragment does (version.js, `aimArrival`). So a widget that names the view it
-   opens in the fragment, as a tab set names the panel the thread's passage stands in,
-   leaves an address a reload or a copied link still reaches the thread by. */
+   focus. Where the browser restored the page's place, as on a reload, the arrival is a
+   return, which moves the page no further than the browser put it, as a fragment's
+   return doesn't (version.js, `aimArrival`): the thread opens where the page stands,
+   with the user in it, so the next `t` goes on from it. Where the URL also names an
+   element, which places the page, the thread opens beside it without focus. So a widget
+   that names the view it opens in the fragment, as a tab set names the panel the
+   thread's passage stands in, leaves an address a reload or a copied link still reaches
+   the thread by. */
 import { effect, untracked } from "/runtime/framework.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../errors.js";
@@ -117,7 +120,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   function arrive(url, arrival, { restored }) {
     const id = url.searchParams.get("thread");
     if (!id) return null;
-    const beside = restored || Boolean(fragmentTarget(url.hash));
+    const beside = !restored && Boolean(fragmentTarget(url.hash));
     const intent = restrictUserIntent(arrival, arrival);
     return async () => {
       if (!intent()) return null;
@@ -128,7 +131,8 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
       return openPageThread(id, {
         part: "thread",
         focus: !beside,
-        travel: !beside,
+        travel: !restored && !beside,
+        ...(restored && { scroll: false }),
         history: false,
         intent,
       });

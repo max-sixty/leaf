@@ -1323,8 +1323,8 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
     page.reload()
     wait_until_ready(page)
     # A reload is a return: the thread opens again where the browser restored the page,
-    # without taking the user there.
-    expect(thread).to_be_visible()
+    # with the user in it.
+    expect(thread).to_be_focused()
     assert page.evaluate("history.length") == entries
     if name == "anchor01":
         # Leaving the passage puts its card away, renaming the entry, so Back returns
@@ -1350,32 +1350,31 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
         assert page.evaluate("scrollY") == pytest.approx(reading_offset, abs=1)
 
 
-def test_t_onto_the_card_a_reload_reopened_adds_no_back_step(browser, serve):
-    """A reload opens the card its entry names again, without focus. The first `t`
-    lands on that card, which already stood open beside the user's place and shows
-    them nothing new, so it adds no Back step; the next `t` goes on, a step."""
+def test_t_after_a_reload_goes_on_from_the_thread_it_reopened(browser, serve):
+    """A reload opens the card its entry names again, with the user in it and the page
+    where the browser restored it, so the first `t` after it goes on to the next
+    thread, a Back step, rather than landing on the card already open."""
     url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")])
     page = open_page(browser, url)
     card = page.locator(".lf-margin-preview .lf-page-thread")
     page.keyboard.press("t")
     expect(card).to_be_focused()
-    first = card.get_attribute("data-lf-thread")
+    first = card.get_attribute("data-lf-thread") or ""
     page.keyboard.press("t")
-    expect(card).not_to_have_attribute("data-lf-thread", first or "")
-    second = card.get_attribute("data-lf-thread")
+    expect(card).not_to_have_attribute("data-lf-thread", first)
+    second = card.get_attribute("data-lf-thread") or ""
     # The reload restores the offset the walk's landing reached, not one mid-glide.
     scroll_settled(page)
+    read_to = page.evaluate("scrollY")
     page.reload()
     wait_until_ready(page)
-    expect(card).to_have_attribute("data-lf-thread", second or "")
+    expect(card).to_have_attribute("data-lf-thread", second)
+    expect(card).to_be_focused()
+    assert page.evaluate("scrollY") == pytest.approx(read_to, abs=2)
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
     expect(card).to_be_focused()
-    expect(card).to_have_attribute("data-lf-thread", second or "")
-    page.wait_for_function("navigation.transition === null")
-    assert page.evaluate("history.length") == entries
-    page.keyboard.press("t")
-    expect(card).not_to_have_attribute("data-lf-thread", second or "")
     page.wait_for_function("navigation.transition === null")
     assert page.evaluate("history.length") == entries + 1
 
@@ -1393,7 +1392,7 @@ def test_following_a_thread_url_uses_native_history(browser, serve):
     page.go_forward()
     wait_until_ready(page)
     # Forward into the document is a return, so the thread opens in place.
-    expect(linked_thread(page, "general1")).to_be_visible()
+    expect(linked_thread(page, "general1")).to_be_focused()
     assert page.evaluate("history.length") == entries + 1
 
 

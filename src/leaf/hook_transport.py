@@ -117,9 +117,10 @@ says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, and what a summary fork wrote (`summary_fork`), one line each
-(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn
-has ended.
+the last turn's end, what a summary fork wrote (`summary_fork`), and the notice that
+the session's hooks now run another copy of Leaf (`hooks.copy_changed`), one line
+each (`clerk.queued`), and take them off the queue once printed (`clerk.heard`).
+Stop carries none: the clerk forks only after the turn has ended.
 
 A subagent's tool boundary carries nothing: Claude Code names the subagent in its
 PostToolBatch's payload, which the hook skips (`state.worker_tool_batch`), so the
@@ -633,8 +634,8 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found, and what summary forks wrote, since the agent
-    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    # What Leaf queued since the agent last heard (`clerk.queued`), which the next
+    # prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):

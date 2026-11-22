@@ -1,8 +1,9 @@
 /* A visual review is a queue of claims, with one readable comparison open.
  * The source owns cases and captures; Leaf owns approvals and discussion. The
  * dashboard derives its queue and counts from that state. Selection
- * is transient. lf-shot owns comparison controls, layout and capture scrolling;
- * the dashboard supplies capture metadata and retains case articles and threads.
+ * is transient. lf-shot owns comparison controls, layout, crop and capture
+ * scrolling; the dashboard writes each case's density and focus on its shot's
+ * attributes, as an author would, and retains case articles and threads.
  * A case's header names only the capture size and browser, with Capture details
  * holding the rest: the user chose this over a line that also said the
  * images were captured screenshots whose links don't work, which they show
@@ -440,11 +441,6 @@ customElements.define(
         this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#run } }));
         for (const entry of this.#entries.values()) {
           const { shot, record } = entry;
-          shot?.inspect({
-            pixelRatio: record.capture.deviceScaleFactor,
-            captureWidth: record.capture.viewport.width,
-            focus: record.focus,
-          });
           if (!shot || entry.pendingDifference === shot.difference) continue;
           const pending = shot.difference;
           entry.pendingDifference = pending;
@@ -501,6 +497,11 @@ customElements.define(
       keeps(entry.shot, "before", before);
       keeps(entry.shot, "after", after);
       keeps(entry.shot, "alt", `${record.title}. ${record.result}`);
+      keeps(entry.shot, "density", record.capture.deviceScaleFactor);
+      keeps(entry.shot, "focus-x", record.focus?.x);
+      keeps(entry.shot, "focus-y", record.focus?.y);
+      keeps(entry.shot, "focus-width", record.focus?.width);
+      keeps(entry.shot, "focus-height", record.focus?.height);
       /** @param {string} label @param {string | null | undefined} href */
       const link = (label, href) =>
         href

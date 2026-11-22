@@ -203,28 +203,6 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     )
     assert "before" in page.evaluate("getSelection().toString()").lower()
 
-    # Custom source names cannot borrow space from the controls at phone width.
-    shot.evaluate("""node => node.inspect({labels: {
-        before: 'Previous deployment with an unusually long source name',
-        after: 'Current candidate with another unusually long source name'
-    }})""")
-    expect(captions).to_have_text(
-        [
-            "Previous deployment with an unusually long source name",
-            "Current candidate with another unusually long source name",
-        ]
-    )
-    assert [
-        control.bounding_box() for control in controls if control.is_visible()
-    ] == boxes
-    toolbar_box = toolbar.bounding_box()
-    for caption in captions.all():
-        box = caption.bounding_box()
-        assert box["width"] > 0
-        assert box["x"] >= toolbar_box["x"] - 1
-        assert box["x"] + box["width"] <= toolbar_box["x"] + toolbar_box["width"] + 1
-    assert shot.evaluate("node => node.scrollWidth <= node.clientWidth + 1")
-
     comparison = shot.locator("wa-comparison")
     for endpoint in ("100", "0"):
         point = {"x": 20, "y": 40}
@@ -685,6 +663,42 @@ def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
     )
 
 
+def test_a_shot_holds_the_frame_its_focus_and_density_draw(browser, serve):
+    """Before its module draws, a pair that opens on its focus holds the focus's frame,
+    and a pair taken at 2× holds its CSS size, so nothing below moves as it draws."""
+    pair = f'alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"'
+    url = serve(
+        leaf_page(
+            "Held captures",
+            f'<h1>Held captures</h1><lf-shot id="focused" {pair} density="2"'
+            ' focus-x="20" focus-y="30" focus-width="200" focus-height="80"></lf-shot>'
+            f'<lf-shot id="dense" {pair} density="2"></lf-shot>',
+        ),
+        media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held_entry = []
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fallback() if held_entry else held_entry.append(route),
+    )
+    heights = "shots => shots.map(shot => shot.getBoundingClientRect().height)"
+    with page.expect_request("**/leaf.js"):
+        page.goto(url, wait_until="commit")
+    page.wait_for_function(
+        "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
+    )
+    held = page.locator("lf-shot").evaluate_all(heights)
+    held_entry[0].fallback()
+    render_checks_model.wait_until_ready(page)
+    expect(page.locator("lf-shot .lf-shotframe").first).to_be_visible()
+    frames = page.locator("lf-shot").evaluate_all(
+        "shots => shots.map(shot => shot.querySelector('.lf-shotframe').getBoundingClientRect().height)"
+    )
+    assert frames == pytest.approx([80 + 2, 150 + 2], abs=1)
+    assert held == pytest.approx(page.locator("lf-shot").evaluate_all(heights), abs=1)
+
+
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     browser, serve
 ):
@@ -835,10 +849,12 @@ def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser,
     assert page.evaluate("window.lfOthersRead") <= 1
 
 
-def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_changes(
+def test_a_shot_opens_on_its_focus_and_preserves_choices_when_it_changes(
     browser, serve
 ):
-    """One CSS-pixel crop and scale apply to paired images, slider and pixel masks."""
+    """The focus and density a pair's markup states give one CSS-pixel crop and scale
+    to paired images, slider and pixel masks; restating them keeps the reader's
+    choices, and a pair without a focus offers no Full frame."""
     before = solid_png(600, 300, (210, 220, 235))
     after = solid_png(600, 300, (210, 220, 235), patch=(120, 70, 40, 30, (30, 30, 30)))
     sources = {
@@ -847,17 +863,13 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     }
     source = leaf_page(
         "Inspect a focus",
-        f'<h1>Inspect a focus</h1><lf-shot id="inspected-pair" alt="a focused change" before="{sources["before"]}" after="{sources["after"]}"></lf-shot>',
+        f'<h1>Inspect a focus</h1><lf-shot id="inspected-pair" alt="a focused change" before="{sources["before"]}" after="{sources["after"]}" density="2" focus-x="5" focus-y="25" focus-width="100" focus-height="50"></lf-shot>',
     )
     page = open_page(
         browser,
         serve(source, media={sources["before"]: before, sources["after"]: after}),
     )
     shot = page.locator("#inspected-pair")
-    expect(shot.get_by_role("checkbox", name="Full frame", exact=True)).to_have_count(0)
-    shot.evaluate(
-        "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Base', after: 'Candidate'}})"
-    )
     shot.get_by_role("button", name="Image options").click()
     full = shot.get_by_role("checkbox", name="Full frame", exact=True)
     expect(full).not_to_be_checked()
@@ -906,17 +918,18 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     assert image.bounding_box()["height"] == pytest.approx(150, abs=1)
     full.uncheck()
     full.focus()
-    shot.evaluate(
-        "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Previous', after: 'Current'}})"
-    )
+    shot.evaluate("node => node.setAttribute('focus-width', '120')")
     expect(full).to_be_focused()
     expect(full).not_to_be_checked()
     expect(
         shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
     ).to_have_attribute("aria-pressed", "true")
-    expect(
-        shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
-    ).to_contain_text("Previous")
+    expect(image).to_have_js_property("clientWidth", 120)
+    shot.evaluate(
+        "node => ['x', 'y', 'width', 'height'].forEach(side => node.removeAttribute(`focus-${side}`))"
+    )
+    expect(full).to_have_count(0)
+    expect(image).to_have_js_property("clientWidth", 300)
 
 
 def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(

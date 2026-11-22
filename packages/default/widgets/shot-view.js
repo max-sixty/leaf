@@ -14,7 +14,7 @@ import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {import("./image-difference.js").Difference} Difference */
 /** @typedef {import("./image-difference.js").Rectangle} Rectangle */
 /** @typedef {import("./image-difference.js").Side} Side */
-/** @typedef {{pixelRatio?: number, captureWidth?: number, focus?: Rectangle | undefined, labels?: Record<Side, string>}} ShotMetadata */
+/** @typedef {{pixelRatio?: number, focus?: Rectangle | undefined}} ShotMetadata */
 /** @typedef {{available: number, availableHeight?: number | undefined, screenHeight: number, labelHeight: number, sourceWidth?: number | undefined, sourceHeight?: number | undefined, focus?: Rectangle | undefined, full?: boolean, actual?: boolean, view?: string, gap: number}} ShotGeometryInput */
 /** @typedef {NonNullable<ReturnType<typeof fitShotGeometry>>} ShotGeometry */
 const SHOT_VIEWS = {
@@ -22,6 +22,7 @@ const SHOT_VIEWS = {
   pair: "Pair",
   pixels: "Pixels",
 };
+const LABELS = { before: "Before", after: "After" };
 let nextOptionsId = 0;
 
 /** @param {import("./image-difference.js").OutlineRegion} region @param {Difference} reading */
@@ -293,9 +294,7 @@ export class ShotView {
       });
     /** @param {Side} state @param {boolean} [frame] */
     const caption = (state, frame = false) => {
-      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
-        state
-      ];
+      const label = LABELS[state];
       const stacked = this.view === "pair" && this.geometry?.layout === "stack";
       return html`<span
         ${ref(
@@ -320,9 +319,7 @@ export class ShotView {
     /** @param {Side} state @param {number} index */
     const frame = (state, index) => {
       const alt = host.getAttribute("alt");
-      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
-        state
-      ];
+      const label = LABELS[state];
       const pair = this.view === "pair";
       const reading = this.reading;
       const regions = reading?.regions
@@ -532,9 +529,7 @@ export class ShotView {
       ...allocation,
       labelHeight: parseFloat(getComputedStyle(this.#nodes.caption).blockSize),
       sourceWidth:
-        (imageWidth && imageWidth / ratio) ||
-        Number(host.dataset.lfMediaWidth) / ratio ||
-        metadata.captureWidth,
+        (imageWidth && imageWidth / ratio) || Number(host.dataset.lfMediaWidth) / ratio,
       sourceHeight:
         Math.max(0, ...images.map((image) => image.naturalHeight)) / ratio ||
         Number(host.dataset.lfMediaHeight) / ratio,

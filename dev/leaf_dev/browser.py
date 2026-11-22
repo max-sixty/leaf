@@ -186,10 +186,18 @@ def launch(engine: str, scheme: str = "light"):
             yield browser
 
 
-@cache
 def shell_executable() -> str:
-    """Ask the installed Playwright registry for its pinned headless shell.
+    """The installed Playwright registry's pinned headless shell."""
+    return playwright_executable("chromium-headless-shell")
 
+
+@cache
+def playwright_executable(name: str) -> str:
+    """Ask the installed Playwright registry for its pinned build of browser `name`.
+
+    `leaf-dev setup` installs only Python Playwright's builds, and Node's Playwright
+    pins its own, which can be a different build. A Node tool that must see what
+    Python sees launches this path (`evals/ui-review-detection/provider.mjs`).
     A subprocess works even while the caller already holds sync_playwright open.
     """
     from playwright._impl._driver import compute_driver_executable
@@ -201,9 +209,10 @@ def shell_executable() -> str:
             "-e",
             (
                 "console.log(require(process.argv[1]).registry.registry"
-                ".findExecutable('chromium-headless-shell').executablePathOrDie('python'))"
+                ".findExecutable(process.argv[2]).executablePathOrDie('python'))"
             ),
             str(Path(cli).parent / "lib/coreBundle.js"),
+            name,
         ],
         check=True,
         stdout=subprocess.PIPE,

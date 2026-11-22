@@ -190,12 +190,11 @@ function listen() {
 }
 
 // The parts of every box a placement stands are observed by one observer, made as
-// this module loads, which asks each box's placement first (`placed`). A placement
-// landing in its delivery can resize the placed box, which the placement's own
-// observer, made when it first watches the box, observes too. Chromium delivers
-// observers in the order they were made, so that observer reads the box's new size
-// after this one. Delivered before it, as an observer made when the box first stands
-// would be, it would read the old size and Chromium would report the new one as a loop.
+// this module loads, which asks each box's placement first (`placed`). The placement
+// lands in this delivery, so it may move the box but not resize the box or anything
+// holding it: another observer of that box, delivered before this one or at a shallower
+// depth, would miss the new size, and the browser reports that as a loop. A placement
+// whose fit would change a size makes that change in the next frame, before layout.
 // We could consider, in future, making this the only observer that asks a placed box's
 // placement for a change of its size: Floating UI's watch (`autoUpdate`'s
 // `elementResize`) asks too, and observes the reference with the same option, so its

@@ -5608,15 +5608,19 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     expect(row).to_have_css("margin-top", "0px")
 
 
+@pytest.mark.parametrize("by", ["key", "menu", "menu-after-send"])
 def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box(
-    browser, serve
+    browser, serve, by
 ):
     """With a thread open, an image pasted into its reply stands where the page's field
     stands one, just over the box from the panel's start edge, in a band the panel opens
     between the thread's view and the box: it covers neither, the box stays where the
     user types, and the thread's last message stays beside the reply throughout, though
     the panel already reached the window's top and the band takes its room from the
-    view."""
+    view. That holds for a paste from a menu too, which comes with no key: the band
+    then reads as news, which leaves the thread's messages where its scroll puts them,
+    since it changed none of them, even just after a reply the user sent rode into the
+    view, whose ride a reading may have caught mid-way."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -5641,6 +5645,14 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     view.evaluate("view => { view.scrollTop = view.scrollHeight; }")
     field(page).click()
     settled(page)
+    if by == "menu-after-send":
+        page.emulate_media(reduced_motion="no-preference")
+        count = view.locator(".lf-msg").count()
+        page.keyboard.insert_text("And the weekend?")
+        with sending(page, "the reply"):
+            page.keyboard.press("Enter")
+        expect(view.locator(".lf-msg")).to_have_count(count + 1)
+        settled(page)
     last = view.locator(".lf-msg").last
 
     def foot():
@@ -5654,31 +5666,35 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     before = foot()
     assert before[0] >= 0, before
     words = field(page).bounding_box()
-    # The band opens on the panel's tween, as the user's change: its first frame shows
-    # the last message beside the reply already, rather than carrying it as news from
-    # where it stood, under the band, up into the view.
+    # The band opens on the panel's tween: its first frame shows the last message
+    # beside the reply already, rather than carrying it from where it stood, under the
+    # band, up into the view.
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    # The user's paste key hands the field the picture after the watches have heard the
-    # key, as the browser's paste comes after its listeners, so the upload and the
-    # thumbnail are that key's rendering.
-    page.evaluate(
-        """encoded => document.addEventListener('keydown', function paste(event) {
-          if (event.key !== 'v') return;
-          document.removeEventListener('keydown', paste, true);
-          event.preventDefault();
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          document.querySelector('.lf-fp-field leaf-text').dispatchEvent(
-            new ClipboardEvent('paste', {
-              bubbles: true, cancelable: true, clipboardData: transfer,
-            }));
-        }, true)""",
-        base64.b64encode(solid_png(240, 120, (255, 128, 64))).decode(),
-    )
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("ControlOrMeta+v")
+    picture = solid_png(240, 120, (255, 128, 64))
+    if by == "key":
+        # The user's paste key hands the field the picture after the watches have
+        # heard the key, as the browser's paste comes after its listeners, so the
+        # upload and the thumbnail are that key's rendering.
+        page.evaluate(
+            """encoded => document.addEventListener('keydown', function paste(event) {
+              if (event.key !== 'v') return;
+              document.removeEventListener('keydown', paste, true);
+              event.preventDefault();
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+              document.querySelector('.lf-fp-field leaf-text').dispatchEvent(
+                new ClipboardEvent('paste', {
+                  bubbles: true, cancelable: true, clipboardData: transfer,
+                }));
+            }, true)""",
+            base64.b64encode(picture).decode(),
+        )
+        with page.expect_response(lambda response: response.url.endswith("/api/media")):
+            page.keyboard.press("ControlOrMeta+v")
+    else:
+        paste_image(field(page), picture)
     shelf = page.locator(".lf-fp-field .lf-composer-media-item")
     expect(shelf).to_have_count(1)
     page.wait_for_function("() => __lfHeld.length > 0")
@@ -5697,6 +5713,10 @@ def test_an_image_pasted_in_an_open_thread_stands_between_the_thread_and_the_box
     after = foot()
     assert after[1] < before[1], "the fixture must take the band from the view"
     assert after[0] == pytest.approx(before[0], abs=1), (before, after)
+    if by != "key":
+        # A menu's paste reaches the page with no key or press the hold-still watch can
+        # credit, so the band moving the view's head up reads to it as news.
+        consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 def test_a_pasted_image_s_thumbnail_arrives_at_its_picture_s_size(browser, serve):

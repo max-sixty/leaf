@@ -1139,9 +1139,9 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
     serious/critical findings; layout and accessibility-tree snapshots belong to
     specific regressions, not a baseline that changes with every restyle. The feature
-    gallery is the authored page with the broadest real UI. The specialist package
-    pages get one 420px Axe reading in the exported corpus; focused tests own the live
-    chrome surfaces this page does not open.
+    gallery is the authored page with the broadest real UI. Every other authored page
+    gets one Axe reading in each scheme at its widest (`test_page_fixture_renders`);
+    focused tests own the live chrome surfaces this page does not open.
 
     A phone's width because what a box does there is a different question and not a
     smaller one: the column is 372px, so a block that had room at a desk starts

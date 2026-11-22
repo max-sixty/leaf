@@ -63,13 +63,13 @@ its thread or speaks for a round a later turn joined. A line that fails it drops
 the page's diagnostics say so.
 
 While the line stands, the waiting messages before it read On it, as they do before
-any progress message of the agent's (`served_state.work`, which serves it as their
-workflows' `at_work`, so every surface showing whether the agent is at work agrees), as
-the user chose. That word is all the line changes: as a receipt's progress it takes
-nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds a turn
-reads the message's delivery. A start would read as the session's turn, renewing it
-after an interrupt and holding the message at Working before the session had taken it
-in, which would hide it from the nudge and the overdue count.
+any progress message of the agent's (`served_state.work.lined`, which `activity` reads
+as a waiting update `running`, so every surface showing whether the agent is at work
+agrees), as the user chose. That word is all the line changes: as a receipt's progress
+it takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds
+a turn reads the message's delivery. A start would read as the session's turn, renewing
+it after an interrupt and holding the message as started before the session had taken
+it in, which would hide it from the nudge.
 
 The line fork thinks at the session's own effort, and its prompt asks it to reply
 straight away without thinking it over, since its line is worth most in the seconds

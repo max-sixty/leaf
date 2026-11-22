@@ -90,7 +90,7 @@ export function obligationsByRegion(regions, items = readObligations().all) {
   /** @type {Map<Node, import("../framework/application.js").ObligationRecord[]>} */
   const held = new Map(regions.map((region) => [region, []]));
   for (const item of items) {
-    if (item.status === "withdrawn") continue;
+    if (item.outcome === "dropped") continue;
     const { source } = obligationPlace(item, items);
     for (let at = /** @type {Node | null} */ (source); at; at = composedParentNode(at))
       held.get(at)?.push(item);

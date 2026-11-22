@@ -16,17 +16,25 @@ from ..activity import (
     current_turn,
     declared_at,
 )
-from ..events import awaits_agent, unanswered_turns
+from ..events import owed_turns
 from ..projection import ThreadMarkupReading, page_reading
 from ..service import no_stream
+from ..standing import strength
 from ..todos import TodoReading
 from ..work_reading import WorkReading
 
 
 class WorkState(NamedTuple):
+    """`records` are the obligation records only the page's log and claim decide,
+    standing as `activity` reads them: each update's. A view adds the records its own
+    document and frozen threads publish. `todos` are the agent's to-dos, open and
+    ended, each standing as `activity` reads it and naming its thread."""
+
     durable: WorkReading
     activity: dict
     workflows: list[dict]
+    records: list[dict]
+    todos: list[dict]
     live_reply: dict | None
     presence: dict
     # The claimant's turn as activity reads it (`activity.current_turn`), which says
@@ -38,48 +46,16 @@ class WorkState(NamedTuple):
         return self.activity["obligations"]
 
 
-# Delivery progress, furthest last. `answered` is only ever the retained failed
-# response, so within its category it is the furthest an update has come.
-_STAGE_RANK = {
-    "sent": 0,
-    "queued": 1,
-    "picked_up": 2,
-    "working": 3,
-    "replying": 4,
-    "answered": 5,
-}
-
-
-def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
-    """How strongly a workflow speaks for any surface that shows one of several: an
-    update handed back to the user first (its record's next actor), then work under
-    way, then an uncertain or stopped one, then plain delivery; within each the further
-    stage, then the newer input."""
-    if workflow["condition"] is not None:
-        category = 2
-    elif workflow["at_work"]:
-        category = 3
-    elif workflow["stage"] == "answered":
-        category = 0
-    else:
-        category = 1
-    record = records.get(workflow["obligation"])
-    return (
-        record is not None and record["next_actor"] == "user",
-        category,
-        _STAGE_RANK[workflow["stage"]],
-        workflow["seq"],
-    )
-
-
 def lined(threads: dict[str, dict]) -> frozenset[str]:
-    """The user's turns waiting in `threads` (`events.unanswered_turns`) that a
-    progress message of the agent's came after, as the line a line fork posts
+    """The user's turns the agent owes an answer in `threads` (`events.owed_turns`)
+    that a progress message of the agent's came after, as the line a line fork posts
     (`forks.py`): those older than the newest the agent hasn't taken back in their
-    thread, until the agent answers them."""
+    thread, until the agent answers them. `activity` reads each as at work while its
+    delivery stands."""
     found: set[str] = set()
     for thread in threads.values():
-        if not awaits_agent(thread):
+        owed = owed_turns(thread)
+        if not owed:
             continue
         working = max(
             (
@@ -91,43 +67,36 @@ def lined(threads: dict[str, dict]) -> frozenset[str]:
             ),
             default=0,
         )
-        found.update(
-            turn["id"] for turn in unanswered_turns(thread) if turn["seq"] < working
-        )
+        found.update(turn["id"] for turn in owed if turn["seq"] < working)
     return frozenset(found)
 
 
 def served_workflows(
-    workflows: list[dict],
-    thread_reading: ThreadMarkupReading,
-    records: dict,
-    on_it: frozenset[str],
+    workflows: list[dict], thread_reading: ThreadMarkupReading, records: dict
 ) -> list[dict]:
     """The page's workflows as the browser and `page state` read them, strongest
-    first, each stamped with what its thread and its activity say.
-
-    `at_work` is whether the agent is at work on it whatever its condition, which
-    every surface reads rather than restating stages: at `working` or `replying`, or
-    its input among `on_it`, the waiting turns a progress message of the agent's came
-    after (`lined`), which the page words On it while its delivery stands. Every
-    reader that ages, nudges or holds a turn reads the stage alone.
-    `thread` is the thread the workflow stands in: a thread input's own, a widget
+    first, each stamped with the thread it stands in: a thread input's own, a widget
     in a message's thread, or null for a page widget. Whose turn the thread
     is reads the records in it, which `records` (`workflows.handed_over`) holds.
 
-    The order is the one comparator: whatever shows one workflow of several, a
-    thread's attention, its card's secondary status, a message's receipt, an On
+    The order is the one comparator: an update handed back to the user first (its
+    record's next actor), then where it stands (`standing.strength`), then the newer
+    input. Whatever shows one workflow of several, a message's receipt or an On
     list's row, takes the first. A reader that selects keeps the order; the browser
     places its own unresolved sends against it."""
     by_id = {record["id"]: record for record in records["all"]}
     for workflow in workflows:
-        workflow["at_work"] = (
-            workflow["stage"] in {"working", "replying"} or workflow["input"] in on_it
-        )
         workflow["thread"] = thread_reading.subject_thread(workflow["subject"])
-    return sorted(
-        workflows, key=lambda workflow: _strength(workflow, by_id), reverse=True
-    )
+
+    def order(workflow: dict) -> tuple:
+        record = by_id.get(workflow["obligation"])
+        return (
+            record is not None and record["next_actor"] == "user",
+            strength(workflow),
+            workflow["seq"],
+        )
+
+    return sorted(workflows, key=order, reverse=True)
 
 
 def work_state(
@@ -171,15 +140,13 @@ def work_state(
         stream["reply_reservations"],
         todo_reading=log,
         updates=durable.updates,
+        # With no live claimant, no progress message speaks for the page.
+        on_it=lined(durable.threads)
+        if source and present["session_alive"] is True
+        else frozenset(),
     )
     workflows = (
-        served_workflows(
-            activity["workflows"],
-            durable.thread,
-            durable.updates,
-            # With no live claimant, no progress message speaks for the page.
-            lined(durable.threads) if present["session_alive"] is True else frozenset(),
-        )
+        served_workflows(activity["workflows"], durable.thread, durable.updates)
         if source
         else activity["workflows"]
     )
@@ -189,4 +156,26 @@ def work_state(
         stream["activity"],
         datetime.fromisoformat(now),
     )
-    return WorkState(durable, activity, workflows, reply, present, turn)
+    # An open to-do stands where `activity` read it, in the thread it was opened on;
+    # one a widget in a message opened stands in that message's thread.
+    stood = {todo["id"]: todo for todo in activity["todos"]}
+
+    def thread_of(subject: dict) -> str | None:
+        if source:
+            return durable.thread.subject_thread(subject)
+        return subject["id"] if subject["kind"] == "thread" else None
+
+    todos = [
+        {**stood.get(todo["id"], todo), "thread": thread_of(todo["subject"])}
+        for todo in log.todos
+    ]
+    return WorkState(
+        durable,
+        activity,
+        workflows,
+        activity["records"],
+        todos,
+        reply,
+        present,
+        turn,
+    )

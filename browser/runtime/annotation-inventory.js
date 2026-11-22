@@ -438,7 +438,7 @@ export function createAnnotationInventory({
   // so one reading of a receipt never names a different stage than its text does. Its
   // line says when, in the interface's words, and what the agent said of it.
   /** @param {Workflow | null | undefined} receipt
-   * @returns {{kind: "waiting" | "activity" | "pickup" | "queued" | "sent", word: import("./voice.js").Said, context: import("./voice.js").Words | null} | null} */
+   * @returns {{kind: "waiting" | "activity" | "pickup" | "sent", word: import("./voice.js").Said, context: import("./voice.js").Words | null} | null} */
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
     const word = workflowWord(receipt, agentName());
@@ -447,16 +447,14 @@ export function createAnnotationInventory({
     const said = receipt.detail ? [agentSays(receipt.detail)] : [];
     return {
       kind:
-        // A receipt handed back to the user always carries its failure.
-        receipt.condition
+        // A receipt handed back to the user is blocked by its failure.
+        receipt.state === "blocked"
           ? "waiting"
-          : receipt.at_work
+          : receipt.state === "running"
             ? "activity"
-            : receipt.stage === "picked_up"
+            : receipt.seen
               ? "pickup"
-              : receipt.stage === "queued"
-                ? "queued"
-                : "sent",
+              : "sent",
       word,
       context:
         when || said.length
@@ -853,35 +851,34 @@ export function createAnnotationInventory({
     // panel's.
     for (const todo of runtime.todos) {
       if (
-        todo.state !== "open" ||
+        todo.state === "done" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
         Number(todo.revision) > Number(runtime.currentRevision)
       )
         continue;
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);
-      const { running } = todo;
-      const word = todoWord(running);
-      const account = [todo.agent, running?.text ?? todo.title]
-        .filter(Boolean)
-        .join(" · ");
+      // The line of the start on it, standing or stopped.
+      const { line, title } = todo;
+      const word = todoWord(todo);
+      const account = [todo.agent, line?.text ?? title].filter(Boolean).join(" · ");
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
         // A start running on it is the agent at work there (margin-bars.js).
-        atWork: Boolean(running),
+        atWork: todo.state === "running",
         text: labelWords(account),
         words: [
           ...(todo.agent ? [`${todo.agent} · `] : []),
-          agentSays(labelWords(running?.text ?? todo.title)),
+          agentSays(labelWords(line?.text ?? title)),
         ],
         workflowFace: Object.freeze({
           ...KINDS.activity,
           label: word.text,
           voice: word.voice,
         }),
-        context: running
-          ? [leafSays(`Checked in ${ago(running.ts)} · `), agentSays(todo.title)]
+        context: line
+          ? [leafSays(`Checked in ${ago(line.ts)} · `), agentSays(title)]
           : null,
         activate: () => revealTarget(target, account, scrollToElement),
       });

@@ -95,9 +95,12 @@ def agents_words(page_dir) -> list[str]:
 
 def on_it(page_dir) -> list[str]:
     """The inputs the served workflows of the page, which has a document, read as the
-    agent's work in hand, which the page words On it while their delivery stands."""
+    agent's work in hand (`running`), which the page words On it while their delivery
+    stands."""
     work = read_page(page_dir, events_model.read_events(page_dir)).work
-    return sorted(item["input"] for item in work.workflows if item["at_work"])
+    return sorted(
+        item["input"] for item in work.workflows if item["state"] == "running"
+    )
 
 
 class _Untitled:

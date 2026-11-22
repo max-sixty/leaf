@@ -5,7 +5,8 @@ The reading uses one transaction and holds the two lists the active view serves
 (`served_state.queues`): On Me (`on_user`) holds the open obligations on the user, the
 updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
-inventory (`obligations`) also retains finished records, whatever their `status`.
+inventory (`obligations`) also retains finished records, and each record and to-do
+says where it stands (`standing`).
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
 agent recovers what it owes without the delivery. `source` states whether a document
@@ -42,6 +43,7 @@ from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .standing import is_open
 from .user_views import read_user_views, viewed_at
 from .validation.admission import logged_id
 from .work import page_subject
@@ -145,9 +147,9 @@ def _base_state(
         # The files the page's editors edit, each by its binding (`granted_files`).
         "files": granted_files(page_dir),
         # What is on the user (On Me) and what is on the agent (On <agent>), each item
-        # naming its kind and subject (`served_state.queues`); the to-dos on either
-        # side; the agent's plan, which arranges them (`plans`); and the complete
-        # canonical obligation inventory those lists select from, whose records an obligation's
+        # naming its kind and subject (`served_state.queues`); the open to-dos; the
+        # agent's plan, which arranges them (`plans`); and the complete canonical
+        # obligation inventory those lists select from, whose records an obligation's
         # row names by `id`.
         "queues": {"on_user": [], "on_agent": []},
         "todos": [],
@@ -343,9 +345,9 @@ def page_state(
     the user's current state and the reports in force on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
-    the agent messages in it the user has not read, every open to-do on either side,
-    the obligations, the two lists, On Me and On <agent>, that they and the workflows add up
-    to (`served_state.queues`, the panel's own counts), and presence beside what
+    the agent messages in it the user has not read, every open to-do, the
+    obligations, the two lists, On Me and On <agent>, that they and the workflows add
+    up to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
     demand from the log, revision, registry, and source store — no derived reading is
@@ -408,7 +410,7 @@ def page_state(
         ],
     }
     # Each answer owed names its update's record, in `obligations`; the workflows that
-    # name the same record (`obligation`) carry its delivery stage and subject, and
+    # name the same record (`obligation`) carry each input's delivery and subject, and
     # `response` the provisional response progress.
     state["workflows"] = served["workflows"]
     state["user_views"] = read_user_views(
@@ -439,7 +441,7 @@ def page_state(
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["obligations"] = view["obligations"]
-        state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
+        state["todos"] = [todo for todo in browser["todos"] if is_open(todo)]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]
         state["queues"] = {

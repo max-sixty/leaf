@@ -130,7 +130,12 @@ type Leaf = {
   title: string;
   on_user: number;
   threads: { open: number; unread: number };
-  activity: { kind: string; detail: string };
+  activity: {
+    presence: string;
+    state: string;
+    reason: string | null;
+    detail: string;
+  };
 };
 
 // An instruction Leaf gives the module (`src/leaf/carrier.py`, whose header holds the
@@ -150,15 +155,15 @@ type Answer = { do?: Instruction[]; log?: string } | undefined;
 // and the instructions Leaf has for the module.
 type Listing = { pages: Leaf[]; do: Instruction[] };
 
-// The color the word Leaf wears for each activity kind, in Claude Code's theme: the
-// tone the page's Leaf panel paints its leaf (`.lf-dot` in chrome.css), muted for the
-// rest.
-const TONES: Record<string, string> = {
-  working: "suggestion",
-  listening: "success",
-  stalled: "warning",
-  away: "warning",
-};
+// The color the word Leaf wears for where the agent's side of a page stands
+// (`activity.py`), in Claude Code's theme: the tone the page's Leaf panel paints its
+// leaf (`.lf-dot` in chrome.css, `toneOf` in activity-words.js), muted where no
+// session holds the page or the agent closed it.
+function toneOf({ presence, state, reason }: Leaf["activity"]) {
+  if (state === "running" || reason === "terminal") return "suggestion";
+  if (presence === "here") return state === "blocked" ? "warning" : "success";
+  return presence === "away" ? "warning" : "inactive";
+}
 
 /** What a line says of the agent's work, in the band's own few words: the agent's
  * sentence while it works, Quiet or Away when it has gone silent, and nothing while
@@ -166,13 +171,12 @@ const TONES: Record<string, string> = {
  * (`leafRow` in activity-words.js) says more, such as when the agent last checked
  * in; this module can't import it, since its graph reaches the page's framework and
  * Lit by the server's absolute paths, which no module loader here resolves. */
-function statusOf({ kind, detail }: Leaf["activity"]) {
+function statusOf({ presence, state, reason, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
   // The agent's own sentence, or none: the tone of the word Leaf says it works.
-  if (kind === "working") return detail;
-  if (kind === "stalled") return stated("Quiet");
-  if (kind === "away") return "Away";
-  return "";
+  if (state === "running" || reason === "terminal") return detail;
+  if (presence === "here") return state === "blocked" ? stated("Quiet") : "";
+  return presence === "away" ? "Away" : "";
 }
 
 // The follower's last list, how to stop the follower while one runs, and whether
@@ -733,11 +737,7 @@ export const register: Register = (on) => {
     const line = (page: Leaf, index: number) => {
       const { url, title, on_user, threads, activity } = page;
       const status = statusOf(activity);
-      const leaf = h(
-        Text,
-        { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
-        "Leaf",
-      );
+      const leaf = h(Text, { color: toneOf(activity), weight: "semibold" }, "Leaf");
       const counts = [
         ...(on_user
           ? [dim(" · "), h(Text, { color: "warning" }, `On Me ${on_user}`)]

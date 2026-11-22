@@ -51,7 +51,7 @@ export function answerWords(item) {
    itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {
-  if (item.status === "withdrawn") return leafSays("Withdrawn");
+  if (item.outcome === "dropped") return leafSays("Withdrawn");
   const words = answerWords(item);
   return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }

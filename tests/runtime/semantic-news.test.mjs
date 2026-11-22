@@ -69,7 +69,9 @@ const reading = ({
   onMe,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
-const responseFailure = (source, kind = "failed") =>
+// An update's workflow blocked on its response for `reason`: the harness gave up on
+// it, the turn answering it was interrupted, or it went quiet.
+const responseFailure = (source, reason = "failed") =>
   servedWorkflow({
     id: "input",
     input: "input",
@@ -78,8 +80,9 @@ const responseFailure = (source, kind = "failed") =>
     coordinate: ["thread", "t"],
     seq: 3,
     obligation: "update:input",
-    stage: "answered",
-    condition: { kind, operation: "response" },
+    state: "blocked",
+    reason,
+    seen: true,
     response: source,
   });
 
@@ -94,10 +97,11 @@ test("accepted messages and user obligations arrive together after a quiet basel
 
   const next = reading({
     threads: [
-      thread("t", [message("old", { unread: false }), message("new", { seq: 2 })], {
-        kind: "needs_user",
-        reason: "obligation",
-      }),
+      thread(
+        "t",
+        [message("old", { unread: false }), message("new", { seq: 2 })],
+        "new",
+      ),
     ],
     pageObligations: [item("existing"), item("new")],
     threadObligations: [replyObligation("new")],
@@ -120,9 +124,7 @@ test("accepted messages and user obligations arrive together after a quiet basel
 test("structural questions own their thread obligation and reopening starts a new episode", () => {
   const baseline = observeSemanticNews(null, reading());
   const owed = reading({
-    threads: [
-      thread("t", [message("question")], { kind: "needs_user", reason: "obligation" }),
-    ],
+    threads: [thread("t", [message("question")], "choice")],
     pageObligations: [item("other")],
     threadObligations: [item("choice", "t")],
   });
@@ -169,9 +171,7 @@ test("structural questions own their thread obligation and reopening starts a ne
 test("a second question in the same waiting thread has its own source version", () => {
   const firstQuestion = reading({
     threadObligations: [replyObligation("first")],
-    threads: [
-      thread("t", [message("first")], { kind: "needs_user", reason: "obligation" }),
-    ],
+    threads: [thread("t", [message("first")], "first")],
   });
   const baseline = observeSemanticNews(null, firstQuestion);
   const next = observeSemanticNews(
@@ -179,10 +179,7 @@ test("a second question in the same waiting thread has its own source version", 
     reading({
       threadObligations: [replyObligation("second")],
       threads: [
-        thread("t", [message("first"), message("second", { seq: 2 })], {
-          kind: "needs_user",
-          reason: "obligation",
-        }),
+        thread("t", [message("first"), message("second", { seq: 2 })], "second"),
       ],
     }),
   );
@@ -271,17 +268,17 @@ test("an update handed back to the user is news once, as its failed response", (
 
 test("a response failure announces once per attempt and retrying is not recovery", () => {
   const baseline = observeSemanticNews(null, reading());
-  const stale = observeSemanticNews(
+  const quiet = observeSemanticNews(
     baseline.observed,
     reading({
-      workflows: [responseFailure({ attempt: "attempt" }, "stale")],
+      workflows: [responseFailure({ attempt: "attempt" }, "quiet")],
     }),
   );
-  assert.deepEqual(stale.news, []);
+  assert.deepEqual(quiet.news, []);
   const interruptedReading = reading({
     workflows: [responseFailure({ attempt: "attempt" }, "interrupted")],
   });
-  const failed = observeSemanticNews(stale.observed, interruptedReading);
+  const failed = observeSemanticNews(quiet.observed, interruptedReading);
   assert.deepEqual(kinds(failed), ["response_failure"]);
   assert.deepEqual(
     failed.news
@@ -387,10 +384,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
       thread(
         "t",
         [message("answer", { agent: "Sam", text: "Does this answer your question?" })],
-        {
-          kind: "needs_user",
-          reason: "obligation",
-        },
+        "answer",
       ),
     ],
   });

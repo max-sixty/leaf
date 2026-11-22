@@ -3880,19 +3880,26 @@ export function createFloatingPanel({
       }
     </li>`;
   }
+  // Each goal of the plan: a heading over its steps, with how many are done, or a
+  // to-do or obligation at the top, drawn as a step is, its own steps under it.
   /** @param {readonly import("../types/contract.js").ServedPlanStep[]} goals */
   const planCards = (goals) =>
-    goals.map(
-      (goal) =>
-        html`<section class="lf-fp-plan">
-          <h3 class="lf-fp-plan-goal">
-            <span>${goal.title ?? ""}</span
-            ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
-          </h3>
-          <ol class="lf-fp-plan-steps">
-            ${goal.steps.map(planStep)}
-          </ol>
-        </section>`,
+    goals.map((goal) =>
+      goal.item
+        ? html`<section class="lf-fp-plan">
+            <ol class="lf-fp-plan-steps">
+              ${planStep(goal)}
+            </ol>
+          </section>`
+        : html`<section class="lf-fp-plan">
+            <h3 class="lf-fp-plan-goal">
+              <span>${goal.title ?? ""}</span
+              ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
+            </h3>
+            <ol class="lf-fp-plan-steps">
+              ${goal.steps.map(planStep)}
+            </ol>
+          </section>`,
     );
   // ---------- an item's line, and its card ----------
   // What the agent's list calls an item: a to-do, or the reply or answer it owes.

@@ -85,9 +85,11 @@ EOF
 ```
 
 Each step shows the state of its to-do or obligation, and the plan it prints names each
-new to-do by id. Start and end a step's to-do as you would any other; its end's
-`--text` is where the user finds the result. Write the plan again only when the
-breakdown changes, naming the steps it already holds by `item`.
+new to-do by id. A step of the user's that you can't ask yet, such as a check only they
+can run once your patch exists, is your `todo` to have it done; when you ask it, put the
+question's obligation under that step. Start and end a step's to-do as you would any
+other; its end's `--text` is where the user finds the result. Write the plan again only
+when the breakdown changes, naming the steps it already holds by `item`.
 
 When input arrives:
 

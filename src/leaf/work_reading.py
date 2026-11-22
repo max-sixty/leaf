@@ -131,10 +131,11 @@ class WorkReading:
         on it is owed."""
         return self._handover.records
 
-    @cached_property
-    def plan(self) -> dict | None:
+    def plan(self, todos: list[dict]) -> dict | None:
+        """The plan in force, its steps read from `todos`, every to-do as
+        `page_todos` serves it, so a step's start lapses as its to-do's does."""
         return plan_reading(
-            self.events, self.log.withdrawn, self.log.todos, self.all_obligations["all"]
+            self.events, self.log.withdrawn, todos, self.all_obligations["all"]
         )
 
     def page_todos(self, aged: list[dict]) -> list[dict]:

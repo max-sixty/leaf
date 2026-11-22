@@ -231,7 +231,7 @@ def browser_state(
         **page_history,
         "views": views,
         "todos": todos,
-        "plan": durable.plan,
+        "plan": durable.plan(todos),
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(

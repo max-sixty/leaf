@@ -10,10 +10,11 @@ plan` writes the whole outline each time, so reshaping the breakdown is a rewrit
 and an empty outline clears it.
 
 No step's state is written into the plan. A step naming an item reads the item's
-state, and a heading reads its steps' (`_heading_state`): done once every step not
-dropped is done, under way while one is, and open otherwise. So the plan stays true
-after the agent stops: a start lapses with the turn that wrote it (`todos`), and the
-steps read what was finished and what is still owed. A state the plan's writer sets,
+state as the page serves it, a to-do's start included once activity has aged it
+(`WorkReading.plan`), and a heading reads its steps' (`_heading_state`): done once
+every step not dropped is done, under way while one is, and open otherwise. So the
+plan stays true after the agent stops: a start lapses with the turn that wrote it
+(`todos`), and the steps read what was finished and what is still owed. A state the plan's writer sets,
 the alternative, holds until the next rewrite, so a step the agent left reads under
 way long after its turn ended, and the step has no end that could say where its result
 is. Each step of work is therefore a record with an end of its own: the agent's a
@@ -203,19 +204,19 @@ def _heading_state(kept: list[dict]) -> str:
 
 def cmd_plan(page_dir: Path, steps: list) -> dict:
     """Write `steps` as the page's plan; the record. Each step written as `todo` opens
-    a to-do with that title on the page, which the plan names by its id. A long title
-    is fitted (`thread.agent_title`), and a step that skips a level is noted
-    (`skipped_levels`). The to-dos and the plan are admitted before any is appended,
-    so a refused plan opens no to-do."""
-    from .event_contracts import admitted_event, append_admitted, voiced
+    a to-do with that title on the page, which the plan names by its id; the to-dos
+    and the plan land together or not at all (`append_all_admitted`). A long title is
+    fitted (`thread.agent_title`), and a step that skips a level is noted
+    (`skipped_levels`)."""
+    from .event_contracts import append_all_admitted
+    from .event_log import new_event_id
     from .leases import contract_writer
-    from .page_view import PageView
     from .revisioning import activate_source
     from .service import PageTransaction
-    from .state import now_iso
     from .thread import agent_title
 
-    # A step naming an item too says two things, so it goes to the door as written.
+    # A step naming an item too says two things, so it goes to the door as written,
+    # as does a plan that isn't a list, and the door says what is wrong.
     def opens(step) -> bool:
         return (
             isinstance(step, dict)
@@ -223,20 +224,7 @@ def cmd_plan(page_dir: Path, steps: list) -> dict:
             and "item" not in step
         )
 
-    # A plan that isn't a list goes to the door as written, which says what is wrong.
-    listed = steps if isinstance(steps, list) else []
-    todos = [
-        {
-            "kind": "todo",
-            "author": "agent",
-            "subject": {"kind": "page"},
-            "title": agent_title(step["todo"]),
-        }
-        for step in listed
-        if opens(step)
-    ]
-
-    def stored(step, ids):
+    def written(step, ids) -> dict:
         if opens(step):
             kept = {key: value for key, value in step.items() if key != "todo"}
             return {**kept, "item": next(ids)}
@@ -244,32 +232,31 @@ def cmd_plan(page_dir: Path, steps: list) -> dict:
             return {**step, "title": agent_title(step["title"])}
         return step
 
-    def plan(ids: list[str]) -> dict:
-        named = iter(ids)
-        return {
-            "kind": "plan",
-            "author": "agent",
-            "steps": [stored(step, named) for step in listed]
-            if isinstance(steps, list)
-            else steps,
-        }
-
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
             activate_source(page_dir, transaction=page)
-            view = PageView(page_dir)
-            trial = list(page.events)
-            opened: list[dict] = []
-            for todo in todos:
-                # Stamped as the append would stamp it, so the next reads after it.
-                record = admitted_event(view, trial, voiced(todo))
-                seq = trial[-1]["seq"] + 1 if trial else 1
-                opened.append({**record, "ts": now_iso(), "seq": seq})
-                trial.append(opened[-1])
-            admitted_event(view, trial, voiced(plan([each["id"] for each in opened])))
-            ids = [append_admitted(page, todo)[0]["id"] for todo in todos]
-            record, _ = append_admitted(page, plan(ids))
+            listed = steps if isinstance(steps, list) else []
+            todos: list[dict] = []
+            for step in filter(opens, listed):
+                todos.append(
+                    {
+                        "kind": "todo",
+                        "author": "agent",
+                        "id": new_event_id([*page.events, *todos]),
+                        "subject": {"kind": "page"},
+                        "title": agent_title(step["todo"]),
+                    }
+                )
+            named = iter(todo["id"] for todo in todos)
+            plan = {
+                "kind": "plan",
+                "author": "agent",
+                "steps": [written(step, named) for step in listed]
+                if isinstance(steps, list)
+                else steps,
+            }
+            *_, record = append_all_admitted(page, [*todos, plan])
             note(*skipped_levels(record["steps"]))
             return record
 

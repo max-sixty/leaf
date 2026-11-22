@@ -975,7 +975,7 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
     planned = runner.invoke(
         cli_model.cli,
         ["task", "plan", str(page_dir), "--text"]
-        + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
+        + ['[{"depth": 0, "todo": "Check the rows"}]'],
     )
     assert planned.exit_code == 0, planned.output
 

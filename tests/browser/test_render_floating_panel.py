@@ -4243,15 +4243,20 @@ def test_on_me_groups_by_the_plan_and_the_plan_heads_on_claude(browser, serve):
         {"depth": 1, "todo": "Ask the DBA"},
         {"depth": 1, "item": "widget:schema"},
         {"depth": 1, "todo": "Write the note"},
+        {"depth": 0, "todo": "Tidy the changelog"},
     ]
     written = CliRunner().invoke(
         cli_model.cli, ["task", "plan", str(serve.page_dir)], input=json.dumps(steps)
     )
     assert written.exit_code == 0, written.output
-    reading, asking, _, _ = json.loads(written.output.splitlines()[-1])["steps"][1:]
+    reading, asking, _, _, tidying = json.loads(written.output.splitlines()[-1])[
+        "steps"
+    ][1:]
     page_dir = str(serve.page_dir)
     leaf("task", "end", page_dir, reading["item"], "done", "--text", "Notes in #old")
     leaf("task", "end", page_dir, asking["item"], "dropped", "--text", "Not needed")
+    tidied = "Tidied in " + "https://example.com/changelog/" * 4
+    leaf("task", "end", page_dir, tidying["item"], "done", "--text", tidied)
     page = floating(browser, url)
     page.locator(".lf-fp-leaf").click()
     view = page.locator(panel_view("queue"))
@@ -4275,7 +4280,9 @@ def test_on_me_groups_by_the_plan_and_the_plan_heads_on_claude(browser, serve):
     expect(page.locator(".lf-fp-plan-goal")).to_have_text(
         re.compile(r"Ship the migration\s*1 of 3")
     )
-    plan_steps = page.locator(".lf-fp-plan > .lf-fp-plan-steps > .lf-fp-plan-step")
+    plan_steps = page.locator(".lf-fp-plan").first.locator(
+        ":scope > .lf-fp-plan-steps > .lf-fp-plan-step"
+    )
     expect(plan_steps).to_have_count(4)
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
     expect(plan_steps.nth(0).locator(".lf-fp-plan-detail")).to_have_text(
@@ -4283,6 +4290,12 @@ def test_on_me_groups_by_the_plan_and_the_plan_heads_on_claude(browser, serve):
     )
     # The open to-do stands in the plan only.
     expect(view.locator(".lf-fp-on-item")).to_have_count(0)
+    # A to-do at the top is drawn as a step, and the words its end gave read whole.
+    tidy = page.locator(".lf-fp-plan").nth(1).locator(".lf-fp-plan-step")
+    expect(tidy.get_by_role("img")).to_have_accessible_name("Done")
+    detail = tidy.locator(".lf-fp-plan-detail")
+    expect(detail).to_have_text(tidied)
+    assert detail.evaluate("el => el.scrollWidth <= el.clientWidth")
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On Me")
     expect(panel_tab(page, "On Me")).to_be_focused()

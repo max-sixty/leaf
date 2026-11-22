@@ -277,6 +277,22 @@ def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
     ]
     opened = {each["id"]: each["title"] for each in state_json(page_dir)["todos"]}
     assert (opened[checking], opened[posting]) == ("Check the diffs", "Post it")
+    # A start nobody has renewed in a long while holds its step no more than its to-do.
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "item": checking,
+            "text": "Checking the diffs",
+            "ts": "2026-01-05T09:00:00.000-08:00",
+        },
+    )
+    written(
+        leaf("task", "start", page_dir, todo["id"], "--text", "Cutting the example")
+    )
+    [goal] = state_json(page_dir)["plan"]["steps"]
+    assert (goal["steps"][0]["state"], goal["steps"][0]["running"]) == ("open", None)
     written(leaf("task", "end", page_dir, checking, "done", "--text", "In PR #12"))
     written(leaf("task", "end", page_dir, posting, "dropped", "--text", "Not needed"))
     [goal] = state_json(page_dir)["plan"]["steps"]

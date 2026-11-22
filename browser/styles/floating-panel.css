@@ -1908,14 +1908,17 @@
     font-variant-numeric: tabular-nums;
   }
   /* The line the agent's running step wrote, under what it is about: a plan's step, or
-     an item On <agent> lists; and under a finished step, the words its end gave, such
-     as where its result is. It keeps to one line, cut short at its end, and an item's
+     an item On <agent> lists. It keeps to one line, cut short at its end, and an item's
      card opened shows it whole. */
-  .lf-fp-plan-detail,
   .lf-fp-running {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* Under a finished step, the words its end gave, such as where its result is, whole,
+     since no card opens to show the rest. */
+  .lf-fp-plan-detail {
+    overflow-wrap: anywhere;
   }
   .lf-fp-on-line > .lf-fp-running {
     grid-column: main;

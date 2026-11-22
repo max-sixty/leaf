@@ -1155,8 +1155,10 @@ export function createFloatingPanel({
   // The thread the reader lands in once its reading is drawn: on opening,
   // at the turn the user comes back for (`showReturnTurn`); after the user's turn,
   // past it, at its end (`end`); after a press on its held news, at the first message
-  // the news showed, where it showed one (`shown`, the messages drawn before it).
-  /** @type {{key: string, end: boolean, shown?: Set<string>} | null} */
+  // the news showed, where it showed one (`shown`, the messages drawn before it); and
+  // reopened where the user had read it to, at that offset (`scroll`,
+  // `restoreCurrentLocation`).
+  /** @type {{key: string, end: boolean, shown?: Set<string>, scroll?: number} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -4924,19 +4926,21 @@ export function createFloatingPanel({
               const intent = retainUserIntent();
               const place = placedAt(thread.id)?.place;
               if (place) reveal(place, intent);
-              close();
-              // The reply box the field drew goes back to the thread's drawing on
-              // the page once the reader has drawn the view gone, and the route lands
-              // there where an opening does (thread/focus.js, `openingPart`); where the
-              // page draws no view of the thread, as a window with no room for the rail
-              // does, on its place (thread/destination.js, `reader: "page"`).
-              void present({ release: true }).then(() =>
-                threadActions.open(thread.key, {
-                  part: null,
-                  intent,
-                  reader: "page",
-                }),
-              );
+              // The route reads where the user is before anything moves, so Back
+              // returns to this view, then draws the thread on the page and has this
+              // view put away, handing the reply box the field drew to the page's
+              // drawing; it lands there where an opening does (thread/focus.js,
+              // `openingPart`). Where the page draws no view of the thread, as a
+              // window with no room for the rail does, it lands on the thread's place
+              // (thread/destination.js, `reader: "page"`) and the view goes once it
+              // has, keeping its reply's words as a close does. A route that lands
+              // nowhere leaves the view where the user was.
+              void threadActions
+                .open(thread.key, { part: null, intent, reader: "page" })
+                .then((landed) => {
+                  if (!landed || !intent()) return;
+                  if (threadOf(trail.value.at(-1))?.key === thread.key) close();
+                });
             }}
           ></button>`
         : nothing
@@ -5044,6 +5048,8 @@ export function createFloatingPanel({
       if (intent && landing === intent && thread.key === intent.key) {
         landing = null;
         if (intent.end) scrollToEnd(view);
+        else if (intent.scroll !== undefined)
+          moveScrollerBy(view, intent.scroll - view.scrollTop);
         else if (intent.shown) {
           const before = intent.shown;
           const shown = [...outlet.querySelectorAll(".lf-msg[data-lf-message]")].find(
@@ -5549,9 +5555,10 @@ export function createFloatingPanel({
   // open above the row gives way where it would stand over any of that place once
   // landed (`landed`, landing-scroll.js `landedBox`), as it gives way to a press on the
   // page: a long thread's view covers most of the window, and a place at the page's
-  // foot can't be scrolled above even a short one. A view the landing clears stays, so
-  // a link followed from a thread's view leaves the thread open for Back to return to.
-  // On Me stays too where it lists the item travel lands on (`onMe.lists`), since its
+  // foot can't be scrolled above even a short one. Back reopens a thread whose view the
+  // landing put away (history.js, `returnPlace`), and Forward, which lands the user on
+  // that place again, puts it away again, as any return onto a place it would stand
+  // over does. On Me stays where it lists the item travel lands on (`onMe.lists`), since its
   // card shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread
   // On Me doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the
   // view would stand over clears it the same way, since the ring the user follows would
@@ -5570,7 +5577,8 @@ export function createFloatingPanel({
       overlaps(box, opened.getBoundingClientRect()),
     );
   };
-  /** @type {import("./anchor-travel.js").TravelOptions["clearFor"]} */
+  /** @param {Pick<import("./anchor-travel.js").Arrival, "where" | "focus">} destination
+   * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
     if (
       doors.queue.shows() &&
@@ -5581,7 +5589,9 @@ export function createFloatingPanel({
     if (standsOver(where, landed)) close();
   }
   onCurrentLocation((node, cause) => {
-    if (cause === "step" && node && standsOver(node, landedBox(node))) close();
+    if (!node) return;
+    if (cause === "return") clearFor({ where: node, focus: node }, landedBox(node));
+    else if (cause === "step" && standsOver(node, landedBox(node))) close();
   });
 
   // The doors to the panel's views and to Versions, as Go-to's named destinations
@@ -5684,33 +5694,51 @@ export function createFloatingPanel({
   }
 
   // A live revision carries the thread open here, and where its view was read to,
-  // across it (version.js, `captureRetainedCurrentLocation`): the reader is still at it, so
-  // the view comes back as they left it, without taking focus, which the reply's own
-  // editing continuity hands back. A revision installed in place keeps the view, which
-  // still shows the thread, so its restore changes nothing. A view opened by the
-  // user's next visit does not come back (restore-state.js); this is not that.
-  function captureCurrentLocation() {
+  // across it (version.js, `captureRetainedCurrentLocation`), and so does a return to
+  // a working place (history.js, `returnPlace`), as Back from a link followed out of
+  // the view is: the reader is still at it, so the view comes back as they left it,
+  // with the user in it where they were, and with the reply's own editing continuity
+  // handing back the field. A revision installed in place keeps the view, which still
+  // shows the thread, so its restore changes nothing. A view opened by the user's next
+  // visit does not come back (restore-state.js); this is not that.
+  /** @param {Element | null} [at] the node the user is on, else where focus is */
+  function captureCurrentLocation(at = focused()) {
     const top = trail.value.at(-1);
     const view = openView();
     if (!top?.thread || !view) return null;
     return {
       thread: threadByKey(top.thread)?.key ?? top.thread,
       scroll: view.scrollTop,
+      // The user is in the thread on its view or its head line, whose Resolve and
+      // Show on page stand for the view; the field's reply is its editing continuity's.
+      focus: [view, head].some(
+        (part) => at && at !== document.body && renderedUnder(at, part),
+      ),
     };
   }
+  // The view opens again through the thread's route, which keeps one thread open
+  // (thread/destination.js), so a card a walk opened since closes. The route has this
+  // panel open the view in the task that asks (`reveal`), so the landing set after it
+  // is the one the view's drawing lands at.
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
-  function restoreCurrentLocation(currentLocation) {
+  async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread || !currentLocation) return false;
-    if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
-    open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
-    landing = null;
-    void present({ release: true }).then(() => {
-      const view = openView();
-      if (view && trail.value.at(-1)?.thread === thread.key)
-        moveScrollerBy(view, currentLocation.scroll - view.scrollTop);
+    const { scroll, focus } = currentLocation;
+    const view = openView();
+    if (trail.value.at(-1)?.thread === thread.key && view) {
+      if (focus && !currentLocationIn(view)) focusDestination(view, "return");
+      return true;
+    }
+    const opened = threadActions.open(thread.key, {
+      reader: "primary",
+      part: "thread",
+      focus,
+      travel: false,
+      scroll: false,
     });
-    return true;
+    landing = { key: thread.key, end: false, scroll };
+    return Boolean(await opened);
   }
 
   // The page's comment box in this chrome, as `c` and Resume writing find it

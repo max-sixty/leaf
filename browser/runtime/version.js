@@ -1631,7 +1631,7 @@ function revisionDocument(revision) {
  *   readAndApply: () => unknown,
  *   syncLayout: () => unknown,
  *   captureRetainedCurrentLocation: () => RetainedLocation,
- *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => boolean,
+ *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => Promise<boolean>,
  *   captureObligationCurrentLocation: () => ObligationLocation,
  *   restoreObligationCurrentLocation: (currentLocation: ObligationLocation | null) => void,
  *   versions: { press: () => void },
@@ -2163,7 +2163,7 @@ export function createVersionController({
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
-            restoreRetainedCurrentLocation(retainedCurrentLocation);
+            void restoreRetainedCurrentLocation(retainedCurrentLocation);
             restoreCarryScroll();
             await restoreEditingContinuity(editingContinuity, currentIntent);
           }
@@ -3073,7 +3073,7 @@ export function createVersionController({
         if (handoff) {
           restorePointer(handoff.pointer);
           restoreView(handoff.view, currentIntent);
-          restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
+          void restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
           if (handoff.comparison) showComparison(handoff.comparison);

@@ -1590,12 +1590,14 @@ def test_the_kernel_styles_no_class_a_page_coins():
     floor and grows its form (tests/fixtures/plain/form.html). A kernel sheet's
     selectors and `@scope` preludes, and the selectors the runtime hands a DOM query,
     name no other class but a library's on the elements Leaf draws for it: PhotoSwipe's
-    in the chrome's lightbox, and CodeMirror's in a text field's closed tree. An idiom's
-    marks are the one other kind: a class on an element inside one that wears a kernel
-    idiom's class (`structure.AUTHORED_CLASSES`), as `.box` is in `svg.lf-drawing .box`,
-    which reaches nothing outside a drawing."""
+    in the chrome's lightbox, and CodeMirror's in a text field's closed tree. A drawing's
+    marks are the one other kind: a class on an element inside `svg.lf-drawing`, as
+    `.box` is in `svg.lf-drawing .box`. The idiom's entry tells an author to write them
+    there, and such a rule reaches nothing outside a drawing. A box the page fills with
+    its own content, as `lf-scroll` is, has no marks."""
     authored = ("lf-", "layout-", "density-")
     libraries = ("pswp", "cm-")
+    marked = {"lf-drawing"}
 
     def classes(tokens, nested=True):
         """The class selectors among `tokens`, in and out of `:is()`-like arguments."""
@@ -1616,8 +1618,8 @@ def test_the_kernel_styles_no_class_a_page_coins():
 
     def coined(prelude):
         """The classes a prelude names that are neither Leaf's nor a library's, read one
-        compound at a time, so that those after a compound wearing an idiom's class
-        count as that idiom's marks."""
+        compound at a time, so that those after a compound wearing a drawing's class
+        count as its marks."""
         names, compound, inside = [], [], False
         for token in [*tinycss2.parse_component_value_list(prelude), None]:
             ends_selector = token is None or (
@@ -1635,17 +1637,15 @@ def test_the_kernel_styles_no_class_a_page_coins():
                         if not name.startswith(authored + libraries)
                     ]
                 inside = not ends_selector and (
-                    inside
-                    or not structure_model.AUTHORED_CLASSES.isdisjoint(
-                        classes(compound, nested=False)
-                    )
+                    inside or not marked.isdisjoint(classes(compound, nested=False))
                 )
                 compound = []
             else:
                 compound.append(token)
         return sorted(names)
 
-    assert coined("svg.lf-drawing .box, .box svg.lf-drawing, :is(.lf-scroll) .hot") == [
+    assert marked <= structure_model.AUTHORED_CLASSES
+    assert coined("svg.lf-drawing .box, .box svg.lf-drawing, .lf-scroll .hot") == [
         "box",
         "hot",
     ]

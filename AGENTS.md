@@ -381,17 +381,6 @@ the page shows, and a `restated` mark withdraws the widget's earlier actions. A
 widget in a thread message has neither bound: its state draws on actions from its
 whole thread, since its markup lives in the log rather than in a version.
 
-A renderer repaints only when a value it read through a selector has changed, or
-when code calls the renderer's `present()` after changing an input the renderer
-reads from outside the state, such as a draft. Code that changes what the page shows
-publishes the new state, then awaits `whenDocumentPresented()`; it doesn't call
-renderers or decide their order. A renderer that depends on DOM another renderer
-writes declares that dependency through `PRESENTATION_DOM`.
-`whenDocumentPresented()` resolves once every renderer has written its DOM. It
-doesn't wait for a widget's asynchronous preparation or for a gesture that holds
-part of the page, such as a drag, to end; `whenApplicationPresented()` waits for
-those too.
-
 A gesture's own result shows in the task that sends it, before the server answers
 ("Responsiveness"); a disabled control, a spinner or a delivery status is not that
 result. To the server's reading, the browser adds only what a gesture decides by

@@ -129,7 +129,8 @@ measure, such as a board or a diagram, declares it in `space`: `wide` or
 `available`. One read as lines of text, such as a list of choices, keeps the prose's
 line length on a wide page with `max-inline-size: var(--lf-measure)` in its own
 stylesheet, under `@media screen`. Only the column and sidebar Layouts apply
-`space`. A workspace states no measure, so there every element fills its region.
+either width. A workspace states no measure, so there every element fills its
+region.
 
 A widget that needs a minimum width, such as a board whose columns must stay readable,
 caps it by the space it is in: `min-inline-size: min(<floor>, 100%, 100cqi,

@@ -114,7 +114,7 @@ export function clippedControls() {
 }
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
-// which of them a widget is held to is the widget's to declare (`inline`), because
+// which of them a widget is held to is the widget's to declare (`space: inline`), because
 // the two kinds are laid out by different rules: one reserves a region and the other is
 // set among the words around it, where the box is the words and there is no width it
 // was supposed to reach. Held to the region's floor, an inline widget fails for being
@@ -135,7 +135,7 @@ export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
     Object.entries(declarations)
-      .filter(([tag, entry]) => entry.inline)
+      .filter(([tag, entry]) => entry.space === "inline")
       .map(([tag]) => tag),
   );
   return [...document.querySelectorAll("*")]

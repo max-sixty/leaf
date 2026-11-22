@@ -1246,7 +1246,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
 
     A question's group is its arrival: its name, the context, then the control. A
     suggestion stands mid-sentence, named by its own words, so no group holds it
-    (`inline`). Arriving on the change alone would put its own top edge at the
+    (`space: inline`). Arriving on the change alone would put its own top edge at the
     window's head and take the sentence with it, leaving the user on the change with
     nothing on screen saying what they would be accepting. Leaf reads no heading for
     it: the section's heading stays above the window.

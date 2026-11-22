@@ -45,6 +45,19 @@ import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
 
 /** @typedef {Document | DocumentFragment | Element} Scope */
+/** @typedef {import("./kernel-facts.js").Mark} Mark */
+/** @typedef {import("./kernel-facts.js").Paint} Paint */
+// Each attribute a mark paints: its own, or one for each of its fact's values
+// (`values`, `$marks`).
+/** @param {Mark} mark @returns {Paint[]} */
+const paints = (mark) => ("values" in mark ? Object.values(mark.values) : [mark]);
+// What a mark paints for a value its fact holds for an occurrence, or null for a value
+// the table doesn't hold, as an authored override may be.
+/** @param {Mark} mark @param {unknown} value @returns {Paint | null} */
+const paintFor = (mark, value) =>
+  "values" in mark ? (mark.values[String(value)] ?? null) : mark;
+/** @type {[string, Mark][]} */
+const MARKS = Object.entries(marks);
 /** @type {Set<string>} */
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -54,7 +67,7 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 /** @param {string} name */
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(marks).some((mark) => mark.attribute === name);
+  MARKS.some(([, mark]) => paints(mark).some((paint) => paint.attribute === name));
 
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed at the element's start, wearing .lf-ui
@@ -138,9 +151,10 @@ export function paintDeclaredWords(root) {
   return dressCode(root);
 }
 
-// The declarations a stylesheet has to read and cannot. Three of them first: one about
-// the space a widget is given and two about how it participates in content, and none of
-// them is something a selector can derive from the element in hand or look up.
+// The declarations a stylesheet has to read and cannot. Three questions first: one
+// about the space a widget is given and two about how it participates in content, and
+// none of them is something a selector can derive from the element in hand or look up.
+// One declaration, `space`, answers the first two.
 //
 // Which widgets may stand wider than the column is the first. Prose is set to a measure
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
@@ -150,7 +164,7 @@ export function paintDeclaredWords(root) {
 // `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
-// Whether the widget is set among the words around it is the second (`inline`).
+// Whether the widget is set among the words around it is the second (`space: inline`).
 // What reads it is the pair of selectors asking whether a suggestion slot or a variant
 // holds block content, which is HTML's phrasing content inverted: a custom element is
 // in no closed platform set, so any widget in one of those makes it a block — an inline
@@ -185,8 +199,8 @@ export function paintDeclaredWords(root) {
 // the first paint already gives a board its room and a workspace its panes, before any
 // module or the registry loads, and a revision the page patches in arrives painted the
 // same way. A message is the runtime's to render, so `markDeclared` paints it from
-// `marks` as it renders, with the marks that hold there: every one but the room, which
-// is the document's to hand out, while a message renders in the panel's.
+// `marks` as it renders, with the marks that hold there: every one but the room a block
+// takes, which is the document's to hand out, while a message renders in the panel's.
 
 /** @param {Scope} root @param {string} selector */
 function* elementsIn(root, selector) {
@@ -199,9 +213,14 @@ function* elementsIn(root, selector) {
 // over it.
 /** @param {Scope} root */
 export function markDeclared(root) {
-  for (const [key, mark] of Object.entries(marks)) {
-    const { attribute, authored, message } = mark;
-    if (!message) continue;
+  for (const [key, mark] of MARKS) {
+    // The attributes of this mark's that hold in a message.
+    const held = new Set(
+      paints(mark)
+        .filter((paint) => paint.message)
+        .map((paint) => paint.attribute),
+    );
+    if (!held.size) continue;
     // `$marks` keys each mark by the name of the fact it paints.
     const fact = /** @type {keyof import("../types/contract.js").WidgetDeclaration} */ (
       key
@@ -215,19 +234,33 @@ export function markDeclared(root) {
           markViews(el);
           continue;
         }
-        keeps(
-          el,
-          attribute,
-          !value ? null : value === true || mark.presence ? "" : String(value),
-        );
+        // The attribute the value paints, and none of the mark's others.
+        const paint = value ? paintFor(mark, value) : null;
+        for (const attribute of held)
+          keeps(
+            el,
+            attribute,
+            !paint?.message || paint.attribute !== attribute
+              ? null
+              : value === true || paint.presence
+                ? ""
+                : String(value),
+          );
       }
     }
     // Message markup is all content (`authored_on`, `$marks`), so only a
     // mark held to declaring tags asks which tag an occurrence is.
+    const { authored } = mark;
     if (authored)
-      for (const el of elementsIn(root, `[${authored}]`))
-        if (mark.authored_on !== "declared" || tags.includes(el.localName))
-          keeps(el, attribute, el.getAttribute(authored));
+      for (const el of elementsIn(root, `[${authored}]`)) {
+        const value = el.getAttribute(authored);
+        const paint = paintFor(mark, value);
+        if (
+          paint?.message &&
+          (mark.authored_on !== "declared" || tags.includes(el.localName))
+        )
+          keeps(el, paint.attribute, value);
+      }
   }
 }
 

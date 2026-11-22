@@ -39,10 +39,11 @@ export const OPENING = new Set(opening);
 export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 
 // The declared marks and the attribute each is painted as, which the runtime paints on
-// a message it renders and reads by name.
+// a message it renders and reads by name. A mark paints one attribute, or, where each
+// of its fact's values is painted as an attribute of its own, one for each (`values`).
 const { description: _description, ...declaredMarks } = kernel.$marks;
-/** @typedef {{attribute: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
-/** @type {Record<keyof typeof declaredMarks, Mark> & Record<string, Mark>} */
+/** @typedef {{attribute: string, message: boolean, presence?: boolean}} Paint */
+/** @typedef {{authored?: string, authored_on?: string} & (Paint | {values: Record<string, Paint>})} Mark */
 export const marks = declaredMarks;
 
 const kinds = Object.entries(kernel.$events.kinds);

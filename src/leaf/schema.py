@@ -332,27 +332,34 @@ _TAGS = {
 }
 
 
-# The form of a fact declared to hold only for the occurrences whose authored
-# attributes match its `when` (`registry.contract.holds_for`).
-_WHEN_FORM = {
-    "type": "object",
-    "properties": {"when": AWAITING_CONDITION},
-    "required": ["when"],
-    "additionalProperties": False,
-}
-
-
-def _conditional(schema: dict) -> dict:
+def _conditional(schema: dict, value: dict | None = None) -> dict:
     """The schema of a fact a declaration may state outright, as `schema` admits, or
-    in the `{when: {attribute: [values]}}` form. Only a mark (`$marks`) may take it,
-    and importing this module fails for any other fact (below). Delivery and the
-    browser paint each mark on the occurrences where it holds, and `registry.widgets`
-    holds each mark's `when` to the declared attributes, so no code names the fact. A
-    reader asking of one occurrence reads the fact through
-    `registry.contract.holds_for`, and one asking whether the tag declares it at all
-    reads the declaration, condition or not; `$keys` says which of `exhibit`'s
+    in the `{when: {attribute: [values]}}` form, which holds only for the occurrences
+    whose authored attributes match its `when` (`registry.contract.holds_for`). A
+    fact that is one of several values also names, as `is`, the value it then takes,
+    which `value` admits; without `value` the fact is then `true`. Only a mark
+    (`$marks`) may take the form, and importing this module fails for any other fact
+    (below). Delivery and the browser paint each mark on the occurrences where it
+    holds, and `registry.widgets` holds each mark's `when` to the declared attributes,
+    so no code names the fact. A reader asking of one occurrence reads the fact
+    through `registry.contract.holds_for`, and one asking whether the tag declares it
+    at all reads the declaration, condition or not; `$keys` says which of `exhibit`'s
     readers asks which."""
-    return {"oneOf": [schema, _WHEN_FORM]}
+    form = {
+        "type": "object",
+        "properties": {"when": AWAITING_CONDITION},
+        "required": ["when"],
+        "additionalProperties": False,
+    }
+    if value is not None:
+        form["properties"]["is"] = value
+        form["required"].append("is")
+    return {"oneOf": [schema, form]}
+
+
+def _conditioned(schema: dict) -> bool:
+    """Whether a fact's schema admits the `{when}` form (`_conditional`)."""
+    return any("when" in form.get("properties", ()) for form in schema.get("oneOf", ()))
 
 
 # How an author writes an element: a widget's declaration holds these with its other
@@ -394,7 +401,6 @@ FACTS: dict[str, dict] = {
     "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
     "shadow": {"const": True},
-    "inline": {"const": True},
     "visual": {
         "oneOf": [
             {"const": "whole"},
@@ -430,13 +436,17 @@ FACTS: dict[str, dict] = {
         "required": ["members"],
         "additionalProperties": False,
     },
-    "space": {"enum": ["wide", "available"]},
+    # The room the element takes in the page's flow. Only `flow` may hold for some
+    # occurrences alone: a reader of `inline` asks it of the tag, as the selector of
+    # the blocks a comparison reads does (`runtime/version.js`), so a condition would
+    # hide the declaration from it.
+    "space": _conditional(
+        {"enum": ["inline", "flow", "spine", "wide", "available"]}, {"const": "flow"}
+    ),
     # A default height in CSS pixels, or `true` for a widget that has none
     # and reserves only what an occurrence's data-height states.
     "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
     "bound": {"enum": ["start", "end"]},
-    "spine": {"const": True},
-    "flow": _conditional({"const": True}),
     "prepaint": _ATTRIBUTE_NAME,
     "inputs": DATA_INPUTS_SCHEMA,
     "outputs": {
@@ -489,7 +499,7 @@ DECLARATION_KEYS = frozenset(DECLARATION_SCHEMA["properties"]) - {"description"}
 if stray := sorted(
     name
     for name, schema in FACTS.items()
-    if _WHEN_FORM in schema.get("oneOf", ()) and name not in kernel_registry()["$marks"]
+    if _conditioned(schema) and name not in kernel_registry()["$marks"]
 ):
     raise ValueError(f"only a mark ($marks) may take the {{when}} form: {stray}")
 # A selector idiom names authored HTML the theme dresses, so it says only how an

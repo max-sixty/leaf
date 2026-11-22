@@ -221,7 +221,7 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     refused (`unnamed-question`). One named by its widget alone stands outside the
     region On Me selects and the ring draws round, so its premise is out of view
     (`ungrouped-question`, advice). A widget with words of its own needs no group: one
-    set among words (`inline`) is named by them, and one asking about each record of
+    set among words (`space: inline`) is named by them, and one asking about each record of
     its data (`awaits.records`) by each record's label. A message's widget needs none
     either, since the message names what it asks, so only a page's documents are
     checked."""
@@ -237,7 +237,7 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         awaits = entry.get("awaits")
         if (
             awaits is None
-            or entry.get("inline")
+            or entry.get("space") == "inline"
             or "records" in awaits
             or not matches_when(rec["attrs"], awaits.get("when"))
             or shown_in(rec, registry)

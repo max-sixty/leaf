@@ -282,7 +282,7 @@ class _OwnedWords:
 
 # The elements a line of words runs through (`$passages.phrasing`), as the runtime's
 # `enter` reads it. Every other element, a text block among them, and a widget unless it
-# is declared `inline`, reads its words apart from those around it: one space goes
+# is declared `space: inline`, reads its words apart from those around it: one space goes
 # between two runs of words read in different elements. Between two runs read in one
 # goes an edge (`edges`), a place a word may end, since only the page's CSS says whether
 # `<strong>Status</strong><span>Ready</span>` shows one word or two.
@@ -481,7 +481,7 @@ class _PassageParser:
         if tag in VOID_TAGS:
             return
         entry = self.registry.get(tag) or {}
-        joins = tag in JOINS_WORDS_TAGS or bool(entry.get("inline"))
+        joins = tag in JOINS_WORDS_TAGS or entry.get("space") == "inline"
         block = parent["block"] if parent and joins else self._fresh()
         upgrade = upgraded(self.registry, tag)
         if upgrade:

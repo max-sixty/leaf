@@ -49,7 +49,7 @@ from .registry.contract import (
     holds_for,
     is_element_name,
 )
-from .registry.kernel import kernel_marks
+from .registry.kernel import kernel_marks, mark_paint
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -432,25 +432,25 @@ def mark_declared(
         for key, mark in kernel_marks().items():
             declared = holds_for(attrs, declaration.get(key))
             authored = mark.get("authored")
-            inert = authored and authored_inert(
+            # What the tag declares, then what the occurrence writes over it: painted
+            # second, an override takes the attribute the declaration painted, or
+            # stands beside it where its value paints another.
+            held = [declared] if declared else []
+            if authored in attrs and not authored_inert(
                 key, declaration, attrs, content=content
-            )
-            # A flow takes no width of its own, whatever its markup says.
-            if inert == "flow":
-                continue
-            if authored in attrs and not inert:
-                value = attrs[authored]
-            elif declared:
-                value = (
-                    "" if declared is True or mark.get("presence") else str(declared)
+            ):
+                held.append(attrs[authored])
+            for value in held:
+                if (paint := mark_paint(mark, value)) is None:
+                    continue
+                if key == "views":
+                    # Only the browser evaluates view selectors, including before
+                    # modules.
+                    marks["data-lf-view-members"] = value["members"]
+                    value = "parts" if value.get("parts") else True
+                marks[paint["attribute"]] = (
+                    "" if value is True or paint.get("presence") else str(value)
                 )
-            else:
-                continue
-            if key == "views":
-                # Only the browser evaluates view selectors, including before modules.
-                marks["data-lf-view-members"] = declared["members"]
-                value = "parts" if declared.get("parts") else ""
-            marks[mark["attribute"]] = value
         sizes = [
             size
             for value in attrs.values()

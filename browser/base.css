@@ -31,7 +31,7 @@
  * the runtime's `markDeclared` in a message) and the selector reads the paint. The
  * lists that ask whether a suggestion slot holds block content invert HTML's phrasing
  * content, which answers "block" for every custom element, so they exclude
- * `[data-lf-inline]` rather than the tags that declare `inline`. The affordance
+ * `[data-lf-inline]` rather than the tags that declare `space: inline`. The affordance
  * rules that draw an option group as a control exclude the descendants of
  * `[data-lf-exhibit]` for the same reason, asking in CSS the question `quoted()` asks
  * in JavaScript. A tag name in a shared list is a closed vocabulary wherever it
@@ -818,7 +818,7 @@ img {
  * Having a box also puts the wrapper in front of the render gate's floors, and the
  * width floor is written for widgets that reserve a region. This one's box is its
  * content's in both forms, words included — a one-word swap is ~30px and correct — so
- * the declaration names `inline`, the key that names whose floor is whose. */
+ * the declaration names `space: inline`, which names whose floor is whose. */
 lf-suggestion {
   display: inline;
 }
@@ -860,7 +860,7 @@ lf-new *::highlight(lf-sug-ins) {
  * grow: a custom element is never in it, so a block widget from any layer is covered
  * unnamed. The marker at the end corrects the inversion's one wrong answer: an inline
  * widget is a custom element too. Which widgets those are is the registry's to say
- * (`inline`) and a stylesheet cannot read it, so delivery paints the declaration
+ * (`space: inline`) and a stylesheet cannot read it, so delivery paints the declaration
  * where a selector can reach it (data-lf-inline, `mark_declared`).
  * Rejected: a list of widget names here, which the layer that most needs the answer,
  * a project's own, could never be given. What a tag list buys that the marker does

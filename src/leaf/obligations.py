@@ -114,7 +114,7 @@ def widget_groups(content: list, registry: dict):
     obligation stands and going to it starts while it holds no other
     (`obligations/place.js` in the browser); the registry requires both its id and its
     label. Python reads only the authored source, so a group the runtime draws holds no
-    question. A widget set among words (`inline`), such as a suggestion, has none: its
+    question. A widget set among words (`space: inline`), such as a suggestion, has none: its
     sentence and its own words name it.
 
     The author declares the question's region and name on an element of Leaf's own,
@@ -133,7 +133,7 @@ def widget_groups(content: list, registry: dict):
                 continue
             entry = registry.get(node["tag"]) or {}
             if local_obligation_entry(entry):
-                yield node, None if entry.get("inline") else group
+                yield node, None if entry.get("space") == "inline" else group
             yield from walk(node["content"], node if node["tag"] in groups else group)
 
     yield from walk(content, None)

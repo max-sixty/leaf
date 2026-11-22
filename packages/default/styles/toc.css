@@ -10,7 +10,7 @@
  * it or the go-to sequence fades its labels in over the page, without changing any
  * row's height.
  *
- * The map declares `spine`, so the Layout can narrow a document's sidebar holding
+ * The map declares `space: spine`, so the Layout can narrow a document's sidebar holding
  * it alone to the width of its spine (layouts.css). Where the Layout keeps a column's
  * room instead, the map stands open as an outline. It rests in flow inside its track,
  * so a sticking track carries it. Rejected: a fixed spine the Layout gave a column's

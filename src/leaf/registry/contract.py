@@ -48,22 +48,28 @@ def matches_when(attrs: dict, when: dict | None) -> bool:
 
 def fact_condition(rule) -> dict | None:
     """The `when` of a fact declared to hold only for some occurrences,
-    `{when: {attribute: [values]}}`, or None for a fact declared outright. The
-    declaration schema says which facts may take that form (`schema.FACTS`)."""
+    `{when: {attribute: [values]}}` with or without the value it then takes (`is`),
+    or None for a fact declared outright. The declaration schema says which facts may
+    take that form (`schema.FACTS`)."""
     return (
-        rule["when"] if isinstance(rule, Mapping) and rule.keys() == {"when"} else None
+        rule["when"]
+        if isinstance(rule, Mapping) and {"when"} <= rule.keys() <= {"when", "is"}
+        else None
     )
 
 
 def holds_for(attrs: dict, rule):
     """A declared fact as it holds for one occurrence, given its authored attributes.
-    A fact declared with `{when}` is `True` while those attributes match `when` and
-    `False` otherwise; any other declaration is returned as declared. Delivery's paint
-    and every reader asking of one occurrence read a fact through this, as `exhibits`
-    does; a reader asking whether the tag declares the fact at all reads the
-    declaration whatever its condition, as `obligations.shown_in` does."""
+    A fact declared with `{when}` is `False` unless those attributes match `when`, and
+    then the value its `is` names, or `True` without one; any other declaration is
+    returned as declared. Delivery's paint and every reader asking of one occurrence
+    read a fact through this, as `exhibits` does; a reader asking whether the tag
+    declares the fact at all reads the declaration whatever its condition, as
+    `obligations.shown_in` does."""
     when = fact_condition(rule)
-    return rule if when is None else matches_when(attrs, when)
+    if when is None:
+        return rule
+    return rule.get("is", True) if matches_when(attrs, when) else False
 
 
 def exhibits(attrs: dict, entry: dict) -> bool:
@@ -76,12 +82,12 @@ def authored_inert(
 ) -> str | None:
     """Why an occurrence's authored override of the mark `key` means nothing on its
     element, or None where it holds. A width means nothing on an element that takes
-    none of its own (`flow`, where its `flow` holds); otherwise the override
+    none of its own (`flow`, where its `space` is `flow`); otherwise the override
     holds where its `authored_on` says, and the condition it fails is the reason
     (`content`, a block in the page's flow, which `main`, `body` and `html` aren't;
     `declared`, a tag declaring the mark). Delivery paints only an override that holds
     (`revision_delivery.mark_declared`), and `page check` names the rest."""
-    if key == "space" and holds_for(attrs, declaration.get("flow")):
+    if key == "space" and holds_for(attrs, declaration.get("space")) == "flow":
         return "flow"
     condition = kernel_marks()[key]["authored_on"]
     holds = content if condition == "content" else bool(declaration.get(key))

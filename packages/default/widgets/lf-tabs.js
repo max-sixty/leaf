@@ -16,7 +16,7 @@
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * The authored `flow="page"` puts the set in the document's flow (`flow`), and
+ * The authored `flow="page"` puts the set in the document's flow (`space`), and
  * the package styles its unframed face. This module reads that attribute for scrolling,
  * separately from primary URL/history ownership above. In document flow
  * ("page"), the strip sticks at the

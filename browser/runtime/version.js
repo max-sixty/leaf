@@ -547,11 +547,11 @@ const diffBlockSel = () =>
     ...tagsDeclaring((e) => e.owners && (e.content ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule below
     // avoids counting nested blocks twice. One set among the words around it
-    // (`inline`), such as a gloss, is part of its paragraph's words instead, or
+    // (`space: inline`), such as a gloss, is part of its paragraph's words instead, or
     // that rule would skip the paragraph and miss a change to the words around it. A
     // suggestion's slots stay blocks: the decision retiring one makes the suggestion
     // opaque, and its paragraph's words would run across it.
-    ...tagsDeclaring((e) => !e.inline && e.verbatim),
+    ...tagsDeclaring((e) => e.space !== "inline" && e.verbatim),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two

@@ -63,7 +63,7 @@
       },
       "additionalProperties": false
     },
-    "inline": true,
+    "space": "inline",
     "verbatim": true,
     "instructions": "Write the phrase, then its explanation in a <span popover> after it, the last thing in the gloss: the reader opens it as a card beside the phrase, and print sets it after the phrase as a parenthetical note. Write a self-contained explanation at the first useful occurrence rather than on every repetition, and keep the phrase out of authored parentheses.",
     "example": "Deploy through a <lf-gloss>walking skeleton<span popover>A thin, end-to-end path through the real system.</span></lf-gloss> before parallelizing."
@@ -94,7 +94,7 @@
         "measured": "run"
       }
     },
-    "inline": true,
+    "space": "inline",
     "instructions": "Write the value with its unit as the element's text, with `source` naming the feed that measures it. Write that element into the page before calling `leaf data set`, then set `run` to the returned receipt. Add `via` when the source id doesn't say which command or query produced it.\n\nThe value stays as you wrote it. Any later write to the source, even of the same value, makes `page check` advise that the number needs another look. Use one source id per measurement.",
     "example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
@@ -162,7 +162,7 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "spine": true,
+    "space": "spine",
     "instructions": "Write it empty with a stable id. It outlines the nearest tab or part containing it, or the whole main when outside those views. Add `open` to show its compact inline links on arrival; the reader can still collapse them. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6.",
     "example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
@@ -197,7 +197,7 @@
       "additionalProperties": false
     },
     "reading-role": "group",
-    "flow": true,
+    "space": "flow",
     "verbatim": true,
     "word": "group",
     "instructions": "Group what belongs together under a name. `label` names the group wherever Leaf names it, such as On Me, a link to it or a thread on it. The group draws none of it: give the group the heading the page needs inside it, as for any other part of the page. A widget that asks the user, such as `lf-options`, stands in the group whose label asks its question, with the premise and evidence the answer rests on (`references/authoring-on-me.md`, \"On the page\"); the innermost group round it is its question. A group asks nothing itself, and one holding no question is a named part of the page like any other.",
@@ -501,7 +501,7 @@
     },
     "content": "members",
     "views": { "members": "lf-tab" },
-    "flow": { "when": { "flow": ["page"] } },
+    "space": { "when": { "flow": ["page"] }, "is": "flow" },
     "instructions": "The first `lf-tabs` written directly in `main` owns the page's view history and URL. Give a set `flow=\"page\"` to share the document's space without a frame, as page-layout.md describes; omit it for a boxed tab set. Visual flow does not choose history ownership. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
@@ -523,7 +523,7 @@
     "refers": {
       "for": {}
     },
-    "inline": true,
+    "space": "inline",
     "shadow": true,
     "instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next On Me control that steps through the obligations waiting on the user.",
     "example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-group id=\"retries-ask\" label=\"Ship the retry cap?\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\">\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-group>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-group id=\"flag-ask\" label=\"Remove the flag?\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\">\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-group>\n  </lf-tab>\n</lf-tabs>"
@@ -548,7 +548,7 @@
       "additionalProperties": false
     },
     "owners": ["lf-tabs"],
-    "flow": true,
+    "space": "flow",
     "instructions": "In a side-list queue, write each tab's `summary` and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space."
   },
   "lf-parts": {

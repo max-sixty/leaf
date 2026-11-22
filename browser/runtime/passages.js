@@ -565,11 +565,11 @@ const editingBoundary = (el) => isEditing(el) !== isEditing(el.parentElement);
 const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // Whether an element stands within a line of words: HTML's phrasing content
 // (`$passages.phrasing`), or a widget declared to stand among the words around it
-// (`inline`). Every other element, a widget included, starts a block of its own,
+// (`space: inline`). Every other element, a widget included, starts a block of its own,
 // its words parted from those around it (`enter`).
 /** @param {Element} element */
 export const phrasing = (element) =>
-  PHRASING.has(element.localName) || Boolean(registry[element.localName]?.inline);
+  PHRASING.has(element.localName) || registry[element.localName]?.space === "inline";
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,

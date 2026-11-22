@@ -627,10 +627,10 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         ),
         (
             "lf-options",
-            "flow",
-            {"when": {"pick": [True]}},
+            "space",
+            {"when": {"pick": [True]}, "is": "flow"},
             "predicate-attribute",
-            {"key": "flow", "attr": "pick"},
+            {"key": "space", "attr": "pick"},
         ),
         (
             "lf-options",

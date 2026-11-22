@@ -13,6 +13,7 @@ imports none: the page service sorts every event by these kinds, including in a 
 hook that validates nothing."""
 
 import json
+from collections.abc import Mapping
 from functools import cache
 
 from leaf.state import KERNEL_REGISTRY
@@ -108,3 +109,11 @@ def kernel_marks() -> dict:
     return {
         key: mark for key, mark in _kernel()["$marks"].items() if key != "description"
     }
+
+
+def mark_paint(mark: Mapping, value) -> Mapping | None:
+    """What `mark` paints for `value`, a value its fact holds for an occurrence: the
+    mark itself, or, where each of the fact's values is painted as an attribute of its
+    own (`values`), that value's entry; None for a value the table doesn't hold, as an
+    authored override may be."""
+    return mark["values"].get(value) if "values" in mark else mark

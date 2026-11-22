@@ -1507,13 +1507,13 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     # Asked without the declaration, the same floor flags it — so what passes the page
     # is the declaration, not a floor gone missing.
     undeclared = json.loads(json.dumps(page_declarations(page)))
-    del undeclared["lf-suggestion"]["inline"]
+    del undeclared["lf-suggestion"]["space"]
     assert [
         box
         for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
         if box["tag"] == "lf-suggestion"
     ], (
-        "with `inline` stripped the gate stays quiet, so the floor is gone rather than declared"
+        "with `space: inline` stripped the gate stays quiet, so the floor is gone rather than declared"
     )
 
     # Flattened, the same glosses are a collapse and the gate says so — the reading the

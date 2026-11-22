@@ -258,7 +258,7 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
         (
             ".hazard",
             {
-                "inline": True,
+                "space": "inline",
             },
             "inline",
         ),

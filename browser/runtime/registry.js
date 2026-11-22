@@ -173,19 +173,20 @@ export const matchesWhen = (el, when) =>
   );
 
 // A declared fact as it holds for one occurrence. A fact declared with
-// `{when: {attribute: [values]}}` is `true` while the element's attributes match and
-// `false` otherwise; any other declaration is returned as declared. A reader asking
-// whether the tag declares the fact at all reads the declaration instead. The
-// declaration schema says which facts may take that form; Python's is
-// `registry.contract.holds_for`.
+// `{when: {attribute: [values]}}` is `false` unless the element's attributes match,
+// and then the value its `is` names, or `true` without one; any other declaration is
+// returned as declared. A reader asking whether the tag declares the fact at all reads
+// the declaration instead. The declaration schema says which facts may take that form;
+// Python's is `registry.contract.holds_for`.
 /** @param {Element} el @param {unknown} rule @returns {unknown} */
-export const holdsFor = (el, rule) =>
-  typeof rule === "object" &&
-  rule !== null &&
-  "when" in rule &&
-  Object.keys(rule).length === 1
-    ? matchesWhen(el, /** @type {Parameters<typeof matchesWhen>[1]} */ (rule.when))
-    : rule;
+export const holdsFor = (el, rule) => {
+  if (typeof rule !== "object" || rule === null || !("when" in rule)) return rule;
+  const { when, ...then } = /** @type {{when: unknown, is?: unknown}} */ (rule);
+  if (Object.keys(then).some((key) => key !== "is")) return rule;
+  if (!matchesWhen(el, /** @type {Parameters<typeof matchesWhen>[1]} */ (when)))
+    return false;
+  return "is" in then ? then.is : true;
+};
 
 // An occurrence quotes its descendants only while its declared condition holds.
 /** @param {Element} el @param {WidgetDeclaration | null | undefined} entry */

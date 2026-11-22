@@ -253,7 +253,7 @@ native disclosures, links and authored content need no such wait.
   again without that member when the animation ends. Only the selected member is
   saved. Pass `null` as a second argument to get null where neither the address nor
   the tab names a member, and choose then. A holder whose members share the
-  surrounding page's flow declares `flow`, as its members do, so a member's wide
+  surrounding page's flow declares `space: flow`, as its members do, so a member's wide
   blocks and sidebar take the page's room.
 
 ## Rendering

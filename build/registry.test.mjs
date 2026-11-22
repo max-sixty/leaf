@@ -76,16 +76,21 @@ async function spelledNames(files) {
 test("hand-written sources spell each mark as `$marks` paints it", async () => {
   const { description: _, ...marks } = registry.$marks;
   const spelled = await spelledNames([...python, ...browser]);
-  for (const [key, { attribute }] of Object.entries(marks)) {
-    assert.ok(
-      spelled.has(attribute),
-      `no stylesheet or module spells ${key}'s ${attribute}`,
+  for (const [key, mark] of Object.entries(marks)) {
+    // A mark paints one attribute, or one for each of its fact's values (`values`).
+    const attributes = Object.values(mark.values ?? { [key]: mark }).map(
+      ({ attribute }) => attribute,
     );
+    for (const attribute of attributes)
+      assert.ok(
+        spelled.has(attribute),
+        `no stylesheet or module spells ${key}'s ${attribute}`,
+      );
     const stale = `data-lf-${key}`;
-    if (stale !== attribute)
+    if (!attributes.includes(stale))
       assert.ok(
         !spelled.has(stale),
-        `${spelled.get(stale)} spell ${stale}, but $marks paints ${key} as ${attribute}`,
+        `${spelled.get(stale)} spell ${stale}, but $marks paints ${key} as ${attributes}`,
       );
   }
 });

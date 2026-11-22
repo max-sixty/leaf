@@ -752,7 +752,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
             "space": "wide",
         },
         "lf-label": {
-            "inline": True,
+            "space": "inline",
         },
         "lf-feed": {
             "bound": "end",

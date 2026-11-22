@@ -623,20 +623,23 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
-    browser, serve
-):
-    """Before its module draws, a shot holds the height its drawing takes at each width,
-    on both sides of the narrow toolbar's breakpoint. Where scrollbars are classic, as on
-    Linux, the stage's gutter narrows the frame and not the width the toolbar reads."""
-    widths = [430, 450, 455, 465, 480, 640]
-    shots = "".join(
-        f'<div style="inline-size: {w}px"><lf-shot id="w{w}" alt="a pair"'
-        f' before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot></div>'
-        for w in widths
-    )
+def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
+    """Before its module draws, a shot holds the height its drawing takes: at each width,
+    on both sides of the narrow toolbar's breakpoint, and for a pair that opens on its
+    focus or was taken at 2×, which holds the focus's frame or its CSS size. Where
+    scrollbars are classic, as on Linux, the stage's gutter narrows the frame and not the
+    width the toolbar reads."""
+    pair = f'alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"'
+    shots = {
+        f"w{w}": f'<div style="inline-size: {w}px"><lf-shot id="w{w}" {pair}></lf-shot></div>'
+        for w in [430, 450, 455, 465, 480, 640]
+    } | {
+        "focused": f'<lf-shot id="focused" {pair} density="2" focus-x="20"'
+        ' focus-y="30" focus-width="200" focus-height="80"></lf-shot>',
+        "dense": f'<lf-shot id="dense" {pair} density="2"></lf-shot>',
+    }
     url = serve(
-        leaf_page("Held shots", f"<h1>Held shots</h1>{shots}"),
+        leaf_page("Held shots", f"<h1>Held shots</h1>{''.join(shots.values())}"),
         media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -658,45 +661,15 @@ def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
     render_checks_model.wait_until_ready(page)
     expect(page.locator("lf-shot .lf-shotframe").first).to_be_visible()
     drawn = page.locator("lf-shot").evaluate_all(heights)
-    assert dict(zip(widths, held, strict=True)) == pytest.approx(
-        dict(zip(widths, drawn, strict=True)), abs=1
+    assert dict(zip(shots, held, strict=True)) == pytest.approx(
+        dict(zip(shots, drawn, strict=True)), abs=1
     )
-
-
-def test_a_shot_holds_the_frame_its_focus_and_density_draw(browser, serve):
-    """Before its module draws, a pair that opens on its focus holds the focus's frame,
-    and a pair taken at 2× holds its CSS size, so nothing below moves as it draws."""
-    pair = f'alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"'
-    url = serve(
-        leaf_page(
-            "Held captures",
-            f'<h1>Held captures</h1><lf-shot id="focused" {pair} density="2"'
-            ' focus-x="20" focus-y="30" focus-width="200" focus-height="80"></lf-shot>'
-            f'<lf-shot id="dense" {pair} density="2"></lf-shot>',
-        ),
-        media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
-    )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held_entry = []
-    page.route(
-        "**/leaf.js",
-        lambda route: route.fallback() if held_entry else held_entry.append(route),
-    )
-    heights = "shots => shots.map(shot => shot.getBoundingClientRect().height)"
-    with page.expect_request("**/leaf.js"):
-        page.goto(url, wait_until="commit")
-    page.wait_for_function(
-        "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
-    )
-    held = page.locator("lf-shot").evaluate_all(heights)
-    held_entry[0].fallback()
-    render_checks_model.wait_until_ready(page)
-    expect(page.locator("lf-shot .lf-shotframe").first).to_be_visible()
-    frames = page.locator("lf-shot").evaluate_all(
-        "shots => shots.map(shot => shot.querySelector('.lf-shotframe').getBoundingClientRect().height)"
+    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, each
+    # inside the frame's border.
+    frames = page.locator("#focused, #dense").evaluate_all(
+        "shots => shots.map(shot => shot.querySelector('.lf-shotframe').offsetHeight)"
     )
     assert frames == pytest.approx([80 + 2, 150 + 2], abs=1)
-    assert held == pytest.approx(page.locator("lf-shot").evaluate_all(heights), abs=1)
 
 
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
@@ -918,13 +891,22 @@ def test_a_shot_opens_on_its_focus_and_preserves_choices_when_it_changes(
     assert image.bounding_box()["height"] == pytest.approx(150, abs=1)
     full.uncheck()
     full.focus()
-    shot.evaluate("node => node.setAttribute('focus-width', '120')")
+    # The comparison reads whole images, so its reading stands under the new focus,
+    # which draws before the next frame rather than after another comparison.
+    assert (
+        shot.evaluate("""async node => {
+      await node.difference;
+      node.setAttribute('focus-width', '120');
+      await null;
+      return node.querySelector('.lf-shotframe .lf-shotimage').clientWidth;
+    }""")
+        == 120
+    )
     expect(full).to_be_focused()
     expect(full).not_to_be_checked()
     expect(
         shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
     ).to_have_attribute("aria-pressed", "true")
-    expect(image).to_have_js_property("clientWidth", 120)
     shot.evaluate(
         "node => ['x', 'y', 'width', 'height'].forEach(side => node.removeAttribute(`focus-${side}`))"
     )

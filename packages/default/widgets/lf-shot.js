@@ -162,8 +162,7 @@ export class Shot extends HTMLElement {
     return metadata;
   }
 
-  // A metadata revision reuses the pair's load. While a reading is shown, the new
-  // geometry waits for the reading that replaces it, as new captures do.
+  // A metadata revision reuses the pair's load, and the reading shown for it.
   #inspect() {
     const metadata = this.#metadata();
     if (!this.#capture) {
@@ -293,7 +292,13 @@ export class Shot extends HTMLElement {
   #prepare(images, loaded, metadata) {
     // A requested capture owns its metadata snapshot. A metadata revision reuses
     // this pair's load; it cannot mutate validation already in flight or retry a
-    // failed network request as a side effect of an unrelated presentation.
+    // failed network request as a side effect of an unrelated presentation. The
+    // comparison reads the whole images, so the reading already shown for them stands
+    // under a new focus or density, which shows at once.
+    const shown =
+      this.#drawing.reading && this.#drawing.images === images
+        ? this.#capture?.difference
+        : undefined;
     /** @type {Capture} */
     const capture = { images, loaded, metadata, difference: Promise.resolve(null) };
     this.#capture = capture;
@@ -313,20 +318,22 @@ export class Shot extends HTMLElement {
       if (!this.#validImages(images, metadata)) return false;
       // First arrival can show its images before deferred comparison. A refresh
       // keeps the complete outgoing evidence until its replacement reading is ready.
-      if (!this.#drawing.reading) this.#commitImages(capture);
+      if (!this.#drawing.reading || shown) this.#commitImages(capture);
       return true;
     });
     this.#present(registered);
-    capture.difference = registered
-      .then((aligned) =>
-        aligned
-          ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
-          : null,
-      )
-      .catch((reason) => {
-        if (capture === this.#capture) failSoft(this, reason);
-        return null;
-      });
+    capture.difference =
+      shown ??
+      registered
+        .then((aligned) =>
+          aligned
+            ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
+            : null,
+        )
+        .catch((reason) => {
+          if (capture === this.#capture) failSoft(this, reason);
+          return null;
+        });
   }
 
   /** Hold the page's readiness until `promise` settles, so a reader outside the page

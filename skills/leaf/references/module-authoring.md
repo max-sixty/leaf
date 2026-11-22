@@ -44,8 +44,7 @@ argument.
 A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
 `widget-api.js`. The portable helpers are
 [that file's exports](../../../browser/runtime/portable-api.js): each loads on a page
-without Leaf, where `widget-api.js` can't. Retained-node helpers, writes and generated
-controls work on both hosts. The host maps `/runtime/` and `/vendor/` to
+without Leaf, where `widget-api.js` can't. The host maps `/runtime/` and `/vendor/` to
 a Leaf install with its own import map and gives the element its drawing box. For the
 widget's look it links the layer's `portable.css`, served beside `/widgets/`
 (`packages.md`, "Styles and composition"). Use `LeafElement` ("Drawing what a widget
@@ -172,21 +171,39 @@ and when the element leaves, drop unfinished work but keep finished nodes.
 
 ## Revisions
 
-A revision that changes a widget's markup replaces the whole widget, rebuilding what
-the user had open in it. A module that builds beside the widget's direct authored
-children and leaves them where they are declares `static lfPatch = "members"` on its
-element's class, and Leaf then edits inside those children in place.
+A revision that changes anything in a widget's markup replaces the whole widget with a
+new element, and the user loses what they had open in it. A module that builds beside
+the widget's authored content, and leaves every node the author wrote where it is,
+declares `static lfPatch = "members"` on its element's class. Leaf then keeps the
+widget and patches the markup inside it as it patches the rest of the page: it writes
+the words, attributes and elements the revision changed, and puts each element's
+children back in the order the revision gives them.
 
-Leaf still replaces the widget when a revision changes what the module drew from, which
-it takes to be the element's own attributes. A module that also draws from which
-children it has, or from their attributes, as a tab strip shows each tab's `label`,
-declares `content: members` or `views`. Leaf then also replaces the widget when a
-direct child is added, removed, reordered or given other attributes. Without either
-declaration the module keeps its first drawing of a child the revision changed. Leaf
-compares only each direct child's tag and attributes, so a module that draws from what
-its children hold, or can declare neither, reads them again when they change, as
-`lf-pane` observes its children. A widget that draws its own content (`content` `data`
-or `empty`) is always replaced.
+Inside such a widget Leaf still replaces two things whole when the revision changes
+anything in them. One is a widget with a module of its own, unless that module's class
+declares `lfPatch` too. The other is an element that no longer holds every node the
+author wrote in it, the whitespace between its children included. `setChildren` removes
+that whitespace ("Retained nodes").
+
+A module that moves its authored members itself, as `lf-board` orders its cards from
+its state, declares nothing. With `lfPatch`, a revision can leave the members in the
+order it gives them, without redrawing the widget. Without it, the revision replaces
+the widget, the new widget's first render places the members, and a control the module
+keyed with `data-lf-carry` takes the user's focus back (`module-input.md`, "Focus and
+layers").
+
+Leaf also replaces a widget that declares `lfPatch` when a revision changes what its
+module drew from, which it takes to be the element's own attributes. A module that also
+draws from which children it has, or from their attributes, as a tab strip shows each
+tab's `label`, declares `content: members` or `views`. Leaf then also replaces the
+widget when a direct child is added, removed, reordered or given other attributes.
+Without either declaration the module keeps its first drawing of a child the revision
+changed. Leaf compares only each direct child's tag and attributes, and a revision
+doesn't redraw a widget it keeps. So a module that draws from what its children hold,
+or can declare neither, reads them again when they change: `lf-pane` watches its
+children with a `MutationObserver`, and a `LeafElement` calls `requestUpdate()` from
+one. A widget that draws its own content (`content` `data` or `empty`) is always
+replaced.
 
 ## Startup and presentation
 
@@ -228,10 +245,9 @@ now would move what the user sees, pass the work to the widget controller's
 
 ### First paint
 
-The document paints its authored HTML while browser modules load. Each widget renders
-when its module loads, then updates that same view from Leaf's readings. A control
-that needs JavaScript or saved state waits only for its own behavior or reading;
-native disclosures, links and authored content need no such wait.
+Each widget renders when its module loads, then updates that same view from Leaf's
+readings. A control that needs JavaScript or saved state waits only for its own
+behavior or reading; native disclosures, links and authored content need no such wait.
 
 - Return a widget's complete view from `LeafElement.render()`. The same rendering
   root handles fresh mounts, thread messages and later updates; do not add a second
@@ -245,18 +261,10 @@ native disclosures, links and authored content need no such wait.
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as
   `:has()`, can change membership as they arrive; use the child's own start tag for
-  stable first-paint membership. A member's native `hidden` attribute is view state.
-  Read `viewMembers(holder)` for the canonical member list, including holders a module
-  creates. Reading members or the opening choice changes no DOM. During setup, open the
-  member `openingView(holder)` returns, and show each later member with
-  `keepView(holder, member)`, which applies native visibility and remembers it for reload.
-  Passing null shows none without forgetting the last member. During an exit animation,
-  `keepView(holder, member, leaving)` keeps one outgoing member visible too; call it
-  again without that member when the animation ends. Only the selected member is
-  saved. Pass `null` as a second argument to get null where neither the address nor
-  the tab names a member, and choose then. A holder whose members share the
-  surrounding page's flow declares `flow`, as its members do, so a member's wide
-  blocks and sidebar take the page's room.
+  stable first-paint membership. Open and keep its members as `module-state.md`, "State
+  only this tab keeps", describes. A holder whose members share the surrounding page's
+  flow declares `flow`, as its members do, so a member's wide blocks and sidebar take
+  the page's room.
 
 ## Rendering
 
@@ -291,15 +299,13 @@ changes, parents before children; DOM reads and reads after an `await` are not
 tracked. Return a template, `nothing` when the render places retained nodes itself, or
 `noChange`. Work that reads what the render drew goes in `updated()`, and drawing that
 finishes later starts there and extends `getUpdateComplete` (`module-state.md`, "The
-widget controller"). `this.controller` is the widget controller. Call `requestUpdate()`
-after a change Leaf can't see, such as revealing held news, and `performUpdate()` to
-draw at once.
+widget controller"). Call `requestUpdate()` after a change Leaf can't see, such as
+revealing held news, and `performUpdate()` to draw at once.
 
 `LeafElement` is portable: a plain host supplies reactive properties and chooses
-`createRenderRoot()`. Lit schedules drawing; `setup()` runs once, drawing pauses
-while disconnected and resumes with current properties. Leaf adds page readings,
-controllers, presentation and bound-data delivery. `this.defer()` holds drawing
-through a synchronous rewrite; its idempotent release draws current properties.
+`createRenderRoot()`. Leaf adds page readings, controllers, presentation and
+bound-data delivery. `this.defer()` holds drawing through a synchronous rewrite; its
+idempotent release draws current properties.
 
 Portable focus, scrolling and controls use the document's native behavior; Leaf
 adds reading regions and chrome styling. `langForPath` reads shipped defaults on
@@ -308,11 +314,13 @@ position; only Leaf supplies the status presentation.
 
 ### Retained nodes
 
-To place nodes the module keeps, use `setChildren(parent, nodes)`, which moves only what
-is out of order, or `move(parent, node, before)` for one node. Where nodes move between
-parents, place every list at once with `setChildLists([[parent, nodes], …])`, outer
-parents first. For a subtree the renderer owns entirely, `setRenderedChildren(parent,
-nodes)` edits only changed text and keeps a text selection the user made in it.
+To place nodes the module keeps, use `setChildren(parent, nodes)`, which makes `nodes`
+the parent's only children, moving what is out of order and removing every other child,
+the whitespace between authored elements included, or `move(parent, node, before)` for
+one node. Where nodes move between parents, place every list at once with
+`setChildLists([[parent, nodes], …])`, outer parents first. For a subtree the renderer
+owns entirely, `setRenderedChildren(parent, nodes)` edits only changed text and keeps a
+text selection the user made in it.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
@@ -334,12 +342,10 @@ An imperative renderer overrides `createRenderRoot()` to keep Lit out of its sta
 and uses `shadowStage(host, nodes)`, never `attachShadow`; it applies
 the same styles and returns the root. Stage a retained container and render into that
 container. This API clears authored light children and supplies no slots, so read what
-the renderer needs before staging. It removes children individually because clearing
-a shadow host with `replaceChildren()` unloads WebKit's shadow-tree frames.
+the renderer needs before staging.
 
-`shadowStage` also loads through `portable-api.js` on a plain host. There it stages
-only the renderer's content; a Leaf page supplies its theme, annotation support and
-page watches from outside the widget.
+On a plain host `shadowStage` stages only the renderer's content; a Leaf page supplies
+its theme, annotation support and page watches from outside the widget.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
@@ -407,9 +413,9 @@ map contains its CSS attributes or custom properties, and a later call removes m
 missing from the replacement. Use it on an element the package owns, with the public
 style inputs from [package-themes.md](package-themes.md). The same appearance reaches
 contained samples under that element, including their first paint and resets. Calling
-`wear` on an inner owner replaces an outer owner's appearance for samples beneath it:
-the nearest dressed ancestor owns a sample's appearance. This does not authorize writing
-Leaf's computed geometry or styling another package's internals.
+`wear` on an inner owner replaces an outer owner's appearance for samples beneath it.
+This does not authorize writing Leaf's computed geometry or styling another package's
+internals.
 
 ## Generated controls
 
@@ -486,11 +492,4 @@ that measure what they hold, so they read again.
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
 
-`nameAction` and `searchField` also load through
-`portable-api.js` on a plain host. Load `/vendor/webawesome.esm.js` to upgrade a
-search field's editor.
-
-Fold content the widget may show again with `hidden="until-found"`, opening it on
-`beforematch` (`module-scroll-and-motion.md`, "Travel and history"); print shows it
-open. Take a folded element that is itself a Tab stop out of the Tab order, since the
-fold hides only what it holds.
+On a plain host, load `/vendor/webawesome.esm.js` to upgrade a search field's editor.

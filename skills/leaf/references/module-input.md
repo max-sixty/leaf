@@ -176,9 +176,8 @@ End reach the ends, and a step shows its position in Leaf's panel, such as `Entr
 7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
 runs after a move, and `scroll: false` keeps the page still.
 
-A row whose press carries the user along a list of its own, as a timeline's arrows
-carry a user on its step list to the new step's row, declares `lands(from)` ("Command
-rows") rather than moving focus in its `run`.
+A row whose press carries the user along a list of its own declares `lands(from)`
+("Command rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
@@ -228,6 +227,7 @@ user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
+For a control in a widget's shadow root, that ancestor is the widget.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,

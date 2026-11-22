@@ -100,6 +100,18 @@ finished failure doesn't fail every later draw.
 tab, such as which groups the user collapsed; set `null` to remove it. Read it during
 setup so the first visible state reflects it (`module-authoring.md`, "First paint").
 
+A widget that shows one member at a time (`views`, `module-authoring.md`, "First
+paint") keeps the open member in the tab too, through these helpers. A member's native
+`hidden` attribute is view state. Read `viewMembers(holder)` for the canonical member
+list, including holders a module creates. Reading members or the opening choice changes
+no DOM. During setup, open the member `openingView(holder)` returns, and show each
+later member with `keepView(holder, member)`, which applies native visibility and
+remembers it for reload. Passing null shows none without forgetting the last member.
+During an exit animation, `keepView(holder, member, leaving)` keeps one outgoing member
+visible too; call it again without that member when the animation ends. Only the
+selected member is saved. Pass `null` as a second argument to get null where neither
+the address nor the tab names a member, and choose then.
+
 ## Declared widget state
 
 `render()` draws the whole state each time it runs, and draws the same result if run

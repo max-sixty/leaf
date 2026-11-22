@@ -281,7 +281,10 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
             'title="Inspect the rollout">Inspect the small group</button></p>'
             '<p id="glossed">Roll out behind <lf-gloss id="gloss">a gate<span '
             "popover>Check every gate before expanding.</span></lf-gloss> today.</p>"
-            '<div id="info" tabindex="0"><p id="info-words">Informational marked '
+            # Room under the gloss for its explanation's preview, clear of the card.
+            + "<p>Room for the explanation.</p>"
+            * 2
+            + '<div id="info" tabindex="0"><p id="info-words">Informational marked '
             "words with facts.</p></div>"
             '<p id="prose">Plain prose with marked words in it.</p>'
             + "<p>More words.</p>"

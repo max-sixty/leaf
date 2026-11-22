@@ -246,7 +246,10 @@ a[data-lf-external]::after,
      declares that it wears the band (`--lf-wears-ring`, base.css); its header and
      footer are not children it rings, and its own focus wears the ordinary band;
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
-     positioned contents would paint over its outline.
+     positioned contents would paint over its outline. It wears no outline of its own
+     while focused, the browser's ring included, which `:focus-visible` gives it before
+     the focus paint marks it (focus.js), when a moving card reads its rings
+     (box-motion.js).
    Either is a positioned box, so its ::after covers it. That ::after is at no weight
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
@@ -258,7 +261,7 @@ a[data-lf-external]::after,
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
-.lf-ring-overlay[data-lf-focus-visible],
+.lf-ring-overlay:is([data-lf-focus-visible], :focus-visible),
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])
   > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
@@ -893,17 +896,13 @@ summary {
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap. A
    head too narrow for what it holds, as a first message's beside a narrow card's
-   actions can be, cuts it a gap past where its controls end, so it never runs under
-   those actions; it cuts nothing above or below, where its controls' rings and a
-   finger's reach stand. Its controls end at its end, or as far past it as their
-   surface hangs them (`--lf-msg-controls-hang`, controls.css). It holds what is placed
-   against its own box, such as the rule past a first message's controls
-   (controls.css), unless it sticks. */
+   actions can be, cuts it at its end, a gap past it, so it never runs under them; it
+   cuts nothing above or below, where its controls' rings and a finger's reach stand.
+   It holds what is placed against its own box, such as the rule past a first
+   message's controls (controls.css), unless it sticks. */
 :where(.lf-msg-head) {
   position: relative;
-  clip-path: inset(
-    -100vh calc(-1 * (var(--lf-msg-controls-hang, 0px) + var(--lf-sp-2))) -100vh -100vw
-  );
+  clip-path: inset(-100vh calc(-1 * var(--lf-sp-2)) -100vh -100vw);
 }
 .lf-msg-head,
 .lf-thread-working-head {

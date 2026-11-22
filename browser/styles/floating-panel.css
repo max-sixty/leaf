@@ -1796,18 +1796,21 @@
      onto the thread's edge. The transcript keeps the room around it a card's box gives
      its own, but on the side the quote's rule stands, its first author 16px under the
      quote, the quote head's 12px included, and at its foot, its last words a message's
-     gap over the field (`--lf-fp-transcript-end`, above). Each message's controls
-     hang into that room at its end (`--lf-msg-controls-hang`, controls.css), so react
-     and copy end under the head's ✕. */
+     gap over the field (`--lf-fp-transcript-end`, above). Each message's head reaches
+     into that room at its end, so its controls, the head's last item, end react and
+     copy under the view head's ✕, and the head's cut (surfaces.css) stands a gap past
+     them rather than across copy. */
   .lf-fp-messages > .lf-page-thread {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding: 0;
   }
   .lf-fp-messages .lf-thread-transcript {
     --lf-fp-transcript-room: calc(8px + var(--lf-sp-1));
-    --lf-msg-controls-hang: var(--lf-fp-transcript-room);
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
     padding-inline-end: var(--lf-fp-transcript-room);
+  }
+  .lf-fp-messages .lf-msg-head {
+    margin-inline-end: calc(-1 * var(--lf-fp-transcript-room));
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame

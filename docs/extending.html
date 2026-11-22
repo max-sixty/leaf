@@ -449,9 +449,9 @@
                 requiring CSS classes. These elements provide most of a page's content.
               </li>
               <li id="src-idioms">
-                <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.lede</code> and
-                <code>.callout</code>.
+                <strong>Leaf's classes.</strong> Leaf supplies classes for common
+                presentation patterns on every page, whatever its theme, including
+                <code>.lf-lede</code> and <code>.lf-callout</code>.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -657,11 +657,13 @@ flowchart TD
                 <code>leaf theme list</code> exposes the user's named themes and their
                 author instructions. <code>page init --theme NAME</code> selects one; a
                 new page otherwise uses the user's default, or Leaf's reading theme. A
-                page with a design wholly its own takes none with
-                <code>--no-theme</code> and starts from the browser's defaults, while
-                Leaf's widgets, threads and panel keep their faces. Re-initializing
-                keeps the captured choice unless explicitly changed. The author follows
-                the user's request first, then the task and the theme's instructions.
+                theme either stands alone or names a theme it builds on, such as the
+                reading theme, which Leaf composes under it. A page with a design wholly
+                its own takes none with <code>--no-theme</code> and starts from the
+                browser's defaults, while Leaf's widgets, classes, threads and panel
+                keep their faces. Re-initializing keeps the captured choice unless
+                explicitly changed. The author follows the user's request first, then
+                the task and the theme's instructions.
               </p>
               <p id="styles-platform-preferences">
                 The reading theme supports light and dark schemes. Authors preserve
@@ -1311,7 +1313,7 @@ flowchart TD
             <p id="sidebar-page-panels">
               For a reading page, give the body <code>layout-column</code>: prose keeps
               its reading measure while wide exhibits use the remaining room. A
-              <code>section.panel</code> groups a region by its compact heading and
+              <code>section.lf-panel</code> groups a region by its compact heading and
               spacing, without a surrounding card.
             </p>
             <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;

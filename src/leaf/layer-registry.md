@@ -38,12 +38,14 @@ The layer record holds the selection and two identities:
   theme, the page's look, `{name, source}` with `source` explicit or default. A new
   page takes the user's default or else Leaf's bundled `reading`; null records taking
   none.
-  The reading look and then the theme compose right after the default package,
-  before the content packages (`themes.with_theme`), so a theme restates the look
-  and a content package restates either. Re-running `page init` preserves
-  the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
-  catalogue changes affect new pages; `themes.py` owns selection and
-  `package-themes.md` documents its authoring interface.
+  The record names only the theme; the theme's own registry may name the theme it
+  builds on (`$theme.base`), and every Leaf that composes the page reads that from
+  the package it finds. The bases, base-most first, and then the theme compose right
+  after the default package, before the content packages (`themes.with_theme`), so a
+  theme restates its base and a content package restates either. Re-running
+  `page init` preserves the recorded choice until `--theme` replaces it or
+  `--no-theme` clears it. User catalogue changes affect new pages; `themes.py` owns
+  selection and `package-themes.md` documents its authoring interface.
 - `generation`, a fresh epoch whenever the selection or the page protocol changes.
   The served registry names it under `$layer`, a served document names the
   generation of the revision it shows, event requests carry it, and contract

@@ -46,7 +46,7 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
     source = leaf_page(
         "a drawing's parts",
         '<div><h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
-        '<svg class="drawing" viewBox="0 0 1000 200" role="img">'
+        '<svg class="lf-drawing" viewBox="0 0 1000 200" role="img">'
         f"<title>Three shapes</title>{shapes}</svg></figure></div>",
         layout="sidebar",
     )

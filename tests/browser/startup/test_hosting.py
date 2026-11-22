@@ -707,3 +707,60 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
     page.locator("#last").evaluate("sample => sample.reset()")
     assert allocated == ["far-source", "folded-source", "last-source"]
+
+
+# Hold each command the page sends a sample's document over the private port the
+# host publishes on the entry script (sample.js, `connect`), so the document's own
+# arrival lands before any answer: `heldCommands` sends them on.
+HOLD_COMMANDS = """entry => {
+  window.heldCommands = [];
+  const binding = Object.getOwnPropertyDescriptor(
+    HTMLScriptElement.prototype, 'lfDocumentPort');
+  Object.defineProperty(entry, 'lfDocumentPort', {
+    configurable: true,
+    get() { return binding.get.call(this); },
+    set(port) {
+      binding.set.call(this, port);
+      const post = port.postMessage;
+      port.postMessage = function (message, ...rest) {
+        if (message?.method === undefined) return post.call(this, message, ...rest);
+        heldCommands.push(() => post.call(this, message, ...rest));
+      };
+    },
+  });
+}"""
+
+
+def test_a_reset_sample_has_drawn_its_new_page_once_the_page_reads_arrived(
+    browser, serve
+):
+    """A sample the reader resets in view draws its new page's arrival, Reset
+    available again and its status clear, before the page reads arrived, however
+    late the child answers a command the containing page sends it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sample reset", "<h1>Containing page</h1>" + live_sample("practice")
+            )
+        ),
+    )
+    page.locator("script[data-lf-entry]").evaluate(HOLD_COMMANDS)
+    allocated = []
+    page.on(
+        "request",
+        lambda request: (
+            request.method == "POST"
+            and request.url.endswith("/api/samples")
+            and allocated.append(request)
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.get_by_role("button", name="Reset").click()
+    wait_until_ready(page)
+    drawn = sample.evaluate("""sample => [
+        sample.querySelector('.lf-sample-action').getAttribute('aria-disabled'),
+        sample.querySelector('.lf-sample-status').textContent]""")
+    page.evaluate("() => heldCommands.forEach(send => send())")
+    assert len(allocated) == 1
+    assert drawn == [None, ""]

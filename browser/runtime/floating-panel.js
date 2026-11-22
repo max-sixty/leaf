@@ -4741,8 +4741,9 @@ export function createFloatingPanel({
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On Me nearly always does. An empty gap stands between two tabs, for the
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
-  // show previews the keys of the Go-to door that opens it from anywhere (`door`), such
-  // as `g A` on On <agent>'s, so the user meets the key where they reach for the list.
+  // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
+  // On <agent>'s, where they would press it from where the user is, so the user meets
+  // the key where they reach for the list.
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count @param {(name: T) => string | null} door */
@@ -4757,7 +4758,7 @@ export function createFloatingPanel({
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
             .lfPreview=${() => {
-              const steps = opens && current !== name ? commandSteps(opens) : [];
+              const steps = opens && current !== name ? commandKeysNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
             }}
             @click=${() => {
@@ -5261,17 +5262,18 @@ export function createFloatingPanel({
   // ---------- gestures ----------
   // The leaf unfolds a folded panel, and otherwise opens the On view on the tab its
   // marks point at (`leafOpens`), or puts the view away where it stands, a view it leads
-  // to included. `o` presses it (`LEAF`), and from a folded panel opens the view as it
-  // unfolds it, as Go-to's doors do. A key lands on the tab's first row, as every
+  // to included. `o` presses it (`LEAF`); on a folded panel a key's press opens the
+  // view as Go-to's doors do, and the panel folds again as the view goes, where a
+  // pointer's press unfolds it. A key lands on the tab's first row, as every
   // key that opens a list does (`focusView`), so ← and → go on to the other tabs from
   // there, and ↑ or `/` reaches the menu's search. A mouse's press on the menu puts
   // the caret in its search, so the words the user types narrow it; a finger reads the
   // menu first, as it reads a thread before the keyboard rises (`focusView`).
   function pressLeaf() {
-    if (host.dataset.lfRest === "mark") {
+    if (host.dataset.lfRest === "mark" && pressLed()) {
       prefs().setRest("row");
       paint();
-      if (pressLed()) return;
+      return;
     }
     if (onViewStands()) {
       putAway();

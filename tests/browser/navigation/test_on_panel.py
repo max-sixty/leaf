@@ -442,10 +442,12 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
 def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serve):
     """`o` presses the leaf, which names it, so with a question waiting it opens On Me
     with the question's card under the user, and a second `o` puts the view away,
-    leaving the user on the page rather than on nothing. ← and → turn the view's tabs
-    round from either end, landing on each list as a key opening it lands, or, from the
-    tab strip, on the tab, stepping from the tab focus stands on. `g A` opens the
-    agent's list as `g M` opens the user's, and closes it again."""
+    leaving the user on the page rather than on nothing, and on a folded panel it opens
+    the view over the fold. ← and → turn the view's tabs round from either end, landing
+    on each list as a key opening it lands, or, from the tab strip, on the tab,
+    stepping from the tab focus stands on. A tab the view doesn't show names the door
+    that opens its list. `g A` opens the agent's list as `g M` opens the user's, and
+    closes it again."""
     page = open_page(browser, serve(QUEUE_PAGE))
     shown = page.locator(".lf-fp-view:not([data-lf-leaving])")
     tab = page.locator('.lf-fp-tab[aria-pressed="true"]')
@@ -502,12 +504,15 @@ def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serv
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(shown).to_have_count(0)
-    # From a folded panel, `o` unfolds it and opens the view in one press.
+    # On a folded panel `o` opens the view in one press, as a door does, and the panel
+    # folds again as the view goes.
     page.keyboard.press(".")
     expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
     page.keyboard.press("o")
-    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "row")
     expect(tab).to_contain_text("On Me")
+    page.keyboard.press("Escape")
+    expect(shown).to_have_count(0)
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
 
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):

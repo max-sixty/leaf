@@ -2291,6 +2291,10 @@ def theme_hierarchy(page: Page) -> None:
     page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
     page.keyboard.press("Enter")
     page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    # The disclosure's closing queues a pass of the margin's layout, which writes the
+    # scroll offset into each carrier's place. A pass that lands after the scroll below
+    # writes the same places with the new offset, which the styles read as moved rows.
+    settle(page)
     page.locator("#bg-theme-hierarchy").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )

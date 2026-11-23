@@ -96,11 +96,13 @@ import {
 } from "../geometry.js";
 import {
   closedOver,
+  drawn,
   eachRenderedChild,
   eachRenderedElement,
   isText,
   skipped,
   skipper,
+  untilFound,
   composedParentNode,
   renderedParent,
   renderedUnder,
@@ -1585,12 +1587,14 @@ function scheduleRowLayout() {
 // `closedOver`): a closed disclosure's summary, or else the nearest box round the
 // closed one that draws one of its own, as a tab set does round a panel it hasn't
 // chosen. A row stands by it level with its top, since the line and words it would
-// stand by are inside (`face`). None where nothing round the closed box draws.
+// stand by are inside (`face`). None where nothing round the closed box draws, or the
+// page doesn't draw the closed box itself, as under `display: none` or in skipped
+// content off screen, where reading round it would force that content's layout.
 /** @param {Node} node @returns {Element | null} */
 export function closedFaceOver(node) {
   const closed = closedOver(node);
-  if (!closed) return null;
-  if (closed instanceof HTMLDetailsElement)
+  if (!closed || !drawn(closed)) return null;
+  if (closed instanceof HTMLDetailsElement && !untilFound(closed))
     return closed.querySelector(":scope > summary") ?? closed;
   for (
     let at = renderedParent(closed);
@@ -2091,9 +2095,12 @@ function layoutMountedRows(layer) {
     const point = face ? null : options.point();
     const words = face ? [] : quotedBoxes(options);
     const passageNode = words.length ? wordsStart(options) : null;
-    // A face is watched from the target, so opening the box, in a shadow tree too,
-    // resizes a box the pass watches.
-    observeGeometry(point ?? anchored);
+    // A face is watched from the line or words its threads are about, so opening the
+    // box, in a shadow tree too, resizes a box the pass watches.
+    const watched = face
+      ? (options.point() ?? renderedParent(wordsStart(options)))
+      : point;
+    observeGeometry(watched ?? anchored);
     present.push({
       row,
       at: point ?? passageNode ?? target,

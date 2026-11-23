@@ -4582,6 +4582,10 @@ def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
         expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_have_text(
             "Earlier data"
         )
+        # Its thread still stands on the place the widget gives it, and a second
+        # press puts the card away as on any marker.
+        page.locator(marker.format("earlier")).click()
+        expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_be_hidden()
 
 
 def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(

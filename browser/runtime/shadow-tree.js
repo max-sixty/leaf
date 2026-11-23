@@ -428,7 +428,7 @@ export const closedOver = (node) => {
   let child = node;
   for (let at = node instanceof Element ? node : renderedParent(node); at;) {
     if (
-      at.getAttribute("hidden") === "until-found" ||
+      untilFound(at) ||
       (at instanceof HTMLDetailsElement &&
         !at.open &&
         child !== at &&
@@ -440,6 +440,10 @@ export const closedOver = (node) => {
   }
   return closed;
 };
+// Whether `node` is `hidden="until-found"`, read as the browser reads the attribute.
+/** @param {Node | null} node */
+export const untilFound = (node) =>
+  node instanceof HTMLElement && node.hidden === "until-found";
 
 // Every element the browser draws at or under `root`, through the open shadow trees of
 // the hosts it draws, each tree in its own order, which a reading of the page as drawn

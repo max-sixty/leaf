@@ -475,11 +475,12 @@ export function createMarginProjection({
     const place = threadsPlace(entry);
     return place ? closedFaceOver(place) : null;
   };
+  // The node a thread's words start in is asked itself, since words that stand
+  // straight in a closed disclosure, beside its summary, are hidden though the
+  // disclosure is not.
   /** @param {Entry} entry */
-  const threadsPlace = (entry) => {
-    const node = readingPlace(entryPassage(entry), entryPoint(entry)).node;
-    return node instanceof Element ? node : (renderedParent(node) ?? targetFor(entry));
-  };
+  const threadsPlace = (entry) =>
+    readingPlace(entryPassage(entry), entryPoint(entry)).node ?? targetFor(entry);
 
   // Every row lives in the chrome's margin layer, whatever it holds, and the layout owns
   // where: which lane, in which posture, at what offset (margin-layout.js). The row states
@@ -1653,24 +1654,30 @@ export function createMarginProjection({
   // in place of a part it hasn't drawn (anchor-resolution.js, `standsIn`), or by a
   // closed box that hides the part (`faceOf`). A press on it asks for the part, so the
   // thread opens by travel, which opens the box or has the widget draw the part
-  // (anchor-travel.js, `revealThread`) and lands where the thread then stands, even
-  // while the card the box hid stays selected. Travel reads where the user stood before
-  // anything moves (thread/destination.js), so Back closes the box again; the press then
-  // opens the box itself, where the user pressed, since a window with no room for the
-  // card opens the thread in the floating panel and moves nothing on the page.
+  // (anchor-travel.js, `revealThread`) and lands where the thread then stands. A box
+  // closed round the card it hid leaves that card selected, so the box is asked about
+  // first. A window with no room for the card opens the thread in the floating panel,
+  // which moves nothing on the page and adds no history entry, so once the route has
+  // landed the press opens the box itself, as the browser's find would, and the entry
+  // the user is on names what it opened. Elsewhere travel has opened it already.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const id = threadIdOf(choice);
-    const face = faceOf(entry);
-    if (face || standsIn(threadNamed(id)?.anchor, placedAt(id))) {
+    if (faceOf(entry)) {
+      const place = threadsPlace(entry);
       const intent = retainUserIntent();
-      void openPageThread(id, { intent });
-      if (face) openFolds(threadsPlace(entry), intent);
+      void openPageThread(id, { intent }).then(() =>
+        openFolds(place instanceof Element ? place : renderedParent(place), intent),
+      );
       return;
     }
     const selected = card.selection();
     if (selected?.entry.key === entry.key && selected.control === button) {
       closePreview();
+      return;
+    }
+    if (standsIn(threadNamed(id)?.anchor, placedAt(id))) {
+      void openPageThread(id);
       return;
     }
     const positioned = showPreview(entry, choice, button);

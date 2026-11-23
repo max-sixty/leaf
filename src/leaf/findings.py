@@ -274,7 +274,6 @@ _DECIDES = "each decision the user makes is recorded and reads back as made"
 _SUGGESTS = "a suggestion the user decides changes exactly the words it shows"
 _REFERS = "each reference a widget makes reaches the element it names"
 _DATA = "each widget reads the data its markup names, in its declared contract"
-_VIEWS = "each view the user moves changes the answer it shows"
 _UNSTYLED = "the page looks as its source says, whatever its threads hold"
 _OPENS = "each live sample opens from the template its id names"
 _LAYS_OUT = "Leaf and the page lay out each allocation as one of the values it takes"
@@ -1323,43 +1322,6 @@ _TEXT = {
             f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
         ),
     ),
-    "shows-outside": _refuses(
-        _VIEWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
-            " document; a view shows answers in the page or message it stands in"
-        ),
-    ),
-    "shows-no-answer": _refuses(
-        _VIEWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
-            " view can show: its `awaits` value verb records neither a value nor members"
-            " an `awaits` key names"
-        ),
-    ),
-    "shows-without-open": lambda at, v: (
-        f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
-        f" so none can hold it while {v['target']}'s answer names no value; add a"
-        f" <{v['place']}> without `{v['value_attr']}`"
-    ),
-    "shows-untakeable": lambda at, v: (
-        f"{_line(at, v)}: {v['target']} has no answer {v['value']!r}, which a"
-        f" <{v['place']}> beside it holds, so that <{v['place']}> takes no drop of"
-        " it"
-    ),
-    "shown-elsewhere": lambda at, v: (
-        f"{_line(at, v)}: stands in a <{v['place']}> holding "
-        + (f"{v['stands']!r}" if v["stands"] else "no value")
-        + f", but {v['target']}'s answer is "
-        + (
-            f"{v['answer']!r}, so it moves there when the page draws; move it to the"
-            f" <{v['place']}> whose `{v['value_attr']}` is {v['answer']!r}"
-            if v["answer"]
-            else f"no value, so it moves when the page draws; move it to a"
-            f" <{v['place']}> without `{v['value_attr']}`"
-        )
-    ),
     "outside-reference": _refuses(
         _REFERS,
         lambda at, v: (
@@ -1739,23 +1701,6 @@ _TEXT = {
     ),
     "awaits-value": _declared(
         lambda v: "`awaits` value must name a user-written verb (`verbs`)"
-    ),
-    "awaits-key": _declared(
-        lambda v: (
-            f"`awaits` key `{v['key']}` needs an attribute-record value verb whose"
-            f" members declare `{v['key']}` in `unique` for this widget"
-        )
-    ),
-    "shows-reference": _declared(
-        lambda v: (
-            f"`shows` reference `{v['attr']}` must be a `refers` relation to any element"
-        )
-    ),
-    "shows-value": _declared(
-        lambda v: (
-            f"`shows` value `{v['attr']}` is no attribute of "
-            + ", ".join(f"<{owner}>" for owner in v["owners"])
-        )
     ),
     "awaits-retired": _declared(
         lambda v: (
@@ -2167,13 +2112,6 @@ _TEXT = {
         lambda at, v: (
             f"{_invalid_record(v)}position record unit {v['unit']!r} is not owned by"
             f" action widget {v['widget']!r}"
-        ),
-    ),
-    "shown-unit": _refuses(
-        _ADMITS,
-        lambda at, v: (
-            f"{_invalid_record(v)}{v['unit']!r} shows the answer of {v['shows']!r}, which"
-            " decides where it stands; change that answer instead"
         ),
     ),
     "nested-unit": _refuses(

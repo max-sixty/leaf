@@ -1557,6 +1557,18 @@
   .lf-fp-compare {
     font: var(--lf-font-small);
   }
+  /* The count of changes before Compare's word ends where the room it holds ends
+     (floating-panel.js, `CHANGES_ROOM`), so the counts end one under another. A word
+     space follows it, so its text reads as two words; the margin adds the rest of the
+     gap. */
+  .lf-fp-changes {
+    margin-inline-end: 4px;
+    color: var(--lf-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-changes > * {
+    text-align: end;
+  }
   /* The panel's own rules. A rule a message holds reads as it does in any thread
      (reading.css), so its draft can draw it as it will be sent. */
   .lf-floating-panel .lf-fp-rule {

@@ -60,8 +60,8 @@ link preview counts a thread about any of them.
 ### Reading declarations
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
-widget's entry, each fact under its own name, as `declarationFor(card)?.shows` reads a
-view's `shows`. `matchesWhen(element, when)` says whether the element's attributes
+widget's entry, each fact under its own name, as `declarationFor(element)?.awaits`
+reads a widget's `awaits`. `matchesWhen(element, when)` says whether the element's attributes
 satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
@@ -298,17 +298,6 @@ waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does
 Me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
-
-An element declaring `shows`, such as a board card, is a view of another widget's
-answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
-`shownAnswer(element)` reads it in `render()`, which then redraws with every change to
-that widget's state, and returns `null` where the element shows no answer. Otherwise
-it returns `{owner, value, available, takes, answer}`: the widget, the value its
-answer names now (`null` for none), whether the user can change it, `takes(value)`,
-whether the widget can answer `value` (`null` clears it), and `answer(value, says)`,
-which sends the widget's own command and returns what `dispatch` returns, or `null`
-where the widget can't take `value`. Place the view by `value`, and change it only
-through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has a `kind`, which is its obligation's

@@ -256,7 +256,11 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
 
 The merged registry's `$keys` entry defines each fact by its name; `$verbs` defines the members of `verbs`, and `$awaits` an
 obligation's answer. What the module alone can answer stays in the module, as a word
-for its kind that depends on the element is its `lfWord()`. Every declaration has
+for its kind that depends on the element is its `lfWord()`. So does a rule about the
+widget's markup that no declared fact states: the module checks it as it draws and
+reports a breach with `reportFailure`
+([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
+card whose `shows` names a widget with no answer. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
 `example`. The optional `instructions` gives the choices and obligations
 of using it; a package's shared author instructions own guidance spanning its widgets.

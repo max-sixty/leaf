@@ -500,28 +500,19 @@ def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
     assert key in refused.values["keys"]
 
 
-@pytest.mark.parametrize(
-    ("tag", "fact", "needs"),
-    [
-        ("lf-old", "retired-when", "owners"),
-        ("lf-card", "shows", "owners"),
-        ("lf-card", "shows", "refers"),
-    ],
-)
-def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir, tag, fact, needs):
-    """A retiring member is read through its owners, and a view of another widget's
-    answer through its owners and its reference, so a declaration without one is
-    refused naming both facts."""
+def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir):
+    """A retiring member is read through its owners, so a declaration without them
+    is refused naming both facts."""
     registry = vocabulary(page_dir)
-    del registry[tag][needs]
+    del registry["lf-old"]["owners"]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
     [refused] = found(
-        findings, "invalid-declaration", f"<{tag}>", keyword="dependentRequired"
+        findings, "invalid-declaration", "<lf-old>", keyword="dependentRequired"
     )
-    assert refused.values["reason"] == f"{needs!r} is a dependency of {fact!r}"
+    assert refused.values["reason"] == "'owners' is a dependency of 'retired-when'"
 
 
 def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir):
@@ -888,35 +879,3 @@ def test_server_awaits_names_the_verbs_that_answer_it(page_dir):
 
     assert status == 1
     assert found(findings, "awaits-verbs", "<lf-suggestion>", verbs=["missing"])
-
-
-@pytest.mark.parametrize(
-    ("tag", "mutate", "code"),
-    [
-        # The view names its widget by id, the one relation it resolves.
-        (
-            "lf-card",
-            lambda r: r["lf-card"]["refers"].update(
-                shows={"via": "$work.widgets", "where": {"role": "goal"}}
-            ),
-            "shows-reference",
-        ),
-        # Its owners name the answer they hold, or no view stands anywhere.
-        (
-            "lf-card",
-            lambda r: r["lf-column"]["attributes"]["properties"].pop("value"),
-            "shows-value",
-        ),
-        # Members unique by the key, or a value names no one member.
-        ("lf-options", lambda r: r["lf-option"].pop("unique"), "awaits-key"),
-    ],
-)
-def test_a_view_relation_names_attributes_both_sides_have(page_dir, tag, mutate, code):
-    registry = vocabulary(page_dir)
-    mutate(registry)
-    declare_vocabulary(page_dir, registry)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, code, f"<{tag}>"), findings

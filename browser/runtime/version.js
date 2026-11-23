@@ -187,7 +187,6 @@ import {
   LayerRefused,
   admitReading,
   leafReloads,
-  reloadDocument,
   reportPageError,
 } from "./layer-client.js";
 import { projectDocument, readApplication, readPart } from "./semantic-state.js";
@@ -227,7 +226,7 @@ import {
 } from "./widget-loader.js";
 import { byRenderedOrder, under } from "./shadow-tree.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { replaceEntry } from "./history.js";
+import { reloadAt } from "./history.js";
 import {
   blocksOnScreen,
   capturePlace,
@@ -2487,8 +2486,7 @@ export function createVersionController({
       reloadLanding = { revision: target.revision, url: location.href };
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
-      replaceEntry(marked);
-      reloadDocument();
+      reloadAt(marked);
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.
       return new Promise(() => {});
@@ -3297,7 +3295,12 @@ export function createVersionController({
         if (inputCount() === 0) paintKeys();
         else letHeldKeysGo();
       });
-    return { landArrival, savedView };
+    return {
+      landArrival,
+      savedView,
+      handedOff: Boolean(handoff),
+      restored: navigationType !== "navigate",
+    };
   }
 
   // A fresh URL aimed at an element stays landed while the page arrives. The browser

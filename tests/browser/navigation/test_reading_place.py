@@ -189,6 +189,95 @@ def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serv
     )
 
 
+TWO_LINE_PATCH = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+-a = 1
+-b = 2
++a = 10
++b = 20
+"""
+
+
+@pytest.mark.parametrize("walk", ["first t", "t between seats", "m between asks"])
+def test_a_walk_to_a_stop_already_on_screen_is_a_back_step(browser, serve, walk):
+    """Each stop a walk lands on is a Back step, as each followed link is, though the
+    window already shows it: Back from the second stop returns to the first, and Back
+    from the card the first `t` opens returns to the page with no thread open rather
+    than leaving the page."""
+    events = []
+    if walk == "first t":
+        body = "<p id=a>The first passage.</p><p id=b>The second passage.</p>"
+        anchored = [("a", "first passage"), ("b", "second passage")]
+    elif walk == "t between seats":
+        body = '<lf-diff id="patch" source="review-patch"></lf-diff>'
+        anchored = []
+        events = [
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About line {line}.",
+                "anchor": {
+                    "section": "patch",
+                    "datum": f'["app.py","new",{line}]',
+                    "source": "review-patch",
+                    "data_revision": 1,
+                },
+            }
+            for line in (1, 2)
+        ]
+    else:
+        body = "".join(
+            f'<lf-group id="ask-{n}" label="Which route?"><h2>Which route?</h2>'
+            f'<lf-options id="routes-{n}"><lf-option id="left-{n}">Left</lf-option>'
+            f'<lf-option id="right-{n}">Right</lf-option></lf-options></lf-group>'
+            for n in (1, 2)
+        )
+        anchored = []
+    url = serve(
+        leaf_page("Stops on screen", f"<h1>Stops</h1>{body}"), anchored=anchored
+    )
+    if walk == "t between seats":
+        data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_LINE_PATCH)
+        for event in events:
+            append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    key = "m" if walk == "m between asks" else "t"
+    scope = "lf-diff" if walk == "t between seats" else ".lf-margin-preview"
+    threads = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    stops = (
+        [page.locator("#ask-1"), page.locator("#ask-2")]
+        if key == "m"
+        else [
+            page.locator(f'{scope} .lf-page-thread[data-lf-thread="{thread}"]')
+            for thread in threads
+        ]
+    )
+    entries = page.evaluate("history.length")
+    loaded = page.evaluate("navigation.currentEntry.index")
+    page.keyboard.press(key)
+    expect(stops[0]).to_be_focused()
+    assert page.evaluate("history.length") == entries + 1
+    if walk == "first t":
+        page.wait_for_function("navigation.transition === null")
+        page.go_back()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        assert page.evaluate("navigation.currentEntry.index") == loaded
+        return
+    page.keyboard.press(key)
+    expect(stops[1]).to_be_focused()
+    assert page.evaluate("history.length") == entries + 2
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(stops[0]).to_be_focused()
+
+
 @pytest.mark.parametrize("close_source", [False, True])
 def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     """A caret in prose is a working place even when no element holds focus."""
@@ -363,6 +452,95 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     # A reload keeps the browser's restored offset, over the item the URL names.
     page.reload()
     expect(part("b", 1)).to_be_in_viewport()
+
+
+def test_a_trip_that_puts_a_thread_away_leaves_an_entry_naming_none(browser, serve):
+    """A widget's trip from the page while the floating panel shows a thread, which the
+    landing puts away since the view would stand over the part, adds an entry naming no
+    thread, so Forward or a reload there leaves the thread put away."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items at the foot",
+                '<h1 id="top">Items at the foot</h1>'
+                '<lf-item-link id="jump" for="items" key="a/4"></lf-item-link>'
+                + "".join(f"<p>Reading context {n}.</p>" for n in range(30))
+                + '<lf-items id="items"></lf-items>',
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Where?"},
+    )["id"]
+    for n in range(3):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {n}. " + "More of the explanation. " * 30,
+            },
+        )
+    page = open_page(browser, f"{url}{'&' if '?' in url else '?'}thread={root}")
+    thread = page.locator(f'{panel_view("thread")}[data-lf-thread="{root}"]')
+    expect(thread).to_be_focused()
+    # A key, not a press: a press on the page would put the view away before the trip.
+    page.locator("#jump button").focus()
+    page.keyboard.press("Enter")
+    expect(page.locator('#items [data-item="a"][data-part="4"]')).to_be_focused()
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    assert "thread=" not in page.url
+
+
+def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serve):
+    """A rename asked for during a navigation waits for it, so it never aborts it, and
+    renames only the entry it was asked on: once a newer navigation has moved the user
+    to another entry, it is dropped rather than overwriting that entry's address."""
+    page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          navigation.addEventListener('navigate', (event) => {
+            if (event.destination.url.endsWith('#slow'))
+              event.intercept({handler: () => new Promise(() => {})});
+          });
+          const slow = navigation.navigate('#slow');
+          api.replaceEntry(new URL('#renamed', location.href));
+          await navigation.navigate('#other').committed;
+          await slow.finished.catch(() => {});
+          await new Promise((resolve) => setTimeout(resolve));
+        }"""
+    )
+    assert page.url.endswith("#other")
+
+
+def test_a_revision_s_reload_during_a_navigation_carries_its_mark(browser, serve):
+    """A revision's reload writes its mark and reloads at once, though a navigation is
+    under way, which the reload ends anyway, so the document it asks for carries the
+    mark rather than a rename that waited and was dropped when the user moved on."""
+    page = open_page(browser, serve(leaf_page("Reloads", "<h1>Reloads</h1>")))
+    with page.expect_request(lambda request: request.is_navigation_request()) as reload:
+        page.evaluate(
+            """async () => {
+              const {reloadAt} = await import('/runtime/history.js');
+              navigation.addEventListener('navigate', (event) => {
+                if (event.navigationType === 'push')
+                  event.intercept({handler: () => new Promise(() => {})});
+              });
+              navigation.navigate('#slow').finished.catch(() => {});
+              const url = new URL(location.href);
+              url.searchParams.set('_leaf-revision', '2');
+              setTimeout(() => reloadAt(url));
+            }"""
+        )
+    assert "_leaf-revision=2" in reload.value.url
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

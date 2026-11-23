@@ -155,8 +155,8 @@ def test_merge_film_steps_have_a_keyboard_route(browser, serve):
 
 def test_a_step_pressed_on_a_phone_brings_the_film_into_view(browser, serve):
     """Narrow, the film stands above its steps, so holding a step glides the page to
-    it. The step list draws the film's new moment after the press, which grows the step
-    now told, and a glide begun before that draw ended with the film out of view."""
+    it. The glide sets off as the press lands, and the step list then draws the film's
+    new moment, which grows the step now told above the window while the glide runs."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )

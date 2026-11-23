@@ -27,10 +27,12 @@ the id of any message in the thread.
 
 Link directly to a thread by adding `thread=<message-id>` to the page URL's query
 parameters, preserving any existing access parameters: `?thread=<message-id>`, or
-`&thread=<message-id>` when a query is already present. Use a URL without a fragment
-to open the thread; an authored `#element-id` takes precedence and reaches that
-passage. The link opens the thread's usual card or reader, including a page-level
-thread with no anchor. Input during startup cancels the automatic opening.
+`&thread=<message-id>` when a query is already present. The link takes the user to
+the thread's usual card or reader, including a page-level thread with no anchor. With
+an `#element-id` as well, the page lands on that element and the thread opens without
+taking the user there. Input during startup cancels the automatic opening. The page
+keeps `thread=` in its own address while a thread stands open, so a link the user
+copies from the address bar names the thread they have open.
 
 When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has

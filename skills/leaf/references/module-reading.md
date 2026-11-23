@@ -76,8 +76,9 @@ the first element `key` names in the referenced widget: a visual part's id, a pr
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
 focuses it, sets the URL's fragment to the widget's id and the key, and announces
-`success`. An absent destination
-keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
+`success`. Where it moves focus or the page, Back returns the user to where they were,
+as after a followed link. An absent destination keeps the reader's place and history
+and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
@@ -184,7 +185,7 @@ the drawing needs them.
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls").
+(`module-controls.md`).
 [`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
 The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
 names, each with its symbol and the words its press says. For a symbol whose action

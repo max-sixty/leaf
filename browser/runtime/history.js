@@ -339,6 +339,10 @@ export function mountHistory({ followFragment, returnToFragment, chrome: views }
     // A followed link again to the fragment already shown is a `replace` with no hash
     // change, and still a navigation step: its target may have been shut since.
     if (writing || event.formData || !url.hash) return;
+    // The package-interface trial: an entry a package's script writes with pushState or
+    // replaceState is no fragment navigation (`hashChange`), and unlike a link to the
+    // fragment shown it names another address.
+    if (!event.hashChange && url.href !== location.href) return;
     const handler = followFragment(url);
     if (handler)
       event.intercept({

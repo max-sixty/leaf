@@ -278,9 +278,10 @@ def hooks_root(session_id: str) -> Path | None:
 
 class LoadedCopy:
     """The installed copy of Leaf this process loaded, held so that a process that
-    outlives the hooks that start it, such as a page server, Codex's delivery
-    adapter or Pi's watch between turns, can tell once the session it serves runs
-    another copy (`successor`).
+    outlives the hooks that start it can tell once another copy should run it: a
+    page server and Codex's delivery adapter ask `successor`, and a watch between
+    turns asks only `replaced`, since a newer watch from the session's copy takes
+    over from it (`session.watch_between_turns`).
 
     A session runs the Leaf its hooks run (`session-lifetime.md`, "Which Leaf runs
     a session"), and a harness changes that Leaf in one of two ways. Claude Code

@@ -275,14 +275,15 @@ hook, and that Leaf ships another skill, the agent is told to read it again
 (`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
 restarts a page's server under that one at the same address (`hosting.start_page`).
 
-A process that outlives the hooks that start it moves to the session's Leaf by
-itself, within a pass of the change (`state.LoadedCopy`). A page server from an
-installed copy follows the installed copy that the hooks of the session holding its
-page last ran, which changes when Claude Code moves the session onto an update. It
-also follows the copy Codex or Pi puts in place of its own. Codex's adapter and Pi's
-watch between turns follow only the copy put in place of theirs, since the root the
-hooks record never changes under Codex or Pi; Claude Code's hooks start a watch each
-turn, and the newest watch supersedes an older one (`session.watch_between_turns`).
+A page server or Codex's adapter from an installed copy outlives the hooks that start
+it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):
+the installed copy that the hooks of the session it serves last ran, where that is
+another, as after Claude Code moves the session onto an update, or else the copy
+Codex or Pi puts in place of its own. It then has that copy take over from it. A
+watch between turns asks only whether another copy was put in place of its own,
+since under Claude Code each turn's hooks start a new watch from the session's copy,
+and the newest watch supersedes an older one (`session.watch_between_turns`). A
+process from a checkout follows nothing.
 An update that moves the page protocol leaves the session's pages at the old one.
 The restart of each page's server renews the page first, as the session's next hook
 would (`hosting.follow_copy`), and the renewal restarts the server itself; the

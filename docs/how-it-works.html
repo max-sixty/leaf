@@ -1468,14 +1468,15 @@ sequenceDiagram
               through the launcher in the copy they loaded, but each keeps one copy and
               updates it in place, so the session's next hook runs the update. A path
               names no version there, so Leaf tells two copies apart by path and commit.
-              Each hook records the copy it ran. A page server, a Codex delivery adapter
-              or Pi's watch between turns outlives the hooks that start it, and moves on
-              its own to the copy the session's hooks run, without waiting for a hook: a
-              server once the hooks record another installed copy, as after Claude Code
-              loads an update, and each of the three once Codex or Pi puts a new copy in
-              place of its own. The server's restart renews a page left at an older page
-              protocol as a hook would, and the adapter and watch then deliver its
-              input. Leaf never reads a harness's record of the installed copy.
+              Each hook records the copy it ran. A page server and a Codex delivery
+              adapter outlive the hooks that start them, and each keeps checking which
+              copy should run it: the installed copy the session's hooks last recorded,
+              where that is another, as after Claude Code loads an update, or else a new
+              copy Codex or Pi puts in place of its own. It then has that copy take
+              over. Pi's watch between turns moves once Pi puts a new copy in place of
+              its own. The server's restart renews a page left at an older page protocol
+              as a hook would, and the adapter and watch then deliver its input. Leaf
+              never reads a harness's record of the installed copy.
             </p>
             <p id="leaf-copy-outlast">
               Three things outlive the process, so a session can find one that another

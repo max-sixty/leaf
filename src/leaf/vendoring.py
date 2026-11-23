@@ -169,7 +169,7 @@ def renew_layer(
     the agent's judgment, and the first Leaf to act for the page's session makes it
     instead: a write command naming the page (`cli.resolve_dir`), the prompt hook
     serving the page again (`reconnect`), a hook that reads the session's pages
-    (`renew_held`), or the restart of a page server whose copy its harness replaced
+    (`renew_held`), or the restart of a page server that follows the session's copy
     (`hosting.follow_copy`). A command that only reads the page leaves it as it is.
     Only the session holding the page renews it, or any caller while no live
     session does: another session may still run the
@@ -263,8 +263,8 @@ def _reinit(
 
     A rewrite holds the page's init lock from `still`'s second reading through the
     restart, so re-initializations of one page take turns: two renewals at once, as
-    a hook reading the session's pages and the restart of a server whose copy was
-    replaced can make, would each pass their first reading, since the page lock can't span
+    a hook reading the session's pages and the restart of a server that follows the
+    session's copy can make, would each pass their first reading, since the page lock can't span
     the restart whose stop takes it, and the second would then find the old server
     still exiting from the first's stop, and be refused, or stop the server the first
     had just started. In turn, the second finds the page renewed and changes nothing.

@@ -30,7 +30,7 @@ a server until the agent acts, which an agent can put off or never do.
 
 A page whose server still runs in the grace its earlier session left it keeps that
 server, whichever copy started it. Once the page's claim is live again, the server
-moves to the Leaf the session's hooks run by itself (`server.stop_when_service_ends`).
+itself moves to the Leaf the session's hooks run (`server.stop_when_service_ends`).
 """
 
 import time

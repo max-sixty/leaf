@@ -155,9 +155,8 @@ def other_serving_leaf(page_dir: Path) -> dict | None:
     a commit, or a copy Codex or Pi updated in place is until its server follows the
     update (`stop_when_service_ends`). Uncommitted edits don't count, since the record
     can't say whether they changed after the server started. `leaf server start`
-    restarts such a server under this Leaf (`hosting.start_page`), as the prompt hook
-    does where both are installed copies (`reconnect`), and `page check` notes it
-    (`validation.source.source_advice`)."""
+    restarts such a server under this Leaf (`hosting.start_page`), and `page check`
+    notes it (`validation.source.source_advice`)."""
     from .layer import running_leaf
 
     server = running_server(page_dir)
@@ -266,14 +265,15 @@ def stop_when_service_ends(page_dir: Path) -> None:
     each module it loads later from the new copy, beside the old modules it holds,
     and the browser would load the new copy's runtime from it. So each pass, while
     the service is persistent or a live session holds the page, asks which copy
-    should run the server now (`state.LoadedCopy.successor`), and the first that
-    names one has that copy restart it (`_follow_copy`). A server whose session has
+    should run the server now (`state.LoadedCopy.successor`), and has each copy it
+    names restart it (`_follow_copy`). A copy that declines, as one that can't serve
+    the page does, is asked again only after the session has run another. A server whose session has
     ended retires on its copy after its grace, which leaves its service enabled for
     a resumed session's prompt to serve again; a restart would instead disable it
     (`hosting.restarting_server`)."""
 
     copy = LoadedCopy()
-    following = False
+    asked = None
     orphaned_at = None
     while True:
         service = read_service(page_dir)
@@ -282,10 +282,10 @@ def stop_when_service_ends(page_dir: Path) -> None:
         persistent = service["lifetime"] == "persistent"
         held = page_claim(page_dir)
         claimed = claim_is_active(held)
-        if not following and (persistent or claimed):
+        if persistent or claimed:
             root = copy.successor(held["id"] if held is not None and claimed else None)
-            if root is not None:
-                following = True
+            if root is not None and root != asked:
+                asked = root
                 threading.Thread(
                     target=_follow_copy,
                     args=(page_dir, service["server_id"], root),

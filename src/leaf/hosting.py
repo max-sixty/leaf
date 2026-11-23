@@ -870,9 +870,9 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
     once the page is taken, since a session service comes back only for the
     session holding it; one that can't start again leaves the service enabled and
-    down, for a revival to bring back. A server from an installed copy also moves
-    to the installed copy its session's hooks run by itself
-    (`server.stop_when_service_ends`); a watch reviving a page restarts nothing."""
+    down, for a revival to bring back. A server from an installed copy itself moves
+    to the installed copy its session's hooks run (`server.stop_when_service_ends`);
+    a watch reviving a page restarts nothing."""
     replacing = other_serving_leaf(page_dir) is not None
     if replacing:
         check_servable(page_dir)

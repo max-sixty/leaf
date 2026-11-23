@@ -899,6 +899,7 @@ ROUTE_ANSWERS = {
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
     r"/api/files/[^/]+": (
         "FileSnapshot",
+        "null",
         "StaleFile",
         "Refusal",
         "LayerAnswer",

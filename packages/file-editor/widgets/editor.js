@@ -533,8 +533,12 @@ export function createEditor(
     get value() {
       return reading().doc.toString();
     },
+    // A public layout read (`coordsAtPos`) runs the measure the new text scheduled in
+    // this task, so the gutter is laid out from measured line heights before the
+    // frame that shows it, and nothing moves after the page shows the text.
     set value(value) {
       adopt(value, false);
+      if (view?.dom.isConnected) view.coordsAtPos(0);
     },
     // Take the text to `value`, a version written elsewhere, as `value` does, and mark
     // the lines it changed (`written`).

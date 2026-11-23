@@ -83,12 +83,9 @@ test("a file request without an answer retains its original cause", async (t) =>
   t.mock.method(globalThis, "fetch", async () => {
     throw fault;
   });
-  await assert.rejects(
-    boundFile("notes").save({ revision: "r", text: "" }),
-    (error) => {
-      assert.equal(error.message, "The page's server did not answer.");
-      assert.equal(error.cause, fault);
-      return true;
-    },
-  );
+  await assert.rejects(boundFile("notes").read(), (error) => {
+    assert.equal(error.message, "The page's server did not answer.");
+    assert.equal(error.cause, fault);
+    return true;
+  });
 });

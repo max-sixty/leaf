@@ -38,7 +38,7 @@ from starlette.responses import FileResponse, Response
 
 from .drafts import write_draft
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
-from .file_bindings import FileBindingError, StaleFileError, save_file
+from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     missing_revision,
     revision_num,
@@ -1206,6 +1206,13 @@ class PageEndpoint:
 
     def _get(self) -> Response:
         path = self.path
+        if match := re.fullmatch(r"/api/files/([^/]+)", path):
+            if not self.source.writable:
+                return self._json(None)
+            try:
+                return self._json(read_file(self.page_dir, match[1]))
+            except FileBindingError as error:
+                return self._refuse(str(error))
         if probe_source := serving_runtime().probes.get(path):
             return self._content(200, "text/javascript; charset=utf-8", probe_source)
         if path == "/":

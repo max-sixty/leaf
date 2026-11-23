@@ -121,17 +121,18 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and the file as a read finds it, its text with LF line endings and the revision a save names, or the error saying why it can't be read.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it; its stamp, which moves when the file may have, so an editor that holds the file reads it again only when this stamp does; and the file as a read finds it, its text with LF line endings and the revision a save names, or the error saying why it can't be read, which gives an editor its first text.",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
               "label": { "type": "string" },
+              "stamp": { "type": "string" },
               "text": { "type": "string" },
               "revision": { "type": "string" },
               "error": { "type": "string" }
             },
-            "required": ["label"],
+            "required": ["label", "stamp"],
             "oneOf": [
               { "required": ["text", "revision"], "not": { "required": ["error"] } },
               { "required": ["error"], "not": { "required": ["text"] } }
@@ -1794,7 +1795,7 @@
       "additionalProperties": false
     },
     "FileSnapshot": {
-      "description": "One bound file as a save's answer names it (`file_bindings.save_file`): its name, its text with LF line endings, and the revision the next save names.",
+      "description": "One bound file as `GET` and a successful `POST /api/files/<binding>` answer it (`file_bindings`): its name, its text with LF line endings, and the revision a save names.",
       "type": "object",
       "properties": {
         "label": { "type": "string" },

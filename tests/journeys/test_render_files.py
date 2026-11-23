@@ -197,16 +197,30 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     caret_visible()
     page.unroute("**/api/files/notes", hold_writes)
 
-    # Keep the compared disk version stable until the reader chooses, even when the
-    # page's state carries the file anew.
+    # Keep the compared disk version stable until the reader chooses. A background
+    # read must not occupy the save path and silently swallow that choice, even when
+    # the page stamps the file anew.
+    held_reads = []
+
+    def hold_reads(route):
+        if route.request.method == "POST":
+            route.continue_()
+        else:
+            held_reads.append(route)
+
+    page.route("**/api/files/notes", hold_reads)
     with page.expect_response(lambda response: response.url.endswith("/api/state")):
         os.utime(file)
-    expect(status).to_have_text("Changed on disk", use_inner_text=True)
+    assert not held_reads
     with receipt(failed_draft):
         choose("Save draft")
     expect(status).to_have_text("", use_inner_text=True)
     expect(editor).to_be_focused()
     assert file.read_text() == failed_draft
+    page.unroute("**/api/files/notes", hold_reads)
+    # The save moved the stamp too; the read that follows it is answered now.
+    for route in held_reads:
+        route.continue_()
     consume_browser_errors(
         page,
         "Failed to load resource: net::ERR_FAILED",

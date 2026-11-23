@@ -123,9 +123,9 @@ sequenceDiagram
           Reading saved pages and polling their state leave the container asleep. A
           missing saved response starts Python, as does one an earlier release saved,
           since its document names that release's runtime files. Mutations also start
-          the container, as do operations that need Python, such as comparing versions
-          or allocating live samples. Browser geometry reports do not start it. On
-          container startup, Codex App Server starts and the
+          the container, as do operations that need Python, such as comparing versions,
+          allocating live samples, or reading a bound file. Browser geometry reports do
+          not start it. On container startup, Codex App Server starts and the
           <code>leaf</code>
           command runs once ahead of the first agent turn.
         </p>

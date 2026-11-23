@@ -5,9 +5,9 @@ remains the authority, outside page revisions and the semantic event log. A
 revision names the file's exact bytes and nothing of where it lies, so the state a
 site publishes at build time names the same revision a visitor's container reads,
 and the first save from it lands. A binding granted again to another file holding
-the same bytes keeps its revision, so a draft read from the first file saves to the
-second; the editor would merge its draft onto the second file's identical text
-either way. Saves preserve LF/CRLF and
+the same bytes keeps its revision, so a save of a draft read from the first file
+lands on the second, as it did once the editor had merged that draft onto the
+second file's identical text. Saves preserve LF/CRLF and
 permission bits, and serialize across Leaf processes and pages through a target lock.
 The comparison plus atomic replacement is not an OS compare-and-swap: an unrelated
 writer which ignores this lock can still race the final comparison and replacement.
@@ -19,9 +19,9 @@ files resolve wherever its directory is restored. Every other file is granted by
 canonical absolute path.
 
 A binding the page lacks, as in a copied page or the unbound worked example, is a
-designed state rather than a fault: the state answer names no file for it, and only a
-save against it refuses. Unbinding withdraws one grant under the same page lock as
-saves, leaving the file itself intact.
+designed state rather than a fault: a read answers it as no file, so the browser's
+console stays clean, and only a save against it refuses. Unbinding withdraws one
+grant under the same page lock as reads and saves, leaving the file itself intact.
 
 The browser names each file by its label (`labels`): its path below the deepest
 folder holding every file the page binds, so several files read as one tree and a
@@ -29,9 +29,11 @@ single file as its name, and no label spells out a host path.
 
 The page's reading stamps each bound file (`bound_paths`), so the news token moves
 and the page's watchers wake when a bound file does, and a state answer carries each
-file as a read finds it (`bound_files`), so an editor shows its file with the page's
-state and takes in a write elsewhere from the state that news prompts. The state
-answer reads a file again only once its stamp moves (`_Reads`).
+binding's label and stamp and the file as a read finds it (`bound_files`). An editor
+takes a file's first text from there, so a page shows its files without a request of
+their own; after that, a stamp only prompts a read, and the read's revision decides
+what changed. The state answer reads a file again only once its stamp moves
+(`_Reads`).
 """
 
 import hashlib
@@ -186,7 +188,9 @@ def _reading(path: Path) -> dict[str, str]:
 
 
 def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
-    """Each binding's label and the file as a read finds it (`_reading`)."""
+    """Each binding's label; a short stamp, moving whenever the file's path or what
+    the filesystem says of the file there (`file_stamp`) does; and the file as a read
+    finds it (`_reading`)."""
     paths = bound_paths(page_dir)
     named = labels(paths)
     held = memo(page_dir, _Reads).held
@@ -198,7 +202,11 @@ def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
         kept = held.get(path)
         if kept is None or kept[0] != stamp or stamp is None:
             kept = held[path] = (stamp, _reading(path))
-        files[binding] = {"label": named[binding], **kept[1]}
+        files[binding] = {
+            "label": named[binding],
+            "stamp": hashlib.sha256(repr((str(path), stamp)).encode()).hexdigest()[:16],
+            **kept[1],
+        }
     return files
 
 
@@ -296,6 +304,17 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
         grants.pop(binding, None)
         BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": grants})
     return {"binding": binding, "bound": False}
+
+
+def read_file(page_dir: Path, binding: str) -> dict | None:
+    """Read the current file, never a cached document or browser buffer; None where
+    the page binds no file under this id."""
+    with _access(page_dir):
+        target = _target(page_dir, binding)
+        if target is None:
+            return None
+        path, label = target
+        return {"label": label, **_snapshot(_read(path))}
 
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:

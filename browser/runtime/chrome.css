@@ -1007,7 +1007,7 @@ html[data-lf-draw-mode] {
   .lf-change-bar {
     background: var(--lf-change);
   }
-  /* A change's mark is an annotation, so hiding annotations (`o`, annotation-layer.js)
+  /* A change's mark is an annotation, so hiding annotations (`g H`, annotation-layer.js)
      hides its bar too. */
   :scope[data-lf-annotations-hidden] .lf-change-bar {
     background: transparent;

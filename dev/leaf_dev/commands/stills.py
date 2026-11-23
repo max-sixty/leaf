@@ -73,6 +73,7 @@ from PIL import Image
 from playwright.sync_api import Page, expect
 from selenium.webdriver.remote.webdriver import WebDriver
 
+from leaf.render_checks import open_render_context, open_render_page
 from leaf.revision_artifact import resource_type
 from leaf.runtime_selection import read_runtime
 from leaf.schema import DEFAULT_PACKAGE
@@ -386,10 +387,10 @@ def differences(out: Path, browser):
     with (
         headless_shell() if isinstance(browser, WebDriver) else nullcontext(browser)
     ) as browser:
-        context = browser.new_context()
+        context = open_render_context(browser)
         try:
             context.route(f"{ORIGIN}/**", serve)
-            page = context.new_page()
+            page = open_render_page(context)
             page.goto(f"{ORIGIN}/")
             compare_images = page.evaluate_handle(
                 "async () => (await import('/image-difference.js')).compareImages"

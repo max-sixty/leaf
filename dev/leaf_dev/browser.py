@@ -17,7 +17,14 @@ import click
 from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
+from leaf.render_checks import (
+    one_frame,
+    open_render_context,
+    open_render_page,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
 from leaf_dev import ROOT
 
 
@@ -234,7 +241,8 @@ def tab(
     drawing `scale` device pixels to a CSS pixel. It keeps where a mouse last moved over
     it (`POINTER`), for `settle`. A caller listens on it before it `load`s."""
     width, height = window.size
-    context = browser.new_context(
+    context = open_render_context(
+        browser,
         viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
@@ -244,9 +252,7 @@ def tab(
     )
     context.add_init_script(POINTER)
     try:
-        page = context.new_page()
-        page.set_default_timeout(15_000)
-        yield page
+        yield open_render_page(context)
     finally:
         context.close()
 
@@ -376,10 +382,18 @@ def load(page: Page, address: str) -> None:
 
 def settle(page: Page) -> None:
     """Wait until the page is ready, its fonts have loaded, the runtime reports it
-    settled, and its hover is on the element under the pointer (`catch_up_hover`)."""
+    settled, and its hover is on the element under the pointer (`catch_up_hover`).
+
+    Readiness is read once the page has heard what could start more work: the input
+    before this, and then the motion `pageSettled` waits out. A scroll that brings a
+    live sample near starts it in the next rendering update, as the sample's observer
+    reports, so each read waits for that update first (runtime/rendering.js)."""
+    one_frame(page)
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    one_frame(page)
+    wait_until_ready(page)
     if catch_up_hover(page):
         settle(page)
 

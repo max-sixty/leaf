@@ -140,8 +140,9 @@
    keeps the facts idiom's layout (styles/components/idioms.css) at the surface's
    density: its labels take the interface's small font, as the surface's other labels
    do, and the list the reading face's spacing. They don't share an ancestor class, so
-   the rule names both. It stands at the idiom's weight and after it, so the frame's
-   edge trims (reading.css) still take a first or last list's margin. */
+   the rule names both. It outranks the idiom's rules at any weight (idioms.css), and
+   weighs less than the frame's edge trims (reading.css), so they still take a first
+   or last list's margin. */
 :where(.lf-ui) dl.lf-facts,
 :where(.lf-popover) dl.lf-facts {
   margin-block: 10px;
@@ -483,8 +484,9 @@ body {
  * these declarations outrank every later layer and every unlayered stylesheet
  * declaration without reserving a named layer custom CSS could append to. What ranks
  * higher is what comes earlier: lf-reset, markup's reading face
- * (lf-base.lf-reading-face, reading.css) and Web Awesome's tokens (lf-base.lf-vendor),
- * which state nothing important; and inline importance.
+ * (lf-base.lf-reading-face, reading.css), Leaf's idioms (lf-base.lf-idioms, idioms.css)
+ * and Web Awesome's tokens (lf-base.lf-vendor), which state nothing important; and
+ * inline importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector.

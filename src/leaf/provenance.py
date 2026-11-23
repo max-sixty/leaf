@@ -9,10 +9,9 @@ place. A revision's place in the log is the seq of the first event naming its bu
 (`revision_places`).
 
 **What a version was saved after** (`saved_after`). A comparison of a version with
-the one before it, as `v` makes, shows changes every one of which that version's
-revisions made, so it asks which messages waited at the place of any of them, each
-judged by the log up to that place: a comment taken back after one revision went
-live waited there. `events.build_threads` can't stop between events, since it reads
+the one before it shows changes every one of which that version's revisions made, so
+it asks which messages waited at the place of any of them, each judged by the log up
+to that place: a comment taken back after one revision went live waited there. `events.build_threads` can't stop between events, since it reads
 which gestures were ever taken back before its pass, but its histories keep the place
 of everything they hold. So one fold of the log before the version's last revision
 went live, under that revision's containment, reads every message as it was said,

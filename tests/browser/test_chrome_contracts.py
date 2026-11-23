@@ -284,11 +284,11 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
 
 
 def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
-    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    """`g H` hides the annotation layer (annotation-layer.js). A custom property it set on
     `html` to hide the margin's change bars was inherited by every element and restyled
     the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
     and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
-    `o` restyles against such a property changed on `html`, so a property `o` sets
+    `g H` restyles against such a property changed on `html`, so a property `g H` sets
     there again fails it. Firefox visiting the page for a rule read through a
     descendant combinator from `html` restyles nothing, and no count here sees it."""
     paragraphs = "".join(
@@ -308,9 +308,12 @@ def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve)
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
-    hiding = restyled(lambda: page.keyboard.press("o"))
+    # `g` arms Go-to before the count, so it counts only the X that toggles the layer.
+    page.keyboard.press("g")
+    hiding = restyled(lambda: page.keyboard.press("Shift+H"))
     expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
-    showing = restyled(lambda: page.keyboard.press("o"))
+    page.keyboard.press("g")
+    showing = restyled(lambda: page.keyboard.press("Shift+H"))
     expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
     moves = {"hiding": hiding, "showing": showing, "whole page": whole}
     assert max(hiding, showing) < whole / 4, moves

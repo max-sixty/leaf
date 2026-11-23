@@ -125,14 +125,15 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             )
         # Tags that name this declaration in `owners` are its admissible members
         # under any content model. "data" takes one <pre>, or none where the markup
-        # binds an input (`inputs`), whose value is then the text; "members" takes
-        # element members only, and "empty" takes nothing at all.
+        # binds the input (`inputs`) whose property is `value`, which is then the text;
+        # "members" takes element members only, and "empty" takes nothing at all.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
         bound = any(
             rec["attrs"].get(spec.get(key))
             for spec in entry.get("inputs", {}).values()
+            if spec.get("property") == "value"
             for key in ("source", "reference")
         )
         if content == "empty" and (rec["children"] or rec["text"]):

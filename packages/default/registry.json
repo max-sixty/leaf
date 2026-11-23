@@ -51,6 +51,16 @@
         "schema": {
           "type": "string"
         }
+      },
+      "source-lines": {
+        "description": "The lines of a source file a widget is at, such as the ones an animation's current step runs, as line numbers in lf-code's range grammar: 1569,1571 or 1505-1507.",
+        "instructions": {
+          "producer": "Hold the numbers the source file gives the lines the widget is at, which are the numbers an lf-code excerpt's `lines` gives what it quotes, or null while it is at none, and say `change` each time they change. One value may name lines that several excerpts of the file quote: each marks the ones it quotes."
+        },
+        "schema": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
+        }
       }
     }
   },
@@ -320,7 +330,7 @@
     "instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card's `label` is its name wherever Leaf names it, such as On Me, and the card draws none of it: show its title in its own HTML, a leading `<strong>`. Write in the option any consequence the title or chips leave unstated, with pictures in block HTML, such as `svg.lf-drawing`. A `.lf-facts` list as a direct child of a card with a `label` floats right as a narrow column where the option is wide enough, so the options' figures line up. A compact option has no `label`: its words are its label. Mark the option you advise `recommended`, which draws its badge. Give your reason for the recommendation in prose beside the options, such as the question's paragraph, so each card states only what choosing it does. `selected` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the options' answer, such as a board column (read the `lf-board` instructions for the composition)."
   },
   "lf-code": {
-    "description": "A source-code excerpt with syntax coloring, highlighted lines, and line-anchored remarks.",
+    "description": "A source-code excerpt with syntax coloring, highlighted lines, line-anchored remarks, and a mark on the lines another widget is at.",
     "attributes": {
       "type": "object",
       "properties": {
@@ -332,13 +342,24 @@
         "lines": {
           "type": "string",
           "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
-        }
+        },
+        "for": { "type": "string" }
       },
       "required": ["id"],
       "additionalProperties": false
     },
     "content": "data",
-    "instructions": "Write the exact code inside pre at column 0, HTML-escaping & before < and >. Name source code's language as on any code block, with `<code class=\"language-python\">` around the code inside pre, and leave plain transcripts or command output without one. For excerpts, set lines to the ascending source ranges quoted, such as 1505-1507,1520-1527; hi and lf-note at then use those source numbers. A note addressed to an omitted line captions the elided row.",
+    "inputs": {
+      "playhead": {
+        "contract": "source-lines",
+        "reference": "for",
+        "property": "playhead"
+      }
+    },
+    "refers": {
+      "for": {}
+    },
+    "instructions": "Write the exact code inside pre at column 0, HTML-escaping & before < and >. Name source code's language as on any code block, with `<code class=\"language-python\">` around the code inside pre, and leave plain transcripts or command output without one. For excerpts, set lines to the ascending source ranges quoted, such as 1505-1507,1520-1527; hi and lf-note at then use those source numbers. A note addressed to an omitted line captions the elided row. To mark the lines another widget is at, such as the code an animation's step runs, set for to the id of a widget holding a `source-lines` output: the block marks the lines it quotes, and where its pane scrolls, brings them into view there without moving the page. Several excerpts of one file can follow one widget.",
     "example": "<lf-code id=\"bracket-walk\" hi=\"2\"><pre><code class=\"language-python\">def bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</code></pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
   "lf-note": {

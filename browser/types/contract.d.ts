@@ -106,6 +106,7 @@ export type WidgetDeclaration = { "description": string; "attributes": { "proper
 export type DataFileList = { "files": ReadonlyArray<{ "path": string; "key"?: string; "status"?: "added" | "modified" | "deleted" | "renamed"; }>; "current"?: string; };
 export type DataMeasuredScalar = number | string;
 export type DataTextDocument = string;
+export type DataSourceLines = string;
 export type DataUnifiedDiff = string | { "files": ReadonlyArray<{ "path": string; "patch": string; }>; };
 export type DataCalldiffNode = { "key": string; "label": string; "status": "same" | "added" | "removed"; "kind"?: "call" | "branch"; "file"?: string; "line"?: number; "endLine"?: number; "children": ReadonlyArray<DataCalldiffNode>; };
 export type DataCalldiff = { "mode": "diff"; "from": string; "to": string; "message"?: string; "trees": ReadonlyArray<{ "entry": string; "tree": DataCalldiffNode; }>; };
@@ -121,4 +122,4 @@ export type DataPlaywrightTraceImage = { "id": string; "pageId": string; "stream
 export type DataPlaywrightTracePage = { "id": string; "stream": string; "pageId": string; };
 export type DataPlaywrightTraceStream = { "id": string; "origin": string; "playwrightVersion": string | null; "wallTime": number | null; "monotonicTime": number | null; };
 export type DataPlaywrightTrace = { "archive": { "sha256": string; "format": 9 | 10; }; "viewerUrl": string; "streams": ReadonlyArray<DataPlaywrightTraceStream>; "pages": ReadonlyArray<DataPlaywrightTracePage>; "actions": ReadonlyArray<DataPlaywrightTraceAction>; "images": ReadonlyArray<DataPlaywrightTraceImage>; };
-export interface DataContracts { "file-list": DataFileList; "measured-scalar": DataMeasuredScalar; "text-document": DataTextDocument; "unified-diff": DataUnifiedDiff; "calldiff": DataCalldiff; "playwright-trace": DataPlaywrightTrace; }
+export interface DataContracts { "file-list": DataFileList; "measured-scalar": DataMeasuredScalar; "text-document": DataTextDocument; "source-lines": DataSourceLines; "unified-diff": DataUnifiedDiff; "calldiff": DataCalldiff; "playwright-trace": DataPlaywrightTrace; }

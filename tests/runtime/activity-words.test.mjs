@@ -557,6 +557,6 @@ test("the facts both seats share count what the agent owes apart from what waits
   assert.deepEqual(facts.owed, [
     "1 response being worked on",
     "2 responses owed",
-    "1 response owed on updates that stopped",
+    "1 response held up",
   ]);
 });

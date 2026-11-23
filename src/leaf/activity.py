@@ -651,7 +651,11 @@ def _stand_workflows(
             handling=handling,
         )
         result.append(item)
-    covered = {item["obligation"] for item in result if item["state"] == "running"}
+    covered = {
+        item["obligation"]
+        for item in result
+        if item["state"] == "running" and item["id"] in aging
+    }
     for item in left:
         if item["obligation"] in covered:
             item["state"], item["reason"] = "waiting", None

@@ -973,7 +973,8 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     """The draft route borrows an empty Add seat and moves beside a live Add press.
 
     The cards share one trailing column. An empty draft has only the route into its
-    field, so that badge sits over the hidden Add press. Once content reveals Add and
+    field, so that badge stands over the hidden Add press, in the digit column every
+    card's badge shares. Once content reveals Add and
     focus leaves the field, both actions are available and the route takes the inner
     seat. The field reserves both seats before either face appears.
     """
@@ -997,9 +998,13 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     submit = addition.locator(".lf-compose-submit")
     empty_submit = submit.evaluate(
         """el => { const box = el.getBoundingClientRect();
-                    return {x: box.left + box.width / 2}; }"""
+                    return {x: box.left + box.width / 2, left: box.left,
+                            right: box.right}; }"""
     )
-    assert obligation_centers[-1]["x"] == pytest.approx(empty_submit["x"], abs=0.5)
+    assert obligation_centers[-1]["x"] == pytest.approx(
+        obligation_centers[0]["x"], abs=0.5
+    )
+    assert empty_submit["left"] < obligation_centers[-1]["x"] < empty_submit["right"]
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)

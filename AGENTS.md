@@ -311,6 +311,11 @@ defects:
   the diff, or a rule joined in one sentence to its mechanism and its exceptions;
 - a sentence about how a rule came to be.
 
+On the site's pages (`docs/`), a review reports a sentence its reader can parse only
+on a second read, a heading that tells a story or states a thesis where the topic's
+name belongs, as "The page directory is the record" does for "Page directory", and a
+sentence that restates the heading over it.
+
 ### The install runs this tree
 
 An install from git copies the tracked tree into the harness's plugin cache and

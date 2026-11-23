@@ -28,6 +28,7 @@ from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
+    invoker_errors,
     markup_findings,
     message_settlement_advice,
     reference_errors,
@@ -345,19 +346,16 @@ def _message_stages(
     yield [Finding("ids-taken", values={"ids": clash})] if clash else []
     logged = sorted(frag.ids & logged_ids(events))
     yield [Finding("ids-taken-by-events", values={"ids": logged})] if logged else []
-    replaced = thread.fragments.get(replacing)
-    standing = thread.ids - replaced.ids if replaced else thread.ids
+    # A reference reads the message's own document and then the page
+    # (`runtime/references.js`), so an id in another message would resolve to nothing.
+    ids = page.ids | frag.ids
     yield reference_errors(
         frag.lf_elements,
         registry,
-        page.ids | standing | frag.ids,
-        {
-            **page.by_id,
-            **{i: r for i, r in thread.by_id.items() if i in standing},
-            **frag.by_id,
-        },
+        ids,
+        {**page.by_id, **frag.by_id},
         thread_ids=thread_ids(events),
-    )
+    ) + invoker_errors(frag, ids)
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.
     looping = sorted(

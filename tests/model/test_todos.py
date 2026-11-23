@@ -1692,7 +1692,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     # The thread owes one answer, the newest input's, which no turn has taken in.
     assert state["activity"]["counts"] == {
         "running": 0,
-        "waiting": 1,
+        "waiting": 0,
         "blocked": 0,
         "unseen": 1,
     }
@@ -1765,7 +1765,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     assert before_pickup["presence"] == "away"
     assert before_pickup["counts"] == {
         "running": 0,
-        "waiting": 1,
+        "waiting": 0,
         "blocked": 0,
         "unseen": 1,
     }

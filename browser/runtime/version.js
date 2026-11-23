@@ -2516,8 +2516,8 @@ export function createVersionController({
       restorePlace(view.page, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a visual review's
-    // capture does in a document page: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a shot's capture
+    // stage does in a document page: the page keeps its own place beside the region's.
     if (
       view.page &&
       !restored.has(pageScroller) &&

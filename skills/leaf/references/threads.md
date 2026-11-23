@@ -228,8 +228,8 @@ EOF
 ```
 
 If the user answers in words instead, the delivery of their reply lists the question
-in `waiting`; once you have answered, resolve the thread if nothing else in it waits on
-them, which takes the question off On Me. Another widget that asks works the same way, such
+in `waiting`; once you have answered, resolve the thread as `conversation-loop.md`,
+"The On lists", says. Another widget that asks works the same way, such
 as an `lf-draft` marked `required` for wording the user edits. A decision the page
 records, or one whose evidence needs the column, goes on the page beside its subject
 (`authoring-on-me.md`), linked from the reply.

@@ -118,7 +118,6 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 import { signal } from "./framework.js";
-import { takesNoWords } from "./composing/input.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
@@ -137,7 +136,7 @@ import { takesNoWords } from "./composing/input.js";
  * @typedef {import('./focus.js').Caret} Caret
  * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
  * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
- * resume: (() => EditorDestination | null) | null}} DraftEditor */
+ * resume: (() => EditorDestination | null) | null, closed: () => boolean}} DraftEditor */
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches
@@ -979,7 +978,9 @@ const openedFrom = new Map();
 // supplies active words and an optional submission payload, or null and no payload
 // for settlement. Editor membership is mechanical: connected root editors recover
 // by context, and retained reply mirrors land through their current thread owner.
-// Unsubscribing retires that membership alongside the listener.
+// Unsubscribing retires that membership alongside the listener. A subscription also
+// says whether its box takes words now (`closed`), which a wired box's wiring answers
+// (`mirrorDraft`), so Resume writing asks the editor it reaches.
 //
 // It does not run on subscribe, which is where this parts company with controller state. The
 // draft a box opens with and the news that another tab changed one are different facts,
@@ -1334,13 +1335,13 @@ export function createWritingResume({
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     const field = editor && editorInput(editor);
-    // Whether the box takes words now (`takesNoWords`), not its painted `readOnly`,
-    // which still reads shut until the next paint after the same task ends a stance,
-    // as `g i` ends Go-to's.
+    // Whether the box takes words now, as its subscription says (`closed`), not its
+    // painted `readOnly`, which still reads shut until the next paint after the same
+    // task ends a stance, as `g i` ends Go-to's.
     if (
       field?.isConnected &&
       field.checkVisibility() &&
-      !takesNoWords(field) &&
+      !editor?.closed() &&
       !("disabled" in field && field.disabled)
     ) {
       // Coming back to the words is the user dealing with any error over them, as a
@@ -1471,13 +1472,13 @@ export function restoreDraftEditing(editing, input) {
 }
 
 /** @param {string} ctx @param {(value: string | null, payload?: DraftPayload) => void} callback
- * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null}} [options] */
+ * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null, closed?: () => boolean}} [options] */
 export function watchDraft(
   ctx,
   callback,
-  { input = null, mirrored = false, resume = null } = {},
+  { input = null, mirrored = false, resume = null, closed = () => false } = {},
 ) {
-  const editor = input && { ctx, input, mirrored, resume };
+  const editor = input && { ctx, input, mirrored, resume, closed };
   if (editor) draftEditors.add(editor);
   /** @param {CustomEvent<DraftNews>} ev */
   const update = (ev) =>
@@ -1537,7 +1538,7 @@ export function mirrorDraft(
       sync.load(value ?? blank());
       onChange(value);
     },
-    { input: ta, mirrored, resume },
+    { input: ta, mirrored, resume, closed: sync.closed },
   );
   return off;
 }

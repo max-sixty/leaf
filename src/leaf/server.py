@@ -7,10 +7,13 @@ import os
 import re
 import secrets
 import signal
+import sys
+import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
+from .detached import starting_detached
 from .files import read_json
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
@@ -21,9 +24,11 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
+from .session_runtime import own_launcher
 from .state import (
     PLUGIN_ROOT,
     STRING,
+    LoadedCopy,
     Record,
     described,
     flocked,
@@ -147,8 +152,9 @@ def other_serving_leaf(page_dir: Path) -> dict | None:
 
     A server keeps the runtime and layer it started with, so what this process checks
     may not be what the user's tab draws until the server restarts. Another Leaf is
-    another install or checkout, or this one at another commit, as Codex's copy is
-    once Codex replaces it in place. Uncommitted edits don't count, since the record
+    another install or checkout, or this one at another commit, as a checkout is after
+    a commit, or a copy Codex or Pi updated in place is until its server follows the
+    update (`stop_when_service_ends`). Uncommitted edits don't count, since the record
     can't say whether they changed after the server started. `leaf server start`
     restarts such a server under this Leaf (`hosting.start_page`), as the prompt hook
     does where both are installed copies (`reconnect`), and `page check` notes it
@@ -246,22 +252,43 @@ def exit_serving_on_signals() -> None:
 
 def stop_when_service_ends(page_dir: Path) -> None:
     """Apply desired state and session ownership from inside the server, exiting
-    as the shutdown operation (`exit_serving`).
+    as the shutdown operation (`exit_serving`), and follow the installed copy that
+    started the server once its harness puts another copy in its place.
 
     A pass reads service and ownership at least every two seconds, since a
     claimant that dies without ending its session writes nothing. Maintenance
-    uses this timer alone: retained pages must not each hold a native watcher."""
+    uses this timer alone: retained pages must not each hold a native watcher.
 
+    A server outlives the hooks that start it, and Codex and Pi update their one
+    copy in place (`session-lifetime.md`, "Which Leaf runs a session"), deleting
+    the environment this process runs in. A server left running would import each
+    module it loads later from the new copy, beside the old modules it holds, and
+    the browser would load the new copy's runtime from it. So a server holds the
+    copy it loaded (`state.LoadedCopy`), and the first pass that finds another copy
+    in its place, while its service is persistent or a live session holds the page,
+    has that copy restart it (`_follow_copy`). A server whose session has ended
+    retires on the old copy after its grace, which leaves its service enabled for a
+    resumed session's prompt to serve again; a restart would instead disable it
+    (`hosting.restarting_server`)."""
+
+    copy = LoadedCopy()
+    following = False
     orphaned_at = None
     while True:
         service = read_service(page_dir)
         if not service or not service["enabled"]:
             exit_serving(0)
-        if service["lifetime"] == "persistent":
+        persistent = service["lifetime"] == "persistent"
+        claimed = not persistent and claim_is_active(page_claim(page_dir))
+        if not following and (persistent or claimed) and copy.replaced():
+            following = True
+            threading.Thread(
+                target=_follow_copy, args=(page_dir, service["server_id"]), daemon=True
+            ).start()
+        if persistent:
             time.sleep(2.0)
             continue
-        claim = page_claim(page_dir)
-        if claim_is_active(claim):
+        if claimed:
             orphaned_at = None
         elif orphaned_at is None:
             orphaned_at = time.monotonic()
@@ -283,6 +310,49 @@ def stop_when_service_ends(page_dir: Path) -> None:
                 # service has nothing left to preserve and must not recreate it.
                 exit_serving(0)
         time.sleep(min(2.0, ORPHAN_GRACE_SECS))
+
+
+def _follow_copy(page_dir: Path, server_id: str) -> None:
+    """Hand the restart of this server to the copy now standing at its copy's path
+    (`hosting.follow_copy`), and return once that copy runs and has taken it on.
+
+    It runs through that copy's launcher, since this process's environment went
+    with its copy, in a thread of its own, so the lifetime check goes on while the
+    launcher builds the new copy's environment. A launch that fails, as one that
+    can't build the environment does, is tried again on the retry ladder
+    (`codex.retry_delay`) for as long as this server serves.
+
+    The child's environment names no session, as a server a hook starts runs: a
+    command whose environment names a session hands itself to the checkout that
+    session selected (`session_runtime.hand_off_command`), and only the copy at this
+    server's own path may restart it. The child reads the session from the page's
+    claim.
+
+    It loads no module the server has not: the server loads `leaf.codex` before it
+    serves, as `exit_serving` relies on too, and every hook loads this module, so
+    `codex` is imported here rather than with it."""
+    from .codex import retry_delay
+
+    failures = 0
+    while True:
+        try:
+            with starting_detached(
+                [
+                    "server",
+                    "_follow",
+                    str(page_dir),
+                    "--server-id",
+                    server_id,
+                ],
+                harness=None,
+                what=f"the restart of the server for {page_dir} under the new copy",
+                launcher=own_launcher(),
+            ):
+                return
+        except (Refused, OSError) as error:
+            failures += 1
+            print(f"Leaf's new copy did not start: {error}", file=sys.stderr)
+        time.sleep(retry_delay(failures))
 
 
 def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | PageAddress:

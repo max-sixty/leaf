@@ -4182,11 +4182,9 @@ export function createFloatingPanel({
     // card's own drawing of the message holds it (floating-panel.css, `data-lf-holds`).
     // A view draws a message once, so where it holds several such
     // widgets the first card draws it and the others answer through their choices. A
-    // line opened into its card keeps the name it has folded. A record's obligation
-    // (`source.unit`), one of many that a widget such as a review asks, draws no
-    // message, since its card is about the one record.
+    // line opened into its card keeps the name it has folded.
     const holding =
-      record?.source.kind === "widget" && !record.source.unit && thread
+      record?.source.kind === "widget" && thread
         ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
         : null;
     const key = queueItemKey(item);

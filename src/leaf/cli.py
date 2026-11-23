@@ -1326,6 +1326,20 @@ def _serve(
         )
 
 
+@server.command("_follow", cls=PrintsItself, hidden=True)
+@page_argument(renew=False)
+@click.option("--server-id", required=True, hidden=True)
+@click.option("--handshake", type=int, required=True, hidden=True)
+def _follow(page_dir: Path, server_id: str, handshake: int) -> None:
+    """Private child a page server starts through the launcher of the copy that
+    replaced its own (`server.stop_when_service_ends`)."""
+    from leaf.detached import Handshake
+    from leaf.hosting import follow_copy
+
+    with Handshake(handshake) as answer:
+        follow_copy(page_dir, server_id, answer)
+
+
 @server.command(short_help="Stop a page's server.")
 @page_argument(renew=False)
 def stop(page_dir: Path) -> dict:

@@ -113,7 +113,7 @@ function currentDatums(source, key, identity = null, dataSource = null) {
 }
 
 /** @param {Element | null} source @param {string} key */
-export const projectedDatum = (source, key) => {
+const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? (matches[0] ?? null) : null;
 };

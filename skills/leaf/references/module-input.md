@@ -444,12 +444,6 @@ tag. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 
-The field, `wireInput` and the draft helpers below load only on Leaf, from
-`widget-api.js`: the editor is part of Leaf's runtime, and the page's server keeps the
-drafts. A widget that also runs off Leaf imports none of them (`module-authoring.md`,
-"A widget that also runs off Leaf"), so its text box is a native control, such as
-`offer("textarea")`.
-
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
 visible control sends. A box for one line, such as a name, carries

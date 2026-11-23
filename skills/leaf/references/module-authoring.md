@@ -44,7 +44,8 @@ argument.
 A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
 `widget-api.js`. The portable helpers are
 [that file's exports](../../../browser/runtime/portable-api.js): each loads on a page
-without Leaf, where `widget-api.js` can't. The host maps `/runtime/` and `/vendor/` to
+without Leaf, where `widget-api.js` can't. The drafting text field is not among them,
+so such a widget's text box is a native control. The host maps `/runtime/` and `/vendor/` to
 a Leaf install with its own import map and gives the element its drawing box. For the
 widget's look it links the layer's `portable.css`, served beside `/widgets/`
 (`packages.md`, "Styles and composition"). Use `LeafElement` ("Drawing what a widget

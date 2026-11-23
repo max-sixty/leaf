@@ -82,16 +82,9 @@ def revision_reanchors(
             and section not in current_passages().retired
             and section not in current_passages().gone
         )
-        missing = bool(section) and not surviving
-        if (
-            not section
-            and anchor.get("quote")
-            and not (anchor.get("source") or anchor.get("datum"))
-        ):
-            missing = (
-                resolve_quote(previous_passages(), anchor) is not None
-                and resolve_quote(current_passages(), anchor) is None
-            )
+        quoted = anchor.get("quote") and not (
+            anchor.get("source") or anchor.get("datum")
+        )
         if surviving and anchor.get("visual"):
             part = anchor["visual"]
             missing = part in visual_parts(
@@ -99,15 +92,13 @@ def revision_reanchors(
             ) and part not in visual_parts(
                 current.document.by_id.get(section, {}), current.registry
             )
-        elif (
-            surviving
-            and anchor.get("quote")
-            and not (anchor.get("source") or anchor.get("datum"))
-        ):
+        elif quoted and (surviving or not section):
             missing = (
                 resolve_quote(previous_passages(), anchor) is not None
                 and resolve_quote(current_passages(), anchor) is None
             )
+        else:
+            missing = bool(section) and not surviving
         if not missing:
             continue
         moves[thread["id"]] = {"section": section} if surviving else None

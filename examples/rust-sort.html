@@ -4,7 +4,7 @@
     <title>Explain Rust's 2016 merge sort</title>
     <meta
       name="description"
-      content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source."
+      content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source that light the line each step runs."
     />
     <style>
       /* A tall window keeps the full-width drawing and timeline. In a short window,
@@ -216,7 +216,7 @@
               TimSort: it cuts the slice into runs that are already in order, and merges
               them under two stack invariants. On the PR's benchmarks, sorting an
               already ascending slice got 89% faster, a descending one 95%, and a random
-              one 4%. Play it on each input.
+              one 4%. Play it on each input; the line each step runs lights up below.
             </p>
             <p id="sort-source-note">
               Quoted from
@@ -237,6 +237,7 @@
               </h3>
               <lf-code
                 id="code-merge-sort"
+                for="sort-film"
                 lines="1505-1507,1520-1527,1542,1548-1595,1614-1629,1636"
               >
                 <pre><code class="language-rust">
@@ -337,7 +338,11 @@ fn merge_sort&lt;T, F&gt;(v: &amp;mut [T], mut compare: F)
                   ><code>insert_head</code></a
                 >
               </h3>
-              <lf-code id="code-insert-head" lines="1310-1314,1332,1344-1359,1378">
+              <lf-code
+                id="code-insert-head"
+                for="sort-film"
+                lines="1310-1314,1332,1344-1359,1378"
+              >
                 <pre><code class="language-rust">
 fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
     where F: FnMut(&amp;T, &amp;T) -&gt; Ordering
@@ -382,7 +387,7 @@ fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
                   ><code>merge</code></a
                 >
               </h3>
-              <lf-code id="code-merge" lines="1387-1393,1412-1464,1491">
+              <lf-code id="code-merge" for="sort-film" lines="1387-1393,1412-1464,1491">
                 <pre><code class="language-rust">
 unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &amp;mut F)
     where F: FnMut(&amp;T, &amp;T) -&gt; Ordering

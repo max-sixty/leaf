@@ -1698,28 +1698,40 @@ wa-copy-button.lf-icon-action {
    itself, since a finger's reach (surfaces.css) stands outside a toolbar's box. A
    press the holder hides (`hidden`), or a word standing before them, as a draft's
    refused save, is no end of the run. */
+/* Each press learns whether it ends the run from two properties set on the press
+   itself, which a face in its shadow (`::part(button)`) reads. Chromium answers a
+   position asked of a host before `::part()` by restyling every child of the host's
+   parent on each insertion there, so the chrome's lone code Copies would all restyle
+   whenever anything joined the chrome
+   (test_code_copy_reads_sources_before_positioning_many_controls). */
+[data-lf-joined] > :where(button).lf-mark-action,
+[data-lf-joined] > .lf-mark-action.lf-ui,
+[data-lf-joined] > .lf-btn {
+  --lf-joined-start: 0px;
+  --lf-joined-end: 0px;
+}
+[data-lf-joined] > :where(button).lf-mark-action:nth-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-mark-action.lf-ui:nth-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-btn:nth-child(1 of :not([hidden])) {
+  --lf-joined-start: var(--lf-joined-r, 0px);
+}
+[data-lf-joined] > :where(button).lf-mark-action:nth-last-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-mark-action.lf-ui:nth-last-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-btn:nth-last-child(1 of :not([hidden])) {
+  --lf-joined-end: var(--lf-joined-r, 0px);
+}
 [data-lf-joined] > :where(button).lf-mark-action,
 [data-lf-joined] > .lf-mark-action.lf-ui::part(button),
 [data-lf-joined] > .lf-btn {
-  border-radius: 0;
+  border-start-start-radius: var(--lf-joined-start);
+  border-end-start-radius: var(--lf-joined-start);
+  border-start-end-radius: var(--lf-joined-end);
+  border-end-end-radius: var(--lf-joined-end);
 }
 /* A word's ring already stands inside it (above); a mark's face states its own. */
 [data-lf-joined] > :where(button).lf-mark-action,
 [data-lf-joined] > .lf-mark-action.lf-ui::part(button) {
   outline-offset: var(--lf-focus-ring-inset);
-}
-[data-lf-joined] > :where(button).lf-mark-action:nth-child(1 of :not([hidden])),
-[data-lf-joined] > .lf-mark-action.lf-ui:nth-child(1 of :not([hidden]))::part(button),
-[data-lf-joined] > .lf-btn:nth-child(1 of :not([hidden])) {
-  border-start-start-radius: var(--lf-joined-r, 0px);
-  border-end-start-radius: var(--lf-joined-r, 0px);
-}
-[data-lf-joined] > :where(button).lf-mark-action:nth-last-child(1 of :not([hidden])),
-[data-lf-joined]
-  > .lf-mark-action.lf-ui:nth-last-child(1 of :not([hidden]))::part(button),
-[data-lf-joined] > .lf-btn:nth-last-child(1 of :not([hidden])) {
-  border-start-end-radius: var(--lf-joined-r, 0px);
-  border-end-end-radius: var(--lf-joined-r, 0px);
 }
 /* A holder standing in a frame that clips it (`--lf-joined-r: 0px`), as Done's cell in
    a question's joined options does, leaves the run's edge and seams to that frame, so

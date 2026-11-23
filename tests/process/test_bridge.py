@@ -364,6 +364,81 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
     assert not bridge_model.lock_is_held(lock)
 
 
+@pytest.mark.parametrize("cause", ["state home removed", "sweep raises"])
+def test_a_bridge_ends_once_its_sweep_cannot_retire_it(tmp_path, monkeypatch, cause):
+    """An eval removes a sample's scratch state home, with the bridge's lease and
+    registrations in it, once the sample's session ends, so no hook or client can
+    find that bridge again. A sweep that raises, as a bug can make it, can no
+    longer retire the bridge. Either way the bridge ends rather than serving for
+    good, though a session registered with it still lives, and a removed state
+    home stays removed."""
+    from leaf.leases import take_lease
+
+    bridge_model.bridge_path("sessions").mkdir(parents=True)
+    lease = take_lease(bridge_model.bridge_path("lock"))
+    assert lease is not None
+    bridge_model.ensure("evaluated", {"pid": os.getpid()})
+    monkeypatch.setattr(bridge_model, "SWEEP_SECONDS", 0)
+    home = state_model.state_home()
+    sweep = bridge_model.live_sessions
+
+    def sweeping() -> bool:
+        if cause == "sweep raises":
+            raise RuntimeError("the sweep broke")
+        alive = sweep()
+        # The eval removes the state home between two sweeps.
+        if home.exists():
+            home.rename(tmp_path / "removed")
+        return alive
+
+    monkeypatch.setattr(bridge_model, "live_sessions", sweeping)
+    ended = threading.Event()
+
+    def serve() -> None:
+        with contextlib.suppress(RuntimeError):
+            bridge_model.serve(os.dup(lease.fileno()))
+        ended.set()
+
+    threading.Thread(target=serve, daemon=True).start()
+    # The bridge's address names this process, which the test's teardown would
+    # end for a bridge that still holds its lease.
+    try:
+        assert ended.wait(STATED_TIMEOUT), (
+            "the bridge serves on with no sweep to end it"
+        )
+    finally:
+        bridge_model.release_lease(lease)
+    if cause == "state home removed":
+        assert not home.exists(), "the bridge made its removed state home again"
+
+
+def test_a_bridge_whose_lease_file_was_replaced_as_it_started_leaves_the_next(
+    tmp_path,
+):
+    """The state home can be removed while a bridge starts, and a hook in the home
+    made again then starts the next bridge on a new lease file. Once the first
+    bridge has loaded, it leaves the next one's address standing and ends."""
+    from leaf.leases import take_lease
+
+    lock = bridge_model.bridge_path("lock")
+    lock.parent.mkdir(parents=True)
+    first = take_lease(lock)
+    assert first is not None
+    lock.rename(tmp_path / "removed.lock")
+    second = take_lease(lock)
+    assert second is not None
+    address = {"port": 1, "token": "t", "pid": 1}
+    bridge_model.ADDRESS.write(bridge_model.bridge_path("json"), address)
+    # An address the first bridge wrote would name this process, which the
+    # test's teardown ends for a bridge that still holds its lease.
+    try:
+        bridge_model.serve(os.dup(first.fileno()))
+        assert bridge_model.ADDRESS.read(bridge_model.bridge_path("json")) == address
+    finally:
+        first.close()
+        bridge_model.release_lease(second)
+
+
 def test_a_hook_that_finds_a_new_bridge_starting_gets_no_gone_bridges_address(
     monkeypatch,
 ):

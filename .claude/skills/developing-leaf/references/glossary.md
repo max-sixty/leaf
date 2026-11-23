@@ -174,7 +174,11 @@ behavior. A compound widget may own reading regions without being a pane.
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
 as a **thread card** beside its words, and in the panel where nothing on the page
-draws it or the user moves it there with the card's **Open in panel**. A comment on selected words is written in the **anchored comment box**, which
+draws it or once the user has moved one there with a card's **Open in panel**, which
+chooses the panel for the threads after it until the panel's **Show on page** chooses
+cards again. Their words say what each choice does, "Threads open in the panel" and
+"Threads open beside their passages"; the choice is no mode, since it changes where a
+thread opens and not what input means. A comment on selected words is written in the **anchored comment box**, which
 opens beside them and becomes their thread card on Send. It also opens beside the
 target focus stands on, where it **rests** beforehand, empty, wearing the key that
 opens it.

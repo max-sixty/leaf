@@ -67,7 +67,8 @@ export const visualViewport = nativeViewport;
    - `seenRect` for whether, and how much of, something is in front of the user;
    - `growthIsSeen` and `growthAfterIsSeen` for whether a change of size would move what
      the user sees (`motionBand`), which scroll anchoring makes a different question;
-   - `whenNone` to hear when one of those readings stops holding for all of something;
+   - `whenChanges` to hear when one of those readings starts or stops holding, and
+     `whenNone` when it stops holding for all of something;
    - `clippedRect` for an element's box the caller has adjusted;
    - `nearWindow` and `nearObserver` for whether a box standing against something
      belongs in layout yet;
@@ -1265,14 +1266,14 @@ export function growthAfterIsSeen(node, clips = new Map()) {
   const band = motionBand(node, clips);
   return band !== null && bottom > band.top && bottom < band.bottom;
 }
-// Calls `leave` once `holds(node, clips)` stops holding for every one of `nodes`, and
-// again each time it stops after holding once more; returns the step that stops
-// watching. `holds` is a reading of geometry such as `seenRect` or `growthIsSeen`. Every
-// watch is read in one rendering pass with one clip cache, after anything that changes
-// what the page shows of its window (`watchRoom`), or a watched node entering or leaving
-// the window, which a change of layout moving it does. A pass calls `leave` only once
+// Calls `changed(now)` each time whether `holds(clips)` holds changes, its first reading
+// included; returns the step that stops watching. `holds` is a reading of geometry such
+// as `seenRect` or `growthIsSeen`. Every watch is read in one rendering pass with one
+// clip cache, after anything that changes what the page shows of its window
+// (`watchRoom`), a scroll's every frame included, or one of `nodes` entering or leaving
+// the window, which a change of layout moving it does. A pass calls back only once
 // every watch is read, so one that redraws cannot stale another's reading.
-/** @type {Set<{read: (clips: ClipCache) => boolean, leave: () => void}>} */
+/** @type {Set<{read: (clips: ClipCache) => boolean, report: () => void}>} */
 const watches = new Set();
 /** @type {ReturnType<typeof nextRender> | null} */
 let watchPass = null;
@@ -1281,25 +1282,24 @@ let unlisten = null;
 const readWatches = () => {
   watchPass = null;
   const clips = new Map();
-  const left = [...watches].filter((watch) => watch.read(clips));
-  for (const watch of left) if (watches.has(watch)) watch.leave();
+  const moved = [...watches].filter((watch) => watch.read(clips));
+  for (const watch of moved) if (watches.has(watch)) watch.report();
 };
 const rereadWatches = () => {
   watchPass ??= nextRender(readWatches);
 };
-/** @param {readonly Element[]} nodes @param {(node: Element, clips: ClipCache) => unknown} holds @param {() => void} leave */
-export function whenNone(nodes, holds, leave) {
+/** @param {(clips: ClipCache) => unknown} holds @param {(now: boolean) => void} changed @param {readonly Element[]} [nodes] */
+export function whenChanges(holds, changed, nodes = []) {
   /** @type {boolean | null} */
   let held = null;
   const watch = {
-    leave,
-    // Whether `holds` has just stopped holding for every node.
+    report: () => changed(Boolean(held)),
     /** @param {ClipCache} clips */
     read(clips) {
-      const now = nodes.some((node) => node.isConnected && Boolean(holds(node, clips)));
-      const stopped = !now && held !== false;
+      const now = Boolean(holds(clips));
+      const moved = now !== held;
       held = now;
-      return stopped;
+      return moved;
     },
   };
   watches.add(watch);
@@ -1316,6 +1316,17 @@ export function whenNone(nodes, holds, leave) {
     watchPass = null;
   };
 }
+// Calls `leave` once `holds(node, clips)` stops holding for every one of `nodes`, and
+// again each time it stops after holding once more (`whenChanges`).
+/** @param {readonly Element[]} nodes @param {(node: Element, clips: ClipCache) => unknown} holds @param {() => void} leave */
+export const whenNone = (nodes, holds, leave) =>
+  whenChanges(
+    (clips) => nodes.some((node) => node.isConnected && Boolean(holds(node, clips))),
+    (now) => {
+      if (!now) leave();
+    },
+    nodes,
+  );
 
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for

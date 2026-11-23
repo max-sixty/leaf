@@ -107,8 +107,8 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
 /** One bound file as this tab knows it: what the server last acknowledged (`base`), a
  * newer disk version held for the reader's choice (`latest`), and the requests on it.
  * `kept` is what the editor held of it while another file is open, and `named` the
- * name the editor's `files` output last listed it by. `sent` is the text of a save the
- * server hasn't answered, in flight or lost, until an answer or a read settles it.
+ * name the editor's `files` output last listed it by. `sent` is the text of the last
+ * save the server hasn't answered, in flight or lost, until a read settles it.
  * @typedef {{
  *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
  *   base: FileSnapshot | null, latest: FileSnapshot | null, sent: string | null,
@@ -619,7 +619,12 @@ customElements.define(
           of.base = await of.api.save({ revision: against.revision, text: submitted });
           of.latest = null;
           of.failure = null;
+          of.sent = null;
         } catch (fault) {
+          // A refusal in the server's own words wrote nothing. A save with no such
+          // answer, as when a reload cancels it, may have reached the file, so its
+          // text stays until a read says.
+          if (fault instanceof RequestError) of.sent = null;
           if (fault instanceof RequestError && fault.current) {
             if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
@@ -629,9 +634,6 @@ customElements.define(
           }
         } finally {
           of.busy = false;
-          // A save that got no answer, as when a reload cancels it, may still have
-          // reached the file, so its text stays until a read says.
-          if (!of.failure) of.sent = null;
           if (connected) remember(of);
           if (!dirty(of) || of.failure || of.latest || !connected) finishSaving(of);
           else if (!of.slow) {

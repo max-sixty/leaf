@@ -277,7 +277,7 @@ import {
   tellDraft,
 } from "./drafts.js";
 import { textField } from "./composing/text-field.js";
-import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
+import { draftOf, standsAtItsBox, syncInput, writesIn } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { holdPlace, standsAt } from "./user-place.js";
@@ -1058,7 +1058,6 @@ export function createFloatingPanel({
   const markRoom = () =>
     keeps(host, "data-lf-long", (long || expanded) && !activeSearch() ? "" : null);
   lengthWatch.observe(field);
-  const searchSurface = shell("search-surface");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
@@ -1158,20 +1157,21 @@ export function createFloatingPanel({
   // While the user writes, from the moment they open the field, Dictate, then Send,
   // stand in its one corner, and the first key moves nothing. The user chose this
   // over the field changing at the first key, which moves its end and the action under
-  // it as typing begins.
-  let writing = false;
-  // Whether the field holds a draft, as the row last showed it: Send in the field's
-  // corner. The row takes that posture, or gives it up, only
-  // at the user's own move: typing, or a view changing, which stands another editor in
-  // the field. The caret coming into or leaving the field moves nothing, so a draft the
-  // user steps away from keeps every line where it was. The user chose this
-  // over the counts coming back as the caret leaves, which rewraps the draft
-  // each time the user steps out and again as they come back. Words a refused send
-  // hands back move nothing, so its action stays in the seat the empty field gave it,
-  // Dictate's, until the user types again; emptying the field always ends it. A draft is
-  // anything typed, a line break included.
+  // it as typing begins. At rest the corner stands empty, and the field's end press,
+  // such as Reply and its key, stands where the corner's press would, as far from the
+  // leaf on the page as in a thread: the two never stand together, since the composer
+  // decides both from whether the user writes in the field (composing/input.js,
+  // `writesIn`, `cornerAtRest`). While the field holds words, Send stays in the corner
+  // with the caret elsewhere, so a draft the user steps away from keeps every line
+  // where it was; the user chose this over the counts coming back as the caret left,
+  // which rewrapped the draft each time the user stepped out and back. Rejected:
+  // writing that lasts while focus stays anywhere in the panel. It stood Dictate beside
+  // the end press, and the room the field kept for it outlived it, so the end press
+  // stood a corner's width further from the leaf in some states.
+  // Whether the field holds a draft, and whether the user wrote in it, as the row last
+  // drew them. A draft is anything typed, a line break included.
   let drafted = false;
-  let postureMoved = true;
+  let drawnWriting = false;
   // The beat of the moment the leaf last answered (`gestureLeaf`).
   let answered = gestureReading().beat;
   // The thread the reader lands in once its reading is drawn: on opening,
@@ -1241,7 +1241,7 @@ export function createFloatingPanel({
     const error = fieldError();
     return readField({
       thread: !page,
-      writing: input === focused(),
+      writing: writesIn(input),
       error: error && {
         message: error.message,
         press: error.press?.stands() ? pressReading(error.press) : null,
@@ -1462,6 +1462,7 @@ export function createFloatingPanel({
       enters: () => fieldReading(null, input).end,
       // While a stance stands the field takes no words (field-readings.js, `still`).
       closed: stanceHolds,
+      cornerAtRest: () => false,
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1550,6 +1551,7 @@ export function createFloatingPanel({
           // end, as over the page's (field-readings.js, `end`).
           enters: () => fieldReading(key, replyInput()).end,
           closed: stanceHolds,
+          cornerAtRest: () => false,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -1599,7 +1601,6 @@ export function createFloatingPanel({
   };
   // A draft arriving in an empty field, or the last of it going, re-seats the row.
   function retype() {
-    postureMoved = true;
     if (Boolean(draftOf(fieldInput())) !== drafted) paint();
   }
   field.addEventListener("input", retype);
@@ -2088,9 +2089,6 @@ export function createFloatingPanel({
     if (inside) letGo();
   }
   function close({ handedOn = false } = {}) {
-    // Closing the view ends the writing posture too. A saved page draft keeps
-    // its own posture; entering the field starts writing again.
-    writing = false;
     const before = trail.value.at(-1);
     trail.value = [];
     searching = false;
@@ -2521,7 +2519,6 @@ export function createFloatingPanel({
   /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean, part?: "reply" | "thread"}} [options] */
   function transition(before, { focus = true, handedOn = false, part = "reply" } = {}) {
     const after = trail.value.at(-1);
-    postureMoved = true;
     // The thread the user is in as the change begins, on the page or in the panel,
     // read before the paint that may take its view away.
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
@@ -5158,7 +5155,6 @@ export function createFloatingPanel({
     keeps(replyOutlet, "data-lf-thread", heading);
     keeps(replyOutlet, "data-lf-thread-view", heading === null ? null : "");
     if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
-    if (searchSurface.hidden !== !search) postureMoved = true;
     const input = fieldInput();
     if (input) syncInput(input);
     // The row's posture, which a row's press holds (`rowPress`).
@@ -5166,19 +5162,10 @@ export function createFloatingPanel({
     const posture = (name, value) => {
       if (!rowPress) keeps(host, name, value);
     };
-    // The caret this paint puts in the page's field starts the writing posture in the
-    // same paint, so the row draws it once rather than stepping out of it and back
-    // when the field takes focus (`onCurrentLocation`). While a stance stands the field
-    // takes no words, so the row holds no room for Send, and the stance's Close stands
-    // at the field's end on the page and in a thread alike (field-readings.js, `still`).
     const caretLands = caretToField && !replying && !search;
-    if (caretLands) writing = true;
-    posture("data-lf-writing", writing && !stanceStands() ? "" : null);
-    // A draft's Send takes the field's corner.
     const words = Boolean(draftOf(input));
-    if (postureMoved || !words) drafted = words;
-    postureMoved = false;
-    posture("data-lf-drafted", drafted ? "" : null);
+    drafted = words;
+    drawnWriting = writesIn(input);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-lf-expanded", expanded ? "" : null);
@@ -5339,7 +5326,7 @@ export function createFloatingPanel({
     return {
       onUser: onUserCount(),
       news,
-      kept: news || (!folded && (writing || drafted)) ? 0 : keptDrafts(),
+      kept: news || (!folded && (writesIn(fieldInput()) || drafted)) ? 0 : keptDrafts(),
     };
   }
   // The tab a press on the leaf opens the On view on, read from what its marks say: the
@@ -5679,8 +5666,8 @@ export function createFloatingPanel({
     },
     true,
   );
-  // Writing begins in the field and lasts while the user stays in the panel, so the
-  // line naming where the words go stays put while they press Resolve or a filter.
+  // What the field says turns on whether the user writes in it (`writesIn`), so the row
+  // draws again as that changes, and as the user moves within the panel.
   onCurrentLocation((node, _cause, left) => {
     const inside = Boolean(node) && renderedUnder(node, host);
     // Stepping in from the page holds where the user was, and from nowhere holds no
@@ -5689,9 +5676,7 @@ export function createFloatingPanel({
     if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
-    const next = inside ? writing || node?.localName === "leaf-text" : false;
-    if (next === writing && !inside) return;
-    writing = next;
+    if (!inside && writesIn(fieldInput()) === drawnWriting) return;
     paint();
   });
   // A press away from the panel puts away what stands open above the row (focus.js,

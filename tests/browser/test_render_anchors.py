@@ -4614,7 +4614,7 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
             '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
             "</lf-tabs>"
             '<lf-diff id="patch" source="patch" collapsed></lf-diff>',
-            # A package may lay a closed box out unseen, as visual-review does.
+            # A package may lay a closed box out unseen.
             head='<style>#laid[hidden="until-found"] '
             "{ content-visibility: visible; visibility: hidden; }</style>",
         )

@@ -3504,7 +3504,7 @@ export function findQuote(text, quote, anchor, within) {
 // shut details) is still asked of its own element, though the fold is styled whole the
 // first time a search reads inside it, since widgets hide words there by CSS: asking
 // the fold instead added 56 matches to a search for "the" on the corpus (2,651 against
-// 2,595), from widgets such as lf-visual-review, lf-playground and lf-chart.
+// 2,595), from widgets such as lf-playground and lf-chart.
 function searchableWords() {
   const styles = new Map();
   const reachable = new Map();

@@ -4,7 +4,10 @@ Shared package instructions are always present. Component instructions follow an
 explicit selection and its registry-declared dependencies, never the current HTML:
 that reading must be available before the author writes or copies any markup.
 Vocabulary entries have one reader, the author; data contracts and packages keep
-separate audiences for the different responsibilities they actually declare.
+separate audiences for the different responsibilities they actually declare. A
+contract's `commands` reach the author too, who writes the buttons that send them;
+the contract's own audiences are names its package chose, and none of them is that
+reader.
 """
 
 from collections.abc import Collection
@@ -108,18 +111,17 @@ def page_instructions(
             parts.setdefault(Path(name).stem, []).append(text)
     for contract in selected_contracts:
         declaration = registry["$data"]["contracts"][contract]
-        said = {
+        by_audience = {
             audience: [text.strip()]
             for audience, text in declaration.get("instructions", {}).items()
         }
-        # The page's author writes the buttons that send a holder its commands.
         if commands := declaration.get("commands"):
-            said.setdefault("author", []).append(
+            by_audience.setdefault("author", []).append(
                 "A button whose `commandfor` names a widget holding this contract"
                 " sends one of these as its `command`:\n\n"
                 + "\n".join(f"- `{name}`: {asks}" for name, asks in commands.items())
             )
-        for audience, texts in sorted(said.items()):
+        for audience, texts in sorted(by_audience.items()):
             parts.setdefault(audience, []).append(
                 f"# Data contract `{contract}`\n\n" + "\n\n".join(texts)
             )

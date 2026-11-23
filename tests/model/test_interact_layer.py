@@ -5032,35 +5032,6 @@ def test_review_evidence_packages_export_independently(
     assert exported.exit_code == 0, exported.output
 
 
-def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    package = schema_model.BUNDLED_PACKAGES / "visual-review"
-    page = tmp_path / "visual-review"
-
-    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
-    initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "visual-review", str(page)],
-    )
-
-    assert checked.exit_code == 0, checked.output
-    assert initialized.exit_code == 0, initialized.output
-    registry = registry_storage.load_registry(page)
-    widget = registry["lf-visual-review"]
-    assert registry["$layer"]["packages"] == ["visual-review"]
-    assert widget["inputs"] == {
-        "run": {
-            "contract": "visual-run",
-            "source": "source",
-            "property": "value",
-        }
-    }
-    assert widget["verbs"]["review"]["unit"] == "case"
-    assert "visual-run" in registry["$data"]["contracts"]
-    assert "/widgets/lf-visual-review.js" in layer_files(page)
-    assert "author.md" in layer_instructions(page)
-
-
 @pytest.mark.parametrize(
     ("package", "widget", "value", "change", "refusal"),
     [

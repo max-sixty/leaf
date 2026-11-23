@@ -2074,8 +2074,9 @@ def test_a_custom_command_is_one_its_targets_contracts_list(page_dir):
     status, findings = check_findings(page_dir)
 
     assert status != 0
-    (refused,) = [finding for finding in findings if finding.refuses]
-    assert found([refused], "unknown-command", "<button>", **unlisted), refused
+    refused = [finding for finding in findings if finding.refuses]
+    assert len(refused) == 1, refused
+    assert found(refused, "unknown-command", "<button>", **unlisted), refused
 
     # A message's button reaches the page's widget, and is held to the same list.
     in_message = message_markup_findings(

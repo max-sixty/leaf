@@ -4497,6 +4497,153 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
     landed()
 
 
+def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
+    browser, serve, subtests
+):
+    """A line thread in a file not yet opened stands by the file's row, which stands
+    in for the line. Reaching the thread opens the file: a walk to it, which Back
+    returns from however far down the file the line was, and a press on its marker,
+    which lands the user in the thread beside the line, with a Back entry too. A thread
+    on a line of earlier data stays on the file, which opens under its card all the
+    same."""
+    url = serve(
+        leaf_page(
+            "closed files",
+            '<h1 id="title">Review</h1>'
+            '<lf-diff id="walked" source="long-patch" collapsed></lf-diff>'
+            '<lf-diff id="earlier" source="earlier-patch" collapsed></lf-diff>'
+            '<lf-diff id="pressed" source="long-patch" collapsed></lf-diff>',
+        )
+    )
+    added = "".join(f"+line {number}\n" for number in range(1, 301))
+    long_file = {
+        "files": [
+            {
+                "path": "long.py",
+                "patch": "diff --git a/long.py b/long.py\n--- a/long.py\n"
+                f"+++ b/long.py\n@@ -1 +1,300 @@\n-old\n{added}",
+            }
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
+    data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
+    line = '["long.py","new",280]'
+    earlier = {"source": "earlier-patch", "source_revision": "0" * 16}
+    for section, datum, anchor in (
+        ("walked", line, {}),
+        ("earlier", '["second.py","new",1]', earlier),
+        ("pressed", line, {}),
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the {section} line.",
+                "anchor": {"section": section, "datum": datum, **anchor},
+            },
+        )
+    page = open_page(browser, url)
+    marker = '[data-lf-margin-for^="id:{}/"] .lf-margin-marker'
+    in_seat = """section => {
+      const chain = [];
+      for (let at = document.activeElement; at; at = at.shadowRoot?.activeElement)
+        chain.push(at);
+      return chain[0]?.id === section && chain.some((node) =>
+        node.closest?.('.lf-diff-thread-outlet .lf-page-thread'));
+    }"""
+
+    with subtests.test(case="walk"):
+        entries = page.evaluate("history.length")
+        page.keyboard.press("t")
+        expect(page.locator(f"#walked [data-lf-datum='{line}']")).to_be_in_viewport()
+        page.wait_for_function(in_seat, arg="walked")
+        assert page.evaluate("history.length") == entries + 1, (
+            "the walk moved the user down the file without a Back entry"
+        )
+        page.go_back()
+        expect(page.locator("#walked .lf-diff-file summary")).to_be_in_viewport()
+
+    with subtests.test(case="press"):
+        page.locator(marker.format("pressed")).click()
+        drawn = page.locator(f"#pressed [data-lf-datum='{line}']")
+        expect(drawn).to_be_in_viewport()
+        expect(drawn).to_have_class(re.compile(r"\blf-mark-here\b"))
+        page.wait_for_function(in_seat, arg="pressed")
+        page.go_back()
+        expect(page.locator("#pressed .lf-diff-file summary")).to_be_in_viewport()
+
+    with subtests.test(case="earlier data"):
+        page.locator(marker.format("earlier")).click()
+        expect(
+            page.locator("#earlier .lf-diff-file > details").nth(1)
+        ).to_have_attribute("open", "")
+        expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_have_text(
+            "Earlier data"
+        )
+
+
+def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
+    browser, serve
+):
+    """Back or Forward takes the user elsewhere, so a trip to a thread still waiting
+    on its file lands nowhere once the file arrives, and leaves history as the
+    traversal left it."""
+    added = "".join(f"+line {number}\n" for number in range(1, 301))
+    url = serve(
+        leaf_page(
+            "closed file",
+            '<h1 id="title">Review</h1>'
+            '<lf-diff id="patch" source="long-patch" collapsed></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "long-patch",
+        {
+            "files": [
+                {
+                    "path": "second.py",
+                    "patch": "diff --git a/second.py b/second.py\n--- a/second.py\n"
+                    f"+++ b/second.py\n@@ -1 +1,300 @@\n-old\n{added}",
+                }
+            ]
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About line 280.",
+            "anchor": {"section": "patch", "datum": '["second.py","new",280]'},
+        },
+    )
+    page = open_page(browser, url, init_script=HOLD_SECOND_FILE)
+    page.evaluate("location.hash = 'title'")
+    page.evaluate("scrollTo(0, 0)")
+    entries = page.evaluate("history.length")
+    page.locator('[data-lf-margin-for^="id:patch/"] .lf-margin-marker').click()
+    page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
+    page.go_back()
+    page.wait_for_function("location.hash === ''")
+    page.evaluate("window.__leafReleaseSecond()")
+    line = page.locator('lf-diff [data-lf-datum=\'["second.py","new",280]\']')
+    expect(line).to_have_count(1)
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() =>"
+        " requestAnimationFrame(resolve)))"
+    )
+    expect(line).not_to_be_in_viewport()
+    assert page.evaluate("[history.length, location.hash]") == [entries, ""], (
+        "the trip Back left behind rewrote history when its file arrived"
+    )
+    page.go_forward()
+    page.wait_for_function("location.hash === '#title'")
+
+
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
     """`]` into a file still loading lands only while the user is where they pressed it.
 

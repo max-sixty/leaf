@@ -452,12 +452,10 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's notice of a Resolve and its press name one gesture. A Resolve that
     leaves no thread open says so and, once the log has it, offers the Undo that takes
-    it back. The log refusing that Resolve takes the notice away with it, and its press
-    takes back that Resolve even once another
-    gesture of the user's is the newest, the one ⌘Z would take: a press that ran ⌘Z
-    would take back an earlier gesture once its own was refused. The agent having picked
-    that Resolve up changes nothing: the press still takes that Resolve, not the
-    newest gesture."""
+    it back. The log refusing that Resolve takes the notice away with it. The agent
+    picking that Resolve up leaves the Undo standing, and once another gesture of the
+    user's is the newest, the one ⌘Z would take, the notice keeps its words and offers
+    no Undo: a press showing ⌘Z does what ⌘Z does."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -522,12 +520,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(page.locator(panel_view("threads"))).to_be_visible()
     expect(said).to_have_text("All threads resolved")
     expect(undo).to_contain_text("Undo")
-    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
-    )
-    # The agent picks that Resolve up, and the notice's press still takes it back.
+    # The agent picks that Resolve up, and the notice still offers to take it back.
     (resolved,) = (
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -545,13 +538,15 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
         },
     )
     told(page)
-    with sending(page, "the undo"):
-        undo.click()
-    events = events_model.read_events(serve.page_dir)
-    assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
-        resolved
-    ]
-    expect(title).to_have_text(first)
+    expect(undo).to_contain_text("Undo")
+    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
+    )
+    told(page)
+    expect(undo).to_have_count(0)
+    expect(said).to_have_text("All threads resolved")
 
 
 def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
@@ -4105,9 +4100,13 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     page.mouse.move(card["x"] + 20, card["y"] + 6)
     expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
     button = minimize.bounding_box()
-    # It rides the corner: its centre sits on the box's top-left edge.
-    assert abs(button["x"] + button["width"] / 2 - card["x"]) <= 2
-    assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    # It rides the corner, standing out past it as every corner mark does.
+    overhang = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-mark-overhang'))"
+    )
+    assert button["x"] == pytest.approx(card["x"] - overhang, abs=1)
+    assert button["y"] == pytest.approx(card["y"] - overhang, abs=1)
     # A view opening carries the corner up, away from the still pointer, and the
     # button with it goes; putting the view away brings the corner back to it.
     page.locator("body").focus()
@@ -5837,6 +5836,46 @@ def test_a_line_the_field_gives_up_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
 
 
+def test_a_ring_the_field_comes_back_to_mid_tween_waits_for_its_end(browser, serve):
+    """The panel's field wears its ring on its ::after (floating-panel.css), which
+    exists only while the focus paint marks the field's row. The field is a part of the
+    box that moves, and focus leaving it and coming back while a line it gave up still
+    travels makes that ::after anew. Its ring waits for the tween's end, as the one the
+    motion drew from the tween's start does (box-motion.js): drawn at once, it would
+    stand at the field's rest size inside a box still travelling."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A first line")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("x")
+    settled(page)
+    box = page.locator(".lf-fp-field")
+    ring = "node => getComputedStyle(node, '::after').outlineColor"
+    content = "node => getComputedStyle(node, '::after').content"
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).to_be_focused()
+    worn = box.evaluate(ring)
+    assert box.evaluate(content) != "none"
+    assert worn != "rgba(0, 0, 0, 0)", worn
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fp-ground'))"
+    )
+    page.keyboard.press("Tab")
+    expect(field(page)).not_to_be_focused()
+    assert box.evaluate(content) == "none"
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).to_be_focused()
+    assert page.evaluate("() => __lfHeld.some(motion => motion.playState === 'paused')")
+    assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
+    page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert box.evaluate(ring) == worn
+
+
 # How far the field's first line of words and the more-room mark stand below the box's
 # top edge as drawn, and how opaque the mark is.
 BELOW_THE_EDGE = r"""() => {
@@ -6003,15 +6042,15 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     Escape hands the user back to the attachment: they never left what they were
     writing, so the page's field keeps Send in its corner and the counts aside, behind
     the viewer, after it and as they press back into the words, and a rewrite keeps
-    its thread view's height."""
+    its thread view's height. The draft's picture stands above the box's top-left
+    corner, so the panel's fold, which a pointer at that corner shows, stands clear of
+    the picture, and a pointer on the picture shows no fold."""
     page = floating(browser, serve(LONG_PAGE))
     viewer = page.locator("dialog.lf-media-viewer")
 
     def look_at(picture):
-        # Its foot's middle, clear of the removal mark on its top corner and of the
-        # fold mark that a pointer near the box's top-left shows over its foot's start.
-        box = picture.bounding_box()
-        picture.click(position={"x": box["width"] / 2, "y": box["height"] - 3})
+        # Its foot's start, clear of the removal mark on its top corner.
+        picture.click(position={"x": 3, "y": picture.bounding_box()["height"] - 3})
         expect(viewer).to_be_visible()
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
@@ -6022,7 +6061,19 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     send = page.locator(".lf-fp-field .lf-compose-submit")
     expect(send).to_be_visible()
     words = field(page).bounding_box()
-    look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
+    picture = page.locator(".lf-fp-box .lf-composer-media-open")
+    fold = page.locator(".lf-fp-minimize")
+    card = page.locator(".lf-fp-card").bounding_box()
+    page.mouse.move(card["x"] + 20, card["y"] + 6)
+    expect(fold).to_be_visible()
+    foot = picture.bounding_box()
+    assert picture.evaluate(
+        "(picture, [x, y]) => picture.contains(document.elementFromPoint(x, y))",
+        [foot["x"] + 3, foot["y"] + foot["height"] - 1],
+    )
+    page.mouse.move(foot["x"] + 3, foot["y"] + foot["height"] - 3)
+    expect(fold).to_be_hidden()
+    look_at(picture)
     expect(send).to_be_visible()
     assert field(page).bounding_box() == words
     field(page).click()

@@ -885,8 +885,8 @@ milestone, blocked on bugs 2055371, 2057633 and 2060883.
 
 `anchorBox` in `browser/runtime/css-anchors.js` measures that laid-out box from
 offsets wherever `anchorDropsTransforms()` finds the engine drops transforms, so
-pins, rows, key chips, the design label and floating cards stand on a widened
-table (translated) and on a reveal.js slide (translated and scaled), and the
+pins, rows, key chips, the design label, floating cards and previews stand on a
+widened table (translated) and on a reveal.js slide (translated and scaled), and the
 block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
 size difference to their far edges. An engine that keeps transforms, the
 Nightly pref included, fails that check, and none of this runs. Offsets are

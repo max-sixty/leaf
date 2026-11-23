@@ -331,6 +331,13 @@ def panel_corner_hover(page: Page) -> None:
     settle(page)
 
 
+def page_comment_photo_corner(page: Page) -> None:
+    """The panel's fold shown at its top-left corner below a draft's attached
+    screenshot."""
+    page_comment_photo(page)
+    panel_corner_hover(page)
+
+
 def share_link(page: Page) -> None:
     """The page's link, focused by keyboard as read-only text in About this page,
     which the menu's Copy link opens when the clipboard refuses the copy."""
@@ -813,9 +820,9 @@ def open_card(page: Page, marker: Locator) -> float:
     return before
 
 
-def summary_card(page: Page) -> None:
-    """A margin card a summary of the thread's opening messages opens, under its
-    actions, and the agent's latest reply after it."""
+def summarize_plan_stop() -> None:
+    """The plan's stop thread with a summary of its opening messages, and the agent's
+    latest reply after it."""
     root = "9303f850cbdc9b9f79f1725011251d36"
     as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
     # A summary speaks in its agent's voice, which a session gives it.
@@ -834,10 +841,31 @@ def summary_card(page: Page) -> None:
         LEAF_SESSION_ID="stills-summary",
         LEAF_AGENT="Codex",
     )
+
+
+def summary_card(page: Page) -> None:
+    """A margin card a summary of the thread's opening messages opens, under its
+    actions, and the agent's latest reply after it."""
+    summarize_plan_stop()
     wait_until_ready(
         page, PageClient(served_page.get().address).state(), through="state"
     )
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
+def summary_panel(page: Page) -> None:
+    """The same thread opened from Threads in the floating panel, its summary over the
+    agent's latest reply."""
+    summarize_plan_stop()
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    go_to_threads(page)
+    page.locator(".lf-fp-thread", has_text="background children").click()
+    expect(
+        page.locator(f"{panel_view('thread')} .lf-summary-checkpoint")
+    ).to_be_visible()
     page.mouse.move(0, 0)
 
 
@@ -1375,8 +1403,8 @@ def seat_held_news(page: Page) -> None:
 
 def seat_comment_box(page: Page) -> None:
     """A goal's row with its comment box open under the conversation it holds, the
-    words of a second comment typed: the box stands in the row's own outlet, with the
-    send that holds the goal beside it."""
+    words of a second comment typed, long enough to wrap: the box stands in the row's
+    own outlet, with the send that holds the goal beside it."""
     as_agent(
         "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
@@ -1387,7 +1415,8 @@ def seat_comment_box(page: Page) -> None:
     control.click()
     box = goal.locator(":scope > .atlas-task-threads .lf-fab-input")
     expect(box).to_be_focused()
-    page.keyboard.insert_text("Park it once the hunk lands")
+    page.keyboard.insert_text(LONG_DRAFT)
+    page.mouse.move(0, 0)
 
 
 def option_picked(page: Page) -> None:
@@ -2010,6 +2039,13 @@ def composer_long(page: Page) -> None:
     page.keyboard.insert_text(LONG_DRAFT)
 
 
+def composer_error(page: Page) -> None:
+    """A comment being typed on a selected passage, with an error about its box standing
+    over its words."""
+    composer_long(page)
+    error_about(page, ".lf-fab-bar")
+
+
 def composer_scrolling(page: Page) -> None:
     """A floating draft that fills its available height and scrolls its words."""
     composer_empty(page)
@@ -2524,6 +2560,29 @@ def diff_line_threads(page: Page) -> None:
     diff = page.locator("#dfg-lines")
     expect(diff.locator(".lf-page-thread")).to_have_count(2)
     diff.evaluate("diff => diff.scrollIntoView({block: 'start'})")
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_comment(page: Page) -> None:
+    """A line's comment box opened from its number under the long conversation the line
+    holds, a draft long enough to wrap typed in it: the box stands in the line's outlet
+    under the card."""
+    diff_line_threads(page)
+    # Clear of the panel at the window's foot, which would keep the box from a seat
+    # under it (composing/surface.js, `seatFab`).
+    page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it").evaluate(
+        "thread => scrollBy(0, thread.getBoundingClientRect().top - 120)"
+    )
+    scroll_settled(page)
+    number = page.locator("#dfg-lines").get_by_role(
+        "button", name="Comment on src/sync/retry.py · new line 16"
+    )
+    number.locator("..").hover()
+    number.click()
+    box = page.locator("#dfg-lines .lf-diff-thread-outlet .lf-fab-input")
+    expect(box).to_be_focused()
+    page.keyboard.insert_text(LONG_DRAFT)
     page.mouse.move(0, 0)
     settle(page)
 
@@ -3382,6 +3441,7 @@ STATES = (
     ),
     State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
+    State("page-comment-photo-corner", "feature-gallery", page_comment_photo_corner),
     State(
         "share-link",
         "feature-gallery",
@@ -3534,6 +3594,12 @@ STATES = (
         "diff-thread-gallery",
         diff_line_thread_walked,
         region="#dfg-lines",
+    ),
+    State(
+        "diff-line-comment",
+        "diff-thread-gallery",
+        diff_line_comment,
+        region="#dfg-lines .lf-diff-thread-outlet:has(.lf-fab-bar)",
     ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
@@ -3732,6 +3798,12 @@ STATES = (
         "review-a-plan",
         summary_card_opened,
         region=".lf-margin-preview",
+    ),
+    State(
+        "summary-panel",
+        "review-a-plan",
+        summary_panel,
+        region=".lf-fp-opened",
     ),
     State(
         "rewritten-quote-card",
@@ -3934,6 +4006,12 @@ STATES = (
         "triage-composer-resting",
         "triage-board",
         composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-error",
+        "triage-board",
+        composer_error,
         region=".lf-fab-bar",
     ),
     State(

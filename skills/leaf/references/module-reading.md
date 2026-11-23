@@ -82,7 +82,12 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn.
+name a datum not yet drawn. Leaf also asks `lfRevealDatum` for the key of a thread on
+the widget as it takes the user to that thread on the page, including a thread made
+on an earlier value of the data. Such a key can name a part that has since changed or gone,
+so open what would hold it, as a diff opens the file an earlier line was in, or return
+`null`. Leaf may ask again for a part that already shows, so leave such a part as it is
+rather than selecting or redrawing it again.
 
 A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
@@ -129,7 +134,11 @@ reads one off the `language-…` class a block of code names it by, on a `<code>
 `<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
 language Leaf doesn't colour, and undefined where no class names one, so only the
 latter takes a default; `langForPath(path)` derives one from a file name, and
-`ensureSyntaxLanguage(lang)` loads one ahead of time. `dressCode(root)` colours
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `syntaxNow(lang)` resolves, once
+the language has loaded, to `{tokenize, declarations}`: `tokenize(source, state)` is
+`syntax` as a synchronous call, for a module that colours text as it lays it out, such
+as an editor's highlighter, and `declarations` lists each `[property, value]` a token's
+`style` can hold, once, for a module that styles tokens by name. `dressCode(root)` colours
 each `pre > code` in `root` whose `language-…` class names a language and that wears
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module

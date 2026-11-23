@@ -248,9 +248,8 @@ events. `begin(pointerdown, path)`, a passive listener, may return
 `end(event, completed)`: release calls it with `completed: true`; cancellation, a
 native context menu, or leaving the document calls it with `false`. The function `end`
 returns runs when that press is over, after any compatibility mouseup and click it
-owes. Keep press-local work in these callbacks. Register inside `whileConnected`; the
-returned unsubscribe stops new presses, and the connection's abort signal ends work
-still running when the widget disconnects.
+owes. Register inside `whileConnected`; the returned unsubscribe stops new presses, and
+the connection's abort signal ends work still running when the widget disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;

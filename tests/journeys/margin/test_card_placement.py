@@ -649,9 +649,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   panelOpen: 'lfOpen' in document.querySelector('.lf-floating-panel').dataset};
         }"""
     )
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
     assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
+    assert geometry["cardLeft"] < geometry["controlsRight"], geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
-    assert geometry["cardWidth"] >= 379, geometry
+    # No message the card shows stands taller than it is wide, so the card keeps its
+    # least width (comment-placement.js, `standsTall`).
+    assert geometry["cardWidth"] == pytest.approx(minimum, abs=0.5), geometry
     assert geometry["cardTop"] >= 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
@@ -753,14 +757,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         }"""
     )
     # This shell leaves less than the card's minimum beside the wide cluster, and more
-    # right of the words, so the card stands there, across the cluster, at its whole
-    # height.
-    assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
+    # right of the words, so the card stands there, across the cluster, at its least
+    # width and its whole height.
+    assert beside["shellWidth"] - 8 - beside["controlsRight"] < minimum, beside
     assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 15.5, beside
-    assert beside["cardRight"] == pytest.approx(beside["shellWidth"] - 8, abs=0.5), (
-        beside
-    )
-    assert beside["cardWidth"] >= 319, beside
+    assert beside["cardLeft"] < beside["controlsRight"], beside
+    assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
+    assert beside["cardWidth"] == pytest.approx(minimum, abs=0.5), beside
     assert beside["clipped"] <= 0, beside
 
     resized(page, 1471, 900)
@@ -796,12 +799,14 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         editor.press(edge)
         expect(editor).to_have_js_property("value", draft)
         assert editor.evaluate("node => node.selectionStart") == caret
+        # The reply box runs over the card's padding to its sides and foot, so the
+        # card's own box is what must hold it.
         page.wait_for_function("""() => {
-          const list = document.querySelector('.lf-margin-preview .lf-page-thread').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const editor = document.querySelector('.lf-margin-preview leaf-text').getBoundingClientRect();
           const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
-          return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
-            && send.top >= list.top && send.bottom <= list.bottom + 1;
+          return editor.top >= card.top - 1 && editor.bottom <= card.bottom + 1
+            && send.top >= card.top && send.bottom <= card.bottom + 1;
         }""")
 
 

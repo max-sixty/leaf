@@ -2,19 +2,11 @@
 
    A settlement's landing is the surface's own: `prepareLanding` returns the step that
    carries the user where the gesture leaves them, which may be away from the thread.
-   The thread's container also names the reader the user had the thread in (`reader`,
-   thread-card.js, `ViewOutlets`): the page, for a margin card, or the primary reader,
-   for a whole thread there that lands the user elsewhere, as the floating panel's view
-   does. The way back reopens the thread there (undo.js, `returnToThread`), since a
-   route left to choose would choose for the thread as it stands: it put a thread
-   resolved in its card in the panel, where resolved threads open, and one resolved in
-   the panel's view in a card beside its passage. A seat names none, since a route to
-   the thread finds it in the seat it stands in. A primary reader's part that leaves the
-   user where they pressed draws the same card as a seat and names none either; a route
-   to the thread asks the primary first. The log
-   refusing the gesture takes the way back
-   here, while the user has not acted since; undo.js keeps the reader for ⌘Z and the
-   notice's Undo (`retainGesture`).
+   The log refusing the gesture takes the way back to the thread here, while the user
+   has not acted since, once the page presents the refusal, so the route to the thread
+   reads it open again and opens it where every route opens it, by the user's choice of
+   where threads open (undo.js, `returnToThread`). undo.js notes the settlement for ⌘Z
+   and the notice's Undo (`retainGesture`).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
    user away from the thread and leave nothing on screen to say it was resolved, and
@@ -68,7 +60,6 @@ const nextStep = (resolving, undo) =>
  * key: string,
  * resolved: boolean,
  * prepareLanding?: (() => Landing | null) | null,
- * reader?: import("../undo.js").Reader,
  * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
  * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "offerUndo" | "retainGesture" | "returnToThread">,
@@ -78,7 +69,6 @@ export async function settleThread({
   key,
   resolved,
   prepareLanding,
-  reader = null,
   pendingEntries,
   actions,
   undo,
@@ -92,7 +82,7 @@ export async function settleThread({
     ? actions.reopen(key, { attempt })
     : actions.resolve(key, { attempt });
   if (!answer) return;
-  undo.retainGesture(attempt, { settled: { reader } });
+  undo.retainGesture(attempt, { settled: true });
   const said = resolved
     ? `Reopened ${named}`
     : anyOpenThread()
@@ -108,7 +98,7 @@ export async function settleThread({
     refused: async () => {
       const mayReturn = retainUserIntent({ since });
       await whenDocumentPresented();
-      return undo.returnToThread(parent(), mayReturn, reader);
+      return undo.returnToThread(parent(), mayReturn);
     },
   });
 }

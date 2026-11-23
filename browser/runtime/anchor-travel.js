@@ -579,13 +579,16 @@ export function createAnchorTravel({
   };
 
   // Where an arrival at a thread lands: on `target`, a node of the thread's or in its
-  // card, at the nearest edge, then at the thread's place unless that already shows.
+  // card, at the nearest edge, then at the thread's place unless that already shows,
+  // centred, or by `block`, as `nearest` for a reader beside the page that moves the
+  // page only as far as the place needs (thread/destination.js).
   // A part inside a place taller than its room, as a seat's thread can be inside its
   // element, skips the second landing, since landing the place would scroll the part
   // back out of view. A card stands fixed over the page by its thread's place, so an
   // arrival in it, as `m` reaching a question in an agent's answer, lands here too.
-  /** @param {string} id @param {import("./focus.js").FocusDestination | null} target */
-  const threadLanding = (id, target) => {
+  /** @param {string} id @param {import("./focus.js").FocusDestination | null} target
+   * @param {"center" | "nearest"} [block] */
+  const threadLanding = (id, target, block = "center") => {
     const where = threadDestination(id);
     if (!where) return null;
     const at = target && focusElement(target);
@@ -596,8 +599,8 @@ export function createAnchorTravel({
       at !== null && at !== where && where instanceof Element && under(at, where);
     scroll.push({
       at: where,
-      when: () =>
-        !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+      block,
+      when: () => !alreadyShown(where, { block }) && !(inside && !fitsWhole(where)),
     });
     return { where, focus: target, scroll };
   };
@@ -655,28 +658,50 @@ export function createAnchorTravel({
   // `departure` is the route's, read where the user stood before the route changed
   // anything (thread/destination.js), or null for an arrival that adds no entry.
   /** @param {string} id
-   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null}} options */
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
   const scrollToThread = (id, options) => {
     const mayArrive = retainTravel(options.intent);
     return travelTo(id, mayArrive, () => travelToThread(id, mayArrive, options));
   };
 
   /** @param {string} id @param {UserIntent} mayArrive
-   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, departure: NavigationStep | null}} options */
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
   async function travelToThread(
     id,
     mayArrive,
-    { part = null, focus = true, presented = null, departure },
+    {
+      part = null,
+      focus = true,
+      presented = null,
+      departure,
+      block = "center",
+      drawn = false,
+    },
   ) {
     const anchor = threadNamed(id)?.anchor;
     const placement = anchors.placedAt(id);
     const destination = threadDestination(id);
+    // `drawn` lands the place only where the page shows it now, for an arrival that
+    // doesn't travel: it asks no widget to draw a part, opens nothing that hides one,
+    // and moves only the scrollers the landing needs.
+    if (drawn) {
+      if ((anchor?.visual || anchor?.datum) && !targetElement(placement)) return false;
+      if (!(destination && placeHolder(destination)?.checkVisibility())) return false;
+      const landing = threadLanding(id, null, block);
+      if (!landing || !mayArrive()) return false;
+      for (const place of landing.scroll) placeScroll(place, false);
+      return true;
+    }
     // Decided before the navigation step awaits anything: a destination that is not
     // readable now is somewhere else, and so is one a widget has yet to draw, though
     // what stands in for it shows, as a closed file's row shows while the line it
-    // stands in for opens thousands of pixels below it.
+    // stands in for opens thousands of pixels below it. One readable now is already
+    // there where the landing below, at its `block`, would move nothing, so history
+    // judges the placement the scroll makes (`threadLanding`).
     if (destination || anchor?.visual || anchor?.datum)
-      departure?.plan(awaitsDrawing(anchor, placement) ? null : destination);
+      departure?.plan(awaitsDrawing(anchor, placement) ? null : destination, {
+        there: () => destination !== null && alreadyShown(destination, { block }),
+      });
     if (!(await drawThread(id, mayArrive))) return false;
 
     // The marks, the placement and the widget outlet this arrival lands in are all
@@ -698,7 +723,7 @@ export function createAnchorTravel({
             ? threadFocusTarget(id, { part, page: true })
             : (anchor?.visual && source && addressedFocus(source, anchor.visual)) ||
               (targetElement(placement) ?? targetPlace(placement));
-        return threadLanding(id, target);
+        return threadLanding(id, target, block);
       },
       {
         intent: mayArrive,

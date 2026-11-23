@@ -5,7 +5,10 @@
 // surface (an impatient second click), and submit with Enter on a physical keyboard. A
 // press on a submit control is that Enter, pressed from the box.
 // Where native speech recognition is available, an empty comment offers a microphone
-// in Send's place. Dictation uses the same draft and send contract in every surface:
+// in Send's place. Where it is not, as in a Firefox without it, the empty box keeps
+// Send, grey and unavailable (`aria-disabled`). The user chose that over a box that
+// shows no Send until it holds words.
+// Dictation uses the same draft and send contract in every surface:
 // empty-field status stays in the placeholder, words keep their place, and the mic's
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.

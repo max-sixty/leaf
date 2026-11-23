@@ -120,9 +120,10 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     Observe `defaultPrevented` on real key events instead of asserting that Chrome
     happened to scroll: scrolling depends on viewport and focus geometry, while
     canceling the event is the runtime decision under test. `?` is the positive
-    control proving the capture observer sees a key the dispatcher intentionally
-    consumes. Observe the navigation keys in bubble, after focused content has had
-    a chance to cancel them."""
+    control proving the observer sees a key the dispatcher intentionally consumes,
+    read on the root element after Leaf's own listener there, since the consumed key
+    goes no further. Observe the navigation keys in bubble, after focused content has
+    had a chance to cancel them."""
     page = open_page(browser, serve(KEYS_PAGE))
     keys = [
         "Space",
@@ -143,9 +144,9 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
           pageContent.tabIndex = -1;
           pageContent.focus();
           window.lfObservedKeys = {};
-          document.addEventListener("keydown", event => {
+          document.documentElement.addEventListener("keydown", event => {
             if (event.key === "?") window.lfObservedKeys["?"] = event.defaultPrevented;
-          }, {capture: true});
+          });
           document.addEventListener("keydown", event => {
             const key = event.key === " "
               ? (event.shiftKey ? "Shift+Space" : "Space") : event.key;

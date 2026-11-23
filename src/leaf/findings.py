@@ -475,24 +475,6 @@ def _seat(seat: dict) -> str:
     )
 
 
-def _reference_contract(at: str, v: dict) -> str:
-    expected = ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-    found = (
-        ", ".join(f"{key}={_json(value)}" for key, value in v["found"].items())
-        if v["found"] is not None
-        else "no declaration"
-    )
-    actual = (
-        f"<{v['target_tag']}> has {found}"
-        if v["target_tag"] is not None
-        else "the target is not a registered widget"
-    )
-    return (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
-        f" where {expected}; {actual}"
-    )
-
-
 def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
@@ -1296,20 +1278,20 @@ _TEXT = {
             + " asking the question"
         ),
     ),
-    "repeated-key": _refuses(
-        _DECIDES,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
-            f" {v['first_line']} in the same <{v['scope']}>"
-        ),
-    ),
     "unknown-reference": _refuses(
         _REFERS,
         lambda at, v: (
             f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
         ),
     ),
-    "reference-contract": _refuses(_REFERS, _reference_contract),
+    "work-assignment": _refuses(
+        _REFERS,
+        lambda at, v: (
+            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a goal, but '
+            + (f"<{v['target_tag']}>" if v["target_tag"] else "the element it names")
+            + " has no role goal in $work.widgets"
+        ),
+    ),
     "ambiguous-data-binding": _refuses(
         _DATA,
         lambda at, v: (
@@ -1319,25 +1301,17 @@ _TEXT = {
     "output-contract": _refuses(
         _DATA,
         lambda at, v: (
-            f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
+            f"{_line(at, v)}: input {v['input']!r} reads the one output of"
+            f" {v['target']!r} with contract {v['contract']!r}, and it declares "
+            + (", ".join(repr(name) for name in v["outputs"]) or "none")
         ),
     ),
-    "outside-reference": _refuses(
+    "unknown-command": _refuses(
         _REFERS,
         lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
-            " own document, which it fills"
-        ),
-    ),
-    "unowned": lambda at, v: (
-        f"{_line(at, v)}: no <{v['referrer']}> names it in `{v['attr']}`, so"
-        " nothing draws into it"
-    ),
-    "owned-twice": _refuses(
-        _SHOWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" is already named by'
-            f" {v['first']} (line {v['first_line']}); only one element may name it"
+            f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s'
+            " commands nor a custom command, which starts with --, so the button"
+            " would do nothing"
         ),
     ),
     "nested-suggestion": _refuses(
@@ -1525,6 +1499,25 @@ _TEXT = {
             " must be self-contained"
         )
     ),
+    # Its work role, which `$work.widgets` maps the declaration onto.
+    "work-reference": _declared(
+        lambda v: (
+            f"$work worker assignment `{v['attr']}` must be declared in `refers`"
+            ", as {}"
+        )
+    ),
+    "work-state": _declared(
+        lambda v: (
+            f"$work state `{v['attr']}` must be recorded by a verb with unit widget"
+            " and a value record on it"
+        )
+    ),
+    "work-value": _declared(
+        lambda v: (
+            f"$work {v['key']} lists {_json(v['values'])}, which state attribute"
+            f" `{v['attr']}` does not admit"
+        )
+    ),
     # An element declaration, on its own.
     "invalid-declaration": _declared(
         lambda v: (
@@ -1543,12 +1536,13 @@ _TEXT = {
     "markdown-needs-data": _declared(lambda v: "block Markdown requires content: data"),
     "data-input": _declared(
         lambda v: (
-            "its <pre> is the text of its one input when the markup binds"
+            "its <pre> is the text of its `value` input when the markup binds"
             " none, so content: data takes "
             + {
-                "inputs": "at most one input",
-                "words": "no input with `text-format`: markdown, whose <pre> is its words",
-                "state": "no input with a body record, whose <pre> is its state",
+                "inputs": "at most one `value` input",
+                "words": "no `value` input with `text-format`: markdown, whose <pre>"
+                " is its words",
+                "state": "no `value` input with a body record, whose <pre> is its state",
             }[v["reason"]]
         )
     ),
@@ -1624,25 +1618,6 @@ _TEXT = {
             f"input `{v['input']}` (`inputs`) names `{v['attr']}` as `measured`,"
             " which is not a required nonempty string, so an instance without it is"
             " never compared with its source's latest run"
-        ),
-        keeps=None,
-    ),
-    # A relation no declared widget meets: each reference an instance makes is
-    # still held to it (`reference-contract`), so this tells the declaration's
-    # author that every such reference will be refused.
-    "refers-unknown-map": _declared(
-        lambda v: (
-            f"`refers` `{v['attr']}` names unknown registry map {v['via']!r}, so"
-            " every reference an instance makes through it is refused"
-        ),
-        keeps=None,
-    ),
-    "refers-unmatched": _declared(
-        lambda v: (
-            f"`refers` `{v['attr']}` requires {v['via']} where "
-            + ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-            + ", but no declared widget matches, so every reference an instance"
-            " makes through it is refused"
         ),
         keeps=None,
     ),
@@ -2369,10 +2344,11 @@ _TEXT = {
         " stays stopped."
     ),
     # `page check`'s advice on a page whose live server runs another Leaf
-    # (`server.another_leaf_serving`).
+    # (`server.other_serving_leaf`), named by the path and commit it records.
     "another-leaf-serving": lambda at, v: (
-        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
-        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f"{v['page']}'s server runs the Leaf at {v['path']}"
+        + (f" ({v['commit']})" if v["commit"] else "")
+        + ", not this one, so the user's tab may not draw what this Leaf checked;"
         f" restart it with `leaf server stop {v['page']}` then"
         f" `leaf server start {v['page']}`"
     ),
@@ -2398,8 +2374,8 @@ _TEXT = {
         f"{v['page']}: server was down and did not start again: {v['error']}"
     ),
     "restart-refused": lambda at, v: (
-        f"{v['page']}: this Leaf stopped the server another installed copy of Leaf"
-        f" ran, to restart it, and {v['error']}"
+        f"{v['page']}: this Leaf stopped the server another installed Leaf ran, to"
+        f" restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

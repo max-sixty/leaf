@@ -140,9 +140,10 @@ export const ACTIONS = {
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
   // The presses the floating panel's field offers at its end, a notice's or the page's
-  // own (notifications.js, `pressReading`), in the title case the user asked for.
+  // own (floating-panel.js, `pressReading`), in the title case the user asked for.
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
+  "open-latest": { name: "Open latest", icon: "next" },
   "resume-writing": { name: "Resume writing", icon: "edit" },
   "restore-edit": { name: "Restore edit", icon: "undo" },
   "show-annotations": { name: "Show annotations", icon: "locate" },

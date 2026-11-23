@@ -407,6 +407,9 @@ async function boot() {
     versions: {
       press: () => floatingPanel.doors.versions.press(),
       shows: () => floatingPanel.doors.versions.shows(),
+      get scope() {
+        return floatingPanel.doors.versions.scope;
+      },
     },
   });
 

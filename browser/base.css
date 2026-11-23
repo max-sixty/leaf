@@ -1013,7 +1013,9 @@ lf-suggestion:has(
   display: block;
   & > :is(lf-old, lf-new) {
     display: block;
-    padding: 2px 10px;
+    /* A framed box that starts or ends the slot, such as an options group, stands
+       clear of the tint's edge (`--lf-clear`) rather than nearly meeting it. */
+    padding: var(--lf-clear) 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
     transition: padding var(--lf-motion-fold) ease;
@@ -1063,10 +1065,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * `reading-regions.js` reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview or a visual review's evidence, marks them with the same
- * role and takes these same rules, so no package keeps a copy of them. They are the
- * kernel's rather than the default package's for that reason: a package's rules name
- * its own widgets, and these reach every package's.
+ * controls beside its preview, marks them with the same role and takes these same
+ * rules, so no package keeps a copy of them. They are the kernel's rather than the
+ * default package's for that reason: a package's rules name its own widgets, and these
+ * reach every package's.
  *
  * The grammar (the rows, and which child stands in which) holds over what a widget
  * declares for itself, such as a board's block margin and minimum width when the board
@@ -1074,8 +1076,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
  * it. The look (frame, paper, padding, the
  * header's font) is a default inside :where(), so a package that draws its generated
- * pane another way, the visual review framing its evidence with the review's own
- * border, does so with one class rather than by outranking the attribute. */
+ * pane another way does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
@@ -1099,11 +1100,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-width: 0;
   --lf-block-frame: 1;
 }
+/* The frame clips to its rounding, so a body, header or footer that paints its own
+ * ground to the pane's edges, as a file tree or an editor does, takes the frame's
+ * corners. Clip, not hidden: a hidden box is a scroll container, which would take the
+ * sticky boxes inside a body that doesn't scroll off the window. */
 :where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
+  overflow: clip;
 }
 :where([data-lf-reading-role="pane"]) > header {
   padding: var(--lf-pane-bar-pad);

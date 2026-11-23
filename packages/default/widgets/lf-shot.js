@@ -1,8 +1,17 @@
 import { ShotView } from "./shot-view.js";
 /* lf-shot owns screenshot inspection: paired frames, slider, pixel difference,
- * outlines, scale, crop and scrolling. A containing package supplies only capture
- * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
- * its box. Fit keeps both frames in the allocated box and never enlarges a capture
+ * outlines, scale, crop and scrolling. Its attributes state the captures' facts:
+ * `density`, their device pixel ratio, and `focus-x`, `focus-y`, `focus-width` and
+ * `focus-height`, the region in their CSS pixels that every view opens cropped to.
+ * The maintainer chose to let markup state them, so a pair written in a page opens on
+ * its change; a containing package states them as an author does, and allocates the
+ * box. The region is the author's to state rather than
+ * the comparison's to find: the comparison runs after presentation, so a region it
+ * found would resize a shot the reader already sees, and its bounds would take in
+ * whatever else moved, such as every row below one that grew. Four attributes rather
+ * than one list let the stylesheet hold the cropped frame's room before this module
+ * draws (shot.css), since `attr()` reads one number from an attribute.
+ * Fit keeps both frames in the allocated box and never enlarges a capture
  * past 100%, because stretching a capture blurs it. A capture narrower than the box
  * sits at its own size; how large to capture is the author's call. Actual size pans
  * their images together inside those same windows, keeping both labels and views
@@ -22,7 +31,7 @@ import { ShotView } from "./shot-view.js";
  * In ordinary flow it takes only the height its windows need; the toolbar stays
  * in place while content below follows the images. Fit recalculates for that
  * layout; 100% retains the captured CSS
- * scale, or bitmap pixels when no capture ratio is supplied. Inspection choices
+ * scale, or bitmap pixels when no `density` is stated. Inspection choices
  * belong to this element's lifetime, not the document's application state.
  *
  * Images and their source-coordinate marks share one clipped plane. Cropping moves
@@ -108,6 +117,7 @@ import {
 } from "./image-difference.js";
 
 /** @typedef {import("./shot-view.js").ShotMetadata} ShotMetadata */
+const FOCUS = ["focus-x", "focus-y", "focus-width", "focus-height"];
 /** @typedef {import("./image-difference.js").Difference & {description: string}} DescribedDifference */
 /** @typedef {{images: [HTMLImageElement, HTMLImageElement], loaded: Promise<boolean>, metadata: ShotMetadata, difference: Promise<DescribedDifference | null>}} Capture */
 export class Shot extends HTMLElement {
@@ -126,14 +136,35 @@ export class Shot extends HTMLElement {
   #error = null;
   /** @type {((promise: Promise<unknown>) => void) | undefined} */
   _lfPresentGenerated;
-  static observedAttributes = ["alt", "before", "after"];
+  static observedAttributes = ["alt", "before", "after", "density", ...FOCUS];
 
   get difference() {
     return this.#capture?.difference ?? Promise.resolve(null);
   }
 
-  /** @param {ShotMetadata} metadata */
-  inspect(metadata) {
+  /** The capture facts the attributes state; a focus missing a side states none,
+   * which `page check` refuses. */
+  #metadata() {
+    /** @type {ShotMetadata} */
+    const metadata = {};
+    const density = Number(this.getAttribute("density"));
+    if (density > 0) metadata.pixelRatio = density;
+    const side = (/** @type {string} */ name) =>
+      Number(this.getAttribute(`focus-${name}`) ?? NaN);
+    const focus = {
+      x: side("x"),
+      y: side("y"),
+      width: side("width"),
+      height: side("height"),
+    };
+    if (focus.x >= 0 && focus.y >= 0 && focus.width > 0 && focus.height > 0)
+      metadata.focus = focus;
+    return metadata;
+  }
+
+  // A metadata revision reuses the pair's load, and the reading shown for it.
+  #inspect() {
+    const metadata = this.#metadata();
     if (!this.#capture) {
       this.#drawing.metadata = metadata;
       return;
@@ -157,6 +188,7 @@ export class Shot extends HTMLElement {
     });
     const drawing = this.#drawing;
     drawing.view = this.getAttribute("view") ?? drawing.view;
+    drawing.metadata = this.#metadata();
     render(drawing.render(), this, { host: this });
     drawing.fit();
     render(drawing.render(), this, { host: this });
@@ -253,14 +285,20 @@ export class Shot extends HTMLElement {
         });
       }),
     ).then((loaded) => loaded.every(Boolean));
-    this.#prepare(images, loaded, this.#capture?.metadata ?? this.#drawing.metadata);
+    this.#prepare(images, loaded, this.#metadata());
   }
 
   /** @param {[HTMLImageElement, HTMLImageElement]} images @param {Promise<boolean>} loaded @param {ShotMetadata} metadata */
   #prepare(images, loaded, metadata) {
     // A requested capture owns its metadata snapshot. A metadata revision reuses
     // this pair's load; it cannot mutate validation already in flight or retry a
-    // failed network request as a side effect of an unrelated presentation.
+    // failed network request as a side effect of an unrelated presentation. The
+    // comparison reads the whole images, so the reading already shown for them stands
+    // under a new focus or density, which shows at once.
+    const shown =
+      this.#drawing.reading && this.#drawing.images === images
+        ? this.#capture?.difference
+        : undefined;
     /** @type {Capture} */
     const capture = { images, loaded, metadata, difference: Promise.resolve(null) };
     this.#capture = capture;
@@ -280,20 +318,22 @@ export class Shot extends HTMLElement {
       if (!this.#validImages(images, metadata)) return false;
       // First arrival can show its images before deferred comparison. A refresh
       // keeps the complete outgoing evidence until its replacement reading is ready.
-      if (!this.#drawing.reading) this.#commitImages(capture);
+      if (!this.#drawing.reading || shown) this.#commitImages(capture);
       return true;
     });
     this.#present(registered);
-    capture.difference = registered
-      .then((aligned) =>
-        aligned
-          ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
-          : null,
-      )
-      .catch((reason) => {
-        if (capture === this.#capture) failSoft(this, reason);
-        return null;
-      });
+    capture.difference =
+      shown ??
+      registered
+        .then((aligned) =>
+          aligned
+            ? afterPresentation(() => inTurn(() => this.#markDifference(capture)))
+            : null,
+        )
+        .catch((reason) => {
+          if (capture === this.#capture) failSoft(this, reason);
+          return null;
+        });
   }
 
   /** Hold the page's readiness until `promise` settles, so a reader outside the page
@@ -325,7 +365,8 @@ export class Shot extends HTMLElement {
   attributeChangedCallback(name, before, after) {
     if (!this.#drawingOwner || before === after) return;
     if (name === "alt") this.#paint();
-    else this.#loadImages();
+    else if (name === "before" || name === "after") this.#loadImages();
+    else this.#inspect();
   }
 
   #fit() {

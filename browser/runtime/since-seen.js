@@ -43,9 +43,10 @@
    changes since then, and opens on it, else on the newest older version (version.js,
    `sawLast`). `v` there presses the Compare of the version the user stands on, so
    `g V v` marks what Show changes does, and the same keys take the marks off again,
-   since Versions opens on the version compared with. Show changes says those keys
-   (version.js, `throughVersions`). The user chose to keep this comparison in Versions,
-   where every other base is, at the cost of three presses rather than one. Rejected:
+   since Versions opens on the version compared with. Show changes names Versions'
+   Compare key, so its keys read `g V v` (keyboard/control-keys.js, `pressNow`). The
+   user chose to keep this comparison in Versions, where every other base is, at the
+   cost of three presses rather than one. Rejected:
    a page key of its own, a bare `v` toggling it on every page, which set the
    comparison apart from Versions. The version is the one found at the user's arrival,
    so watching a revision land doesn't move what Versions names until they leave and
@@ -62,14 +63,13 @@ import { whenDocumentPresented } from "./semantic-state.js";
 import { tabStore } from "./tab-store.js";
 import { notice } from "./notifications.js";
 import {
-  COMPARE_KEY,
   changesSince,
   comparable,
   revisionBase,
   sawLast,
   selectedBase,
   showComparison,
-  throughVersions,
+  versionsShown,
 } from "./version.js";
 import { counted } from "./words.js";
 
@@ -127,7 +127,12 @@ export function createSinceSeen({ markSeen }) {
         stands: holds,
         press: {
           action: "show-changes",
-          keys: () => throughVersions(COMPARE_KEY),
+          // Versions' Compare key, `g V v`, which compares the version Versions opens
+          // at, this one. While Versions stands, its `v` compares whichever version
+          // the user is on, so the press names no command and shows no keys there.
+          get command() {
+            return versionsShown() ? null : "panel.floating.versions.compare";
+          },
           run: () => showComparison(revisionBase(since)),
           stands: holds,
         },

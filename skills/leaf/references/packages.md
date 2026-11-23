@@ -28,20 +28,21 @@ leaf package list
 leaf package run NAME SCRIPT [ARGS]...
 ```
 
-`--package` takes a bare name, which selects an installed or bundled package, or a
-path relative to the project or starting with `~`, such as `./.leaf` or
-`'~/.config/leaf'`. Absolute paths are refused, since the page's registry is public.
+`--package` takes a name of lowercase letters, digits and hyphens, which selects an
+installed or bundled package, or a path. A path is relative to the directory `page
+init` runs in or starts with `~`, as `./pkg`, `pkg/` and `'~/.config/leaf'` do; a bare
+`pkg` reads as a name. Absolute paths are refused, since the page's registry is public.
 `page init` copies a package selected by path into the page's `packages/`, so the
 page reads the same wherever it is served; run `page init --package` again to take
 in edits to the package.
 
 `leaf package install SOURCE` checks the directory and copies it into
-`~/.local/state/leaf/packages/`, so `--package NAME` selects it from any project on this
-machine. The copy holds only the files in the package layout below, so a README and
-tests stay behind. An installed package overrides a bundled one of the same name. A page records
-the bare name, and every Leaf that reads the page composes the package it finds by
-that name, so serving the page on another machine needs the package installed there
-too.
+`~/.local/state/leaf/packages/` under the directory's own name, so `--package NAME`
+selects it by that name from any project on this machine. The copy holds only the files
+in the package layout below, so a README and tests stay behind. An installed package
+overrides a bundled one of the same name. A page records the bare name, and every Leaf
+that reads the page composes the package it finds by that name, so serving the page on
+another machine needs the package installed there too.
 
 `leaf package list` prints each package a page can select by name, bundled or
 installed: its `description`, the first paragraph of its author instructions, and the
@@ -73,9 +74,10 @@ package/
 Keep a widget simple: show the evidence and actions the reader needs, since every extra
 control competes with them. Add an optional control when a caller needs it, and let
 the page's author turn it on. Use the theme's tokens and shared control styles before
-writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hints
-(`module-input.md`, "Commands and keyboard routes", and `module-annotations.md`,
-"Widget-local Thread placement").
+writing widget CSS, build each press by its role so it wears Leaf's face
+(`module-authoring.md`, "Generated controls"), and reuse Leaf's thread symbol, comment
+box and keyboard hints (`module-input.md`, "Commands and keyboard routes", and
+`module-annotations.md`, "Widget-local Thread placement").
 
 ### Styles and composition
 
@@ -180,6 +182,9 @@ control below its touch target or focus clearance.
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
 Import Leaf behavior through `/runtime/widget-api.js`, or its portable part
 `/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf").
+Both are files of the install: `leaf --root` prints its directory, which holds them in
+`browser/runtime/` and Leaf's `/vendor/` modules in `browser/vendor/`. A link from
+these references to a file under `browser/` or `src/` leads into that directory.
 Package `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,
 `widget-api.js` and the kernel's `vendor/` modules included, and composes the page's
 packages from its own catalogue, so a package runs against the runtime of whichever
@@ -214,10 +219,11 @@ leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 
 `leaf page instructions` returns a JSON map from audience to text. With no selection it
 returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
-`instructions` to `author`, along with the entries its `example` uses and
-its `inputs` contracts, whose instructions join their own audiences. It reads the
-layer the page selects and any `page/registry.json`, so it works before the page has
-markup. `page-authoring.md`, "Read the registry", says when an author reads each part.
+`instructions` to `author`, along with the entries its `example` uses and the
+contracts its `inputs` and `outputs` name, whose instructions join their own
+audiences. It reads the layer the page selects and any `page/registry.json`, so it
+works before the page has markup. `page-authoring.md`, "Read the registry", says when
+an author reads each part.
 
 A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
 colours with the page's status.
@@ -268,6 +274,18 @@ each version.
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
 absence the default, as in `lf-diff collapsed`.
 
+A tag that stands only inside another widget, as `lf-option` does inside `lf-options`,
+is declared like any other and lists the tags that may hold it in `owners`; the holder
+declares `content: members`.
+
+`verbatim: true` says the upgraded element still shows its authored words, with its
+nested widgets in authored order, so users can quote those words; the render check
+refuses a page where they changed. Declare it on a wrapper round authored content, and
+leave it off a widget whose module rewrites or reorders what it holds. Whatever the
+module adds to a verbatim widget stands inside a box it built with `offer`, with no
+words marked `says: true`, which would make them the page's (`module-authoring.md`,
+"Generated controls").
+
 Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
 attribute (`inputs`) and a verb's `contract` attribute. Declare each as `{"type":
 "string"}`; composition writes its `pattern` into the merged registry, replacing any the
@@ -303,10 +321,26 @@ widgets, once in a reading column and once in a workspace pane, and prints findi
 `page check`'s format. Presentation findings are advice for the widget's author.
 The command fails when the package check fails, the examples can't be drawn, or an
 exercised output violates its [declared data contract](package-data.md#widget-outputs).
+The examples are drawn as written, with no data set, so a widget bound to a source
+draws its state for no value, and a package that declares no widget, such as a theme,
+has nothing to draw. To see a widget with its data, or a theme, run `leaf page check
+PAGE --render` on a page that selects the package.
 
 The presentation checks:
 
 - `example`: no worked example shows the tag, so no other check can read it.
+- `keeps-first-box`: the widget's box changed size between first paint, before its
+  module loaded, and presentation, so what follows it moved (`module-authoring.md`,
+  "First paint"). Reserve the room of what the module adds in `defaults.css`, from the
+  theme's tokens (`package-themes.md`, "Theme tokens"): an empty `::before` block on
+  `lf-rating:not(:defined)` with `block-size: var(--lf-line)` holds one row of
+  controls. A drawing the markup can't size declares `height`: a number where the
+  module draws at any height, or `true` to reserve the `data-height` each occurrence
+  states in CSS pixels, with no entry in `attributes`. Where that height follows the
+  data, the widget's `instructions` say how the author works it out. A widget
+  containing others is named only for the change left once its changed children are
+  back at their first sizes. The advice may stand where the size follows content no
+  rule can know, such as words drawn from bound data.
 - `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside
   it, where a widget in normal flow should grow with its content (`page-layout.md`,
   "Bounds and widths"). The check also finds a fixed height while the widget is empty,

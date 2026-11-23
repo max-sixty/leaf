@@ -12,12 +12,18 @@
    `offerUndo`), and with news, the press that shows what it reports, as Show changes
    does for the changes since the version the user last saw (since-seen.js). The
    floating panel's field says the press at its end, after the words, as "Resolved “One
-   reconnect in about 40” … Next thread t", with the keys that would make it now, and
-   only while some would (`pressReading`; keyboard/control-keys.js, `commandKeysNow`):
-   so never on a touchscreen, where the panel's menu and lists reach what it does. The
-   live region hears the words alone, and a screen reader meets the press as the button
-   it is, its key inside. So a notice's words name no key: one written into them would
-   stand where it makes no press, as on a touchscreen or with the caret in a box.
+   reconnect in about 40” … Next thread t". The press names a command (`command`),
+   whose press it makes unless it brings its own `run`, as Show changes compares with
+   the version the user last saw under Compare's keys (since-seen.js). It names none
+   while no command would make its press, as Undo names ⌘Z only while ⌘Z would take
+   the gesture its notice reports (undo.js, `offerUndo`). The field shows the press
+   with the keys that would make that command now, and only while some would
+   (floating-panel.js, `pressReading`): so never on a touchscreen, where the panel's
+   menu and lists reach
+   what it does. The live region hears the words alone, and a screen reader meets the
+   press as the button it is, its key inside. So a notice's words name no key: one
+   written into them would stand where it makes no press, as on a touchscreen or with
+   the caret in a box.
    A notice of a gesture stands no longer than its gesture does, so its press never
    acts for anything else. Any notice stands no longer than what its words say holds
    (`stands`), shown or waiting: news that a comparison would show changes goes once a
@@ -48,7 +54,6 @@ import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
-import { actionName } from "./icon-paths.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
@@ -58,7 +63,7 @@ import { actionName } from "./icon-paths.js";
  * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
  * @typedef {SemanticBackground | {key: "text", value: Words, stands: (() => boolean) | null,
  * press: NoticePress | null}} Background
- * @typedef {{action: string, keys: () => readonly string[], run: () => unknown, stands: () => boolean}} NoticePress
+ * @typedef {{action: string, command: string | null, run?: () => unknown, stands: () => boolean}} NoticePress
  */
 
 export const liveEl = el("div", "lf-ui lf-live");
@@ -294,19 +299,6 @@ export function notice(
   showNotice(msg, null, press, stands, about, holds);
 }
 
-// A notice's press, or a page's own (floating-panel.js, `pagePress`), as the field's end
-// offers it (composing/input.js, `BoxPress`): its action's word, the keys that would make
-// the press now, read at each ask, so a box standing it rechecks its keys without
-// reading the field's words again (composing/input.js, `pressing`), and what it does.
-/** @param {Omit<NoticePress, "stands">} press
- * @returns {import("./composing/input.js").BoxPress} */
-export const pressReading = (press) => ({
-  word: actionName(press.action),
-  get keys() {
-    return press.keys();
-  },
-  run: press.run,
-});
 // Take the notice down for something the user asked for, putting a background notice
 // it was showing back at the front of the queue. Unlike the notice's own timer, which
 // retires it, this keeps the news for later.

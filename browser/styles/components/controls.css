@@ -57,8 +57,10 @@
    seat's role: the margin's entry (below) and the response bar's choice, whose
    reactions are its toggles (`aria-pressed`). What every reaction shares wherever it
    stands, its glyph laid out and its word held up under a press, keys on the token's
-   own class (`.lf-react`, below), and draws no face. A strip's reactions stand 4px apart, closer than a control's ring reaches,
-   so the ring stands on a reaction's edge (base.css, "Where it stands"). */
+   own class (`.lf-react`, below), and draws no face. A strip's reactions stand 4px
+   apart, closer than a control's ring reaches, and an open list's stand 4px inside
+   its edge, so the ring stands one band inside a reaction's edge, as a press's does
+   (base.css, "Where it stands"). */
 .lf-reaction {
   appearance: none;
   margin: 0;
@@ -67,7 +69,7 @@
   border: 1px solid transparent;
   border-radius: var(--lf-chip-r);
   font: var(--lf-font-chip);
-  --lf-ring-at: 0px;
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 
 .lf-react {
@@ -732,9 +734,12 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   --wa-color-border-loud: var(--wa-color-brand-border-loud);
 }
 :where(.lf-btn) {
-  /* How far its words stand in from its edge, the library's padding and the frame,
-     which a seat that sets a word at the start of a line hangs into the margin, so the
-     words align with the line's. */
+  /* How far its words stand in from its edge, the library's padding and the frame. A
+     seat that sets a word at the start of a line hangs it into the margin by this much,
+     so the words align with the line's, wherever the margin is at least this inset
+     plus `--lf-clear` wide (browser/AGENTS.md, "A box inside a frame either meets its
+     edge or stands clear of it"). In a narrower margin the face stands on the line's
+     text edge, as On Me's Reply does. */
   --lf-word-inset: calc(var(--wa-form-control-padding-inline) + 1px);
   display: inline-block;
   height: auto;
@@ -752,6 +757,17 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   box-shadow: none;
 }
 /* #endregion */
+/* Leaf seats its words and symbols against edges: on a frame's edge or in its corner,
+   hung into a line's margin by their inset (`--lf-word-inset`, `--lf-symbol-inset`), or
+   beside the next press. So each stands its ring, and every mark on it, one band inside
+   its edge (tokens.css, "Where it stands"), where no frame's clip cuts it and no
+   neighbour covers it, and a press looks the same in every seat. At no weight, so a
+   seat that stands it elsewhere, as a diff line's comment press does, says so. A
+   page's own button keeps a control's gap. */
+:where(.lf-btn),
+:where(.lf-icon-action) {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
 /* A native radio or checkbox and its label form one compact target. The mark
  * carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
@@ -895,9 +911,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 /* How far a symbol's glyph stands in from its face's edge: half of what the face holds
    beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
    (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
-   this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
-   for a word, and a scroller holding such a seat keeps this much room at its sides,
-   and a focus ring's beyond it.
+   this much, so the glyph ends where the line's words do, on the terms
+   `--lf-word-inset` states: wherever the margin is at least this inset plus
+   `--lf-clear` wide. A scroller holding such a seat keeps this much room at its sides.
    Under a finger the box is wider than the face, so the glyph stands inside the edge
    by the difference. The symbol states it again, so a surface that sets its own face
    gets its own inset. */
@@ -1594,6 +1610,12 @@ wa-copy-button.lf-icon-action {
 .lf-response-face[aria-pressed]:where(:not([aria-pressed="true"])) {
   background: var(--lf-card);
 }
+/* The comment box's face while the box rests (`data-lf-rest`; composing/surface.js,
+   `restFab`) wears the corner of the card the box becomes, as the open box's field
+   does (annotation-chrome.css). */
+[data-lf-rest] > .lf-response-face {
+  border-radius: var(--lf-r-l);
+}
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`data-lf-corner`, below), as the floating panel's fold, an attachment's
    removal and a drawing's Undo last stroke do, or stands in a toolbar inside its
@@ -1633,6 +1655,12 @@ wa-copy-button.lf-icon-action {
 .lf-mark-action.lf-ui::part(button):hover {
   color: var(--lf-ink);
 }
+/* It declines the wash every generated press takes under the pointer (surfaces.css),
+   since the face the user chose for marks shows the pointer by its ink alone. A
+   corner mark keeps its patch's ring and lift (below). */
+.lf-mark-action:where(:not([data-lf-corner])):hover {
+  box-shadow: none;
+}
 .lf-mark-action.lf-ui::part(lf-focus-visible) {
   outline: var(--lf-focus-ring);
 }
@@ -1648,6 +1676,72 @@ wa-copy-button.lf-icon-action {
   border: 1px solid var(--lf-border);
   border-radius: var(--lf-r);
   background: var(--lf-card);
+}
+/* A mark standing as its own toolbar takes the focus itself, and it stands in a block's
+   corner, so its ring lies inside its edge, over its hairline, as a press seated in a
+   corner does (tokens.css, "Where it stands"): outside, it would nearly meet the
+   block's edge. */
+.lf-mark-action[data-lf-bar] {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
+/* A toolbar's marks are a joined run (`data-lf-joined`, below) meeting its hairline, so
+   where they meet its corners they take its rounding inside it. */
+.lf-mark-bar {
+  --lf-joined-r: var(--lf-r-in);
+}
+/* A joined run: a holder whose presses join into one control declares
+   `data-lf-joined` (control-faces.js), as a block's toolbar of marks and a question's
+   Done do. Each press is square where it meets the next and stands its ring one band
+   inside its edge, and the first and last press shown take the holder's rounding at
+   the corners they share with it (`--lf-joined-r`, which the holder's owner states; 0
+   where a frame round the holder clips them). The holder clips nothing
+   itself, since a finger's reach (surfaces.css) stands outside a toolbar's box. A
+   press the holder hides (`hidden`), or a word standing before them, as a draft's
+   refused save, is no end of the run. */
+/* Each press learns whether it ends the run from two properties set on the press
+   itself, which a face in its shadow (`::part(button)`) reads. Chromium answers a
+   position asked of a host before `::part()` by restyling every child of the host's
+   parent on each insertion there, so the chrome's lone code Copies would all restyle
+   whenever anything joined the chrome
+   (test_code_copy_reads_sources_before_positioning_many_controls). */
+[data-lf-joined] > :where(button).lf-mark-action,
+[data-lf-joined] > .lf-mark-action.lf-ui,
+[data-lf-joined] > .lf-btn {
+  --lf-joined-start: 0px;
+  --lf-joined-end: 0px;
+}
+[data-lf-joined] > :where(button).lf-mark-action:nth-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-mark-action.lf-ui:nth-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-btn:nth-child(1 of :not([hidden])) {
+  --lf-joined-start: var(--lf-joined-r, 0px);
+}
+[data-lf-joined] > :where(button).lf-mark-action:nth-last-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-mark-action.lf-ui:nth-last-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-btn:nth-last-child(1 of :not([hidden])) {
+  --lf-joined-end: var(--lf-joined-r, 0px);
+}
+[data-lf-joined] > :where(button).lf-mark-action,
+[data-lf-joined] > .lf-mark-action.lf-ui::part(button),
+[data-lf-joined] > .lf-btn {
+  border-start-start-radius: var(--lf-joined-start);
+  border-end-start-radius: var(--lf-joined-start);
+  border-start-end-radius: var(--lf-joined-end);
+  border-end-end-radius: var(--lf-joined-end);
+}
+/* A word's ring already stands inside it (above); a mark's face states its own. */
+[data-lf-joined] > :where(button).lf-mark-action,
+[data-lf-joined] > .lf-mark-action.lf-ui::part(button) {
+  outline-offset: var(--lf-focus-ring-inset);
+}
+/* A holder standing in a frame that clips it (`--lf-joined-r: 0px`), as Done's cell in
+   a question's joined options does, leaves the run's edge and seams to that frame, so
+   a word in it has no edge of its own, which takes no room either: two edges would
+   stand where its neighbours share one, and a digit it holds stands in the column its
+   neighbours' digits share. */
+@container style(--lf-joined-r: 0px) {
+  [data-lf-joined] > .lf-btn {
+    border-width: 0;
+  }
 }
 /* A corner mark stands on a patch of the ground the thing it rides stands on, set off
    by that ground's ring and a lift. Rejected: a dark disc with a light cross for an
@@ -1824,8 +1918,8 @@ wa-copy-button.lf-icon-action {
   }
 }
 /* The row face: one row of a list or menu, such as the floating panel's Threads, menu
-   and Versions, the command reference, the Page Map, a timeline's steps, a recording's
-   moments and a visual review's cases. Its words are what the reader scans, so they
+   and Versions, the command reference, the Page Map, a timeline's steps and a
+   recording's moments. Its words are what the reader scans, so they
    stand in the ink at the list's own type. Under a hovering pointer or the keys, the
    offer's wash (`--lf-offer-hover`) lies over whatever ground the row has, as an image,
    so a list's own tint shows through it; a listbox's selected option is the keys'
@@ -1836,7 +1930,7 @@ wa-copy-button.lf-icon-action {
    state, as the striped box must be, so a washed row meets the current row beside it
    edge to edge; rounded washes left a notch where they met it. The user chose this
    one over six ways of drawing rows, two hovers and four current rows (weight in
-   Versions, an ink wash and underline in a visual review, accent words on the tint
+   Versions, an ink wash and underline, accent words on the tint
    for a recording's moments). What a list adds is one of
    the row's variants (below): a thread's row lit with its passage under the pointer,
    a step still ahead muted, and a thread on the user's turn tinted. Rows meeting

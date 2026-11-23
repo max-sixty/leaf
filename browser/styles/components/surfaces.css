@@ -835,7 +835,10 @@ summary {
    it over the page. The frame is a shadow inside the edge rather than a border, since
    a resolved card gives its room back by folding (thread/inline.js), and a border
    keeps its last pixel until the fold ends. A seat's cards stand a gap apart; between
-   live neighbors may stand the inert pixels of one folding away.
+   live neighbors may stand the inert pixels of one folding away. The comment box the
+   seat opens under them stands that gap below them too, where the card it becomes
+   will: flush, a card's reply box and the comment box under it read as two fields of
+   one conversation.
    Rejected: an unframed thread that wore a quiet ground and an inset ring while it
    held focus, a frame drawn only on focus with the words running into its ring; a
    widget setting the thread's insets and measure in its own sheet, which drew the
@@ -845,7 +848,7 @@ summary {
    which no longer read as the margin card. */
 [data-lf-thread-surface] > .lf-page-thread,
 [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
-  padding: calc(var(--lf-comment-inset) + 1px);
+  padding: var(--lf-thread-frame);
   border-radius: var(--lf-r-l);
   box-shadow: inset 0 0 0 1px var(--lf-border);
   background: var(--lf-ground);
@@ -864,17 +867,32 @@ summary {
    runs to the card's sides and foot, as a margin card's does (response.css), and its
    words still wrap where they would in a margin card at the measure, as they will once
    sent. Past them it keeps the room by which it is wider than that card's reply box,
-   whose words' box is the measure less two borders, the card's and its own, on each
-   side. */
+   whose words' box is the measure less two borders, the card's and its own, and the
+   card's padding on each side. A step's words keep the messages' width, and a
+   summary's that width less the inset its region keeps at their end rather than room
+   for Send. The comment box the seat opens keeps the row too, its field at the card's
+   padding (response.css, `.lf-fab-bar[data-lf-presentation="inline"]`), and its words
+   end where the message they become will, `--lf-comment-text-end` inside the column:
+   past its own end inset it keeps the room by which its field is wider than the
+   column. */
 [data-lf-thread-surface] {
-  --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
+  --lf-seat-column: calc(var(--lf-thread-card) - 2 * var(--lf-thread-frame));
 }
 [data-lf-thread-surface] .lf-msg-body {
   max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
 }
+[data-lf-thread-surface] .lf-thread-working-words {
+  max-inline-size: calc(
+    var(--lf-seat-column) - var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px)
+  );
+}
+[data-lf-thread-surface] .lf-summary-text {
+  max-inline-size: calc(var(--lf-seat-column) - 2 * var(--lf-thread-text-inset));
+}
 [data-lf-thread-surface] .lf-thread-reply {
-  margin-inline: calc(-1 * var(--lf-comment-inset));
-  margin-block-end: calc(-1 * var(--lf-comment-inset));
+  margin-inline: calc(-1 * var(--lf-thread-pad));
+  margin-block: calc(var(--lf-msg-gap) - var(--lf-thread-pad))
+    calc(-1 * var(--lf-thread-pad));
 }
 [data-lf-thread-surface] .lf-thread-reply .lf-compose-field > leaf-text {
   padding-inline-end: max(
@@ -882,42 +900,41 @@ summary {
     100% - var(--lf-thread-card) + 4px + var(--lf-compose-pad-inline-start)
   );
 }
+[data-lf-thread-surface] > .lf-fab-bar leaf-text.lf-fab-input {
+  padding-inline-end: calc(
+    var(--lf-comment-text-end) - 1px + max(0px, 100% - var(--lf-seat-column))
+  );
+}
 .lf-page-thread::after {
   border-radius: inherit;
 }
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads,
-[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread,
+[data-lf-thread-surface]
+  > :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
+  ~ .lf-fab-bar {
   margin-top: var(--lf-sp-2);
 }
 /* Every conversation shares its reading edge, including a floating draft: its words
-   stand this far inside the padding of the frame that holds it, the floating panel's
-   6px inside its hairline and a thread card's border and `--lf-comment-inset`, which
-   come to the same, so a thread's words stand as far inside a card as inside the
-   panel. The words of a view's head, a thread's quote, each message and each box
+   stand this far inside the padding of the frame that holds it, which is the same in
+   a card, a comment box and the floating panel (`--lf-thread-frame`, tokens.css), so a
+   thread's words stand as far inside a card as inside the panel. The words of a
+   view's head, a thread's quote, each message and each box
    written in start on that one edge, and a draft's lines stand where the sent
-   message's will. What marks them off, the quote's rule and a rewrite's frame, stands
-   at the padding. A field subtracts its border; messages and metadata take the full
-   inset. */
-/* An open summary's region overhangs the words' end by `--lf-group-ring-end`, so a
-   transcript that scrolls keeps at least that much room past them, in the words'
-   inset and the room it keeps at its edges (`--lf-transcript-edge-room`,
-   annotation-chrome.css). */
+   message's will. What marks them off, the quote's rule, a rewrite's frame and a
+   summary's region, stands at the padding. A field subtracts its border; messages and
+   metadata take the full inset. */
 :root,
 .lf-page-thread,
 .lf-fab-bar {
   --lf-thread-text-inset: 8px;
-  --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
   /* The room between a message's last line and what follows it in the conversation,
      the next message, a checkpoint, the working step or the reply box: far more than a
      head's gap to its words, so each head reads with the message under it. */
   --lf-msg-gap: 24px;
-  /* How far a summary's region stands inside the conversation's start edge, so its
-     words stand at the conversation's inset. At its end it reaches past the words by
-     `--lf-group-ring-end`. */
-  --lf-summary-edge: 3px;
   /* The room a thread's own controls take beside the line they stand on: a head's
      height, or a finger's width under one. */
   --lf-thread-action-room: max(var(--lf-msg-head-height), var(--lf-aim-floor));
@@ -1101,16 +1118,16 @@ summary {
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
    closed (thread/transcript.js). One disclosure at its head controls the entire
-   range. Open, the covered messages follow it at their own inner gap. */
+   range. Open, the covered messages follow it at their own inner gap. Each item of a
+   transcript keeps its gap above it alone, since nothing collapses a gap below one
+   into the next: a card's transcript is a grid, and a closed fold's hidden messages
+   are boxes of their own between the checkpoint and what follows. */
 .lf-thread-checkpoint {
-  margin-block: var(--lf-msg-gap);
+  margin-block-start: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
 }
-.lf-thread-checkpoint[data-lf-expanded="true"] {
-  margin-block-end: 8px;
-}
 .lf-thread-transcript > .lf-msg[data-lf-summary] {
-  margin-block: 8px;
+  margin-block-start: 8px;
   anchor-name: var(--lf-fold-foot);
 }
 /* A closed fold hides its messages until found, which keeps each one's box, empty and
@@ -1118,10 +1135,13 @@ summary {
 .lf-thread-transcript > .lf-msg[hidden="until-found"] {
   margin-block: 0;
 }
+/* A summary's region starts at the frame's padding, reaching back over the words'
+   inset as a rewrite's frame does, and ends at the messages' edge, which stands at
+   the frame's padding too. So it stands as far inside the frame on both sides, clear
+   of its edges, and its words keep the thread's inset at both ends. */
 .lf-summary-checkpoint {
-  padding: 8px calc(var(--lf-thread-text-inset) - var(--lf-summary-edge));
-  margin-inline: calc(var(--lf-summary-edge) - var(--lf-thread-text-inset))
-    calc(-1 * var(--lf-group-ring-end));
+  padding: 8px var(--lf-thread-text-inset);
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   border-radius: var(--lf-r);
   background: var(--lf-settled-tint);
 }
@@ -1142,10 +1162,9 @@ summary {
   inset-block-start: anchor(var(--lf-fold-head) start);
   inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 8px);
   inset-inline-start: calc(
-    anchor(var(--lf-fold-head) start) + var(--lf-summary-edge) -
-      var(--lf-thread-text-inset)
+    anchor(var(--lf-fold-head) start) - var(--lf-thread-text-inset)
   );
-  inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
+  inset-inline-end: anchor(var(--lf-fold-head) end);
   border-radius: var(--lf-r);
   background: var(--lf-settled-tint);
   pointer-events: none;
@@ -1202,7 +1221,7 @@ summary {
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
-  max-inline-size: 100%;
+  max-inline-size: calc(100% - var(--lf-msg-text-end, 0px));
   font: var(--lf-font-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
@@ -1277,7 +1296,7 @@ summary {
 .lf-thread-controls {
   position: absolute;
   position-anchor: --lf-thread-headline;
-  inset-inline-start: calc(anchor(right) + var(--lf-sp-2));
+  inset-inline-start: calc(anchor(end) + var(--lf-sp-2));
   inset-block-start: anchor(center);
   translate: 0 -50%;
   inline-size: var(--lf-thread-action-room);
@@ -1310,7 +1329,11 @@ summary {
   anchor-name: --lf-thread-headline;
   min-height: var(--lf-thread-action-room);
   box-sizing: border-box;
-  margin-inline-end: calc(var(--lf-thread-action-room) + var(--lf-sp-2));
+  /* Short of the messages' edge by a head's margin, as a message's head is, less the
+     words' inset its region already keeps at its end. */
+  margin-inline-end: calc(
+    var(--lf-thread-action-room) + var(--lf-sp-2) - var(--lf-thread-text-inset)
+  );
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--lf-sp-2));
 }
 /* Next unread is an inline press (controls.css) after its symbol, on the line its

@@ -70,6 +70,16 @@
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
     window.addEventListener(type, input, { capture: true, passive: true });
+  // Going Back or Forward is the user's word too, though the browser's own buttons send
+  // the page no input. Where the Navigation API runs, the step counts as it begins,
+  // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has
+  // no such handler, and the `popstate` that follows the step counts. An opaque frame,
+  // as a live sample is, has the API with no entries and fires only `popstate`.
+  if (window.navigation?.currentEntry)
+    window.navigation.addEventListener("navigate", (event) => {
+      if (event.navigationType === "traverse") inputs++;
+    });
+  else window.addEventListener("popstate", () => inputs++);
 
   Reflect.set(window, key, state);
 })();

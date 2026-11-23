@@ -38,6 +38,13 @@ wa-comparison::part(lf-focus-visible) {
   outline: var(--lf-focus-ring);
   outline-offset: var(--lf-focus-ring-gap);
 }
+/* A Copy that wears the symbol's face stands its ring where every symbol does, inside
+   its edge (controls.css). The host says so in `--lf-ring-at`, which a part in its
+   shadow tree can't read, since the property doesn't inherit. A Copy in the mark's
+   face stands its ring on the mark (controls.css, `.lf-mark-action`). */
+wa-copy-button.lf-icon-action::part(lf-focus-visible) {
+  outline-offset: var(--lf-focus-ring-inset);
+}
 
 /* A choice among a few views, such as a recording's scope, an image pair's view or a
    dial's depth, is a radio group of buttons (`appearance="button"`) that a widget
@@ -73,9 +80,6 @@ wa-radio[appearance="button"] {
   min-inline-size: 0;
   max-inline-size: 100%;
   box-sizing: border-box;
-  /* Padded inside the pill by less than a control's gap, so its marks stand one band
-     inside its edge, where outside they ran over the pill's rule. */
-  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 wa-radio[appearance="button"]::part(label) {
   white-space: normal;

@@ -34,7 +34,6 @@ import functools
 import hashlib
 import json
 import os
-import re
 import secrets
 import stat
 import sys
@@ -53,18 +52,37 @@ if TYPE_CHECKING:
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 
-def plugin_cache_copy(root: Path) -> bool:
-    """Whether `root` is a copy Claude Code installed from a marketplace into its
-    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
-    than a checkout. Leaf leaves its manifest version unset, so the version
-    component is the source commit's SHA."""
+def installed_copy(root: Path) -> bool:
+    """Whether `root` is a copy of Leaf a harness installed, which only that harness
+    writes, rather than a checkout someone develops in.
+
+    Claude Code and Codex install a plugin from a marketplace into their plugin
+    cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`. Claude Code
+    installs each update as a new copy without `.git`, whose version component is
+    the source commit's SHA, since Leaf leaves its manifest version unset. Codex
+    keeps one clone, at the version `local`, and replaces it in place. Pi clones a
+    git package into `~/.pi/agent/git/<host>/<path>`, or a project's
+    `.pi/git/<host>/<path>`, and resets the clone in place to update it. Where a
+    copy is updated in place, only the commit it holds tells two versions apart
+    (`layer.payload_provenance`)."""
     parents = root.parents
-    return (
+    if (
         len(parents) >= 4
         and root.parent.name == "leaf"
         and parents[2].name == "cache"
         and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
+    ):
+        return True
+    return any(
+        directory.name == "git"
+        and (
+            directory.parent.name == ".pi"
+            or (
+                directory.parent.name == "agent"
+                and directory.parent.parent.name == ".pi"
+            )
+        )
+        for directory in parents
     )
 
 
@@ -110,8 +128,8 @@ TOOLS_SUFFIX = "tools"
 # The harness process its Leaf module last ran in, or whose user Leaf told it
 # didn't (`leases.mark_module`).
 MODULE_SUFFIX = "module"
-# The plugin root its Leaf hooks last ran from (`leases.mark_root`).
-ROOT_SUFFIX = "root"
+# The Leaf its hooks last ran and the skill it ships (`leases.mark_skill`).
+SKILL_SUFFIX = "skill"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.
 STATUS_CHECKED_SUFFIX = "status-checked"

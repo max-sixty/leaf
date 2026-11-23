@@ -43,3 +43,22 @@ export function observeOutputValues() {
 }
 
 export const outputsReported = () => reporting === 0;
+
+/* What each plain element an input names holds as its `value`, read once the page has
+ * settled, under that input's contract: a form control declares no output and says no
+ * `change` for the value it arrives with, so nothing else brings it to the check. */
+export function controlValues() {
+  const held = [];
+  for (const reader of document.querySelectorAll("*"))
+    for (const { reference, contract } of Object.values(
+      declarationFor(reader)?.inputs ?? {},
+    )) {
+      const id = reference ? reader.getAttribute(reference) : null;
+      const control = id ? document.getElementById(id) : null;
+      if (!control || declarationFor(control)) continue;
+      const { value } = /** @type {Element & {value?: unknown}} */ (control);
+      if (value === null || value === undefined) continue;
+      held.push({ tag: control.localName, id, output: "value", contract, value });
+    }
+  return held;
+}

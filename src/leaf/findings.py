@@ -1288,8 +1288,7 @@ _TEXT = {
         _REFERS,
         lambda at, v: (
             f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a goal, but '
-            + (f"<{v['target_tag']}>" if v["target_tag"] else "the element it names")
-            + " has no role goal in $work.widgets"
+            f"<{v['target_tag']}> has no role goal in $work.widgets"
         ),
     ),
     "ambiguous-data-binding": _refuses(

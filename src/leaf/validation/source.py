@@ -113,11 +113,7 @@ def _page_errors(
     errors.extend(inert_allocation_advice(parser, registry))
     errors.extend(
         reference_errors(
-            parser.lf_elements,
-            registry,
-            parser.ids,
-            parser.by_id,
-            thread_ids=thread_ids,
+            parser.lf_elements, registry, parser.tags, thread_ids=thread_ids
         )
     )
     errors.extend(invoker_errors(parser, parser.ids))

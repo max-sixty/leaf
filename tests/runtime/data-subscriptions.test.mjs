@@ -486,6 +486,43 @@ test("a producer arriving or leaving under another name leaves a reader's readin
   await settleOutput();
 });
 
+test("a reader follows a plain form control under its bound id", async () => {
+  const readings = [];
+  const { consumerTag } = outputScene((element, value) => readings.push(value));
+  document.body.innerHTML = `<main><input id="pick" value="one"><${consumerTag} for="pick"></${consumerTag}></main>`;
+  const pick = document.querySelector("#pick");
+  await settleOutput();
+  assert.deepEqual(readings, ["one"], "the reader reads the value the control holds");
+  // The user commits another value: the control says `change` on itself.
+  pick.value = "two";
+  pick.dispatchEvent(new Event("change", { bubbles: true }));
+  await settleOutput();
+  assert.equal(readings.at(-1), "two");
+  // A write that says no `change`, as a revision's patch of a control it keeps makes,
+  // is read at the next delivery.
+  pick.value = "three";
+  await settleOutput();
+  assert.equal(readings.at(-1), "two");
+  await notifyDataSubscribers();
+  assert.equal(readings.at(-1), "three");
+  // So is a replacement under the same id, which no arrival watch names.
+  const replacement = document.createElement("textarea");
+  replacement.id = "pick";
+  replacement.value = "written";
+  pick.replaceWith(replacement);
+  await notifyDataSubscribers();
+  assert.equal(readings.at(-1), "written");
+  replacement.value = "written again";
+  replacement.dispatchEvent(new Event("change", { bubbles: true }));
+  await settleOutput();
+  assert.equal(readings.at(-1), "written again");
+  replacement.remove();
+  await notifyDataSubscribers();
+  assert.equal(readings.at(-1), null);
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
 test("source readiness includes asynchronous LeafElement output consumers", async () => {
   let release;
   let started;

@@ -375,7 +375,7 @@ def test_a_worker_is_assigned_only_to_a_goal(page_dir):
     )
 
     errors = reference_errors(
-        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
+        parser.lf_elements, registry, parser.tags, thread_ids=set()
     )
 
     assert errors == [

@@ -354,6 +354,48 @@ def test_page_output_declaration_keeps_its_owner_beside_the_package_implementati
     assert "page contract" in str(failures[0])
 
 
+def test_page_render_holds_a_bound_form_control_s_value_to_its_reader_s_contract(
+    tmp_path, browser, serve
+):
+    """A form control declares no output, so the render check reads the `value` each
+    one holds for the input naming it, and judges it by that input's contract."""
+    package = tmp_path / "reader-package"
+    tag = "lf-count-reader"
+    declaration = add_test_widget(package, tag, upgrade=True)
+    registry = json.loads((package / "registry.json").read_text())
+    registry["$data"] = {
+        "contracts": {
+            "tone": {"description": "A tone.", "schema": {"enum": ["warm", "cool"]}}
+        }
+    }
+    declaration["attributes"]["properties"]["for"] = {"type": "string"}
+    declaration["inputs"] = {
+        "tone": {"contract": "tone", "reference": "for", "property": "value"}
+    }
+    declaration["refers"] = {"for": {}}
+    registry[tag] = declaration
+    (package / "registry.json").write_text(json.dumps(registry))
+    url = serve(
+        leaf_page(
+            "Bound controls",
+            '<p id="fits-row"><select id="fits" aria-label="Fits">'
+            "<option>warm</option><option>loud</option></select></p>"
+            f'<{tag} id="reads-fits" for="fits">Reader.</{tag}>'
+            '<p id="loud-row"><select id="loud" aria-label="Loud">'
+            "<option>warm</option><option selected>loud</option></select></p>"
+            f'<{tag} id="reads-loud" for="loud">Reader.</{tag}>',
+        ),
+        packages=(package,),
+    )
+    findings, _, complete = _render_page(
+        browser.unwatched, url, RENDER_VIEWPORT, SERVED_TIMEOUT_MS, []
+    )
+    assert complete
+    failures = [f for f in findings if f.code == "invalid-output"]
+    assert [failure.at for failure in failures] == ["<select id=loud>"]
+    assert "'loud' is not one of ['warm', 'cool']" in str(failures[0])
+
+
 def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
     tmp_path, browser, serve
 ):

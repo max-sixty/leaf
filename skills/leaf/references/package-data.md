@@ -434,6 +434,16 @@ producer's tag or its output and works beside any producer of the contract. `pag
 check` refuses a `for` naming a widget with no output of the contract, or with more
 than one.
 
+A `for` may also name one of HTML's form controls, an `input`, `select` or `textarea`,
+which holds `value` and says `change` as a widget does for an output. The input reads
+that string under its own contract, whichever contract that is, since a control
+declares none. `page check --render` reports a control whose value doesn't fit the
+contract as the check reads it; nothing checks a value the user enters later. A text
+field says `change` when the user commits it, with Enter or by leaving the field, not
+at each keystroke, and a script that sets `value` dispatches `change` itself. A
+checkbox or radio holds the same `value` checked or not, so a choice the reader should
+follow is a `select`.
+
 Leaf reads the property when the consumer first draws, again each time the producer
 says `change`, and from the new element when a revision replaces the producer, so a
 consumer draws the current value whichever module loaded first. The consumer gets its

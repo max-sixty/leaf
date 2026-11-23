@@ -203,11 +203,17 @@ def close_render_page(page) -> None:
 
 
 def output_values(page) -> list[dict]:
-    """Wait for live realms' reports, then read all publications retained by the check."""
+    """Wait for live realms' reports, then read all publications retained by the check,
+    and with them what each form control an input names holds now."""
+    held = []
     for frame, document in page._leaf_output_documents.items():
         if not frame.is_detached() and frame.url == document:
             wait_for_probe(frame, "outputsReported")
-    return page._leaf_output_values
+            sample = {} if frame == page.main_frame else {"document": document}
+            held += [
+                {**value, **sample} for value in evaluate_probe(frame, "controlValues")
+            ]
+    return page._leaf_output_values + held
 
 
 def _ensure_driver(page) -> None:

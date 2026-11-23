@@ -556,12 +556,13 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     def errors(binding):
         document = SourceDocument(
             '<lf-producer id="feed"></lf-producer><p id="plain">Words</p>'
+            '<select id="pick"><option>One</option></select><input id="typed">'
+            '<textarea id="written"></textarea><button id="press">Press</button>'
             f'<lf-consumer id="consumer" {binding}></lf-consumer>'
         )
         records = document.lf_elements
-        by_id = {rec["attrs"]["id"]: rec for rec in records}
         return widget_errors(records, registry) + reference_errors(
-            records, registry, document.ids, by_id, thread_ids=set()
+            records, registry, document.tags, thread_ids=set()
         )
 
     assert errors('for="feed"') == []
@@ -585,3 +586,8 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]
+    # A form control holds its `value` for whichever contract reads it, and says
+    # `change`; a button holds a value and says none.
+    for control in ("pick", "typed", "written"):
+        assert errors(f'for="{control}"') == []
+    assert [finding.code for finding in errors('for="press"')] == ["output-contract"]

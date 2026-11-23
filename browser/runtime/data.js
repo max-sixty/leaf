@@ -16,7 +16,9 @@
    producer (`reference`) and reads the one output of its contract off the element
    standing under that id, again whenever that element says `change`, and resolves
    the id again whenever a producer arrives or leaves under it, so it follows a
-   replacement. A
+   replacement. A reader may name an HTML form control in a widget's place, and reads
+   its `value`; every reader also resolves and reads its element again at each delivery
+   (`heldOutput`). A
    reader that arrives late, or before its producer's module has loaded, reads what the
    element holds then. Outputs stay outside the application state: no reading of the log
    depends on one, so a change runs no fold and no selection, and only the readers of
@@ -34,7 +36,7 @@ import { runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { declarationFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError } from "./layer-client.js";
@@ -196,6 +198,13 @@ function deliveredSource(source, declaration, input, accepted) {
 // reads as unchanged at no cost, so a large value held beside one that changes often
 // costs its readers nothing as the other moves. A new value is copied as it is read, so
 // the reading is the reader's own, and an equal one keeps the reading it replaced.
+//
+// An element with no declaration is one of HTML's form controls, which `page check`
+// admits under any contract: what it holds is its `value`, and it says `change` as a
+// widget does. A revision moves that value with no `change`, by rewriting the default
+// of a control it keeps or taking away the option a select showed, and replaces a
+// control whose tag no watch names, so each delivery resolves the id and reads the
+// element again.
 /** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
 function heldOutput(element, attribute, widget, contract) {
   watchProducers();
@@ -207,14 +216,17 @@ function heldOutput(element, attribute, widget, contract) {
   let read;
   return computed(() => {
     moved.value;
+    deliveries.value;
     const producer = untracked(() => referencedProjection(element, attribute, widget));
     if (!producer) return (held = null);
     changeOf(producer).value;
     return untracked(() => {
-      const outputs = registry[producer.localName]?.outputs ?? {};
-      const name = Object.keys(outputs).find(
-        (key) => outputs[key].contract === contract,
-      );
+      const declared = declarationFor(producer);
+      const name = declared
+        ? Object.entries(declared.outputs ?? {}).find(
+            ([, output]) => output.contract === contract,
+          )?.[0]
+        : "value";
       const value = name
         ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (producer))[
             name

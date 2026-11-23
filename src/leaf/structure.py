@@ -369,6 +369,8 @@ class SourceDocument:
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
         self.all_ids = []
+        # id → the tag of the element holding it, an lf-* element or a plain one.
+        self.tags = {}
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
         self.samples = []
@@ -441,6 +443,7 @@ class SourceDocument:
             identity = attrs.get("id")
             if identity:
                 self.all_ids.append(identity)
+                self.tags[identity] = tag
                 self.holders[identity] = holder
             if tag.startswith("lf-"):
                 parent = element.parent

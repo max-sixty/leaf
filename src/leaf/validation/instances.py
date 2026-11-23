@@ -40,6 +40,12 @@ _NATIVE_COMMANDS = frozenset(
     }
 )
 
+# HTML's controls that hold a string `value` and say `change` on themselves, as a
+# widget does for an output. The browser keeps no such list: it reads `value` off
+# whichever undeclared element an input names (`runtime/data.js`, `heldOutput`), so
+# this check is what holds that element to one of these.
+VALUE_CONTROLS = frozenset({"input", "select", "textarea"})
+
 _GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
 
@@ -259,16 +265,22 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 
 def reference_errors(
-    lf_elements: list, registry: dict, ids: set, by_id: dict, *, thread_ids: set[str]
+    lf_elements: list, registry: dict, tags: dict, *, thread_ids: set[str]
 ) -> list[Finding]:
     """Validate declared references against the supplied element and thread namespaces.
 
-    A message widget may point into the page beside it, so its caller supplies the
-    page's ids alongside the fragment's own.
+    `tags` maps each id a reference may name to its element's tag
+    (`SourceDocument.tags`). A message widget may point into the page beside it, so
+    its caller supplies the page's ids alongside the fragment's own.
 
     A worker's assignment, the attribute its `$work.widgets` entry names in `on`,
     names an element whose tag has the role goal there, since the work reading
     (`runtime/work.js`) assigns the worker to nothing else.
+
+    An input's `reference` names a widget declaring one output of the input's
+    contract, or one of HTML's `VALUE_CONTROLS`, whose `value` the input reads
+    whatever its contract: nothing declares that value's type, so the render check
+    holds what the control holds to the contract (`render-checks/outputs.js`).
 
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
@@ -294,21 +306,21 @@ def reference_errors(
             if not target:
                 continue
             reference_to = {"attr": attr, "target": target}
-            if target not in ids:
+            if target not in tags:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
             elif (
                 attr == work.get(rec["tag"], {}).get("on")
-                and work.get(tag := by_id.get(target, {}).get("tag"), {}).get("role")
-                != "goal"
+                and work.get(tag := tags[target], {}).get("role") != "goal"
             ):
                 errors.append(
                     found_at("work-assignment", rec, **reference_to, target_tag=tag)
                 )
         for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
-            if not target or target not in ids:
-                continue  # The ordinary relation check names a missing target.
-            producer = registry.get(by_id.get(target, {}).get("tag"), {})
+            # The ordinary relation check names a missing target.
+            if not target or tags.get(target) in {None, *VALUE_CONTROLS}:
+                continue
+            producer = registry.get(tags[target], {})
             matching = [
                 name
                 for name, output in producer.get("outputs", {}).items()

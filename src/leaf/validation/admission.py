@@ -347,8 +347,7 @@ def _message_stages(
     yield reference_errors(
         frag.lf_elements,
         registry,
-        ids,
-        {**page.by_id, **frag.by_id},
+        {**page.tags, **frag.tags},
         thread_ids=thread_ids(events),
     ) + invoker_errors(frag, ids)
     # A child selecting the thread this message joins would hold this sample again,

@@ -19,7 +19,6 @@
         "contract": "file-list",
         "source": "source",
         "reference": "for",
-        "output": "files",
         "property": "value"
       }
     },

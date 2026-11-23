@@ -233,38 +233,6 @@ def visual_parts(record: dict, registry: dict) -> VisualParts:
     return VisualParts(all=visual["parts"] in record.get("attrs", {}))
 
 
-def registry_path(registry: dict, path: str):
-    """Resolve a dotted package declaration such as `$work.widgets`."""
-    value = registry
-    for part in path.split("."):
-        if not isinstance(value, dict) or part not in value:
-            return None
-        value = value[part]
-    return value
-
-
-def reference_relation_problem(
-    reference: dict, registry: dict, declarations: dict
-) -> tuple[str, dict] | None:
-    """Why one `{via, where}` target relation cannot name a declared widget, as a
-    finding's code and values."""
-    via = reference.get("via")
-    if via is None:
-        return None
-    relation = registry_path(registry, via)
-    if not isinstance(relation, dict):
-        return "refers-unknown-map", {"via": via}
-    predicate = reference["where"]
-    if any(
-        target in declarations
-        and isinstance(declaration, dict)
-        and all(declaration.get(key) == value for key, value in predicate.items())
-        for target, declaration in relation.items()
-    ):
-        return None
-    return "refers-unmatched", {"via": via, "where": predicate}
-
-
 class RegistryError(Rejected):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an

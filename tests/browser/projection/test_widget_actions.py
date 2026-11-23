@@ -43,7 +43,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
@@ -729,6 +729,8 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    # Beside its passage again, where the comment's box becomes its card on Send.
+    choose_threads_in_panel(page, on=False)
 
     page.evaluate("""() => {
         const range = document.createRange();

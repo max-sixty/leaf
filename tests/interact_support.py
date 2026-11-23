@@ -1676,13 +1676,16 @@ HELD_LEASES = []
 
 
 def fixture_service(directory, port: int, lifetime: str = "persistent") -> dict:
-    """Record the desired service of a `server run` on `port`, as it records its own."""
+    """Record the desired service of a `server run` on `port`, as it records its own,
+    naming this Leaf as the one serving it."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "runtime": {"path": str(cleanup_model.PLUGIN_ROOT)}
+        | layer_model.running_leaf(),
         "server_id": "fixture-server",
     }
     write_record(directory / "service.json", service)

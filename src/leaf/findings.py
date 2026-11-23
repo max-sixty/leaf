@@ -2332,10 +2332,11 @@ _TEXT = {
         " stays stopped."
     ),
     # `page check`'s advice on a page whose live server runs another Leaf
-    # (`server.another_leaf_serving`).
+    # (`server.other_serving_leaf`), named by the path and commit it records.
     "another-leaf-serving": lambda at, v: (
-        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
-        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f"{v['page']}'s server runs the Leaf at {v['path']}"
+        + (f" ({v['commit']})" if v["commit"] else "")
+        + ", not this one, so the user's tab may not draw what this Leaf checked;"
         f" restart it with `leaf server stop {v['page']}` then"
         f" `leaf server start {v['page']}`"
     ),
@@ -2361,8 +2362,8 @@ _TEXT = {
         f"{v['page']}: server was down and did not start again: {v['error']}"
     ),
     "restart-refused": lambda at, v: (
-        f"{v['page']}: this Leaf stopped the server another installed copy of Leaf"
-        f" ran, to restart it, and {v['error']}"
+        f"{v['page']}: this Leaf stopped the server another installed Leaf ran, to"
+        f" restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

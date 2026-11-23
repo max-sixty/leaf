@@ -637,3 +637,49 @@ def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serv
     )
     page.locator("#matches").click()
     page.locator("#body").click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_returns_one_of_two_like_passages_selected_in_a_message(
+    request, serve, engine
+):
+    """Words a message says twice, among neighbours alike for a stretch on both sides,
+    come back as the copy the user selected when Back reopens the card: the words told
+    apart by as much of their neighbours as it takes."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
+    )
+    panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Alpha writes: the same long phrase stands here before needle and after it."
+        " Beta writes: the same long phrase stands here before needle and after it.",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("t")
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    expect(card).to_be_focused()
+    card.get_by_text("Alpha writes").evaluate(
+        """node => {
+          const text = [...node.childNodes].find((n) => n.nodeType === 3 && n.data.includes('needle'));
+          const at = text.data.lastIndexOf('needle');
+          getSelection().setBaseAndExtent(text, at, text, at + 'needle'.length);
+        }"""
+    )
+    page.keyboard.press("t")
+    expect(card).not_to_be_attached()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(card).to_be_attached()
+    page.wait_for_function("() => getSelection().toString() === 'needle'")
+    assert "Beta writes" in page.evaluate("""() => {
+      const range = getSelection().getRangeAt(0);
+      const before = document.createRange();
+      before.setStart(range.startContainer.parentElement.closest('.lf-msg-body'), 0);
+      before.setEnd(range.startContainer, range.startOffset);
+      return before.toString();
+    }""")

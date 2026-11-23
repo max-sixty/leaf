@@ -193,8 +193,8 @@ import { aborted } from "./abort.js";
  * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
  * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus
  * @typedef {{anchor: import("./anchor-resolution.js").CapturedAnchor, ends: [number, number]}
- * | {thread: string | null, message: string, quote: string, prefix: string,
- * suffix: string, ends: [number, number]}} RecordSelection
+ * | {thread: string | null, message: string, quote: string, prefix?: string,
+ * suffix?: string, ends: [number, number]}} RecordSelection
  * @typedef {{view: string, row: string | null}} RecordList
  * @typedef {{page: import("./reading-place.js").ReadingPlace | null,
  * focus: RecordFocus | null, selection: RecordSelection | null,
@@ -508,13 +508,13 @@ function endsFrom(reading, segments, ends) {
 // the message is gone or shut, or a rewrite took the words out or leaves no one copy.
 /** @param {Extract<RecordSelection, {message: string}>} selection @param {string | null} thread
  * @returns {[import("./native-selection.js").SelectionEnd, import("./native-selection.js").SelectionEnd] | null} */
-function messageEnds({ message, quote, prefix, suffix, ends }, thread) {
+function messageEnds({ message, quote, ends, ...context }, thread) {
   const drawing = thread ? threadParts?.focusTarget(thread, "thread") : null;
   const turn = drawing?.querySelector(`[data-lf-message="${CSS.escape(message)}"]`);
   const body = turn?.querySelector(MESSAGE_BODY);
   if (!body || !drawn(body)) return null;
   const reading = messageReading(body);
-  const segments = findQuote(reading, quote, { prefix, suffix });
+  const segments = findQuote(reading, quote, context);
   return segments[0] ? endsFrom(reading, segments, ends) : null;
 }
 
@@ -666,9 +666,11 @@ let draftReturn = null;
 // settles, a departure, the hidden page's checkpoint or a revision's handoff writes the
 // record it owes, rather than a reading of the page it is still putting back, unless
 // the user has given any input since (`owes`, `readRecord`, version.js `reloadInto`);
-// so does the handoff a revision's reload brings (`extras`).
+// so does the handoff a revision's reload brings (`extras`). It settles once every
+// piece of work it runs has (`run`), its fresh thread arrival and last fragment landing
+// among them (leaf.js), so a navigation finds it to abort until the last has run.
 /** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
- * abort: () => void, run: (work: () => Promise<void>) => Promise<void>,
+ * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
  * owes: () => boolean, extras: unknown}} Restoration */
 /** @type {Restoration | null} */
 let restoring = null;
@@ -688,10 +690,19 @@ function beginRestoration(record, intent, ended = null, since = inputCount()) {
       controller.abort();
       settle();
     },
-    run: (work) => work().finally(settle),
+    run: async (work) => {
+      held += 1;
+      try {
+        await work();
+      } finally {
+        held -= 1;
+        if (!held) settle();
+      }
+    },
     owes: () => restoring === restoration && Boolean(record) && inputCount() === since,
     extras: null,
   };
+  let held = 0;
   const settle = () => {
     if (restoring === restoration) restoring = null;
   };
@@ -754,7 +765,7 @@ async function claimAndReturn(url, record, intent) {
 }
 let mounted = false;
 /** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
- * returnToFragment: (url: URL) => TraversalHandler | null | undefined,
+ * returnToFragment: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null | undefined,
  * thread: {claim: ThreadClaim, open: () => OpenThread | null,
  * focusTarget: (id: string, part: "thread" | "reply") => Element | null,
  * name: (url: URL) => URL}, list: () => RecordList | null,
@@ -832,7 +843,7 @@ export function mountHistory({
         if (!mayReturn()) return;
         work = undefined;
         mayReturn.handoff(() => {
-          work = returnToFragment(url)?.();
+          work = returnToFragment(url, mayReturn)?.();
         });
         if (work !== undefined) placed = (await work) !== false || placed;
         if (!mayReturn()) return;

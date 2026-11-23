@@ -1272,7 +1272,7 @@ export const readingFrom = (segments) => readSegments(segments, true);
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 /** @param {string} text @param {number} from @param {number} to */
-export const cut = (text, from, to) => [...text].slice(from, to).join("");
+const cut = (text, from, to) => [...text].slice(from, to).join("");
 
 // Copyable words use the same segments as prose, with the walk's computed line
 // boundaries and whitespace. They need no DOM-coordinate map; quote readings above
@@ -2356,22 +2356,58 @@ export function messageReading(body) {
     segments.map(() => null),
   );
 }
+// The words on each side of the passage `segments` that tell it apart in `reading`:
+// the context a short unique quote keeps, widened until `find`, given it, finds this
+// very passage, or until the reading's edges are reached, where the passage is
+// `detached`. The quote discards boundary whitespace, so the passage found is this one
+// where its first character is the passage's first (`units`, `readingFrom`) and its
+// last the passage's last, whatever cosmetic spaces the selection held. Anchor capture
+// asks it of the page's reading (anchor-resolution.js, `anchorForPassage`), and a
+// selection in a message of the message's (`passageIn`).
+/** @param {PageReading} reading @param {readonly Segment[]} segments
+ * @param {readonly TextUnit[]} units
+ * @param {(context: {prefix?: string, suffix?: string}) => readonly Segment[]} find
+ * @returns {{prefix?: string, suffix?: string, detached?: true}} */
+export function passageContext(reading, segments, units, find) {
+  const [start, stop] = spanIn(reading, segments);
+  const from = units[0]?.start;
+  const to = units.at(-1)?.end;
+  for (let width = CONTEXT; ; width *= 2) {
+    const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
+    const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
+    const context = { ...(prefix && { prefix }), ...(suffix && { suffix }) };
+    const found = find(context);
+    const first = found[0];
+    const last = found.at(-1);
+    if (
+      first &&
+      last &&
+      from &&
+      to &&
+      first.node === from.node &&
+      first.start === from.offset &&
+      last.node === to.node &&
+      last.end === to.offset
+    )
+      return context;
+    if ([...prefix].length < width && [...suffix].length < width)
+      return { ...context, detached: true };
+  }
+}
 // The words from `from` to `to` in `reading` as a passage no anchor names, as words
-// selected in a message: their quote, with the words on each side of it, and where the
-// quote starts there (`at`); null where those don't tell that copy from every other in
-// the reading, so the passage is found again by the quote rules alone (`findQuote`),
-// never by an offset among copies.
+// selected in a message: their quote, with the context that tells them apart there
+// (`passageContext`), and where the quote starts (`at`); null where none does, so the
+// passage is found again by the quote rules alone (`findQuote`), never by an offset
+// among copies.
 /** @param {PageReading} reading @param {number} from @param {number} to */
 export function passageIn(reading, from, to) {
   const segments = spanOf(reading, from, to);
-  const quote = quoteFrom(segments);
+  const { text: quote, units } = readingFrom(segments);
   if (!quote) return null;
-  const [start, stop] = spanIn(reading, segments);
-  const prefix = cut(neighbourhood(reading, start, CONTEXT, true), -CONTEXT, Infinity);
-  const suffix = cut(neighbourhood(reading, stop, CONTEXT, false), 0, CONTEXT);
-  const found = findQuote(reading, quote, { prefix, suffix });
-  const [at, end] = found[0] ? spanIn(reading, found) : [-1, -1];
-  return at >= from && end <= to ? { quote, prefix, suffix, at } : null;
+  /** @param {{prefix?: string, suffix?: string}} context */
+  const find = (context) => findQuote(reading, quote, context);
+  const { detached, ...context } = passageContext(reading, segments, units, find);
+  return detached ? null : { quote, ...context, at: spanIn(reading, find(context))[0] };
 }
 // The roots of the page's parts, in reading order.
 export function readingParts() {

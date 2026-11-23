@@ -2854,3 +2854,82 @@ def test_history_returns_a_selection_across_lines_of_a_diff(request, serve, engi
     page.wait_for_function("navigation.transition === null")
     page.go_back()
     page.wait_for_function(f"() => ({selected})() === {words!r}")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("how", ["push", "replace"])
+def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
+    request, serve, engine, how
+):
+    """A visit to a fragment whose page leaves that address while deferred work still
+    arrives doesn't land on the fragment once the work comes in."""
+    url = serve(
+        leaf_page(
+            "Late landing",
+            '<h1 id="top">Late landing</h1><div style="height:2600px"></div>'
+            '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
+        ).replace(
+            "</head>",
+            "<script type=\"module\">import {deferredArrival} from '/runtime/widget-api.js';"
+            "deferredArrival(new Promise((done) => (window.__arrived = done)));</script></head>",
+        )
+    )
+    page = request.getfixturevalue(engine).new_page()
+    page.goto(f"{url}#target")
+    wait_until_ready(page, through="presented")
+    page.evaluate(
+        f"() => {{ history.{how}State(null, '', location.pathname + location.search);"
+        " scrollTo({top: 0, behavior: 'instant'}); window.__arrived(); }"
+    )
+    wait_until_ready(page)
+    scroll_settled(page)
+    assert page.evaluate("scrollY") < 50
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_traversal_left_before_its_part_is_drawn_doesnt_travel_to_it(
+    request, serve, engine
+):
+    """Back to a widget's part the widget has to draw first, then a move to another
+    address before it has drawn it: the part, once drawn, takes the user nowhere."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items",
+                """
+<h1 id="top">Items</h1>
+<p><a id="to-part" href="#items:a/2">Part 2 of item a</a></p>
+<lf-item-link id="jump" for="items" key="b/1"></lf-item-link>
+<lf-items id="items"></lf-items>
+<div style="height:1600px"></div>
+""",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets={
+                **ITEMS_WIDGETS,
+                "lf-items.js": ITEMS_WIDGETS["lf-items.js"].replace(
+                    "new Promise((resolve) => setTimeout(resolve, 50))",
+                    "new Promise((resolve) => window.__holdReveal"
+                    " ? (window.__reveals ??= []).push(resolve) : setTimeout(resolve, 50))",
+                ),
+            },
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator("#to-part").click()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#jump button").click()
+    page.wait_for_url(re.compile(r"#items:b/1$"))
+    expect(page.locator('#items [data-item="b"][data-part="1"]')).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("window.__holdReveal = true")
+    page.go_back()
+    page.wait_for_function("() => window.__reveals?.length === 1")
+    page.evaluate(
+        "() => { history.pushState(null, '', location.pathname + location.search);"
+        " scrollTo({top: 0, behavior: 'instant'}); window.__reveals[0](); }"
+    )
+    expect(page.locator('#items [data-item="a"][data-part="2"]')).to_be_attached()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") < 50

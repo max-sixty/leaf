@@ -894,7 +894,10 @@ async function boot() {
   const threadArrive = restoration?.record
     ? null
     : threadAddress.arrive(arrivalUrl, arrivalIntent, { restored });
-  if (threadArrive) void afterPresentation(threadArrive);
+  // The arrival holds its work until it has run (history.js, `run`).
+  /** @param {() => PromiseLike<unknown>} work */
+  const arriving = (work) => (restoration ? restoration.run(work) : work());
+  if (threadArrive) void arriving(() => afterPresentation(threadArrive));
 
   async function presentPage() {
     // Saved state gates state-dependent interaction, not the commenting interface.
@@ -915,7 +918,7 @@ async function boot() {
             .catch(() => {});
         }, 0),
       );
-    void whenArrived().then(landFragment);
+    void arriving(() => whenArrived().then(landFragment));
     if (offlineInteractive) {
       landFragment();
       document.dispatchEvent(new Event(PRESENTATION));

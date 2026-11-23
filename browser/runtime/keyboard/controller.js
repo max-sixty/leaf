@@ -203,7 +203,16 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      if (!quickShortcuts()) keys.length = 0;
+      // Until a reload's place is handed back, the run waits wherever focus is, even
+      // in a box the page opened before the hand-back put the user back in theirs.
+      if (!placeHandedBack()) {
+        pause();
+        pressingHeld = false;
+        return;
+      }
+      // With single-key commands off, a held key only ever types into a box, as the
+      // words a user typed through a reload do into the box it hands back.
+      if (!quickShortcuts() && !typesText(focused())) keys.length = 0;
       const [key] = keys;
       if (!key) {
         release();

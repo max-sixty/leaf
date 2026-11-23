@@ -118,6 +118,7 @@ import {
   onUserInput,
   focused,
   inputCount,
+  typesText,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
@@ -1735,9 +1736,6 @@ export function createVersionController({
   let authoredRoot = layerRoot(document);
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
-  // The bootstrap reads the same key, before any module loads, to know a hand-back is
-  // coming (bootstrap.js, `handedBack`).
-  const HANDOFF_KEY = "lf-revision-handoff";
 
   // g V names the versions, and what each one changed: the chrome's Versions, which the
   // press opens or puts away, as its menu row does.
@@ -2357,19 +2355,20 @@ export function createVersionController({
     const view = captureView();
     const editingContinuity = captureEditingContinuity();
     tabStore.set(VIEW_KEY, JSON.stringify(view));
-    tabStore.set(
-      HANDOFF_KEY,
-      JSON.stringify({
-        revision,
-        url,
-        view,
-        retainedCurrentLocation: captureRetainedCurrentLocation(),
-        ...editingContinuity,
-        carry: captureCarry(live, source).records,
-        comparison: selectedBase(),
-        pointer: pointerAt(),
-      }),
-    );
+    window.lfStorage.handOff({
+      revision,
+      url,
+      view,
+      retainedCurrentLocation: captureRetainedCurrentLocation(),
+      ...editingContinuity,
+      carry: captureCarry(live, source).records,
+      comparison: selectedBase(),
+      pointer: pointerAt(),
+      // Whether the user was writing in a box, which comes back: the arriving
+      // document's key hold then takes even a Space as text for it (bootstrap.js,
+      // `typingBack`).
+      typing: typesText(focused()),
+    });
   }
   // Where a revision's reload lands, at the address the user sees once the arriving
   // document takes its mark off; a reload into another runtime lands this one's.
@@ -3132,22 +3131,16 @@ export function createVersionController({
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
+    // The handoff prepaint took from the tab, which only a reload is handed.
     const handoff = (() => {
-      const serialized = tabStore.get(HANDOFF_KEY);
-      tabStore.set(HANDOFF_KEY, null);
-      try {
-        const value = JSON.parse(serialized || "null");
-        return currentRevision !== null &&
-          navigationType === "reload" &&
-          value?.url === location.href &&
-          Number.isInteger(value.revision) &&
-          value.revision <= currentRevision &&
-          Number.isInteger(value.view?.revision)
-          ? value
-          : null;
-      } catch {
-        return null;
-      }
+      const value = /** @type {any} */ (window.lfStorage.handoff);
+      return currentRevision !== null &&
+        value?.url === location.href &&
+        Number.isInteger(value.revision) &&
+        value.revision <= currentRevision &&
+        Number.isInteger(value.view?.revision)
+        ? value
+        : null;
     })();
     // Printed keys typed while the handoff is restored wait for it (`landArrival`).
     if (handoff) handingBackPlace(true);

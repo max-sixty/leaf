@@ -773,26 +773,30 @@ def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
     assert focused.get_attribute("data-lf-key") == key
 
 
-# The first keys the reloaded page hears, after the words the reply already holds: a
-# capital with its Shift, or a Space, which on another page still loading scrolls it.
+# The box the user writes in (a card's reply, or a comment on a passage, which the page
+# reopens on its own as it starts), the words it already holds, the first keys the
+# reloaded page hears (a capital with its Shift, or a Space, which on another page still
+# loading scrolls it), and whether single-key commands are on.
 @pytest.mark.parametrize(
-    ("held", "first", "reads"),
+    ("box", "held", "first", "reads", "quick"),
     [
-        ("Hold ", ["Shift+T", "he resend"], "Hold The resend"),
-        ("Hold", [" the resend"], "Hold the resend"),
+        ("card", "Hold ", ["Shift+T", "he resend"], "Hold The resend", True),
+        ("card", "Hold", [" the resend"], "Hold the resend", True),
+        ("comment", "Hold", [" the resend"], "Hold the resend", True),
+        ("card", "Hold", [" the resend"], "Hold the resend", False),
     ],
-    ids=["capital", "space"],
+    ids=["capital", "space", "comment", "single-keys-off"],
 )
 def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
-    browser, serve, held, first, reads
+    browser, serve, box, held, first, reads, quick
 ):
-    """A user typing on as the tab reloads means the keys for the reply they were
-    writing. Those the new document hears before it has handed the reply back wait for
+    """A user typing on as the tab reloads means the keys for the box they were
+    writing in. Those the new document hears before it has handed the box back wait for
     it and go there, a capital's Shift and a Space included, and the keys after go on
-    into the reply, rather than running the page's single-key commands, one of which
-    resolves the thread (keyboard/bindings.js, `placeHandedBack`; bootstrap.js,
-    `handedBack`). The new document's first state answer is held while the keys are
-    typed, so they reach it before the hand-back however fast the machine is."""
+    into it, rather than running the page's single-key commands, one of which resolves
+    the thread (keyboard/bindings.js, `placeHandedBack`; bootstrap.js, `typingBack`).
+    The new document's first state answer is held while the keys are typed, so they
+    reach it before the hand-back however fast the machine is."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -811,10 +815,17 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
         },
     )
     page = open_page(browser, live_url(url))
-    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
-    reply = page.locator(
-        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] .lf-thread-reply leaf-text'
-    )
+    if not quick:
+        page.evaluate("() => window.lfKeyboard.setQuick(false)")
+    if box == "card":
+        page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+        reply = page.locator(
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
+            ".lf-thread-reply leaf-text"
+        )
+    else:
+        page.locator("#result").click(modifiers=["Alt"])
+        reply = page.locator(".lf-fab-input")
     write(reply, held)
     original_document = page.evaluate("performance.timeOrigin")
     replaced = {"document": False}

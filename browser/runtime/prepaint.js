@@ -325,10 +325,30 @@
       for (const node of record.addedNodes) if (node instanceof Element) visit(node);
   });
   earlyContent.observe(document, { childList: true, subtree: true });
+  // The place a reload Leaf asked for hands the document it loads (version.js,
+  // `handOff`), taken from the tab once as this document starts, so the bootstrap's key
+  // hold and the version controller read the one value. Only a reload is handed one.
+  const HANDOFF_KEY = "lf-revision-handoff";
+  const handoff = (() => {
+    const serialized = tabStore.get(HANDOFF_KEY);
+    tabStore.set(HANDOFF_KEY, null);
+    const navigation = /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    );
+    if (navigation?.type !== "reload") return null;
+    try {
+      return JSON.parse(serialized || "null");
+    } catch {
+      return null;
+    }
+  })();
   window.lfStorage = {
     stored,
     tabStore,
     userStore,
+    handoff,
+    /** @param {unknown} value */
+    handOff: (value) => tabStore.set(HANDOFF_KEY, JSON.stringify(value)),
     keepDisclosure,
     finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.

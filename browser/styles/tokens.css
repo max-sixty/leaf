@@ -68,12 +68,12 @@
      over the page, and Leaf's landings stop above it (`--lf-foot-band`, base.css). A page
      that is not live draws no chrome (below).
 
-     The row is its one line (`--lf-line`) and the padding around it. The leaf, each
-     mark and press beside the field, and the field's first line of words are each a line
-     tall, and the row stands them all on its foot, so every one of them is centred on
-     the line the words are written on (floating-panel.css, `.lf-fp-row`). */
-  --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
+     The row is its one line (`--lf-line`) and the panel's padding around it
+     (`--lf-thread-pad`). The leaf, each mark and press beside the field, and the field's
+     first line of words are each a line tall, and the row stands them all on its foot,
+     so every one of them is centred on the line the words are written on
+     (floating-panel.css, `.lf-fp-row`). */
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-thread-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc(
@@ -300,11 +300,17 @@
      (comment-placement.js). */
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
-  /* The room inside a thread card's border, wherever the card stands: over the page
-     in the margin, or in a widget's flow (surfaces.css). With the border it comes to
-     the floating panel's padding and the hairline round it (`--lf-thread-text-inset`,
-     surfaces.css). */
-  --lf-comment-inset: 6px;
+  /* The padding of every frame a thread stands in, inside its one-pixel edge: a card
+     over the page or in a widget's flow (annotation-chrome.css, surfaces.css), a
+     comment box, which wears the frame of the card it becomes, and the floating panel
+     with its row (floating-panel.css). A box written in at a frame's edge adds it to its
+     line on either side, so every such box is as tall as the panel's row, under a
+     mouse or a finger (below). `--lf-thread-frame` is the
+     edge and the padding together, where a quote's rule, a rewrite's frame and a
+     summary's region stand; a thread's words stand `--lf-thread-text-inset` further in
+     (surfaces.css). */
+  --lf-thread-pad: 6px;
+  --lf-thread-frame: calc(var(--lf-thread-pad) + 1px);
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus
@@ -986,7 +992,7 @@ html:not([data-lf-live]) {
     --lf-aim-floor: 44px;
     --lf-entry-floor: 16px;
     --lf-line: 34px;
-    --lf-fp-row-pad: 7px;
+    --lf-thread-pad: 7px;
     --lf-rail-hang: calc(var(--lf-col-pad) + 10px);
   }
 }

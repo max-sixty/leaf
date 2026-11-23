@@ -967,7 +967,7 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     message = card.locator(".lf-msg-body").first.bounding_box()
     reply = card.locator(".lf-compose-field").bounding_box()
     padding = card.evaluate(
-        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-comment-inset'))"
+        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-thread-pad'))"
     )
     assert message["x"] + message["width"] + padding == pytest.approx(
         reply["x"] + reply["width"], abs=1

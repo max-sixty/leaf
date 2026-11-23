@@ -813,9 +813,9 @@ def open_card(page: Page, marker: Locator) -> float:
     return before
 
 
-def summary_card(page: Page) -> None:
-    """A margin card a summary of the thread's opening messages opens, under its
-    actions, and the agent's latest reply after it."""
+def summarize_plan_stop() -> None:
+    """The plan's stop thread with a summary of its opening messages, and the agent's
+    latest reply after it."""
     root = "9303f850cbdc9b9f79f1725011251d36"
     as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
     # A summary speaks in its agent's voice, which a session gives it.
@@ -834,10 +834,31 @@ def summary_card(page: Page) -> None:
         LEAF_SESSION_ID="stills-summary",
         LEAF_AGENT="Codex",
     )
+
+
+def summary_card(page: Page) -> None:
+    """A margin card a summary of the thread's opening messages opens, under its
+    actions, and the agent's latest reply after it."""
+    summarize_plan_stop()
     wait_until_ready(
         page, PageClient(served_page.get().address).state(), through="state"
     )
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
+def summary_panel(page: Page) -> None:
+    """The same thread opened from Threads in the floating panel, its summary over the
+    agent's latest reply."""
+    summarize_plan_stop()
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    go_to_threads(page)
+    page.locator(".lf-fp-thread", has_text="background children").click()
+    expect(
+        page.locator(f"{panel_view('thread')} .lf-summary-checkpoint")
+    ).to_be_visible()
     page.mouse.move(0, 0)
 
 
@@ -2008,6 +2029,13 @@ def composer_long(page: Page) -> None:
     composer(page)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_error(page: Page) -> None:
+    """A comment being typed on a selected passage, with an error about its box standing
+    over its words."""
+    composer_long(page)
+    error_about(page, ".lf-fab-bar")
 
 
 def composer_scrolling(page: Page) -> None:
@@ -3734,6 +3762,12 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State(
+        "summary-panel",
+        "review-a-plan",
+        summary_panel,
+        region=".lf-fp-opened",
+    ),
+    State(
         "rewritten-quote-card",
         "review-a-plan",
         rewritten_quote_card,
@@ -3934,6 +3968,12 @@ STATES = (
         "triage-composer-resting",
         "triage-board",
         composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-error",
+        "triage-board",
+        composer_error,
         region=".lf-fab-bar",
     ),
     State(

@@ -184,7 +184,7 @@ the drawing needs them.
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls").
+(`module-controls.md`).
 [`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
 The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
 names, each with its symbol and the words its press says. For a symbol whose action

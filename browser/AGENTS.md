@@ -300,7 +300,7 @@ concrete and playable").
   diagram shows its name as a tooltip (check: the `lf-diagram` case in
   `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
-  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
+  (`lfPreview`, `../skills/leaf/references/module-previews.md`), a control's
   word and keys come from its name and the register, a link an author wrote into the
   page shows the place it names (`runtime/place-preview.js`), and a range's owner says
   where the pointer or a holding finger rests on it, as a thread's passage marks do

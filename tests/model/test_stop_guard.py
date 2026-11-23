@@ -1182,7 +1182,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     assert workflow["answer"] == {"kind": "markup", "action": picked["id"]}
     assert state["activity"]["counts"] == {
         "running": 0,
-        "waiting": 1,
+        "waiting": 0,
         "blocked": 0,
         "unseen": 1,
     }

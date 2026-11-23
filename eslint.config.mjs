@@ -522,7 +522,10 @@ const placementsRule = {
       CallExpression(node) {
         const { callee, arguments: args } = node;
         if (callee.type === "MemberExpression" && !callee.computed) {
+          // The package-interface trial: a file the option exempts writes the
+          // browser's own reveal too, as the target interface lets a package.
           if (
+            !owner &&
             ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(
               callee.property.name,
             ) &&
@@ -1704,6 +1707,10 @@ export default [
           // A held release stands in for the browser's own press, so it focuses the
           // target as that press does, ringless; focus.js reads it as the press's.
           "browser/runtime/preview.js",
+          // The package-interface trial: the target interface holds this rule to the
+          // runtime, and this module writes the browser's own focus() and
+          // scrollIntoView.
+          "packages/default/widgets/lf-tabs.js",
         ],
       ],
       "architecture/open-layers": [
@@ -1748,6 +1755,9 @@ export default [
           // root it renders in, which focus.js, reading through open roots, cannot see.
           "browser/runtime/editor-view.js",
           "browser/runtime/composing/text-field.js",
+          // The package-interface trial: this module reads its own tree's
+          // activeElement.
+          "packages/default/widgets/lf-tabs.js",
         ],
       ],
       "architecture/moves": [
@@ -1892,6 +1902,22 @@ export default [
     // off the address the document arrived at.
     files: ["browser/runtime/history.js", "browser/runtime/bootstrap.js"],
     rules: {
+      "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
+    },
+  },
+  {
+    // The package-interface trial: the target interface holds the scheduling and
+    // history rules to the runtime, and this module writes the browser's own
+    // ResizeObserver, pushState and replaceState.
+    files: ["packages/default/widgets/lf-tabs.js"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...RENDERING_NAMES.filter((name) => name !== "ResizeObserver").map((name) => ({
+          name,
+          message: RENDERING_MESSAGE,
+        })),
+      ],
       "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
     },
   },

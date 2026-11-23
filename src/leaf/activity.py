@@ -23,6 +23,7 @@ agent-facing state, takes this one answer.
 """
 
 import json
+from collections import Counter
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -743,9 +744,9 @@ def canonical_activity(
     waiting turns a progress message of the agent's came after
     (`served_state.work.lined`).
 
-    `counts` are the answers owed by where their update stands, and of them all the
-    `unseen` ones: no turn has taken them in and nothing is at work on them, so one a
-    line fork's line stands after counts as `running` alone.
+    `counts` are the answers owed, each counted once: as `unseen` where no turn has
+    taken its update in and nothing is at work on it, so one a line fork's line stands
+    after counts as `running`, and otherwise by where its update stands.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
@@ -979,6 +980,10 @@ def canonical_activity(
         }
         for item in obligations
     ]
+    counts = Counter(
+        "unseen" if not item["seen"] and item["state"] != "running" else item["state"]
+        for item in obligations
+    )
     for item in workflows:
         del item["queued"], item["handling"]
     return {
@@ -996,12 +1001,7 @@ def canonical_activity(
         "observed": (observed.get("detail", "") if observed and working else ""),
         "observed_kind": observed["kind"] if observed and working else None,
         "counts": {
-            "running": sum(item["state"] == "running" for item in obligations),
-            "waiting": sum(item["state"] == "waiting" for item in obligations),
-            "blocked": sum(item["state"] == "blocked" for item in obligations),
-            "unseen": sum(
-                not item["seen"] and item["state"] != "running" for item in obligations
-            ),
+            kind: counts[kind] for kind in ("running", "waiting", "blocked", "unseen")
         },
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,

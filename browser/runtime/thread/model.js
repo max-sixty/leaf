@@ -148,13 +148,18 @@ export const discussed = (thread) => !thread.bare_reaction;
  * @param {Unread} thread */
 const hasUnread = (thread) => thread.unread.length > 0;
 /**
- * Whether a thread is news: still open and holding words the user hasn't read. A
- * resolved thread's unread words aren't, so the news the panel counts never outnumbers
- * the open threads; the user's reply reopens its thread, and the user chose to
- * leave what reaches a closed one unannounced, as the agent's message in a thread
+ * Whether a thread announces the words that reach it: only while it stands open. A
+ * resolved thread's unread words are no news, so the news the panel counts never
+ * outnumbers the open threads; the user's reply reopens its thread, and the user chose
+ * to leave what reaches a closed one unannounced, as the agent's message in a thread
  * they resolved is.
+ * @param {{readonly resolved: unknown}} thread */
+export const announces = (thread) => !thread.resolved;
+/**
+ * Whether a thread is news: one that announces its words (`announces`) and holds some
+ * the user hasn't read.
  * @param {Pick<Thread, "resolved"> & Unread} thread */
-export const isNews = (thread) => !thread.resolved && hasUnread(thread);
+export const isNews = (thread) => announces(thread) && hasUnread(thread);
 /**
  * What the panel counts of the threads it lists: those still open, which Threads' tab
  * says, and those that are news (`isNews`), which the leaf's dot says. A page's

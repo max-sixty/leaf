@@ -660,7 +660,9 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
         "running",
         "Revising the heading",
     )
-    assert activity["counts"]["unseen"] == 1
+    # An owed answer counts once: no turn has taken this one in, so it is no second
+    # answer among those waiting.
+    assert activity["counts"] == {"running": 0, "waiting": 0, "blocked": 0, "unseen": 1}
     [owed_move] = activity["obligations"]
     assert (owed_move["state"], owed_move["seen"], owed_move["queued"]) == (
         "waiting",
@@ -1017,6 +1019,14 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
     } == {
         comment["id"]: ("blocked", "undelivered", False),
         followup["id"]: ("blocked", "undelivered", False),
+    }
+    # One answer is owed for the two, and its update hasn't stopped: it still awaits
+    # delivery, and counts there alone.
+    assert state["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 1,
     }
     assert all(
         (workflow["agent"], workflow["detail"]) == (None, None)

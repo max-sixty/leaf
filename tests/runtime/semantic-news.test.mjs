@@ -548,6 +548,27 @@ test("content this tab saw read is no news when an undo makes it unread again", 
   );
 });
 
+test("words that reach a thread the user resolved are no news until it reopens", () => {
+  // The agent's answer to a request the user resolved over goes in unannounced
+  // (`thread.post_reply`), so the server serves it unread in a thread still resolved.
+  const closed = {
+    ...thread("t", [message("answer")]),
+    resolved: { author: "user" },
+  };
+  const quiet = observeSemanticNews(null, reading({ threads: [closed] }));
+  assert.deepEqual(quiet.news, []);
+  // The agent's reopen brings the thread back holding the same words, which are news
+  // now.
+  const reopened = observeSemanticNews(
+    quiet.observed,
+    reading({ threads: [thread("t", [message("answer")])] }),
+  );
+  assert.deepEqual(
+    reopened.news.map(({ version }) => version),
+    ["answer"],
+  );
+});
+
 test("news is ordered by when each message last moved", () => {
   const result = observeSemanticNews(
     null,

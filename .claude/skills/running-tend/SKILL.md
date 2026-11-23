@@ -152,10 +152,9 @@ the complete suite takes hours, and later changes may have removed the cause. A 
 alone doesn't show that a failure that comes and goes is fixed.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision
-route. While the session has a step left to take, an unresolved diagnosis, or a
-verification environment you can reach another way, remains engineering work, owned
-by the cause's session through
-`/tend-ci-runner:triage`'s **A cause issue** route.
+route. An unresolved diagnosis, or a verification environment you can reach another
+way, remains engineering work while the session has a step left to take, owned by the
+cause's session through `/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
 
@@ -169,9 +168,9 @@ A failure waits on a recurrence when its next occurrence is the only way left to
 advance its diagnosis, repair or verification. Before concluding that, run copies on
 its runner under the load it failed on, and force each ordering it could depend on
 (`tests/AGENTS.md`, **Races**); where its evidence is too thin to diagnose, merge what
-would capture it first. An open issue for such a failure tells the maintainer and the
-next session that work remains when none does, so the maintainer counts the failure as
-handled. Close its cause issue, or record the failure in the report's diagnosis
+would capture it first. The maintainer counts such a failure as handled, and an open
+issue for it tells the maintainer and the next session that work remains when none
+does. Close its cause issue, or record the failure in the report's diagnosis
 without filing one, saying what you tried and what its next failure should show; this
 holds over **Retain engineering ownership** in `/tend-ci-runner:fix-a-bug`. The next
 failed run brings it back to triage. An issue that tracks several tests closes once

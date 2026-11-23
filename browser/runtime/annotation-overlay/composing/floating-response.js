@@ -1,13 +1,16 @@
 /* Floating presentation of the one native response bar.
 
    Composition owns its durable target and native editor. This owner chooses its initial
-   side, measure and CSS attachment. While editing, the browser carries that attachment
-   through every ancestor scroll; generic repaint and scroll publications do not solve
-   another position. Target or field resize, viewport resize, horizontal target motion,
-   and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
-   collision placement and scroll observation. A seated editor carries its frame
-   through attachment changes under the shared rule in comment-placement.js;
-   its durable anchor and native editor stay intact.
+   side, measure and CSS attachment. Each ancestor scroll solves the box again, as it
+   does the card, so the room's edges can hold it in (`scroll-held-in`). Beside its
+   words the answer writes nothing, and the browser carries the box by its anchor; held
+   in by an edge, the box stands in that edge's plane (floating.js). Generic repaints
+   do not solve another position for the open box. A scroll, target or field resize,
+   viewport resize, horizontal target motion, and declared layout changes invalidate
+   the attachment. Replacing its target or native seat retires it. The compact response
+   strip retains ordinary collision placement and scroll observation. A seated editor
+   carries its frame through attachment changes under the shared rule in
+   comment-placement.js; its durable anchor and native editor stay intact.
 
    A detached draft stands beside the words the user selected while the browser Range
    that selected them still holds them (`selectedPassage`), so a refused send's box
@@ -275,10 +278,9 @@ export function createFloatingResponsePlacement({
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
-  // The editing observer reports size and horizontal target movement: CSS anchors
-  // own scroll following, while a target moved without resizing must let the shared
-  // placement rule choose its side again. Movement observation also hears scroll,
-  // which must leave the native attachment alone.
+  // The editing observer reports scroll, size and horizontal target movement: a target
+  // moved without resizing must let the shared placement rule choose its side again,
+  // while one moved only vertically is carried by its anchor.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
@@ -322,49 +324,22 @@ export function createFloatingResponsePlacement({
   // modes outlive every watch, and a closure made there would keep its first target
   // alive for the session, after a revision removed it.
   /** @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
-   * @param {typeof import("@floating-ui/dom").getOverflowAncestors} getOverflowAncestors
    * @returns {EditingObserver} */
-  function editingObserver(autoUpdate, getOverflowAncestors) {
+  function editingObserver(autoUpdate) {
     return (reference, floating, update) => {
       const invalidate = () => {
         nativeAttachment = false;
         update();
       };
       const stopSize = autoUpdate(reference, floating, invalidate, {
-        ancestorScroll: false,
         layoutShift: false,
       });
       let x = reference.getBoundingClientRect().left;
-      // Each native scroll carrier owns its previous coordinates; there are no
-      // parallel arrays whose positions must keep naming the same ancestor.
-      const scrollers = getOverflowAncestors(reference.contextElement)
-        .filter(
-          /** @returns {node is Element | Window} */
-          (node) => "scrollX" in node || "scrollLeft" in node,
-        )
-        .map((node) => {
-          const position = () =>
-            "scrollX" in node
-              ? { x: node.scrollX, y: node.scrollY }
-              : { x: node.scrollLeft, y: node.scrollTop };
-          let previous = position();
-          return () => {
-            const current = position();
-            const changed = current.x !== previous.x || current.y !== previous.y;
-            previous = current;
-            return changed;
-          };
-        });
       const stopMotion = autoUpdate(
         reference,
         floating,
         () => {
           const next = reference.getBoundingClientRect().left;
-          const scrolled = scrollers.map((read) => read()).some(Boolean);
-          if (scrolled) {
-            x = next;
-            return;
-          }
           if (next === x) return;
           x = next;
           invalidate();
@@ -383,9 +358,8 @@ export function createFloatingResponsePlacement({
     };
   }
   /** @param {Element} target
-   * @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
-   * @param {typeof import("@floating-ui/dom").getOverflowAncestors} getOverflowAncestors */
-  function watchFabPosition(target, autoUpdate, getOverflowAncestors) {
+   * @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate */
+  function watchFabPosition(target, autoUpdate) {
     const reference = {
       contextElement: response.pointIn(target) ?? target,
       getBoundingClientRect: () => {
@@ -396,7 +370,7 @@ export function createFloatingResponsePlacement({
       },
     };
     observationModes ??= {
-      editing: editingObserver(autoUpdate, getOverflowAncestors),
+      editing: editingObserver(autoUpdate),
       compact: autoUpdate,
     };
     const observes = observationModes;
@@ -583,11 +557,7 @@ export function createFloatingResponsePlacement({
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
-        watchFabPosition(
-          owner ?? document.documentElement,
-          ui.autoUpdate,
-          ui.getOverflowAncestors,
-        );
+        watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
           room: place.room,
@@ -612,14 +582,11 @@ export function createFloatingResponsePlacement({
               withholdFab();
           },
         });
-        // We could consider, in future, placing the open box again on every scroll, as
-        // the card is: it would then need no "page" here, and floating.js no exception
-        // for a box its owner keeps in the page's plane.
         return fabPosition.position(
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          (response.open || response.rests) && seatedOwner ? "page" : plane,
+          plane,
           seatedOwner ?? document.documentElement,
         );
       })
@@ -627,10 +594,11 @@ export function createFloatingResponsePlacement({
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
-        // A scroll carries the box by CSS anchors (`watchFabPosition`); what a placement
-        // moves travels when it follows a change of the box's size (box-motion.js,
-        // `placed`). The open box's first spot is the first reading its motion follows
-        // from. A drag the grip carried ends where the placement stands the box.
+        // A scroll carries the box beside its words by CSS anchors, and its solve moves
+        // it only where an edge takes it in or lets it go; what a placement moves
+        // travels when it follows a change of the box's size (box-motion.js, `placed`).
+        // The open box's first spot is the first reading its motion follows from. A
+        // drag the grip carried ends where the placement stands the box.
         const hang = mediaSide(position.placement, boundary);
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);

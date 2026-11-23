@@ -427,7 +427,9 @@ A box that follows page content is positioned by CSS, with an anchor, a sticky o
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
 the page's targets goes through `paintSet` in `target-paint-geometry.js`. What a scroll
 changes that CSS can't follow is read again when the scroll ends (`watchScrollEnds` in
-`arrivals.js`).
+`arrivals.js`), unless the reader would see it wrong until then: a floating box that
+the window's edge holds in is solved again at each scroll, and written only where an
+edge takes it in or lets it go (`annotation-overlay/floating.js`).
 
 Lit owns template bindings and skips unchanged values. For imperative writes outside
 those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant

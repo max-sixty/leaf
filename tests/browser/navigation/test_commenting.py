@@ -24,6 +24,7 @@ from render_harness import (
     draft_control,
     expect_obligations_answered,
     field_press,
+    gesture_writes,
     leaf_page,
     open_page,
     open_versions,
@@ -35,6 +36,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    scroll_followers,
     scroll_settled,
     select,
     sending,
@@ -517,6 +519,59 @@ def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, ser
     expect(page.locator(".lf-fab-rest")).to_be_hidden()
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
+
+
+A_TALL_ASK = AN_ASK_THEN_READING.replace(
+    "</lf-options></lf-group>",
+    '</lf-options><div style="height:3000px">Why each route</div></lf-group>',
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("box", ["resting", "open"])
+def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll(
+    engine, request, serve, box
+):
+    """Beside a target whose top has left the window, the comment box, at rest or open,
+    stands at the window's top through the scroll rather than once it ends
+    (placement-rules.json, `scroll-held-in`). Each scroll solves it again, as it does
+    its card, and an answer writes the box only where an edge takes it in or lets it
+    go, so no write follows the scroll. A scroll's event comes after the frame that drew
+    it, so the frame in which the target's top crosses the edge draws the box carried
+    with it, as it does the card."""
+    page = open_page(request.getfixturevalue(engine), serve(A_TALL_ASK))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    expect(page.locator(".lf-fab-rest")).to_be_visible()
+    if box == "open":
+        page.keyboard.press("c")
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.type("Take the left one")
+    rendered(page)
+    stood = page.locator(".lf-fab-bar").bounding_box()["y"]
+    writes, frames, samples = gesture_writes(
+        page,
+        1500,
+        sample="""() => ({
+          box: document.querySelector('.lf-fab-bar').getBoundingClientRect().top,
+          target: document.getElementById('route').getBoundingClientRect().top,
+        })""",
+    )
+    held = samples[-1]["read"]["box"]
+    assert 0 <= held < stood, (stood, samples)
+    past = [sample["read"] for sample in samples if sample["read"]["target"] < held]
+    assert len(past) >= frames - 2, samples
+    carried = [read for read in past[1:] if abs(read["box"] - held) > 0.5]
+    assert not carried, samples
+    box_writes = [
+        write for write in writes if any("lf-fab" in step for step in write["target"])
+    ]
+    assert not scroll_followers(box_writes, frames), box_writes
+    if box == "open":
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_js_property(
+            "value", "Take the left one"
+        )
 
 
 def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):

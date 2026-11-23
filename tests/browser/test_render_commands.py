@@ -629,17 +629,25 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
 def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
     """Before its module draws, a shot holds the height its drawing takes: at each width,
     on both sides of the narrow toolbar's breakpoint, and for a pair that opens on its
-    focus or was taken at 2×, which holds the focus's frame or its CSS size. Where
-    scrollbars are classic, as on Linux, the stage's gutter narrows the frame and not the
-    width the toolbar reads."""
+    focus or was taken at 2×, which holds the focus's frame or its CSS size. A pair
+    that opens in Pair holds its frames stacked at a phone's width, with and without a
+    focus, and side by side where both fit at their own size. Where scrollbars are
+    classic, as on Linux, the stage's gutter narrows the frame and not the width the
+    toolbar reads."""
     pair = f'alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"'
+    focus = 'density="2" focus-x="20" focus-y="30" focus-width="200" focus-height="80"'
+    phone = '<div style="inline-size: 390px">{}</div>'
     shots = {
         f"w{w}": f'<div style="inline-size: {w}px"><lf-shot id="w{w}" {pair}></lf-shot></div>'
         for w in [430, 450, 455, 465, 480, 640]
     } | {
-        "focused": f'<lf-shot id="focused" {pair} density="2" focus-x="20"'
-        ' focus-y="30" focus-width="200" focus-height="80"></lf-shot>',
+        "focused": f'<lf-shot id="focused" {pair} {focus}></lf-shot>',
         "dense": f'<lf-shot id="dense" {pair} density="2"></lf-shot>',
+        "stacked": phone.format(f'<lf-shot id="stacked" {pair} view="pair"></lf-shot>'),
+        "stacked-focus": phone.format(
+            f'<lf-shot id="stacked-focus" {pair} {focus} view="pair"></lf-shot>'
+        ),
+        "side": f'<lf-shot id="side" {pair} {focus} view="pair"></lf-shot>',
     }
     url = serve(
         leaf_page("Held shots", f"<h1>Held shots</h1>{''.join(shots.values())}"),
@@ -667,6 +675,10 @@ def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
     assert dict(zip(shots, held, strict=True)) == pytest.approx(
         dict(zip(shots, drawn, strict=True)), abs=1
     )
+    layouts = page.locator("#stacked, #stacked-focus, #side").evaluate_all(
+        "shots => shots.map(shot => shot.dataset.lfShotLayout)"
+    )
+    assert layouts == ["stack", "stack", "side"]
     # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, each
     # inside the frame's border.
     frames = page.locator("#focused, #dense").evaluate_all(

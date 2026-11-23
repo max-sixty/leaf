@@ -4596,7 +4596,7 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
     the page shows for the box, so the page shows that the box holds a thread. A press
     on the marker opens the box and lands the user on the thread, on a phone too and
     after the box closed round the thread's open card. A suggestion the box hides
-    offers no Accept until the box opens."""
+    offers no Accept until the box opens, even where a stylesheet lays the box out."""
     url = serve(
         leaf_page(
             "closed boxes",
@@ -4606,11 +4606,17 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
             '<details id="offers"><summary>Offers</summary><p>Plain words '
             '<lf-suggestion id="offer"><lf-old>two</lf-old><lf-new>three</lf-new>'
             "</lf-suggestion> follow.</p></details>"
+            '<div id="laid" hidden="until-found"><p>Also '
+            '<lf-suggestion id="laid-offer"><lf-old>red</lf-old><lf-new>blue</lf-new>'
+            "</lf-suggestion>.</p></div>"
             '<lf-tabs id="tabs">'
             '<lf-tab id="tab-one" label="One"><p id="shown">First tab.</p></lf-tab>'
             '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
             "</lf-tabs>"
             '<lf-diff id="patch" source="patch" collapsed></lf-diff>',
+            # A package may lay a closed box out unseen, as visual-review does.
+            head='<style>#laid[hidden="until-found"] '
+            "{ content-visibility: visible; visibility: hidden; }</style>",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
@@ -4636,14 +4642,18 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
     expect(line).to_be_attached()
     file.evaluate("details => { details.open = false; }")
     suggestion = page.locator('.lf-margin-cluster[data-lf-margin-for="offer"]')
+    laid = page.locator('.lf-margin-cluster[data-lf-margin-for="laid-offer"]')
 
     def marker(key):
         return page.locator(f'[data-lf-margin-for^="{key}"] .lf-margin-marker')
 
     with subtests.test(case="suggestion"):
         expect(suggestion).to_be_hidden()
+        expect(laid).to_be_hidden()
         page.locator("#offers > summary").click()
         expect(suggestion).to_be_visible()
+        page.locator("#laid").evaluate("box => box.removeAttribute('hidden')")
+        expect(laid).to_be_visible()
 
     for case, face, opened, key in (
         ("tab not chosen", page.locator("#tabs"), "#unchosen", "unchosen"),

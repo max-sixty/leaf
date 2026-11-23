@@ -1657,18 +1657,19 @@ export function createMarginProjection({
   // (anchor-travel.js, `revealThread`) and lands where the thread then stands. A box
   // closed round the card it hid leaves that card selected, so the box is asked about
   // first. A window with no room for the card opens the thread in the floating panel,
-  // which moves nothing on the page and adds no history entry, so once the route has
-  // landed the press opens the box itself, as the browser's find would, and the entry
-  // the user is on names what it opened. Elsewhere travel has opened it already.
+  // which moves nothing on the page, so the press opens the box itself, as the
+  // browser's find would, once the route has read where the user stood
+  // (thread/destination.js) and before a reader that takes the thread lands, so that
+  // reader's own view stays open. That route adds no history entry, so the entry the
+  // user is on names what the box opened.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const id = threadIdOf(choice);
     if (faceOf(entry)) {
       const place = threadsPlace(entry);
       const intent = retainUserIntent();
-      void openPageThread(id, { intent }).then(() =>
-        openFolds(place instanceof Element ? place : renderedParent(place), intent),
-      );
+      void openPageThread(id, { intent });
+      openFolds(place instanceof Element ? place : renderedParent(place), intent);
       return;
     }
     const selected = card.selection();

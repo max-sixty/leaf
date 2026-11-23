@@ -1593,9 +1593,12 @@ function scheduleRowLayout() {
 /** @param {Node} node @returns {Element | null} */
 export function closedFaceOver(node) {
   const closed = closedOver(node);
-  if (!closed || !drawn(closed)) return null;
-  if (closed instanceof HTMLDetailsElement && !untilFound(closed))
-    return closed.querySelector(":scope > summary") ?? closed;
+  if (!closed) return null;
+  if (closed instanceof HTMLDetailsElement && !untilFound(closed)) {
+    const summary = closed.querySelector(":scope > summary") ?? closed;
+    return drawn(summary) ? summary : null;
+  }
+  if (!drawn(closed)) return null;
   for (
     let at = renderedParent(closed);
     at && at !== pageScroller;
@@ -1606,6 +1609,13 @@ export function closedFaceOver(node) {
   }
   return null;
 }
+
+// Whether a row with no face stands where the page doesn't show its target until the
+// target is drawn (`skippedUntilDrawn`) or the closed box round it opens (shadow-tree.js,
+// `closedOver`), which a stylesheet may lay out unseen. Opening the box changes its
+// `hidden` or `open`, which the page's observer hears (`heardPage`).
+/** @param {Element} target */
+const unshown = (target) => skippedUntilDrawn(target) || Boolean(closedOver(target));
 
 // Whether `target` stands in content the browser skips (`skipped`), whose row is
 // withheld until a pass after it is drawn. Revealing a panel or opening a disclosure
@@ -1806,7 +1816,7 @@ function scheduleStirReading() {
       if (!moving) continue;
       if (!withheld && documentOnly) continue;
       const face = options.face();
-      if (!face && withheld && skippedUntilDrawn(anchored)) continue;
+      if (!face && withheld && unshown(anchored)) continue;
       const target = face ?? anchored;
       const words = face ? [] : quotedBoxes(options);
       const start = words.length ? wordsStart(options) : null;
@@ -2072,7 +2082,7 @@ function layoutMountedRows(layer) {
     // like a target that has gone, it is anchored by the pass that runs once it is
     // drawn (`skippedUntilDrawn`), and keeps the lane it stands in meanwhile.
     const face = options.face();
-    if (!face && skippedUntilDrawn(anchored)) {
+    if (!face && unshown(anchored)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;

@@ -1,5 +1,6 @@
 """Visible geometry keeps the platform's hidden and boxless states distinct."""
 
+import pytest
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
@@ -59,3 +60,43 @@ def test_hidden_boxes_keep_native_bounds_until_tabs_reveal(browser, serve):
     for key in ("outer", "inner", "destination", "contents"):
         box = after[key]
         assert box["width"] > 0 and box["height"] > 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_node_two_glides_bring_into_view_is_seen_where_they_land(
+    request, serve, engine
+):
+    """A glide of an inner region that brings a node into the region's view, while a
+    glide of the page brings the region into the window, leaves the node seen: it is
+    read where both glides land, its region's clip included, rather than cut by that
+    clip as it stands and then carried."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Two glides",
+                '<h1>Two glides</h1><div style="height: 600px"></div>'
+                '<div id="inner" style="height: 300px; overflow-y: auto;'
+                ' --lf-reading-region: layout"><div style="height: 500px"></div>'
+                '<button id="target">Target</button><div style="height: 1000px"></div>'
+                '</div><div style="height: 2000px"></div>',
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    seen = page.evaluate(
+        """async () => {
+          const entry = new URL(
+            document.querySelector('script[data-lf-entry]').dataset.lfEntry, location.href);
+          const S = await import(new URL('runtime/scroll-containers.js', entry).href);
+          const G = await import(new URL('runtime/scrolling.js', entry).href);
+          const inner = document.getElementById('inner');
+          const target = document.getElementById('target');
+          const atRest = S.seenLanded(target);
+          G.glideTo(inner, 450);
+          G.glideTo(document.documentElement, 300);
+          return {atRest, ahead: S.seenLanded(target)};
+        }"""
+    )
+    assert seen == {"atRest": False, "ahead": True}
+    expect(page.locator("#target")).to_be_in_viewport()

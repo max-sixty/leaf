@@ -39,7 +39,8 @@ import { decisionControls, nativePress } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
-import { scrollersOf, whereGlidesLand } from "../scroll-containers.js";
+import { scrollersOf } from "../scroll-containers.js";
+import { whereGlidesLand } from "../scrolling.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
@@ -492,7 +493,7 @@ export function createObligationView({
   // This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
   // clear of the window's head too, read like the obligation where the glides under way
-  // will leave it (scroll-containers.js, `whereGlidesLand`).
+  // will leave it (scrolling.js, `whereGlidesLand`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} source @param {Element} box @param {(node: Element) => boolean} readable */
   function alreadyArrived(record, region, item, source, box, readable) {

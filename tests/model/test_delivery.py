@@ -116,9 +116,9 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn
     assert [clause for clause in drawn if clause != reading_a_drawing] == plain
-    # A thread the user closed before capture owes nothing, so it is told nothing
-    # about answering.
-    assert not set(replying) & set(closed)
+    # A request the user resolved before capture is still owed its answer, so it is
+    # told what any comment is.
+    assert closed == plain
     assert resolved == [declared["handling"]["resolve"][0]["text"]]
     # Neither pick lands on a widget either document holds, so neither owes an
     # answer; the page's own clauses reach only the page pick.
@@ -228,9 +228,11 @@ def test_delivery_without_a_layer_has_no_handling(page_dir):
     assert "handling" not in batch["events"][0]
 
 
-def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(page_dir):
-    """The same resolve/unresolve kinds can withdraw work or merely tidy a thread.
-    Changes remain deliverable after pickup and after the work they changed ends.
+def test_the_users_resolve_is_delivered_only_where_it_changes_what_is_owed(page_dir):
+    """The user's resolve takes a thread off their list and leaves a request in it
+    owed, with the work started on it, so closing or reopening the thread wakes
+    nobody. It does retire a question the agent asked there, and the agent is told
+    of that after pickup and after the work the question followed has ended.
     """
     publish(page_dir)
 
@@ -247,14 +249,13 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert newest["attention"]
     receive_through(page_dir, newest["seq"])
     assert _start(page_dir, question["id"], "Revising").exit_code == 0
-    withdrawal = write("resolve", parent=question["id"])
-    assert withdrawal["attention"]
-    # Repeated closure has neither an answer nor a started move left to change.
     assert not write("resolve", parent=question["id"])["attention"]
-    reopened = write("unresolve", parent=question["id"])
-    assert reopened["attention"]
-    assert write("undo", undoes=reopened["id"])["attention"]
-    assert write("unresolve", parent=question["id"])["attention"]
+    [owed] = owed_answers(page_dir)
+    assert owed["input"] == newest["id"]
+    assert [start["item"] for start in owed["started_by"]] == [question["id"]]
+    assert not write("unresolve", parent=question["id"])["attention"]
+    assert not write("resolve", parent=question["id"])["attention"]
+    # The answer asks, so it reopens the thread, and its question waits on the user.
     answered = append_command(
         page_dir,
         {
@@ -262,10 +263,14 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
             "author": "agent",
             "parent": newest["id"],
             "responds": newest["id"],
-            "text": "The plan is revised.",
+            "text": "The plan is revised. Ship it on Friday?",
+            "obligation": True,
         },
     )
-    assert not write("resolve", parent=question["id"])["attention"]
+    assert owed_answers(page_dir) == []
+    retired = write("resolve", parent=question["id"])
+    assert retired["attention"]
+    # Reopening the thread brings back none of the questions the resolve ended.
     assert not write("unresolve", parent=question["id"])["attention"]
     # A task begun after the answer is separate work, with no pending response, and
     # it stands through the user closing and reopening the thread.
@@ -283,12 +288,10 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
         ],
     )
     assert opened.exit_code == 0, opened.output
-    assert not write("resolve", parent=question["id"])["attention"]
-    assert not write("unresolve", parent=question["id"])["attention"]
     assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
         page.set_status("idle")
-    assert withdrawal in service_model.unacknowledged(
+    assert retired in service_model.unacknowledged(
         events_model.read_events(page_dir), newest["seq"]
     )
     assert not write(

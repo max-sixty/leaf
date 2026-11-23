@@ -20,6 +20,8 @@ import {
   StateField,
   Transaction,
   EditorView,
+  ViewPlugin,
+  countColumn,
   keymap,
   lineNumbers,
   highlightActiveLineGutter,
@@ -57,7 +59,8 @@ const theme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
   ".cm-content": { caretColor: "var(--lf-accent)" },
-  ".cm-line": { padding: "0 .85rem" },
+  // Its wrapped rows' mark stands past this padding (`hangs`).
+  ".cm-line": { padding: "0 .85rem", "--lf-pre-line-inset": ".85rem" },
   // A line another writer changed (`written`), tinted and barred in the accent.
   ".cm-line.lf-written": {
     background:
@@ -205,6 +208,45 @@ const loadLanguage = (name) => {
   }
   return pending;
 };
+// Each line in view is a line of code whose wrapped rows hang from its indent behind a
+// mark, as a code block's are (marks.css, `[data-lf-pre-line]`), so a row a long line
+// wraps onto reads as the rest of that line: started at the editor's edge, it read as a
+// line of its own, and in YAML as a new top-level key. The line states its indent
+// (`--lf-code-indent`), which CSS can't read: its leading spaces and tabs, in the
+// columns CodeMirror counts for them.
+/** @param {EditorView} view */
+const indents = (view) => {
+  const marks = [];
+  for (const { from, to } of view.visibleRanges)
+    for (let at = from; at <= to;) {
+      const { text, from: start, to: end } = view.state.doc.lineAt(at);
+      const indent = countColumn(text, view.state.tabSize, text.search(/[^ \t]|$/));
+      marks.push(
+        Decoration.line({
+          attributes: {
+            "data-lf-pre-line": "",
+            ...(indent && { style: `--lf-code-indent: ${indent}` }),
+          },
+        }).range(start),
+      );
+      at = end + 1;
+    }
+  return Decoration.set(marks);
+};
+const hangs = ViewPlugin.fromClass(
+  class {
+    /** @param {EditorView} view */
+    constructor(view) {
+      this.decorations = indents(view);
+    }
+    /** @param {import("@codemirror/view").ViewUpdate} update */
+    update(update) {
+      if (update.docChanged || update.viewportChanged)
+        this.decorations = indents(update.view);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 // The lines the last write from elsewhere changed, such as an agent's: shown until
 // the next one replaces them, and each until the reader edits that line, so a reader
 // whose file changed under them sees where. A file's first reading marks nothing.
@@ -454,6 +496,7 @@ export function createEditor(
         }),
         editable.of(readonlyExtension()),
         EditorView.lineWrapping,
+        hangs,
         // A comparison is created with the disk version it shows and only ever moves
         // to a later one (`setConflict`); the primary editor never shows one.
         original === null

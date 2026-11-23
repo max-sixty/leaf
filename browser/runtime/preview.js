@@ -28,7 +28,7 @@
      for each new presentation of the document while the preview stands, so the words
      follow the page, a thread's turn or a link's place, redrawn in place with no fade
      and left as they are where they come back the same: `{name, keys, detail, list,
-     at, about, excerpt, unseen}`, every field optional (module-input.md, "Previews"). On a control its
+     at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
      accessible name where that says more than the face should; `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
@@ -184,8 +184,9 @@
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
      a resting pointer never covers what the user reads, and nor does one a pointer
-     reaches while it carries a press, as in a drag. A tab the user leaves takes its
-     preview away.
+     reaches while it carries a press, as in a drag. A target the pointer came to
+     shows after its dwell even where it redraws under the pointer meanwhile. A tab
+     the user leaves takes its preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
      once, with no fade, where the user aimed it there by a Tab or Shift+Tab, or by a
      placement standing in for one (`step`), the cause its mover gives (focus.js,
@@ -2187,14 +2188,17 @@ export function mountPreviews(chrome) {
       if (onPreview()) return ride();
       // Something that arrives under a pointer the user hasn't moved takes it, but
       // shows nothing: the user pointed at what was there before. A pointer carrying a
-      // press, as a drag does, is acting, not reading.
+      // press, as a drag does, is acting, not reading. A target that only redraws
+      // under the pointer that came to it, as an entry's icon does, is still what the
+      // user pointed at, so the dwell their move began goes on.
       if (still || event.buttons) {
         const target = aimed();
-        if (!sameTarget(target, pointing)) {
+        const stays = sameTarget(target, pointing);
+        if (!stays) {
           pointing = target;
           pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
         }
-        clearTimeout(dwell);
+        if (!stays || event.buttons) clearTimeout(dwell);
         if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
       } else aim();
     },

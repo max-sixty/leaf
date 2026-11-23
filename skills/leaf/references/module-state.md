@@ -130,12 +130,12 @@ shape of its `unit`:
   `ranks` gives each member's rank. Leaf moves no member: `render()` places each
   container's members in that order (`module-authoring.md`, "Retained nodes").
 
-`detail` follows the payload [package-data.md, "User state"](package-data.md#user-state)
-gives each record kind. A recorded body, attribute or value sends `detail: {value}`. A
-move sends `detail: {unit, value, rank}`: the moved element's id, the destination
-container's id, and `rankAt(state.<verb>, container, index, unit)`, which places the
-unit at `index` among the container's others and keeps it there however other units
-move. A verb with no record sends what its `detail` schema declares.
+For a verb with a record, `detail` is the payload
+[package-data.md, "User state"](package-data.md#user-state) gives for its record kind. A
+move's `rank` is `rankAt(state.<verb>, container, index, unit)`, which takes the
+container's and the unit's ids, places the unit at `index` among the container's others
+and keeps it there however other units move. A verb with no record sends what its
+`detail` schema declares.
 
 A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On
@@ -225,7 +225,7 @@ mean nothing.
 `ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
 ago", "2h ago", "2d ago". Draw an age
 in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
-(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone and
+(`module-previews.md`), so pointing at it says when, in the reader's zone and
 as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 PM PT".
 Read `ago` synchronously in `render()`, which then redraws as the time's reading
 changes.

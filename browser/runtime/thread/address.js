@@ -24,13 +24,17 @@
    fragment the entry carries, and resolves to false, leaving the page and the user's
    place in it to the entry's record (history.js). The record holds the reader the
    entry's view was, the route's `reader` request for it, which the claim passes on, so
-   a thread about a passage the user read in the floating panel opens there again
-   rather than beside its passage. Where the record says the floating panel showed a
-   list, which a press on one of its rows opens a thread over, the list comes back
-   standing on the row the record names, the one the user left by, else the row of the
-   thread put away (floating-panel.js, `putThreadAway`), so Back from a thread opened
-   from Threads returns to Threads on its row though a reload has forgotten the panel's
-   views since, or Escape put the thread away first.
+   a thread about a passage the user read in the floating panel opens there again. The
+   user's choice of where threads open (threads-in-panel.js) says where routes open a
+   thread from now on, not which view the user stood in, so Back after Show on page
+   returns them to the panel's view they read the thread in, though Show on page chose
+   cards. Rejected: opening the entry's thread by the choice alone, under which that
+   Back no longer returned the user to the view they had left. Where the record says
+   the floating panel showed a list, which a press on one of its rows opens a thread
+   over, the list comes back standing on the row the record names, the one the user
+   left by, else the row of the thread put away (floating-panel.js, `putThreadAway`),
+   so Back from a thread opened from Threads returns to Threads on its row though a
+   reload has forgotten the panel's views since, or Escape put the thread away first.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
    focus. Where the browser restored the page's place, as on a reload, the arrival is a

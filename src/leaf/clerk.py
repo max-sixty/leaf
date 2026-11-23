@@ -391,7 +391,6 @@ def page_facts(state: dict, events: list) -> dict:
 
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
-    todos = {todo["id"]: todo for todo in state["todos"]}
     updates = {workflow["id"]: workflow for workflow in state["workflows"]}
 
     # What each message asking a question says now, edits included: a question asked
@@ -440,7 +439,7 @@ def page_facts(state: dict, events: list) -> dict:
         """How a question On Me no longer holds ended, or None while it stands: the
         user's answer, or a resolve of its thread (`obligations`), by whoever the
         thread stands resolved by where it still does."""
-        if record["status"] != "open":
+        if record["state"] == "done":
             return "answered"
         if record["next_actor"] is not None:
             return None
@@ -463,8 +462,9 @@ def page_facts(state: dict, events: list) -> dict:
             )
     started = []
     for item, start in item_starts(events).items():
-        if todos.get(item, {}).get("state") == "open":
-            about = f'the agent\'s to-do "{todos[item]["title"]}"'
+        todo = obligations.get(item)
+        if todo and todo["source"]["kind"] == "todo" and todo["state"] != "done":
+            about = f'the agent\'s to-do "{todo["prompt"]["text"]}"'
         elif item in updates:
             subject = updates[item]["subject"]
             about = (

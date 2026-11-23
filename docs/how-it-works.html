@@ -198,9 +198,9 @@
             <p id="architecture-composition">
               Leaf’s <strong>core</strong> supplies shared state, events, and page
               lifecycle. <strong>Packages</strong> contribute widgets, domain behavior,
-              styling, and authoring instructions. A page selects packages and a theme;
-              Leaf combines those with its core declarations and assets into the page’s
-              <strong>layer</strong>.
+              styling, and authoring instructions. A page selects packages, its theme
+              among them; Leaf combines those with its core declarations and assets into
+              the page’s <strong>layer</strong>.
             </p>
             <figure id="arch" class="diagram-figure">
               <lf-diagram id="agent-browser-architecture" data-height="410" parts="all">
@@ -422,8 +422,8 @@ flowchart TD
                 working directory.
               </p>
               <p id="handoff-runtime">
-                <code>leaf page init</code> records the page’s package and theme
-                selection. The Leaf serving the page supplies its runtime and composes
+                <code>leaf page init</code> records the page’s package selection, its
+                theme first. The Leaf serving the page supplies its runtime and composes
                 the <a href="/extending/#layer">selected packages</a>. The agent authors
                 its content using the HTML and Leaf elements described in
                 <a href="/extending/#pages">Extending</a>.
@@ -437,7 +437,7 @@ flowchart TD
               </p>
               <pre
                 id="handoff-commands"
-              ><code class="language-bash">leaf page init --package diagram ./review
+              ><code class="language-bash">leaf page init --package reading --package diagram ./review
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
@@ -578,10 +578,12 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   widget requires a stamped revision. If the obligation's widget
                   declares a record form, the revised HTML uses it to show the decision,
                   such as the chosen option. An obligation embedded in a thread message
-                  receives a thread reply, because that message's HTML is fixed.
-                  Resolving a thread or moving a card can require no answer; the agent
-                  still receives the event. A multi-select obligation submits the choice
-                  when the user presses Done.
+                  receives a thread reply, because that message's HTML is fixed. Moving
+                  a card can require no answer; the agent still receives the event.
+                  Resolving a thread takes it off the user's list and leaves a comment
+                  the agent has not answered owed its reply, which goes into the closed
+                  thread; the agent may reopen it. A multi-select obligation submits the
+                  choice when the user presses Done.
                 </p>
                 <p id="delivery-envelope">
                   A delivery is one JSON document, whose <code>format</code> field names
@@ -1028,14 +1030,16 @@ flowchart TD
                 <tr>
                   <td>
                     <strong>Write a conversation</strong><br />Open or answer a thread,
-                    edit an agent message or title, close a thread, or summarize a range
-                    of messages.
+                    edit an agent message or title, close or reopen a thread, or
+                    summarize a range of messages.
                   </td>
                   <td>
                     <code>leaf thread create</code><br /><code>leaf thread reply</code
                     ><br /><code>leaf thread edit</code><br /><code
                       >leaf thread resolve</code
-                    ><br /><code>leaf thread summarize</code>
+                    ><br /><code>leaf thread reopen</code><br /><code
+                      >leaf thread summarize</code
+                    >
                   </td>
                 </tr>
                 <tr>
@@ -1468,19 +1472,27 @@ sequenceDiagram
               through the launcher in the copy they loaded, but each keeps one copy and
               updates it in place, so the session's next hook runs the update. A path
               names no version there, so Leaf tells two copies apart by path and commit.
-              Leaf never reads a harness's record of the installed copy.
+              Each hook records the copy it ran. A page server and a Codex delivery
+              adapter outlive the hooks that start them, and each keeps checking which
+              copy should run it: the installed copy the session's hooks last recorded,
+              where that is another, as after Claude Code loads an update, or else a new
+              copy Codex or Pi puts in place of its own. It then has that copy take
+              over. Pi's watch between turns moves once Pi puts a new copy in place of
+              its own. The server's restart renews a page left at an older page protocol
+              as a hook would, and the adapter and watch then deliver its input. Leaf
+              never reads a harness's record of the installed copy.
             </p>
             <p id="leaf-copy-outlast">
               Three things outlive the process, so a session can find one that another
-              copy of Leaf wrote. At the session's next hook, Leaf compares each one's
-              record with the hook's own copy, and brings it to that copy:
+              copy of Leaf wrote. Leaf compares each one's record with the session's
+              copy, and brings it to that copy:
             </p>
             <table id="leaf-copy-pieces">
               <thead>
                 <tr>
                   <th scope="col">What outlives the process</th>
                   <th scope="col">Its record</th>
-                  <th scope="col">At the session's next hook</th>
+                  <th scope="col">When it moves to the session's copy</th>
                 </tr>
               </thead>
               <tbody>
@@ -1492,10 +1504,11 @@ sequenceDiagram
                   </td>
                   <td>
                     The first hook that reads the session's pages, as a prompt or Stop
-                    hook does, or the first <code>leaf</code> command that writes to the
-                    page, initializes a page at an older protocol again under the
-                    session's copy, keeping its log. A page at a newer protocol is
-                    refused until the session loads a Leaf that speaks it.
+                    hook does, the first <code>leaf</code> command that writes to the
+                    page, or the restart of its server initializes a page at an older
+                    protocol again under the session's copy, keeping its log. A page at
+                    a newer protocol is refused until the session loads a Leaf that
+                    speaks it.
                   </td>
                 </tr>
                 <tr id="leaf-copy-server">
@@ -1505,11 +1518,10 @@ sequenceDiagram
                     <code>service.json</code>
                   </td>
                   <td>
-                    The next prompt hook restarts a server that another installed copy,
-                    or the same copy at another commit, started under the hook's copy,
-                    at the same address, where the hook runs an installed copy too and
-                    has time before its deadline. Open tabs reload where the browser
-                    runtime changed.
+                    The server checks every two seconds. Once the session's hooks record
+                    another installed copy, or Codex or Pi puts a new copy in place of
+                    the server's own, the server has that copy restart it at the same
+                    address. Open tabs reload where the browser runtime changed.
                   </td>
                 </tr>
                 <tr id="leaf-copy-skill">
@@ -1531,10 +1543,9 @@ sequenceDiagram
               of the checkout, or a command from it that claims or initializes a page
               the session holds, hands the session's hooks, the following of its pages
               and its bare <code>leaf</code> to that checkout, until the session ends,
-              it selects another checkout or the checkout's launcher is gone. The prompt
-              hook restarts a server only where the server and the hook both run
-              installed copies, so a checkout's servers stay as they are, and a session
-              whose hooks run a checkout restarts none.
+              it selects another checkout or the checkout's launcher is gone. Only a
+              server from an installed copy moves, and only to an installed copy, so a
+              checkout's servers stay as they are, and no server moves onto a checkout.
             </p>
             <p id="leaf-copy-contract">
               <a
@@ -1644,9 +1655,9 @@ sequenceDiagram
                 <tr id="ontology-workflow">
                   <td>Workflow</td>
                   <td>
-                    An unsettled update's delivery and work stage: Queued for Claude, Up
-                    next, Delivered, On it, Replying or Answered. Conditions report
-                    interruptions or failures. The workflow names its thread and owed
+                    Where an unsettled update's delivery stands: Queued for Claude,
+                    Delivered, On it or Replying, or the reason it is blocked, such as
+                    Stopped or Gone quiet. The workflow names its thread and owed
                     answer, if any.
                   </td>
                   <td>the update's event id</td>
@@ -1655,7 +1666,8 @@ sequenceDiagram
                   <td>Obligation</td>
                   <td>
                     An input or answer owed by the user or agent. It holds its source,
-                    typed answer, next actor, and status: open, answered or withdrawn.
+                    typed answer, next actor, and where it stands: waiting, running,
+                    blocked or done.
                   </td>
                   <td>
                     <code>widget:</code>, <code>message:</code> or <code>update:</code>,
@@ -2710,7 +2722,7 @@ flowchart TD
             <p id="stages-lede">
               A label beside each comment or widget update records its delivery and
               handling. Leaf changes it only on recorded evidence and clears it when the
-              required answer arrives. Harnesses skip stages they do not report. Only On
+              required answer arrives. Harnesses skip steps they do not report. Only On
               it, Replying and Answered relay an act of the agent's own, so only they
               read in its voice; every other label is what Leaf observed of the update,
               set in italic.
@@ -2726,17 +2738,12 @@ flowchart TD
                 <tr id="stages-sent">
                   <td><em>Queued for Claude</em></td>
                   <td>
-                    No harness has queued the update or put it into the agent's turn.
-                    The label is the same while the browser is still sending it and once
-                    the server has added it to the page's event log. It names the page's
-                    agent and is set in italic, as Leaf's own words are, since the agent
-                    can't yet be saying anything about the update.
-                  </td>
-                </tr>
-                <tr id="stages-queued">
-                  <td><em>Up next</em></td>
-                  <td>
-                    Codex accepted the update's delivery as the task's next message.
+                    No harness has put the update into the agent's turn. The label is
+                    the same while the browser is still sending it, once the server has
+                    added it to the page's event log, and while Codex holds it as the
+                    task's next message. It names the page's agent and is set in italic,
+                    as Leaf's own words are, since the agent can't yet be saying
+                    anything about the update.
                   </td>
                 </tr>
                 <tr id="stages-picked">
@@ -2785,16 +2792,16 @@ flowchart TD
                 <tr id="stages-ended">
                   <td><em>Stopped</em></td>
                   <td>
-                    The turn the update was delivered into ended, or was interrupted,
-                    before the agent answered it.
+                    The turn the update was delivered into, or that started it, ended
+                    before the agent answered it, with no background work Claude Code
+                    reports still running.
                   </td>
                 </tr>
                 <tr id="stages-stale">
                   <td><em>Gone quiet</em></td>
                   <td>
-                    The agent's start on the update is 15 minutes old, or the turn that
-                    wrote it has ended with no background work Claude Code reports still
-                    running, and the agent has not started the update again since. A
+                    The agent's start on the update is 15 minutes old, and the agent has
+                    not started the update again since. A
                     <em>Delivered</em> update reads the same once nothing shows its turn
                     still running (no status, start, or step for 15 minutes), or once
                     the agent is in a later turn. On Codex App Server, so does a
@@ -2804,6 +2811,13 @@ flowchart TD
                 <tr id="stages-interrupted">
                   <td><em>Interrupted</em></td>
                   <td>Codex App Server stopped the turn before it answered.</td>
+                </tr>
+                <tr id="stages-terminal">
+                  <td><em>Waiting in the terminal</em></td>
+                  <td>
+                    The turn that started the update waits on an approval or a question
+                    in the agent's own window.
+                  </td>
                 </tr>
                 <tr id="stages-failed">
                   <td><em>Not answered</em></td>
@@ -2817,12 +2831,13 @@ flowchart TD
             </table>
             <p id="stages-owed">
               A comment needs a thread reply; a page-widget obligation needs a version
-              recording its answer. Resolving a thread, editing a draft, or moving a
-              card requires no answer, but the agent still receives the event. A draft
-              edit or card move’s label clears when a version records or replaces it;
-              inside a thread message, it clears when the agent next writes there or the
-              thread resolves. A choice with a Done button gets no label until Done
-              submits it.
+              recording its answer. Editing a draft or moving a card requires no answer,
+              but the agent still receives the event. Resolving a thread requires none
+              either, and a comment the agent has not answered in it stays owed its
+              reply. A draft edit or card move’s label clears when a version records or
+              replaces it; inside a thread message, it clears when the agent next writes
+              there or the thread resolves. A choice with a Done button gets no label
+              until Done submits it.
             </p>
           </section>
           <section id="updates-silence">
@@ -3113,10 +3128,12 @@ flowchart TD
               <li id="updates-written-comment">
                 <strong
                   ><code>leaf thread create</code>, <code>leaf thread edit</code>,
-                  <code>leaf thread resolve</code></strong
+                  <code>leaf thread resolve</code>,
+                  <code>leaf thread reopen</code></strong
                 >
                 A thread the agent opens on a passage, a message it corrects, marked
-                <em>edited</em>, or a thread it closes (<em>✓ Resolved by Claude</em>).
+                <em>edited</em>, a thread it closes (<em>✓ Resolved by Claude</em>), or
+                one it brings back to the user's list.
               </li>
               <li id="updates-written-stamp">
                 <strong><code>leaf page stamp --text "…"</code></strong> Names a version
@@ -4805,11 +4822,12 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
           <section id="navigation-resolution">
             <h2>Resolving and replying</h2>
             <p id="navigation-resolve-rule">
-              <kbd>r</kbd> resolves the focused open thread. A thread opened from
-              Threads advances to the next open thread in page order, or the previous at
-              the end; with none left, it returns to the list. A margin card moves on to
-              the next thread at its passage, or the one before, and closes onto its
-              passage with none left. An embedded thread folds in place.
+              <kbd>r</kbd> resolves the focused open thread. A thread open in the panel
+              moves on to the next open thread in page order, or the previous at the
+              end, which opens where every thread opens; with none left, it returns to
+              the list. A margin card moves on to the next thread at its passage, or the
+              one before, and closes onto its passage with none left. An embedded thread
+              folds in place.
             </p>
             <details id="navigation-resolution-cases">
               <summary>Search, replies, and undo</summary>

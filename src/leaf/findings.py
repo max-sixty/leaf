@@ -293,7 +293,6 @@ _SAMPLED = (
     "a live sample opens with its authored history, every event one the log admits"
 )
 _DECLARED = "each widget's declaration means one thing to every part of Leaf"
-_RETRACTS = "every version can take back a decision or report it supersedes"
 _CAPTURED = "each revision draws every file it names, the same wherever it is shown"
 _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
@@ -933,7 +932,7 @@ _TEXT = {
     "uncoloured-code": lambda at, v: (
         f"{at} declares {v['language']}, but no reading face reaches it, so Leaf"
         " leaves its tokens uncoloured; to colour it, set --lf-reading-face: 1 on a"
-        " box around the <pre>, or take the reading theme"
+        " box around the <pre>, or select the reading package"
     ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
@@ -1573,14 +1572,6 @@ _TEXT = {
     "reading-role-attr": _declared(
         lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
-    "addressable-id": _declared(
-        lambda v: (
-            f"`{v['key']}` instances are addressable, but the element declaration"
-            " declares no string `id` attribute, so each instance's own id is checked"
-            " where it stands"
-        ),
-        keeps=None,
-    ),
     "data-contract": _declared(
         lambda v: (
             f"input `{v['input']}` (`inputs`) names unknown contract {v['contract']!r}"
@@ -1623,8 +1614,7 @@ _TEXT = {
     ),
     "visual-id": _declared(
         lambda v: (
-            "has addressable visual parts but does not require a string `id`"
-            " for their anchor"
+            "has addressable visual parts but does not require an `id` for their anchor"
         )
     ),
     # Its conditions, read against its own attributes.
@@ -1651,18 +1641,6 @@ _TEXT = {
         )
     ),
     # Its interactions: its obligation, and the state its verbs write.
-    "awaits-records": _declared(
-        lambda v: (
-            "`awaits.records` must name an input (`inputs`) whose contract declares"
-            " records and whose binding names only an external source attribute"
-        )
-    ),
-    "answering-record": _declared(
-        lambda v: _answering(
-            v,
-            "must use the same record unit as `awaits.value`, with custom detail and no empty condition",
-        )
-    ),
     "answering-detail": _declared(
         lambda v: _answering(
             v, f"detail condition names an undeclared or invalid field `{v['field']}`"
@@ -1688,22 +1666,6 @@ _TEXT = {
             f"`awaits` blanket answer `{v['outcome']}` is not an outcome of a"
             " deciding verb that answers its obligation"
         )
-    ),
-    "unoverruled": _declared(
-        lambda v: (
-            "declares agent-written `verbs`"
-            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
-            " version sets to overrule a worker's report"
-        ),
-        keeps=_RETRACTS,
-    ),
-    "unrestated": _declared(
-        lambda v: (
-            "declares user `verbs` on the whole widget but no boolean"
-            " `restated` attribute, which a version sets to retract the user's"
-            " decision"
-        ),
-        keeps=_RETRACTS,
     ),
     "verb-detail-schema": _declared(
         lambda v: (
@@ -1735,9 +1697,6 @@ _TEXT = {
     ),
     "creates-required": _declared(
         lambda v: _created(v, "which must require id and no other authored attributes")
-    ),
-    "creates-id": _declared(
-        lambda v: _created(v, "whose required id must be declared a string")
     ),
     "creates-semantic-owner": _declared(
         lambda v: _created(
@@ -2365,17 +2324,12 @@ _TEXT = {
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
     # back or could not, and why it ended. A prompt hook that could not serve a
-    # session's page again, or restart its server under this Leaf, says so too
-    # (`reconnect.serve_again`).
+    # session's page again says so too (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
         f"{v['page']}: server was down and did not start again: {v['error']}"
-    ),
-    "restart-refused": lambda at, v: (
-        f"{v['page']}: this Leaf stopped the server another installed Leaf ran, to"
-        f" restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"
@@ -2546,6 +2500,12 @@ _TEXT = {
         f"message {v['message']!r} is folded under summary {v['summary']!r}, which"
         " stands as you wrote it; if this edit changes what it reports, summarize"
         f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
+    ),
+    "stays-closed": lambda at, v: (
+        f"the user resolved thread {v['thread']!r}, so this message went into it"
+        " without bringing it back to their list, which suits the answer or result"
+        f" they asked for; `{v['command']}` brings it back where the message holds"
+        " news they would want to stop and read"
     ),
     "title-kept": lambda at, v: (
         f"the thread is already titled {v['title']!r}, so the reply's title went"

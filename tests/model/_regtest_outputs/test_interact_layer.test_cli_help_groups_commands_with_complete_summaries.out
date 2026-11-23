@@ -19,7 +19,6 @@ Commands:
   page        Create, check, stamp, and read pages.
   server      Start, run, or stop the local server.
   task        Create or end to-dos, start work on your list, and plan.
-  theme       Discover themes for page authoring.
   thread      Create, answer, edit, summarize, or resolve a thread.
   wait        Wait for the next batch.
 
@@ -141,6 +140,7 @@ Options:
 Commands:
   create     Create an agent thread \u2014 on a passage, or on the page whole.
   edit       Edit a message's text, or its thread's title.
+  reopen     Reopen a closed thread as the agent.
   reply      Reply using an answer reference or a page and message.
   resolve    Close a thread as the agent.
   summarize  Summarize a contiguous message range.

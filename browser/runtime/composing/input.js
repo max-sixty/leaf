@@ -294,10 +294,6 @@ export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // name reads has changed and the caller holds the field rather than its wiring.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
-// The box a wired field's words are written in, its composition's frame, which holds
-// the field with the pictures and drawing beside its words; an unwired field has none.
-/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
-export const boxOf = (ta) => ta?.[INPUT_DRAFT]?.composition().frame ?? null;
 // Whether the user writes in a wired box (the module header).
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const writesIn = (ta) => Boolean(ta?.[INPUT_DRAFT]?.writing());

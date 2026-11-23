@@ -49,6 +49,7 @@ from interact_support import (
     lock_contention,
     model_layer,
     obligations_on_user,
+    open_todos,
     publish,
     read_page_data,
     refused_on,
@@ -1669,7 +1670,8 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
-    holds, which a one-version corpus cannot earn.
+    holds, which a one-version corpus cannot earn — and `id`, which composition
+    gives every element and no declaration lists.
 
     Live samples are example pages too; their child documents contribute the
     attributes the reader can exercise there.
@@ -1697,7 +1699,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry["attributes"].get("properties", {}).items():
-            if attr in {"restated", "overruled", "resolves"}:
+            if attr in {"id", "restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
@@ -1723,7 +1725,6 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],
@@ -2486,8 +2487,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         "thread", "reply", "t-store", "--text", "Weighing it.", "--todo", "Weigh"
     )
     assert promised.exit_code == 0, promised.output
-    [task] = json.loads(run("page", "state").output)["todos"]
-    assert (task["id"], task["subject"]) == (
+    [task] = open_todos(json.loads(run("page", "state").output))
+    assert (task["id"], task["source"]["subject"]) == (
         json.loads(promised.output)["id"],
         {"kind": "thread", "id": opened["id"]},
     )
@@ -3364,11 +3365,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "resolved": None,
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.
-            "attention": {
-                "kind": "waiting",
-                "reason": "workflow",
-                "workflow": opened["id"],
-            },
+            "attention": f"update:{opened['id']}",
         }
     ]
     history = CliRunner().invoke(
@@ -4267,7 +4264,9 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     )
     with fresh_process():
         state = agent_state_model.cmd_page_state(page_dir)
-    assert [item["status"] for item in state["obligations"]] == ["withdrawn"]
+    assert [(item["state"], item["outcome"]) for item in state["obligations"]] == [
+        ("done", "dropped")
+    ]
     assert set(authored) == {active.read_text()}
 
 
@@ -4323,7 +4322,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     with fresh_process():
         initial = read()
         assert len(parsed) == 4
-        assert initial["all"][0]["status"] == "withdrawn"
+        assert initial["all"][0]["outcome"] == "dropped"
         parsed.clear()
         assert read() == initial
         assert len(parsed) <= 1  # the first read's history parses evicted the active
@@ -4840,7 +4839,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     [item] = [
         item for item in reading["obligations"] if item["source"]["kind"] == "widget"
     ]
-    assert item["status"] == "answered"
+    assert (item["state"], item["outcome"], item["end"]) == ("done", "done", None)
     assert item["answer"]["event"]["id"] == picked["id"]
 
 

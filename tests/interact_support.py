@@ -197,7 +197,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 @cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection, a path in it
-    naming a package from the checkout's root, as `./tests/fixtures/packages/records`.
+    naming a package from the checkout's root, as `./tests/fixtures/packages/work`.
 
     Composed from the packages rather than read back out of a page, and
     cached per selection, because every stated page asking for the same packages
@@ -278,10 +278,6 @@ class ModelPage:
         return {
             source: value["contract"] for source, value in self._data["sources"].items()
         }
-
-    def data(self, registry: dict) -> dict:
-        """The supplied validated data readings, empty unless a test names them."""
-        return self._data
 
     @property
     def within(self) -> dict:
@@ -762,7 +758,6 @@ def declare_data_input(
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
@@ -935,13 +930,14 @@ def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the threads' obligations, or
     with `page` the document's obligations. The records the user's updates publish
-    are `served_updates`."""
+    are `served_updates`, and the agent's to-dos `served_todos`."""
     [view] = browser["views"].values()
     return collection(
         [
             item
             for item in view["obligations"]
-            if item["source"]["kind"] != "update" and (item["thread"] is None) == page
+            if item["source"]["kind"] not in {"update", "todo"}
+            and (item["thread"] is None) == page
         ]
     )
 
@@ -951,6 +947,23 @@ def served_updates(browser: dict) -> list[dict]:
     `browser` serves."""
     [view] = browser["views"].values()
     return [item for item in view["obligations"] if item["source"]["kind"] == "update"]
+
+
+def served_todos(browser: dict) -> list[dict]:
+    """The agent's to-dos, open and ended, as the obligation records the one view
+    `browser` serves them in (`todos`)."""
+    [view] = browser["views"].values()
+    return [item for item in view["obligations"] if item["source"]["kind"] == "todo"]
+
+
+def open_todos(state: dict) -> list[dict]:
+    """The to-dos the agent still owes among an agent-facing state's `obligations`, as
+    `page state` prints them for the page, a thread or a widget."""
+    return [
+        item
+        for item in state["obligations"]
+        if item["source"]["kind"] == "todo" and item["state"] != "done"
+    ]
 
 
 @pytest.fixture
@@ -1284,7 +1297,7 @@ def owed(state):
     its record names, with the record's id as `obligation` and the owed `answer`.
 
     `activity.obligations` names each by its record's id beside its answer, so this
-    is the join an agent makes to reach a move's stage or subject.
+    is the join an agent makes to reach where a move stands or its subject.
     """
     records = {item["id"]: item for item in state["obligations"]}
     by_input = {item["input"]: item for item in state["workflows"]}
@@ -1435,10 +1448,6 @@ def _report_authored_detail(registry):
     }
 
 
-def _report_without_overruled(registry):
-    del registry["lf-test-task"]["attributes"]["properties"]["overruled"]
-
-
 def _report_without_module(registry):
     registry["lf-test-bare"] = {
         **deepcopy(registry["lf-test-task"]),
@@ -1452,9 +1461,6 @@ def _user_verb_text(registry):
 
 def _agent_verb_answers(registry):
     registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
-    registry["lf-options"]["attributes"]["properties"]["overruled"] = {
-        "type": "boolean"
-    }
 
 
 def _body_record_with_prose(registry):
@@ -1532,7 +1538,6 @@ def trial_family(root: Path) -> None:
             "verbs": {"decide": deciding_verb(outcomes)},
             "example": example,
         }
-        declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
@@ -1963,7 +1968,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 (
                     task["id"]
                     for task in TodoReading(events_model.read_events(page_dir)).owed
-                    if task["subject"] == {"kind": "page"}
+                    if task["source"]["subject"] == {"kind": "page"}
                 ),
                 None,
             )
@@ -1997,7 +2002,7 @@ def end_work(page_dir):
     from leaf.todos import TodoReading
 
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == {"kind": "page"}:
+        if task["source"]["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
                 {
@@ -2016,7 +2021,7 @@ def end_work_on(page_dir, subject):
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == named:
+        if task["source"]["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
             )
@@ -2059,7 +2064,7 @@ def working(page_dir, line, subject="page"):
         (
             task
             for task in TodoReading(log_model.read_events(page_dir)).owed
-            if task["subject"] == named
+            if task["source"]["subject"] == named
         ),
         None,
     )

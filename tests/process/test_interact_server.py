@@ -2880,7 +2880,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"] == expected
     assert "detail_source" not in row["activity"]
     assert "obligations" not in row["activity"]
-    assert row["activity"]["counts"]["pending"] == 1
+    assert row["activity"]["counts"]["unseen"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
     declare(neighbor, "idle")
@@ -2987,7 +2987,7 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     try:
         publisher.refresh()
         first = json.loads(publisher.path.read_text())["row"]
-        assert first["activity"]["kind"] == "working"
+        assert first["activity"]["state"] == "running"
         assert (
             first["activity"]["next_transition_at"]
             == (now + timedelta(seconds=1)).isoformat()
@@ -3005,7 +3005,11 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
         now += timedelta(seconds=2)
         publisher.refresh()
         aged = json.loads(publisher.path.read_text())["row"]
-        assert aged["activity"]["kind"] == "stalled"
+        assert (
+            aged["activity"]["presence"],
+            aged["activity"]["state"],
+            aged["activity"]["reason"],
+        ) == ("here", "blocked", "quiet")
         assert aged["activity"]["next_transition_at"] is None
         publisher.path.unlink()
         publisher.refresh()
@@ -3875,16 +3879,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original(directory, revision)
 
-    original_data = read_context.read_data
-
-    def held_data(*args):
-        # Record obligations in the view read their bound data under the same
-        # transaction as its document and log.
-        assert leases_model.lock_is_held(page_dir / "events.jsonl")
-        return original_data(*args)
-
     monkeypatch.setattr(read_context, "read_revision", held_revision)
-    monkeypatch.setattr(read_context, "read_data", held_data)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}&shown=2")
     assert status == 200, body
     # The base is read, and the revision shown for its containment

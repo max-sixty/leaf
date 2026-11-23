@@ -389,8 +389,8 @@ def card_surface(browser, serve, gesture):
 
 
 def panel_surface(browser, serve, gesture):
-    """The floating panel's view of a thread about a passage, which a route to the
-    thread would open in a card beside it. A Reopen there lands in the panel's field,
+    """The floating panel's view of a thread about a passage, where the user chose the
+    panel for threads (`open_panel_thread`). A Reopen there lands in the panel's field,
     which keeps the notice out of sight while the caret stands in it."""
     url, root = anchored_long_page(serve, gesture)
     page = open_page(browser, url)
@@ -561,11 +561,10 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
 ):
     """A settlement takes the user's view of its thread away, and every way back gives
     that view back on the surface the user had it on: ⌘Z pressed on it, beside it or
-    away from it, the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
-    choose would choose for the thread as it stood at the way back: it would put a
-    thread resolved in its card in the panel, where resolved threads open, one resolved
-    in the panel's view in a card, and one resolved in a seat in the panel, then a
-    card."""
+    away from it, the notice's Undo and the log's refusal (undo.js, folding.js). Each
+    way back opens the thread by the route every opening takes, so a card, the panel
+    the user chose for threads, a seat and a package's reader each come back as the
+    route draws the thread once the withdrawal stands."""
     s = surface(browser, serve, gesture)
     page = s.page
     page.evaluate(OPEN_THREAD_COUNT)

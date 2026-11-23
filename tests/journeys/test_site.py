@@ -26,6 +26,10 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import pytest
+
+# The suite's own page primitives, so a navigation here waits on what every other
+# navigation waits on. tests/AGENTS.md, "Waits".
+from browser.threads import choose_threads_in_panel
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server, wait_for
 from PIL import Image
@@ -56,9 +60,6 @@ from render_harness import (
 )
 
 import leaf_website as website_server
-
-# The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
 from leaf import data as data_model
 from leaf import files as files_model
@@ -1546,7 +1547,11 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "agent": "Agent",
         "install_url": "/#install",
     }
-    assert state["browser"]["todos"] == []
+    assert not any(
+        item["source"]["kind"] == "todo"
+        for view in state["browser"]["views"].values()
+        for item in view["obligations"]
+    )
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()
@@ -1601,6 +1606,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         has_text="One reconnect in forty is worse"
     )
     expect(row).to_have_count(1)
+    choose_threads_in_panel(page)
     row.click()
     thread = page.locator(PANEL_THREAD)
     expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")

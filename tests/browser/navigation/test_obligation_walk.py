@@ -2,7 +2,7 @@
 and an obligation's digits and thread."""
 
 import pytest
-from interact_support import ROOT, append_carried_log_record
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -19,11 +19,10 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
-    EXAMPLE_PACKAGES,
     LONG_PAGE,
     RELEASE_FOCUS,
     expect_obligations_answered,
-    expect_on_me,
+    gesture_writes,
     held_frames,
     leaf_page,
     open_page,
@@ -38,12 +37,10 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
-    undo,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
-from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
@@ -680,7 +677,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     # applies after the pick's send comes back.
     expect_obligations_answered(page, "1/2")
     first, second = questions()
-    assert first["status"] == "answered"
+    assert first["answered"]
     assert first["answer"]["value"] == ["first-a"]
     assert second["answer"] is None
     page.keyboard.press("m")
@@ -754,6 +751,51 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     with sending(page, "the answer"):
         page.keyboard.press("2")
     assert answer() == ["right"]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
+    engine, request, serve
+):
+    """With focus on an ask, a choice a scroll brings back into the window wears its
+    digit from the frame it enters, while the scroll still moves, as it would once the
+    scroll ends (command-hints.js). The choice enters at the window's top, clear of
+    the panel's row, and the choice after it keeps the ask in sight meanwhile."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "A long ask",
+                '<h1>A long ask</h1><lf-group id="route" label="Which route?"><h2 id="route-h">Which route?</h2>'
+                '<lf-options id="routes">'
+                '<lf-option id="left">Take the left route<div style="height:1600px"></div></lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                '<lf-option id="back">Go back<div style="height:1600px"></div></lf-option>'
+                '</lf-options></lf-group><div style="height:4000px">Reading on</div>',
+            )
+        ),
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#left > .lf-key-badge")).to_be_visible()
+    gesture_writes(page, 2600)
+    expect(page.locator("#right")).not_to_be_in_viewport()
+    _, _, samples = gesture_writes(
+        page,
+        -1200,
+        sample="""() => {
+          const choice = document.getElementById('right');
+          const digit = choice.querySelector(':scope > .lf-key-badge');
+          const top = choice.getBoundingClientRect().top;
+          return {
+            seen: top >= 0 && top < innerHeight / 2,
+            worn: Boolean(digit?.checkVisibility({opacityProperty: true}))
+              && digit.textContent.trim() === '2',
+          };
+        }""",
+    )
+    seen = [sample["read"] for sample in samples if sample["read"]["seen"]]
+    assert len(seen) >= 3, samples
+    assert all(read["worn"] for read in seen), samples
 
 
 def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serve):
@@ -1922,95 +1964,3 @@ IN_THREAD = """() => {
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
   return at?.closest('[data-lf-thread]')?.dataset.lfThread ?? null;
 }"""
-# A widget owing the user one answer per case of the run its `source` binds
-# (`awaits.records`), from a package of the suite's own, since no bundled widget
-# declares it. It shows one case at a time, the others `hidden="until-found"`.
-RECORDS = ROOT / "tests/fixtures/packages/records"
-RECORDS_RUN = {
-    "cases": [
-        {"id": "status-column", "title": "Run list status"},
-        {"id": "detail-link", "title": "Run detail link"},
-        {"id": "desktop-navigation", "title": "Desktop navigation"},
-    ]
-}
-REVIEW = '<lf-test-review id="review" source="run"></lf-test-review>'
-
-
-def records_page(serve, *events):
-    """A page whose `review` owes a case of the run, with `events` in its log."""
-    url = live_url(
-        serve(leaf_page("Cases", REVIEW), packages=(*EXAMPLE_PACKAGES, RECORDS))
-    )
-    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
-    for event in events:
-        append_carried_log_record(serve.page_dir, event)
-    return url
-
-
-def test_each_record_a_widget_owes_is_its_own_obligation(browser, serve):
-    """The walk reaches each case the widget owes, hidden ones included, and answering
-    one answers only that case. Its On Me card reaches it while another case shows,
-    and feedback on it hands only that case to the agent."""
-    page = open_page(browser, records_page(serve))
-    case = page.locator("#review .test-case:not([hidden])")
-    looks_right = case.get_by_role("checkbox", name="Looks right")
-    first, second, third = (each["id"] for each in RECORDS_RUN["cases"])
-    expect_on_me(page, 3)
-    looks_right.focus()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-    expect(case).to_be_focused()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", third)
-    expect(case).to_be_focused()
-    page.keyboard.press("Shift+m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-    with sending(page, "approve one independent case"):
-        looks_right.check()
-    expect_on_me(page, 2)
-    undo(page)
-    expect_on_me(page, 3)
-    expect(looks_right).not_to_be_checked()
-
-    page.locator(".lf-fp-leaf").click()
-    card = page.locator(".lf-fp-on-item").filter(
-        has=page.get_by_text(RECORDS_RUN["cases"][0]["title"], exact=True)
-    )
-    card.get_by_role("button", name="Show", exact=True).click()
-    expect(case).to_have_attribute("data-lf-datum", first)
-    expect(case).to_be_focused()
-    page.keyboard.press("c")
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    page.keyboard.type("Keep the status column narrow")
-    with sending(page, "hand feedback on this case to the agent"):
-        page.keyboard.press("Enter")
-    expect_on_me(page, 2)
-    looks_right.focus()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-
-
-def test_on_me_shows_a_record_a_reply_s_widget_owes(browser, serve):
-    """A record a widget in a reply owes is reachable from its On Me card before the
-    widget, or the case it shows, is drawn there."""
-    url = records_page(
-        serve,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "text": "Review the cases in this reply.\n\n"
-            '<lf-test-review id="reply-review" source="run"></lf-test-review>',
-        },
-    )
-    page = open_page(browser, url)
-    expect_on_me(page, 6)
-    page.locator(".lf-fp-leaf").click()
-    card = page.locator(
-        '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:detail-link"]'
-    )
-    card.get_by_role("button", name="Show", exact=True).click()
-    case = page.locator("#reply-review .test-case:not([hidden])")
-    expect(case).to_have_attribute("data-lf-datum", "detail-link")
-    expect(case).to_be_focused()
-    expect(case.get_by_role("checkbox", name="Looks right")).to_be_visible()

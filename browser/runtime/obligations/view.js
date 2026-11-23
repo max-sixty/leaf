@@ -64,7 +64,6 @@ import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { under, upFrom } from "../shadow-tree.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
-import { revealAddressed } from "../anchor-resolution.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
 /** @typedef {import("../framework/application.js").ObligationRecord} Obligation */
@@ -94,12 +93,6 @@ export function createObligationView({
   /** @param {Obligation | null} item */
   const sourceOwner = (item) =>
     item?.source.kind === "widget" ? elementById(item.source.id) : null;
-  /** @param {Obligation | null} item */
-  const sourceControls = (item) => {
-    const owner = sourceOwner(item);
-    const source = sourceNode(item);
-    return owner && source ? { owner, source } : null;
-  };
   /** @param {readonly Obligation[]} items @param {Obligation | null} candidate */
   const hasObligation = (items, candidate) =>
     Boolean(candidate && items.some((item) => item.id === candidate.id));
@@ -280,18 +273,17 @@ export function createObligationView({
   // Widgets own context aliases. The obligation view selects declarations through the same current location
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
-  /** @param {Element} source @param {Element} owner */
-  const actionsFor = (source, owner = source) =>
+  /** @param {Element} owner */
+  const actionsFor = (owner) =>
     decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
       ({ source: commandSource, control }) =>
         ownedObligationControl(owner, commandSource) &&
-        (source === owner || under(control, source)) &&
         control.getAttribute("aria-busy") !== "true",
     );
   /** @param {Obligation | null} item */
   const actionsOf = (item) => {
-    const controls = sourceControls(item);
-    return controls ? actionsFor(controls.source, controls.owner) : [];
+    const owner = sourceOwner(item);
+    return owner ? actionsFor(owner) : [];
   };
   // The answers an obligation offers, for a surface that answers it away from where it stands,
   // as the floating panel's On view does: each Decision control's own words, whether
@@ -301,9 +293,9 @@ export function createObligationView({
   // caller then offers the arrival instead.
   /** @param {Obligation} item */
   function choicesOf(item) {
-    const controls = sourceControls(item);
-    if (!controls) return null;
-    return actionsFor(controls.source, controls.owner).map(
+    const owner = sourceOwner(item);
+    if (!owner) return null;
+    return actionsFor(owner).map(
       ({ id, label, description, recommended, commits, control }) =>
         Object.freeze({
           id,
@@ -445,8 +437,7 @@ export function createObligationView({
   // question is that region (`prompt.target`): its name, then the context and evidence,
   // then the control. Where the obligation stands at the group alone, the group is also
   // its place, so its arrival is simply its start, however tall the group is. A group
-  // several obligations share, or a record unit's, is the region only where it fits
-  // above the source.
+  // several obligations share is the region only where it fits above the source.
   //
   // A suggestion declares no group: it is an edit to a phrase, and what explains it is
   // the sentence it stands in. Landing on the change alone would put its own top edge
@@ -527,23 +518,9 @@ export function createObligationView({
     // which renames the entry they are on (thread/address.js); only a successful
     // arrival commits the departure.
     const departure = prepareNavigationStep();
-    // A thread source must exist before its owner can reveal a projected record.
+    // A thread source must exist before the walk can arrive at it.
     if (hasObligationSource(next, "widget") && next.thread)
       await materializeObligation(next, next.message, mayArrive);
-    if (hasObligationSource(next, "widget") && next.source.unit) {
-      const owner = sourceOwner(next);
-      if (owner) {
-        const hydration = revealAddressed(owner, next.source.unit);
-        if (
-          hydration != null &&
-          (typeof hydration === "object" || typeof hydration === "function") &&
-          "then" in hydration &&
-          typeof hydration.then === "function"
-        )
-          await hydration;
-        if (!mayArrive()) return false;
-      }
-    }
     // A thread obligation uses the same retained destination as every other thread
     // arrival. The selected reader may need to disclose a different conversation.
     const { target } = reachObligation(next);

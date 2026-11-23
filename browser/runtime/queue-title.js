@@ -15,11 +15,11 @@ export function queueTitle(item) {
   const named = item.thread ? threadNamed(item.thread) : null;
   const thread = named && discussed(named) ? named : null;
   const topic = thread ? threadName(thread) : "";
-  // A to-do's own title, or an obligation's prompt.
-  const title = item.todo?.title ?? item.obligation?.prompt.text;
+  // An obligation's prompt, which a to-do's title is.
+  const title = item.obligation.prompt.text;
   if (title) return title;
   // A reply the agent sent reads as its own words, since one thread holds many.
-  const reply = item.kind === "update" ? item.obligation?.answer?.event?.id : null;
+  const reply = item.kind === "update" ? item.obligation.answer?.event?.id : null;
   const sent = reply && thread?.msgs.find((message) => message.id === reply);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {

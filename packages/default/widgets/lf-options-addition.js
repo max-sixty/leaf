@@ -58,6 +58,7 @@ export class OptionAddition {
         (/** @type {string | null} */ value) => ui.sync.load(value ?? ""),
         {
           input: ui.input,
+          box: () => ui.sync.composition().frame,
           // Resume writing (`g i`) comes back to the field, which stands in the group.
           resume: () => ({ where: ui.input, input: () => ui.input }),
         },

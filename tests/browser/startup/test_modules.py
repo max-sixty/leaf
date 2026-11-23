@@ -32,7 +32,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
@@ -119,6 +119,7 @@ Two classic models.</pre></lf-code>
     open_threads(page)
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
+    choose_threads_in_panel(page)
     rows.filter(has_text="Still anchored?").click()
     quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()

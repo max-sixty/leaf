@@ -10,6 +10,7 @@ control in the view. A thread's card in the margin offers the same gestures, but
 takes away the control it was pressed on, so it leaves nothing to check."""
 
 import pytest
+from browser.threads import choose_threads_in_panel
 from render_harness import (
     open_threads,
     panel_settled,
@@ -37,7 +38,8 @@ def open_on_me(page):
 
 def open_thread(page, key):
     """The thread `key`'s view, from its row in Threads, folded under Resolved once it
-    is resolved."""
+    is resolved, with the panel chosen for threads about a passage."""
+    choose_threads_in_panel(page)
     open_threads(page)
     row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{key}"]')
     if not row.count():

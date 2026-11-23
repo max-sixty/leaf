@@ -31,8 +31,6 @@ from leaf import files as files_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import reconnect as reconnect_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -263,32 +261,3 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [left["id"]]
     assert hook_transport_model.ATTENTION_OPENING not in context
-
-
-def test_a_prompt_restarts_a_server_another_installed_copy_started(
-    claimed, tmp_path, monkeypatch, capsys
-):
-    """A prompt from an installed copy of Leaf restarts a page server another
-    installed copy started under its own copy, at the same address, within the
-    hook's deadline (`model/test_session_lifecycle.py` holds which servers it
-    restarts)."""
-    started = start_server_command(claimed, session_id="s1")
-    assert started.returncode == 0, started.stderr
-    serving = server_model.running_server(claimed)
-    assert serving is not None
-    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    older, newer = cache / "0a0a0a0a0a0a", cache / "1b1b1b1b1b1b"
-    runtime = {**serving["runtime"], "path": str(older), "commit": older.name}
-    service = read_record(claimed / "service.json")
-    write_record(claimed / "service.json", {**service, "runtime": runtime})
-    for module in (reconnect_model, server_model, layer_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", newer)
-    capsys.readouterr()
-
-    prompt()
-    assert capsys.readouterr().out == ""
-    restarted = server_model.running_server(claimed)
-    assert restarted is not None
-    assert restarted["server_id"] != serving["server_id"]
-    assert restarted["url"] == serving["url"]
-    assert restarted["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)

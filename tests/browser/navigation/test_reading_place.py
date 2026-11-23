@@ -530,7 +530,7 @@ ITEMS_LAYER = {
         "description": "Items drawn one at a time, each part addressed by item/part.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -542,7 +542,6 @@ ITEMS_LAYER = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "for": {"type": "string"},
                 "key": {"type": "string", "minLength": 1},
             },

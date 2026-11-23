@@ -887,12 +887,16 @@ function fieldEditor(
           ].join("");
           const kept = body[each.number - opened];
           // A code line's rows hang from its indent, as the sent block's do
-          // (code-lines.js), which the line states as the block's boxes do.
+          // (marks.css, `[data-lf-pre-line]`), which the line states as the block's
+          // boxes do.
           const indent = kept === undefined ? 0 : indentColumns(kept, state.tabSize);
           out.push(
             Decoration.line({
               class: `lf-md-code-block${ends}`,
-              ...(indent && { attributes: { style: `--lf-code-indent: ${indent}` } }),
+              attributes: {
+                "data-lf-pre-line": "",
+                ...(indent && { style: `--lf-code-indent: ${indent}` }),
+              },
             }).range(each.from),
           );
           if (kept === undefined) return;

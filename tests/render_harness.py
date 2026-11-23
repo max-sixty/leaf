@@ -557,7 +557,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
     test that appends those events itself. `layer_registry` and `layer_widgets` add a
     project package, a registry and its widget modules, for a reading the layer makes
     from declarations, so the test does not depend on which shipped tag declares them.
-    `theme=False` initializes the page with no theme, as `page init --no-theme` does.
+    `reading=False` leaves Leaf's `reading` theme out of the page's packages.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -584,7 +584,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         website_publication=None,
         seed_log=True,
         page_files=None,
-        theme=None,
+        reading=True,
     ):
         monkeypatch.chdir(tmp_path)  # resolve explicitly selected fixture packages
         project = tmp_path / ".leaf"
@@ -642,7 +642,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
             template = ((example.resolve(), seed_log), prepare)
         else:
             template = None
-        initialized_page(d, selected_packages, template, theme=theme)
+        initialized_page(d, selected_packages, template, reading=reading)
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp

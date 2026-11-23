@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -36,6 +37,7 @@ from interact_support import (
     receive_through,
     record_claim,
     said,
+    served_todos,
     serving,
     vendored_at_another_protocol,
     wait_for,
@@ -254,8 +256,8 @@ def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
     _, _, shown = delivered(capsys)
     assert [event["id"] for event in shown] == ["c1"]
     assert declared(page_dir) == before
-    [task] = page_state(page_dir)["browser"]["todos"]
-    assert task["running"]["text"] == "running the browser suite"
+    [task] = served_todos(page_state(page_dir)["browser"])
+    assert task["line"]["text"] == "running the browser suite"
 
 
 def test_a_wait_watches_a_stopped_server_until_its_page_ends(
@@ -427,7 +429,8 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     _, batch, shown = woken(waited.output)
     assert batch["page"] == str(page_dir.resolve())
     assert [event["id"] for event in shown] == [comment["id"]]
-    assert activity_reading(copy)["kind"] == "listening"
+    copied = activity_reading(copy)
+    assert (copied["presence"], copied["state"]) == ("here", "done")
 
 
 @pytest.mark.parametrize("wait", ["named", "session"])
@@ -814,6 +817,81 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert hooks_model.cmd_watch("claude-code", stop) is None
 
 
+# `leaf ARGS` as a child running this tree's modules from the copy of Leaf at the
+# path in its first argument, as a process runs that loaded that copy before Pi
+# updated it: its plugin root and its launcher are that copy's.
+_RUNNING_FROM = """
+import sys
+from pathlib import Path
+
+from leaf import session_runtime, state
+from leaf.__main__ import main
+
+state.PLUGIN_ROOT = session_runtime.PLUGIN_ROOT = Path(sys.argv[1])
+sys.argv = ["leaf", *sys.argv[2:]]
+main()
+"""
+
+
+def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
+    page_dir, monkeypatch, sessionless, spawn, tmp_path
+):
+    """Pi updates its clone of Leaf in place and then removes the clone's
+    environment. The watch between turns that the old copy started reads no page
+    after that: it lets its lease go and, in the process Pi's extension started and
+    reads, runs the watch of the copy now at its path, with the payload it started
+    with, so the extension's handle on it holds."""
+    root = tmp_path.joinpath(".pi", "agent", "git", "github.com", "max-sixty", "leaf")
+    for directory in (".git", ".venv", "bin"):
+        (root / directory).mkdir(parents=True)
+    (root / "bin" / "leaf").write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin)}))\n"
+    )
+    (root / "bin" / "leaf").chmod(0o755)
+    monkeypatch.setenv("PI_SESSION_ID", "pi-s1")
+    monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
+    monkeypatch.setenv("LEAF_PI_WATCH", "1")
+    service_model.claim_page(page_dir)
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir)
+    cleanup_model.prompt_turn("pi-s1")
+    interrupt = {
+        "hook_event_name": "Interrupt",
+        "session_id": "pi-s1",
+        "ended_at": time.time(),
+    }
+    payload = tmp_path / "interrupt.json"
+    payload.write_text(json.dumps(interrupt))
+    with payload.open() as stdin:
+        watch = spawn(
+            [sys.executable, "-c", _RUNNING_FROM, str(root), "hook", "--harness", "pi"]
+            + ["--watch"],
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    wait_for(
+        lambda: leases_model.wait_is_live(None, "pi-s1"),
+        lambda live: live,
+        failure="the watch never took its lease",
+    )
+    (root / ".venv").rmdir()
+    # A write to the page moves its reading, so the watch passes again at once
+    # rather than at its next timed look.
+    session_model.cmd_waiting(page_dir)
+    output, errors = watch.communicate(timeout=STATED_TIMEOUT)
+    assert watch.returncode == 0, errors
+    assert json.loads(output) == {
+        "argv": ["hook", "--harness", "pi", "--watch"],
+        "payload": interrupt,
+    }
+    [ended] = read_interactions(page_dir, types=("watch",))
+    assert ended["ended"] == "copy-replaced"
+
+
 @pytest.mark.parametrize("ending", ["Stop", "Escape"])
 def test_a_watch_leaves_input_to_a_later_turn_while_it_runs(
     claimed, monkeypatch, ending
@@ -1176,7 +1254,10 @@ def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
     """An extension's watch closes an interrupted turn only after the extension saw it
     end, and a Claude Code or Pi turn has no id, so a prompt in between renews
     the same turn. The Interrupt payload states when the turn ended, and a turn
-    opened or renewed since then is not closed by it."""
+    opened or renewed since then is not closed by it. Nor is a closed turn closed
+    again: the watch that goes on under a copy Pi put in place of its own answers
+    the Interrupt its predecessor answered (`hooks.main`), and the close keeps the
+    time it has."""
     cleanup_model.prompt_turn("s1")
     ended = time.time()
     time.sleep(0.01)
@@ -1191,6 +1272,10 @@ def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
     turn_record_4 = cleanup_model.session_record("s1")
     assert turn_record_4 is not None
     assert turn_record_4["turn_closed"] is not None
+
+    time.sleep(0.01)
+    hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": time.time()})
+    assert cleanup_model.session_record("s1") == turn_record_4
 
 
 def test_a_page_served_mid_wait_joins_the_running_watch(

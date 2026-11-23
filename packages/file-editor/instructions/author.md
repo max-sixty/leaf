@@ -4,7 +4,7 @@ stands. Bind each file explicitly; the browser receives each file's label and
 contents, never its absolute path.
 
 ```bash
-leaf page init --package file-editor PAGE
+leaf page init --package reading --package file-editor PAGE
 leaf file bind PAGE notes ./research-notes.md
 ```
 
@@ -20,7 +20,7 @@ puts the caret at the start of that line, so a note can point at the line it is
 about.
 
 ```bash
-leaf page init --package file-editor --package file-tree PAGE
+leaf page init --package reading --package file-editor --package file-tree PAGE
 leaf file bind PAGE values deploy/values.yaml
 leaf file bind PAGE alerts deploy/alerts.yaml
 leaf file bind PAGE runbook docs/runbook.md

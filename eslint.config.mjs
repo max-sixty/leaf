@@ -1450,6 +1450,7 @@ export default [
       "tests/*_watch.js",
       "tests/watch_platform.js",
       "dev/leaf_dev/main_thread.js",
+      "dev/leaf_dev/frames.js",
     ],
     languageOptions: { globals: globals.browser },
   },

@@ -22,8 +22,8 @@ words from the page's HTML that the user can see, within one widget part. The
 command refuses a quote that matches more than one place, or is retired, replaced,
 or crosses a boundary, rather than open a thread with no anchor. The thread's id is
 the `id` of its opening comment, in the record the command prints.
-`leaf page state <page> <message>`, `leaf thread reply`, `edit` and `resolve` take
-the id of any message in the thread.
+`leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
+`reopen` take the id of any message in the thread.
 
 Link directly to a thread by adding `thread=<message-id>` to the page URL's query
 parameters, preserving any existing access parameters: `?thread=<message-id>`, or
@@ -133,9 +133,9 @@ gives. Progress and failure reports use the active revision without checking or
 publishing an in-progress draft. Rerunning an
 answer with the same `ref`, text and flags adds nothing.
 
-When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
-"Replies"). Use `leaf thread reply` instead when the answer needs a question back,
-a to-do, a title, or a moved anchor. To
+When an answer has `writer: "turn"`, which only a Codex turn receives, your turn's
+final text answers it, and `harness-codex.md`, "Replies", says when to use
+`leaf thread reply` instead. To
 have a command hub worker answer, forward it the `answer.ref` as that package's
 coordinator instructions say.
 
@@ -228,8 +228,8 @@ EOF
 ```
 
 If the user answers in words instead, the delivery of their reply lists the question
-in `waiting`; once you have answered, resolve the thread if nothing else in it waits on
-them, which takes the question off On Me. Another widget that asks works the same way, such
+in `waiting`; once you have answered, resolve the thread as `conversation-loop.md`,
+"The On lists", says. Another widget that asks works the same way, such
 as an `lf-draft` marked `required` for wording the user edits. A decision the page
 records, or one whose evidence needs the column, goes on the page beside its subject
 (`authoring-on-me.md`), linked from the reply.
@@ -283,16 +283,30 @@ summary that gives the answer as it now stands, as short as any summary ("Summar
 long discussion"): `leaf thread summarize <page> --from <earlier-reply> --through
 <correction> --text "<the current answer>"`.
 
-An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
-answer; the user usually resolves it. Resolve it yourself only when the user asks,
-when an event's `handling` says to, when its question was settled elsewhere
-(`conversation-loop.md`, "The On lists"), or when no review or follow-up could change
-the outcome, which finishing the work does not show by itself. When unsure, leave it
-open. First answer any unanswered user message in it:
+An ordinary reply leaves the thread open, or reopens one you resolved, so the user can
+inspect the answer; the user usually resolves it. Resolve a thread yourself only when
+the user asks, when an event's `handling` says to, when its question was settled
+elsewhere (`conversation-loop.md`, "The On lists"), or when no review or follow-up could
+change the outcome, which finishing the work does not show by itself. When unsure, leave
+it open. First answer any unanswered user message in it:
 
 ```bash
 leaf thread resolve <page> <message>
 ```
+
+A thread the user resolved is one they are done with. Resolving takes it off their
+list and takes back nothing they asked there, so your answer, or a result you
+promised, goes into the closed thread with nothing on their list to announce it; the
+record `leaf thread reply` prints says so. Bringing the thread back is your call:
+
+```bash
+leaf thread reopen <page> <message>
+```
+
+Reopen it, before or after your message, for news they would want to stop and read,
+such as that you could not do what they asked, or a result that changes something they
+rely on. Leave it closed where your message only delivers what they asked for. A
+question to them there, in words or as a pick, reopens it by itself.
 
 ## What the user has read
 

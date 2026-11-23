@@ -109,7 +109,6 @@ from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
     composition_inputs,
-    fixture_environment,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -176,7 +175,6 @@ def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) ->
     result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
-        env=fixture_environment(),
         check=False,
         input=input_text,
         stdout=subprocess.PIPE,
@@ -473,19 +471,12 @@ class PreviewService:
         )
 
 
-def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
+def source_roots(source: Path, runtime: Path) -> list[Path]:
     """The package roots the source's selection names, where `page init` runs from
-    (`leaf`), whose edits reach the page as copies at its next init, with the theme
-    the page captured."""
+    (`leaf`), whose edits reach the page as copies at its next init."""
     from leaf.layer import layer_inputs
-    from leaf.registry.storage import layer_record
-    from leaf.themes import with_theme
 
-    layer = layer_record(page)
-    assert layer is not None
-    return layer_inputs(
-        with_theme(tuple(source_packages(source)), layer["theme"]), runtime
-    )
+    return layer_inputs(tuple(source_packages(source)), runtime)
 
 
 def refresh_preview(
@@ -861,7 +852,7 @@ def serve_preview(
         )
         with service.starting() as url:
             pass
-        roots = source_roots(source, page, runtime)
+        roots = source_roots(source, runtime)
         watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
@@ -921,7 +912,7 @@ def serve_preview(
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            roots = source_roots(source, page, runtime)
+            roots = source_roots(source, runtime)
             try:
                 rebuilt = watch_paths(source, runtime, roots)
             except (ValueError, OSError) as error:

@@ -1,6 +1,6 @@
 """A page's layer record, and the vocabulary every reader composes from it.
 
-A page records which packages and theme it selects (`LAYER`), never the
+A page records which packages it selects (`LAYER`), never the
 layer itself: every Leaf that serves, checks or exports the page composes its own
 (`layer.selected_layer`), as it supplies its own runtime (`runtime_selection`)."""
 
@@ -26,9 +26,9 @@ LAYER = Record(
     {
         "description": (
             "A page's layer selection, `layer.json` in its directory: the packages"
-            " and theme every Leaf that reads the page composes, the"
-            " generation an open document speaks, and the page protocol a Leaf last"
-            " initialized it at."
+            " every Leaf that reads the page composes, in order, the generation an"
+            " open document speaks, and the page protocol a Leaf last initialized it"
+            " at."
         ),
         "type": "object",
         "properties": {
@@ -37,25 +37,12 @@ LAYER = Record(
                 "items": {"type": "string", "minLength": 1},
                 "uniqueItems": True,
             },
-            "theme": {
-                "anyOf": [
-                    {"type": "null"},
-                    {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "minLength": 1},
-                            "source": {"enum": ["explicit", "default"]},
-                        },
-                        "required": ["name", "source"],
-                    },
-                ]
-            },
             "generation": {"type": "string", "minLength": 1},
             "protocol": {"type": "integer"},
         },
-        "required": ["packages", "theme", "generation", "protocol"],
+        "required": ["packages", "generation", "protocol"],
     },
-    since=36,
+    since=53,
 )
 
 
@@ -117,10 +104,8 @@ def selected_vocabulary(record: dict, page_dir: Path):
 
 
 def _compose_selected(compose, record: dict, page_dir: Path):
-    from leaf.themes import with_theme
-
     try:
-        return compose(with_theme(tuple(record["packages"]), record["theme"]), page_dir)
+        return compose(tuple(record["packages"]), page_dir)
     except Refused as error:
         raise RegistryError(
             [Finding("layer-unavailable", values={"error": str(error)})]
@@ -315,7 +300,6 @@ def layer_metadata_of(record: dict) -> dict:
     return {
         "generation": record["generation"],
         "packages": list(record["packages"]),
-        "theme": record["theme"],
     }
 
 

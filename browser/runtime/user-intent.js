@@ -9,7 +9,6 @@
    wait. Which inputs supersede it is focus.js's count (`inputCount`), the one reading of
    the user's inputs. */
 import { carriedFrom, focused, inputCount } from "./focus.js";
-import { inputs } from "./inputs.js";
 import { renderedUnder } from "./shadow-tree.js";
 
 // Focus a repaint took from the source and dropped on a container holding it, as a
@@ -44,9 +43,6 @@ const displaced = (source, at) => {
 // The source is held weakly: an intent can be kept long after its gesture, as a reading
 // place keeps one, and a source the document has since dropped can neither hold focus
 // nor be what focus was carried from, so it answers nothing a held node would.
-// `keys: false` is for work that the keys pressed meanwhile wait for, as the hand-back of
-// a place a reload took (version.js, `installArrival`): those keys go where it lands, so
-// only an input that takes the user elsewhere supersedes it (`moves`).
 /** @typedef {{(): boolean, available: () => boolean, handoff: (move: () => unknown) => boolean}} UserIntent */
 /**
  * @returns {UserIntent}
@@ -54,7 +50,6 @@ const displaced = (source, at) => {
  *   source?: unknown,
  *   available?: () => boolean,
  *   fallback?: Element | null,
- *   keys?: boolean,
  *   since?: number,
  * }} [options]
  */
@@ -62,11 +57,9 @@ export function retainUserIntent({
   source = focused(),
   available = () => true,
   fallback = null,
-  keys = true,
-  since = keys ? inputCount() : inputs.moves,
+  since = inputCount(),
 } = {}) {
   const retained = since;
-  const clock = keys ? inputCount : () => inputs.moves;
   let held = source instanceof Node ? new WeakRef(source) : null;
   const current = () => {
     const at = focused();
@@ -77,7 +70,7 @@ export function retainUserIntent({
       from === document.body ? at === document.body : renderedUnder(at, from);
     return Boolean(
       available() &&
-      retained === clock() &&
+      retained === inputCount() &&
       (at === document.body || at === fallback || withinSource || displaced(from, at)),
     );
   };
@@ -88,7 +81,7 @@ export function retainUserIntent({
   // and adopt it for subsequent continuity without renewing the input generation.
   // A delayed caller must check current() before beginning its synchronous handoff.
   current.handoff = /** @param {() => unknown} move */ (move) => {
-    if (!available() || retained !== clock()) return false;
+    if (!available() || retained !== inputCount()) return false;
     const moved = current();
     if (moved) move();
     const at = focused();

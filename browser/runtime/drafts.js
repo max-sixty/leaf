@@ -106,7 +106,7 @@
    The comment over the store below says where it came from. */
 
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
-import { admitResponse, layerHeaders, leafUnloads } from "./layer-client.js";
+import { admitResponse, layerHeaders, takeLeafUnload } from "./layer-client.js";
 import { PENDING } from "./thread/identity.js";
 import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
@@ -458,11 +458,11 @@ const writeWaiting = () => {
 // prompt, since the resend above takes it on. A reload the user asks for asks too,
 // though its tab keeps the work for it, since the prompt can't tell a reload from a
 // close. The prompt a reload Leaf asks for raises asks nothing (layer-client.js,
-// `leafUnloads`): it is no close, and after a server restarted under another Leaf,
+// `takeLeafUnload`): it is no close, and after a server restarted under another Leaf,
 // which refuses this document's writes, every word typed since would otherwise put the
 // prompt in front of a reload the user never asked for.
 addEventListener("beforeunload", (event) => {
-  if (leafUnloads(event)) return;
+  if (takeLeafUnload()) return;
   const stranded = [...draftCache].some(
     ([ctx, { durable }]) =>
       !durable && !writing.has(ctx) && holdsWork(activeDraftRecord(ctx)),

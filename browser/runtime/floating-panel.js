@@ -5825,10 +5825,10 @@ export function createFloatingPanel({
   // it, with the user in it where they were, and with a reply's own editing continuity
   // handing back the field. A revision installed in place keeps the view, so its
   // restore changes nothing. A view opened by the user's next visit does not come back
-  // (restore-state.js); this is not that. The lists that come back are those a door
-  // opens by name alone, as `g T` opens Threads; one a route qualifies, as the menu's
-  // groups and Errors are, stays shut.
-  const NAMED_LISTS = new Set(["menu", "threads", "queue", "leaves", "versions"]);
+  // (restore-state.js); this is not that. The lists that come back are the menu and
+  // those a door opens (`doors`), as `g T` opens Threads; one a route qualifies, as the
+  // menu's groups and Errors are, stays shut.
+  const NAMED_LISTS = new Set(["menu", ...Object.keys(doors)]);
   /** @param {Element | null} [at] the node the user is on, else where focus is */
   function captureCurrentLocation(at = focused()) {
     const top = trail.value.at(-1);

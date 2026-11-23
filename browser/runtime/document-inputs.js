@@ -10,9 +10,11 @@
   // back from someone already using the authored page. focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
-  // Of those, the inputs that take the user somewhere: a press, a wheel, a touch or
-  // leaving the window. A key or text entry carries on where they are.
-  let moves = 0;
+  // A key the bootstrap holds back acts only once the hold replays it, so until then it
+  // is no input: work it waits for, such as the hand-back of a place a reload took, is
+  // not superseded by it (bootstrap.js, `holdEarlyKeys`).
+  /** @type {((event: KeyboardEvent) => boolean) | null} */
+  let holdsKey = null;
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
   // Early key holding and the runtime ask the same question of a key's origin.
@@ -53,8 +55,8 @@
     get count() {
       return inputs;
     },
-    get moves() {
-      return moves;
+    holdKeys(holds) {
+      holdsKey = holds;
     },
     observe(read) {
       inputReaders.add(read);
@@ -71,8 +73,8 @@
     // input through that child. Only leaving the document supersedes its gesture.
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
+    if (event instanceof KeyboardEvent && holdsKey?.(event)) return;
     inputs++;
-    if (event.type !== "keydown" && event.type !== "input") moves++;
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])

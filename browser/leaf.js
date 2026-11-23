@@ -369,8 +369,8 @@ async function boot() {
     paintKeys,
   });
 
-  // Where the user is in the chrome's thread views, a margin card or entry and the
-  // panel's thread, which a revision carries and a return to a working place reopens
+  // Where the user is in the chrome's views, a margin card or entry and the panel's
+  // thread or list, which a revision carries and a return to a working place reopens
   // (history.js, `returnPlace`).
   /** @param {Element | null} [at] */
   const captureChrome = (at) => {

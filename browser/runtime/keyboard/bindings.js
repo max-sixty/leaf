@@ -446,11 +446,11 @@ const scopeReadiness = new WeakMap();
 // Terminal absence is known input too. Availability still comes from the owner's
 // `when` (widget actions require a complete reading); only unfinished input queues.
 export const savedReadingSettled = () => runtime.statePhase !== "waiting";
-// Whether the page has handed the user back the place a reload Leaf asked for took
-// (version.js, `installArrival`). Until then a key has no place to act from: the user
-// typing on through the reload means it for the box they had, which comes back, so the
-// key waits for it rather than running a command on the page (controller.js,
-// `takeHeldKeys`).
+// Whether the page has finished restoring the place a reload Leaf asked for handed it
+// (version.js, `installArrival`). Until then no key is ready, so a printed key waits
+// in the early hold (controller.js, `takeHeldKeys`): a user typing through the reload
+// meant it for the box they were writing in, which the restore brings back, not as one
+// of the page's commands.
 let handingBack = false;
 export const placeHandedBack = () => !handingBack;
 /** @param {boolean} pending */

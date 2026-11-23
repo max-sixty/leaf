@@ -80,30 +80,25 @@ async function sourceMovedOn() {
 // document do, rather than the user. The document going hands the one it loads the
 // user's place (version.js, `handOff`), and the tab carries its unsent words to it
 // (drafts.js), so the leave prompt that reload raises asks the user nothing
-// (`leafUnloads`). A page's own prompt can still keep the document: `leafReloads` stays
-// true, so whichever departure ends it later hands over the place it leaves, while a
-// later `beforeunload` is no longer the reload's, so a close asks before dropping words.
+// (`takeLeafUnload`). A page's own prompt can still keep the document: `leafReloads`
+// stays true, so whichever departure ends it later hands over the place it leaves,
+// while a later prompt is no longer the reload's, so a close asks before dropping words.
 let leafReloading = false;
 let unloadAsked = false;
-/** @type {Event | null} */
-let leafUnload = null;
 export const leafReloads = () => leafReloading;
-/** @param {Event} event */
-export const leafUnloads = (event) => event === leafUnload;
+// Whether the `beforeunload` being dispatched is the reload's: the first after Leaf
+// asks for one, whether the engine fires it inside `location.reload()`, as Chromium and
+// Firefox do, or later, as WebKit does. Its one reader takes it.
+export const takeLeafUnload = () => {
+  const asked = unloadAsked;
+  unloadAsked = false;
+  return asked;
+};
 export function reloadDocument() {
   leafReloading = true;
   unloadAsked = true;
   location.reload();
 }
-// The first `beforeunload` after Leaf asks for a reload is that reload's, whether the
-// engine fires it inside `location.reload()`, as Chromium and Firefox do, or later.
-// Added as this module loads, before drafts.js, which imports it, adds its own, so the
-// event is marked before drafts.js reads it.
-addEventListener("beforeunload", (event) => {
-  if (!unloadAsked) return;
-  unloadAsked = false;
-  leafUnload = event;
-});
 
 let layerReloading = false;
 /** @param {string} message */

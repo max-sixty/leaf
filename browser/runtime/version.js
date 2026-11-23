@@ -58,9 +58,11 @@
  * revision or a newer one. Since it describes the moment the document went, a reload
  * that ends the document later, as after the user stays at a page's own leave prompt,
  * hands over the place they then left; any other reload or history travel finds none.
- * Until the arriving document has handed the place back, the keys the user types on
- * with wait and then go there (keyboard/bindings.js, `placeHandedBack`), and only an
- * input that takes them elsewhere stops the hand-back (user-intent.js, `keys`).
+ * While the arriving document restores the handoff, printed keys wait
+ * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back, as
+ * text in the reply box they were writing in. Waiting keys are no input
+ * (document-inputs.js, `holdKeys`), so they don't cancel the restore; any other input
+ * does, and drops them.
  * Explicit historical travel carries reading position and the decision landmark, without
  * mechanical carry or obligation location. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
@@ -121,6 +123,7 @@ import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
+import { letHeldKeysGo } from "./keyboard/controller.js";
 import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
@@ -3094,8 +3097,7 @@ export function createVersionController({
         return null;
       }
     })();
-    // Keys the user types on with through the reload wait until the place is handed
-    // back, then go there, as into the reply box they were writing in.
+    // Printed keys typed while the handoff is restored wait for it (`landArrival`).
     if (handoff) handingBackPlace(true);
     // Unreadable saved JSON means no saved view; it must not prevent page startup.
     const savedView = (() => {
@@ -3112,11 +3114,7 @@ export function createVersionController({
         handOff(reloadLanding ?? { revision, url: location.href });
       else tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
-    const currentIntent = retainUserIntent({
-      fallback: compositionInput,
-      since: 0,
-      keys: !handoff,
-    });
+    const currentIntent = retainUserIntent({ fallback: compositionInput, since: 0 });
     const restoreCarryScroll =
       handoff && restoreCarry(handoff.carry, new Map(), currentIntent.handoff);
     const landArrival = () =>
@@ -3125,13 +3123,10 @@ export function createVersionController({
         if (handoff) {
           restorePointer(handoff.pointer);
           restoreView(handoff.view, currentIntent);
-          const reopened = restoreRetainedCurrentLocation(
-            handoff.retainedCurrentLocation,
-          );
+          void restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
           if (handoff.comparison) showComparison(handoff.comparison);
-          await reopened;
           return;
         }
         // A URL aimed somewhere has already landed there (`aimArrival`).
@@ -3145,7 +3140,11 @@ export function createVersionController({
       }).finally(() => {
         if (!handoff) return;
         handingBackPlace(false);
-        paintKeys();
+        // The held keys run where the restore put the user, as text in the box they
+        // were writing in. An input of theirs meanwhile stopped the restore, and their
+        // keys, meant for a place they never got back to, go with it.
+        if (inputCount() === 0) paintKeys();
+        else letHeldKeysGo();
       });
     return { landArrival, savedView };
   }

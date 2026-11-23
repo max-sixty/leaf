@@ -133,7 +133,8 @@ answer with the same `ref`, text and flags adds nothing.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf thread reply` instead when the answer needs a question back,
-a to-do, a title, or a moved anchor. To
+a to-do, a title, or a moved anchor, or is news the user would want to stop and
+read. To
 have a command hub worker answer, forward it the `answer.ref` as that package's
 coordinator instructions say.
 

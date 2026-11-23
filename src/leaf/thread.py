@@ -1097,8 +1097,9 @@ def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
     command says that it stayed closed (`stays-closed`, `post_reply`), since the
     user's resolve reaches the agent only where it retires a question, and the
     agent that was never told can still bring back what it just said. A provider's
-    final message ends its turn and prints nothing its agent reads, so
-    `harness-codex.md` has the agent post such news with the command.
+    final message ends its turn and prints nothing its agent reads, so the
+    handling Leaf delivers with a turn's answer (the kernel registry's clause for
+    `answer.writer: "turn"`) has the agent post such news with the command.
 
     A rule that kept every message quiet would leave a question as the agent's only
     way to say it could not do what was asked. A rule keyed on the answer would

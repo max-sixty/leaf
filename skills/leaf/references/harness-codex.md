@@ -61,10 +61,10 @@ changed anchor, use
 checks the reply and posts it at once, and your final message then posts nothing.
 
 If the user resolves the thread before the turn completes, the reserved reply still
-posts, into the thread, which stays resolved. You see no record of a final message,
-so post news they would want to stop and read, such as that you could not do what
-they asked, with `leaf thread reply <answer.ref>`: its record says whether the thread
-stayed closed, and `threads.md` says when to reopen it.
+posts, into the thread, which stays resolved. A final message prints nothing back to
+you, so post news they would want to stop and read, such as that you could not do
+what they asked, with `leaf thread reply <answer.ref>`: the record that command
+prints says whether the thread stayed closed, and `threads.md` says when to reopen it.
 
 Your final message publishes your saved page edits with it, so end the turn without
 running `leaf page check` first. If Leaf refuses to post it, as it does over a saved edit with errors, it starts a correction turn with the error

@@ -19,6 +19,7 @@ from render_harness import (
     preview_parts,
     resized,
     scroll_settled,
+    show_changes,
     told,
 )
 
@@ -1463,12 +1464,15 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
         "data-lf-toc-mark", "thread"
     )
     assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
-    page.keyboard.press("v")
+    show_changes(page)
     expect(toc.locator(":not(.lf-toc-marker)[data-lf-toc-changed]")).to_have_count(3)
     rendered(page)
     assert toc.evaluate(ROW_BOXES) == boxes, "a mark moved the map"
     verify = toc.locator("li", has_text="Verify")
     assert verify.evaluate(CHANGED)
+    # Versions hands focus to the panel's leaf as its Compare closes it; back on the
+    # map's row, the map stands open under the pointer again.
+    toc.get_by_role("link", name="Ledger").focus()
     assert preview_parts(toc.get_by_role("link", name="Switch the services")) == [
         "1 thread · 1 waiting on me · 1 change"
     ]
@@ -1518,7 +1522,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     expect(preview.locator("[data-lf-clamp], [data-lf-cut]")).to_have_count(0)
     page.keyboard.press("Escape")
     with_changes = toc.evaluate(ROW_BOXES)
-    page.keyboard.press("v")
+    show_changes(page)
     expect(toc.locator("[data-lf-toc-changed]")).to_have_count(0)
     rendered(page)
     assert toc.evaluate(ROW_BOXES) == with_changes, "a mark moved the outline"

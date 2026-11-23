@@ -9,6 +9,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
+    EXAMPLE_PACKAGES,
+    FAKE_RECOGNITION,
     PANEL,
     RELEASE_FOCUS,
     consume_browser_errors,
@@ -24,6 +26,13 @@ from render_harness import (
     write,
 )
 
+from browser.drafts import choose_comment_target
+from browser.navigation.test_obligation_walk import (
+    RECORDS,
+    RECORDS_RUN,
+    REVIEW,
+    records_page,
+)
 from browser.threads import (
     PANEL_REPLY,
     SEAT_DIFF,
@@ -808,20 +817,6 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(box).to_have_js_property("value", "Half a thought")
 
 
-# The browser's speech recognizer, replaced at its boundary as tests/runtime's
-# dictation tests replace it: each instance records whether it was aborted, and a
-# test hears words through its `onresult`.
-FAKE_RECOGNITION = """
-window.lfRecognizers = [];
-window.SpeechRecognition = class {
-  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
-  start() { setTimeout(() => this.onstart?.()); }
-  stop() { setTimeout(() => this.onend?.()); }
-  abort() { this.aborted = true; }
-};
-"""
-
-
 def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
     browser, serve
 ):
@@ -1160,6 +1155,180 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
     expect(box).to_be_focused()
+
+
+def _files_manifest(*paths):
+    """A manifest of `SEAT_DIFF`'s one change made to each of `paths`, in that order."""
+    return {
+        "files": [
+            {"path": path, "patch": SEAT_DIFF.replace("app.py", path)} for path in paths
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "change", ["files-reordered", "file-dropped", "source-cleared"]
+)
+def test_a_comment_being_written_on_a_diff_file_stays_the_same_editor_across_a_new_patch(
+    browser, serve, change
+):
+    """The comment box chosen onto a file's row with `s` stands in that file's outlet.
+    A diff's file is pinned to the patch the user saw, as its lines are (it marks no
+    `data-lf-identity`), so a new patch returns the box beside the diff, whether it
+    moves the file, drops it or clears the source. It is the same editor throughout:
+    it never blurs, keeps its words, selection and focus, brings its undo history, and
+    takes the user's next keys."""
+    url = serve(
+        leaf_page(
+            "diff",
+            f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
+            f'source="review-patch"></lf-diff>{SEAT_FILLER}',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", _files_manifest("app.py", "lib.py")
+    )
+    page = open_page(browser, url)
+    choose_comment_target(page, 'lf-diff [data-lf-datum=\'["lib.py","file"]\']')
+    box = page.locator(".lf-fab-input")
+    seated = page.locator(
+        'lf-diff .lf-diff-file-thread-outlet[data-lf-thread-datum=\'["lib.py","file"]\']'
+    )
+    expect(seated.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.type("Keep this draft")
+    page.keyboard.press("Shift+ArrowLeft")
+    selection = box.evaluate("node => [node.selectionStart, node.selectionEnd]")
+    watch_blurs(box)
+    if change == "source-cleared":
+        data_model.cmd_data_clear(serve.page_dir, "review-patch")
+    else:
+        paths = ("lib.py", "app.py") if change == "files-reordered" else ("app.py",)
+        data_model.cmd_data_set(serve.page_dir, "review-patch", _files_manifest(*paths))
+    told(page)
+    expect(seated).to_have_count(0)
+    expect(box).to_be_focused()
+    expect(box).to_be_in_viewport()
+    expect(box).to_have_js_property("value", "Keep this draft")
+    assert box.evaluate("node => [node.selectionStart, node.selectionEnd]") == selection
+    assert blurs(box) == 0
+    # Nothing was typed after the patch, so an undo that changes the words reaches
+    # back past the move: the editor kept is the one typed into.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).not_to_have_js_property("value", "Keep this draft")
+    undone, start, end = box.evaluate(
+        "node => [node.value, node.selectionStart, node.selectionEnd]"
+    )
+    page.keyboard.type(" a thought")
+    expect(box).to_have_js_property(
+        "value", f"{undone[:start]} a thought{undone[end:]}"
+    )
+
+
+def test_a_comment_being_written_on_a_kept_datum_keeps_its_seat_as_its_data_reorders(
+    browser, serve
+):
+    """A datum that keeps its identity across new values (`data-lf-identity`) keeps
+    the comment box seated on it. A new value that reorders the data moves the datum
+    with its outlet, and the box in it is the same editor: it never blurs, keeps its
+    words, selection and focus, and brings its undo history."""
+    page = open_page(browser, records_page(serve))
+    first = RECORDS_RUN["cases"][0]["id"]
+    case = page.locator(f'#review .test-case[data-lf-datum="{first}"]')
+    choose_comment_target(page, f'#review .test-case[data-lf-datum="{first}"]')
+    field = case.locator(".test-threads .lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep this draft while the case order changes")
+    page.keyboard.press("Shift+ArrowLeft")
+    selection = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
+    watch_blurs(field)
+    data_model.cmd_data_set(
+        serve.page_dir, "run", {"cases": RECORDS_RUN["cases"][::-1]}
+    )
+    told(page)
+    expect(page.locator("#review .test-case").last).to_have_attribute(
+        "data-lf-datum", first
+    )
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property(
+        "value", "Keep this draft while the case order changes"
+    )
+    assert (
+        field.evaluate("node => [node.selectionStart, node.selectionEnd]") == selection
+    )
+    assert blurs(field) == 0
+    # The editor kept is the one typed into, so its undo history came with it.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).not_to_have_js_property(
+        "value", "Keep this draft while the case order changes"
+    )
+
+
+def test_a_comment_being_written_on_a_kept_datum_keeps_its_seat_under_the_panel_s_row(
+    browser, serve
+):
+    """News leaves the comment box the user is typing in seated in its datum's
+    outlet while the outlet's foot stands under the floating panel's row and the field
+    stands clear of the row."""
+    url = serve(
+        leaf_page(
+            "Cases mid-page",
+            f"<h1>Review the cases</h1>{SEAT_FILLER}<section>{REVIEW}</section>"
+            f"{SEAT_FILLER}",
+        ),
+        packages=(*EXAMPLE_PACKAGES, RECORDS),
+    )
+    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
+    page = open_page(browser, url)
+    resized(page, 390, 760)
+    case = page.locator("#review .test-case:not([hidden])")
+    choose_comment_target(page, "#review .test-case:not([hidden])")
+    field = case.locator(".test-threads .lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep the return route")
+    rendered(page)
+    places = """(field, panel) => {
+      const outlet = field.closest('.test-threads').getBoundingClientRect();
+      const row = document.querySelector(panel).getBoundingClientRect();
+      return {field: field.getBoundingClientRect().bottom,
+        outlet: outlet.bottom, row: row.top};
+    }"""
+    at = field.evaluate(places, PANEL)
+    # The row's top falls midway between the field's foot and the outlet's.
+    gap = (at["outlet"] - at["field"]) / 2
+    page.mouse.move(195, 300)
+    before = page.evaluate("scrollY")
+    page.mouse.wheel(0, at["outlet"] - at["row"] - gap)
+    page.wait_for_function("y => scrollY !== y", arg=before)
+    scroll_settled(page)
+    at = field.evaluate(places, PANEL)
+    assert at["field"] <= at["row"] < at["outlet"], at
+    case.locator(".test-threads").evaluate(
+        """outlet => {
+          window.lfSeatLeft = 0;
+          new MutationObserver((records) => {
+            for (const record of records)
+              for (const node of record.removedNodes)
+                if (node.classList?.contains('lf-fab-bar')) window.lfSeatLeft++;
+          }).observe(outlet, {childList: true});
+        }"""
+    )
+    title = "The run list keeps its return route"
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "run",
+        {
+            "cases": [
+                RECORDS_RUN["cases"][0] | {"title": title},
+                *RECORDS_RUN["cases"][1:],
+            ]
+        },
+    )
+    told(page)
+    expect(case.locator("h3")).to_have_text(title)
+    rendered(page)
+    assert page.evaluate("window.lfSeatLeft") == 0, "the comment box left its seat"
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep the return route")
 
 
 @pytest.mark.parametrize("native_move", [True, False])

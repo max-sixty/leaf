@@ -97,6 +97,7 @@ import {
   commandEntries,
   commandRoutes,
   commandReady,
+  placeHandedBack,
   scopeAvailable,
   live,
   routedCommand,
@@ -518,7 +519,7 @@ function resolveKey(ev) {
   return null;
 }
 /** @param {KeyboardEvent} ev */
-export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+export const keyReady = (ev) => placeHandedBack() && resolveKey(ev) !== INPUT_PENDING;
 // What a press of `binding` would do now, resolved as the press itself would be with no
 // key behind it, or null: the one reading of whether a key works where the user is.
 // Escape's is what the platform's close request asks for (close-requests.js), and
@@ -686,7 +687,7 @@ export function invokePress({ id, row, binding }) {
   return true;
 }
 // A control standing in for a page command's key, as the floating panel's field-end
-// presses do (notifications.js, `pressReading`): the command's row by its id or by one
+// presses do (floating-panel.js, `pressReading`): the command's row by its id or by one
 // of its routes', made as a press of that route's key, so it acts wherever the caret
 // stands, as a menu row or a touch control does, where the key would be a letter typed.
 /** @param {string} id */

@@ -71,9 +71,7 @@ PAGE_DECLARATION = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
             "additionalProperties": False,
@@ -180,7 +178,6 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
@@ -232,7 +229,7 @@ def prefixed_visual_layer(*prefixes):
             **entry,
             "attributes": {
                 **entry["attributes"],
-                "properties": {"id": entry["attributes"]["properties"]["id"]},
+                "properties": {},
                 "required": ["id"],
             },
             "visual": {"prefixes": list(prefixes)},
@@ -254,7 +251,6 @@ SHADOW_VISUAL_LAYER = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
@@ -1067,10 +1063,9 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# The room the document leaves at each end for chrome standing over it, beside the
-# floating panel's footprint at the window's foot: from its row's top edge down. The
-# room is in the flow, so the reading is the flow's own: what stands above the page's
-# first block and what is left under its last.
+# The room the document leaves at each end beyond `main`, beside the floating panel's
+# footprint at the window's foot: from its row's top edge down. The reading is the
+# flow's own: what stands above the page's first block and what is left under its last.
 CHROME_ROOM = """() => {
     const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();

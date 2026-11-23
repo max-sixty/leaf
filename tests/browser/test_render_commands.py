@@ -20,11 +20,13 @@ from render_cases_layout import (
 from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
+    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
     opened_tab,
     page_declarations,
+    refuse,
     resized,
     scroll_settled,
     select,
@@ -53,6 +55,47 @@ def no_browser(report: dict) -> str:
         f["values"]["error"] for f in report["findings"] if f["code"] == "no-browser"
     ]
     return why
+
+
+# A shot loads its images off the document, where no load event reaches the page. A
+# test waiting for one of those loads installs this to record, by URL, each image a
+# script gave a `src`, once it has loaded.
+IMAGE_LOADS = """(() => {
+  window.lfImagesLoaded = [];
+  const source = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  Object.defineProperty(HTMLImageElement.prototype, 'src', {
+    ...source,
+    set(value) {
+      this.addEventListener(
+        'load', () => window.lfImagesLoaded.push(this.src), {once: true});
+      source.set.call(this, value);
+    },
+  });
+})()"""
+
+
+def image_loaded(page, source):
+    """Wait until an image a script gave `source` has loaded (`IMAGE_LOADS`)."""
+    page.wait_for_function(
+        "source => window.lfImagesLoaded.some(url => url.endsWith(source))",
+        arg=source,
+    )
+
+
+def restate(shot, attributes, *, read=True):
+    """Set a live shot's attributes in one task, in the order `attributes` gives, as a
+    containing module does. With `read`, wait for the shot's reading of the pair they
+    ask for (`difference`), which settles once that pair is shown or refused."""
+    shot.evaluate(
+        """(node, attributes) => {
+          for (const [name, value] of attributes) node.setAttribute(name, value);
+          window.lfShotRead = false;
+          node.difference.then(() => { window.lfShotRead = true; });
+        }""",
+        list(attributes.items()),
+    )
+    if read:
+        shot.page.wait_for_function("window.lfShotRead")
 
 
 def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
@@ -202,28 +245,6 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         (box["x"] + box["width"] - 1, box["y"] + box["height"] / 2),
     )
     assert "before" in page.evaluate("getSelection().toString()").lower()
-
-    # Custom source names cannot borrow space from the controls at phone width.
-    shot.evaluate("""node => node.inspect({labels: {
-        before: 'Previous deployment with an unusually long source name',
-        after: 'Current candidate with another unusually long source name'
-    }})""")
-    expect(captions).to_have_text(
-        [
-            "Previous deployment with an unusually long source name",
-            "Current candidate with another unusually long source name",
-        ]
-    )
-    assert [
-        control.bounding_box() for control in controls if control.is_visible()
-    ] == boxes
-    toolbar_box = toolbar.bounding_box()
-    for caption in captions.all():
-        box = caption.bounding_box()
-        assert box["width"] > 0
-        assert box["x"] >= toolbar_box["x"] - 1
-        assert box["x"] + box["width"] <= toolbar_box["x"] + toolbar_box["width"] + 1
-    assert shot.evaluate("node => node.scrollWidth <= node.clientWidth + 1")
 
     comparison = shot.locator("wa-comparison")
     for endpoint in ("100", "0"):
@@ -387,9 +408,12 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         elif index == 0:
             link.click()
         else:
-            # Escape restored the first image; Tab reaches the second image.
+            # Escape restored the first image; Tab reaches the second image. Focus
+            # arrives with the browser's reveal, which stops at the window's foot, and
+            # the runtime lands the arrival clear of the panel in the next frame.
             page.keyboard.press("Tab")
             expect(link).to_be_focused()
+            render_checks_model.rendered(page)
             before = shot.bounding_box()
             box = link.bounding_box()
             page.keyboard.press("Enter")
@@ -425,8 +449,24 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     assert original.url.endswith(sources["after"])
     original.close()
     expect(viewer).not_to_be_visible()
+    # New words leave the chosen view and the focused control where they were.
+    view = shot.get_by_role("radio", name="Pair", exact=True)
+    view.focus()
+    render_checks_model.rendered(page)
+    focused = view.element_handle()
+    place = view.bounding_box()
     shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
     expect(after).to_have_accessible_name("Open after image — the updated rail")
+    expect(shot.locator(".lf-shotframe img").first).to_have_attribute(
+        "alt", "before: the updated rail"
+    )
+    expect(shot.locator(".lf-shotstage")).to_have_attribute(
+        "aria-label", "Screenshot comparison — the updated rail"
+    )
+    expect(view).to_be_focused()
+    assert view.evaluate("(node, focused) => node === focused", focused)
+    expect(view).to_have_attribute("aria-checked", "true")
+    assert view.bounding_box() == pytest.approx(place, abs=1)
     after.click()
     expect(viewer.locator("img.pswp__img")).to_have_attribute(
         "alt", "after: the updated rail"
@@ -622,43 +662,117 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
 
 
 def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
-    """Once drawn, the shot's frame keeps its allocation through image decode."""
-    url = serve(SHOT_PAGE, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    """Once drawn, a shot's frames keep their allocation through image decode: the
+    captures' frames, or the focus's where its markup states one, the pair aligned. A
+    focused pair shows neither image while one has loaded and the other is held, rather
+    than half a comparison, and says so when the held one fails, its views still
+    usable."""
+    focused = {
+        "held-focus": [
+            solid_png(600, 300, (200, 214, 230)),
+            solid_png(600, 300, (230, 210, 200)),
+        ],
+        "failed-focus": [
+            solid_png(600, 300, (190, 204, 220)),
+            solid_png(600, 300, (220, 200, 190)),
+        ],
+    }
+    sources = {
+        shot: [f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png" for data in pair]
+        for shot, pair in focused.items()
+    }
+    pairs = "".join(
+        f'<lf-shot id="{shot}" alt="a focused pair" before="{before}" after="{after}"'
+        ' density="2" focus-x="20" focus-y="30" focus-width="200" focus-height="80">'
+        "</lf-shot>"
+        for shot, (before, after) in sources.items()
+    )
+    media = {SHOT_SRC[n]: data for n, data in SHOTS.items()}
+    for shot, pair in focused.items():
+        media |= dict(zip(sources[shot], pair, strict=True))
+    url = serve(SHOT_PAGE.replace("</main>", f"{pairs}</main>"), media=media)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(IMAGE_LOADS)
     images = []
     page.route("**/media/*.png", lambda route: images.append(route))
     page.goto(url, wait_until="domcontentloaded")
-    shot = page.locator("lf-shot")
-    expect(shot.locator(".lf-shotframe img")).to_have_count(2)
-    holding(page, images, 2, "both screenshot image responses")
-    before = shot.bounding_box()
-    assert before["height"] > 100, before
-    assert shot.locator("img").evaluate_all(
+    shots = page.locator("lf-shot")
+    expect(shots.locator(".lf-shotframe img")).to_have_count(6)
+    holding(page, images, 6, "every screenshot image response")
+
+    def route_of(source):
+        return next(route for route in images if route.request.url.endswith(source))
+
+    peer, failing = sources["failed-focus"]
+    route_of(peer).continue_()
+    image_loaded(page, peer)
+    render_checks_model.rendered(page, facts=("updatesSettled",))
+    boxes = """shots => Object.fromEntries(shots.map(shot => [shot.id,
+      [shot, ...shot.querySelectorAll('.lf-shotframe')].map(node => {
+        const box = node.getBoundingClientRect();
+        return [box.x + scrollX, box.y + scrollY, box.width, box.height];
+      })]))"""
+    held = shots.evaluate_all(boxes)
+    assert held["shot-nav"][0][3] > 100, held
+    # The 600 × 300 captures at 2×: each frame takes the focus's 80 px inside its
+    # border, not the captures' 150, and Slider lays the pair's frames over each other.
+    for shot in focused:
+        _, before, after = held[shot]
+        assert before[3] == pytest.approx(80 + 2, abs=1), (shot, held)
+        assert after == pytest.approx(before, abs=1), (shot, held)
+    assert shots.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
     )
+    expect(shots.locator(".lf-error")).to_have_count(0)
+
+    failed = page.locator("#failed-focus")
+    refuse(route_of(failing))
+    refusal = failed.locator(".lf-error")
+    expect(refusal).to_contain_text("focus needs two decoded images")
+    consume_browser_errors(page, "focus needs two decoded images")
+    failed.get_by_role("radio", name="Pair", exact=True).click()
+    expect(failed).to_have_attribute("data-lf-shot-mode", "pair")
+    expect(refusal).to_contain_text("focus needs two decoded images")
     for route in images:
-        route.continue_()
+        if not route.request.url.endswith((peer, failing)):
+            route.continue_()
     page.unroute("**/media/*.png")
     render_checks_model.wait_until_ready(page)
-    expect(shot.locator(".lf-shotframe").first).to_be_visible()
-    complete = shot.bounding_box()
-    assert complete == pytest.approx(before, abs=1), (before, complete)
-
-
-def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
-    browser, serve
-):
-    """Before its module draws, a shot holds the height its drawing takes at each width,
-    on both sides of the narrow toolbar's breakpoint. Where scrollbars are classic, as on
-    Linux, the stage's gutter narrows the frame and not the width the toolbar reads."""
-    widths = [430, 450, 455, 465, 480, 640]
-    shots = "".join(
-        f'<div style="inline-size: {w}px"><lf-shot id="w{w}" alt="a pair"'
-        f' before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot></div>'
-        for w in widths
+    expect(shots.locator(".lf-shotframe").first).to_be_visible()
+    expect(page.locator("#held-focus .lf-shotframe img").first).to_have_js_property(
+        "naturalWidth", 600
     )
+    complete = shots.evaluate_all(boxes)
+    for shot in ("shot-nav", "held-focus"):
+        for drawn, reserved in zip(complete[shot], held[shot], strict=True):
+            assert drawn == pytest.approx(reserved, abs=1), (shot, held, complete)
+
+
+def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
+    """Before its module draws, a shot holds the height its drawing takes: at each width,
+    on both sides of the narrow toolbar's breakpoint, and for a pair that opens on its
+    focus or was taken at 2×, which holds the focus's frame or its CSS size. A pair
+    that opens in Pair holds its frames stacked at a phone's width, with and without a
+    focus, and side by side where both fit at their own size. Where scrollbars are
+    classic, as on Linux, the stage's gutter narrows the frame and not the width the
+    toolbar reads."""
+    pair = f'alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"'
+    focus = 'density="2" focus-x="20" focus-y="30" focus-width="200" focus-height="80"'
+    phone = '<div style="inline-size: 390px">{}</div>'
+    shots = {
+        f"w{w}": f'<div style="inline-size: {w}px"><lf-shot id="w{w}" {pair}></lf-shot></div>'
+        for w in [430, 450, 455, 465, 480, 640]
+    } | {
+        "focused": f'<lf-shot id="focused" {pair} {focus}></lf-shot>',
+        "dense": f'<lf-shot id="dense" {pair} density="2"></lf-shot>',
+        "stacked": phone.format(f'<lf-shot id="stacked" {pair} view="pair"></lf-shot>'),
+        "stacked-focus": phone.format(
+            f'<lf-shot id="stacked-focus" {pair} {focus} view="pair"></lf-shot>'
+        ),
+        "side": f'<lf-shot id="side" {pair} {focus} view="pair"></lf-shot>',
+    }
     url = serve(
-        leaf_page("Held shots", f"<h1>Held shots</h1>{shots}"),
+        leaf_page("Held shots", f"<h1>Held shots</h1>{''.join(shots.values())}"),
         media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -680,9 +794,19 @@ def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
     render_checks_model.wait_until_ready(page)
     expect(page.locator("lf-shot .lf-shotframe").first).to_be_visible()
     drawn = page.locator("lf-shot").evaluate_all(heights)
-    assert dict(zip(widths, held, strict=True)) == pytest.approx(
-        dict(zip(widths, drawn, strict=True)), abs=1
+    assert dict(zip(shots, held, strict=True)) == pytest.approx(
+        dict(zip(shots, drawn, strict=True)), abs=1
     )
+    layouts = page.locator("#stacked, #stacked-focus, #side").evaluate_all(
+        "shots => shots.map(shot => shot.dataset.lfShotLayout)"
+    )
+    assert layouts == ["stack", "stack", "side"]
+    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, each
+    # inside the frame's border.
+    frames = page.locator("#focused, #dense").evaluate_all(
+        "shots => shots.map(shot => shot.querySelector('.lf-shotframe').offsetHeight)"
+    )
+    assert frames == pytest.approx([80 + 2, 150 + 2], abs=1)
 
 
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
@@ -802,6 +926,59 @@ def test_a_shot_masks_the_pair_that_replaced_the_one_it_was_masking(browser, ser
     expect(mask).to_have_attribute("style", re.compile(r"--lf-shot-pixels: url\("))
 
 
+def test_a_shot_shows_its_images_until_a_new_pair_loads_and_ignores_a_superseded_one(
+    browser, serve
+):
+    """Replacing a live shot's captures keeps its images on screen until both new ones
+    have loaded, and a pair replaced again before it loaded changes neither the images
+    shown nor the shot's box when its load arrives late."""
+    stale = [
+        solid_png(1200, 400, (200, 214, 230)),
+        solid_png(1200, 400, (230, 210, 200)),
+    ]
+    stale_src = [
+        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png" for data in stale
+    ]
+    source = leaf_page(
+        "Replace a pair",
+        f'<h1>Replace a pair</h1><lf-shot id="replaced-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+    )
+    media = {SHOT_SRC[n]: data for n, data in SHOTS.items()}
+    page = open_page(
+        browser,
+        serve(source, media=media | dict(zip(stale_src, stale, strict=True))),
+        init_script=IMAGE_LOADS,
+    )
+    shot = page.locator("#replaced-pair")
+
+    def shown():
+        """Each drawn image's source and decoded width."""
+        return shot.locator(".lf-shotframe img").evaluate_all(
+            "images => images.map(image => [image.getAttribute('src'), image.naturalWidth])"
+        )
+
+    first = shown()
+    assert first[0][0].endswith(SHOT_SRC["before"]), first
+    assert first[1][0].endswith(SHOT_SRC["after"]), first
+    assert [width for _, width in first] == [600, 600], first
+    held = []
+    page.route(f"**{stale_src[1]}", lambda route: held.append(route))
+    restate(shot, {"before": stale_src[0], "after": stale_src[1]}, read=False)
+    holding(page, held, 1, "the new pair's after image")
+    image_loaded(page, stale_src[0])
+    render_checks_model.rendered(page, facts=("updatesSettled",))
+    assert shown() == first
+    # Replaced again, `after` first, so that no capture asks for the held image again.
+    restate(shot, {"after": SHOT_SRC["after"], "before": SHOT_SRC["before"]})
+    render_checks_model.rendered(page, facts=("updatesSettled",))
+    box = shot.bounding_box()
+    held.pop().continue_()
+    image_loaded(page, stale_src[1])
+    render_checks_model.rendered(page)
+    assert shown() == first
+    assert shot.bounding_box() == box
+
+
 def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser, serve):
     """A press is the reader's, so its mask goes ahead of the difference readings queued
     for the page's other shots, waiting at most for the one already running."""
@@ -835,10 +1012,12 @@ def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser,
     assert page.evaluate("window.lfOthersRead") <= 1
 
 
-def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_changes(
+def test_a_shot_opens_on_its_focus_and_preserves_choices_when_it_changes(
     browser, serve
 ):
-    """One CSS-pixel crop and scale apply to paired images, slider and pixel masks."""
+    """The focus and density a pair's markup states give one CSS-pixel crop and scale
+    to paired images, slider and pixel masks; restating them keeps the reader's
+    choices, and a pair without a focus offers no Full frame."""
     before = solid_png(600, 300, (210, 220, 235))
     after = solid_png(600, 300, (210, 220, 235), patch=(120, 70, 40, 30, (30, 30, 30)))
     sources = {
@@ -847,17 +1026,13 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     }
     source = leaf_page(
         "Inspect a focus",
-        f'<h1>Inspect a focus</h1><lf-shot id="inspected-pair" alt="a focused change" before="{sources["before"]}" after="{sources["after"]}"></lf-shot>',
+        f'<h1>Inspect a focus</h1><lf-shot id="inspected-pair" alt="a focused change" before="{sources["before"]}" after="{sources["after"]}" density="2" focus-x="5" focus-y="25" focus-width="100" focus-height="50"></lf-shot>',
     )
     page = open_page(
         browser,
         serve(source, media={sources["before"]: before, sources["after"]: after}),
     )
     shot = page.locator("#inspected-pair")
-    expect(shot.get_by_role("checkbox", name="Full frame", exact=True)).to_have_count(0)
-    shot.evaluate(
-        "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Base', after: 'Candidate'}})"
-    )
     shot.get_by_role("button", name="Image options").click()
     full = shot.get_by_role("checkbox", name="Full frame", exact=True)
     expect(full).not_to_be_checked()
@@ -906,17 +1081,27 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     assert image.bounding_box()["height"] == pytest.approx(150, abs=1)
     full.uncheck()
     full.focus()
-    shot.evaluate(
-        "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Previous', after: 'Current'}})"
+    # The comparison reads whole images, so its reading stands under the new focus,
+    # which draws before the next frame rather than after another comparison.
+    assert (
+        shot.evaluate("""async node => {
+      await node.difference;
+      node.setAttribute('focus-width', '120');
+      await null;
+      return node.querySelector('.lf-shotframe .lf-shotimage').clientWidth;
+    }""")
+        == 120
     )
     expect(full).to_be_focused()
     expect(full).not_to_be_checked()
     expect(
         shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
     ).to_have_attribute("aria-pressed", "true")
-    expect(
-        shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
-    ).to_contain_text("Previous")
+    shot.evaluate(
+        "node => ['x', 'y', 'width', 'height'].forEach(side => node.removeAttribute(`focus-${side}`))"
+    )
+    expect(full).to_have_count(0)
+    expect(image).to_have_js_property("clientWidth", 300)
 
 
 def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
@@ -1300,7 +1485,7 @@ FILM_DECLARATION = {
         "description": f"A <{tag}> page widget.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

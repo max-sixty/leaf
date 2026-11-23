@@ -759,22 +759,28 @@ def test_the_published_notification_example_runs_its_authored_module(
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
 
 
-def test_published_visual_evidence_loads_from_its_page(served_example, browser):
-    """Typed media paths resolve under the same page as authored media."""
-    _, url = served_example("visual-review-gallery")
+def test_published_typed_media_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media: the image a
+    recorded trace shows, and every image its source names."""
+    _, url = served_example("playwright-trace-gallery")
     page = open_page(browser, url)
-    review = page.locator("#visual-review-run")
-    for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        review.locator(
-            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
-        ).click()
-        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
-        expect(comparison).to_be_visible()
-        images = comparison.locator("img")
-        expect(images).to_have_count(2)
-        for image in images.all():
-            expect(image).to_have_js_property("complete", True)
-            assert image.evaluate("image => image.naturalWidth") > 0
+    trace = page.locator("#release-trace")
+    shown = trace.locator(".lf-trace-image img").first
+    expect(shown).to_have_js_property("complete", True)
+    assert shown.evaluate("image => image.naturalWidth") > 0
+    widths = trace.evaluate(
+        """async trace => {
+          const {scopedMediaUrl} = await window.__lfWidgetApi();
+          const urls = [...new Set(trace.value.images.map(image => image.url))];
+          return Promise.all(urls.map(url => new Promise(resolve => {
+            const image = new Image();
+            image.onload = () => resolve(image.naturalWidth);
+            image.onerror = () => resolve(0);
+            image.src = scopedMediaUrl(url);
+          })));
+        }"""
+    )
+    assert len(widths) > 1 and all(widths), widths
 
 
 def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser):

@@ -13,6 +13,7 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
+from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
@@ -459,6 +460,50 @@ def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
     page.locator(".lf-fab-rest").click()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_contain_text("Which route?")
+
+
+def test_a_comment_box_is_the_frame_of_the_card_it_becomes(browser, serve):
+    """The box stands at the card Send opens, as wide, and inside its one-pixel edge as
+    tall as that card's reply box, the height a box written in at a frame's edge takes
+    (browser/AGENTS.md, "Shared containers determine control dimensions")."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.type("Take the left one")
+    box = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    reply = card.locator(".lf-thread-reply .lf-compose-field")
+    expect(reply).to_be_visible()
+    frame = card.bounding_box()
+    assert (box["x"], box["width"]) == pytest.approx(
+        (frame["x"], frame["width"]), abs=0.5
+    )
+    assert box["height"] - 2 == pytest.approx(reply.bounding_box()["height"], abs=0.5)
+
+
+def test_a_comment_box_s_ring_stands_over_an_error_about_it(browser, serve):
+    """The ring the box wears while it holds the caret stands one band inside its edge,
+    as its card's reply box's does, so an error about the box, which covers its words,
+    leaves the ring whole."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    field.evaluate(
+        "async (subject) => (await window.__lfWidgetApi())"
+        ".raiseError('That writing place is unavailable', {subject})"
+    )
+    expect(page.locator(".lf-fab-bar .lf-compose-error")).to_be_visible()
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert any(".lf-compose-field" in seen["rule"] for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "under an error")), "\n".join(faults)
 
 
 def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, serve):

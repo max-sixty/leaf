@@ -5,6 +5,7 @@ interface DocumentInputs {
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
   readonly count: number;
+  holdKeys(holds: ((event: KeyboardEvent) => boolean) | null): void;
   observe(read: (event: Event) => void): () => boolean;
 }
 
@@ -109,6 +110,9 @@ interface Window {
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
+    /** The place handed to this document by the reload that loaded it (version.js). */
+    readonly handoff: { readonly url?: unknown; readonly typing?: unknown } | null;
+    handOff(value: unknown): boolean;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };

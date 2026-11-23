@@ -91,7 +91,6 @@ import {
   signal,
   untracked,
 } from "/runtime/framework.js";
-import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
   HOLDS,
@@ -117,9 +116,11 @@ import {
   scrollGoal,
   scrollLimit,
   scrollToEnd,
+  whereGlidesLand,
 } from "../scrolling.js";
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
+import { scrollAxes } from "../element-axes.js";
 import { renderedOrder } from "../shadow-tree.js";
 import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
@@ -134,7 +135,7 @@ import {
 } from "./workflow.js";
 import { leafSays, voiced, wordsText } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
-import { growthIsSeen, shownRect } from "../geometry.js";
+import { carried, growthIsSeen, shownRect } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
@@ -513,6 +514,12 @@ const apartBox = () => {
   return box;
 };
 
+// How many views this document has drawn, which names each view's quote for its Full
+// quote press (`#quoteId`). One thread can stand in two views at once, a margin card and
+// the panel's view, so the name counts views rather than naming the thread, and a load
+// that draws the same views in the same order gives them the same names.
+let drawnViews = 0;
+
 export class ThreadView {
   #commands;
   #messageCommands;
@@ -557,7 +564,7 @@ export class ThreadView {
   #quoteHead = Object.assign(document.createElement("header"), {
     className: "lf-thread-quote-head",
   });
-  #quoteId = `lf-thread-quote-${randomId()}`;
+  #quoteId = `lf-thread-quote-${++drawnViews}`;
   #quoteExpanded = signal(false);
   // Whether three lines cut the quote, which its label then opens (`#fitQuote`).
   #quoteCut = signal(false);
@@ -1059,13 +1066,18 @@ export class ThreadView {
       )
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
-      // reply's ground, its head first where it is taller than that, measured where the
-      // box is headed: New reply sticks at the box's foot, and the turn rises by what
-      // the glide has yet to move. The box glides there, as it glides to the end.
-      const ahead = stood - scroller.scrollTop;
-      const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
-      const below = foot ? turn.getBoundingClientRect().bottom - ahead - foot.top : 0;
-      glideTo(scroller, stood + Math.min(Math.max(below, 0), from() - ahead));
+      // reply's ground, its head first where it is taller than that, read where the
+      // box is headed, New reply stuck at its foot (scrolling.js, `whereGlidesLand`),
+      // through the box's transforms. The box glides there, as it glides to the end.
+      const scale = scrollAxes(scroller).y.y;
+      const by = whereGlidesLand([scroller], () => {
+        const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
+        const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+        return scale
+          ? carried(turn, scroller, Math.min(Math.max(below, 0), from()) / scale)
+          : 0;
+      });
+      glideTo(scroller, stood + by);
     });
   }
 

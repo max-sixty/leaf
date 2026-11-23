@@ -19,7 +19,6 @@
    tests/smoke/test_plain_page.py holds the portable widgets to that. */
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
-  afterScript,
   cancelRender,
   cancelAnimation,
   nextAnimation,
@@ -50,6 +49,7 @@ export {
   ensureSyntaxLanguage,
   synNodes,
   syntax,
+  syntaxNow,
   tokenLines,
 } from "./syntax-tokens.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
@@ -85,16 +85,21 @@ export { describeFailure } from "./exception.js";
 export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
 
-export { publishOutput } from "./widget-output.js";
-
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 
 export { nameAction, searchField } from "./control-labels.js";
 
-export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
+export {
+  focusDestination,
+  focused,
+  holdFocus,
+  currentLocationIn,
+  onUserInput,
+} from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
-export { scrollIntoView } from "./landing-scroll.js";
+export { alreadyShown, scrollIntoView } from "./landing-scroll.js";
+export { scrollersOf } from "./scroll-containers.js";
 export { inChrome } from "./shadow-tree.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

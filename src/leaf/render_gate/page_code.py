@@ -41,10 +41,13 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
+from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
+
 import turbohtml
 
 from leaf.findings import Finding
 from leaf.render_checks import (
+    ADDRESS_MARKS,
     RENDER_VIEWPORT,
     PageNotReady,
     asked_again,
@@ -150,36 +153,41 @@ class PageCode:
         """The reports, each in the words the runtime gave it, then the stage the page
         never reached (`unready`), and where any of those failed it, the requests that
         failed; [] is a pass. Read once the page is ready, or has missed a stage."""
-        reports = self.reports
-        if unready is not None:
-            reports.append(
-                Finding(
-                    "not-ready", values={"stage": unready.stage, "error": str(unready)}
-                )
-            )
         # A page that refused to start still answers, and posts why; one that missed a
         # stage may not answer at all. The report is posted asynchronously, and the
         # route answers it, and the console line reaches this process, only while it
-        # is waiting on the page.
-        if unready is None or unready.stage == "refused":
-            wait_for_probe(page, "sendsAcked")
-        return [*reports, *self.network_errors] if reports else []
+        # is waiting on the page, so the stage joins the reports once that wait ends.
+        try:
+            if unready is None or unready.stage == "refused":
+                wait_for_probe(page, "sendsAcked")
+        finally:
+            if unready is not None:
+                self.reports.append(
+                    Finding(
+                        "not-ready",
+                        values={"stage": unready.stage, "error": str(unready)},
+                    )
+                )
+        if not self.reports:
+            return []
+        return [*self.reports, *self.network_errors]
 
 
 def _failed_requests(page) -> list[Finding]:
     """The requests of `page` that fail or answer an error status from now on, filled
     in as they do, each with its resource type and the address of the frame that made
-    it, which the bootstrap rewrites before any request it makes, taking off its marks
-    (`asked_again`) and the host key. A request the page itself abandons, as a
-    navigation does, is not a failure: Chromium names it `net::ERR_ABORTED`, Firefox
-    `NS_BINDING_ABORTED`."""
+    it (`frame_address`). A request the page itself abandons, as a navigation does, is
+    not a failure: Chromium names it `net::ERR_ABORTED`, Firefox `NS_BINDING_ABORTED`."""
     from playwright.sync_api import Error as PlaywrightError
 
     network_errors = []
 
     def frame_of(request) -> str:
+        # Read as the failure arrives: a `Frame` follows its navigations, so read
+        # later it would name the document the frame went on to, not the one that
+        # made the request.
         try:
-            return request.frame.url
+            return frame_address(request.frame.url)
         except PlaywrightError:
             # A service worker's request belongs to no frame.
             return "<no-frame>"
@@ -219,6 +227,32 @@ def _failed_requests(page) -> list[Finding]:
     page.on("requestfailed", failed)
     page.on("response", answered)
     return network_errors
+
+
+def frame_address(url: str) -> str:
+    """A document's address as the user sees it: without the marks the bootstrap takes
+    off the address bar as the document starts (`ADDRESS_MARKS`). A request can fail
+    before that rewrite reaches this process, and the same document stays named the
+    same whichever comes first, so the query left is spelled as the bootstrap's
+    `URLSearchParams` spells it."""
+    # `urlsplit` drops an empty fragment's `#`, which the browser keeps.
+    document, hash_mark, fragment = url.partition("#")
+    parts = urlsplit(document)
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    if not any(name in ADDRESS_MARKS for name, _ in pairs):
+        return url
+    query = "&".join(
+        f"{_form_encoded(name)}={_form_encoded(value)}"
+        for name, value in pairs
+        if name not in ADDRESS_MARKS
+    )
+    return urlunsplit(parts._replace(query=query)) + hash_mark + fragment
+
+
+def _form_encoded(text: str) -> str:
+    """`text` as the WHATWG form serializer writes it, which keeps only ASCII
+    alphanumerics and `*-._`, where Python's quoting also keeps `~` and drops `*`."""
+    return quote_plus(text, safe="*").replace("~", "%7E")
 
 
 def run_page_code(browser, url: str) -> list[Finding]:

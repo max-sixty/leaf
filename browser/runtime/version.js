@@ -9,16 +9,17 @@
  * the arriving geometry is ready.
  *
  * The picker owns the complete version list, where each version older than the one
- * shown offers a Compare that marks what changed since it; `v` marks what changed since
- * the version the user last saw, or the newest older one (since-seen.js). A lit
- * Compare, or `v` again, clears the comparison. The
+ * shown offers a Compare that marks what changed since it, and names the version the
+ * user last saw (since-seen.js) "last seen" while the page has changed since it.
+ * Versions opens on the version it offers (`selection.offered`), whose Compare
+ * Versions' `v` presses (floating-panel.js). A lit Compare clears the comparison. The
  * comparison and the picker's presentation need no application capability, so they
  * live at module scope, one per document, and other surfaces import their readers
  * directly; the controller keeps travel and activation, which do. Block marks show
  * which blocks changed; a change is a hunk of the block diff as the page shows it, its
  * run of changed blocks and the base blocks it took out (`changeRuns`), which a reader
  * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
- * request. A base is a stamped version, the one a Compare or `v` names.
+ * request. A base is a stamped version, the one a Compare names.
  * `changesSince` counts a comparison's changes without marking them.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
@@ -49,9 +50,20 @@
  * selections and module state cannot cross documents. Drafts and chrome preferences
  * use their own stores.
  *
- * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin and panel location, mechanical carry, and obligation location. A newer
- * revision may consume it, but ordinary reloads and history travel cannot replay it.
+ * A reload Leaf asks for (layer-client.js, `reloadDocument`) stores a page-scoped,
+ * one-use handoff as the document goes (`handOff`): reading position, comparison,
+ * pointer, margin and panel location, editing continuity, mechanical carry, and
+ * obligation location. A fresh-document install asks for one, and so does a delivery
+ * that moved on, such as a server restarted under another Leaf, whose reload lands this
+ * revision (`reloadNow`). The document that reload loads consumes the handoff, at that
+ * revision or a newer one. Since it describes the moment the document went, a reload
+ * that ends the document later, as after the user stays at a page's own leave prompt,
+ * hands over the place they then left; any other reload or history travel finds none.
+ * While the arriving document restores the handoff, printed keys wait
+ * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back, as
+ * text in the reply box they were writing in. Waiting keys are no input
+ * (document-inputs.js, `holdKeys`), so they don't cancel the restore; any other input
+ * does, and drops them.
  * Explicit historical travel carries reading position and the decision landmark, without
  * mechanical carry or obligation location. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
@@ -59,7 +71,7 @@
  * `captureView` records a place (reading-place.js) for the page and each reading
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
  * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
- * `landArrival` runs after presentation: a valid revision handoff restores continuity;
+ * `landArrival` runs after presentation: a valid handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
  * different revision. Ordinary reloads and full-document history travel keep the browser's
@@ -97,7 +109,8 @@ import {
   draftEditingStands,
   restoreDraftEditing,
 } from "./drafts.js";
-import { heldThreadId, replyDestination } from "./thread/focus.js";
+import { heldThread, replyDestination } from "./thread/focus.js";
+import { drawnThreadId } from "./thread/selectors.js";
 import { restoreReplyEditing } from "./thread/replies.js";
 import {
   focusDestination,
@@ -105,17 +118,19 @@ import {
   onUserInput,
   focused,
   inputCount,
+  typesText,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
-import { savedReadingSettled } from "./keyboard/bindings.js";
+import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
-import { pruneScopedElements } from "./keyboard/scopes.js";
+import { letHeldKeysGo } from "./keyboard/controller.js";
+import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
-import { backgroundFlash, flashDuration } from "./motion.js";
+import { backgroundFlash } from "./motion.js";
 import {
   authored,
   elementById,
@@ -168,9 +183,23 @@ import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
-import { projectDocument, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/runtime/framework.js";
+import {
+  LayerRefused,
+  admitReading,
+  leafReloads,
+  reloadDocument,
+  reportPageError,
+} from "./layer-client.js";
+import { projectDocument, readApplication, readPart } from "./semantic-state.js";
+import {
+  AsyncDirective,
+  batch,
+  directive,
+  effect,
+  nothing,
+  signal,
+  untracked,
+} from "/runtime/framework.js";
 
 import {
   ADDRESSABLE,
@@ -404,16 +433,147 @@ const shownBehind = (active) =>
       ? `v${runtime.currentStamp}`
       : `v${runtime.currentStamp} of ${active.version}`;
 
+/** @typedef {import("../types/contract.js").ServedReading["versions"][number]} StampedVersion */
+// The version the user last saw, as their arrival found it (since-seen.js, `sawLast`).
+const lastSeen = signal(/** @type {StampedVersion | null} */ (null));
+/** @param {StampedVersion | null} version */
+export const sawLast = (version) => {
+  lastSeen.value = version;
+};
+// The version the user last saw while the page being read is newer than it, which
+// Versions names "last seen" and offers first, or null.
+const seenBase = () => {
+  const seen = lastSeen.value;
+  return seen && comparable(seen.revision) ? seen : null;
+};
+// What a version's name says it is after its number, as in "v3 (latest version, last
+// seen)".
+/** @param {(string | false)[]} roles */
+const parenthesized = (roles) => {
+  const said = roles.filter(Boolean);
+  return said.length ? ` (${said.join(", ")})` : "";
+};
+
+// How many changes stand since each version older than the one being read, which
+// Versions says on its Compare: what a comparison with it would mark (`changesSince`).
+// A count reads the revision being read and the widgets' state, so it stands while
+// both do; the publisher keeps the widgets' state the same object while it holds.
+// While Versions is open it counts the missing ones among the versions whose Compare
+// shows in the window (`countWhenShown`), newest first and one at a time. A count
+// fetches its version and compares the whole page, so what opening Versions, a pick or
+// a stamp sets off follows the rows on screen, not how many versions the session has
+// stamped (AGENTS.md, "Responsiveness"). Closing Versions or the page moving on leaves
+// at most one count half done. Rejected: counting the rows near the window as
+// `nearObserver` reads it (geometry.js), whose 600px past each edge of a scroller suits
+// layout work; for counts, each pick would also fetch and compare those 600px of rows.
+const widgetStates = readPart((root) => root.effective.widgets);
+const versionCounts = signal(
+  /** @type {{revision: number | null, widgets: unknown, counts: ReadonlyMap<number, number>}} */ ({
+    revision: null,
+    widgets: null,
+    counts: new Map(),
+  }),
+);
+/** How many changes a comparison with the version at `revision` would mark, or null
+ * until Versions has counted them for the page as it stands.
+ * @param {number} revision */
+export const changesCounted = (revision) => {
+  const at = versionCounts.value;
+  return at.revision === runtime.currentRevision && at.widgets === widgetStates()
+    ? (at.counts.get(revision) ?? null)
+    : null;
+};
+/** The versions whose Compare shows in the window, by revision.
+ * @type {Set<number>} */
+const countsShown = new Set();
+/** @type {WeakMap<Element, number>} */
+const shownRevision = new WeakMap();
+// Wakes Versions' counting for the page as it stands when a row comes into view; it
+// does nothing while Versions is closed.
+let countShown = () => {};
+/** @type {IntersectionObserver | undefined} */
+let showing;
+const watchShowing = () =>
+  (showing ??= new IntersectionObserver((entries) => {
+    for (const { target, isIntersecting } of entries) {
+      const revision = shownRevision.get(target);
+      if (revision === undefined) continue;
+      if (isIntersecting) countsShown.add(revision);
+      else countsShown.delete(revision);
+    }
+    countShown();
+  }));
+/** `<button ${countWhenShown(revision)}>`: while Versions is open, it counts the
+ * changes since the version at `revision` once this element shows in the window. */
+export const countWhenShown = directive(
+  class extends AsyncDirective {
+    /** @type {Element | null} */
+    node = null;
+    /** @param {number} revision */
+    render(revision) {
+      return nothing;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[number]} args */
+    update(part, [revision]) {
+      if (this.node !== part.element) {
+        this.node = part.element;
+        watchShowing().observe(this.node);
+      }
+      shownRevision.set(this.node, revision);
+      return nothing;
+    }
+    disconnected() {
+      if (!this.node) return;
+      showing?.unobserve(this.node);
+      const revision = shownRevision.get(this.node);
+      if (revision !== undefined) countsShown.delete(revision);
+    }
+    reconnected() {
+      if (this.node) watchShowing().observe(this.node);
+    }
+  },
+);
+/** @param {number} revision @param {unknown} widgets @param {() => boolean} open */
+async function countVersions(revision, widgets, open) {
+  const counts = () => {
+    const at = versionCounts.peek();
+    return at.revision === revision && at.widgets === widgets ? at.counts : new Map();
+  };
+  // A version whose count fails keeps Compare's word, and the others still count.
+  /** @type {Set<number>} */
+  const failed = new Set();
+  while (open()) {
+    const entry = runtime.versions.findLast(
+      ({ revision: at }) =>
+        countsShown.has(at) && comparable(at) && !counts().has(at) && !failed.has(at),
+    );
+    if (!entry) return;
+    const n = await changesSince(revisionBase(entry), open).catch(() => null);
+    if (!open()) return;
+    if (n === null) failed.add(entry.revision);
+    else
+      versionCounts.value = {
+        revision,
+        widgets,
+        counts: new Map(counts()).set(entry.revision, n),
+      };
+  }
+}
+
 /** @typedef {{revision: number, version: number | null, name: string, note: string | null, current: boolean, active: boolean, comparable: boolean}} VersionRow */
 /** @param {import("../types/contract.js").ServedState} state
  * @param {Readonly<Record<string, string>>} notes @param {NonNullable<typeof runtime.active>} active */
 function menuRows(state, notes, active) {
   const latest = state.versions.at(-1)?.version;
+  const seen = seenBase()?.revision;
   /** @type {VersionRow[]} */
   const entries = state.versions.map((entry) => ({
     revision: entry.revision,
     version: entry.version,
-    name: `v${entry.version}${entry.version === latest ? " (latest version)" : ""}`,
+    name: `v${entry.version}${parenthesized([
+      entry.version === latest && "latest version",
+      entry.revision === seen && "last seen",
+    ])}`,
     note: notes[entry.version] ?? null,
     current: entry.version === runtime.currentStamp,
     active: false,
@@ -473,13 +633,21 @@ function pickerModel(state) {
         : menuRows(state, runtime.browser?.version_notes ?? {}, active),
     selection: Object.freeze({
       // The base's revision, which each row of the menu names it by.
-      base:
-        (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
-        null,
+      base: selectedBase()?.revision ?? null,
       on: diffOn.value,
+      offered: offeredVersion(),
     }),
   });
 }
+// The version Versions offers to compare with, which it opens at: the base, else the
+// version the user last saw while the page has changed since, else the newest version
+// older than the one being read; null where none is older.
+export const offeredVersion = () =>
+  (
+    selectedBase() ??
+    seenBase() ??
+    runtime.versions.findLast((entry) => comparable(entry.revision))
+  )?.revision ?? null;
 
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
@@ -499,6 +667,9 @@ function paintPicker() {
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
 export const versionsReading = () => pickerModel(runtime.state);
+// Whether Versions stands open, as the floating panel says (`createVersionController`).
+let versionsStand = () => false;
+export const versionsShown = () => versionsStand();
 // Versions, a list of the floating panel's own, and a newer page to open, as rows of the
 // page's controls.
 registerPageControl({
@@ -621,7 +792,7 @@ const diffWordsOf = new Map();
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
 // dropped rather than painted over the base they are on now. Reachable because each
-// press of Compare or `v` is one fetch, and the presses come faster than the network.
+// press of Compare is one fetch, and the presses come faster than the network.
 let diffRequest = 0;
 // A containing prose block owns its words, not an opaque child's rendered data.
 // Use the same boundary for comparison keys, stored words and inline ranges.
@@ -1455,8 +1626,8 @@ function setDiff(on, base = null, pendingBase = null) {
     tick(comparisonGeneration);
   });
 }
-// The one way a comparison starts, from a row's Compare, from `v`, or from an
-// activation putting back the one it dropped. It states a base rather than toggling
+// The one way a comparison starts, from a row's Compare, from the return notice's Show
+// changes (since-seen.js), or from an activation putting back the one it dropped. It states a base rather than toggling
 // one — the toggle is each press's own reading of it. Everything touching the live page
 // happens in one synchronous stretch after the single await: presses can ask for a
 // comparison faster than one arrives, and a marking pass that could interleave with the
@@ -1491,9 +1662,7 @@ export async function showComparison(base) {
   // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
-    n
-      ? `${counted(n, "change")} since ${base.name}`
-      : `No text changes since ${base.name}`,
+    n ? `${counted(n, "change")} since ${base.name}` : `No changes since ${base.name}`,
     { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
@@ -1525,26 +1694,30 @@ async function loadBase(base, wanted, shown = null) {
     return { doc, baseDocument, baseAuthored, savedAfter };
   }
 }
-/** How many changes a comparison with `base` would mark, read without marking any, or
- * null where the revision being read moved on meanwhile.
- * @param {ComparisonBase} base */
-export async function changesSince(base) {
-  const revision = runtime.currentRevision;
-  const wanted = () => runtime.currentRevision === revision;
-  const loaded = await loadBase(base, wanted);
-  if (!loaded || !wanted()) return null;
-  return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
+/** How many changes a comparison with `base` would mark, read without marking any, for
+ * the revision being read when the count is in; null once `wanted` says it is moot.
+ * @param {ComparisonBase} base @param {() => boolean} wanted */
+export async function changesSince(base, wanted) {
+  while (wanted()) {
+    const revision = runtime.currentRevision;
+    const current = () => wanted() && runtime.currentRevision === revision;
+    const loaded = await loadBase(base, current);
+    if (loaded && current())
+      return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes
+        .length;
+  }
+  return null;
 }
 // A press that ends a comparison says so, as `g H` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count; the page
 // field's standing words go with it, so it shows where they don't.
-export const endComparison = () => {
+const endComparison = () => {
   setDiff(false);
   notice("Changes hidden", { about: "comparison", stands: () => !comparisonBase() });
 };
 // A press names one stamped version, so pressing the current one again is the way off
-// it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is
-// the keyboard's way off, from whichever base.
+// it: Compare is a toggle where it is lit and a switch of base where it isn't. Versions
+// opens on its version, so `g V v` is the keyboard's way off, from whichever base.
 /** @param {number | null} version */
 const pressComparison = (version) => {
   if (version === null) return;
@@ -1625,6 +1798,7 @@ function revisionDocument(revision) {
  *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: Element | null,
  *   openThread: Parameters<typeof replyDestination>[1],
+ *   threadReader: (node: Node) => "primary" | null,
  *   refreshThread: () => unknown,
  *   midComposition: ReturnType<typeof import("./composing/engagement.js").createEngagement>["midComposition"],
  *   hasPending: () => boolean,
@@ -1634,12 +1808,13 @@ function revisionDocument(revision) {
  *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => Promise<boolean>,
  *   captureObligationCurrentLocation: () => ObligationLocation,
  *   restoreObligationCurrentLocation: (currentLocation: ObligationLocation | null) => void,
- *   versions: { press: () => void },
+ *   versions: { press: () => void, shows: () => boolean, scope: import("./keyboard/bindings.js").Scope },
  * }} controller */
 export function createVersionController({
   initialDocument,
   compositionInput,
   openThread,
+  threadReader,
   refreshThread,
   midComposition,
   hasPending,
@@ -1652,6 +1827,7 @@ export function createVersionController({
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions,
 }) {
+  versionsStand = versions.shows;
   let {
     authoredHeadNodes,
     authoredHtmlAttributes,
@@ -1664,7 +1840,6 @@ export function createVersionController({
   let authoredRoot = layerRoot(document);
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
-  const HANDOFF_KEY = "lf-revision-handoff";
 
   // g V names the versions, and what each one changed: the chrome's Versions, which the
   // press opens or puts away, as its menu row does.
@@ -1672,8 +1847,9 @@ export function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    title: "versions",
+    title: () => (versions.shows() ? "close Versions" : "Versions"),
     run: () => versions.press(),
+    opens: () => versions.scope,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
@@ -1941,9 +2117,14 @@ export function createVersionController({
   // replacement nodes recover eligible state through carry and obligation restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
+    const thread = draftEditing?.mirrored ? heldThread() : null;
     return {
       draftEditing,
-      replyThread: draftEditing?.mirrored ? heldThreadId() : null,
+      replyThread: drawnThreadId(thread),
+      // The reader the reply was written in: the primary, as the floating panel's view
+      // is, or null for the page's own. Its continuation opens the thread there again,
+      // since a route left to choose opens a thread about a passage beside the passage.
+      replyReader: thread && threadReader(thread),
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it was where the user is (user-place.js, `focusPlace`).
       replyInView: focusPlace() !== null,
@@ -1970,8 +2151,13 @@ export function createVersionController({
   /** @param {ReturnType<typeof captureEditingContinuity>} continuity @param {ReturnType<typeof retainUserIntent>} currentIntent */
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, obligationCurrentLocation } =
-      continuity;
+    const {
+      draftEditing,
+      replyThread,
+      replyReader,
+      replyInView,
+      obligationCurrentLocation,
+    } = continuity;
     restoreObligationCurrentLocation(obligationCurrentLocation);
     if (!draftEditing) return;
     const mayRestore = restrictUserIntent(currentIntent, () =>
@@ -1985,9 +2171,12 @@ export function createVersionController({
           // Present that session before its route reads the annotation directory.
           await refreshThread();
           return mayRestore()
-            ? replyDestination(replyThread, openThread, mayRestore, {
-                scroll: replyInView,
-              })
+            ? replyDestination(
+                replyThread,
+                (id, options) => openThread(id, { ...options, reader: replyReader }),
+                mayRestore,
+                { scroll: replyInView },
+              )
             : null;
         })
       : draftEditingDestination(draftEditing, mayRestore.handoff);
@@ -2175,7 +2364,7 @@ export function createVersionController({
             readApplication().effective.widgets,
           );
           for (const block of changedSince(outgoingSource).changed)
-            backgroundFlash(block, flashDuration());
+            backgroundFlash(block);
           notice(`Updated to ${target.label}`, { background: true });
           gesture("version");
         }),
@@ -2258,35 +2447,48 @@ export function createVersionController({
     };
   }
 
-  // Changed executable identity requires a fresh document. Serialize the continuity
-  // handoff before reload; installArrival consumes it once after upgrade.
+  // The continuity handoff to the fresh document a reload Leaf asked for loads, written
+  // as this document goes (`installArrival`), so it holds the place the user left, keys
+  // typed while the reload loaded included. The reload lands at `revision` or a newer
+  // one, at `url`; installArrival consumes the handoff once after upgrade.
+  /** @param {{revision: number, url: string}} landing */
+  function handOff({ revision, url }) {
+    const live = pageDocument();
+    const source = authoredSource;
+    if (!live || !source)
+      throw new Error("A revision handoff requires its authored document");
+    const view = captureView();
+    const editingContinuity = captureEditingContinuity();
+    tabStore.set(VIEW_KEY, JSON.stringify(view));
+    window.lfStorage.handOff({
+      revision,
+      url,
+      view,
+      retainedCurrentLocation: captureRetainedCurrentLocation(),
+      ...editingContinuity,
+      carry: captureCarry(live, source).records,
+      comparison: selectedBase(),
+      pointer: pointerAt(),
+      // Whether the user was writing in a box, which comes back: the arriving
+      // document's key hold then takes even a Space as text for it (bootstrap.js,
+      // `typingBack`).
+      typing: typesText(focused()),
+    });
+  }
+  // Where a revision's reload lands, at the address the user sees once the arriving
+  // document takes its mark off; a reload into another runtime lands this one's.
+  /** @type {{revision: number, url: string} | null} */
+  let reloadLanding = null;
+
+  // Changed executable identity requires a fresh document.
   const reloadInto =
     (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
       forceActivation = false;
-      const live = pageDocument();
-      const source = authoredSource;
-      if (!live || !source)
-        throw new Error("A revision handoff requires its authored document");
-      const view = captureView();
-      const editingContinuity = captureEditingContinuity();
-      tabStore.set(VIEW_KEY, JSON.stringify(view));
-      tabStore.set(
-        HANDOFF_KEY,
-        JSON.stringify({
-          revision: target.revision,
-          url: location.href,
-          view,
-          retainedCurrentLocation: captureRetainedCurrentLocation(),
-          ...editingContinuity,
-          carry: captureCarry(live, source).records,
-          comparison: selectedBase(),
-          pointer: pointerAt(),
-        }),
-      );
+      reloadLanding = { revision: target.revision, url: location.href };
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
       replaceEntry(marked);
-      location.reload();
+      reloadDocument();
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.
       return new Promise(() => {});
@@ -2361,8 +2563,8 @@ export function createVersionController({
       restorePlace(view.page, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a visual review's
-    // capture does in a document page: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a shot's capture
+    // stage does in a document page: the page keeps its own place beside the region's.
     if (
       view.page &&
       !restored.has(pageScroller) &&
@@ -3026,32 +3228,28 @@ export function createVersionController({
     // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
-    // target a widget generates, hides, or moves (`aimArrival`), and travel to a
-    // different authored revision, where a passage is a better landmark than the old
+    // target a widget generates, hides, or moves (`aimArrival`), and a reload Leaf asked
+    // for and the user didn't, which hands over their whole place (`handOff`). Into a
+    // different authored revision, a passage is also a better landmark than the old
     // document's pixels.
     const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
+    // The handoff prepaint read for a reload of its address, dropped from the tab as the
+    // document arrives, however it arrived.
     const handoff = (() => {
-      const serialized = tabStore.get(HANDOFF_KEY);
-      tabStore.set(HANDOFF_KEY, null);
-      try {
-        const value = JSON.parse(serialized || "null");
-        return LIVE_ROOT &&
-          currentRevision !== null &&
-          navigationType === "reload" &&
-          value?.url === location.href &&
-          Number.isInteger(value.revision) &&
-          value.revision <= currentRevision &&
-          Number.isInteger(value.view?.revision) &&
-          value.view.revision < currentRevision
-          ? value
-          : null;
-      } catch {
-        return null;
-      }
+      const value = /** @type {any} */ (window.lfStorage.handoff);
+      window.lfStorage.handOff(null);
+      return currentRevision !== null &&
+        Number.isInteger(value?.revision) &&
+        value.revision <= currentRevision &&
+        Number.isInteger(value.view?.revision)
+        ? value
+        : null;
     })();
+    // Printed keys typed while the handoff is restored wait for it (`landArrival`).
+    if (handoff) handingBackPlace(true);
     // Unreadable saved JSON means no saved view; it must not prevent page startup.
     const savedView = (() => {
       try {
@@ -3062,7 +3260,10 @@ export function createVersionController({
     })();
     addEventListener("pagehide", () => {
       if (!anchoringIsReady()) return;
-      tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
+      const revision = runtime.currentRevision;
+      if (leafReloads() && revision !== null)
+        handOff(reloadLanding ?? { revision, url: location.href });
+      else tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     const currentIntent = retainUserIntent({ fallback: compositionInput, since: 0 });
     const restoreCarryScroll =
@@ -3087,6 +3288,14 @@ export function createVersionController({
           savedView.revision !== runtime.currentRevision
         )
           restoreView(savedView, currentIntent);
+      }).finally(() => {
+        if (!handoff) return;
+        handingBackPlace(false);
+        // The held keys run where the restore put the user, as text in the box they
+        // were writing in. An input of theirs meanwhile stopped the restore, and their
+        // keys, meant for a place they never got back to, go with it.
+        if (inputCount() === 0) paintKeys();
+        else letHeldKeysGo();
       });
     return { landArrival, savedView };
   }
@@ -3152,6 +3361,30 @@ export function createVersionController({
       latest: goActive,
     });
     effect(paintPicker);
+    // Versions counts while it is open, for the page as it stands: a revision landing
+    // or a widget's state moving stops the counting under way and starts the next, and
+    // a row coming into view wakes it once it has counted those already in view.
+    effect(() => {
+      if (!versions.shows()) return;
+      const revision = runtime.currentRevision;
+      const widgets = widgetStates();
+      if (revision === null) return;
+      let open = true;
+      let counting = false;
+      const wake = () => {
+        if (counting) return;
+        counting = true;
+        void countVersions(revision, widgets, () => open).finally(() => {
+          counting = false;
+        });
+      };
+      countShown = wake;
+      untracked(wake);
+      return () => {
+        open = false;
+        countShown = () => {};
+      };
+    });
   }
 
   return {

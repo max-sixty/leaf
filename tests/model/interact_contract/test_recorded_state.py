@@ -19,6 +19,7 @@ from interact_support import (
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf.registry import contract as registry_contract
+from leaf.registry import layer as registry_layer
 from leaf.registry import validation as registry_validation
 from model.interact_contract import (
     _stateful_page_declaration,
@@ -157,7 +158,6 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
     options = registry["lf-options"]
     if writer == "agent":
         options.pop("awaits")
-        options["attributes"]["properties"]["overruled"] = {"type": "boolean"}
         options["verbs"]["choose"]["writer"] = "agent"
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(
@@ -387,6 +387,22 @@ def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     )
 
 
+def test_a_position_record_s_container_stands_inside_the_widget(page_dir):
+    """The browser finds a position's containers among the widget's descendants, so a
+    record naming the widget's own tag as its container passes nothing a drop can
+    find, and the check refuses it before a drop throws."""
+    registry = vocabulary(page_dir)
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = "lf-board"
+    declare_vocabulary(page_dir, registry)
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    assert found(
+        findings, "record-within", "<lf-board>", verb="move", within="lf-board"
+    )
+
+
 def _independent_member_records():
     """An unfamiliar package composes selection, positions and scalar member state."""
     registry = deepcopy(model_layer())
@@ -419,7 +435,9 @@ def _independent_member_records():
     card["verbs"] = {
         "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
     }
-    registry_validation.validate_registry(registry, "independent member records")
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "independent member records")
+    )
     markup = """<lf-audit-board id="outer">
 <lf-audit-zone id="one"><lf-audit-card id="card" selected phase="idle">
 <lf-audit-board id="inner"><lf-audit-zone id="inner-zone">
@@ -549,7 +567,9 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
             "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": attr}}
         }
         with_modules(registry, tag)[tag] = holder
-    registry_validation.validate_registry(registry, "movable record compositions")
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "movable record compositions")
+    )
     page = ModelPage(
         '<lf-audit-board id="board"><lf-audit-left id="left">'
         '<lf-audit-zone id="one"><lf-audit-card id="card" phase="idle">Card</lf-audit-card>'

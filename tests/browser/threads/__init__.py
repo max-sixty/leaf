@@ -274,7 +274,7 @@ def _shadow_tree_widget(tag):
         "description": "A project-supplied tree.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

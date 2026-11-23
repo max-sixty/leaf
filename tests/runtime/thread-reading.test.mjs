@@ -344,7 +344,10 @@ test("superseding a blocked primary destination completes its prior navigation",
       document.body.append(workspace);
       const reached = Promise.withResolvers();
       const blocked = Promise.withResolvers();
-      const router = createThreadDestinations({ prepareNavigationStep: () => null });
+      const router = createThreadDestinations({
+        placedAt: () => null,
+        prepareNavigationStep: () => null,
+      });
       let calls = 0;
       const unregister = router.register(workspace, () => {}, {
         update: () =>

@@ -54,6 +54,7 @@ import {
   revealAddressed,
   revealAnchor,
   sectionOf,
+  awaitsDrawing,
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
@@ -604,58 +605,104 @@ export function createAnchorTravel({
     return { where, focus: target, scroll };
   };
 
+  // The threads a travel is taking the user to, each with the intents that may still
+  // land it. Drawing a thread's part can take it off the margin entry or card the user
+  // stands on, and the thread pass then carries them to where it stands (thread/focus.js,
+  // `holdThreadPlace`); a travel that may still land takes them there instead, as its
+  // departure says.
+  /** @type {Map<string, Set<UserIntent>>} */
+  const travelling = new Map();
+  /** @param {string} id */
+  const travellingTo = (id) =>
+    [...(travelling.get(threadNamed(id)?.id ?? id) ?? [])].some((intent) => intent());
+  /** @template T @param {string} id @param {UserIntent} intent @param {() => Promise<T>} work */
+  async function travelTo(id, intent, work) {
+    const key = threadNamed(id)?.id ?? id;
+    const intents = travelling.get(key) ?? new Set();
+    travelling.set(key, intents.add(intent));
+    try {
+      return await work();
+    } finally {
+      intents.delete(intent);
+      if (!intents.size && travelling.get(key) === intents) travelling.delete(key);
+    }
+  }
+
+  // Has the widget holding a thread's target draw the part its anchor names, and
+  // resolves whether the travel may still land once the thread pass has placed the
+  // thread again. A visual settles on its part, including cancelling a pending
+  // replacement of an already visible destination; a lazy datum may load. A thread on
+  // earlier data asks its widget too. The thread stays on the place the widget now
+  // gives that datum (`lfDataDatum`'s `outdated`), and the widget opens what holds it,
+  // as a diff opens the file an earlier line was in.
+  /** @param {string} id @param {UserIntent} mayArrive */
+  async function drawThread(id, mayArrive) {
+    const anchor = threadNamed(id)?.anchor;
+    if (!anchor?.visual && !anchor?.datum) return mayArrive();
+    const source = sectionOf(anchor);
+    const hydration = source && revealAnchor(source, anchor);
+    if (hydration?.then) await hydration;
+    if (!mayArrive() || sectionOf(anchor) !== source) return false;
+    await refreshThread();
+    return mayArrive();
+  }
+
+  // The same, for a route that has yet to choose where the thread shows, since drawing
+  // its part can give it a seat on the page (thread/destination.js).
+  /** @param {string} id @param {UserIntent | undefined} intent */
+  const revealThread = (id, intent) => {
+    const mayArrive = retainTravel(intent);
+    return travelTo(id, mayArrive, () => drawThread(id, mayArrive));
+  };
+
   // `departure` is the route's, read where the user stood before the route changed
   // anything (thread/destination.js), or null for an arrival that adds no entry.
   /** @param {string} id
    * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
-  async function scrollToThread(
+  const scrollToThread = (id, options) => {
+    const mayArrive = retainTravel(options.intent);
+    return travelTo(id, mayArrive, () => travelToThread(id, mayArrive, options));
+  };
+
+  /** @param {string} id @param {UserIntent} mayArrive
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
+  async function travelToThread(
     id,
+    mayArrive,
     {
       part = null,
       focus = true,
       presented = null,
-      intent,
       departure,
       block = "center",
       drawn = false,
     },
   ) {
-    const mayArrive = retainTravel(intent);
-    const thread = threadNamed(id);
-    const anchor = thread?.anchor;
-    const status = anchors.placedAt(id)?.status;
-    const partOf = anchor?.visual || (anchor?.datum && status !== "outdated");
-    const hydrationTarget = !drawn && partOf ? anchor : null;
+    const anchor = threadNamed(id)?.anchor;
+    const placement = anchors.placedAt(id);
     const destination = threadDestination(id);
     // `drawn` lands the place only where the page shows it now, for an arrival that
     // doesn't travel: it asks no widget to draw a part, opens nothing that hides one,
     // and moves only the scrollers the landing needs.
     if (drawn) {
-      if (partOf && !targetElement(anchors.placedAt(id))) return false;
+      if ((anchor?.visual || anchor?.datum) && !targetElement(placement)) return false;
       if (!(destination && placeHolder(destination)?.checkVisibility())) return false;
       const landing = threadLanding(id, null, block);
       if (!landing || !mayArrive()) return false;
       for (const place of landing.scroll) placeScroll(place, false);
       return true;
     }
-    // Decided before the navigation step awaits anything: a destination that is not readable now,
-    // or one a widget has yet to hydrate, is somewhere else. One readable now is already
+    // Decided before the navigation step awaits anything: a destination that is not
+    // readable now is somewhere else, and so is one a widget has yet to draw, though
+    // what stands in for it shows, as a closed file's row shows while the line it
+    // stands in for opens thousands of pixels below it. One readable now is already
     // there where the landing below, at its `block`, would move nothing, so history
     // judges the placement the scroll makes (`threadLanding`).
-    if (destination || hydrationTarget)
-      departure?.plan(destination, {
+    if (destination || anchor?.visual || anchor?.datum)
+      departure?.plan(awaitsDrawing(anchor, placement) ? null : destination, {
         there: () => destination !== null && alreadyShown(destination, { block }),
       });
-    if (hydrationTarget) {
-      const source = sectionOf(hydrationTarget);
-      // A visual settles on its part, including cancelling a pending replacement of
-      // an already visible destination; a lazy datum may load.
-      const hydration = source && revealAnchor(source, hydrationTarget);
-      if (hydration?.then) await hydration;
-      if (!mayArrive() || sectionOf(hydrationTarget) !== source) return false;
-      await refreshThread();
-      if (!mayArrive()) return false;
-    }
+    if (!(await drawThread(id, mayArrive))) return false;
 
     // The marks, the placement and the widget outlet this arrival lands in are all
     // written by the thread pass. Wait for it: a claim is synchronous but its
@@ -669,7 +716,7 @@ export function createAnchorTravel({
     return arrive(
       () => {
         const placement = anchors.placedAt(id);
-        const source = hydrationTarget && sectionOf(hydrationTarget);
+        const source = anchor?.visual ? sectionOf(anchor) : null;
         const target = !focus
           ? null
           : part
@@ -700,7 +747,9 @@ export function createAnchorTravel({
     scrollToElement,
     scrollToPassage,
     scrollToRange,
+    revealThread,
     scrollToThread,
+    travellingTo,
     threadDestination,
     threadLanding,
   };

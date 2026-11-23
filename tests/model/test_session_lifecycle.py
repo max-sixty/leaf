@@ -137,18 +137,24 @@ def test_a_prompt_takes_back_a_page_whose_server_outlived_its_session(claimed, c
     assert capsys.readouterr().out == ""
 
 
-def test_a_prompt_restarts_only_a_server_another_installed_copy_started(
+def test_a_prompt_restarts_only_a_server_another_installed_leaf_started(
     claimed, tmp_path, monkeypatch, capsys
 ):
-    """A session that loads another installed copy of Leaf reads `page check` from
-    it, while its page's server runs the copy that started it. Its next prompt
-    restarts that server once it has served its pages again, so a resumed session's
-    server still in its grace restarts too. A server a checkout started keeps
-    running, as does every server when the hook runs from a checkout, or has too
-    little time left to bring a stopped server back."""
+    """A session whose hooks run another installed Leaf reads `page check` from it,
+    while its page's server runs the Leaf that started it. Its next prompt restarts
+    that server once it has served its pages again, so a resumed session's server
+    still in its grace restarts too. Codex replaces its one copy in place, so there a
+    server the same copy started at another commit restarts, and one at the copy's
+    commit keeps running. A server a checkout started keeps running, as does every
+    server when the hook runs from a checkout, or has too little time left to bring a
+    stopped server back."""
     serving(claimed, available_loopback_port(), "session")
     cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    older, newer = cache / "0a0a0a0a0a0a", cache / "1b1b1b1b1b1b"
+    older, newer, local = (
+        cache / "0a0a0a0a0a0a",
+        cache / "1b1b1b1b1b1b",
+        cache / "local",
+    )
     restarted = []
 
     @contextlib.contextmanager
@@ -158,9 +164,15 @@ def test_a_prompt_restarts_only_a_server_another_installed_copy_started(
 
     monkeypatch.setattr(hosting_model, "restarting_server", restarting)
 
-    def restarts(started_by):
+    def runs(root, commit):
+        """The hook runs the installed copy at `root`, at `commit`."""
+        for module in (reconnect_model, server_model):
+            monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+        monkeypatch.setattr(layer_model, "running_leaf", lambda: {"commit": commit})
+
+    def restarts(started_by, commit=None):
         service = read_record(claimed / "service.json")
-        runtime = {"path": str(started_by), "commit": started_by.name}
+        runtime = {"path": str(started_by), "commit": commit or started_by.name}
         write_record(claimed / "service.json", {**service, "runtime": runtime})
         restarted.clear()
         prompt()
@@ -168,13 +180,15 @@ def test_a_prompt_restarts_only_a_server_another_installed_copy_started(
         return restarted == [claimed]
 
     assert not restarts(older), "a hook from a checkout"
-    for module in (reconnect_model, layer_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", newer)
+    runs(newer, newer.name)
     assert not restarts(PLUGIN_ROOT), "a server a checkout started"
     assert restarts(older)
     cleanup_model.end_harness_instance("s1")
     assert restarts(older), "a resumed session"
     assert service_model.claim_is_active(service_model.page_claim(claimed))
+    runs(local, "2c2c2c2c2c2c")
+    assert restarts(local, "1b1b1b1b1b1b"), "Codex's copy, updated in place"
+    assert not restarts(local, "2c2c2c2c2c2c")
     monkeypatch.setattr(
         hook_transport_model, "CONFIRM_WITHIN", reconnect_model.RESTART_NEEDS - 1
     )

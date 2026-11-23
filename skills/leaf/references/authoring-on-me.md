@@ -99,7 +99,8 @@ prose around it. The group draws none of its label, so give it the heading the p
 needs, as for any part of the page. The label's words are the question's words on On Me and in the
 answer you receive; Leaf reads the region and its name from that markup, so
 `page check` refuses a widget that asks where no label names its question, and names
-one whose own label alone names it, which `m` selects without its premise.
+one whose own label alone names it: `m` selects that widget alone, so a premise that
+stands outside it is left out.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a

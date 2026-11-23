@@ -4,6 +4,7 @@
    check-api.js so core checks never load that renderer. */
 export { exceptionText } from "./exception.js";
 export { startNearWork } from "./presentation.js";
+export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -39,7 +40,6 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
-  coverBoxes,
 } from "./geometry.js";
 export {
   drawnElements,
@@ -63,6 +63,7 @@ export {
   regionScrollBehavior,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
+export { carriersOf } from "./scroll-containers.js";
 export {
   layoutBox,
   pageDocument,
@@ -101,7 +102,8 @@ export { selectionAnchor } from "./composing/capture.js";
 // A range's owner's word of where the pointer rests, as a passage mark's is.
 export { PREVIEW_TIMERS, pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
-export { renderingState } from "./rendering.js";
+export { afterScript, renderingState } from "./rendering.js";
+export { pageScroller } from "./scrolling.js";
 export {
   readingBlock,
   blocksOnScreen,
@@ -113,6 +115,7 @@ export { walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
+export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
 export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
@@ -144,7 +147,6 @@ export { bringBackSurfaceOf } from "./off-flow.js";
 export { TEXT_BOX, WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
-export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
 export { versionPicker } from "./version-picker.js";
 export { colourableAs, colouredAs } from "./syntax.js";

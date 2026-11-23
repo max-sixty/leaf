@@ -167,12 +167,14 @@ Use a `layout-column` body for a reading document with wider exhibits. Its prose
 stands where a column page's would, moving toward the end only as far as the sidebar
 needs, and exhibits use the body's width on either side of it. Where its
 sidebar comes before the body and its track holds only the contents map, under a mouse
-the sidebar narrows to the map's spine, and the map shows its labels over the page when
-the reader points at it. Under touch, after the body, or with anything else in the track, the sidebar
-keeps a column's room. So put a status the
-reader should see at once at the top of the body rather than beside the map. For a
-board or dashboard, the body can instead be an ordinary `div` with the page's own
-layout; a `header` and `footer` on the outer Layout span both regions.
+the sidebar narrows to the map's spine, which draws the document's sections to scale,
+and the map shows its labels over the page when the reader points at it. Under touch,
+after the body, or with anything else in the track, the sidebar keeps a column's room
+and the map stands open as an outline. So put a status the reader should see at once at
+the top of the body rather than beside the map. A sidebar that has wrapped above or
+below the body shows the map as a disclosure. For a board or dashboard, the body can
+instead be an ordinary `div` with the page's own layout, beside which a sidebar keeps
+its outline open; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
@@ -188,8 +190,8 @@ Style its blocks by their classes or ids, or as `.layout-track > p`.
 ## A workspace
 
 `<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
-works in its regions rather than scrolling the page. Pane scrollers leave room at their
-ends so the panel does not cover their last lines. The `header` and `footer` take
+works in its regions rather than scrolling the page. The panel stands over the regions'
+feet and the user folds it where it covers them. The `header` and `footer` take
 their content's height and the body takes the rest. Keep shared context concise enough
 to leave the working regions usable; place region-specific explanation with its subject.
 
@@ -301,9 +303,8 @@ so its words stay on the column beside a wider one. A framed holder, such as a
 callout, needs its own `data-width` to widen; its children use the room inside it. A
 wide child alone does not widen its holder. Write a box that arranges its own
 contents, such as a grid of cards, as a `div`, which keeps them inside it.
-Under the reading face a table scrolls sideways when needed; a page without the face
-gives a table that can outgrow its width a box of its own that scrolls sideways
-(`page-authoring.md`, "Markup").
+`page-authoring.md`, "Markup", says how a table that outgrows its box scrolls sideways,
+with the reading face and without it.
 
 A widget whose entry declares `height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
@@ -318,11 +319,9 @@ whether `data-height` was missing, too small or too large.
 
 ## The rail and the margin
 
-A document's explicit sidebar keeps its route beside the body. Before the body and
-holding only a contents map, under a mouse it narrows to the map's spine, which draws
-the document's sections to scale and shows their labels over the page when the reader
-points at it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
-under touch, keeps its outline open beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
+A document's explicit sidebar keeps its route beside the body, narrowed to the contents
+map's spine or at a column's width as "A sidebar page" says. Both are CSS layout,
+present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
@@ -382,9 +381,8 @@ On a page that takes a theme, the buttons, fields and choices you write in plain
 wear the faces of Leaf's own controls; the vocabulary's `button` and `input, select`
 entries say how to write each. Any rule of yours outranks that face, so a
 control drawn for the task, such as a stack of layer tiles or a curve's handles, takes
-the page's own design (`page-authoring.md`, "Style the page"), and
-`--lf-reading-face: initial` on a box leaves the controls in it the browser's, as on a
-page that takes no theme.
+the page's own design. `page-authoring.md`, "Style the page", says how to leave the
+controls in one box with the browser's look.
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

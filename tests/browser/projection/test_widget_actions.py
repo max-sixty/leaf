@@ -74,9 +74,7 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "phase": {"enum": ["closed", "open"]},
-                "restated": {"type": "boolean"},
             },
             "required": ["id", "phase"],
             "additionalProperties": False,
@@ -401,7 +399,6 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece["owners"] = ["lf-zone"]
     piece["attributes"]["properties"] |= {
         "pinned": {"type": "string"},
-        "restated": {"type": "boolean"},
     }
     piece["attributes"].setdefault("required", []).append("pinned")
     piece["verbs"] = {

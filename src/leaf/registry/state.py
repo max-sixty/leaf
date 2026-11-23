@@ -54,15 +54,11 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-content", path, tag, verb=verb, child=child_tag
                 )
+            # Composition gives the child's id the same grammar
+            # (`contract.stamp_grammars`).
             if set(child["attributes"].get("required", [])) != {"id"}:
                 raise registry_error(
                     "creates-required", path, tag, verb=verb, child=child_tag
-                )
-            # Composition gives the child's id the same grammar
-            # (`contract.stamp_grammars`).
-            if not declares_string(child["attributes"].get("properties", {}).get("id")):
-                raise registry_error(
-                    "creates-id", path, tag, verb=verb, child=child_tag
                 )
             # A creates verb owns id-and-words members, not independent widget
             # owners. Capabilities read from the authored owner inventory cannot
@@ -143,7 +139,11 @@ def validate_widget_record_contracts(
             raise registry_error(
                 "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
             )
-        if kind == "position" and record["within"] not in declarations:
+        # A container is a declared element inside the widget, among whose
+        # descendants the browser finds it, so never the widget itself.
+        if kind == "position" and (
+            record["within"] == tag or record["within"] not in declarations
+        ):
             raise registry_error(
                 "record-within", path, tag, verb=verb, within=record["within"]
             )
@@ -239,7 +239,6 @@ def validate_answered_conditions(
             not binding
             or not binding.get("source")
             or binding.get("reference")
-            or binding.get("output")
             or not data["contracts"][binding["contract"]].get("records")
         ):
             raise registry_error("awaits-records", path, tag)

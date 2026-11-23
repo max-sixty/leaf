@@ -6,9 +6,9 @@
    marks it `newest`, the user's newest gesture, so a gesture the list doesn't hold,
    such as a move a later revision's markup places, ends the walk. The one gesture ⌘Z takes from outside the
    list is an action still in this page's ledger (below). A widget's Undo, a reaction chip, and a
-   reaction strip each name an exact entry, and a notice's Undo takes the gesture it
-   reports by ⌘Z's rules (`offerUndo`). All of them withdraw
-   through `withdraw`.
+   reaction strip each name an exact entry, and a notice's Undo is ⌘Z's own press,
+   offered while ⌘Z would take the gesture the notice reports (`offerUndo`). All of
+   them withdraw through `withdraw`.
 
    ⌘Z says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
@@ -125,7 +125,7 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
-import { backgroundFlash, flashDuration } from "./motion.js";
+import { backgroundFlash } from "./motion.js";
 import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
@@ -472,7 +472,7 @@ export function createUndo({
       place.thread ??
       (event.kind === "reply" && event.parent ? threadIdNamed(event.parent) : null);
     for (const node of new Set(drawn.length ? drawn : thread ? drawingsOf(thread) : []))
-      if (node) backgroundFlash(node, flashDuration());
+      if (node) backgroundFlash(node);
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an
@@ -513,18 +513,18 @@ export function createUndo({
 
   // The press a notice of the gesture made under `attempt` offers (notifications.js,
   // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
-  // Undo (thread/folding.js, `nextStep`). It takes
-  // back that gesture as ⌘Z takes the list's head, never what ⌘Z would take by then,
-  // and stands while the page can still take the gesture back, so the log refusing it,
-  // or its withdrawal by any route, takes the notice away.
+  // Undo (thread/folding.js, `nextStep`). It names ⌘Z's command only while ⌘Z would
+  // take that gesture: once another gesture of the user's is the newest, it names no
+  // command, and the notice keeps its words without a press. The notice stands
+  // while the page can still take the gesture back (`stands`), so the log refusing it,
+  // or its withdrawal by any route, takes the notice away. The user chose dropping the
+  // press over keeping one that took back its own gesture while the ⌘Z it showed took
+  // the newer one: a press showing ⌘Z does what ⌘Z does.
   /** @param {string} attempt @returns {import("./notifications.js").NoticePress} */
   const offerUndo = (attempt) => ({
     action: "undo",
-    command: "history.undo",
-    run() {
-      if (!settled()) return null;
-      const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
-      return entry ? walkTo(entry.event) : null;
+    get command() {
+      return next()?.attempt === attempt ? "history.undo" : null;
     },
     stands: () => takeable()?.has(attempt) ?? true,
   });

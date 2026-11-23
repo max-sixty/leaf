@@ -864,7 +864,7 @@ summary {
    runs to the card's sides and foot, as a margin card's does (response.css), and its
    words still wrap where they would in a margin card at the measure, as they will once
    sent. Past them it keeps the room by which it is wider than that card's reply box,
-   whose words' box is the measure less two borders, the card's and its own, on each
+   whose words' box is the measure less the card's border and the box's band on each
    side. */
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
@@ -874,12 +874,14 @@ summary {
 }
 [data-lf-thread-surface] .lf-thread-reply {
   margin-inline: calc(-1 * var(--lf-comment-inset));
-  margin-block-end: calc(-1 * var(--lf-comment-inset));
+  margin-block: calc(var(--lf-msg-gap) - var(--lf-comment-inset))
+    calc(-1 * var(--lf-comment-inset));
 }
 [data-lf-thread-surface] .lf-thread-reply .lf-compose-field > leaf-text {
   padding-inline-end: max(
     var(--lf-compose-pad-inline-start),
-    100% - var(--lf-thread-card) + 4px + var(--lf-compose-pad-inline-start)
+    100% - var(--lf-thread-card) + 2 * (1px + var(--lf-reply-band)) +
+      var(--lf-compose-pad-inline-start)
   );
 }
 .lf-page-thread::after {
@@ -896,28 +898,19 @@ summary {
    come to the same, so a thread's words stand as far inside a card as inside the
    panel. The words of a view's head, a thread's quote, each message and each box
    written in start on that one edge, and a draft's lines stand where the sent
-   message's will. What marks them off, the quote's rule and a rewrite's frame, stands
-   at the padding. A field subtracts its border; messages and metadata take the full
-   inset. */
-/* An open summary's region overhangs the words' end by `--lf-group-ring-end`, so a
-   transcript that scrolls keeps at least that much room past them, in the words'
-   inset and the room it keeps at its edges (`--lf-transcript-edge-room`,
-   annotation-chrome.css). */
+   message's will. What marks them off, the quote's rule, a rewrite's frame and a
+   summary's region, stands at the padding. A field subtracts its border; messages and
+   metadata take the full inset. */
 :root,
 .lf-page-thread,
 .lf-fab-bar {
   --lf-thread-text-inset: 8px;
-  --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
   /* The room between a message's last line and what follows it in the conversation,
      the next message, a checkpoint, the working step or the reply box: far more than a
      head's gap to its words, so each head reads with the message under it. */
   --lf-msg-gap: 24px;
-  /* How far a summary's region stands inside the conversation's start edge, so its
-     words stand at the conversation's inset. At its end it reaches past the words by
-     `--lf-group-ring-end`. */
-  --lf-summary-edge: 3px;
   /* The room a thread's own controls take beside the line they stand on: a head's
      height, or a finger's width under one. */
   --lf-thread-action-room: max(var(--lf-msg-head-height), var(--lf-aim-floor));
@@ -1118,10 +1111,13 @@ summary {
 .lf-thread-transcript > .lf-msg[hidden="until-found"] {
   margin-block: 0;
 }
+/* A summary's region starts at the frame's padding, reaching back over the words'
+   inset as a rewrite's frame does, and ends at the messages' edge, which stands at
+   the frame's padding too. So it stands as far inside the frame on both sides, clear
+   of its edges, and its words keep the thread's inset at both ends. */
 .lf-summary-checkpoint {
-  padding: 8px calc(var(--lf-thread-text-inset) - var(--lf-summary-edge));
-  margin-inline: calc(var(--lf-summary-edge) - var(--lf-thread-text-inset))
-    calc(-1 * var(--lf-group-ring-end));
+  padding: 8px var(--lf-thread-text-inset);
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   border-radius: var(--lf-r);
   background: var(--lf-settled-tint);
 }
@@ -1142,10 +1138,9 @@ summary {
   inset-block-start: anchor(var(--lf-fold-head) start);
   inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 8px);
   inset-inline-start: calc(
-    anchor(var(--lf-fold-head) start) + var(--lf-summary-edge) -
-      var(--lf-thread-text-inset)
+    anchor(var(--lf-fold-head) start) - var(--lf-thread-text-inset)
   );
-  inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
+  inset-inline-end: anchor(var(--lf-fold-head) end);
   border-radius: var(--lf-r);
   background: var(--lf-settled-tint);
   pointer-events: none;

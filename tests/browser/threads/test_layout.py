@@ -386,14 +386,11 @@ def test_every_message_says_when_it_was_said(browser, serve):
     ]
 
 
-# Where a message's words may run to, and the thread's inset before its words.
+# Where a message's words may run to.
 WORDS_END = """message => {
   const words = message.querySelector('.lf-msg-text');
-  const end = words.getBoundingClientRect().right
+  return words.getBoundingClientRect().right
     - parseFloat(getComputedStyle(words).paddingInlineEnd);
-  const inset = parseFloat(
-    getComputedStyle(message).getPropertyValue('--lf-thread-text-inset'));
-  return {end, inset};
 }"""
 
 
@@ -403,9 +400,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     does, keeping at its end only the inset its words start with, where its rewrite's
     frame stands. Keeping the room Send takes in the field they were typed in, the
     user's lines would stop short of the agent's, so every message the user sent would
-    wrap narrower than the reply under it. A seated card ends every message's words
-    that inset in, as the margin card does (`--lf-msg-text-end`), so there the two
-    end together."""
+    wrap narrower than the reply under it. The panel and a seated card end every
+    message's words that inset in, as the margin card does (`--lf-msg-text-end`), so
+    the two end together."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -428,11 +425,7 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     expect(agent).to_contain_text("Check that these")
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
-    shorter = mine["inset"] if surface == "panel" else 0
-    assert theirs["end"] - mine["end"] == pytest.approx(shorter, abs=0.5), (
-        mine,
-        theirs,
-    )
+    assert theirs == pytest.approx(mine, abs=0.5), (mine, theirs)
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):

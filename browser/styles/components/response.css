@@ -11,9 +11,9 @@
    resizes its hit box with it. */
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
    box with the action inset on either side of it. A surface that sets its own
-   action inset restates this and the field's height. A field that runs over its
-   frame's padding stands its actions that much further in from its end
-   (`--lf-compose-action-end`, below), so they keep their place in the frame. */
+   action inset restates this and the field's height. A field that stands its actions
+   at another distance from its end says how far (`--lf-compose-action-end`), as a
+   card's reply box does under a mouse (below). */
 leaf-composition-field {
   display: contents;
 }
@@ -709,34 +709,34 @@ leaf-composition-field {
 .lf-response-face {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
-/* A card's reply box, beside a passage or seated in a widget, runs over the card's
-   padding to its sides and foot (annotation-chrome.css, surfaces.css), as the floating
-   panel's field runs to the panel's edges, so the card holds one frame and the box is
-   its region the words go in. Its padding takes the card's back, so its words and
-   Send stand where they would in a box at the card's padding, and its pictures stand
-   on its words' edge, so their removal's reach stays inside the card. Under a mouse, where Send takes only a free
+/* A card's reply box, beside a passage or seated in a widget, takes in the card's
+   padding all round its field, as the floating panel's field takes in its row's
+   padding while it holds the caret (floating-panel.css), so the card holds one frame
+   and the box is its region the words go in: the box runs to the card's sides and foot
+   (annotation-chrome.css, surfaces.css), and over the card's padding above the field,
+   inside the message's gap over it. Its frame is that band, as wide as the card's
+   padding and border, so its words, Send and pictures stand where they would in a box
+   at the card's padding, and nothing positioned in it covers its ring; its pictures
+   stand on its words' edge, so their removal's reach stays inside the card. Under a mouse, where Send takes only a free
    corner (above), it ends the line as the card's own symbols end theirs, hanging past
    the words' end by the symbol's inset (controls.css); under a finger it keeps its
    place in the line's room every message keeps for it (`--lf-comment-text-end`). It wears
    the card's rounding at the card's corners and stands square at its top, inside the
    card (browser/AGENTS.md, "Visual treatment carries meaning"). At rest it draws only
-   a rule over its words, inset as far as they are, as the panel's row does under an
-   open thread; holding the caret it takes the card's ground, lighter than the card's
-   paper, and the ring one band inside its edge. The user chose this
+   a rule over its words, inset as far as they are, at its top, as the panel's row does
+   under an open thread; holding the caret it takes the card's ground, lighter than the
+   card's paper, and the ring one band inside its edge. The user chose this
    over the box at the card's padding in a field's frame and corners, which the panel's
    field had already left. */
 :is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field {
-  --lf-compose-pad-inline-start: calc(
-    var(--lf-thread-text-inset) - 1px + var(--lf-comment-inset)
-  );
-  --lf-compose-action-end: calc(
-    var(--lf-compose-action-inset) + var(--lf-comment-inset)
-  );
+  --lf-reply-band: calc(var(--lf-comment-inset) + 1px);
   --lf-field-ground: var(--lf-ground);
+  border-width: var(--lf-reply-band);
   border-color: transparent;
   border-radius: 0 0 calc(var(--lf-r-l) - 1px) calc(var(--lf-r-l) - 1px);
   background: linear-gradient(var(--lf-rule), var(--lf-rule)) top center /
-    calc(100% - 2 * var(--lf-compose-pad-inline-start)) 1px no-repeat;
+    calc(100% - 2 * (var(--lf-reply-band) + var(--lf-compose-pad-inline-start))) 1px
+    no-repeat border-box;
 }
 @media (hover: hover) and (pointer: fine) {
   :is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-compose-field {

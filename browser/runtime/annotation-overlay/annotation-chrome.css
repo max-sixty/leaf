@@ -731,10 +731,11 @@
   }
   /* The words stand the thread text inset inside the card's padding. The transcript
      keeps room past their edges for what is drawn beyond a box: a focus ring, which a
-     rewrite draws outside its frame; an open progress group's border; and the marks
-     round a block in a message, such as the ring Next On Me (`m`) draws round an ask's
-     options. Those marks stand a region's gap outside the block, the farthest out of
-     the three, so they set the room below the turns, which the reply row's gap holds.
+     rewrite draws outside its frame, and the marks round a block in a message, such as
+     the ring Next On Me (`m`) draws round an ask's options. Those marks stand a
+     region's gap outside the block, the farther out of the two, so they set the room
+     below the turns, which the reply row's gap holds. A rewrite's frame and a
+     summary's region stand at the card's padding, inside the room at the sides.
      At the sides and top, where the card's edge bounds the transcript, the room is
      what the card's padding and border leave inside the card's own ring, which the
      transcript's paper would otherwise cover: the words' inset holds a region's gap at
@@ -745,7 +746,7 @@
      the room above it, the stuck head row across both tracks (`data-lf-scrolled`,
      thread-preview.js); at the top a ring still has it. */
   .lf-margin-thread .lf-page-thread {
-    --lf-transcript-room: max(var(--lf-focus-region-room), var(--lf-group-ring-end));
+    --lf-transcript-room: var(--lf-focus-region-room);
     --lf-transcript-edge-room: calc(
       var(--lf-comment-inset) + 1px - var(--lf-focus-ring-w)
     );
@@ -786,8 +787,9 @@
     }
   }
   /* The reply row runs over the card's padding to its sides and foot, so the reply box
-     meets the card's edge there (response.css). Its inline containment keeps a draft
-     from widening the card. */
+     meets the card's edge there, and its box's band over the field stands in the
+     message's gap (response.css). Its inline containment keeps a draft from widening
+     the card. */
   .lf-margin-thread .lf-thread-reply {
     contain: inline-size;
     display: grid;
@@ -796,7 +798,7 @@
     min-height: var(--lf-comment-reply-row);
     align-items: stretch;
     margin: 0 calc(-1 * var(--lf-comment-inset)) calc(-1 * var(--lf-comment-inset));
-    padding-block: var(--lf-msg-gap) 0;
+    padding-block: calc(var(--lf-msg-gap) - var(--lf-comment-inset)) 0;
   }
   .lf-margin-thread .lf-thread-reply .lf-composer-media {
     grid-row: 1;

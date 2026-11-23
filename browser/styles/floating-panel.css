@@ -1306,7 +1306,8 @@
   .lf-fp-view .lf-awaited {
     --lf-awaited-ground: var(--lf-fp-surface);
     bottom: calc(-1 * var(--lf-fp-view-pad-end));
-    margin-inline: calc(-6px - var(--lf-thread-text-inset)) calc(-14px - var(--lf-sp-1));
+    margin-inline: calc(-1 * (var(--lf-rows-bleed) + var(--lf-thread-text-inset)))
+      calc(-1 * var(--lf-rows-bleed));
     margin-block-end: calc(
       -1 * (var(--lf-fp-view-pad-end) + var(--lf-fp-transcript-end))
     );
@@ -1802,23 +1803,20 @@
   }
   /* The thread, drawn as a card's (thread/thread-card.js), stands on the view's
      padding, as the quote's rule does, and its to-dos and transcript inset their words
-     onto the thread's edge. The transcript keeps the room around it a card's box gives
-     its own, but on the side the quote's rule stands, its first author 16px under the
-     quote, the quote head's 12px included, and at its foot, its last words a message's
-     gap over the field (`--lf-fp-transcript-end`, above). Each message's head reaches
-     into that room at its end, so its controls, the head's last item, end react and
-     copy under the view head's ✕, and the head's cut (surfaces.css) stands a gap past
-     them rather than across copy. */
+     onto the thread's edge. The transcript runs to the view's padding at its end, as a
+     card's runs to the card's, so each message's head, and its controls, its last
+     item, end react and copy under the view head's ✕, and each message ends its words
+     the thread's inset inside it, as it starts them. Its first author stands 16px
+     under the quote, the quote head's 12px included, and its last words a message's
+     gap over the field (`--lf-fp-transcript-end`, above). */
   .lf-fp-messages > .lf-page-thread {
     padding: 0;
   }
   .lf-fp-messages .lf-thread-transcript {
-    --lf-fp-transcript-room: calc(8px + var(--lf-sp-1));
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
-    padding-inline-end: var(--lf-fp-transcript-room);
   }
-  .lf-fp-messages .lf-msg-head {
-    margin-inline-end: calc(-1 * var(--lf-fp-transcript-room));
+  .lf-fp-messages .lf-msg {
+    --lf-msg-text-end: var(--lf-thread-text-inset);
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame

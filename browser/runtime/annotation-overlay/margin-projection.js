@@ -146,7 +146,7 @@ import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { drawnThreadId } from "../thread/selectors.js";
-import { visualAt } from "../anchor-resolution.js";
+import { standsIn, visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
@@ -1605,6 +1605,10 @@ export function createMarginProjection({
   // no card stands, as on a window with no room for the rail (header), the thread opens
   // where every other route opens it (thread/destination.js): the floating panel. Either
   // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
+  // A marker by what a widget gives in place of a part it hasn't drawn stands in for
+  // that part (anchor-resolution.js, `standsIn`). A press on it asks for the part, so
+  // the thread opens by travel, which has the widget draw it (anchor-travel.js,
+  // `revealThread`) and lands where the thread then stands.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1612,9 +1616,14 @@ export function createMarginProjection({
       closePreview();
       return;
     }
+    const id = threadIdOf(choice);
+    if (standsIn(threadNamed(id)?.anchor, placedAt(id))) {
+      void openPageThread(id);
+      return;
+    }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { travel: false });
+    else void openPageThread(id, { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close

@@ -119,6 +119,15 @@ export const layerFact = (name) => registry[name];
 export const declarationFor = (el) =>
   el && isElementName(el.localName) ? registry[el.localName] : undefined;
 
+// The attributes that bind a declared input (`inputs`), which markup binds by setting
+// one: the attribute `source` names holds a page source's id, and the one `reference`
+// names the id of a widget whose output the input reads. Python's list of the two keys
+// is `schema.INPUT_BINDINGS`, and the declaration's type is generated from its schema.
+/** @typedef {NonNullable<WidgetDeclaration["inputs"]>[string]} InputDeclaration */
+/** @param {InputDeclaration} input */
+export const bindingAttributes = ({ source, reference }) =>
+  [source, reference].flatMap((attribute) => attribute ?? []);
+
 // How a tag is decided, or null where no verb decides it: `verb`, the verb (`verbs`)
 // whose detail `outcome` is the decision, and `retires`, each outcome's member
 // tags that leave the page under it (`retired-when`). Composition stamps it into

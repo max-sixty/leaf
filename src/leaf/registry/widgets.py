@@ -3,7 +3,7 @@
 from jsonschema.exceptions import SchemaError
 
 from leaf.findings import Finding
-from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
+from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA, INPUT_BINDINGS
 
 from .contract import (
     deciding_outcomes,
@@ -276,7 +276,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     data_bindings = {
         spec[key]
         for spec in entry.get("inputs", {}).values()
-        for key in ("source", "reference")
+        for key in INPUT_BINDINGS
         if key in spec
     }
     if dynamic := sorted(data_bindings & mutable_values):

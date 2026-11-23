@@ -87,12 +87,12 @@
  * fits the room. Its own scroll margin already reserves the outline's gap.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
-import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
+import { deepFocus, onCurrentLocation, onUserInput, ringBox } from "./focus.js";
 import {
   clippedPlace,
   fixedInWindow,
   landingBand,
-  landingInsets,
+  pageCarry,
   placeBox,
   placeHolder,
   scrollContainer,
@@ -114,7 +114,7 @@ import {
   stopGlide,
 } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
-import { nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 
@@ -191,33 +191,9 @@ function shownFor(where) {
   const room = roomAround(ring, where);
   return box.height <= room.height && box.width <= room.width ? ring : where;
 }
-// The part of `where` a landing has to show: its box, less what a region reaching the
-// window's foot reserves there for the floating panel. The region states that room
-// (`--lf-end-room`, layouts.css) and lays its last content out that far above its foot,
-// so the band at the foot that holds none of its content is that room and the margin
-// the band keeps above the panel (the root's `--lf-landing-room`), never more of the
-// band than that: a panel opened higher, over the region's content, still has a landing
-// bring that content clear of it. Measured whole, every region of a held workspace was
-// taller than its room by the panel's resting band, so a link to one, or a file opened
-// in an editor filling one, scrolled the page to put the region's opening at the band's
-// top, wherever something after `main` gave the page room to scroll its header away.
+// The box a landing has to show of `where` (`shownFor`).
 /** @param {Destination} where */
-const destinationBox = (where) => {
-  const shown = shownFor(where);
-  const box = placeBox(shown);
-  const reserved =
-    shown instanceof Element
-      ? Number.parseFloat(getComputedStyle(shown).getPropertyValue("--lf-end-room")) ||
-        0
-      : 0;
-  if (reserved <= 0) return box;
-  const root = document.documentElement;
-  const margin =
-    Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) ||
-    0;
-  const foot = Math.min(landingInsets(root).bottom, reserved + margin);
-  return new DOMRect(box.x, box.y, box.width, Math.max(0, box.height - foot));
-};
+const destinationBox = (where) => placeBox(shownFor(where));
 /** @param {Destination} where */
 const holderOf = (where) => placeHolder(shownFor(where));
 
@@ -254,14 +230,16 @@ function roomAround(shown, where, until) {
     regions.set(box, previous);
     previous = box;
   }
-  let { width, height } = shownWindow();
+  const across = placeBox(shown);
+  let { width, height } = shownWindow({ across });
   for (
     let box = shown instanceof Range ? holder : renderedParent(shown);
     box instanceof Element;
     box = renderedParent(box)
   ) {
     const band =
-      (!until || until === where || renderedUnder(until, box)) && landingBand(box);
+      (!until || until === where || renderedUnder(until, box)) &&
+      landingBand(box, across);
     if (band) {
       const axes =
         box === pageScroller
@@ -431,9 +409,9 @@ const glideAhead = (box) => (scrollGoal(box) - box.scrollTop) * scrollAxes(box).
 function readingBandMoves(where, holder, block) {
   const [box, ...around] = scrollersOf(holder);
   if (!box) return { moves: [], moved: 0 };
-  const band = landingBand(box);
-  if (!band) return { moves: [], moved: 0 };
   const rect = destinationBox(where);
+  const band = landingBand(box, rect);
+  if (!band) return { moves: [], moved: 0 };
   const margin = topMargin(where, box, band);
   let { top, bottom } = rect;
   if (block === "start") {
@@ -455,7 +433,7 @@ function readingBandMoves(where, holder, block) {
     ahead = glideAhead(outer);
     top -= moved + ahead;
     bottom -= moved + ahead;
-    const band = landingBand(outer);
+    const band = landingBand(outer, rect);
     if (!band) break;
     // An inner scroller restarts its own header slot. Read what covers its box
     // from the enclosing region, rather than reading the destination's reset slot.
@@ -463,10 +441,11 @@ function readingBandMoves(where, holder, block) {
     // Preserve a short destination's full extent. A tall one promises its opening
     // and as much as this region can show, rather than demanding its whole height.
     if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
-    ({ local, moved } = verticalTravel(
-      outer,
-      nearestScrollBy(top, bottom, band.top, band.bottom),
-    ));
+    let by = nearestScrollBy(top, bottom, band.top, band.bottom);
+    // Scrolled past how far it carries the region (geometry.js, `pageCarry`), the page
+    // moves what the reader reads beside the region and the destination not at all.
+    if (outer === pageScroller && by > 0) by = Math.min(by, pageCarry(inner));
+    ({ local, moved } = verticalTravel(outer, by));
     moves.push({ box: outer, local, moved, ahead });
     inner = outer;
   }
@@ -562,10 +541,10 @@ function* innerMoves(where, targetScroller, within, sideways) {
   for (let box = start; box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
     // A box that clips without scrolling, as `overflow: clip` does, moves for nothing.
-    const band = scrollContainer(box) && landingBand(box);
+    const destination = destinationBox(where);
+    const band = scrollContainer(box) && landingBand(box, destination);
     if (band) {
       const { left, right } = band;
-      const destination = destinationBox(where);
       const byX = !sideways
         ? 0
         : nearestScrollBy(
@@ -613,23 +592,40 @@ function landsStill(where, block) {
 export const keepInBand = (where) =>
   scrollIntoReadingBand(where, holderOf(where), "nearest", "instant", false, true);
 
-// A Tab's arrival (see the header), read once the browser's own reveal has moved.
+// A Tab's arrival (see the header), read once the browser's own reveal has moved: at
+// the next render, or at the user's next key where that comes first. The key's readers
+// then find the page as the same keys typed slowly leave it: a control Tab reached
+// under the floating panel, which this landing brings above it, is where the user is
+// (user-place.js, `focusPlace`), so Enter pressed before the frame follows it rather
+// than letting go of it.
+/** @type {{node: Element, render: number} | null} */
+let arrival = null;
+/** @param {Element} node */
+function landArrival(node) {
+  arrival = null;
+  if (deepFocus() !== node) return;
+  scrollIntoView(node, { block: "nearest" });
+  // A decision's attention ring is worn by its box, even while Tab stands on
+  // a control inside it. Native focus reveal knows only the control's box.
+  /** @type {Element | null} */
+  let box = node;
+  for (; box; box = renderedParent(box)) {
+    if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
+    if (locationStandsDown(box)) continue;
+    scrollIntoView(box, { block: "nearest" });
+    break;
+  }
+}
 onCurrentLocation(
   /** @param {Element | null} node @param {string | null} cause */ (node, cause) => {
     if (cause !== "step" || !node) return;
-    nextRender(() => {
-      if (deepFocus() !== node) return;
-      scrollIntoView(node, { block: "nearest" });
-      // A decision's attention ring is worn by its box, even while Tab stands on
-      // a control inside it. Native focus reveal knows only the control's box.
-      /** @type {Element | null} */
-      let box = node;
-      for (; box; box = renderedParent(box)) {
-        if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
-        if (locationStandsDown(box)) continue;
-        scrollIntoView(box, { block: "nearest" });
-        break;
-      }
-    });
+    cancelRender(arrival?.render);
+    arrival = { node, render: nextRender(() => landArrival(node)) };
   },
 );
+// A pointer press aims where things are drawn, so only a key lands the arrival early.
+onUserInput((event) => {
+  if (event.type !== "keydown" || !arrival) return;
+  cancelRender(arrival.render);
+  landArrival(arrival.node);
+});

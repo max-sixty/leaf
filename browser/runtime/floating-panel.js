@@ -210,7 +210,6 @@ import { actionName } from "./icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
 import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
-import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
@@ -2182,17 +2181,12 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
-  let writtenBand = 0;
   let bandFrame = 0;
   function followBox() {
-    // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
-    // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
-    // or an On Me row's Show lands what it reaches above an open view rather than
-    // under it. The browser's own reveals read the same padding, and Leaf's landings
-    // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
-    // root's padding from a fixed box in the chrome's shadow tree, so the box states
-    // it, in pixels and never as a custom property (root-state.js).
+    // How far the box reaches up from the window's foot, with the gap above the box and
+    // at least the foot's room (`--lf-foot-band`, base.css): the band Leaf's landings
+    // keep clear of (geometry.js, `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or
+    // an On Me row's Show lands what it reaches above an open view rather than under it.
     const box = card.getBoundingClientRect();
     const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
     const root = document.documentElement;
@@ -2204,15 +2198,12 @@ export function createFloatingPanel({
     const band = atLayoutPrecision(Math.max(rest, reach + clear));
     if (stateFootBand(band)) {
       // This runs in the box's size delivery, which may write only what no one observes
-      // (page-layout.js). The root's style is a page attribute the margin hears, and its
-      // pass places an open thread card in the same delivery, resizing a box shallower
-      // than any the delivery can still reach: a ResizeObserver loop. So the padding and
-      // the news of the room wait for the frame; Leaf's own landings read the band
-      // stated above at once.
-      writtenBand = band;
+      // (page-layout.js). The margin hears the news of the room, and its pass places an
+      // open thread card in the same delivery, resizing a box shallower than any the
+      // delivery can still reach: a ResizeObserver loop. So the news waits for the
+      // frame; Leaf's own landings read the band stated above at once.
       bandFrame ||= nextRender(() => {
         bandFrame = 0;
-        setRuntimeRootStyle(root, "scroll-padding-bottom", `${writtenBand}px`);
         announceRoom();
       });
     }

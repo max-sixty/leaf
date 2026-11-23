@@ -944,15 +944,6 @@ _TEXT = {
             f" {_json(v['covered'])}"
         ),
     ),
-    "under-panel": _fails(
-        _REACHES,
-        lambda at, v: (
-            f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
-            " far the page scrolls, so leave the panel's room, var(--lf-foot-room),"
-            " between the last words and the window's foot (page-authoring.md, \"Style"
-            ' the page")'
-        ),
-    ),
     # What the author decides.
     "unreduced-motion": lambda at, v: (
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"

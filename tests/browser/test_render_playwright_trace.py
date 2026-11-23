@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring, ring_faults
+from render_cases_layout import current_location_ring, ring_faults, rings_drawn
 from render_cases_navigation import source_revision
 from render_harness import (
     PREVIEW,
@@ -877,6 +877,28 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     ring = current_location_ring(user)
     assert ring, "the canvas has no focus ring"
     assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
+        faults
+    )
+
+
+def test_the_selected_input_s_name_wears_its_whole_band(browser, serve):
+    """The band around the selected input's name stands whole, read with the timeline
+    holding keyboard focus, though the label holding the name clips a long one to an
+    ellipsis."""
+    user = open_page(browser, serve(named_source("playwright-trace-gallery")))
+    widget = user.locator("lf-trace").first
+    widget.locator(".lf-trace-input-label").filter(has_text="Click").first.click()
+    expect(
+        widget.locator(".lf-trace-input-label .lf-trace-word[data-lf-current]")
+    ).to_be_visible()
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    user.keyboard.press("Tab")
+    user.keyboard.press("Shift+Tab")
+    expect(timeline).to_be_focused()
+    drawn = rings_drawn(user)
+    assert drawn, "the timeline draws no focus mark"
+    assert not (faults := ring_faults(drawn, "on the selected input")), "\n".join(
         faults
     )
 

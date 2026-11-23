@@ -736,7 +736,11 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 :where(.lf-btn) {
   /* How far its words stand in from its edge, the library's padding and the frame,
      which a seat that sets a word at the start of a line hangs into the margin, so the
-     words align with the line's. */
+     words align with the line's. A seat hangs a press, by this inset or by
+     `--lf-symbol-inset`, only into a margin wide enough to leave `--lf-clear` between
+     its face and the frame's edge (browser/AGENTS.md, "A box inside a frame either
+     meets its edge or stands clear of it"). In a narrower margin the face starts at the
+     line's text edge, as On Me's Reply does. */
   --lf-word-inset: calc(var(--wa-form-control-padding-inline) + 1px);
   display: inline-block;
   height: auto;
@@ -760,12 +764,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    its edge (tokens.css, "Where it stands"), where no frame's clip cuts it and no
    neighbour covers it, and a press looks the same in every seat. At no weight, so a
    seat that stands it elsewhere, as a diff line's comment press does, says so. A
-   page's own button keeps a control's gap.
-
-   A seat hangs a press only into a margin wide enough to leave `--lf-clear` between
-   its face and the frame's edge (browser/AGENTS.md, "A box inside a frame either meets
-   its edge or stands clear of it"). In a narrower margin the face starts at the line's
-   text edge, as On Me's Reply does. */
+   page's own button keeps a control's gap. */
 :where(.lf-btn),
 :where(.lf-icon-action) {
   --lf-ring-at: var(--lf-focus-ring-inset);
@@ -913,8 +912,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 /* How far a symbol's glyph stands in from its face's edge: half of what the face holds
    beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
    (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
-   this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
-   for a word, and a scroller holding such a seat keeps this much room at its sides.
+   this much, where the margin has the room `--lf-word-inset` asks for, so the glyph
+   ends where the line's words do, and a scroller holding such a seat keeps this much
+   room at its sides.
    Under a finger the box is wider than the face, so the glyph stands inside the edge
    by the difference. The symbol states it again, so a surface that sets its own face
    gets its own inset. */

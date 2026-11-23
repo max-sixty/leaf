@@ -32,7 +32,7 @@ equal in everything but their `description` and `instructions`. `page init` refu
 packages whose copies differ in anything else, such as the `schema`, and names the
 contract and both packages. Copy the `description` and `instructions` too, since a
 page's author reads only the kept copy's. Two contracts for different data need
-different names, and a name can carry its package, as `builds/status` does. What a
+different names, and a name can carry its package, such as `builds/status`. What a
 producer of the contract must take as commands goes in the contract's `instructions`,
 under `producer`: `leaf page instructions --use` returns it for a widget on either
 side of the contract.

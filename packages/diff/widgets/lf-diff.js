@@ -55,7 +55,6 @@ import {
   offerAction,
   LeafElement,
   PendingTaskEvent,
-  publishOutput,
   threadSurface,
   releaseOutlets,
   reportFailure,
@@ -1378,22 +1377,18 @@ customElements.define(
               : operation === "rename"
                 ? "renamed"
                 : null;
-      publishOutput(
-        this,
-        "files",
-        this.fileEntries
-          ? {
-              ...(this.singleFile ? { current: this.activePath } : {}),
-              files: this.fileEntries.map(({ record }) => ({
-                path: record.path,
-                key: diffDatumKey({ path: record.path, file: true }),
-                ...(status(record.operation)
-                  ? { status: status(record.operation) }
-                  : {}),
-              })),
-            }
-          : null,
-      );
+      // The `files` output: held here, and `change` says it moved.
+      this.files = this.fileEntries
+        ? {
+            ...(this.singleFile ? { current: this.activePath } : {}),
+            files: this.fileEntries.map(({ record }) => ({
+              path: record.path,
+              key: diffDatumKey({ path: record.path, file: true }),
+              ...(status(record.operation) ? { status: status(record.operation) } : {}),
+            })),
+          }
+        : null;
+      this.dispatchEvent(new Event("change"));
     }
 
     /** @param {SourceRecord} source @param {string | null | undefined} renderKey @returns {Promise<EntryPreparation>} */

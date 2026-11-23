@@ -10,7 +10,7 @@ shows there, and chose to prototype design C below.
 A widget in an unopened thread message got only Discuss and Show until 15 November
 2026, when the card took design A for it (#5404): it draws the widget's message aside
 from the conversation, which holds the widget's one instance only while no thread on
-the page shows the message. A record's obligation (`lf-visual-review`'s) in a thread
+the page shows the message. A record's obligation (`awaits.records`) in a thread
 message still gets only Discuss and Show.
 
 ## Designs compared
@@ -43,7 +43,7 @@ opts in with `static seats = ["card"]` and styles `[data-lf-seat="card"]`.
   open. axe reports `duplicate-id`.
 - **Local state diverges.** Digit keys number a user-added option differently in
   the card; `lf-draft`'s editor and `lf-playground`'s unsent values would diverge
-  the same way. Per-record obligations (`lf-visual-review`) can't be seated.
+  the same way. Per-record obligations (`awaits.records`) can't be seated.
 - **Size.** 210 runtime lines added; converting every widget would let 53 lines
   of the copied-button path go. Taller cards show about 3½ per phone screen
   instead of 4.

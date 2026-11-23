@@ -288,7 +288,6 @@ def test_a_pinned_view_reads_its_threads_under_its_own_registry():
             "attributes": {
                 "type": "object",
                 "properties": {
-                    "id": {"type": "string"},
                     "active": {"type": "boolean"},
                     "value": {"type": "boolean"},
                     "chosen": {"type": "boolean"},
@@ -375,7 +374,6 @@ def test_false_and_zero_are_typed_answers(value):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "active": {"type": "boolean"},
                 "value": {"type": ["boolean", "integer"]},
             },
@@ -773,7 +771,6 @@ def conditional_registry():
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "phase": {"enum": ["closed", "open"]},
                 "ready": {"type": "boolean"},
             },

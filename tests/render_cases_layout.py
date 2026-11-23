@@ -487,7 +487,7 @@ DRAWING_CONTROL_LAYER = {
         "description": "A native offered control inside a drawing viewport.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

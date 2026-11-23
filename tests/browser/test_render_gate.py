@@ -1326,8 +1326,6 @@ def _author_stateful_verbatim_widget(tmp_path):
         {
             "user": {"type": "string"},
             "agent": {"type": "string"},
-            "restated": {"type": "boolean"},
-            "overruled": {"type": "boolean"},
         }
     )
     stateful["verbs"] = {
@@ -1345,7 +1343,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "description": "A preserving wrapper around a stateful child.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

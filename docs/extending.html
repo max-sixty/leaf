@@ -2082,9 +2082,6 @@ packages/callout/
     "description": "A short warning or constraint that belongs in the reading flow.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -2094,8 +2091,9 @@ packages/callout/
             <p>
               <code>attributes</code> is a JSON Schema of the element's attributes, and
               the entry needs no other Leaf declaration: the body is the author's markup
-              unless <code>content</code> says otherwise. Leaf adds the grammar an
-              <code>id</code> follows; <code>description</code> and
+              unless <code>content</code> says otherwise. Every element takes an
+              <code>id</code>, which Leaf adds with its grammar, so the entry says only
+              that this one requires it; <code>description</code> and
               <code>example</code> make the merged registry useful to an author.
             </p>
             <p>

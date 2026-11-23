@@ -456,12 +456,13 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
-def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
+@pytest.mark.parametrize("enters", ["c", "Enter"])
+def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     """A comment the user began and put away is a stop of the thread walk, in the page's
     order among the open threads, as Threads lists the two together, a comment about a
     passage of a paragraph holding a thread included. The walk opens the comment's box
     on its words and stands the user on the box, not in it, so the next `t` walks on and
-    puts the box away, and `c` puts the caret after the words."""
+    puts the box away, and `c` or Enter puts the caret after the words."""
     url = serve(
         leaf_page(
             "drafts in the walk",
@@ -502,9 +503,10 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
     page.keyboard.press("t")
     expect(box).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
-    page.keyboard.press("c")
+    page.keyboard.press(enters)
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
+    expect(field).to_have_js_property("selectionStart", len("About the passage."))
 
 
 def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
@@ -648,8 +650,9 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
             if (event.target === document)
               window.lfPageTrip.push(document.scrollingElement.scrollTop);
           }, {capture: true});
-          // Registered after the runtime's own listener, which answers a shortcut as
-          // the document captures it, so this reads the press's task once the walk has.
+          // Nothing is focused, so the key is aimed at the page itself, and the
+          // runtime answers it in its capture listener on the document. Registered
+          // after that one, this reads the press's task once the walk has.
           document.addEventListener('keydown', () => {
             window.lfAfterPress = {
               page: document.scrollingElement.scrollTop,
@@ -677,18 +680,24 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     assert immediate["localXFits"], (
         f"the vertical scrollport also overflowed sideways: {immediate}"
     )
+    # The panel's band at the window's foot, which it states to Leaf's landings.
+    foot = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.wait_for_function(
-        """() => {
+        """foot => {
           const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
           if (!range) return false;
           const rect = range.getBoundingClientRect();
           // The middle of the room the page shows, between the window's head and the
-          // panel at its foot, which the root's scroll padding states.
+          // panel at its foot.
           const style = getComputedStyle(document.scrollingElement);
           const top = parseFloat(style.scrollPaddingTop);
-          const bottom = innerHeight - parseFloat(style.scrollPaddingBottom);
+          const bottom = innerHeight - foot;
           return Math.abs((rect.top + rect.bottom) / 2 - (top + bottom) / 2) < 2;
-        }"""
+        }""",
+        arg=foot,
     )
     trip = page.evaluate("() => window.lfPageTrip")
     assert trip and trip == sorted(trip), (
@@ -947,7 +956,9 @@ def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
-    """The system focus outline replaces the surface paint high contrast removes."""
+    """A forced palette drops the shadow that frames a seated card, so the card keeps
+    its frame as an outline on its edge, and the reply box focused in it still draws
+    its own ring, on its `::after` over what the box holds (response.css)."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -964,18 +975,23 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     reply.click()
     expect(reply).to_be_focused()
     assert thread.evaluate("el => el.matches(':focus-within')")
-    focus = thread.evaluate(
+    frame = thread.evaluate(
         """el => { const s = getComputedStyle(el); return {
               style: s.outlineStyle, width: s.outlineWidth,
               offset: s.outlineOffset, shadow: s.boxShadow,
             }; }"""
     )
-    assert focus == {
+    assert frame == {
         "style": "solid",
-        "width": "2px",
-        "offset": "-2px",
+        "width": "1px",
+        "offset": "0px",
         "shadow": "none",
     }
+    ring = thread.locator(".lf-compose-field").evaluate(
+        "el => { const s = getComputedStyle(el, '::after');"
+        " return [s.outlineStyle, s.outlineWidth]; }"
+    )
+    assert ring == ["solid", "2px"], ring
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
@@ -1015,15 +1031,16 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"a sibling separator remained inside the current region: {frame}"
     )
 
-    separator = thread.evaluate(
-        """el => { const s = getComputedStyle(el, '::before'); return {
-          content: s.content, borderTop: s.borderTopWidth,
-        }; }"""
+    # Seated threads are framed cards a gap apart, not rules between bare threads.
+    apart = thread.evaluate(
+        """el => { const s = getComputedStyle(el);
+          const before = getComputedStyle(el, '::before');
+          const previous = el.previousElementSibling.getBoundingClientRect();
+          return {gap: el.getBoundingClientRect().top - previous.bottom,
+                  frame: s.boxShadow !== 'none', rule: before.content}; }"""
     )
-    assert separator == {
-        "content": '""',
-        "borderTop": "1px",
-    }, f"the gap between inline threads lost its separator: {separator}"
+    assert apart["gap"] > 0 and apart["frame"], apart
+    assert apart["rule"] == "none", apart
 
     resolve = thread.locator(":scope .lf-thread-meta-actions > .lf-resolve")
     expect(resolve).to_have_css("position", "relative")
@@ -1077,11 +1094,20 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"
 
+    # The reply box runs to the card's sides and foot, inside its hairline; the
+    # thread's controls and messages keep their room inside its padding.
+    reply_row = thread.locator(":scope > .lf-thread-reply").evaluate(
+        """row => { const box = row.getBoundingClientRect();
+          const card = row.parentElement.getBoundingClientRect();
+          return [box.left - card.left, card.right - box.right, card.bottom - box.bottom]; }"""
+    )
+    assert reply_row == [1, 1, 1], reply_row
     clearances = thread.evaluate(
         """el => {
           const root = el.getBoundingClientRect();
           return [...el.children]
-            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none')
+            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none'
+              && !child.matches('.lf-thread-reply'))
             .flatMap(child => {
               const box = child.getBoundingClientRect();
               return [box.left - root.left, root.right - box.right,

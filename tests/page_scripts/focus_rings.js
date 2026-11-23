@@ -717,10 +717,13 @@
         // A focus preview stands clear of its control and of what the user could work
         // next, and may cover the rest of the page (preview.js), such as the
         // question around the control, so only the focused control's own ring is read
-        // under it.
+        // under it. One that lets the pointer through (`data-lf-covers`) may stand over
+        // its control too, as a chart's point's words do past the chart's edge, so no
+        // ring is read under it.
         const preview = document.getElementById("lf-preview");
         const previewed =
-          !own && preview?.matches(":popover-open")
+          (!own || preview?.hasAttribute("data-lf-covers")) &&
+          preview?.matches(":popover-open")
             ? preview.getBoundingClientRect()
             : null;
         const inside = (r, x, y) =>

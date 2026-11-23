@@ -274,7 +274,6 @@ _DECIDES = "each decision the user makes is recorded and reads back as made"
 _SUGGESTS = "a suggestion the user decides changes exactly the words it shows"
 _REFERS = "each reference a widget makes reaches the element it names"
 _DATA = "each widget reads the data its markup names, in its declared contract"
-_VIEWS = "each view the user moves changes the answer it shows"
 _UNSTYLED = "the page looks as its source says, whatever its threads hold"
 _OPENS = "each live sample opens from the template its id names"
 _LAYS_OUT = "Leaf and the page lay out each allocation as one of the values it takes"
@@ -926,15 +925,6 @@ _TEXT = {
             f" {_json(v['covered'])}"
         ),
     ),
-    "under-panel": _fails(
-        _REACHES,
-        lambda at, v: (
-            f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
-            " far the page scrolls, so leave the panel's room, var(--lf-foot-room),"
-            " between the last words and the window's foot (page-authoring.md, \"Style"
-            ' the page")'
-        ),
-    ),
     # What the author decides.
     "unreduced-motion": lambda at, v: (
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
@@ -1271,9 +1261,9 @@ _TEXT = {
     ),
     "ungrouped-question": lambda at, v: (
         f"{_line(at, v)}: asks the user, but no group holds its question, so On Me"
-        " names it by the widget's label alone and selects the widget without its"
-        f" premise; write its premise and this widget in {_question_group(v)}, its"
-        " label asking the question"
+        " names it by the widget's label alone and selects only the widget; where"
+        " its premise stands outside it, write that premise and this widget in"
+        f" {_question_group(v)}, its label asking the question"
     ),
     "unnamed-question": _refuses(
         _ASKS,
@@ -1286,13 +1276,6 @@ _TEXT = {
                 f" widget in {_question_group(v)}, its label"
             )
             + " asking the question"
-        ),
-    ),
-    "repeated-key": _refuses(
-        _DECIDES,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
-            f" {v['first_line']} in the same <{v['scope']}>"
         ),
     ),
     "unknown-reference": _refuses(
@@ -1330,43 +1313,6 @@ _TEXT = {
             " commands nor a custom command, which starts with --, so the button"
             " would do nothing"
         ),
-    ),
-    "shows-outside": _refuses(
-        _VIEWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
-            " document; a view shows answers in the page or message it stands in"
-        ),
-    ),
-    "shows-no-answer": _refuses(
-        _VIEWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
-            " view can show: its `awaits` value verb records neither a value nor members"
-            " an `awaits` key names"
-        ),
-    ),
-    "shows-without-open": lambda at, v: (
-        f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
-        f" so none can hold it while {v['target']}'s answer names no value; add a"
-        f" <{v['place']}> without `{v['value_attr']}`"
-    ),
-    "shows-untakeable": lambda at, v: (
-        f"{_line(at, v)}: {v['target']} has no answer {v['value']!r}, which a"
-        f" <{v['place']}> beside it holds, so that <{v['place']}> takes no drop of"
-        " it"
-    ),
-    "shown-elsewhere": lambda at, v: (
-        f"{_line(at, v)}: stands in a <{v['place']}> holding "
-        + (f"{v['stands']!r}" if v["stands"] else "no value")
-        + f", but {v['target']}'s answer is "
-        + (
-            f"{v['answer']!r}, so it moves there when the page draws; move it to the"
-            f" <{v['place']}> whose `{v['value_attr']}` is {v['answer']!r}"
-            if v["answer"]
-            else f"no value, so it moves when the page draws; move it to a"
-            f" <{v['place']}> without `{v['value_attr']}`"
-        )
     ),
     "nested-suggestion": _refuses(
         _SUGGESTS, lambda at, v: f"{_line(at, v)}: suggestions don't nest"
@@ -1731,23 +1677,6 @@ _TEXT = {
     "awaits-value": _declared(
         lambda v: "`awaits` value must name a user-written verb (`verbs`)"
     ),
-    "awaits-key": _declared(
-        lambda v: (
-            f"`awaits` key `{v['key']}` needs an attribute-record value verb whose"
-            f" members declare `{v['key']}` in `unique` for this widget"
-        )
-    ),
-    "shows-reference": _declared(
-        lambda v: (
-            f"`shows` reference `{v['attr']}` must be an attribute `refers` declares"
-        )
-    ),
-    "shows-value": _declared(
-        lambda v: (
-            f"`shows` value `{v['attr']}` is no attribute of "
-            + ", ".join(f"<{owner}>" for owner in v["owners"])
-        )
-    ),
     "awaits-retired": _declared(
         lambda v: (
             f"`awaits` retires with `{v['flag']}`, but its `when` does not"
@@ -1844,8 +1773,9 @@ _TEXT = {
     ),
     "record-within": _declared(
         lambda v: (
-            f"verb `{v['verb']}` (`verbs`) records a position within unknown"
-            f" widget <{v['within']}>"
+            f"verb `{v['verb']}` (`verbs`) records a position within"
+            f" <{v['within']}>, but a position's container is a declared element"
+            " inside the widget, whose children are the units it orders"
         )
     ),
     "body-content": _declared(
@@ -2057,7 +1987,8 @@ _TEXT = {
         lambda at, v: (
             f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
             f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
-            " write the page. Use a newer Leaf."
+            " write the page. Use a newer Leaf; in Claude Code, /reload-plugins loads"
+            " the installed copy."
         ),
     ),
     "no-registry": _refuses(
@@ -2156,13 +2087,6 @@ _TEXT = {
         lambda at, v: (
             f"{_invalid_record(v)}position record unit {v['unit']!r} is not owned by"
             f" action widget {v['widget']!r}"
-        ),
-    ),
-    "shown-unit": _refuses(
-        _ADMITS,
-        lambda at, v: (
-            f"{_invalid_record(v)}{v['unit']!r} shows the answer of {v['shows']!r}, which"
-            " decides where it stands; change that answer instead"
         ),
     ),
     "nested-unit": _refuses(
@@ -2440,12 +2364,17 @@ _TEXT = {
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
     # back or could not, and why it ended. A prompt hook that could not serve a
-    # session's page again says so too (`reconnect.serve_again`).
+    # session's page again, or restart its server under this Leaf, says so too
+    # (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
         f"{v['page']}: server was down and did not start again: {v['error']}"
+    ),
+    "restart-refused": lambda at, v: (
+        f"{v['page']}: this Leaf stopped the server another installed copy of Leaf"
+        f" ran, to restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

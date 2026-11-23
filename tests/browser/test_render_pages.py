@@ -308,15 +308,15 @@ The queue recovered after reverting the timeout change.
 <b>The owner confirmed that the shorter connection timeout caused the incident.</b></p></div>
 <div class="facts prose-box" id="card-facts"><div>24 queued requests</div>
 <div>The oldest request is waiting for review.</div></div>
-<dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
+<dl class="lf-facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
 <lf-group id="routes-q" label="What happens to the queue?"><lf-options id="routes">
-<lf-option id="route-one" label="Keep the queue"><strong>Keep the queue</strong> <dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
+<lf-option id="route-one" label="Keep the queue"><strong>Keep the queue</strong> <dl class="lf-facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
 <lf-option id="route-two" label="Review the queue"><strong>Review the queue</strong> <p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
 </lf-options></lf-group>
-<dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
+<dl class="lf-facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
         head="""<style>
 .prose-box {inline-size:280px;overflow:hidden;}
 p.facts, div.facts {font-size:12px;}
@@ -685,7 +685,8 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
     versions = page.locator(panel_view("versions"))
-    row = versions.locator(".lf-fp-version .lf-fp-item").first
+    # The key lands on the version before the one shown.
+    row = versions.locator(".lf-fp-version > .lf-fp-item").last
     expect(row).to_be_focused()
 
     broken = []
@@ -856,7 +857,8 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.get_by_role("radio", name="Slider", exact=True).click()
-    shot.scroll_into_view_if_needed()
+    # Clear of the floating panel at the window's foot, which stands over the page.
+    shot.evaluate("node => node.scrollIntoView({block: 'center'})")
     box = shot.bounding_box()
     clip = {
         "x": math.floor(box["x"]) - 8,
@@ -943,7 +945,8 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     resized(page, 1200, 900)
     margins_laid_out(page)
     shot = page.locator("#rn-console-shot")
-    shot.scroll_into_view_if_needed()
+    # Clear of the floating panel at the window's foot, which stands over the page.
+    shot.evaluate("node => node.scrollIntoView({block: 'center'})")
     box = shot.bounding_box()
     # Room for the trace, which stands at the region's gap outside the target.
     room = 12
@@ -1897,7 +1900,9 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
     """A row of metric tiles reads as figures compared across it, so each figure stands
     on one line whichever labels wrap and whichever figures carry a change beside them.
     A label wrapping to a second line could set its own figure a line lower."""
-    tile = '<dl id="{}" class="metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    tile = (
+        '<dl id="{}" class="lf-metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
+    )
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1916,7 +1921,7 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
                 '<div id="custom-metrics"><div class="metric" id="custom-metric">'
                 '<div>Pages per month</div><div class="number">37</div>'
                 "<small>Today’s configuration</small></div>"
-                '<dl class="metric" id="qualified-metric"><dt>Error rate</dt>'
+                '<dl class="lf-metric" id="qualified-metric"><dt>Error rate</dt>'
                 "<dd><strong>0.42%</strong></dd><small>Baseline 0.31%</small></dl></div>",
                 head="""<style>
 #custom-metrics { display: grid; grid-template-columns: repeat(2, 1fr); }
@@ -1972,7 +1977,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         '<lf-option id="asked-reload" label="Reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave" label="Leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
         "</lf-options></lf-group>"
-        '<section class="panel" id="panel"><h2>Framed</h2>'
+        '<section class="lf-panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"
         '<figure data-width="available">' + table.format(id="in-figure") + "</figure>"
@@ -2373,38 +2378,20 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
-def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
-    """The panel stands over the foot of the document, so the document leaves it room.
-    The panel is not on a sheet — the runtime's whole layer is withheld from print — but
-    chrome's room written as body's own padding would print as a blank strip under the
-    last line.
-
-    The reservations belong to the document box whose chrome they make room for,
-    rather than to the scroll container. The same CSS disappears with the chrome in
-    print, so paper cannot inherit an empty screen-only strip.
-
-    The screen half is read as room rather than as a covered last line, which is where a
-    user would meet it, because the column's own bottom padding is taller than the line:
-    nothing is covered either way today, so an assertion about the last block would pass
-    with the reservation deleted. The room is what the runtime answers for; the column's
-    padding is the theme's to change."""
+def test_the_document_holds_no_room_for_the_chrome_on_screen_or_paper(browser, serve):
+    """The floating panel stands over the foot of the document, which keeps no room
+    for it, so the document ends where its own content does, under a mouse, under a
+    finger and on paper, which prints no chrome."""
     page = open_page(browser, serve(LONG_PAGE))
     for width in (1440, 390):
         resized(page, width, 844)
         room = page.evaluate(CHROME_ROOM)
-        assert room["panel"] > 0, f"no panel is shown to reserve for: {room}"
-        assert room["head"] <= 1, f"the document starts {room['head']:.0f}px down"
-        assert room["foot"] >= room["panel"] - 1, (
-            f"at {width}px the document ends {room['foot']:.0f}px short of its own "
-            f"end, under a {room['panel']:.0f}px panel"
-        )
+        assert room["panel"] > 0, f"no panel stands over the page: {room}"
+        assert room["head"] <= 1 and room["foot"] <= 1, (width, room)
 
     page.emulate_media(media="print")
     printed = page.evaluate(CHROME_ROOM)
-    assert printed["head"] <= 1 and printed["foot"] <= 1, (
-        f"a sheet held {printed['head']:.0f}px over the first line and "
-        f"{printed['foot']:.0f}px under the last, for chrome it does not print"
-    )
+    assert printed["head"] <= 1 and printed["foot"] <= 1, printed
 
 
 def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, serve):
@@ -3163,9 +3150,8 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
     the left, and lays the open part out beside them from the top of the page, as a page
     of its own with that part's Layout: a column part takes the column, contents map and
     breakouts a column page takes in a window as wide as the room beside
-    the list, and a workspace part fills that room from the top of the window to the
-    floating panel's row, so neither it nor a short part leaves the page anything to
-    scroll. The row's room is the part's own end, so the part reaches the window's foot. On a phone
+    the list, and a workspace part fills that room from the top of the window to its
+    foot, so neither it nor a short part leaves the page anything to scroll. On a phone
     the title, the list and the part stack."""
     column_body = """
 <h1>Migration plan</h1>
@@ -3233,9 +3219,8 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
           const {layoutBox} = await window.__lfCheckApi();
           const work = document.getElementById('work').getBoundingClientRect();
           const main = document.querySelector('main').getBoundingClientRect();
-          const room = getComputedStyle(document.getElementById('queue')).paddingBlockEnd;
           return {width: Math.round(work.width), top: Math.round(work.top),
-                  bottom: Math.round(work.bottom + parseFloat(room)),
+                  bottom: Math.round(work.bottom),
                   mainBottom: Math.round(main.bottom), window: innerHeight,
                   box: layoutBox().id};
         }"""

@@ -5,7 +5,10 @@
 
    A seat in the page's flow gathers its resolved threads under one Resolved
    disclosure after its open ones, closed until the reader opens it, so however many
-   conversations a datum has settled they take one row. Inside it each thread draws as
+   conversations a datum has settled they take one row. The row names them, by count
+   where there are several and each by its name (messages.js, `threadName`), so a reader
+   can tell a datum's settled conversations apart without opening it, as a code review
+   tool's folded conversation shows its opening. Inside it each thread draws as
    any page thread does, its Reopen where Resolve stands, and keeps its reply box, whose
    send reopens it. A thread that resolves while the user writes a reply in it stays
    among the open ones until they finish, and one they write in inside the disclosure
@@ -64,7 +67,13 @@ class ResolvedThreads {
 
   /** @param {readonly ThreadViewModel[]} threads @param {readonly Node[]} nodes */
   present(threads, nodes) {
-    render(html`Resolved · ${threads.length}`, this.summary);
+    // A name that is a sentence keeps its words but not its full stop, which a list
+    // of names would read as two marks in a row.
+    const names = threads
+      .map((thread) => thread.summary.topic.replace(/\.$/, ""))
+      .join(", ");
+    const count = threads.length > 1 ? `${threads.length} · ` : "";
+    render(html`Resolved · ${count}${names}`, this.summary);
     setChildren(this.node, [this.summary, ...nodes]);
   }
 }
@@ -426,6 +435,18 @@ export function commitThreadSeats(batch) {
       activeSeats.delete(seat);
       seats.delete(seat.node);
     }
+}
+// A seat whose host has left the document, as a margin card's thread does once the
+// card draws another, goes at once rather than at the next draw's prune
+// (`commitThreadSeats`), so its drawings let go of what they held, a message's widgets
+// among them, which the drawing standing in its place takes (messages.js,
+// `authoredHolders`).
+/** @param {Element} host */
+export function pruneThreadSeat(host) {
+  const seat = seats.get(host);
+  if (!seat?.prune()) return;
+  activeSeats.delete(seat);
+  seats.delete(seat.node);
 }
 /** @param {SeatBatch} batch */
 export function retainThreadSeats(batch) {

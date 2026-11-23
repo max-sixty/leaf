@@ -9,7 +9,6 @@ from leaf.obligations import group_tags, shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     authored_inert,
-    exhibits,
     is_element_name,
     matches_when,
     retirement_slots,
@@ -17,7 +16,6 @@ from leaf.registry.contract import (
 )
 from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
-from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import (
@@ -43,18 +41,6 @@ _NATIVE_COMMANDS = frozenset(
 )
 
 _GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
-
-
-def member_holders(rec: dict, registry: dict):
-    """An element's enclosing widgets within its quotation, innermost first.
-
-    A quotation cannot supply members to an owner outside it. An owner quoted as
-    a whole still holds its own members, since they reach it before the boundary.
-    """
-    for node in enclosing_widgets(rec):
-        if exhibits(node["attrs"], registry.get(node["tag"], {})):
-            break
-        yield node
 
 
 def message_settlement_advice(parser, registry: dict) -> list[Finding]:
@@ -231,9 +217,9 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     (`gesture_words.element_name`), the words On Me lists and the agent hears. Leaf
     reads both from the author's markup and infers neither. A question with no words,
     as where neither the widget nor a group round it has a label that isn't blank, is
-    refused (`unnamed-question`). One named by its widget alone stands outside the
-    region On Me selects and the ring draws round, so its premise is out of view
-    (`ungrouped-question`, advice). A widget with words of its own needs no group: one
+    refused (`unnamed-question`). Where the widget's own label alone names it, On Me
+    selects and rings only the widget, so a premise written outside the widget is out
+    of view (`ungrouped-question`, advice). A widget with words of its own needs no group: one
     set among words (`inline`) is named by them, and one asking about each record of
     its data (`awaits.records`) by each record's label. A message's widget needs none
     either, since the message names what it asks, so only a page's documents are
@@ -273,50 +259,6 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     return errors
 
 
-def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
-    """The nearest member owner of `tag` within `rec`'s quotation, if any."""
-    return next(
-        (node for node in member_holders(rec, registry) if node["tag"] == tag), None
-    )
-
-
-def keyed_members(lf_elements: list, registry: dict) -> dict:
-    """Every member a `unique` attribute keys, as `(id(owner), tag, key, value)` mapped
-    to the members holding it, in document order; the owner is the member's nearest
-    enclosing element of the tag its `unique` declaration names for that key. A
-    member
-    standing in no such owner is left out: `owners` reports where it stands."""
-    members = {}
-    for rec in lf_elements:
-        for key, scope_tag in registry.get(rec["tag"], {}).get("unique", {}).items():
-            value = rec["attrs"].get(key)
-            scope = enclosing(rec, scope_tag, registry)
-            if value is not None and scope is not None:
-                members.setdefault((id(scope), rec["tag"], key, value), []).append(rec)
-    return members
-
-
-def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Each member whose `unique` attribute repeats an earlier member's value within
-    their shared owner, such as two options of one set with one value, or two settings
-    of one playground preset for one field. Asked of one document, since an owner and
-    its members always stand in the same one."""
-    return [
-        found_at(
-            "repeated-key",
-            extra,
-            key=key,
-            value=value,
-            first_line=first["line"],
-            scope=registry[tag]["unique"][key],
-        )
-        for (_, tag, key, value), (first, *extras) in keyed_members(
-            lf_elements, registry
-        ).items()
-        for extra in extras
-    ]
-
-
 def reference_errors(
     lf_elements: list, registry: dict, ids: set, by_id: dict, *, thread_ids: set[str]
 ) -> list[Finding]:
@@ -332,7 +274,6 @@ def reference_errors(
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
-    own = {rec["attrs"].get("id") for rec in lf_elements}
     work = registry.get("$work", {}).get("widgets", {})
     for rec in lf_elements:
         # An undeclared tag is `widget_errors`' to report.
@@ -364,10 +305,6 @@ def reference_errors(
                 errors.append(
                     found_at("work-assignment", rec, **reference_to, target_tag=tag)
                 )
-            elif attr == entry.get("shows", {}).get("reference") and target not in own:
-                # A view and the answer it shows travel in one document, so a board
-                # in a reply shows widgets in the same reply (`shown_answers`).
-                errors.append(found_at("shows-outside", rec, **reference_to))
         for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
             if not target or target not in ids:
@@ -567,8 +504,6 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         widget_errors(lf_elements, registry)
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + unique_errors(lf_elements, registry)
-        + shown_errors(document, registry)
         + pane_advice(document, registry)
         + unnamed_card_advice(document, registry)
     )

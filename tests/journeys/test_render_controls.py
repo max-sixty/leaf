@@ -1139,9 +1139,9 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
     serious/critical findings; layout and accessibility-tree snapshots belong to
     specific regressions, not a baseline that changes with every restyle. The feature
-    gallery is the authored page with the broadest real UI. The specialist package
-    pages get one 420px Axe reading in the exported corpus; focused tests own the live
-    chrome surfaces this page does not open.
+    gallery is the authored page with the broadest real UI. Every other authored page
+    gets one Axe reading in each scheme at its widest (`test_page_fixture_renders`);
+    focused tests own the live chrome surfaces this page does not open.
 
     A phone's width because what a box does there is a different question and not a
     smaller one: the column is 372px, so a block that had room at a desk starts
@@ -1487,7 +1487,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 settled = page.locator("#comparison-policy[settled] > .lf-settled")
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
-                    settled.click()
+                    # The row ends a workspace that fills the window, so the floating
+                    # panel's row stands over its middle; the user presses its words,
+                    # at its start.
+                    height = settled.bounding_box()["height"]
+                    settled.click(position={"x": 8, "y": height / 2})
             if scope == "the page":
                 pencil = any_draft_control(page, "edit").first
                 if pencil.count() and pencil.is_visible():
@@ -1880,9 +1884,11 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()
-    # Playwright's click may scroll its target into view. Finish that navigation
-    # before holding the positions the press itself must preserve.
-    control.scroll_into_view_if_needed()
+    # Playwright's click scrolls a target it can't reach into view, as it does one the
+    # floating panel's row stands over at the window's foot. Bring the control to the
+    # window's middle first, as a user scrolls a control into sight before pressing it,
+    # and hold the positions the press itself must preserve from there.
+    control.evaluate("node => node.scrollIntoView({block: 'center'})")
     page_at_rest(page)
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
@@ -2157,9 +2163,11 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     parent_storage = page.evaluate(
         "[Object.keys(localStorage), Object.keys(sessionStorage)]"
     )
-    # The child's panel stands at the foot of its frame, which the host scrolls to.
+    # The child's panel stands at the foot of its frame, which the host brings clear of
+    # its own panel's row at the window's foot, as a landing of Leaf's does.
     second.evaluate(
-        "sample => sample.scrollIntoView({block: 'end', behavior: 'instant'})"
+        "async sample => (await window.__lfWidgetApi())"
+        ".scrollIntoView(sample, {block: 'end', behavior: 'instant'})"
     )
     write(page_comment(other), "Keep the other sample's draft.")
     reset.scroll_into_view_if_needed()

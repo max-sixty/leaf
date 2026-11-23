@@ -7,7 +7,14 @@
  * autosaves to it within half a second, and a copy shared across tabs would set two
  * live buffers against one file with no log to settle between them. The draft only
  * has to survive this tab's reloads, including the forced one when Leaf's layer
- * changes, which is what lets the editor say the draft is kept.
+ * changes, which is what lets the editor say the draft is kept. A save can reach the
+ * file while its answer never reaches the tab, as when a reload cancels the request, so
+ * until a save is answered the draft also records the text it sent, and leaving the
+ * page asks first; a read or a stale answer that then finds that text on disk takes it
+ * as the version the draft stands over. Rejected: keeping the draft without that text,
+ * since the read then takes the save's words as a write from elsewhere, and the line
+ * merge puts them in place of a reader's later typing, or calls the reader's own save
+ * a conflict.
  *
  * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
@@ -46,7 +53,16 @@
  * other choices still stand; it then reads "Not saved", the slot's one line having
  * no room for both, with the error as its description. Where no file
  * could be read at all, the status reads "Unavailable" and the empty editor shows
- * why, as its placeholder.
+ * why, as its placeholder. The page waits to present until the file it opens with
+ * is read, so the text and the gutter's width are there when the reader first has
+ * the page. A local page's read answers well within a second. Once a first read
+ * has waited that second, as on leaf.page while a visitor's container starts, the
+ * placeholder says "Loading file…" until the read answers and the page presents
+ * without the file, whose text then lands as an arrival; the page's own controls
+ * and the names in its state don't wait for a server that is still starting.
+ * Rejected: the word in the status slot, which sits at the header's far end from
+ * the empty line the reader looks at; and never holding the page for the file,
+ * since a file of a hundred lines widens the gutter under the reader as it lands.
  * The comparison of both versions opens below the editor only on the reader's
  * Compare, and shares the editing room with it. Rejected: a pane below
  * the editor holding the error, the choices and the comparison, which took the
@@ -67,6 +83,7 @@ import {
   closeLayer,
   closeNativeLayer,
   commandsOn,
+  deferredArrival,
   el,
   focusDestination,
   focused,
@@ -90,13 +107,16 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
 /** One bound file as this tab knows it: what the server last acknowledged (`base`), a
  * newer disk version held for the reader's choice (`latest`), and the requests on it.
  * `kept` is what the editor held of it while another file is open, and `named` the
- * name the editor's `files` output last listed it by.
+ * name the editor's `files` output last listed it by. `sent` is the text of the last
+ * save the server hasn't answered, in flight or lost, until it answers or a read
+ * settles it.
  * @typedef {{
  *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
- *   base: FileSnapshot | null, latest: FileSnapshot | null,
+ *   base: FileSnapshot | null, latest: FileSnapshot | null, sent: string | null,
  *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
  *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
- *   slow: boolean, generation: number, timer: number, slowTimer: number | null,
+ *   slow: boolean, loading: boolean, generation: number, timer: number,
+ *   slowTimer: number | null,
  *   kept: import("./editor.js").KeptFile | null, named: string | null,
  * }} OpenFile */
 
@@ -182,6 +202,7 @@ customElements.define(
             recoveryKey: `file:${this.id}:${binding}`,
             base: null,
             latest: null,
+            sent: null,
             failure: null,
             spoken: null,
             busy: false,
@@ -189,6 +210,7 @@ customElements.define(
             recovering: false,
             owed: false,
             slow: false,
+            loading: false,
             generation: 0,
             timer: 0,
             slowTimer: null,
@@ -289,7 +311,9 @@ customElements.define(
         const of = file;
         if (of.busy) return;
         const operation = of.failure;
-        if (operation?.kind === "save") void flush(of, operation.replace, returnFrom);
+        // A failed save with nothing left to write is settled by reading the file.
+        if (operation?.kind === "save" && unsaved(of, operation.replace))
+          void flush(of, operation.replace, returnFrom);
         else void refresh(of, returnFrom);
       };
       /** @type {ReturnType<typeof createEditor> | null} */
@@ -308,7 +332,12 @@ customElements.define(
           : (of.kept?.state.doc.toString() ?? of.base?.text ?? "");
       const dirty = (/** @type {OpenFile} */ of) =>
         of.base !== null && text(of) !== of.base.text;
-      const unsettled = (/** @type {OpenFile} */ of) => dirty(of) || of.latest !== null;
+      const unsettled = (/** @type {OpenFile} */ of) =>
+        dirty(of) || of.latest !== null || of.sent !== null;
+      // Whether a save would write anything: a draft apart from its base, or one the
+      // reader chose to save over a newer disk version.
+      const unsaved = (/** @type {OpenFile} */ of, replace = false) =>
+        dirty(of) || (replace && of.latest !== null);
       // A version written elsewhere that changed other lines than the draft did joins
       // the draft, which then stands over that version and saves on its own.
       /** @param {OpenFile} of @param {FileSnapshot} current */
@@ -330,7 +359,7 @@ customElements.define(
         tabStore.set(
           of.recoveryKey,
           of.base && unsettled(of)
-            ? JSON.stringify({ base: of.base, text: text(of) })
+            ? JSON.stringify({ base: of.base, text: text(of), sent: of.sent })
             : null,
         );
       }
@@ -391,9 +420,13 @@ customElements.define(
         const name = label(of);
         editor.setLabel(name);
         editor.readOnly = of.base === null || !of.api.writable;
-        // With no file to show, as on an export or an unbound page, the empty editor
-        // says why, where a finger and the eye already are.
-        editor.placeholder = of.base === null ? (of.failure?.message ?? "") : "";
+        // With no file to show, as on an export or an unbound page, or while a slow
+        // first read waits, the empty editor says why, where a finger and the eye
+        // already are.
+        editor.placeholder =
+          of.base === null
+            ? (of.failure?.message ?? (of.loading ? "Loading file…" : ""))
+            : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
         if (!of.latest && isNativeLayer(choices())) closeNativeLayer(choices());
@@ -567,12 +600,15 @@ customElements.define(
           !of.base ||
           (of.failure && !returnFrom) ||
           (of.latest && !replace) ||
-          (!dirty(of) && !(replace && of.latest))
+          !unsaved(of, replace)
         )
           return;
         const against = replace && of.latest ? of.latest : of.base;
         const submitted = text(of);
+        // An earlier save whose answer was lost, which the file may hold.
+        const lost = of.sent;
         of.busy = true;
+        of.sent = submitted;
         // The host compares the file before writing, so a receipt or a stale answer
         // covers any read owed before it starts; a failure read nothing.
         const owedBefore = of.owed;
@@ -590,9 +626,21 @@ customElements.define(
           of.base = await of.api.save({ revision: against.revision, text: submitted });
           of.latest = null;
           of.failure = null;
+          of.sent = null;
         } catch (fault) {
+          // A refusal in the server's own words, the only `RequestError` file-api.js
+          // passes on, wrote nothing. A save with no such answer, as when a reload
+          // cancels it or a proxy answers for the server, may have reached the file,
+          // so its text stays until a read says.
+          if (fault instanceof RequestError) of.sent = null;
           if (fault instanceof RequestError && fault.current) {
-            if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            // A file holding this save or a lost earlier one holds the draft's own
+            // words, which the draft stands over, as a read takes them (`refresh`).
+            const held = fault.current.text;
+            if (held === submitted || held === lost) {
+              of.base = fault.current;
+              of.latest = null;
+            } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
             of.failure = { kind: "save", message: describeFailure(fault), replace };
@@ -615,6 +663,10 @@ customElements.define(
           if (of.owed) void refresh(of);
         }
       }
+      // Settles once a first read has waited a second, which is when the page stops
+      // waiting for the file it opens with.
+      /** @type {PromiseWithResolvers<void>} */
+      const waited = Promise.withResolvers();
       /** @param {OpenFile} of @param {HTMLElement | null} [returnFrom] */
       async function refresh(of, returnFrom = null) {
         if (!connected) return;
@@ -626,6 +678,13 @@ customElements.define(
         of.busy = of.api.writable;
         of.owed = false;
         const seenGeneration = of.generation;
+        const slow = of.base
+          ? 0
+          : setTimeout(() => {
+              of.loading = true;
+              if (of === file) paint();
+              waited.resolve();
+            }, 1000);
         try {
           const current = await of.api.read();
           if (
@@ -642,16 +701,24 @@ customElements.define(
               else editor.follow(current.text);
             } else if (of.kept && text(of) !== current.text)
               of.kept = followKept(of.kept, current.text);
-          } else if (current.text === text(of)) {
+          } else if (
+            current.text === text(of) ||
+            current.revision === of.base.revision ||
+            current.text === of.sent
+          ) {
+            // The file holds the draft, the version it was typed over, or the save
+            // whose answer was lost; the draft stands over it.
             of.base = current;
             of.latest = null;
-          } else if (current.revision === of.base.revision) of.latest = null;
-          else if (!settle(of, current)) of.latest = current;
+          } else if (!settle(of, current)) of.latest = current;
           of.recovering = false;
+          of.sent = null;
           of.failure = null;
         } catch (fault) {
           of.failure = { kind: "read", message: describeFailure(fault) };
         } finally {
+          clearTimeout(slow);
+          of.loading = false;
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);
@@ -694,9 +761,10 @@ customElements.define(
       const recover = (of) => {
         const pending = tabStore.get(of.recoveryKey);
         if (!pending || !of.api.writable) return;
-        /** @type {{base: FileSnapshot, text: string}} */
+        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
         const recovered = JSON.parse(pending);
         of.base = recovered.base;
+        of.sent = recovered.sent;
         of.recovering = true;
         return recovered.text;
       };
@@ -755,7 +823,8 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(opening);
+          this.controller.present(Promise.race([opening, waited.promise]));
+          deferredArrival(opening);
           initial = false;
         }
         watch();

@@ -39,7 +39,8 @@ import { decisionControls, nativePress } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
-import { scrollGoal } from "../scrolling.js";
+import { scrollersOf } from "../scroll-containers.js";
+import { whereGlidesLand } from "../scrolling.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
@@ -403,8 +404,8 @@ export function createObligationView({
   }
 
   // The user's current location on an obligation, said in terms a replaced document can still answer.
-  // Focus by shape does not cross a document replacement — version.js says why — but an
-  // obligation is not a shape. Its id is a declared identity that the inventory, the On
+  // Focus on an unnamed control does not cross a document replacement (carry.js), but an
+  // obligation is not unnamed. Its id is a declared identity that the inventory, the On
   // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an obligation when a revision lands is put back on the same obligation rather
   // than dropped to `body`.
@@ -413,8 +414,8 @@ export function createObligationView({
   // handed back. Which control inside it they held is not something this can answer: the
   // controls are the widget's, most carry no id of their own, and the first
   // answering control is the walk's landing rule rather than a restore. Handing that back
-  // is the failure version.js's header names — a user holding the second option would be
-  // given the first, and their next press would choose it. The obligation's own opening
+  // would guess: a user holding the second option would be given the first, and their
+  // next press would choose it. The obligation's own opening
   // is the one place that cannot misfire, because it holds a lent tab stop rather than
   // a decision: the widget's context routes are live there and Space decides nothing.
   //
@@ -491,17 +492,18 @@ export function createObligationView({
   // a group can stand in the window while a card in it scrolls its answer out of sight.
   // This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the window's head too, read like the obligation where the motion of its box
-  // will leave it (`scrollGoal`).
+  // clear of the window's head too, read like the obligation where the glides under way
+  // will leave it (scrolling.js, `whereGlidesLand`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} source @param {Element} box @param {(node: Element) => boolean} readable */
   function alreadyArrived(record, region, item, source, box, readable) {
-    const band = landingBand(box);
     return (
-      !!band &&
+      whereGlidesLand(scrollersOf(region), () => {
+        const band = landingBand(box);
+        return !!band && shownBox(region).top >= band.top;
+      }) &&
       readable(item) &&
       readable(source) &&
-      shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top &&
       actionsOf(record).every(({ control }) => readable(presentedControl(control)))
     );
   }

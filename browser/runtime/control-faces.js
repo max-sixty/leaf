@@ -69,7 +69,8 @@
    - `response`: a choice of the response bar, Comment, Suggest or a reaction, which
      floats over the page and so wears the field's frame, height and lift
      (widget-elements.js, `responseAction`); a reaction among them is a toggle
-     (`aria-pressed`) and wears a reaction's states.
+     (`aria-pressed`) and wears a reaction's states. The comment box's face while the
+     box rests (`data-lf-rest` on its bar) wears the corner of the card it becomes.
    - `gutter`: a line's number in a code view's gutter, which takes a comment on its
      line, as a diff's do: the number in the code's muted ink, a + before it under
      the keys. The keys reach its line through the target picker, so Go-to gives it
@@ -94,6 +95,11 @@
      a note or a picture's proxy stands on the details shelf, apart from the page,
      which nothing but the keys or assistive technology reaches, so any focus on it
      rings its target and brings the target into view (details-shelf.js).
+
+   A holder whose presses join into one control says so with `data-lf-joined`, as a
+   block's toolbar of marks and a question's Done cell do: each press in it is square
+   where it meets the next, rings inside its edge, and takes the holder's rounding where
+   it meets the holder's corners (controls.css).
 
    A difference that was only a past choice is not a role: a symbol once came bordered
    in some widgets and quiet in others, a word framed in some, quiet in others and a

@@ -165,7 +165,8 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     event carries the rule of the layer the page selects. A missing or invalid
     registry leaves the event unexplained; it never substitutes instructions from a
     different layer. What each case of each kind receives from the shipped layer,
-    clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
+    clause by clause, is snapshotted in
+    `tests/model/interact_contract/_regtest_outputs/`, by
     `test_each_case_of_an_event_is_told_what_the_snapshot_shows`."""
     from .schema import json_validator
 

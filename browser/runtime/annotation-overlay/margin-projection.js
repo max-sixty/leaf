@@ -61,6 +61,7 @@ import { tick } from "../version-signal.js";
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import {
+  closedFaceOver,
   layoutMarginRows,
   marginColumn,
   mountMarginLayer,
@@ -122,7 +123,13 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, generatedElement, offerActionElement } from "../widget-elements.js";
+import {
+  el,
+  generatedElement,
+  offerActionElement,
+  reveal as openFolds,
+} from "../widget-elements.js";
+import { readingPlace } from "../resolved-target.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
@@ -134,6 +141,7 @@ import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
 import {
   nativeLayerHolding,
+  renderedParent,
   skipped,
   renderedOrder,
   renderedUnder,
@@ -146,7 +154,7 @@ import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { drawnThreadId } from "../thread/selectors.js";
-import { visualAt } from "../anchor-resolution.js";
+import { standsIn, visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
@@ -159,6 +167,7 @@ import { claimed } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
+import { createWritingBeacon } from "./writing-beacon.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { alreadyShown } from "../landing-scroll.js";
@@ -248,6 +257,8 @@ export function createMarginProjection({
     openInPanel,
     onClose: closedPreview,
   });
+  // At the window's edge, toward a comment box holding the caret that a scroll carried away.
+  createWritingBeacon();
   const preview = card.element;
   const previewOpen = card.isOpen;
   /** @type {Set<HTMLElement>} */
@@ -275,19 +286,25 @@ export function createMarginProjection({
   // whole reads them again only then (`renderNow`).
   let rowsChanged = true;
   // Where a marker stands, as its name says while it holds focus (`markerName`): its place
-  // among the markers and how far down the column its target stands, in whole percent. A
-  // target in skipped content (a tab not chosen) stands nowhere down the page, and asking
-  // would force that content's style and layout (`skipped`). The target and the column
+  // among the markers and how far down the column its target stands, in whole percent,
+  // or the box it stands by while a closed box hides its threads (`faceOf`). Any other
+  // target in skipped content stands nowhere down the page, and asking would force that
+  // content's style and layout (`skipped`). The target and the column
   // are both read as the window draws them, so a zoom or transform on the column scales
   // the two alike, and the read costs two boxes however much the column holds.
   /** @param {Host} host @returns {Place} */
   function spokenPlace(host) {
     const entry = host.lfEntry;
     const target = targetFor(entry);
-    const place = entryPlace(entry);
+    const face = faceOf(entry);
+    const place = face ?? entryPlace(entry);
     const column = marginColumn().getBoundingClientRect();
     const position =
-      target && place && !skipped(target) && !readingRegionFor(target) && column.height
+      target &&
+      place &&
+      (face || !skipped(target)) &&
+      !readingRegionFor(target) &&
+      column.height
         ? Math.round(
             ((place.getBoundingClientRect().top - column.top) / column.height) * 100,
           )
@@ -438,15 +455,44 @@ export function createMarginProjection({
     return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
   }
 
+  // What a row holding a thread stands by while a closed box hides the place the thread
+  // is about, its line or the first of its words or else its target (margin-layout.js,
+  // `closedFaceOver`), so the page shows that the box holds a thread. The row's layout,
+  // its trace, its spoken place and a press on its marker all read this one answer. Any
+  // other row is withheld until the box opens: one that offers an action on its target,
+  // as a suggestion's Accept does, so the user never decides on content they can't see,
+  // and one marking only what the user owes there, whose widget, such as a deck,
+  // already counts what it holds.
+  /** @param {Entry | null | undefined} entry */
+  const faceOf = (entry) => {
+    if (
+      !entry ||
+      !threadReading(entry) ||
+      entry.controls.length ||
+      entry.afterControls.length
+    )
+      return null;
+    const place = threadsPlace(entry);
+    return place ? closedFaceOver(place) : null;
+  };
+  // The node a thread's words start in is asked itself, since words that stand
+  // straight in a closed disclosure, beside its summary, are hidden though the
+  // disclosure is not.
+  /** @param {Entry} entry */
+  const threadsPlace = (entry) =>
+    readingPlace(entryPassage(entry), entryPoint(entry)).node ?? targetFor(entry);
+
   // Every row lives in the chrome's margin layer, whatever it holds, and the layout owns
   // where: which lane, in which posture, at what offset (margin-layout.js). The row states
-  // its target and its place among the others.
+  // its target, what it stands by while a closed box hides that, and its place among the
+  // others.
   /** @param {Host} row @param {number} order */
   function markerOptions(row, order) {
     return {
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
       passage: () => entryPassage(row.lfEntry),
+      face: () => faceOf(row.lfEntry),
       order,
       fold: {
         able: () =>
@@ -841,7 +887,7 @@ export function createMarginProjection({
     });
   }
 
-  // `o`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
+  // `g H`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
   // that the user could be in: the card closes through its ordinary close, an
   // unfolded cluster folds, and focus held by a pin goes to the pin's target, since the
   // browser would otherwise put it on body. An explicit request still shows what it asks
@@ -1522,8 +1568,10 @@ export function createMarginProjection({
       threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
     const target = targetFor(entry) ?? null;
     // An entry about a part of a picture traces that part, not the picture
-    // (annotation-inventory.js, `entryPart`).
+    // (annotation-inventory.js, `entryPart`). One whose target a closed box hides traces
+    // the box its marker stands by.
     const part = entryPart(entry);
+    const face = faceOf(entry);
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
@@ -1551,8 +1599,8 @@ export function createMarginProjection({
       obligationShown
     );
     highlight(
-      marked ? (part?.element ?? target) : null,
-      marked ? (part?.surface ?? null) : null,
+      marked ? (face ?? part?.element ?? target) : null,
+      marked && !face ? (part?.surface ?? null) : null,
     );
   }
 
@@ -1602,16 +1650,40 @@ export function createMarginProjection({
   // no card stands, as on a window with no room for the rail (header), the thread opens
   // where every other route opens it (thread/destination.js): the floating panel. Either
   // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
+  // A marker may stand for its thread's part rather than by it: by what a widget gives
+  // in place of a part it hasn't drawn (anchor-resolution.js, `standsIn`), or by a
+  // closed box that hides the part (`faceOf`). A press on it asks for the part, so the
+  // thread opens by travel, which opens the box or has the widget draw the part
+  // (anchor-travel.js, `revealThread`) and lands where the thread then stands. A box
+  // closed round the card it hid leaves that card selected, so the box is asked about
+  // first. A window with no room for the card opens the thread in the floating panel,
+  // which moves nothing on the page, so the press opens the box itself, as the
+  // browser's find would, once the route has read where the user stood
+  // (thread/destination.js) and before a reader that takes the thread lands, so that
+  // reader's own view stays open. That route adds no history entry, so the entry the
+  // user is on names what the box opened.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
+    const id = threadIdOf(choice);
+    if (faceOf(entry)) {
+      const place = threadsPlace(entry);
+      const intent = retainUserIntent();
+      void openPageThread(id, { intent });
+      openFolds(place instanceof Element ? place : renderedParent(place), intent);
+      return;
+    }
     const selected = card.selection();
     if (selected?.entry.key === entry.key && selected.control === button) {
       closePreview();
       return;
     }
+    if (standsIn(threadNamed(id)?.anchor, placedAt(id))) {
+      void openPageThread(id);
+      return;
+    }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { travel: false });
+    else void openPageThread(id, { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
@@ -2124,9 +2196,11 @@ export function createMarginProjection({
   // that accompanied the target the user was on, with the user outside the card,
   // comes back only beside that target's marker (`openInlineThread`, `unfold: false`).
   // A reply being written in the card carries its thread back itself (version.js,
-  // `restoreEditingContinuity`), so the card is left to it.
-  function captureCurrentLocation() {
-    const active = focused();
+  // `restoreEditingContinuity`), so the card is left to it. A return to a working place,
+  // as Back from a link followed out of the card is, reopens the card the same way
+  // (history.js, `returnPlace`).
+  /** @param {Element | null} [active] the node the user is on, else where focus is */
+  function captureCurrentLocation(active = focused()) {
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
     const selected = card.selection();
@@ -2156,8 +2230,8 @@ export function createMarginProjection({
       : null;
   }
 
-  /** @param {MarginLocation | null} currentLocation */
-  function restoreCurrentLocation(currentLocation) {
+  /** @param {MarginLocation | null} currentLocation @returns {Promise<boolean>} */
+  async function restoreCurrentLocation(currentLocation) {
     if (!currentLocation || typeof currentLocation.entry !== "string") return false;
     const entry = pageInventory.find(
       (candidate) => candidate.key === currentLocation.entry,
@@ -2168,10 +2242,11 @@ export function createMarginProjection({
       : false;
     return currentLocation.focus?.kind === "entry"
       ? restoreEntryFocus(entry, currentLocation.focus)
-      : shown;
+      : await shown;
   }
 
-  /** @param {Entry} entry @param {SavedPreview} preview @param {SavedFocus | null} focus */
+  /** @param {Entry} entry @param {SavedPreview} preview @param {SavedFocus | null} focus
+   * @returns {boolean | Promise<boolean>} */
   function restoreCard(entry, { thread, accompanies }, focus) {
     const items = threadReading(entry)?.items ?? [];
     const item = items.find((candidate) => candidate.id === thread) ?? items[0];
@@ -2188,10 +2263,12 @@ export function createMarginProjection({
     if (kept) closePreview();
     const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
-    // Where the revision closed a tab or disclosure over the passage, or hid it, the
-    // floating panel shows the thread: a reveal would move the page under a reader who
-    // asked for nothing, and a card with no passage to stand beside never places. A user
-    // who was in the card remains in the thread wherever it opens.
+    // Where the page no longer shows the passage, as when a revision closed a tab or
+    // disclosure over it or hid it, or the window narrowed past the margin since the
+    // user left the card, the floating panel shows the thread: a reveal would move the
+    // page under a reader who asked for nothing, and a card with no passage to stand
+    // beside never places. A user who was in the card remains in the thread wherever it
+    // opens.
     const intent = retainUserIntent();
     const opened = openPageThread(id, {
       part: "thread",
@@ -2200,15 +2277,19 @@ export function createMarginProjection({
       scroll: false,
       intent,
     });
-    if (focus?.kind === "preview-close")
-      void opened.then((destination) => {
-        if (destination && under(destination, preview) && intent())
-          card.focusThread(Promise.resolve(true), {
-            closeControl: true,
-            cause: "return",
-          });
-      });
-    return true;
+    return opened.then((destination) => {
+      if (
+        focus?.kind === "preview-close" &&
+        destination &&
+        under(destination, preview) &&
+        intent()
+      )
+        card.focusThread(Promise.resolve(true), {
+          closeControl: true,
+          cause: "return",
+        });
+      return Boolean(destination);
+    });
   }
 
   /** @param {Entry} entry @param {Extract<SavedFocus, {kind: "entry"}>} focus */

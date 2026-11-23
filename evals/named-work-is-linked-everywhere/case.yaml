@@ -111,7 +111,7 @@ variants:
         The page's lede, as the active revision has it:
 
         ```html
-        <p class="lede" id="lede">
+        <p class="lf-lede" id="lede">
           Notes typed offline vanished because reattaching dropped the detached
           journal. #1204 persists it to the outbox; it lands on its own. #1211 shows
           the badge while a note waits to sync, as you picked. #1215 makes the badge

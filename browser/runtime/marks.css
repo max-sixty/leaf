@@ -52,7 +52,7 @@
    composite the same in either order. A draft sets its words in the accent.
    The words take the mark's ink rather
    than a line under them: Chromium rechecks a highlight's text decoration across the
-   whole page on every click and keystroke. Hiding the annotations (`o`) empties the
+   whole page on every click and keystroke. Hiding the annotations (`g H`) empties the
    durable highlights, `lf-mark` and `lf-react` (anchor-paint.js, `paintDurable`), so no
    rule here depends on it.
 

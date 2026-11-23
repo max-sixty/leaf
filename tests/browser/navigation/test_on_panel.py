@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    PREVIEW,
     expect_obligations_answered,
     expect_panel_says,
     field_press,
@@ -438,6 +439,72 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     assert page.evaluate(SEEN_SHARE, "#tail") > 0.99
 
 
+def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serve):
+    """`o` presses the leaf, which names it, so with a question waiting it opens On Me
+    with the question's card under the user, and a second `o` puts the view away,
+    leaving the user on the page rather than on nothing. ← and → turn the view's tabs
+    round from either end, landing on each list as a key opening it lands, or, from the
+    tab strip, on the tab, stepping from the tab focus stands on. A tab the view
+    doesn't show names the door that opens its list. `g A` opens the agent's list as
+    `g M` opens the user's, and closes it again."""
+    page = open_page(browser, serve(QUEUE_PAGE))
+    shown = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    tab = page.locator('.lf-fp-tab[aria-pressed="true"]')
+    agent = re.compile(r"On (?!Me\b)\w")
+    on_page = "() => document.activeElement?.closest('main') !== null"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute("aria-keyshortcuts", "o")
+    page.locator("#h").click()
+    page.keyboard.press("o")
+    expect(tab).to_contain_text("On Me")
+    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    for name, route in (
+        (agent, "queue"),
+        ("Threads", "threads"),
+        ("Menu", "menu"),
+        ("On Me", "queue"),
+    ):
+        page.keyboard.press("ArrowRight")
+        expect(tab).to_contain_text(name)
+        expect(shown).to_have_attribute("data-lf-route", route)
+        expect(page.locator(f"{PANEL} .lf-fp-tab:focus")).to_have_count(0)
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Menu")
+    menu_row = page.locator(f"{panel_view('menu')} .lf-fp-item:not(:disabled)")
+    expect(menu_row.first).to_be_focused()
+    page.keyboard.press("o")
+    expect(shown).to_have_count(0)
+    # Escape's landing, on the page, so Tab goes on from what is read there rather than
+    # from the panel's row.
+    page.keyboard.press("Tab")
+    page.wait_for_function(on_page)
+    # A tab pressed keeps the user on it; Tab moves to the next tab, On Me, without
+    # turning to it, and → turns to the tab after the one focus stands on.
+    page.keyboard.press("o")
+    page.locator(".lf-fp-tab", has_text="Menu").click()
+    expect(tab).to_contain_text("Menu")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-tab", has_text="On Me")).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(tab).to_contain_text(agent)
+    expect(tab).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowLeft")
+    expect(tab).to_contain_text("Menu")
+    expect(tab).to_be_focused()
+    # A tab the view doesn't show names the door that opens its list from anywhere.
+    page.mouse.move(2, 2)
+    page.locator(".lf-fp-tab", has_text=agent).hover()
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(
+        re.compile(r"^\s*g\s*A\s*$")
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(tab).to_contain_text(agent)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(shown).to_have_count(0)
+
+
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next On Me is `m` within the region: a
@@ -811,6 +878,37 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     expect(page.locator("#step-ask")).to_be_focused()
     expect(page.locator(".lf-live")).to_have_text("Answered: Keep it")
     expect_walk_position(page, None)
+
+
+def test_the_page_s_press_holds_under_a_resting_pointer_until_a_key(browser, serve):
+    """While the pointer rests on the panel, a revision that empties On Me leaves Next
+    On Me where the user may be about to press it; their next key, here an arrow that
+    scrolls the page and paints nothing in the panel, takes it away."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+        '<lf-options id="only">'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    box = page.locator(".lf-fp-field").bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+    stamp_page(
+        serve.page_dir,
+        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
+        "remove the last obligation",
+    )
+    wait_for_revision(page, 2)
+    expect_on_me(page, 0)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    page.keyboard.press("ArrowDown")
+    expect(press).to_have_count(0)
 
 
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):

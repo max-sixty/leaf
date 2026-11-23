@@ -86,6 +86,7 @@ from .state import (
     flocked,
     object_schema,
     state_home,
+    still_named,
 )
 
 ADDRESS = Record(
@@ -225,7 +226,7 @@ def live_sessions() -> bool:
 def serve(lease_fd: int) -> None:
     # The sweep's lifetime rule, loaded while the copy that started this bridge
     # stands: the bridge serves other copies and may outlive its own, and a sweep
-    # that failed to import would leave it serving for good.
+    # that failed to import would end it while sessions it serves live.
     from . import service  # noqa: F401
 
     lease = open(lease_fd, "rb")
@@ -317,19 +318,32 @@ def serve(lease_fd: int) -> None:
 
     # Closing the server waits for the commands it is running.
     socketserver.ThreadingTCPServer.daemon_threads = False
-    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
-    ADDRESS.write(
-        bridge_path("json"),
-        {"port": server.server_address[1], "token": token, "pid": os.getpid()},
-    )
-
-    def retiring() -> None:
+    # A hook takes the lease and clears a gone bridge's address under this lock
+    # (`ensure`). If the state home was removed while this bridge started, a
+    # later hook may already have started the next bridge on a new lease file,
+    # so this one ends without writing over that bridge's address.
+    with flocked(bridge_path("sessions.lock")):
+        if not still_named(lease.fileno(), bridge_path("lock")):
+            release_lease(lease)
+            return
+        server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
+        ADDRESS.write(
+            bridge_path("json"),
+            {"port": server.server_address[1], "token": token, "pid": os.getpid()},
+        )
+    # The bridge lives only as long as its sweep, so a sweep that raises ends it
+    # rather than leaving it serving with nothing to retire it.
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
         retire(lease, running)
+    finally:
+        # A failed sweep leaves the lease held. Releasing it before waiting for
+        # the running commands lets the next hook start a bridge meanwhile, as
+        # after `retire` returns.
+        if not lease.closed:
+            release_lease(lease)
         server.shutdown()
-
-    threading.Thread(target=retiring, daemon=True).start()
-    server.serve_forever()
-    server.server_close()
+        server.server_close()
 
 
 def retire(lease, running: set[int]) -> None:
@@ -337,9 +351,19 @@ def retire(lease, running: set[int]) -> None:
     with it lives, then release it. The last read of the registrations and the
     release share the lock a hook registers under (`ensure`), so a hook that finds
     the lease held has registered a session this bridge goes on serving, and its
-    client never finds the lease unheld while this bridge serves it (`run`)."""
+    client never finds the lease unheld while this bridge serves it (`run`).
+
+    Hooks and clients find the bridge only by its lease's path. Once that path
+    names another file or none, as when an eval removes the scratch state home
+    its session ran under, nothing can reach this bridge, so it releases the
+    lease at once. The path is resolved once, since resolving a path through
+    `state_home` creates the state home again."""
+    lock = bridge_path("lock")
     while True:
         time.sleep(SWEEP_SECONDS)
+        if not still_named(lease.fileno(), lock):
+            release_lease(lease)
+            return
         if running or live_sessions():
             continue
         with flocked(bridge_path("sessions.lock")):

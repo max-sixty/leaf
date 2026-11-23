@@ -111,7 +111,7 @@ import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import {
   annotationsHidden,
-  mountAnnotationControls,
+  ANNOTATIONS_TOGGLE,
   restoreAnnotations,
 } from "./runtime/annotation-layer.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
@@ -220,7 +220,6 @@ async function boot() {
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-  mountAnnotationControls();
 
   /** @type {ReturnType<typeof mountApplication>} */
   let app;
@@ -370,6 +369,26 @@ async function boot() {
     paintKeys,
   });
 
+  // Where the user is in the chrome's thread views, a margin card or entry and the
+  // panel's thread, which a revision carries and a return to a working place reopens
+  // (history.js, `returnPlace`).
+  /** @param {Element | null} [at] */
+  const captureChrome = (at) => {
+    const margin = app?.overlay?.captureCurrentLocation(at) ?? null;
+    const panel = floatingPanel.captureCurrentLocation(at);
+    return margin || panel ? { margin, panel } : null;
+  };
+  const chromeLocation = {
+    capture: captureChrome,
+    /** @param {ReturnType<typeof captureChrome>} location */
+    restore: async (location) => {
+      if (!location) return false;
+      const panel = floatingPanel.restoreCurrentLocation(location.panel);
+      const margin = app?.overlay?.restoreCurrentLocation(location.margin) ?? false;
+      return (await margin) || (await panel);
+    },
+  };
+
   const version = createVersionController({
     initialDocument,
     compositionInput: fabInput,
@@ -380,19 +399,18 @@ async function boot() {
     hasPending: () => app.hasPending(),
     readAndApply: (...args) => app.readAndApply(...args),
     syncLayout: () => layout.syncLayout(),
-    // The chrome the reader stands in: a margin card or entry, and the panel's thread.
-    captureRetainedCurrentLocation: () => ({
-      margin: app?.overlay?.captureCurrentLocation() ?? null,
-      panel: floatingPanel.captureCurrentLocation(),
-    }),
-    restoreRetainedCurrentLocation: ({ margin, panel }) => {
-      const panelShown = floatingPanel.restoreCurrentLocation(panel);
-      return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
-    },
+    captureRetainedCurrentLocation: chromeLocation.capture,
+    restoreRetainedCurrentLocation: chromeLocation.restore,
     captureObligationCurrentLocation: () => items.captureCurrentLocation(),
     restoreObligationCurrentLocation: (currentLocation) =>
       items.restoreCurrentLocation(currentLocation),
-    versions: { press: () => floatingPanel.doors.versions.press() },
+    versions: {
+      press: () => floatingPanel.doors.versions.press(),
+      shows: () => floatingPanel.doors.versions.shows(),
+      get scope() {
+        return floatingPanel.doors.versions.scope;
+      },
+    },
   });
 
   const inputs = createCompositionInputs({
@@ -690,6 +708,7 @@ async function boot() {
       navigation.alignTop,
       app.read.firstUnreadCommand,
       version.PICKER,
+      ANNOTATIONS_TOGGLE,
     ],
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,
@@ -828,6 +847,7 @@ async function boot() {
   mountHistory({
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
+    chrome: chromeLocation,
   });
   const landFragment = version.aimArrival();
   const { landArrival, savedView } = offlineInteractive

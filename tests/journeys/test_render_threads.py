@@ -72,6 +72,21 @@ CAPTURE_SAMPLE_PAGE = leaf_page(
 )
 
 
+# A window sample turned a quarter, its window's top corner red and its foot corner
+# blue, both on its start side.
+TURNED_SAMPLE_PAGE = leaf_page(
+    "Capture a turned sample",
+    """<h1>Capture a turned sample</h1>
+<div id="turn"><lf-sample id="turned-sample" label="practice" window>
+  <template id="turned-sample-page" data-sample>
+    <div style="position: fixed; inset: 0 50% 50% 0; background: rgb(200, 40, 40)"></div>
+    <div style="position: fixed; inset: 50% 50% 0 0; background: rgb(40, 40, 200)"></div>
+  </template>
+</lf-sample></div>""",
+    head="<style>#turn { rotate: 90deg; margin-block: 150px; }</style>",
+)
+
+
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     """An attachment keeps its face and keyboard routes inside a widget tree."""
     page = open_page(browser, serve(named_source("pr-walkthrough")))
@@ -383,6 +398,40 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
         });
     })""")
     assert errors == []
+
+
+def test_a_region_capture_draws_a_turned_sample_as_its_reader_sees_it(browser, serve):
+    """A sample turned a quarter shows down what its window holds across, so an area
+    over the top half of its frame takes in its window's start half: the foot corner on
+    the left and the top corner on the right. The image draws that half, as the sample
+    draws it (composing/page-image.js)."""
+    page = open_page(browser, serve(TURNED_SAMPLE_PAGE))
+    page.evaluate("document.querySelector('#turned-sample').ready")
+    frame = page.locator("#turned-sample iframe").bounding_box()
+    surface = open_capture_area(page)
+    left, top = int(frame["x"]) + 1, int(frame["y"]) + 1
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(
+        int(frame["x"] + frame["width"]) - 1,
+        int(frame["y"] + frame["height"] / 2),
+        steps=5,
+    )
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.mouse.up()
+    expect(surface).to_be_hidden()
+    media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
+    image = Image.open(
+        io.BytesIO((serve.page_dir / media_url.lstrip("/")).read_bytes())
+    ).convert("RGB")
+    scale = page.evaluate("devicePixelRatio")
+    down = round((frame["y"] + frame["height"] / 4 - top) * scale)
+
+    def across(share):
+        return round((frame["x"] + frame["width"] * share - left) * scale)
+
+    assert rgb_pixel(image, (across(1 / 4), down)) == (40, 40, 200)
+    assert rgb_pixel(image, (across(3 / 4), down)) == (200, 40, 40)
 
 
 def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):

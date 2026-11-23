@@ -14,7 +14,7 @@ presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a sc
 whose own Escape step comes before every step outside it.
 
 Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
-the command reference and hints, and is the only writer of `aria-keyshortcuts`. A page
+the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
 widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
 exists; it may still be out of the page.
@@ -112,19 +112,22 @@ a widget's state or the threads. For any other state it reads, hold the value in
 
 ### How scopes compose
 
-A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A key pressed inside an outlet Leaf fills with a Thread
+A key reaches listeners on the focused element and around it before Leaf's scopes: the
+focused control's, the widgets' around it, then the page's. A listener keeps a key,
+even a page key, by preventing its default. Listeners on the document and the window
+hear only keys Leaf leaves, and Escape lets go of a focused control after them unless
+one prevented it. Leaf hears first only while Go-to or reactions are armed, with
+nothing focused, and while focus is scrolled out of sight, where a key other than
+typing or Escape lets go of it.
+
+Among scopes, a key pressed inside an outlet Leaf fills with a Thread
 (`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
 presentation") skips the widgets around the outlet: it goes to the scopes inside the
-outlet and on it, then to the page. A scope takes only keys whose rows make a press, by a `run` or by
-naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
-different meaning further out; an unavailable Escape, though, passes on to the next
-Escape. Text fields keep their editing keys ahead of every widget scope. A key other
-than typing or Escape, pressed while the user has scrolled the focused control out of
-sight, lets go of the control first and goes to the page, so neither a widget's command
-nor the browser's own Enter and Space acts on what the user can't see. That key stops at
-the document, so a listener on the control or the widget doesn't hear it, and a script's
-own listener on the document or window hears it only in capture.
+outlet and on it, then to the page. A scope takes only keys whose rows make a press, by
+a `run` or by naming a `control` Leaf clicks, so other keys pass outward. A row keeps
+its key while unavailable, so the key never falls through to a different meaning further
+out; an unavailable Escape, though, passes on to the next Escape. Text fields keep their
+editing keys ahead of every widget scope.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the
@@ -139,8 +142,8 @@ their own activation and editing.
 Leaf already answers Enter, Space and the opening arrow on a `details > summary` or a
 button with `aria-expanded`; a row that names the same press uses `DISCLOSE(element)` as
 its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text direction,
-and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for a
-tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
+and `PRESS` is Enter and Space. `labelOf(row)` is a row's key text for a tooltip;
+`saying(rows)` names, for an announcement, the keys that would run the rows now.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
 the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
@@ -176,9 +179,8 @@ End reach the ends, and a step shows its position in Leaf's panel, such as `Entr
 7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
 runs after a move, and `scroll: false` keeps the page still.
 
-A row whose press carries the user along a list of its own, as a timeline's arrows
-carry a user on its step list to the new step's row, declares `lands(from)` ("Command
-rows") rather than moving focus in its `run`.
+A row whose press carries the user along a list of its own declares `lands(from)`
+("Command rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
@@ -228,6 +230,7 @@ user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
+For a control in a widget's shadow root, that ancestor is the widget.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
@@ -241,13 +244,12 @@ of controls the user moves through with arrow keys offers one Tab stop with
 `rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
-events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
-it with `completed: true`; cancellation, a native context menu, or leaving the document
-calls it with `false`. The function returned by `end` runs when that press is over,
-after any compatibility mouseup and click it owes. Keep press-local work in these
-callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
-presses, and the connection's abort signal ends any work still running when the widget
-disconnects.
+events. `begin(pointerdown, path)`, a passive listener, may return
+`end(event, completed)`: release calls it with `completed: true`; cancellation, a
+native context menu, or leaving the document calls it with `false`. The function `end`
+returns runs when that press is over, after any compatibility mouseup and click it
+owes. Register inside `whileConnected`; the returned unsubscribe stops new presses, and
+the connection's abort signal ends work still running when the widget disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;

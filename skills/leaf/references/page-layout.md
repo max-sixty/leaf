@@ -188,8 +188,8 @@ Style its blocks by their classes or ids, or as `.layout-track > p`.
 ## A workspace
 
 `<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
-works in its regions rather than scrolling the page. Pane scrollers leave room at their
-ends so the panel does not cover their last lines. The `header` and `footer` take
+works in its regions rather than scrolling the page. The panel stands over the regions'
+feet and the user folds it where it covers them. The `header` and `footer` take
 their content's height and the body takes the rest. Keep shared context concise enough
 to leave the working regions usable; place region-specific explanation with its subject.
 
@@ -200,7 +200,7 @@ the page's own grid of panes:
 <main class="layout-workspace density-working">
   <header>
     <h1>…</h1>
-    <p><span class="tag warn">…</span></p>
+    <p><span class="lf-tag warn">…</span></p>
   </header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>

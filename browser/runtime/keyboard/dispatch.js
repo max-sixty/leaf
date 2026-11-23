@@ -36,9 +36,13 @@
    the ordinary text-entry row to return to the panel, keeping the query. Exact input
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
-   `activeCommandLabel` projects the
-   dispatcher's live result into the destination composition box's placeholder. Each
-   box's `aria-label` remains its shortcut-free accessible name.
+   A surface that names a key beside a result asks whether pressing the key now would
+   make that result. The answer is the press itself, resolved with no key behind it
+   (`invocationNow`): `activeCommandBinding` reads it for a command's keys
+   (control-keys.js, `commandKeysNow`), which the destination composition box's
+   placeholder and a notice's press name, and `pressRuns` for each key an announcement
+   names (control-keys.js, `saying`). Each box's `aria-label` remains its shortcut-free
+   accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
    It unwinds the state standing in front of the user rather than a history of how they
@@ -83,6 +87,7 @@ import {
   answers,
   bindings,
   commandRun,
+  parsed,
   bindingEnabledFor,
   quickShortcuts,
   declaredBindings,
@@ -96,7 +101,6 @@ import {
   live,
   routedCommand,
   referencedCommandEntry,
-  spell,
   word,
 } from "./bindings.js";
 import {
@@ -515,18 +519,32 @@ function resolveKey(ev) {
 }
 /** @param {KeyboardEvent} ev */
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
-// Escape with no key behind it, as the platform's close request asks for it
-// (close-requests.js): whether a press would take a step now, and taking it, through
-// the row's `keep` where it declares one (bindings.js).
-const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
+// What a press of `binding` would do now, resolved as the press itself would be with no
+// key behind it, or null: the one reading of whether a key works where the user is.
+// Escape's is what the platform's close request asks for (close-requests.js), and
+// taking it goes through the row's `keep` where it declares one (bindings.js).
+/** @param {string} binding @returns {Invocation | null} */
+const invocationNow = (binding) => {
+  const { key, mods } = parsed(binding);
+  const matched = resolveKey(
+    new window.KeyboardEvent("keydown", {
+      key,
+      shiftKey: mods.includes("Shift"),
+      metaKey: mods.includes("Mod"),
+      altKey: mods.includes("Alt"),
+    }),
+  );
+  return matched && matched !== INPUT_PENDING ? matched : null;
+};
 /** The step Escape would take now, or null: what a surface that names Escape's step
  * reads, as the floating panel's Close says `esc` only while Escape takes the stance
  * off. */
-export const escapeInvocation = () => {
-  const matched = resolveKey(escapePress());
-  return matched && matched !== INPUT_PENDING ? matched : null;
-};
+export const escapeInvocation = () => invocationNow("Escape");
 export const escapeTakesAStep = () => Boolean(escapeInvocation());
+/** Whether pressing `binding` now would run `row`: what an announcement asks of each key
+ * it names (control-keys.js, `saying`). */
+/** @param {string} binding @param {Command} row */
+export const pressRuns = (binding, row) => invocationNow(binding)?.row === row;
 export function answerCloseRequest() {
   const matched = escapeInvocation();
   if (!matched) return;
@@ -578,23 +596,17 @@ const reachableBindings = (
         ? unclaimedEscape.has(scopeIdentity(scope))
         : !nearer.takes(binding, row, scope),
   );
-/** @param {(entry: CommandEntry, row: Command) => boolean} matches @param {boolean} [commands] @returns {MatchedCommand | null} */
-function commandMatching(matches, commands = false) {
+// The command the reference runs for `id` (`executeCommand`).
+/** @param {string} id @returns {MatchedCommand | null} */
+function commandFor(id) {
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = reachableBindings(
-        row,
-        scope,
-        nearer,
-        unclaimedEscape,
-        commands,
-      );
+      const reachable = reachableBindings(row, scope, nearer, unclaimedEscape, true);
       const entry = commandEntries(row, reachable).find(
-        (command) =>
-          matches(command, row) && invocationFor(row, command.binding, command),
+        (command) => command.id === id && invocationFor(row, command.binding, command),
       );
       if (entry && (entry.binding != null || allBindings(row).length === 0))
         return { row, binding: entry.binding, entry };
@@ -603,18 +615,24 @@ function commandMatching(matches, commands = false) {
   }
   return null;
 }
-/** @param {string} id */
-const commandFor = (id) => commandMatching((command) => command.id === id, true);
-// A contextual surface asks the dispatcher which of its routes to one capability is
-// reachable from the user's current scope, and the box's placeholder names whichever one
-// dispatch would answer. Asked by command id rather than by row, so the surface holds no
-// reference into another scope's declaration. This includes shadowing by native text entry
-// and modes, not only each row's own liveness.
+// Which key of a capability a press would make now from where the user is, or null:
+// a binding of a row in the user's scopes that declares one of `ids`, pressed as
+// `pressRuns` presses it. Asked by command id rather than by row, so the asking surface
+// holds no reference into another scope's declaration.
 /** @param {Iterable<string>} ids */
-export function activeCommandLabel(ids) {
+export function activeCommandBinding(ids) {
   const wanted = new Set(ids);
-  const command = commandMatching((entry) => wanted.has(entry.id));
-  return command?.binding != null ? spell(command.binding) : "";
+  for (const scope of stack())
+    for (const row of scope.rows)
+      for (const binding of bindings(row))
+        if (
+          commandEntries(row, [binding], { includeUnavailable: true }).some(({ id }) =>
+            wanted.has(id),
+          ) &&
+          pressRuns(binding, row)
+        )
+          return binding;
+  return null;
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
 // intrinsic key and an obligation alias can share a command id while only one is shadowed.
@@ -668,7 +686,7 @@ export function invokePress({ id, row, binding }) {
   return true;
 }
 // A control standing in for a page command's key, as the floating panel's field-end
-// presses do (floating-panel.js, `noticePress`): the command's row by its id or by one
+// presses do (floating-panel.js, `pressReading`): the command's row by its id or by one
 // of its routes', made as a press of that route's key, so it acts wherever the caret
 // stands, as a menu row or a touch control does, where the key would be a letter typed.
 /** @param {string} id */

@@ -50,6 +50,7 @@ export {
   ensureSyntaxLanguage,
   synNodes,
   syntax,
+  syntaxNow,
   tokenLines,
 } from "./syntax-tokens.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";

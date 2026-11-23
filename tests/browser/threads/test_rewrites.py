@@ -76,10 +76,11 @@ def _ring_gaps(page, target):
 
 
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
-    """A rewrite of a comment just sent is as wide as the reply box, its words where
-    the message's stood.
+    """A rewrite of a comment just sent stands at the card's padding, as far inside
+    the reply box, which runs to the card's sides, as the box reaches past it, its
+    words where the message's stood.
 
-    The field's ring, drawn outside it as the reply box's is, can lose its left and
+    The field's ring, drawn outside it, can lose its left and
     bottom sides to a transcript that scrolls it and keeps no room past its edges, and
     the card's actions can paint their ground over the right side of a focused Edit's
     or Save's ring. Each ring stands whole."""
@@ -117,8 +118,15 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     field = editor.locator(".lf-compose-field")
     reply = card.locator(".lf-thread-reply .lf-compose-field")
     box, reply_box = field.bounding_box(), reply.bounding_box()
-    for side in ("x", "width"):
-        assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
+    padding = card.locator(".lf-margin-preview-card").evaluate(
+        "face => parseFloat(getComputedStyle(face).paddingInlineStart)"
+    )
+    starts, ends = (
+        box["x"] - reply_box["x"],
+        reply_box["x"] + reply_box["width"] - box["x"] - box["width"],
+    )
+    for inside in (starts, ends):
+        assert abs(inside - padding) < 0.5, (padding, box, reply_box)
     # Its words keep the lines the comment wrapped to, and the message its height.
     opened = message.bounding_box()
     for side in ("y", "height"):
@@ -398,8 +406,10 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     its own, would move nothing but read as a thinner, narrower field than the reply box
     beside it; the reply box's own field would move the words down by its padding and,
     in Feed mode, across by its inset. The rewrite is a comment box whose
-    frame and padding stand around the words, which keep their place; where the thread
-    draws its reply box under the message, the rewrite takes its width. Discard and
+    frame and padding stand around the words, which keep their place, at the frame's
+    padding; where the thread's reply box runs to the frame's edges under the message,
+    in the panel and in a card, the rewrite takes the height of its field, less the
+    frame's padding a card's box takes in around it. Discard and
     Save take the message's head. Escape and Discard step back up to the reply box,
     and Save leaves the user on the thread, as a send does, leaving the thread as it
     was.
@@ -442,12 +452,26 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         ".lf-msg-editor > leaf-composition-field > .lf-compose-field"
     ).bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
-    # The panel's reply box stands in its field, under the view and across the row, so
-    # there the rewrite takes its height alone; Feed draws its reply box at the part's
-    # edge, where the words' inset leaves the rewrite's frame none of its sides.
-    sides = {"panel": ("height",), "seat": ("x", "width"), "card": ("x", "width")}
-    for side in sides.get(surface, ()):
-        assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    # The panel's and a card's reply box run to the frame's edges, so there the
+    # rewrite takes its height alone; a card's box also takes in the card's padding
+    # above and below its field, which the rewrite, standing clear of the card's edges,
+    # leaves out. Feed draws its reply box at the part's edge, where the words' inset
+    # leaves the rewrite's frame none of its sides.
+    padding = (
+        thread.evaluate(
+            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-thread-pad'))"
+        )
+        if surface in ("seat", "card")
+        else 0
+    )
+    if surface in ("panel", "seat", "card"):
+        height = reply_field["height"] - 2 * padding
+        assert abs(field["height"] - height) < 0.5, (padding, field, reply_field)
+    # In a card the rewrite's frame stands at the card's padding, that far inside the
+    # reply box's start.
+    if surface in ("seat", "card"):
+        inside = field["x"] - reply_field["x"]
+        assert abs(inside - padding) < 0.5, (padding, field, reply_field)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Discard", "Save"):
         control = message.get_by_role("button", name=name, exact=True)
@@ -743,7 +767,9 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
 def test_a_discarded_rewrite_comes_back(browser, serve):
     """Escape throws a rewrite's changed words away, so an accidental press could lose a
     long rewrite for good. Restore discarded edit opens the message on those exact words
-    again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore."""
+    again, without sending them, by `g D`, which the panel offers with the discard's
+    notice once the caret has left the reply box Escape landed in, where `g` types a
+    letter; Save then sends them as any rewrite, and nothing is left to restore."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
     rewritten = "  Fit both brackets and keep the longer explanation.  "
@@ -760,7 +786,9 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    expect_panel_says(page, "Restore edit", says=False)
     page.keyboard.press("Escape")
+    expect_panel_says(page, "Edit discarded · Restore edit g D")
     page.keyboard.press("g")
     page.keyboard.press("Shift+d")
     expect(editor).to_be_focused()

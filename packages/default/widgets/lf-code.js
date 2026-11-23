@@ -395,6 +395,8 @@ customElements.define(
         // Copy joins the mark here (`lfBar`), which the theme stands in the block's
         // corner and shows as it would show a lone Copy.
         const bar = notesToggle ? offer("div", "lf-code-bar lf-mark-bar") : null;
+        // Its marks join into one toolbar (controls.css, `data-lf-joined`).
+        if (bar) bar.dataset.lfJoined = "";
         if (bar && notesToggle) bar.append(notesToggle);
         if (bar) pre.lfBar = bar;
         // The press says what it will do, and hidden notes say how many wait.

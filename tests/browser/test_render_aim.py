@@ -182,7 +182,14 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "node => ({family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize})"
     )
-    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box()["height"] == 32
+    # One line of words and the frame's padding on either side, inside its one-pixel
+    # edge (browser/AGENTS.md, "Shared containers determine control dimensions").
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    assert box.bounding_box()["height"] == box.evaluate(
+        """box => { const style = getComputedStyle(box);
+          return parseFloat(style.getPropertyValue('--lf-line'))
+            + 2 * parseFloat(style.getPropertyValue('--lf-thread-pad')) + 2; }"""
+    )
     write(field, "Carry this comment into its thread.")
     page.evaluate(
         """() => {
@@ -770,7 +777,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1
-    while (box := bar.bounding_box())["y"] + box["height"] + 21 < foot:
+    while (box := bar.bounding_box())["y"] + box["height"] + 21 <= foot:
         page.keyboard.press("Shift+Enter")
         page.keyboard.type(f"Line {lines}")
         lines += 1

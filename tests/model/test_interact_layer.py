@@ -3898,7 +3898,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert f"leaf page init '{page}'" in json.loads(result.stdout)["error"]
+    assert f"{page} is not an initialized page" in json.loads(result.stdout)["error"]
     assert list(page.iterdir()) == []
 
 

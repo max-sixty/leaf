@@ -387,9 +387,12 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         elif index == 0:
             link.click()
         else:
-            # Escape restored the first image; Tab reaches the second image.
+            # Escape restored the first image; Tab reaches the second image. Focus
+            # arrives with the browser's reveal, which stops at the window's foot, and
+            # the runtime lands the arrival clear of the panel in the next frame.
             page.keyboard.press("Tab")
             expect(link).to_be_focused()
+            render_checks_model.rendered(page)
             before = shot.bounding_box()
             box = link.bounding_box()
             page.keyboard.press("Enter")

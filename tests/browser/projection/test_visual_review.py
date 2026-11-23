@@ -55,7 +55,9 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     page.keyboard.press("Escape")
     expect(case.locator(".lf-vr-details")).to_be_hidden()
     page.keyboard.press("c")
-    field = case.locator(".lf-fab-input")
+    # The review fills the window, so its case's discussion ends under the floating
+    # panel's row, and the box stands beside the case rather than in it.
+    field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     page.keyboard.type("a nice detail")
     expect(field).to_have_js_property("value", "a nice detail")

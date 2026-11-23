@@ -1,7 +1,6 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import io
-import re
 from datetime import UTC, datetime, timedelta
 
 from PIL import Image
@@ -14,9 +13,7 @@ from render_harness import (
     one_frame,
     open_page,
     primed,
-    regions_side_by_side,
     rendered,
-    resized,
     rgb_pixels,
     scroll_settled,
     wait_until_ready,
@@ -390,46 +387,6 @@ def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_p
         in_editor, in_block = page.evaluate(faces, [words, lang])
         assert all(in_block.values()), in_block
         assert in_editor == in_block, (in_editor, in_block)
-
-
-def test_picking_a_file_leaves_a_workspace_where_it_stands(browser, serve, tmp_path):
-    """The editor fills its pane to the window's foot, so opening another file in it
-    from the tree moves nothing on the page, though the page has room to scroll."""
-    for name in ("values", "alerts"):
-        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
-    url = serve(
-        leaf_page(
-            "Deploy files",
-            """<header><h1>Deploy files</h1></header>
-            <div id="regions">
-              <lf-pane id="files-pane" label="Files">
-                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
-              <lf-pane id="editor-pane" label="File">
-                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
-              </lf-pane>
-            </div>""",
-            head=regions_side_by_side("regions", "16rem 1fr"),
-            layout="workspace",
-        ),
-        packages=["file-editor", "file-tree"],
-    )
-    for name in ("values", "alerts"):
-        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
-    page = open_page(browser, live_url(url))
-    resized(page, 1200, 900)
-    editor = page.locator("lf-file-editor")
-    expect(
-        editor.get_by_role("textbox", name="File contents", exact=True)
-    ).to_contain_text("values.yaml")
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 300px"}))"""
-    )
-    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
-    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
-    expect(page).to_have_url(re.compile("#config:alerts$"))
-    scroll_settled(page)
-    assert page.evaluate("scrollY") == 0
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):

@@ -36,6 +36,18 @@ export function isHTML(node, tag) {
     (tag === undefined || node.localName === tag)
   );
 }
+// An SVG element, of the named tag where one is given, in any window.
+/** @overload @param {unknown} node @returns {node is SVGElement} */
+/** @template {keyof SVGElementTagNameMap} K @overload
+ * @param {unknown} node @param {K} tag @returns {node is SVGElementTagNameMap[K]} */
+/** @param {unknown} node @param {string} [tag] */
+export function isSVG(node, tag) {
+  return (
+    isElement(node) &&
+    node.namespaceURI === "http://www.w3.org/2000/svg" &&
+    (tag === undefined || node.localName === tag)
+  );
+}
 /** @param {Node | null | undefined} node @returns {node is Element | Text} */
 const isSlottable = (node) => isElement(node) || isText(node);
 /** @param {Node | null | undefined} root */

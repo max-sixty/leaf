@@ -110,12 +110,13 @@ rule draws at once is drawn.
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The
   rail and the margin"). Native block flow and wrapping rows place the page's own
   sidebars and notes from the first paint, and `runtime/content-layout.js` reads their
-  CSS geometry for annotations and never reallocates document space. The chrome opens
-  over the page too, in the
-  room the theme keeps at the page's foot (`--lf-foot-room`). Checks:
-  `test_a_comment_leaves_its_block_as_the_page_wrote_it`, the shift watch, and the
-  render gate's `under-panel` for a page that loses the foot's room
-  (`src/leaf/render-checks/words.js`). Owner:
+  CSS geometry for annotations and never reallocates document space. The floating
+  panel stands over the page too, with no room kept for it: the page lays out in the
+  whole window, and the user folds the panel to its leaf where it covers what they
+  read; it folds itself where focus lands on a place it alone would hide
+  (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
+  (`geometry.js`, `declareCover`). Checks:
+  `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
 - **A box floating over the page grows inside the window**, toward the edge that has
   room, and sending and later growth never scroll the page to make room. Owners:
@@ -326,6 +327,11 @@ directly as in a terminal").
   do, takes the frame's rounding at the corners they share and is square at the
   others. A box that stands clear of every edge, as a message's rewrite does, is
   rounded all round.
+- **A word about shown material stands outside it.** Where the page shows an
+  interface rather than says something, as a capture or a quoted sample does, a word
+  about it, such as Before and After or a sample's note, stands on the page just above
+  its frame or gutter. Inside, the word reads as part of the interface, which could
+  have drawn a band or a heading of its own.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
@@ -700,6 +706,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
+| Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                        |
 | What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                     |
 | Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
@@ -714,7 +721,10 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The room the marks round a target take beside it, a named box's round it included                     | `mark-room.js` `markRoom`                                                          |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
+| How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`              |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
+| What the page shows where the glides under way land, each box put back within the task                | `scrolling.js` `whereGlidesLand`                                                   |
+| How far a scroll of a box carries a node, which a sticky box around it rides only to its line         | `geometry.js` `carried`                                                            |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | The box an input scrolls, along the chain native scrolling follows                                    | `scroll-containers.js` `inputScroller`, `scrollChainOf`                            |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
@@ -799,10 +809,10 @@ review, ask why that fact isn't generated.
 
 ## Startup and presentation
 
-Authored HTML paints at once, the render-blocking theme reserves the floating panel's
-room, and the panel's row stands in it from the first paint: the panel's own first
-drawing, generated into the document (`build/panel-row.mjs`), which the panel takes over
-as it mounts. So mounting the runtime moves nothing. Prose, links and scrolling work
+Authored HTML paints at once, and the floating panel's row stands over it from the first
+paint: the panel's own first drawing, generated into the document
+(`build/panel-row.mjs`), which the panel takes over as it mounts. So mounting the runtime
+moves nothing. Prose, links and scrolling work
 while widgets upgrade; comments and drawing work from `data-lf-upgraded`.
 `../skills/leaf/references/module-authoring.md`, "Startup and presentation", says how a module
 keeps work off the presentation path and how held keys replay.
@@ -836,6 +846,15 @@ them itself.
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
+
+Add a fact only where some part of Leaf, such as the server, `page check` or the first
+paint, must act on it without running the widget's module, and the module can't keep
+the same rule itself. A rule about one widget's markup that its module can check as it
+draws stays in the module, which reports a breach with `reportFailure`, even where
+static validation could observe the same breach. The author then hears of the breach
+from `page check --render`, and in a thread message only after the user opens the
+thread. Keep a rule static where a breach would otherwise reach the log or a stored
+decision (root `AGENTS.md`, "Leaf's role").
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and words a module generates are a passage

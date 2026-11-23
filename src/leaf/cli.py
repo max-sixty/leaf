@@ -479,9 +479,11 @@ def package() -> None:
     help="add one upgraded content widget starter",
 )
 def package_init(package_path: Path, widget: str | None) -> dict:
-    """Create the package layout without replacing existing files.
+    """Create a package's registry.json and defaults.css without replacing
+    existing files.
 
-    With --widget, add one checked upgraded content widget starter.
+    With --widget, add one checked upgraded content widget starter: its
+    declaration in registry.json and its module in widgets/.
     """
     from leaf.packages import cmd_package_init
 

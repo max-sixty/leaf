@@ -246,16 +246,31 @@ const between = (from, to, progress) => ({
   right: from.right + (to.right - from.right) * progress,
   bottom: from.bottom + (to.bottom - from.bottom) * progress,
 });
-/** @param {Insets} sides @param {number} [radius] */
-const insetOf = ([top, right, bottom, left], radius = 0) =>
-  `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
-/** @param {readonly number[]} sides @param {number} [radius] @returns {Keyframe} */
-const clipFrame = (sides, radius = 0) => ({
-  clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
+/** A box's corner radii, top-left, top-right, bottom-right and bottom-left, the order
+ * `inset()` rounds them in. A box inside a frame is square at the corners it doesn't
+ * share with the frame (browser/AGENTS.md, "Visual treatment carries meaning"), so an
+ * outline drawn for it keeps each corner's own rounding.
+ * @typedef {readonly number[]} Radii */
+/** @type {Radii} */
+const SQUARE = [0, 0, 0, 0];
+/** @param {Radii} radii */
+const roundOf = (radii) => radii.map((corner) => `${corner}px`).join(" ");
+/** @param {Insets} sides @param {Radii} [radii] */
+const insetOf = ([top, right, bottom, left], radii = SQUARE) =>
+  `inset(${top}px ${right}px ${bottom}px ${left}px round ${roundOf(radii)})`;
+/** @param {readonly number[]} sides @param {Radii} [radii] @returns {Keyframe} */
+const clipFrame = (sides, radii = SQUARE) => ({
+  clipPath: `inset(var(--lf-box-cut) round ${roundOf(radii)})`,
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
-/** @param {CSSStyleDeclaration} style */
-const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+/** @param {CSSStyleDeclaration} style @returns {Radii} */
+const radiiOf = (style) =>
+  [
+    style.borderTopLeftRadius,
+    style.borderTopRightRadius,
+    style.borderBottomRightRadius,
+    style.borderBottomLeftRadius,
+  ].map((corner) => Number.parseFloat(corner) || 0);
 /** @param {string} color */
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 /** @param {CSSStyleDeclaration} style */
@@ -768,23 +783,25 @@ export function boxMotion({
     );
 
     const space = boxOf(room.getBoundingClientRect());
-    /** @param {Box} at @param {number} grow @param {number} radius @returns {[Insets, number]} */
-    const outline = (at, grow, radius) => [
+    // An outline grown past a rounded corner rounds by as much more, as the browser
+    // draws a ring; a square corner stays square.
+    /** @param {Box} at @param {number} grow @param {Radii} radii @returns {[Insets, Radii]} */
+    const outline = (at, grow, radii) => [
       [
         at.top - space.top - grow,
         space.right - at.right - grow,
         space.bottom - at.bottom - grow,
         at.left - space.left - grow,
       ],
-      radius + grow,
+      radii.map((corner) => (corner > 0 ? Math.max(0, corner + grow) : 0)),
     ];
     const boxStyle = getComputedStyle(box);
-    const boxRadius = radiusOf(boxStyle);
+    const boxRadii = radiiOf(boxStyle);
     for (const [layer, reach, paint] of surface())
       keeps(
         layer,
         "style",
-        `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
+        `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadii))}`,
       );
     const previousBox = was?.get(box);
     if (!was || !previousBox) {
@@ -803,15 +820,15 @@ export function boxMotion({
       if (animation) running.push(animation);
       return animation;
     };
-    /** @param {Box} from @param {Box} to @param {number} grow @param {number} radius @param {boolean} [compact] */
-    const contour = (from, to, grow, radius, compact = false) => {
-      const frames = [clipFrame(...outline(from, grow, radius))];
+    /** @param {Box} from @param {Box} to @param {number} grow @param {Radii} radii @param {boolean} [compact] */
+    const contour = (from, to, grow, radii, compact = false) => {
+      const frames = [clipFrame(...outline(from, grow, radii))];
       if (compact)
         frames.push({
-          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
+          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radii)),
           offset: shapeUntil,
         });
-      frames.push(clipFrame(...outline(to, grow, radius)));
+      frames.push(clipFrame(...outline(to, grow, radii)));
       return frames;
     };
     /** @param {Element} element @param {string} property @param {string} value */
@@ -834,9 +851,9 @@ export function boxMotion({
       inlineStyle(element).setProperty("translate", `var(${CARRY})`);
       start(element, [{ [CARRY]: `${dx}px ${dy}px` }, { [CARRY]: "0px 0px" }]);
     };
-    /** @param {Element} element @param {readonly number[]} cut @param {number} [radius] */
-    const cutFrom = (element, cut, radius = 0) =>
-      start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
+    /** @param {Element} element @param {readonly number[]} cut @param {Radii} [radii] */
+    const cutFrom = (element, cut, radii = SQUARE) =>
+      start(element, [clipFrame(cut, radii), clipFrame([0, 0, 0, 0], radii)]);
 
     // Moved whole, from where it was drawn.
     /** @param {Part} part @param {Box} from */
@@ -906,7 +923,7 @@ export function boxMotion({
       if (!editor || (!inside && gesture !== "typing")) {
         motions.set(part.element, { from, to, carries });
         move(part.element, dx, dy);
-        cutFrom(part.element, cut(), radiusOf(part.style));
+        cutFrom(part.element, cut(), radiiOf(part.style));
         return;
       }
       // A field the change lets stop scrolling, as deleting lines below its cap does,
@@ -970,7 +987,7 @@ export function boxMotion({
           to.bottom - from.bottom,
           from.left - to.left,
         ].map((inset) => Math.max(0, inset)),
-        radiusOf(part.style),
+        radiiOf(part.style),
       );
     }
 
@@ -1115,7 +1132,7 @@ export function boxMotion({
     function drawRing(element, style, from, to, compact = false) {
       const offset = Number.parseFloat(style.outlineOffset);
       const reach = Number.parseFloat(style.outlineWidth) + offset;
-      const radius = radiusOf(style);
+      const radii = radiiOf(style);
       const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
       keeps(ringLayer, "style", `background: ${style.outlineColor}`);
       keeps(ringFill, "style", colour && `background: ${colour}`);
@@ -1128,7 +1145,7 @@ export function boxMotion({
         [ringFill, offset],
       ];
       for (const [layer, grown] of layers)
-        start(layer, contour(from, to, grown, radius, compact));
+        start(layer, contour(from, to, grown, radii, compact));
     }
 
     /** @param {Part} part */
@@ -1183,7 +1200,7 @@ export function boxMotion({
     if (running.length === 0 && same(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
-      start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
+      start(layer, contour(boxFrom, boxAt, reach, boxRadii, compact));
     // A ring the box comes to wear while it moves, as focus reaching the card a
     // comment's Send opened does, would stand at the box's rest size over an outline
     // still travelling, so it waits for the tween's end.

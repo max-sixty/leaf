@@ -38,6 +38,24 @@ When nothing was watching, as can happen after the user interrupts a turn, new i
 naming the page. It comes through Claude
 Code's session messaging, so it looks as if it came from another session.
 
+## Turn-end check
+
+As each turn ends, an experimental check of Leaf's reads the conversation for
+decisions, answers or steps you left to the user that On Me doesn't hold. It asks each
+as your message, usually as a choice where its answers can be listed and otherwise
+with `--obligation`, in a new thread on the passage it concerns or the page, or, for a
+question asked before, in that question's thread under its id, which reopens the
+thread if the user closed it. It tells you at your next step what it wrote. Where a
+few of a page's words have gone stale, it swaps in new ones and tells you the old and
+new words; change them back or rewrite them if they're wrong, and carry the change
+into any file you build the page from. It also tells you what else it found, such as a
+page holding what no longer fits the work, an On Me item the user settled elsewhere,
+or work you set running that no page shows, for you to act on where it still holds;
+`turn-end-check.md` is what it asks. That catches what slips; it doesn't ask for you,
+so keep asking by the routes in `conversation-loop.md`, "The On lists". What it writes
+is yours like anything you write: the user's reply reaches you as any reply does, and
+you resolve the thread of one that isn't theirs, as that section says.
+
 ## Session list
 
 Claude Code's session list (`claude agents`) files a session by the last line of its

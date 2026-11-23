@@ -21,6 +21,7 @@ from render_cases_navigation import (
 from render_harness import (
     RELEASE_FOCUS,
     expect_obligations_answered,
+    gesture_writes,
     held_frames,
     leaf_page,
     open_page,
@@ -748,6 +749,51 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     with sending(page, "the answer"):
         page.keyboard.press("2")
     assert answer() == ["right"]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
+    engine, request, serve
+):
+    """With focus on an ask, a choice a scroll brings back into the window wears its
+    digit from the frame it enters, while the scroll still moves, as it would once the
+    scroll ends (command-hints.js). The choice enters at the window's top, clear of
+    the panel's row, and the choice after it keeps the ask in sight meanwhile."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "A long ask",
+                '<h1>A long ask</h1><lf-group id="route" label="Which route?"><h2 id="route-h">Which route?</h2>'
+                '<lf-options id="routes">'
+                '<lf-option id="left">Take the left route<div style="height:1600px"></div></lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                '<lf-option id="back">Go back<div style="height:1600px"></div></lf-option>'
+                '</lf-options></lf-group><div style="height:4000px">Reading on</div>',
+            )
+        ),
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#left > .lf-key-badge")).to_be_visible()
+    gesture_writes(page, 2600)
+    expect(page.locator("#right")).not_to_be_in_viewport()
+    _, _, samples = gesture_writes(
+        page,
+        -1200,
+        sample="""() => {
+          const choice = document.getElementById('right');
+          const digit = choice.querySelector(':scope > .lf-key-badge');
+          const top = choice.getBoundingClientRect().top;
+          return {
+            seen: top >= 0 && top < innerHeight / 2,
+            worn: Boolean(digit?.checkVisibility({opacityProperty: true}))
+              && digit.textContent.trim() === '2',
+          };
+        }""",
+    )
+    seen = [sample["read"] for sample in samples if sample["read"]["seen"]]
+    assert len(seen) >= 3, samples
+    assert all(read["worn"] for read in seen), samples
 
 
 def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serve):

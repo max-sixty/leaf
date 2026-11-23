@@ -9,20 +9,18 @@ whose authors never met work together on a Leaf page and on a page without Leaf.
 names the other by id in an attribute it declares under `refers`, `for` by
 convention ("References between widgets"), and then:
 
-| To                                               | Use                                                                                                                                                   | `page check` holds                                         |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract |
-| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                   |
-| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                               |
+| To                                               | Use                                                                                                                                                   | `page check` holds                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract        |
+| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                          |
+| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the `refers` attribute names an element; a link is unchecked |
 
 A recorded answer stays its owner's, and only the owner's module records it
 ("User state"). Another widget shows that answer by reading an output the owner holds,
 and changes it by asking the owner with a command the owner turns into its own verb. The
 log then holds one answer whichever widget the user changed it in, Undo takes back
 that one action, and the same two modules work off Leaf, where the owner keeps the
-answer itself. A view whose own place on the page is that answer, as a board card
-stands in the column of a pick, declares `shows` instead ("Views of an answer"),
-since the server has to place it.
+answer itself.
 
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
@@ -453,9 +451,11 @@ to a place, does that in the next frame (`frameFor`).
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
 
-`page check --render` and `package check --render` validate every value an output
-holds as it says `change` during their render, including values later withdrawn or
-replaced and values from contained samples whose frames are later disposed. A
+`page check --render` and `package check --render` validate the value an output
+holds each time its element says `change` during their render, including values later
+withdrawn or replaced and values from contained samples whose frames are later
+disposed. They listen at the window, so they check a producer inside another widget's
+shadow tree only where its `change` is composed, which `new Event("change")` is not. A
 mismatch is an error naming the producer, output, contract and value path. Captured
 provenance names the implementation owner and, when different, the output declaration
 and data contract owners: a page can change each independently. These checks cover
@@ -483,8 +483,8 @@ value at once. `leaf data clear` removes the value, and each bound widget receiv
 `null`. A value that stops fitting a later contract shows users an error for that
 source, and `page check` and `page state` report it. A stamped version keeps the
 contract it was stamped with, so a value written for a changed contract shows there as
-a source error. `leaf page state PAGE` lists every binding under `data_bindings`, so a
-producer needn't parse markup. Every value goes to every user of the page, so never put
+a source error. `leaf page state PAGE` lists each bound source under `data_bindings`, so
+a producer needn't parse markup. Every value goes to every user of the page, so never put
 credentials or private host state in one.
 
 Leaf keeps no old values: every document bound to a source, stamped versions and

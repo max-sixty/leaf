@@ -98,10 +98,7 @@ import {
   scrollerFor,
   PRESS,
   rowArrows,
-  onMotionPreferenceChange,
   rankAt,
-  reducedMotion,
-  scrollBehavior,
   keeps,
   keepsHidden,
   keepsText,
@@ -383,12 +380,14 @@ customElements.define(
 
     #observeMotion() {
       if (!this.#sortables.size) return;
-      for (const sortable of this.#sortables)
-        sortable.option("animation", reducedMotion() ? 0 : 150);
-      return onMotionPreferenceChange((/** @type {boolean} */ reduced) => {
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+      const animate = () => {
         for (const sortable of this.#sortables)
-          sortable.option("animation", reduced ? 0 : 150);
-      });
+          sortable.option("animation", reduced.matches ? 0 : 150);
+      };
+      animate();
+      reduced.addEventListener("change", animate);
+      return () => reduced.removeEventListener("change", animate);
     }
 
     #paintAvailability = () => {
@@ -769,7 +768,9 @@ customElements.define(
       if (grip) {
         focusDestination(grip, "return");
         scrollIntoView(card, {
-          behavior: scrollBehavior(),
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "instant"
+            : "smooth",
           block: "nearest",
         });
       }

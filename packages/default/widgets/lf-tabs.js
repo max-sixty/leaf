@@ -119,7 +119,6 @@ import {
   registerRootHeader,
   replaceEntry,
   restorePlace,
-  scrollBehavior,
   selectableOffered,
   sizeObserver,
   tabStore,
@@ -709,7 +708,9 @@ export class TabSet extends LeafElement {
             left:
               strip.scrollLeft +
               ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-            behavior: scrollBehavior(),
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "instant"
+              : "smooth",
           });
         }}
         >${actionTemplate(to === "start" ? "previous" : "next", "lf-tabstrip-scroll-icon")}</span

@@ -1,6 +1,6 @@
-import { canvas2D } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
+  canvas2D,
   colourableAs,
   colouredAs,
   inPage,

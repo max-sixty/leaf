@@ -72,7 +72,6 @@ import {
   layoutChanged,
   onCurrentLocation,
   onPress,
-  isNativeLayer,
   LeafElement,
   registerReadingRegion,
   reachedForWords,
@@ -239,8 +238,7 @@ customElements.define(
         let width = innerWidth;
         const putAway = () => {
           const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction && isNativeLayer(instruction))
-            closeNativeLayer(instruction);
+          if (innerWidth !== width && instruction) closeNativeLayer(instruction);
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });

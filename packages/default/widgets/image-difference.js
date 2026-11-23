@@ -93,8 +93,6 @@
  * The clustering library loads only when a reading needs it, after page presentation;
  * this module touches no document. */
 
-import { canvas2D } from "/runtime/portable-api.js";
-
 /** @typedef {{x: number, y: number, width: number, height: number}} Rectangle */
 /** @typedef {{width: number, height: number, data: Uint8Array | Uint8ClampedArray}} PixelImage */
 /** @typedef {Extract<CanvasImageSource, {width: number, height: number}>} SizedImage */
@@ -834,6 +832,17 @@ export function compareImagePixels(a, b) {
   return changedPixels(pixels(a), pixels(b));
 }
 
+// A canvas of that size to read an image's pixels back from. A browser refusing the
+// context fails here, before a blank reading can pass for the image's.
+/** @param {number} width @param {number} height */
+function readingContext(width, height) {
+  const context = new OffscreenCanvas(width, height).getContext("2d", {
+    willReadFrequently: true,
+  });
+  if (!context) throw new Error("The browser could not create a 2D canvas context");
+  return context;
+}
+
 // The side of a thumbnail `paperOf` counts, enough that a screenshot's background
 // outnumbers everything drawn on it.
 const PAPER_SAMPLE = 48;
@@ -845,9 +854,7 @@ const PAPER_SAMPLE = 48;
  * @param {HTMLImageElement} image
  * @returns {{color: string, scheme: "light" | "dark"} | null} */
 export function paperOf(image) {
-  const context = canvas2D(new OffscreenCanvas(PAPER_SAMPLE, PAPER_SAMPLE), {
-    willReadFrequently: true,
-  });
+  const context = readingContext(PAPER_SAMPLE, PAPER_SAMPLE);
   context.drawImage(image, 0, 0, PAPER_SAMPLE, PAPER_SAMPLE);
   const { data } = context.getImageData(0, 0, PAPER_SAMPLE, PAPER_SAMPLE);
   /** @type {Map<number, number>} */
@@ -880,9 +887,7 @@ export function paperOf(image) {
 function pixels(image) {
   const width = "naturalWidth" in image ? image.naturalWidth : image.width;
   const height = "naturalHeight" in image ? image.naturalHeight : image.height;
-  const context = canvas2D(new OffscreenCanvas(width, height), {
-    willReadFrequently: true,
-  });
+  const context = readingContext(width, height);
   context.drawImage(image, 0, 0);
   return context.getImageData(0, 0, width, height);
 }

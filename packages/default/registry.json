@@ -431,7 +431,6 @@
       "additionalProperties": false
     },
     "content": "members",
-    "space": "available",
     "verbs": {
       "move": {
         "unit": "unit",

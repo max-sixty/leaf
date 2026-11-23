@@ -6,16 +6,14 @@
  * board stacks its columns there (board.css), so another column is a long press-hold
  * drag through autoscroll away, and the buttons name every destination where the card is.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
- * arrows restate the card's placement (announced through the live region), Enter drops,
+ * arrows restate the card's placement (said in the board's status region), Enter drops,
  * and Escape or focus loss restores the origin. Left and Right change column, named for
  * the column rather than a direction, since on a stacked board the next column stands
  * below; there Down past a column's last card continues into the column below and Up
  * past its first into the one above, the next slot the user sees (#step). Escape also
  * cancels a pointer drag.
- * For the whole gesture the board holds
- * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
- * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
- * completed move
+ * For the whole gesture the board defers its own drawing (`defer`), so no foreign
+ * move replays mid-gesture; a completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. Its render receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
@@ -70,6 +68,11 @@
  * walk. The column's heading is the module's span, aria-hidden, so the label
  * reaches the tree once, as the list's name, rather than twice.
  *
+ * The module writes the browser's own forms for focus, moves, motion, scrolling and
+ * announcements: a card moves with `moveBefore`, which keeps its focus and state, and
+ * with `insertBefore` in WebKit, which lacks it; the board's own `role="status"`
+ * region says each step.
+ *
  * A column's heading is the one title the default widgets draw from a `label`, where
  * option cards, board cards and samples show only what their author writes
  * (lf-options.js). The column is a list the board builds, and its heading is that
@@ -79,42 +82,49 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  setScroll,
-  elementById,
   LeafElement,
-  move,
-  offer,
   offerAction,
-  generatedElement,
   quoted,
-  announce,
-  labelOf,
   layoutChanged,
   previewChanged,
-  saying,
-  dragging,
-  motion,
-  motionPreview,
   scrollerFor,
-  PRESS,
-  rowArrows,
-  onMotionPreferenceChange,
   rankAt,
-  reducedMotion,
-  scrollBehavior,
-  keeps,
-  keepsHidden,
-  keepsText,
-  focusDestination,
-  scrollIntoView,
-  whileConnected,
-  focused,
   declarationFor,
-  authoredScope,
   widgetController,
   commandsChanged,
   reportFailure,
 } from "/runtime/widget-api.js";
+
+// The reader's motion preference, which every slide and smooth reveal here asks.
+const stillness = matchMedia("(prefers-reduced-motion: reduce)");
+
+// The element an id names in the tree `node` stands in.
+/** @param {Node} node @param {string | null} id */
+const byId = (node, id) => {
+  const root = node.getRootNode();
+  return id && (root instanceof Document || root instanceof ShadowRoot)
+    ? root.getElementById(id)
+    : null;
+};
+
+// Place `node` in `parent` before `before`, keeping its focus where the browser can.
+/** @param {Element} parent @param {Element} node @param {Element | null} before */
+const put = (parent, node, before) => {
+  // WebKit lacks moveBefore.
+  if (parent.moveBefore) parent.moveBefore(node, before);
+  else parent.insertBefore(node, before);
+};
+
+// Slide `card` to where it now stands from `dx`, `dy` away, for a reader who takes
+// motion.
+/** @param {Element} card @param {number} dx @param {number} dy */
+const slide = (card, dx, dy) =>
+  stillness.matches
+    ? null
+    : card.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+        { duration: 150, easing: "ease" },
+      );
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -151,7 +161,7 @@ const showsId = (card) => card.getAttribute("shows") || null;
 function shownWidget(card) {
   const id = showsId(card);
   if (id === null) return null;
-  const owner = elementById(id, authoredScope(card));
+  const owner = byId(card, id);
   if (!owner)
     return {
       fault:
@@ -178,8 +188,7 @@ function valuelessFault(card, { owner, record }) {
   if (record.kind !== "attribute") return null;
   const members = widgetController(owner).read().memberships?.[record.attr];
   if (!members?.length) return null;
-  const scope = authoredScope(owner);
-  return members.some((member) => elementById(member, scope)?.hasAttribute(VALUE))
+  return members.some((member) => byId(owner, member)?.hasAttribute(VALUE))
     ? null
     : `shows="${showsId(card)}" names <${owner.localName}>, none of whose members ` +
         `carries a \`${VALUE}\`, so no pick puts the card in a column; give each ` +
@@ -203,11 +212,10 @@ function shownAnswer(card) {
   const reading = controller.read();
   const state = reading.state?.[verb];
   if (!state) return null;
-  const scope = authoredScope(owner);
   const valueOf =
     record.kind === "attribute"
       ? (/** @type {string} */ member) =>
-          elementById(member, scope)?.getAttribute(VALUE) ?? null
+          byId(owner, member)?.getAttribute(VALUE) ?? null
       : null;
   const detailFor = (/** @type {string | null} */ value) => {
     if (!valueOf) return value === null ? null : { value };
@@ -245,8 +253,17 @@ customElements.define(
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
     /** @type {Grab | null} */
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
-    /** @type {MutationObserver | null} */
-    #namesObserver = null;
+    // What the board wires while it stands in a document, ended as it leaves.
+    /** @type {AbortController | null} */
+    #standing = null;
+    #interactive = false;
+    // The board's own words for a listener, and the timer that says the next.
+    /** @type {HTMLElement | null} */
+    #status = null;
+    #saying = 0;
+    // The column each destination button moves its card to.
+    /** @type {WeakMap<Element, HTMLElement>} */
+    #targets = new WeakMap();
     /** @type {Set<Sortable>} */
     #sortables = new Set();
     /** @type {(() => void) | null} */
@@ -268,23 +285,60 @@ customElements.define(
         this.#destinations(card);
       }
       this.#names();
+      // Each step of a move, for a listener: a polite region of the board's own.
+      const status = (this.#status = document.createElement("div"));
+      status.className = "lf-board-status";
+      status.setAttribute("role", "status");
+      this.append(status);
+      this.#interactive = true;
+    }
+
+    connectedCallback() {
+      // The first connection runs `setup`.
+      super.connectedCallback();
+      if (this.#interactive && !this.#standing) this.#stand();
+    }
+
+    // A move that keeps the board's state (`moveBefore`) is no departure, so it calls
+    // neither `connectedCallback` nor `disconnectedCallback`.
+    connectedMoveCallback() {}
+
+    // The drags, the grip names and the motion preference, wired while the board
+    // stands in a document.
+    #stand() {
+      const { signal } = (this.#standing = new AbortController());
+      for (const col of this.#columns()) this.#sortable(col);
       // Grip names come from where their cards sit, so column child-list mutations
       // restate them — not the four paths that move a card (arrow step, drag, cancel,
       // replay), any of which would eventually forget. #names writes an aria-label on
       // the grip, which is not a child-list mutation and cannot feed this pass back
       // into itself.
-      whileConnected(this, () => {
-        for (const col of this.#columns()) this.#sortable(col);
-        this.#observeNames();
-        const stopMotion = this.#observeMotion();
-        return () => {
-          this.#namesObserver?.disconnect();
-          this.#namesObserver = null;
-          stopMotion?.();
-          for (const sortable of this.#sortables) sortable.destroy();
-          this.#sortables.clear();
-        };
+      const names = new MutationObserver(() => this.#names());
+      for (const col of this.#columns()) names.observe(col, { childList: true });
+      const animate = () => {
+        for (const sortable of this.#sortables)
+          sortable.option("animation", stillness.matches ? 0 : 150);
+      };
+      animate();
+      stillness.addEventListener("change", animate, { signal });
+      signal.addEventListener("abort", () => {
+        names.disconnect();
+        for (const sortable of this.#sortables) sortable.destroy();
+        this.#sortables.clear();
       });
+    }
+
+    // Said in the board's status region. The words leave it first, since a listener
+    // hears a region's words as they change, and "move cancelled" can follow itself.
+    /** @param {string} words */
+    #say(words) {
+      const status = this.#status;
+      if (!status) return;
+      status.textContent = "";
+      clearTimeout(this.#saying);
+      this.#saying = setTimeout(() => {
+        status.textContent = words;
+      }, 30);
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -297,30 +351,25 @@ customElements.define(
     //
     // The heading is written here too, because it is two things at once: the words a
     // user selects to comment on the column, and the list's accessible name, so the
-    // tree hears them once, as the name. It is the page speaking (`says: true`) and
-    // generated, so the diff looks away, and it isn't .lf-ui, so the anchor pass
-    // doesn't.
+    // tree hears them once, as the name.
     #structure() {
       for (const col of this.#columns()) {
         col.setAttribute("role", "list");
-        keeps(col, "aria-label", col.getAttribute("label"));
+        col.setAttribute("aria-label", col.getAttribute("label") ?? "");
         for (const card of this.#cards(col)) card.setAttribute("role", "listitem");
         if (col.querySelector(":scope > .lf-column-name")) continue;
         const heading = document.createElement("span");
         heading.className = "lf-column-name";
-        generatedElement(heading, { says: true });
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
         // select them, and the theme's generated copy is left to the no-script case.
         heading.setAttribute("aria-hidden", "true");
         heading.textContent = col.getAttribute("label");
         // How many cards stand in the column, beside its heading rather than in it, so
-        // the heading's words stay the column's name. Generated like the heading, and
-        // quotable like it: a figure the user can see is one they can point at. The
-        // list already tells a screen reader its length, so it is the visible half only.
+        // the heading's words stay the column's name. The list already tells a
+        // screen reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
-        generatedElement(count, { says: false });
         count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
         heading.after(count);
@@ -331,7 +380,8 @@ customElements.define(
     #counts() {
       for (const col of this.#columns()) {
         const count = col.querySelector(":scope > .lf-column-count");
-        keepsText(count, this.#cards(col).length);
+        const cards = String(this.#cards(col).length);
+        if (count && count.textContent !== cards) count.textContent = cards;
       }
     }
 
@@ -346,23 +396,21 @@ customElements.define(
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
-          keeps(grip, "aria-label", name);
+          if (grip && grip.ariaLabel !== name) grip.ariaLabel = name;
           /** @type {NodeListOf<HTMLButtonElement>} */
           const destinations = card.querySelectorAll(
             ":scope > .lf-board-destinations > .lf-board-destination",
           );
-          for (const button of destinations)
-            keepsHidden(
-              button,
-              button.getAttribute("data-lf-board-target") === col.id ||
-                !this.#takes(
-                  card,
-                  elementById(button.getAttribute("data-lf-board-target")),
-                ),
+          for (const button of destinations) {
+            const target = this.#targets.get(button) ?? null;
+            button.toggleAttribute(
+              "hidden",
+              target === col || !this.#takes(card, target),
             );
+          }
           // With no button to show, the group's "Move to" would name no destination.
-          keepsHidden(
-            card.querySelector(":scope > .lf-board-destinations"),
+          card.querySelector(":scope > .lf-board-destinations")?.toggleAttribute(
+            "hidden",
             [...destinations].every((button) => button.hidden),
           );
         }
@@ -372,23 +420,14 @@ customElements.define(
     // A board inside a Claude reply detaches when its thread's node is rebuilt —
     // resolving is the occasion the reconciled panel leaves, its cached body
     // re-adopted into the new node — and no blur fires for a detached grip, so
-    // drop a live grab here or it holds the page's drag for good — freezing action
-    // replay and version-follow.
+    // drop a live grab here or it holds the board's own drawing for good.
     disconnectedCallback() {
       super.disconnectedCallback();
       if (this.#grabbed) this.#cancel(this.#grabbed);
       this.#superseded = null;
       this.#finishGesture();
-    }
-
-    #observeMotion() {
-      if (!this.#sortables.size) return;
-      for (const sortable of this.#sortables)
-        sortable.option("animation", reducedMotion() ? 0 : 150);
-      return onMotionPreferenceChange((/** @type {boolean} */ reduced) => {
-        for (const sortable of this.#sortables)
-          sortable.option("animation", reduced ? 0 : 150);
-      });
+      this.#standing?.abort();
+      this.#standing = null;
     }
 
     #paintAvailability = () => {
@@ -398,9 +437,11 @@ customElements.define(
       for (const sortable of this.#sortables) sortable.option("disabled", !any);
       for (const [card, available] of movable) {
         const grip = card.querySelector(":scope > .lf-grip");
-        if (grip) {
-          keeps(grip, "aria-disabled", !available);
-          keeps(grip, "tabindex", available ? 0 : -1);
+        if (grip instanceof HTMLElement) {
+          const disabled = String(!available);
+          if (grip.ariaDisabled !== disabled) grip.ariaDisabled = disabled;
+          const stop = available ? 0 : -1;
+          if (grip.tabIndex !== stop) grip.tabIndex = stop;
         }
         for (const button of card.querySelectorAll(
           ":scope > .lf-board-destinations button",
@@ -447,17 +488,6 @@ customElements.define(
       );
     }
 
-    #observeNames() {
-      if (
-        this.#namesObserver ||
-        !this.querySelector(":scope > lf-column > lf-card > .lf-grip")
-      )
-        return;
-      this.#namesObserver = new MutationObserver(() => this.#names());
-      for (const col of this.#columns())
-        this.#namesObserver.observe(col, { childList: true });
-    }
-
     /** @param {Element} card */
     #title(card) {
       return card.getAttribute("label")?.trim() || card.id;
@@ -498,7 +528,7 @@ customElements.define(
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.
-      const [back] = rowArrows(this);
+      const back = this.matches(":dir(rtl)") ? "ArrowRight" : "ArrowLeft";
       /** @param {string} binding */
       const column = (binding) =>
         `Move it to the ${binding === back ? "previous" : "next"} column`;
@@ -511,12 +541,12 @@ customElements.define(
       ].slice(shows ? 2 : 0);
       const grab = {
         id: "board.grab",
-        keys: PRESS,
+        keys: ["Enter", " "],
         title: "grab the card",
 
         // One gesture at a time: a grab, or a pointer drag under way, holds the board.
         when: () => this.#movable(card) && !this.#resumeProjection,
-        run: () => this.#grab(card, grip, rows),
+        run: () => this.#grab(card, grip),
       };
       // The grip says the drag, as its description and under its name in its preview;
       // the keys that grab it are the row's own, its activation, which a control's
@@ -527,7 +557,7 @@ customElements.define(
       // Grabbed, the card is moving, so the grip says nothing over it until it drops.
       grip.lfPreview = () =>
         !held() && {
-          keys: grab.keys.map((binding) => [labelOf({ ...grab, keys: [binding] })]),
+          keys: grab.keys.map((binding) => [binding]),
           detail: [drag],
         };
       /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
@@ -544,18 +574,18 @@ customElements.define(
           // The card goes where it is moved, and the view and the user with it.
           travels: true,
           runKey: (binding) => {
-            const [back, ahead] = rowArrows(this);
+            const along = this.matches(":dir(rtl)") ? -1 : 1;
             this.#step(
               card,
               grip,
-              binding === back ? -1 : binding === ahead ? 1 : 0,
+              binding === "ArrowLeft" ? -along : binding === "ArrowRight" ? along : 0,
               binding === "ArrowUp" ? -1 : binding === "ArrowDown" ? 1 : 0,
             );
           },
         },
         {
           id: "board.drop",
-          keys: PRESS,
+          keys: ["Enter", " "],
           title: "drop",
           when: held,
           run: () => {
@@ -592,7 +622,7 @@ customElements.define(
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
-          if (this.#grabbed?.grip === grip && focused() !== grip)
+          if (this.#grabbed?.grip === grip && !grip.matches(":focus"))
             this.#cancel(this.#grabbed);
         });
       });
@@ -603,12 +633,12 @@ customElements.define(
     #destinations(card) {
       const columns = [...this.#columns()];
       if (columns.length < 2) return;
-      const group = offer("div", "lf-board-destinations");
+      const group = document.createElement("div");
+      group.className = "lf-board-destinations";
       group.setAttribute("role", "group");
       group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
       const label = document.createElement("span");
       label.className = "lf-board-destinations-label";
-      generatedElement(label, { says: false });
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {
@@ -618,6 +648,7 @@ customElements.define(
           column.getAttribute("label") ?? undefined,
         );
         button.dataset.lfBoardTarget = column.id;
+        this.#targets.set(button, column);
         button.setAttribute(
           "aria-label",
           `Move ${this.#title(card)} to ${column.getAttribute("label")}`,
@@ -640,8 +671,8 @@ customElements.define(
       card.append(group);
     }
 
-    /** @param {BoardCard} card @param {HTMLElement} grip @param {readonly import("/runtime/keyboard/bindings.js").Command[]} rows */
-    #grab(card, grip, rows) {
+    /** @param {BoardCard} card @param {HTMLElement} grip */
+    #grab(card, grip) {
       if (!this.#movable(card)) return;
       const from = card.parentElement;
       const cards = this.#cards(from);
@@ -652,10 +683,11 @@ customElements.define(
       previewChanged(grip);
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
-      const grabbed = `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
-        index + 1
-      } of ${cards.length}`;
-      announce(() => [grabbed, saying(rows)].filter(Boolean).join(" — "));
+      this.#say(
+        `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
+          index + 1
+        } of ${cards.length}`,
+      );
     }
 
     /** @param {BoardCard} card @param {HTMLElement} grip @param {number} dCol @param {number} dRow */
@@ -696,7 +728,7 @@ customElements.define(
       this.#place(card, target, index, grip);
       const now = card.parentElement;
       const cards = this.#cards(now);
-      announce(
+      this.#say(
         `${this.#title(card)} — ${now.getAttribute("label")}, position ${
           cards.indexOf(card) + 1
         } of ${cards.length}`,
@@ -726,16 +758,14 @@ customElements.define(
       // without taking the viewport from the control the user deliberately entered.
       this.#place(card, from, index, refocus ? grip : null);
       this.#finishGesture();
-      announce(`${this.#title(card)} — move cancelled`);
+      this.#say(`${this.#title(card)} — move cancelled`);
     }
 
     #beginGesture() {
       this.#resumeProjection ??= this.controller.defer();
-      dragging(this, true);
     }
 
     #finishGesture() {
-      dragging(this, false);
       this.#resumeProjection?.();
       this.#resumeProjection = null;
     }
@@ -757,7 +787,7 @@ customElements.define(
     /** @param {Element} card @param {Element} col @param {number} index @param {HTMLElement | null} [grip] */
     #place(card, col, index, grip = null) {
       for (const box of [this, scrollerFor(this)])
-        setScroll(box, {
+        box.scrollTo({
           left: box.scrollLeft,
           top: box.scrollTop,
           behavior: "instant",
@@ -765,23 +795,19 @@ customElements.define(
       const first = card.getBoundingClientRect();
       for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);
-      move(col, card, rest[index] ?? null);
+      put(col, card, rest[index] ?? null);
       if (grip) {
-        focusDestination(grip, "return");
-        scrollIntoView(card, {
-          behavior: scrollBehavior(),
+        grip.focus({ preventScroll: true });
+        card.scrollIntoView({
+          behavior: stillness.matches ? "instant" : "smooth",
           block: "nearest",
+          inline: "nearest",
         });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
-      if (dx || dy)
-        motion(
-          card,
-          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-          150,
-        );
+      if (dx || dy) slide(card, dx, dy);
     }
 
     // One completed move, drag or keyboard: the card's rank among the destination's
@@ -863,7 +889,15 @@ customElements.define(
         // that product boundary from the board alone.
         scroll: scroller instanceof HTMLElement ? scroller : false,
         forceFallback: true, // pointer-driven label preview, including touch
-        cloneElement: (card) => motionPreview(this.#title(card)),
+        // The follower carries the card's name, never a second live card.
+        cloneElement: (card) => {
+          const follower = document.createElement("div");
+          follower.className = "lf-motion-preview";
+          follower.textContent = this.#title(card);
+          follower.inert = true;
+          follower.ariaHidden = "true";
+          return follower;
+        },
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
@@ -889,7 +923,7 @@ customElements.define(
           this.#beginGesture();
           // The held card owns the keyboard too, through its existing grip scope.
           const grip = evt.item.querySelector(":scope > .lf-grip");
-          if (grip) focusDestination(grip, "return");
+          if (grip instanceof HTMLElement) grip.focus({ preventScroll: true });
         },
         onEnd: (evt) => {
           // Ahead of the branches below, because the one that returns early sends
@@ -916,7 +950,7 @@ customElements.define(
           ) {
             this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));
             this.#finishGesture();
-            announce(`${this.#title(card)} — move cancelled`);
+            this.#say(`${this.#title(card)} — move cancelled`);
             return;
           }
           if (from === to && oldIndex === newIndex) {
@@ -1035,7 +1069,7 @@ customElements.define(
         order.forEach((id, index) => {
           const card = cards.find((candidate) => candidate.id === id);
           if (card && this.#cards(column)[index] !== card)
-            move(column, card, this.#cards(column)[index] ?? null);
+            put(column, card, this.#cards(column)[index] ?? null);
         });
       }
       const movements = [];
@@ -1044,11 +1078,7 @@ customElements.define(
         const dx = before.left - last.left;
         const dy = before.top - last.top;
         if (dx || dy) {
-          const played = motion(
-            card,
-            [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-            150,
-          );
+          const played = slide(card, dx, dy);
           if (played) movements.push(played.finished);
         }
       }

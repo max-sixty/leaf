@@ -52,6 +52,33 @@ lf-board {
     );
   }
 }
+/* The board's width is its holder's, and its columns never widen that box. Standing
+   in a column or a flow, it takes the room the page gives on both sides of the prose
+   (`--lf-free-start`, `--lf-free-end`, zero everywhere else), reaching back before the
+   prose by a start margin so its box in flow is where it is drawn. */
+lf-board {
+  contain: inline-size;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+@media screen {
+  lf-board {
+    inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
+    max-inline-size: none;
+    margin-inline-start: calc(-1 * var(--lf-free-start));
+  }
+}
+/* The board's words for a listener (lf-board.js, `#say`): heard, never seen, and out
+   of the grid's tracks. */
+lf-board > .lf-board-status {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 lf-board:has(> lf-column:nth-of-type(2)) {
   --lf-board-columns: 2;
 }
@@ -80,7 +107,7 @@ lf-board {
   ); /* the card's two 1px borders */
   grid-auto-columns: 1fr;
   gap: var(--lf-sp-2);
-  margin: 14px 0;
+  margin-block: 14px;
   align-items: stretch;
   overflow-x: auto;
   scroll-snap-type: inline proximity;

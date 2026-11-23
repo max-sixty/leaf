@@ -1763,6 +1763,16 @@ export default [
     },
   },
   {
+    // The board moves its cards, focuses its grips and reveals a moved card with the
+    // browser's own calls (`moveBefore`, `focus`, `scrollIntoView`), so the rules that
+    // send those through Leaf's helpers are off for it.
+    files: ["packages/default/widgets/lf-board.js"],
+    rules: {
+      "architecture/placements": "off",
+      "architecture/moves": "off",
+    },
+  },
+  {
     // Kernel widgets use their private owners; package widgets use the public API.
     files: ["browser/widgets/**/*.js"],
     rules: entryBoundary,

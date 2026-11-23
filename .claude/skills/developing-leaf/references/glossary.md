@@ -29,7 +29,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The On view's tab in Leaf's panel, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
-| **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
+| **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source. Versions names the one the user last saw **v3 (last seen)** while the page has changed since |
 
 The user is talking with the agent, and the page is where that conversation happens,
 so every word a surface shows about the work is said by the agent or by Leaf, and
@@ -246,6 +246,10 @@ its link's preview counts them.
 Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `g H`
 toggles what the page shows without changing what input means. Commands have stable
 dotted ids.
+
+An *invoker command* is HTML's request from a button to another element
+(`commandfor`, `command="--seek"`), which one widget sends another; a bare *command* is
+always a keyboard command.
 
 A *binding* is one key a scope's row declares for a command; code, the register and
 package authors use this word. A *shortcut* is the whole key sequence a user

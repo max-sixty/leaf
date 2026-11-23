@@ -196,13 +196,16 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
 @cache
 def model_layer(*packages: str) -> dict:
-    """The vocabulary `page init` vendors for one package selection.
+    """The vocabulary `page init` vendors for one package selection, a path in it
+    naming a package from the checkout's root, as `./tests/fixtures/packages/records`.
 
-    Composed from the bundled packages rather than read back out of a page, and
+    Composed from the packages rather than read back out of a page, and
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(
+        layer_model.layer_inputs(packages, base=ROOT)
+    )
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -2518,6 +2521,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
             "}\n"
         )
     if upgrade:
+        (package / "widgets").mkdir(exist_ok=True)
         (package / "widgets" / f"{tag}.js").write_bytes(
             packages_model.starter_widget_module(tag)
         )

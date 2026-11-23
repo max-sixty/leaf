@@ -404,7 +404,13 @@ async function boot() {
     captureObligationCurrentLocation: () => items.captureCurrentLocation(),
     restoreObligationCurrentLocation: (currentLocation) =>
       items.restoreCurrentLocation(currentLocation),
-    versions: { press: () => floatingPanel.doors.versions.press() },
+    versions: {
+      press: () => floatingPanel.doors.versions.press(),
+      shows: () => floatingPanel.doors.versions.shows(),
+      get scope() {
+        return floatingPanel.doors.versions.scope;
+      },
+    },
   });
 
   const inputs = createCompositionInputs({

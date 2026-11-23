@@ -10,7 +10,6 @@ from .contract import (
     deciding_verb,
     fact_condition,
     gathering,
-    reference_relation_problem,
     registry_error,
     registry_finding,
     require_module,
@@ -51,10 +50,14 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         ) from error
     if entry.get("text-format") == "markdown" and entry.get("content") != "data":
         raise registry_error("markdown-needs-data", path, tag)
-    # An unbound data widget's <pre> is its one input's text (element-data.js,
+    # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
-    # the element's words or its recorded state.
-    inputs = entry.get("inputs", {})
+    # the element's words or its recorded state. Its other inputs leave the <pre> alone.
+    inputs = [
+        spec
+        for spec in entry.get("inputs", {}).values()
+        if spec.get("property") == "value"
+    ]
     if entry.get("content") == "data" and inputs:
         if len(inputs) > 1:
             raise registry_error("data-input", path, tag, reason="inputs")
@@ -105,7 +108,6 @@ def _validate_widget_relations(
     )
     validate_deciding_verb(tag, entry, path)
     validate_widget_retirement(tag, entry, declarations, path)
-    _validate_shown_answers(tag, entry, declarations, path)
     validate_answered_conditions(tag, entry, data, declarations, path)
 
 
@@ -117,16 +119,14 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
     return isinstance(schema, dict) and schema.get("type") == kind
 
 
-def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Finding]:
+def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     """What the element declaration of `tag` in `registry`, read with its defaults
     written in, advises its author, each finding naming the file `path`: a data
     input's source attribute not declared a string, which `leaf data`'s own grammar
     still checks; a measured input whose source or run receipt an instance may leave
-    out, so that instance is never compared with its source's latest run; a widget
-    that asks with no string `id` declared, which each instance's own check still
-    requires; and a `refers` relation no element in `declarations` can meet, which
-    each reference an instance makes still meets or is refused
-    (`reference-contract`)."""
+    out, so that instance is never compared with its source's latest run; and a
+    widget that asks with no string `id` declared, which each instance's own check
+    still requires."""
     entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
@@ -161,24 +161,16 @@ def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Fi
             )
     if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
         found.append(registry_finding("addressable-id", path, tag, key="awaits"))
-    for attribute, reference in entry.get("refers", {}).items():
-        if problem := reference_relation_problem(reference, registry, declarations):
-            code, values = problem
-            found.append(registry_finding(code, path, tag, attr=attribute, **values))
     return found
 
 
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> dict:
-    for key, named in (
-        ("owners", entry.get("owners", [])),
-        ("unique", entry.get("unique", {}).values()),
-    ):
-        if unknown := sorted(set(named) - set(declarations)):
-            raise registry_error(
-                "unknown-declarations", path, tag, key=key, names=unknown
-            )
+    if unknown := sorted(set(entry.get("owners", [])) - set(declarations)):
+        raise registry_error(
+            "unknown-declarations", path, tag, key="owners", names=unknown
+        )
     attributes = entry["attributes"]
     properties = attributes.get("properties", {})
     required = set(attributes.get("required", []))
@@ -215,9 +207,8 @@ def _validate_widget_structure(
                 contract=spec["contract"],
             )
     for input_name, spec in entry.get("inputs", {}).items():
-        if (reference := spec.get("reference")) and (
-            reference not in entry.get("refers", {})
-            or entry["refers"][reference].get("key")
+        if (reference := spec.get("reference")) and reference not in entry.get(
+            "refers", {}
         ):
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
@@ -242,40 +233,6 @@ def _validate_widget_structure(
                 names=[part_attribute],
             )
     return properties
-
-
-def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> None:
-    """Hold both sides of a view relation (`shown_answers.py`) to attributes that
-    exist. A misnamed one would leave a view that places nothing and an answer no
-    view can read, with nothing on the page saying so.
-
-    The view names its widget through a plain reference, and its compound owners
-    carry the attribute naming the answer they hold. An answer read by member
-    (`awaits.key`) is a set of members, which the key names one by one, so the
-    key is unique among the members of one widget."""
-    if shows := entry.get("shows"):
-        reference = entry["refers"].get(shows["reference"])
-        if reference is None or reference:
-            raise registry_error("shows-reference", path, tag, attr=shows["reference"])
-        if lacking := sorted(
-            owner
-            for owner in entry["owners"]
-            if shows["value"]
-            not in declarations[owner]["attributes"].get("properties", {})
-        ):
-            raise registry_error(
-                "shows-value", path, tag, attr=shows["value"], owners=lacking
-            )
-    awaits = entry.get("awaits") or {}
-    if key := awaits.get("key"):
-        spec = entry.get("verbs", {}).get(awaits["value"], {})
-        keyed = [
-            member
-            for member, declaration in declarations.items()
-            if declaration.get("unique", {}).get(key) == tag
-        ]
-        if (spec.get("record") or {}).get("kind") != "attribute" or not keyed:
-            raise registry_error("awaits-key", path, tag, key=key)
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:

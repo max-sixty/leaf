@@ -29,8 +29,8 @@ to their run's screenshot tree.
 ## Run
 
 From the checkout, install the eval dependencies and check the fixtures without
-calling a model. This runs the real setup, which stops on any candidate that no longer
-shows its frozen contrast:
+calling a model. This runs the setup's real capture, which stops on any candidate that
+no longer shows its frozen contrast:
 
 ```sh
 pnpm install --frozen-lockfile

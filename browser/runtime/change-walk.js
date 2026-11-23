@@ -1,9 +1,9 @@
 // @ts-check
 /* The change walk: `h` and Shift+`h` step through the changes the version comparison
    marks (version.js, `comparisonChanges`), each a hunk of the block diff, in the page's
-   order, coming round at either end, while a comparison stands (`v`, or a Compare in
-   Versions). A diff reader's next and previous hunk, which is what the letter stands
-   for.
+   order, coming round at either end, while a comparison stands (a Compare in
+   Versions, which `g V v` presses, or the return notice's Show changes). A diff
+   reader's next and previous hunk, which is what the letter stands for.
 
    A step starts from the user's place by the rule every page walk shares
    (current-target.js, `walkOrigin` and `stepFrom`), and lands on the change: on the
@@ -19,17 +19,17 @@
    replaced over it (version.js, `toggleChangeCard`).
 
    The marks are annotations, so `g H` hides them with the rest, and nothing here stops
-   them: a comparison ends with `v` or its Compare in Versions. The user decided
-   against a stop of their own, an Escape step and a menu row, which no
-   other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
+   them: a comparison ends with its Compare in Versions, which `g V v` presses again.
+   The user decided against a stop of their own, an Escape step and a menu row, which
+   no other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
    row reach it with a tap.
 
    With no comparison standing, or one that marks nothing, a press says "No changes
    marked" in the panel (notifications.js, `notice`), as every page walk with nothing to
    step through says so (keyboard/AGENTS.md, "Page grammar"), so the key is live on
-   every page. While a comparison `v` started is still loading, its marks aren't known
-   yet, so the key isn't taken rather than saying none are marked. */
+   every page. While a comparison a press started is still loading, its marks aren't
+   known yet, so the key isn't taken rather than saying none are marked. */
 import { comparisonBase, comparisonChanges, selectedBase } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
 import { wordsText } from "./voice.js";

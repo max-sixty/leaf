@@ -1,6 +1,7 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import os
+import re
 
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -364,10 +365,9 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
 
 
 def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_path):
-    """An editor filling a pane at the window's foot keeps room there for the floating
-    panel at rest, and no more. With the panel opened over it by a draft of several
-    lines, opening a file from the tree scrolls the page until the editor's words clear
-    the panel, as a destination it covers is brought clear of it."""
+    """With the floating panel opened over an editor in a pane at the window's foot by
+    a draft of several lines, opening a file from the tree scrolls the page until the
+    editor clears the panel, as a destination it covers is brought clear of it."""
     for name in ("values", "alerts"):
         (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
     url = serve(
@@ -408,16 +408,18 @@ def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_
         page.keyboard.type(f"line {line}")
         page.keyboard.press("Shift+Enter")
     page.wait_for_function(
-        "parseFloat(document.documentElement.style.scrollPaddingBottom) > 200"
+        "innerHeight - document.querySelector('.lf-floating-panel .lf-fp-card')"
+        ".getBoundingClientRect().top > 200"
     )
     page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
     expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
+    # The editor shows the file before the landing starts the page's scroll, which
+    # names the file in the address as it starts (anchor-travel.js, `arrive`).
+    expect(page).to_have_url(re.compile("#config:alerts$"))
     scroll_settled(page)
-    # The editor keeps its words above its foot by the room it reserved; the open
-    # panel's card starts where it covers the page.
-    panel_top, words_end = editor.evaluate("""host => {
+    # The open panel's card starts where it covers the page.
+    panel_top, editor_end = editor.evaluate("""host => {
       const card = document.querySelector(".lf-floating-panel .lf-fp-card");
-      const room = parseFloat(getComputedStyle(host).getPropertyValue("--lf-end-room"));
-      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom - room];
+      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom];
     }""")
-    assert words_end <= panel_top, (words_end, panel_top)
+    assert editor_end <= panel_top, (editor_end, panel_top)

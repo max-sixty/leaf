@@ -7,9 +7,16 @@
  * autosaves to it within half a second, and a copy shared across tabs would set two
  * live buffers against one file with no log to settle between them. The draft only
  * has to survive this tab's reloads, including the forced one when Leaf's layer
- * changes, which is what lets the editor say the draft is kept.
+ * changes, which is what lets the editor say the draft is kept. A save can reach the
+ * file while its answer never reaches the tab, as when a reload cancels the request, so
+ * until a save is answered the draft also records the text it sent, and leaving the
+ * page asks first; a read or a stale answer that then finds that text on disk takes it
+ * as the version the draft stands over. Rejected: keeping the draft without that text,
+ * since the read then takes the save's words as a write from elsewhere, and the line
+ * merge puts them in place of a reader's later typing, or calls the reader's own save
+ * a conflict.
  *
- * The editor publishes its files as a `files` output, each named by the label the
+ * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
  * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
@@ -87,7 +94,6 @@ import {
   offered,
   offeredAction,
   onCurrentLocation,
-  publishOutput,
   rove,
   rowWalk,
   shadowStage,
@@ -101,10 +107,12 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
 /** One bound file as this tab knows it: what the server last acknowledged (`base`), a
  * newer disk version held for the reader's choice (`latest`), and the requests on it.
  * `kept` is what the editor held of it while another file is open, and `named` the
- * name the editor's `files` output last listed it by.
+ * name the editor's `files` output last listed it by. `sent` is the text of the last
+ * save the server hasn't answered, in flight or lost, until it answers or a read
+ * settles it.
  * @typedef {{
  *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
- *   base: FileSnapshot | null, latest: FileSnapshot | null,
+ *   base: FileSnapshot | null, latest: FileSnapshot | null, sent: string | null,
  *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
  *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
  *   slow: boolean, loading: boolean, generation: number, timer: number,
@@ -194,6 +202,7 @@ customElements.define(
             recoveryKey: `file:${this.id}:${binding}`,
             base: null,
             latest: null,
+            sent: null,
             failure: null,
             spoken: null,
             busy: false,
@@ -302,7 +311,9 @@ customElements.define(
         const of = file;
         if (of.busy) return;
         const operation = of.failure;
-        if (operation?.kind === "save") void flush(of, operation.replace, returnFrom);
+        // A failed save with nothing left to write is settled by reading the file.
+        if (operation?.kind === "save" && unsaved(of, operation.replace))
+          void flush(of, operation.replace, returnFrom);
         else void refresh(of, returnFrom);
       };
       /** @type {ReturnType<typeof createEditor> | null} */
@@ -321,7 +332,12 @@ customElements.define(
           : (of.kept?.state.doc.toString() ?? of.base?.text ?? "");
       const dirty = (/** @type {OpenFile} */ of) =>
         of.base !== null && text(of) !== of.base.text;
-      const unsettled = (/** @type {OpenFile} */ of) => dirty(of) || of.latest !== null;
+      const unsettled = (/** @type {OpenFile} */ of) =>
+        dirty(of) || of.latest !== null || of.sent !== null;
+      // Whether a save would write anything: a draft apart from its base, or one the
+      // reader chose to save over a newer disk version.
+      const unsaved = (/** @type {OpenFile} */ of, replace = false) =>
+        dirty(of) || (replace && of.latest !== null);
       // A version written elsewhere that changed other lines than the draft did joins
       // the draft, which then stands over that version and saves on its own.
       /** @param {OpenFile} of @param {FileSnapshot} current */
@@ -343,7 +359,7 @@ customElements.define(
         tabStore.set(
           of.recoveryKey,
           of.base && unsettled(of)
-            ? JSON.stringify({ base: of.base, text: text(of) })
+            ? JSON.stringify({ base: of.base, text: text(of), sent: of.sent })
             : null,
         );
       }
@@ -380,7 +396,7 @@ customElements.define(
       // one open. It is built when a name or the open file changes, never as the reader
       // types, so a keystroke's work doesn't grow with how many files the editor holds.
       // Two bindings of one file list it once, since a navigator keys its rows by path.
-      const publishFiles = () => {
+      const holdFiles = () => {
         /** @type {Set<string>} */
         const listed = new Set();
         /** @type {{path: string, key: string}[]} */
@@ -391,13 +407,11 @@ customElements.define(
           listed.add(of.named);
           named.push({ path: of.named, key: of.binding });
         }
-        publishOutput(
-          this,
-          "files",
-          named.length
-            ? { files: named, ...(file.named ? { current: file.named } : {}) }
-            : null,
-        );
+        // The `files` output: held here, and `change` says it moved.
+        this.files = named.length
+          ? { files: named, ...(file.named ? { current: file.named } : {}) }
+          : null;
+        this.dispatchEvent(new Event("change"));
       };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
@@ -586,12 +600,15 @@ customElements.define(
           !of.base ||
           (of.failure && !returnFrom) ||
           (of.latest && !replace) ||
-          (!dirty(of) && !(replace && of.latest))
+          !unsaved(of, replace)
         )
           return;
         const against = replace && of.latest ? of.latest : of.base;
         const submitted = text(of);
+        // An earlier save whose answer was lost, which the file may hold.
+        const lost = of.sent;
         of.busy = true;
+        of.sent = submitted;
         // The host compares the file before writing, so a receipt or a stale answer
         // covers any read owed before it starts; a failure read nothing.
         const owedBefore = of.owed;
@@ -609,9 +626,21 @@ customElements.define(
           of.base = await of.api.save({ revision: against.revision, text: submitted });
           of.latest = null;
           of.failure = null;
+          of.sent = null;
         } catch (fault) {
+          // A refusal in the server's own words, the only `RequestError` file-api.js
+          // passes on, wrote nothing. A save with no such answer, as when a reload
+          // cancels it or a proxy answers for the server, may have reached the file,
+          // so its text stays until a read says.
+          if (fault instanceof RequestError) of.sent = null;
           if (fault instanceof RequestError && fault.current) {
-            if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            // A file holding this save or a lost earlier one holds the draft's own
+            // words, which the draft stands over, as a read takes them (`refresh`).
+            const held = fault.current.text;
+            if (held === submitted || held === lost) {
+              of.base = fault.current;
+              of.latest = null;
+            } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
             of.failure = { kind: "save", message: describeFailure(fault), replace };
@@ -672,12 +701,18 @@ customElements.define(
               else editor.follow(current.text);
             } else if (of.kept && text(of) !== current.text)
               of.kept = followKept(of.kept, current.text);
-          } else if (current.text === text(of)) {
+          } else if (
+            current.text === text(of) ||
+            current.revision === of.base.revision ||
+            current.text === of.sent
+          ) {
+            // The file holds the draft, the version it was typed over, or the save
+            // whose answer was lost; the draft stands over it.
             of.base = current;
             of.latest = null;
-          } else if (current.revision === of.base.revision) of.latest = null;
-          else if (!settle(of, current)) of.latest = current;
+          } else if (!settle(of, current)) of.latest = current;
           of.recovering = false;
+          of.sent = null;
           of.failure = null;
         } catch (fault) {
           of.failure = { kind: "read", message: describeFailure(fault) };
@@ -714,7 +749,7 @@ customElements.define(
         stopWatch?.();
         const stops = [...files.values()].map((of) =>
           of.api.watch(() => {
-            if (of.api.label !== of.named) publishFiles();
+            if (of.api.label !== of.named) holdFiles();
             if (of === file) void refresh(of);
           }),
         );
@@ -726,9 +761,10 @@ customElements.define(
       const recover = (of) => {
         const pending = tabStore.get(of.recoveryKey);
         if (!pending || !of.api.writable) return;
-        /** @type {{base: FileSnapshot, text: string}} */
+        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
         const recovered = JSON.parse(pending);
         of.base = recovered.base;
+        of.sent = recovered.sent;
         of.recovering = true;
         return recovered.text;
       };
@@ -766,12 +802,12 @@ customElements.define(
         remember(leaving);
         void flush(leaving);
         paint();
-        publishFiles();
+        holdFiles();
         opening = connected ? refresh(file) : null;
         return opening;
       };
       paint();
-      publishFiles();
+      holdFiles();
       this.#placeSelection = () => {
         editor.placeSelection();
         comparison?.placeSelection();

@@ -62,7 +62,7 @@ from journeys import expect_showing
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, show_resolved
 from leaf_dev.example_data import named_source, published_sources
 
@@ -583,7 +583,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.press("a")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-live")).to_contain_text("Press Enter to choose")
+    expect(page.locator(".lf-live")).to_contain_text("Enter choose target")
     expect(page.locator(".lf-live")).not_to_contain_text("Hint ")
     native_target = page.locator('[data-lf-hint-native="Enter"]')
     expect(native_target).to_be_visible()
@@ -1222,12 +1222,15 @@ def _stale_keys(page):
     """What a forced repaint of every element's keys changes, once the page has
     rendered what the input so far asked for: each change is an attribute that was
     stale. A control a send or a load holds unavailable is ready again once that
-    finishes, so the reading waits for both: for the page's readiness, which includes
-    every live sample's arrival, and for every send to come back. It waits too for
-    every fullscreen request the input made, which moves focus when the browser
-    answers it, and for finite motion: a closing card hides its reply box at the
-    fade's end, changing which keys apply."""
-    wait_until_ready(page)
+    finishes, so the reading waits for both: for every live sample's arrival and for
+    every send to come back. The page's readiness counts what a sample's page draws
+    only while its frame shows, and a Reset pressed at the window's foot can leave the
+    frame below it, so the reading shows each frame still arriving out of view, as a
+    check does (`start_near_work`).
+    It waits too for every fullscreen request the input made, which moves focus when
+    the browser answers it, and for finite motion: a closing card hides its reply box
+    at the fade's end, changing which keys apply."""
+    start_near_work(page)
     round_trip(page)
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
@@ -1659,7 +1662,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
     # told the window opened and what it holds.
     expect(page.locator(".lf-live")).to_contain_text("visible targets")
-    expect(page.locator(".lf-live")).to_contain_text("type a hint")
+    expect(page.locator(".lf-live")).to_contain_text("letters visible target")
 
     # A panel mnemonic completes the sequence and leaves the user on that view's first
     # row, where its own scoped keys are immediately available.

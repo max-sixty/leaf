@@ -143,11 +143,13 @@
 import { scrollAxes } from "../element-frame.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
+  carried,
   shellRight,
   shownWindow,
   visualViewport,
   shownExtent,
   shownParts,
+  shownBox,
   shownRect,
   shownRectHeld,
 } from "../geometry.js";
@@ -158,8 +160,8 @@ import {
   moveScrollerBy,
   pageScroller,
   scrollGoal,
-  scrollLimit,
   scrollStarts,
+  whereGlidesLand,
 } from "../scrolling.js";
 import { inputs } from "../inputs.js";
 
@@ -380,35 +382,46 @@ const sameBoundary = (a, b) =>
 /** @param {Side | null} side */
 const vertical = (side) => side === "top" || side === "bottom";
 
-// Vertical room is read in viewport pixels, while the browser scrolls in local CSS
-// pixels. Project available travel through the scroller's actual transformed axis;
-// an inverted axis reverses which local end can expose room on the requested side.
-// The travel is counted from `from`, the scroller's offset where it stands unless the
-// caller reads it where it is headed.
-/** @param {Side} side @param {Element} scroller @param {number} [from] */
-function roomTravel(side, scroller, from = scroller.scrollTop) {
+// How far the glide under way in `scroller` will still carry `element` down the window,
+// and what `read` returns read where it lands (scrolling.js, `whereGlidesLand`).
+/** @template T @param {Element} scroller @param {Element} element @param {(ahead: number) => T} read @returns {T} */
+function whereLanded(scroller, element, read) {
+  const stood = shownBox(element).top;
+  return whereGlidesLand([scroller], () => read(shownBox(element).top - stood));
+}
+// How far, in viewport pixels, scrolling `scroller` toward the end that brings room in
+// on `side` carries `element` before it first stops riding (geometry.js, `carried`).
+// The browser scrolls in local CSS pixels, which the scroller's transformed axis
+// projects; an inverted axis reverses which local end brings room in on that side.
+/** @param {Side} side @param {Element} scroller @param {Element} element */
+function roomTravel(side, scroller, element) {
   const projection = scrollAxes(scroller).y.y;
-  const direction = side === "top" ? -1 : 1;
-  const localDirection = direction * Math.sign(projection);
-  const local = localDirection < 0 ? from : Math.max(0, scrollLimit(scroller) - from);
-  return { projection, direction, available: local * Math.abs(projection) };
+  const way = (side === "top" ? -1 : 1) * Math.sign(projection);
+  return Math.abs(carried(element, scroller, way * scroller.scrollHeight) * projection);
 }
 
-// The room on `side` of `extent` the page can make: what shows there plus the scroll
-// travel `scroller` has left that way, never more than the boundary holds.
-/** @param {"top" | "bottom"} side @param {Extent} extent @param {MarkRoom} room @param {Boundary} boundary @param {Element} scroller */
-function reachableRoom(side, extent, room, boundary, scroller) {
+// The room on `side` of `extent` the page can make: what shows there plus the room a
+// scroll of `scroller` brings in (`roomTravel`), never more than the boundary holds.
+// It is read where the page stands, not where a glide under way would leave it: a
+// walk's card chooses its side before the walk's own landing moves the page, and a
+// side read where an earlier glide was headed opened `t`'s card, pressed as `m` set
+// off, on the other side of its passage, which the walk's landing then left out of
+// the window.
+/** @param {"top" | "bottom"} side @param {Extent} extent @param {MarkRoom} room @param {Boundary} boundary @param {Element} scroller @param {Element} element */
+function reachableRoom(side, extent, room, boundary, scroller, element) {
   const gap = subjectGap(room, side);
   const shown =
     side === "top"
       ? extent.top - boundary.top - gap
       : boundary.bottom - extent.bottom - gap;
-  const { available: travel } = roomTravel(side, scroller);
   return {
     shown,
     reachable: Math.max(
       0,
-      Math.min(boundary.height - extent.height - gap, shown + travel),
+      Math.min(
+        boundary.height - extent.height - gap,
+        shown + roomTravel(side, scroller, element),
+      ),
     ),
   };
 }
@@ -417,36 +430,52 @@ function reachableRoom(side, extent, room, boundary, scroller) {
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
 // and this surface cannot show together, no scroll makes that room. The boundary
 // then holds the surface over its subject instead of scrolling the subject away. The
-// room is read where the scroller is headed (scrolling.js, `scrollGoal`), as a key
-// pressed while the page glides acts as though the glide had landed, and a glide under
-// way takes the move into its goal (`glideTo`), so the page lands once, with the room
-// made.
-/** @param {"top" | "bottom"} side @param {Extent} clear @param {Extent} extent @param {MarkRoom} room @param {number} height @param {Boundary} boundary @param {Element} scroller */
-export function makeRoom(side, clear, extent, room, height, boundary, scroller) {
+// room is read where the scroller is headed (`whereLanded`), as a key pressed while the
+// page glides acts as though the glide had landed, and a glide under way takes the move
+// into its goal (`glideTo`), so the page lands once, with the room made. The move
+// carries `clear` only until `element`, the subject `clear` is a box of, first stops
+// riding it (geometry.js, `carried`), so a subject in a sticky box the scroll can't
+// carry asks for no move.
+/** @param {"top" | "bottom"} side @param {Extent} clear @param {Extent} extent @param {MarkRoom} room @param {number} height @param {Boundary} boundary @param {Element} scroller @param {Element} element */
+export function makeRoom(
+  side,
+  clear,
+  extent,
+  room,
+  height,
+  boundary,
+  scroller,
+  element,
+) {
   const gap = subjectGap(room, side);
   if (extent.height + gap + height > boundary.height) return false;
+  const projection = scrollAxes(scroller).y.y;
+  if (!projection) return false;
   const goal = scrollGoal(scroller);
-  const { available: travel, projection, direction } = roomTravel(side, scroller, goal);
-  // How far the glide under way will still carry `clear` up the window.
-  const ahead = (goal - scroller.scrollTop) * projection;
-  const overflow =
-    side === "top"
-      ? boundary.top - (clear.top - ahead - gap - height)
-      : clear.bottom - ahead + gap + height - boundary.bottom;
-  const movement = Math.max(0, Math.min(overflow, travel));
-  if (movement <= 0.5) return false;
-  const by = (direction * movement) / projection;
+  const by = whereLanded(scroller, element, (ahead) => {
+    const overflow =
+      side === "top"
+        ? boundary.top - (clear.top + ahead - gap - height)
+        : clear.bottom + ahead + gap + height - boundary.bottom;
+    if (overflow <= 0.5) return 0;
+    return carried(
+      element,
+      scroller,
+      ((side === "top" ? -1 : 1) * overflow) / projection,
+    );
+  });
+  if (Math.abs(by * projection) <= 0.5) return false;
   if (goal !== scroller.scrollTop) {
     glideTo(scroller, goal + by);
     return true;
   }
   const before = scroller.scrollTop;
   moveScrollerBy(scroller, by);
-  return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
+  return scroller.scrollTop !== before;
 }
 
 // The side a comment's surface takes, as a Floating UI side.
-/** @param {{clear: Extent, extent: Extent, room: MarkRoom, boundary: Boundary, width: number, scroller: Element, coarse: boolean}} reading @returns {Side} */
+/** @param {{clear: Extent, extent: Extent, room: MarkRoom, boundary: Boundary, width: number, scroller: Element, element: Element, coarse: boolean}} reading @returns {Side} */
 export function commentSide({
   clear,
   extent,
@@ -454,14 +483,15 @@ export function commentSide({
   boundary,
   width,
   scroller,
+  element,
   coarse,
 }) {
   /** @param {number} space */
   const fits = (space) => Math.ceil(space) >= Math.ceil(width);
   if (fits(boundary.right - clear.right - subjectGap(room, "right"))) return "right";
   if (fits(clear.left - boundary.left - subjectGap(room, "left"))) return "left";
-  const below = reachableRoom("bottom", extent, room, boundary, scroller);
-  const above = reachableRoom("top", extent, room, boundary, scroller);
+  const below = reachableRoom("bottom", extent, room, boundary, scroller, element);
+  const above = reachableRoom("top", extent, room, boundary, scroller, element);
   // Prefer a side that already shows the compact surface. Reachable room breaks
   // the tie; a fresh card may then use makeRoom to open clear of its target.
   const fitsBelow = below.shown >= LEAST_HEIGHT;
@@ -915,7 +945,7 @@ export function commentPlacement() {
     scrolled() {
       input = null;
     },
-    /** @param {{clear: Extent | null, extent?: Extent | null, room?: MarkRoom, boundary: Boundary, row?: number, column?: number | null, scroller: Element, coarse: boolean}} request */
+    /** @param {{clear: Extent | null, extent?: Extent | null, room?: MarkRoom, boundary: Boundary, row?: number, column?: number | null, scroller: Element, element: Element, coarse: boolean}} request */
     choose({
       clear,
       extent = clear,
@@ -924,6 +954,7 @@ export function commentPlacement() {
       row = clear?.top ?? boundary.top,
       column = null,
       scroller,
+      element,
       coarse,
     }) {
       // No visible attachment puts the editor in the window. The authored subject
@@ -996,6 +1027,7 @@ export function commentPlacement() {
             boundary,
             width: cardMinimum(),
             scroller,
+            element,
             coarse,
           });
       if (fresh && !unanchored)

@@ -80,10 +80,15 @@ def catalogue() -> tuple[Path, dict]:
         raise Refused(f"{path}: {error}") from None
     if error := next(iter(json_validator(_CATALOGUE_SCHEMA).iter_errors(config)), None):
         raise Refused(f"{path}: {error.message}")
-    if (default := config.get("default")) is not None and default not in config[
-        "themes"
-    ]:
-        raise Refused(f"{path}: default {default!r} must be in themes")
+    # Every page may take Leaf's own theme without the catalogue listing it
+    # (`selected_theme`), so the catalogue may name it as the default too.
+    if (default := config.get("default")) is not None and default not in (
+        DEFAULT_THEME,
+        *config["themes"],
+    ):
+        raise Refused(
+            f"{path}: default {default!r} must be in themes, or be {DEFAULT_THEME!r}"
+        )
     return path, config
 
 

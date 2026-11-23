@@ -10,10 +10,11 @@
  * changes, which is what lets the editor say the draft is kept. A save can reach the
  * file while its answer never reaches the tab, as when a reload cancels the request, so
  * until a save is answered the draft also records the text it sent, and leaving the
- * page asks first; a read that then finds that text on disk takes it as the version
- * the draft stands over. Rejected: keeping the draft without that text, since the read
- * then takes the save's words as a write from elsewhere, and the line merge puts them
- * in place of a reader's later typing, or calls the reader's own save a conflict.
+ * page asks first; a read or a stale answer that then finds that text on disk takes it
+ * as the version the draft stands over. Rejected: keeping the draft without that text,
+ * since the read then takes the save's words as a write from elsewhere, and the line
+ * merge puts them in place of a reader's later typing, or calls the reader's own save
+ * a conflict.
  *
  * The editor publishes its files as a `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
@@ -108,7 +109,8 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
  * newer disk version held for the reader's choice (`latest`), and the requests on it.
  * `kept` is what the editor held of it while another file is open, and `named` the
  * name the editor's `files` output last listed it by. `sent` is the text of the last
- * save the server hasn't answered, in flight or lost, until a read settles it.
+ * save the server hasn't answered, in flight or lost, until it answers or a read
+ * settles it.
  * @typedef {{
  *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
  *   base: FileSnapshot | null, latest: FileSnapshot | null, sent: string | null,
@@ -606,6 +608,8 @@ customElements.define(
           return;
         const against = replace && of.latest ? of.latest : of.base;
         const submitted = text(of);
+        // An earlier save whose answer was lost, which the file may hold.
+        const lost = of.sent;
         of.busy = true;
         of.sent = submitted;
         // The host compares the file before writing, so a receipt or a stale answer
@@ -627,12 +631,19 @@ customElements.define(
           of.failure = null;
           of.sent = null;
         } catch (fault) {
-          // A refusal in the server's own words wrote nothing. A save with no such
-          // answer, as when a reload cancels it, may have reached the file, so its
-          // text stays until a read says.
+          // A refusal in the server's own words, the only `RequestError` file-api.js
+          // passes on, wrote nothing. A save with no such answer, as when a reload
+          // cancels it or a proxy answers for the server, may have reached the file,
+          // so its text stays until a read says.
           if (fault instanceof RequestError) of.sent = null;
           if (fault instanceof RequestError && fault.current) {
-            if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            // A file holding this save or a lost earlier one holds the draft's own
+            // words, which the draft stands over, as a read takes them (`refresh`).
+            const held = fault.current.text;
+            if (held === submitted || held === lost) {
+              of.base = fault.current;
+              of.latest = null;
+            } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
             of.failure = { kind: "save", message: describeFailure(fault), replace };

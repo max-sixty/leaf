@@ -179,6 +179,7 @@ import {
   attachedEdge,
   cardMeasure,
   cardMinimum,
+  COMMENT_GAP,
   commentAttachment,
   commentReference,
   commentBoundary,
@@ -186,6 +187,7 @@ import {
   makeRoom,
   standsTall,
 } from "./comment-placement.js";
+import { markRoom } from "../mark-room.js";
 import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi, floatingGeometry } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
@@ -758,6 +760,7 @@ export function createThreadPreview({
           geometry: floatingGeometry([cluster]),
           clear: box,
           extent: box,
+          room: markRoom(cluster, box, COMMENT_GAP),
           row: box.top,
           lastRow: box.top,
           column: null,
@@ -828,6 +831,7 @@ export function createThreadPreview({
     const { scroller } = boundary;
     const seat = session.side.choose({
       clear: place.clear,
+      room: place.room,
       row: place.row,
       column: place.column,
       extent: place.extent,
@@ -852,6 +856,7 @@ export function createThreadPreview({
         keeps(preview, "data-lf-rises", edge === "foot" || rises ? "" : null);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
+          room: place.room,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
@@ -931,7 +936,15 @@ export function createThreadPreview({
             if (
               opening &&
               (side === "top" || side === "bottom") &&
-              makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
+              makeRoom(
+                side,
+                place.clear,
+                place.extent,
+                place.room,
+                fitted,
+                boundary,
+                scroller,
+              )
             ) {
               session.side.scrolled();
               placeThreadPreview();

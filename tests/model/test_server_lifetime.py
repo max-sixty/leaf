@@ -139,6 +139,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
                 "persistent": True,
                 "revive": True,
                 "harness": harness_model.session_harness(),
+                "deadline": None,
             }
         ]
     else:

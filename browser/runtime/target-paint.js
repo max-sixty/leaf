@@ -13,7 +13,7 @@ import { nextRender } from "./rendering.js";
 import { move } from "./dom-move.js";
 import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
-import { readMarkerSides, shownParts } from "./geometry.js";
+import { inkedBox, markedBox, readMarkerSides, shownParts } from "./geometry.js";
 import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 
@@ -91,14 +91,10 @@ export function labelAim(node) {
     placed: { rect, shown, levels },
     surface,
   } = aimed;
-  const style = getComputedStyle(shownParts(surface)[0] ?? surface);
-  // The mark is the box's outline, or its border image where it reaches over a list
-  // marker (surfaces.css), which stands as far out above the box.
-  const room = Math.max(
-    0,
-    Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth),
-    Number.parseFloat(style.borderImageOutset),
-  );
+  // The label stands clear above the marks at the box's top (geometry.js, `markedBox`),
+  // and at the start of what the box draws (`inkedBox`), over a list marker beside it.
+  const room = Math.max(0, rect.top - (markedBox(surface) ?? rect).top);
+  const reach = Math.max(0, rect.left - (inkedBox(surface) ?? rect).left);
   // The label stacks with what it names: over the chrome's surfaces where the aimed
   // item stands in one, as a widget in a reply does.
   keeps(labelStand.root, "data-lf-paint-plane", inChrome(surface) ? "chrome" : "page");
@@ -111,7 +107,7 @@ export function labelAim(node) {
   );
   const cutTop = shown.top > rect.top;
   const at = {
-    left: Math.max(2, shown.left),
+    left: Math.max(2, shown.left > rect.left ? shown.left : shown.left - reach),
     top: !cutTop && above >= clear ? above : shown.top + 2,
   };
   // The level whose band is the edge that cut the corner, the top's before the left's.

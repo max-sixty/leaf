@@ -456,17 +456,21 @@ export class Sample extends HTMLElement {
   }
 
   // One `ready` per usable document the host promises, so a departure and the reload
-  // that follows it are one wait for a selection or a page module.
+  // that follows it are one wait for a selection or a page module. The reading gives
+  // the document's height and posture, so the sample draws the document ready in the
+  // turn the host learns it is, before the document reports its arrival, which the host
+  // counts until then (sample.js). A command to the document awaited first would let
+  // the page read arrived while the sample still drew it loading. A posture the
+  // document doesn't stand in yet, as one changed while the host was mounting, reaches
+  // it now.
   /** @param {Promise<SampleReady>} promise */
   #follow(promise) {
     if (promise === this.#following?.source) return this.#following.ready;
-    const ready = promise.then(async (reading) => {
+    const ready = promise.then((reading) => {
       if (this.#ready !== ready) return reading;
-      const current = await this.#activeHost.setWindow(
-        this.hasAttribute("window") || isNativeLayer(this.#view),
-      );
-      if (this.#ready !== ready) return reading;
-      this.#height(current.height, { immediate: true });
+      const asWindow = this.hasAttribute("window") || isNativeLayer(this.#view);
+      if (reading.block === asWindow) this.#setWindow(asWindow);
+      else this.#height(reading.height, { immediate: true });
       keeps(this.#reset, "aria-disabled", null);
       this.#say("");
       this.dispatchEvent(

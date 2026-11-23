@@ -2433,6 +2433,39 @@ customElements.define('lf-route', class extends HTMLElement {
 """
 
 
+def test_a_preview_stands_its_gap_past_the_ring_round_a_padded_box_it_fills(
+    browser, serve
+):
+    """A link fills a named box but for its padding, so the ring round that box stands
+    just past the link's own: the link's preview stands its gap past that ring, as a
+    thread's card does, rather than on it, whether or not the ring shows yet."""
+    url = serve(
+        leaf_page(
+            "Padded link",
+            '<p id="lede">The plan is below.</p>'
+            '<div id="frame" style="display: inline-block; padding: 2px">'
+            '<a id="to-plan" href="#plan">the plan</a></div>'
+            '<p id="plan">Ship the patch with the resend.</p>'
+            + "<p>More of the page.</p>"
+            * 20,
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#to-plan").hover()
+    expect(page.locator(PREVIEW)).to_be_visible()
+    rendered(page)
+    clear = page.evaluate(
+        """() => {
+          const frame = document.getElementById('frame');
+          const ring = parseFloat(getComputedStyle(frame).getPropertyValue('--lf-band-room'));
+          const box = frame.getBoundingClientRect();
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          return Math.max(tip.top - (box.bottom + ring), (box.top - ring) - tip.bottom);
+        }"""
+    )
+    assert clear == pytest.approx(6, abs=0.5)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in(
     engine, request, serve

@@ -30,7 +30,12 @@ pageCommand({
 // The floating panel's doors, none standing open.
 const door = { shows: () => false, press: () => {} };
 const goTo = createGoToSequence({
-  doors: { threads: door, queue: door, leaves: door },
+  doors: {
+    threads: door,
+    queue: door,
+    agent: { ...door, name: () => "On Agent" },
+    leaves: door,
+  },
   openPageMap: () => {},
   hintChrome: { barriers: () => [] },
   directDestinations: () => [],

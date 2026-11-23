@@ -17,7 +17,14 @@ import click
 from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import one_frame, rendered, wait_for_probe, wait_until_ready
+from leaf.render_checks import (
+    one_frame,
+    open_render_context,
+    open_render_page,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
 from leaf_dev import ROOT
 
 
@@ -234,7 +241,8 @@ def tab(
     drawing `scale` device pixels to a CSS pixel. It keeps where a mouse last moved over
     it (`POINTER`), for `settle`. A caller listens on it before it `load`s."""
     width, height = window.size
-    context = browser.new_context(
+    context = open_render_context(
+        browser,
         viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
@@ -244,9 +252,7 @@ def tab(
     )
     context.add_init_script(POINTER)
     try:
-        page = context.new_page()
-        page.set_default_timeout(15_000)
-        yield page
+        yield open_render_page(context)
     finally:
         context.close()
 
@@ -375,31 +381,19 @@ def load(page: Page, address: str) -> None:
 
 
 def settle(page: Page) -> None:
-    """Wait until the page is ready, every live sample near the window has drawn its
-    page and fit its frame to it, the page's fonts have loaded, the runtime reports it
+    """Wait until the page is ready, its fonts have loaded, the runtime reports it
     settled, and its hover is on the element under the pointer (`catch_up_hover`).
 
-    A sample starts its page when the window comes near its frame, and the frame keeps
-    a placeholder height until the page draws. One rendering passes first, so the
-    observer that starts each sample (geometry.js, `nearObserver`) has read where the
-    last input left the window. The page's readiness counts a started page's loading,
-    but not its drawing once the browser has read the frame as out of sight; the frame
-    carries `data-lf-unseen` until the page arrives (sample.js), and the wait for that
-    mark covers the drawing. A page that can draw only on screen, as one holding a
-    chart sized by its first layout, keeps the mark out of sight, and this wait times
-    out on it.
-
-    Where the frame stands above the window, its fit changes the height above the
-    window, and scroll anchoring takes that change from the document's scroll offset.
-    The window keeps showing the same content, but the scrollbar's thumb moves, and a
-    screenshot taken across the change shows the window displaced, since Playwright
-    reads the offset and then captures that region of the document."""
+    Readiness is read once the page has heard what could start more work: the input
+    before this, and then the motion `pageSettled` waits out. A scroll that brings a
+    live sample near starts it in the next rendering update, as the sample's observer
+    reports, so each read waits for that update first (runtime/rendering.js)."""
     one_frame(page)
-    wait_until_ready(page)
-    page.wait_for_function("() => !document.querySelector('iframe[data-lf-unseen]')")
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    one_frame(page)
+    wait_until_ready(page)
     if catch_up_hover(page):
         settle(page)
 

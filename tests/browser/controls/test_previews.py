@@ -771,6 +771,48 @@ def test_a_thread_that_lands_under_a_still_pointer_previews_nothing(
     expect(preview.locator(".lf-preview-word")).to_have_text("Why ship with that?")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_target_redrawn_under_the_pointer_that_came_to_it_still_previews(
+    engine, request, serve
+):
+    """A pointer the user moved onto a target reads it once its dwell ends, even where
+    the target redraws its face meanwhile, as a margin entry redraws its icon: another
+    node stands under the resting pointer, and the target the user pointed at is the
+    same one."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "Redrawn",
+                '<p><span id="chart" tabindex="0"><b>A chart</b></span></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => {
+          window.lf = {arrived: false};
+          document.getElementById('chart').lfPreview = () => ({name: 'Point 1'});
+        }"""
+    )
+    face = page.locator("#chart b").bounding_box()
+    x, y = face["x"] + face["width"] / 2, face["y"] + face["height"] / 2
+    page.mouse.move(x - 80, y - 60)
+    page.mouse.move(x, y, steps=3)
+    # The face is drawn again before the dwell ends, and the browser tells the page
+    # that another node now stands under the pointer.
+    page.evaluate(
+        """() => {
+          const next = document.createElement('b');
+          next.textContent = 'A graph';
+          next.addEventListener('pointerover', () => { window.lf.arrived = true; });
+          document.querySelector('#chart b').replaceWith(next);
+        }"""
+    )
+    page.wait_for_function("window.lf.arrived")
+    dwelt(page)
+    expect(page.locator(PREVIEW)).to_have_text("Point 1")
+
+
 def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     """A finger held on a thread's words reads, at the platform's long press, the
     preview a pointer would, above the line, which the finger doesn't cover. Its

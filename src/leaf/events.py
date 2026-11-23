@@ -416,8 +416,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 def _resumes(reply: dict) -> bool:
     """Whether a reply resumes its thread: reactions, failure receipts and progress
     leave its closure in force, and so does a message the agent sent into a thread
-    the user resolved without asking them anything (`unannounced`,
-    `thread.post_reply`)."""
+    the user resolved without asking them anything or choosing to bring it back
+    (`unannounced`, `thread.post_reply`)."""
     return not (
         "token" in reply
         or "failure" in reply

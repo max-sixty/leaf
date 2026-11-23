@@ -302,10 +302,11 @@ The user's `resolve` takes a thread off their list. It retires the questions the
 asked them there and settles nothing the agent owes: a turn of theirs, or an answer of
 theirs on a widget in a thread message, that the agent has not answered stays owed, and
 the reply that answers it goes into the thread and leaves it closed
-(`events.owed_turns`). A thread the user resolved reopens only when they reopen it or
-the agent asks them something there, in words or with a widget. Whatever else the agent
-says in it, the result of promised work included, is a `reply` with `unannounced: true`,
-which reopens nothing; `thread.post_reply` sets it. The agent's
+(`events.owed_turns`). A thread the user resolved reopens when they reopen it, when
+the agent asks them something there, in words or with a widget, or when the agent
+chooses that its message brings the thread back (`leaf thread reply --reopen`). Whatever
+else the agent says in it, the result of promised work included, is a `reply` with
+`unannounced: true`, which reopens nothing; `thread.post_reply` sets it. The agent's
 `resolve` answers for its thread, as does the user's answer on a widget whose `resolves`
 names it: from either until the thread reopens, the thread owes nothing.
 

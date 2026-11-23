@@ -53,7 +53,8 @@
  * of that box, from 15% of its height to 70%, the block sets the box's scroll at once
  * so the line stands a third of the way down, with the lines that run next below it.
  * Where that box is the page, or the page doesn't render the line, as in a closed
- * disclosure, it moves nothing.
+ * disclosure, it moves nothing. The first value a block is handed only marks its line,
+ * as an arrival moves nothing, and the block follows from the next.
  *
  * The reader's hand inside the box, a press, wheel, touch or key there, stops the
  * following, so the box holds still while they read or scroll it, and their hand on
@@ -192,6 +193,9 @@ customElements.define(
     // The rows the playhead marks.
     /** @type {HTMLSpanElement[]} */
     #at = [];
+    // Whether the playhead has had a value. The first only marks, as an arrival moves
+    // nothing (see the header).
+    #arrived = false;
 
     // The rendered lines a range addresses, none before the lines are in.
     /** @param {string | null} key */
@@ -229,6 +233,8 @@ customElements.define(
     // Mark the new lines, and keep the first in sight as the header says.
     #follow() {
       this.#mark();
+      const arrived = this.#arrived;
+      this.#arrived ||= this.playhead !== null;
       const [row] = this.#at;
       // A row the page doesn't render, as in a closed disclosure, has no place to bring
       // into view.
@@ -246,7 +252,7 @@ customElements.define(
         if (!followers) resumes.set(followed, (followers = new Set()));
         followers.add(box);
       }
-      if (!box.follows) return;
+      if (!arrived || !box.follows) return;
       const frame = scroller.getBoundingClientRect();
       const { top, bottom } = row.getBoundingClientRect();
       if (

@@ -161,7 +161,8 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     excerpt quoting it, and the source pane brings that line into view with room round
     it, without moving the page. Once the reader scrolls the pane, a new line out of
     view leaves it where they put it, until they act on the film again; the last step
-    lights nothing, and a line lit in an excerpt the page doesn't draw moves nothing."""
+    lights nothing, and a line lit in an excerpt the page doesn't draw moves nothing.
+    The first line a block is handed only marks, as an arrival moves nothing."""
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
@@ -251,6 +252,32 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     )
     rendered(page)
     assert 0 < held == pane.evaluate("element => element.scrollTop")
+
+    # An arrival moves nothing. A block drawn below the pane's view is handed its first
+    # line, as a plain host hands it: it marks the line and leaves the pane where it
+    # stood, and follows from the next.
+    pane.evaluate(
+        """pane => {
+          const block = document.createElement('lf-code');
+          block.id = 'code-arrival';
+          block.append(Object.assign(document.createElement('pre'), {textContent: 'one\\ntwo\\nthree\\n'}));
+          pane.append(block);
+        }"""
+    )
+    arrival = page.locator("#code-arrival")
+    expect(arrival).to_have_class(re.compile(r"\blf-rendered\b"))
+    arrival.evaluate("block => { block.playhead = '2'; }")
+    expect(arrival.locator("[data-lf-at]")).to_have_attribute("data-lf-line", "2")
+    rendered(page)
+    assert pane.evaluate(
+        """pane => ({
+          below: pane.querySelector('#code-arrival [data-lf-at]').getBoundingClientRect().top >= pane.getBoundingClientRect().bottom,
+          top: pane.scrollTop,
+        })"""
+    ) == {"below": True, "top": held}
+    arrival.evaluate("block => { block.playhead = '3'; }")
+    expect(arrival.locator("[data-lf-at]")).to_have_attribute("data-lf-line", "3")
+    expect(arrival.locator("[data-lf-at]")).to_be_in_viewport(ratio=1)
 
 
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):

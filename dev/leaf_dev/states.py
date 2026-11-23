@@ -47,6 +47,15 @@ from leaf_dev.corpus import sources as corpus_sources
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
+def keyboard_modality(page: Page) -> None:
+    """Press Tab, so focus placed next draws as the keyboard's, and wait until the Tab's
+    step has ended. Focus arriving before then is the step's own, which opens the
+    focused control's preview (focus.js, `stepping`). The step ends in a timer the
+    Tab's keydown queued, and a timer queued now runs after it."""
+    page.keyboard.press("Tab")
+    page.evaluate("() => new Promise((done) => setTimeout(done))")
+
+
 def printed_exhibit(page: Page) -> None:
     """A breakout exhibit within the paper's prose track."""
     page.emulate_media(media="print")
@@ -131,7 +140,7 @@ def long_source_selected(page: Page) -> None:
 def captured_source_by_keyboard(page: Page) -> None:
     """The captured source's scroller focused by keyboard, its ring over the lines."""
     captured_source(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
 
 
@@ -168,7 +177,7 @@ def recorded_video_by_keyboard(page: Page) -> None:
     """The recording the keyboard stands on, where the browser's controls take its
     keys."""
     recorded_video(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-recording").focus()
 
 
@@ -199,7 +208,7 @@ def dynamic_request_preview(page: Page) -> None:
 
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-tab-btn").first.focus()
 
 
@@ -214,7 +223,7 @@ def boxed_tab_by_keyboard(page: Page) -> None:
         "Page & layout", exact=True
     ).click()
     page.locator("#bg-tabs").scroll_into_view_if_needed()
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
 
 
@@ -405,7 +414,7 @@ def page_about(page: Page) -> None:
 def panel_leaf(page: Page) -> None:
     """The floating panel's leaf, which opens the On view, with its keyboard focus
     paint."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-fp-leaf").focus()
 
 
@@ -1220,7 +1229,7 @@ def section_ring_by_keyboard(page: Page) -> None:
         '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
     )
     marker.wait_for()
-    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    keyboard_modality(page)
     marker.focus()
     page.keyboard.press("Enter")
     resolve = page.locator(".lf-margin-preview").get_by_role(
@@ -1984,7 +1993,7 @@ LONG_DRAFT = (
 def composer_send_focused(page: Page) -> None:
     """The same comment with the keyboard on its Send."""
     composer(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     send = page.locator(".lf-composer .lf-compose-submit")
     send.focus()
     expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
@@ -2109,7 +2118,7 @@ def tally_after_an_answer(page: Page) -> None:
 
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")

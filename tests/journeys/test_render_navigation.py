@@ -583,7 +583,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.press("a")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-live")).to_contain_text("Press Enter to choose")
+    expect(page.locator(".lf-live")).to_contain_text("Enter choose target")
     expect(page.locator(".lf-live")).not_to_contain_text("Hint ")
     native_target = page.locator('[data-lf-hint-native="Enter"]')
     expect(native_target).to_be_visible()
@@ -1659,7 +1659,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
     # told the window opened and what it holds.
     expect(page.locator(".lf-live")).to_contain_text("visible targets")
-    expect(page.locator(".lf-live")).to_contain_text("type a hint")
+    expect(page.locator(".lf-live")).to_contain_text("letters visible target")
 
     # A panel mnemonic completes the sequence and leaves the user on that view's first
     # row, where its own scoped keys are immediately available.

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Web Awesome probe</title>
+    <meta name="description" content="Web Awesome components as Leaf widgets." />
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Web Awesome probe</h1>
+      <p id="p1">How far along is the build?</p>
+      <lf-progress id="bar" source="build" disabled></lf-progress>
+      <p id="p2">When should this ship?</p>
+      <lf-choice id="when" label="When">
+        <wa-option value="now">Ship now</wa-option>
+        <wa-option value="fri">Ship Friday</wa-option>
+        <wa-option value="hold">Hold</wa-option>
+      </lf-choice>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "$data": {
+    "contracts": {
+      "percent": {
+        "description": "A whole number from 0 to 100.",
+        "schema": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    }
+  },
+  "lf-progress": {
+    "description": "A Web Awesome slider, read only, showing a percentage held in page data.",
+    "attributes": {
+      "type": "object",
+      "properties": { "source": { "type": "string" } },
+      "required": ["id"],
+      "additionalProperties": true
+    },
+    "content": "empty",
+    "inputs": {
+      "percent": { "contract": "percent", "source": "source", "property": "value" }
+    },
+    "example": "<lf-progress id=\"build\" source=\"build\" disabled></lf-progress>"
+  },
+  "lf-choice": {
+    "description": "A Web Awesome select the user answers once.",
+    "attributes": {
+      "type": "object",
+      "properties": { "value": { "type": "string" } },
+      "required": ["id"],
+      "additionalProperties": true
+    },
+    "verbs": {
+      "pick": {
+        "unit": "widget",
+        "record": { "kind": "value", "attr": "value", "property": "value", "event": "change" }
+      }
+    },
+    "awaits": { "value": "pick", "answered": { "pick": {} } },
+    "example": "<lf-choice id=\"when\" label=\"When?\"><wa-option value=\"now\">Now</wa-option><wa-option value=\"later\">Later</wa-option></lf-choice>"
+  }
+}

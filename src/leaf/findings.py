@@ -1556,12 +1556,13 @@ _TEXT = {
     "markdown-needs-data": _declared(lambda v: "block Markdown requires content: data"),
     "data-input": _declared(
         lambda v: (
-            "its <pre> is the text of its one input when the markup binds"
+            "its <pre> is the text of its `value` input when the markup binds"
             " none, so content: data takes "
             + {
-                "inputs": "at most one input",
-                "words": "no input with `text-format`: markdown, whose <pre> is its words",
-                "state": "no input with a body record, whose <pre> is its state",
+                "inputs": "at most one `value` input",
+                "words": "no `value` input with `text-format`: markdown, whose <pre>"
+                " is its words",
+                "state": "no `value` input with a body record, whose <pre> is its state",
             }[v["reason"]]
         )
     ),

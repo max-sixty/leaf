@@ -3875,16 +3875,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original(directory, revision)
 
-    original_data = read_context.read_data
-
-    def held_data(*args):
-        # Record obligations in the view read their bound data under the same
-        # transaction as its document and log.
-        assert leases_model.lock_is_held(page_dir / "events.jsonl")
-        return original_data(*args)
-
     monkeypatch.setattr(read_context, "read_revision", held_revision)
-    monkeypatch.setattr(read_context, "read_data", held_data)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}&shown=2")
     assert status == 200, body
     # The base is read, and the revision shown for its containment

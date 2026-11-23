@@ -248,15 +248,6 @@ AWAITS_SCHEMA = {
         "when": AWAITING_CONDITION,
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
-        "records": {
-            "type": "object",
-            "properties": {
-                "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "label": {"type": "string", "minLength": 1},
-            },
-            "required": ["input", "label"],
-            "additionalProperties": False,
-        },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },

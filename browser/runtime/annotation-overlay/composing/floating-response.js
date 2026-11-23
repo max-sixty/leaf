@@ -147,8 +147,6 @@ export function createFloatingResponsePlacement({
   // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
-  // The box's height where its placement last stood it.
-  let stoodHeight = 0;
   function fabMotion() {
     const box = fabField();
     // The composer holding the composition is the root, since the composition's frame is
@@ -165,13 +163,8 @@ export function createFloatingResponsePlacement({
       outset: 0,
       placement: {
         held: fabPosition.held,
-        // The words widen the box inside the room its placement gave it, away from
-        // the edge that holds it (annotation-chrome.css), so a change of its width
-        // alone leaves it where it stands, and is read there.
         place: () => {
           if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
-          if (Math.abs(fabBar.getBoundingClientRect().height - stoodHeight) < 0.5)
-            return false;
           nativeAttachment = false;
           return placeFab();
         },
@@ -653,7 +646,6 @@ export function createFloatingResponsePlacement({
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
           const moved = fabPosition.stand(position);
-          stoodHeight = fabBar.getBoundingClientRect().height;
           keeps(fabBar, "data-lf-media-side", hang(fabPosition.clientBox(position)));
           carry.placed();
           return moved;

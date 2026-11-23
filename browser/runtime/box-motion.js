@@ -94,10 +94,12 @@
  * Every reading is taken in the box's own plane: a box the page's scroll or its
  * placement carries whole is read from the edges that hold it (`held`), so only a change
  * of its layout moves anything. A box a placement stands (`placement`) is read once that
- * placement has stood it, since a change of the box's size can move it too, as a line
+ * placement has stood it, since a change of the box's height can move it too, as a line
  * taking it past the window's foot holds it by that foot: the change asks the placement
  * first, and the placement's landing reads it (`placed`). Read first, the box would set
- * out for where its old placement stood it and turn back a frame later.
+ * out for where its old placement stood it and turn back a frame later. A change of
+ * widths alone, as a comment box's words widening it make, moves nothing a placement
+ * stands by, so it is read at once.
  *
  * A send is the user's change joining a stream ("send" from `theirs()`, read where
  * the stream starts from with `stream`), and news joins it as the agent's turn, in
@@ -190,7 +192,8 @@ function listen() {
 }
 
 // The parts of every box a placement stands are observed by one observer, made as
-// this module loads, which asks each box's placement first (`placed`). The placement
+// this module loads, which asks each box's placement first for a change of a part's
+// height (`changed`, `placed`). The placement
 // lands in this delivery, so it may move the box but not resize the box or anything
 // holding it: another observer of that box, delivered before this one or at a shallower
 // depth, would miss the new size, and the browser reports that as a loop. A placement
@@ -201,11 +204,16 @@ function listen() {
 // `autoUpdate` with its `elementResize`, asks too, so the order observers are made in
 // still matters there. We could consider, in future, giving the card's watch the
 // comment box's.
-/** @type {WeakMap<Element, () => void>} */
+/** @type {WeakMap<Element, (parts: Element[]) => void>} */
 const readers = new WeakMap();
 const placedParts = sizeObserver((entries) => {
-  for (const read of new Set(entries.map(({ target }) => readers.get(target))))
-    read?.();
+  /** @type {Map<(parts: Element[]) => void, Element[]>} */
+  const changes = new Map();
+  for (const { target } of entries) {
+    const read = readers.get(target);
+    if (read) changes.set(read, [...(changes.get(read) ?? []), target]);
+  }
+  for (const [read, parts] of changes) read(parts);
 });
 
 // How far a lift of the theme's (`--lf-raise-N`, styles/tokens.css) paints past the box it raises,
@@ -333,9 +341,21 @@ export function boxMotion({
 }) {
   const held = () => placement?.held() ?? null;
   const observer = given ?? placedParts;
-  // A change the placement answers is read in its landing (`placed`).
-  const changed = () => {
-    if (!placement?.place()) follow();
+  // A change the placement answers is read in its landing (`placed`). A placement
+  // stands the box by the heights of the parts it read: their widths are its own to
+  // set, or grow inside the room it gave them, as a comment box's words widen it. So a
+  // change that leaves each changed part as tall as it was read is read where the box
+  // stands, and a part not read yet, such as an attachment hung over the box, asks the
+  // placement.
+  /** @param {Element[]} parts */
+  const changed = (parts) => {
+    const widths = parts.every((part) => {
+      const was = rests?.get(part);
+      return (
+        was !== undefined && near(height(was), part.getBoundingClientRect().height)
+      );
+    });
+    if (widths || !placement?.place()) follow();
   };
   listen();
   // The surface: a ring and a fill inside it, cut to the box's outline, under one

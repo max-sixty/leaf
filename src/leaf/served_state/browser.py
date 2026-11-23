@@ -39,7 +39,7 @@ def _apply_thread_attention(records: list[dict], threads: list[dict]):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
     it is and where it stands: the id of the open obligation record that speaks for it
     (`standing.leading`), or None where nobody owes a move there. A resolved thread
-    reads None whatever the agent still owes in it: the user took it off their lists,
+    reads None whatever the agent still owes in it: the user took it off their list,
     and the record stands on the agent's. `records` are the obligation records of
     the view these threads are served in, so a pinned revision's threads take the
     attention its own vocabulary reads; the updates' and to-dos' among them stand as

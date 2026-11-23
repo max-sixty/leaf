@@ -441,9 +441,11 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
                 face: face(el), armed: off ? armed(el) : null};
       };
       // The resting comment box stands in for the field it opens and wears that field's
-      // face, its text cursor included (annotation-chrome.css).
+      // face, its text cursor included (annotation-chrome.css). A press its owner hid,
+      // such as the panel field's Dictate at rest, draws no face to tell apart.
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
-        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
+        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest')
+                        && !el.hidden);
       const said = [document.querySelector('#intro > .lf-tag'),
                     document.querySelector('#owner-fact > .lf-tag')];
       return {

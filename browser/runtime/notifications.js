@@ -13,10 +13,13 @@
    does for the changes since the version the user last saw (since-seen.js). The
    floating panel's field says the press at its end, after the words, as "Resolved “One
    reconnect in about 40” … Next thread t". The press names a command (`command`),
-   whose press it makes unless it brings its own `run`, as Undo takes back its own
-   gesture where ⌘Z takes the newest. The field shows the press with the keys that
-   would make that command now, and only while some would (floating-panel.js,
-   `pressReading`): so never on a touchscreen, where the panel's menu and lists reach
+   whose press it makes unless it brings its own `run`, as Show changes compares with
+   the version the user last saw under Compare's keys (since-seen.js). It names none
+   while no command would make its press, as Undo names ⌘Z only while ⌘Z would take
+   the gesture its notice reports (undo.js, `offerUndo`). The field shows the press
+   with the keys that would make that command now, and only while some would
+   (floating-panel.js, `pressReading`): so never on a touchscreen, where the panel's
+   menu and lists reach
    what it does. The live region hears the words alone, and a screen reader meets the
    press as the button it is, its key inside. So a notice's words name no key: one
    written into them would stand where it makes no press, as on a touchscreen or with

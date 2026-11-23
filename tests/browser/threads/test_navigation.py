@@ -234,6 +234,46 @@ def test_back_reopens_a_card_where_the_user_had_read_it_to(request, serve, engin
     assert abs(transcript.evaluate("box => box.scrollTop") - read_to) <= 2
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_returns_to_the_message_the_user_was_on(request, serve, engine):
+    """A walk that lands on a message, as the first unread one, leaves the user on that
+    message, and Back from the next stop returns them to it rather than to its thread."""
+    url = serve(LONG_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": first,
+            "revision": 1,
+            "text": "Because the importer reads it first.",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("g")
+    page.keyboard.press("u")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-msg[data-lf-message]')"
+    )
+    key = page.evaluate("document.activeElement.dataset.lfMessage")
+    page.keyboard.press("t")
+    page.wait_for_function(
+        "first => document.activeElement?.closest('[data-lf-thread]')?.dataset.lfThread"
+        " !== first",
+        arg=first,
+    )
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator(f'.lf-msg[data-lf-message="{key}"]')).to_be_focused()
+
+
 def test_back_reopens_a_card_on_the_side_it_opened_on(browser, serve):
     """Back to an entry whose card a `t` walk put away opens the card again where it
     stood, above its words, once the page stands where the entry left it, rather than

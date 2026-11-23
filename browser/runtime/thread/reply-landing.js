@@ -143,7 +143,11 @@ const headLine = (scroller) =>
 // scrolling its transcript (`headLine`), by the message it draws, and how far below
 // that line it starts. `showReading` stands that turn there again in a new drawing of
 // the thread, so its lines come back where they stood though turns above them grew,
-// folded or arrived since. History keeps it for each entry (history.js).
+// folded or arrived since. History keeps it for each entry (history.js), the panel's
+// hold of where the user stepped in from, and a revision's handoff of the panel's view
+// (floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
+// one placement keeps the offset it reads and writes within that fit instead
+// (thread-preview.js), since the drawing it measures stays the same.
 /** @typedef {{message: string, offset: number}} ThreadReading */
 /** @param {Element} held @returns {ThreadReading | null} */
 export function readingIn(held) {

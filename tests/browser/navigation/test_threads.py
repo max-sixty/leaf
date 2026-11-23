@@ -1470,10 +1470,14 @@ def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
 ):
     """Back from a thread a press on a row of Threads opened returns to Threads, on that
     row, as the view's own way back does, rather than closing the panel; Forward opens
-    the thread again."""
+    the thread again. The entry keeps the list and its row across a reload of the
+    document, which forgets the panel's views, so the thread about a passage the reload
+    opens beside its passage still gives way to Threads on Back."""
     url = serve(LONG_PAGE)
-    for text in ("First question?", "Second question?", "Third question?"):
-        panel_comment(serve.page_dir, text)
+    for n, text in enumerate(("First question?", "Second question?", "Third?"), 1):
+        panel_comment(
+            serve.page_dir, text, {"section": f"p{n}", "quote": f"Paragraph {n}."}
+        )
     page = open_page(request.getfixturevalue(engine), url)
     open_threads(page)
     rows = page.locator(".lf-fp-thread")
@@ -1481,17 +1485,25 @@ def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
     pressed = rows.nth(1)
     key = pressed.get_attribute("data-lf-key")
     pressed.click()
-    view = page.locator(PANEL_THREAD)
-    expect(view).to_be_visible()
+    opened = page.locator(PANEL_THREAD).get_attribute("data-lf-thread") or ""
+    thread = linked_thread(page, opened)
+    expect(thread).to_be_visible()
     page.wait_for_function("navigation.transition === null")
 
-    page.go_back()
-    expect(page.locator(panel_view("threads"))).to_be_visible()
-    expect(page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')).to_be_focused()
-    expect(view).to_be_hidden()
-    page.wait_for_function("navigation.transition === null")
-    page.go_forward()
-    expect(view).to_be_visible()
+    row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
+    for reload in (True, False):
+        if reload:
+            page.reload()
+            wait_until_ready(page)
+            expect(thread).to_be_visible()
+        page.go_back()
+        expect(page.locator(panel_view("threads"))).to_be_visible()
+        expect(row).to_be_focused()
+        expect(thread).to_be_hidden()
+        page.wait_for_function("navigation.transition === null")
+        page.go_forward()
+        expect(thread).to_be_visible()
+        page.wait_for_function("navigation.transition === null")
 
 
 def test_following_a_thread_url_uses_native_history(browser, serve):

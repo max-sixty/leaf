@@ -354,7 +354,7 @@ import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
 import { keepFoot, moveScrollerBy, scrollToEnd } from "./scrolling.js";
-import { showReturnTurn } from "./thread/reply-landing.js";
+import { readingIn, showReading, showReturnTurn } from "./thread/reply-landing.js";
 import {
   announceRoom,
   covered,
@@ -1171,9 +1171,9 @@ export function createFloatingPanel({
   // at the turn the user comes back for (`showReturnTurn`); after the user's turn,
   // past it, at its end (`end`); after a press on its held news, at the first message
   // the news showed, where it showed one (`shown`, the messages drawn before it); and
-  // reopened where the user had read it to, at that offset (`scroll`,
+  // reopened where the user had read it to (`reading`, thread/reply-landing.js,
   // `restoreCurrentLocation`).
-  /** @type {{key: string, end: boolean, shown?: Set<string>, scroll?: number} | null} */
+  /** @type {{key: string, end: boolean, shown?: Set<string>, reading?: import("./thread/reply-landing.js").ThreadReading} | null} */
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -5126,8 +5126,7 @@ export function createFloatingPanel({
       if (intent && landing === intent && thread.key === intent.key) {
         landing = null;
         if (intent.end) scrollToEnd(view);
-        else if (intent.scroll !== undefined)
-          moveScrollerBy(view, intent.scroll - view.scrollTop);
+        else if (intent.reading) showReading(view, intent.reading);
         else if (intent.shown) {
           const before = intent.shown;
           const shown = [...outlet.querySelectorAll(".lf-msg[data-lf-message]")].find(
@@ -5866,7 +5865,7 @@ export function createFloatingPanel({
     if (!top?.thread || !view) return null;
     return {
       thread: threadByKey(top.thread)?.key ?? top.thread,
-      scroll: view.scrollTop,
+      reading: readingIn(view),
       // The user is in the thread on its view or its head line, whose Resolve and
       // Show on page stand for the view; the field's reply is its editing continuity's.
       focus: [view, head].some(
@@ -5882,7 +5881,7 @@ export function createFloatingPanel({
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread || !currentLocation) return false;
-    const { scroll, focus } = currentLocation;
+    const { reading, focus } = currentLocation;
     const view = openView();
     if (trail.value.at(-1)?.thread === thread.key && view) {
       if (focus && !currentLocationIn(view)) focusDestination(view, "return");
@@ -5895,7 +5894,7 @@ export function createFloatingPanel({
       travel: false,
       scroll: false,
     });
-    landing = { key: thread.key, end: false, scroll };
+    landing = { key: thread.key, end: false, ...(reading && { reading }) };
     return Boolean(await opened);
   }
 
@@ -6041,16 +6040,29 @@ export function createFloatingPanel({
     restoreCurrentLocation,
     // The thread whose view stands open above the row, read through the trail, and
     // putting that view away: what the entry's thread address follows and asks for
-    // (thread/address.js). The view gives way to `list` where it stood over that list,
-    // by its way back (`back`), which stands the list on the thread's row, else closes.
-    // `listShown` names a list a thread view opens over that stands open, which an
-    // entry's record keeps (history.js).
+    // (thread/address.js). Where an entry's record names `list`, the list shows: the
+    // view gives way to it where it stood over it, by its way back (`back`), which
+    // stands the list on the thread's row; else the list opens, or stays, standing on the
+    // row of `from`, the thread the user was in, wherever it showed, as after a reload,
+    // which forgets the views the panel stood. `listShown` names a list a thread view opens
+    // over that stands open, which the record keeps (history.js).
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
-    /** @param {string | null} [list] */
-    putThreadAway: (list = null) => {
-      if (!threadOf(trail.value.at(-1))) return;
-      if (list && trail.value.at(-2)?.view === list) back();
-      else close();
+    /** @param {string | null} [list] @param {string | null} [from] */
+    putThreadAway: (list = null, from = null) => {
+      const top = trail.value.at(-1);
+      if (threadOf(top) && list && trail.value.at(-2)?.view === list) return back();
+      if (threadOf(top)) close();
+      const view = list && VIEWS.thread.over?.find((over) => over === list);
+      if (!view) return;
+      if (!showing({ view })) open({ view });
+      const key = from && threadByKey(from)?.key;
+      const row =
+        key && view === "threads"
+          ? shownView()?.querySelector(
+              `${THREAD_ROW}[data-lf-key="${CSS.escape(key)}"]`,
+            )
+          : null;
+      if (row) focusDestination(row, "return");
     },
     listShown: () => {
       const view = trail.value.at(-1)?.view;

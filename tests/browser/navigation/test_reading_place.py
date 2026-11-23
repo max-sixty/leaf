@@ -355,6 +355,102 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     assert returned == (None if close_source else before)
 
 
+UNNAMED_PROSE = """
+<h1>Unnamed prose</h1>
+<div><p>The passage without a name carries the words to select and more after them.</p></div>
+<div style="height:1600px"></div>
+<lf-group id="ask" label="Which route?"><h2>Which route?</h2>
+<lf-options id="routes"><lf-option id="left">Left</lf-option>
+<lf-option id="right">Right</lf-option></lf-options></lf-group>
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_in_unnamed_prose_across_a_revision(
+    request, serve, engine
+):
+    """Words selected where no element names them are a working place too: Back after
+    a trip selects them again, and still selects the same words after a revision wrote
+    others before them in their paragraph."""
+    url = serve(leaf_page("Unnamed prose", UNNAMED_PROSE))
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    selected = """() => {
+      const text = [...document.querySelectorAll('p')]
+        .find((p) => p.textContent.includes('without a name')).firstChild;
+      const at = text.data.indexOf('words to select');
+      getSelection().setBaseAndExtent(text, at, text, at + 'words to select'.length);
+    }"""
+    page.evaluate(selected)
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function("() => getSelection().toString() === 'words to select'")
+
+    page.wait_for_function("navigation.transition === null")
+    page.go_forward()
+    expect(page.locator("#ask")).to_be_focused()
+    # A selection the revision would rewrite holds the revision back (version.js).
+    page.evaluate("getSelection().removeAllRanges()")
+    _publish(
+        serve.page_dir,
+        2,
+        leaf_page(
+            "Unnamed prose",
+            UNNAMED_PROSE.replace(
+                "<p>The passage",
+                "<p>New words come first, and the words to see. The passage",
+            ),
+        ),
+        "words before the selection",
+    )
+    told(page)
+    expect(page.get_by_text("New words come first")).to_be_attached()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(
+        """() => {
+          const s = getSelection();
+          return s.toString() === 'words to select' &&
+            s.anchorNode.data.slice(s.anchorOffset - 9, s.anchorOffset) === 'ries the ';
+        }"""
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_widgets_named_control_across_a_revision(
+    request, serve, engine
+):
+    """Focus on a control a widget generates comes back by the key the widget names it
+    by inside its element (carry.js), though a revision has drawn the widget again."""
+    page_html = leaf_page(
+        "Named control",
+        '<h1>Named control</h1><lf-code id="snippet"><pre><code class="language-python">'
+        "first = 1\nsecond = 2</code></pre></lf-code>"
+        '<div style="height:1600px"></div><lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+        '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+    )
+    url = serve(page_html)
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    source = page.locator('#snippet pre[data-lf-carry="source"]')
+    source.focus()
+    expect(source).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    _publish(
+        serve.page_dir,
+        2,
+        page_html.replace("second = 2", "second = 3"),
+        "a new line of code",
+    )
+    told(page)
+    expect(page.locator("#snippet")).to_contain_text("second = 3")
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(source).to_be_focused()
+
+
 # A widget that draws one item at a time, as one fetching each item when it is picked
 # does, so a part of another item is in no element until its item is drawn, and every
 # item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,

@@ -25,13 +25,26 @@
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
+ *
+ * Focus is named by identity a reload keeps (`focusKey`), which history's record of an
+ * entry uses too (history.js): a page element by the id and tag above, or by its
+ * owner's and its `data-lf-carry` key; or a part of a drawn thread by the thread's id,
+ * its reply or a message by the message it draws, or the drawing itself; with the
+ * caret. An element nothing names is named by its place among the elements like it
+ * (focus.js, `likeSelector`) in the nearest holder something names, or the page. That
+ * place names it only where the holder is drawn from the same words: a message, whose
+ * words are the log's, or the page in the revision the key was read in. A revision's
+ * handoff takes no such place, since it names nothing the arriving revision must hold.
  */
 import { setScroll } from "./arrivals.js";
-import { focusDestination, readCaret, focused } from "./focus.js";
+import { focusDestination, likeSelector, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { isHTML, skipped } from "./shadow-tree.js";
+import { isHTML, renderedUnder, skipped } from "./shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
-import { elementById, inPage, pageDocument } from "./passages.js";
+import { closestAcross, elementById, inPage, pageDocument } from "./passages.js";
+import { ADDRESSABLE } from "./anchor-resolution.js";
+import { runtime } from "./context.js";
+import { drawnThreadId, THREAD, threadPart, wholeThread } from "./thread/selectors.js";
 
 /** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
 const holdsValue = (node) =>
@@ -41,15 +54,109 @@ const holdsValue = (node) =>
 const holdsTick = (node) =>
   isHTML(node, "input") && (node.type === "checkbox" || node.type === "radio");
 
+// A key names a page element by `id` and `name`, its tag, with `part` and `partName`
+// for a generated control's `data-lf-carry` key and tag; or a part of a thread by
+// `thread`, the thread's id, and `on`: its reply, a message (`message`), or its
+// drawing. `at` is an unnamed element's place in its holder, and `revision` the page's
+// as the key was read, which a place in the page needs (the header).
+/** @typedef {{id?: string, name?: string, part?: string, partName?: string,
+ * thread?: string, on?: "thread" | "message" | "reply", message?: string,
+ * at?: [like: string, nth: number], revision?: number | null,
+ * caret?: import("./focus.js").Caret}} FocusKey */
+// `active`'s place among the elements like it in `holder`, where it stands below it.
+/** @param {Element} holder @param {Element} active @returns {Pick<FocusKey, "at">} */
+const placeIn = (holder, active) => {
+  const like = likeSelector(active);
+  const nth =
+    holder === active ? -1 : [...holder.querySelectorAll(like)].indexOf(active);
+  return nth < 0 ? {} : { at: [like, nth] };
+};
+/** @param {Element | null} active @returns {FocusKey | null} */
+export function focusKey(active) {
+  if (!active || active === document.body) return null;
+  const caret = readCaret(active);
+  /** @param {FocusKey} key @returns {FocusKey} */
+  const withCaret = (key) => (caret ? { ...key, caret } : key);
+  const drawing = closestAcross(active, THREAD);
+  const whole = drawing && wholeThread(drawing);
+  const thread = drawnThreadId(whole);
+  if (whole && thread) {
+    const reply = threadPart(whole, "reply");
+    if (reply && renderedUnder(active, reply))
+      return withCaret({ thread, on: "reply" });
+    const turn = closestAcross(active, "[data-lf-message]");
+    const message =
+      turn && renderedUnder(turn, whole) ? turn.getAttribute("data-lf-message") : null;
+    return withCaret(
+      turn && message
+        ? { thread, on: "message", message, ...placeIn(turn, active) }
+        : { thread, on: "thread" },
+    );
+  }
+  if (!inPage(active)) return null;
+  const part = active.getAttribute("data-lf-carry");
+  const owner = part === null ? null : active.parentElement?.closest("[id]");
+  if (part !== null && owner && inPage(owner))
+    return withCaret({
+      id: owner.id,
+      name: owner.localName,
+      part,
+      partName: active.localName,
+    });
+  if (active.id) return withCaret({ id: active.id, name: active.localName });
+  const holder = closestAcross(active, ADDRESSABLE);
+  const named = holder && inPage(holder) ? holder : null;
+  return withCaret({
+    ...(named && { id: named.id, name: named.localName }),
+    ...placeIn(named ?? pageDocument(), active),
+    revision: runtime.currentRevision,
+  });
+}
+
+// The element a focus key names now, or null: a thread's part in the drawing of the
+// thread `drawing` finds, the reply, else the message's control at its place there,
+// else the message, else the drawing; a page element by its id or its owner's key, else
+// the element at its place in its holder while the page shows the key's revision, else
+// that holder.
+/** @param {FocusKey} key @param {(thread: string) => Element | null} drawing @returns {Element | null} */
+export function focusedBy(key, drawing) {
+  const { at } = key;
+  if (key.thread) {
+    const whole = drawing(key.thread);
+    if (!whole) return null;
+    const reply = key.on === "reply" ? threadPart(whole, "reply") : null;
+    if (reply) return reply;
+    const turn = key.message
+      ? whole.querySelector(`[data-lf-message="${CSS.escape(key.message)}"]`)
+      : null;
+    return (at && turn?.querySelectorAll(at[0])[at[1]]) || turn || whole;
+  }
+  const owner = key.id ? elementById(key.id, pageDocument()) : pageDocument();
+  if (!owner || (key.name && owner.localName !== key.name)) return null;
+  if (key.part !== undefined) return keyedFocus(owner, key);
+  const placed = at && key.revision === runtime.currentRevision;
+  return (placed && owner.querySelectorAll(at[0])[at[1]]) || owner;
+}
+
+// The element a page key names under `owner`, the element with its id: the owner, or
+// the generated control of its key and tag whose nearest named owner it is.
+/** @param {Element} owner @param {{part?: string, partName?: string}} key */
+const keyedFocus = (owner, { part, partName }) =>
+  part === undefined
+    ? owner
+    : ([...owner.querySelectorAll(`[data-lf-carry="${CSS.escape(part)}"]`)].find(
+        (node) =>
+          node.parentElement?.closest("[id]") === owner && node.localName === partName,
+      ) ?? null);
+
 // Capture before replacement. JSON records can cross a reload; held nodes remain local
-// so an in-place install can skip restoration on the nodes it kept.
+// so an in-place install can skip restoration on the nodes it kept. Only a key naming
+// an element by its id or its owner's key carries focus here (the header).
 /** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("./focus.js").Caret}} CarryRecord */
 /** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
-  const active = focused(document);
-  const partOwner = active?.hasAttribute("data-lf-carry")
-    ? active.parentElement?.closest("[id]")
-    : null;
+  const key = focusKey(focused(document));
+  const focus = key?.id && !key.at ? key : null;
   const records = [];
   const held = new Map();
   const regionBodies = new Set(readingRegions().map(({ body }) => body));
@@ -59,15 +166,8 @@ export function captureCarry(root, authored) {
     if (wrote?.localName !== node.localName) continue;
     /** @type {CarryRecord} */
     const record = { id: node.id, name: node.localName };
-    const focusPart = active && node === partOwner ? active : null;
-    if (node === active || focusPart) {
-      record.focus = true;
-      if (focusPart) {
-        const part = focusPart.getAttribute("data-lf-carry");
-        if (part !== null) record.part = part;
-        record.partName = focusPart.localName;
-      }
-    }
+    if (focus?.id === node.id && focus.name === node.localName)
+      Object.assign(record, focus, { focus: true });
     if (isHTML(node, "details") && isHTML(wrote, "details") && node.open !== wrote.open)
       record.open = node.open;
     if (!skipped(node)) {
@@ -78,10 +178,6 @@ export function captureCarry(root, authored) {
       record.value = node.value;
     if (holdsTick(node) && holdsTick(wrote) && node.checked !== wrote.checked)
       record.checked = node.checked;
-    if (node === active || focusPart) {
-      const caret = readCaret(active);
-      if (caret) record.caret = caret;
-    }
     // Omit identity-only records with no mechanical state to restore.
     if (Object.keys(record).length === 2) continue;
     records.push(record);
@@ -125,18 +221,7 @@ export function restoreCarry(
     handoffFocus(() => {
       for (const { arrived, record } of positions) {
         if (!record.focus || (record.part !== undefined) !== parts) continue;
-        const target =
-          record.part === undefined
-            ? arrived
-            : [
-                ...arrived.querySelectorAll(
-                  `[data-lf-carry="${CSS.escape(record.part)}"]`,
-                ),
-              ].find(
-                (node) =>
-                  node.parentElement?.closest("[id]") === arrived &&
-                  node.localName === record.partName,
-              );
+        const target = keyedFocus(arrived, record);
         if (target)
           focusDestination(
             target,

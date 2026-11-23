@@ -129,7 +129,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
+    expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_visible()
     at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
@@ -139,7 +139,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
+    expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_visible()
     at_end(".lf-msg", gap=True)
 
     # The answer to the user's turn waits below the fold behind New reply, and its

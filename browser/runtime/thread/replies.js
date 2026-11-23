@@ -78,7 +78,7 @@ import { tick } from "../version-signal.js";
  * landSent: typeof import("./landing.js").landSent,
  * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
- * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">> & {
+ * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">> & {
  * onChange?: () => void,
  * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
  * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
@@ -379,13 +379,13 @@ function sendReply(draftCtx, key, text, owns, actions, back) {
 /** @param {string} key @param {HTMLDivElement} row
  * @param {ReturnType<typeof import("../composing/text-field.js").textField>} input
  * @param {ReplyCommands} commands
- * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">>} options */
+ * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">>} options */
 function wireReply(
   key,
   row,
   input,
   commands,
-  { hint, hintParts, hintLead, enters, accessibleName, busy, closed },
+  { hint, hintParts, hintLead, enters, accessibleName, busy, closed, cornerAtRest },
 ) {
   row.classList.add("lf-comment-box");
   input.setAttribute("data-lf-voice", "leaf");
@@ -399,6 +399,7 @@ function wireReply(
     accessibleName,
     busy,
     closed,
+    cornerAtRest,
     sends: "send",
     sendClass: "lf-thread-send",
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -589,6 +590,7 @@ export function createReplyView(
     accessibleName = "Reply",
     busy = () => false,
     closed = () => false,
+    cornerAtRest = true,
     sending = null,
     sent = null,
   } = {},
@@ -606,6 +608,7 @@ export function createReplyView(
       accessibleName,
       busy,
       closed,
+      cornerAtRest,
     });
   };
   let composition = fresh();

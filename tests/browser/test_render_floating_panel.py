@@ -29,6 +29,7 @@ from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
+    FAKE_RECOGNITION,
     LONG_PAGE,
     PREVIEW,
     accessible_node,
@@ -4965,8 +4966,8 @@ def test_a_layer_a_menu_row_opened_closes_back_to_the_leaf(browser, serve):
 
 
 def test_tab_from_the_field_reaches_dictate(browser, serve):
-    """Dictate stands beside the field while the user writes in the panel and is gone at
-    rest, so Tab from the field lands on it rather than hiding it as the field lets go.
+    """Dictate stands beside the field while the user writes in it and is gone at rest,
+    and Tab from the field lands on it rather than hiding it as the field lets go.
     """
     page = floating(browser, serve(LONG_PAGE))
     dictate = page.locator(".lf-fp-box .lf-compose-dictate")
@@ -4980,6 +4981,46 @@ def test_tab_from_the_field_reaches_dictate(browser, serve):
     )
     expect(dictate).to_be_visible()
     expect(dictate).to_be_focused()
+
+
+def test_stop_stands_while_its_dictation_runs(browser, serve):
+    """A dictation running in the field is writing there, wherever focus goes on to:
+    its Stop keeps the corner, and the field keeps saying where the words go rather
+    than offering a press at its end beside Stop."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=FAKE_RECOGNITION)
+    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
+    field(page).click()
+    page.keyboard.press("Tab")
+    expect(dictate).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(dictate).to_have_attribute("aria-pressed", "true")
+    in_panel = "() => document.querySelector('.lf-floating-panel').contains(document.activeElement)"
+    for _ in range(4):
+        page.keyboard.press("Tab")
+        if not page.evaluate(in_panel):
+            break
+    assert not page.evaluate(in_panel), "Tab took focus out of the panel"
+    expect(dictate).to_be_visible()
+    expect(dictate).to_have_attribute("aria-pressed", "true")
+    expect(field(page)).to_have_attribute("data-lf-says", "destination")
+
+
+def test_closing_a_view_leaves_dictate_beside_the_caret(browser, serve):
+    """A pointer on an open view's Close leaves the caret in the page's field, which
+    the user is still writing in, so Dictate keeps its corner."""
+    page = open_page(browser, serve(OBLIGATION_PAGE), init_script=FAKE_RECOGNITION)
+    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    close = page.locator(".lf-fp-close").first
+    expect(close).to_be_visible()
+    field(page).click()
+    expect(field(page)).to_be_focused()
+    expect(dictate).to_be_visible()
+    close.click()
+    expect(close).to_be_hidden()
+    expect(field(page)).to_be_focused()
+    expect(dictate).to_be_visible()
 
 
 ROW_CENTRES = """() => {
@@ -5479,7 +5520,7 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     while it is open, holding the caret. Its
     comment sent, the panel opens the thread it started, which the page draws
     nowhere, and the field is back in the row."""
-    page = floating(browser, serve(PAGE_ANNOTATED))
+    page = open_page(browser, serve(PAGE_ANNOTATED), init_script=FAKE_RECOGNITION)
     response = page.locator(".lf-fp-response")
     row = page.locator(".lf-fp-row")
     rest = row.bounding_box()["height"]
@@ -5490,6 +5531,9 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     expect(box).to_be_focused()
     assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)
     expect(page.locator(".lf-fp-field")).to_be_hidden()
+    # The box keeps its own corner, Dictate while it is empty, as every comment box
+    # does, rather than the panel field's.
+    expect(response.locator(".lf-compose-dictate")).to_be_visible()
     page.keyboard.type("Is this paragraph needed?")
     # Send stands in the field's end corner, as in every comment box, not on a line
     # of its own under the field.
@@ -5953,11 +5997,11 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
 
     write(field(page), "A draft long enough to wrap once the counts stand beside it")
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
-    host = page.locator(".lf-floating-panel")
-    expect(host).to_have_attribute("data-lf-drafted", "")
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    expect(send).to_be_visible()
     words = field(page).bounding_box()
     look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
-    expect(host).to_have_attribute("data-lf-drafted", "")
+    expect(send).to_be_visible()
     assert field(page).bounding_box() == words
     field(page).click()
     assert field(page).bounding_box() == words

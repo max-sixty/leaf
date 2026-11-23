@@ -27,6 +27,14 @@
 // nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 //
+// The user writes in a box while focus is in it, on its editor or a press in its
+// corner such as Dictate, or while a dictation runs in it (`writesIn`). The box's press
+// at rest (`enters`) stands only while they don't, so it never stands beside the press
+// in the corner. A box whose corner stays empty at rest (`cornerAtRest` false), as the
+// floating panel's field is, shows Dictate or Send there only while the user writes or
+// it holds words, and its owner keeps the corner's room exactly while one shows
+// (floating-panel.css).
+//
 // An error about a box (errors.js, its `subject`), such as a refused send's whose words
 // came back to it or an image it would not take, stands over the box's words and
 // actions, wrapping within its lines, until the user comes back to them: an edit there,
@@ -77,7 +85,12 @@ import {
 } from "/runtime/framework.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
-import { focusDestination, focused, focusRevision } from "../focus.js";
+import {
+  currentLocationIn,
+  focusDestination,
+  focused,
+  focusRevision,
+} from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
 import { errorOver, passErrorsAt, raiseError } from "../errors.js";
@@ -98,6 +111,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {() => string | BoxPress | null} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {() => boolean} [closed]
+ * @property {boolean} [cornerAtRest]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
  * @property {string} [sendClass]
@@ -113,7 +127,8 @@ import { offeredAction } from "../widget-elements.js";
  * @property {boolean} [sentMedia]
  * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
  * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
- * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>}} InputSync
+ * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
+ * writing: () => boolean}} InputSync
  * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
  */
 
@@ -272,6 +287,9 @@ export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // name reads has changed and the caller holds the field rather than its wiring.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
+// Whether the user writes in a wired box (the module header).
+/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
+export const writesIn = (ta) => Boolean(ta?.[INPUT_DRAFT]?.writing());
 // Whether a wired box takes no words now (`closed`), as the panel's field while a
 // stance stands. It asks `closed` rather than `readOnly`, which an upload in flight
 // also sets on a box that `c` may still move to another passage.
@@ -368,6 +386,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // stands (field-readings.js, `still`): its draft stays, unwritable, and it
       // offers neither Send nor the microphone until this says otherwise.
       closed = () => false,
+      // Whether the corner shows Dictate, or Send, while the user isn't writing in the
+      // empty box; false leaves it empty then.
+      cornerAtRest = true,
       save,
       send,
       sendClass = "",
@@ -403,6 +424,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const focusedHere = computed(() => {
       focusRevision();
       return focused() === ta;
+    });
+    const focusInBox = computed(() => {
+      focusRevision();
+      return currentLocationIn(field);
     });
     const enteringHint = computed(() =>
       hintedBox.value === ta ? hintLabel.value : "",
@@ -442,6 +467,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let stopDictationRevision = null;
     const dictationPhase = () =>
       loadingDictation ? "starting" : (dictation?.phase ?? "idle");
+    const writing = () => focusInBox.value || dictationPhase() !== "idle";
     const dictationStatus = () =>
       loadingDictation
         ? "Starting microphone…"
@@ -598,7 +624,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const advertising = advertisesKeys();
       const sendKeys = advertising ? sendKey() : "";
       const status = dictationStatus();
-      const offered = focusedHere.value || status ? "" : enters();
+      const offered = writing() || status ? "" : enters();
       const press = typeof offered === "string" ? null : offered;
       const suffix =
         !advertising || offered === null
@@ -682,7 +708,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;
-      const micShown = offersDictation && !shut && (phase !== "idle" || !hasWords);
+      const corner = cornerAtRest || writing();
+      const micShown =
+        offersDictation && !shut && (phase !== "idle" || (!hasWords && corner));
       const micAction = live
         ? "Stop dictation"
         : phase === "stopping"
@@ -699,7 +727,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
-        ?hidden=${micShown || shut}
+        ?hidden=${micShown || shut || (!hasWords && !corner)}
         aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
         @click=${() => pressed()}
@@ -836,6 +864,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     sync.cancelDictation = cancelDictation;
     sync.value = draftValue;
     sync.closed = closed;
+    sync.writing = writing;
     sync.hasMedia = () => attachedMedia.length > 0;
     // The box takes up the draft it now stands on as it is, with a history of its own:
     // another draft, or this one as another tab left it. The caller's next paint shows

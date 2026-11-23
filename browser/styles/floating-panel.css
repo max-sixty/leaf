@@ -772,6 +772,7 @@
      (below). Each is a line tall, standing on the row's foot, and as wide as the
      floor, as the row's other presses are. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
+    display: grid;
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
@@ -781,14 +782,13 @@
     min-height: 0;
     padding: 0;
   }
-  /* The field keeps the corner's room while a press stands there: Dictate while the
-     user writes, Send while the field holds a draft. Its empty field's end press, such
-     as Reply or Next On Me and its key, stands only while the user doesn't write and
-     the field holds no draft (floating-panel.js, `writesIn`), so it never shares the
-     row's end with them and stands as far from the leaf in a thread as on the page. */
-  .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
-    .lf-fp-field
-    .lf-compose-field
+  /* The field keeps the corner's room exactly while a press shows there, which the
+     composer decides: Dictate while the user writes in the empty field, Send while it
+     holds words (composing/input.js, `cornerAtRest`). The empty field's end press,
+     such as Reply or Next On Me and its key, stands only while neither shows, so it
+     stands as far from the leaf in a thread as on the page. */
+  .lf-fp-field
+    .lf-compose-field:has(> :is(.lf-compose-submit, .lf-compose-dictate):not([hidden]))
     > leaf-text {
     --lf-field-end-room: calc(var(--lf-fp-corner) - 6px);
   }
@@ -806,27 +806,6 @@
       height: var(--lf-send-height);
       inset-block-end: calc((var(--lf-line) - var(--lf-send-height)) / 2);
     }
-  }
-  /* Send shows while the user writes words, in every composer's face: the accent arrow,
-     not a press of its own, in Dictate's seat. While the field holds a draft, Send
-     stays in its corner with the caret elsewhere, so no line of the draft moves
-     (floating-panel.js, `drafted`). */
-  .lf-fp-field .lf-compose-submit {
-    display: none;
-  }
-  .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
-    .lf-fp-field
-    .lf-compose-submit {
-    display: grid;
-  }
-  .lf-fp-field .lf-compose-dictate {
-    display: grid;
-  }
-  /* Dictation is offered while the user writes, not at rest. Writing lasts while focus
-     is in the field or on its corner's press (floating-panel.js, `writesIn`), so Tab
-     from the field lands on Dictate rather than hiding it as the field lets go. */
-  .lf-floating-panel:not([data-lf-writing]) .lf-compose-dictate {
-    display: none;
   }
 
   /* The way out of a search or a stance, between the field and the leaf

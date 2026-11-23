@@ -55,8 +55,9 @@ imports later from the new copy, beside the old modules it already holds. So an
 adapter holds the copy it loaded (`state.LoadedCopy`) and asks each pass whether
 another copy stands at its path; once one does, the adapter hands its task to an
 adapter from the new copy (`_hand_over`). An update that moves the page protocol
-leaves the task's pages at the old one, which the successor renews as it first reads
-them, as the task's hooks would (`session.Watch`). As with page servers
+leaves the task's pages at the old one, which the restart of each page's server
+renews (`hosting.follow_copy`), and the successor delivers their input once it does.
+As with page servers
 (`server.stop_when_service_ends`), only an installed copy follows its replacement. A
 checkout's adapter keeps the modules it loaded and imports any later one from the
 checkout as it stands, since whoever runs a checkout decides when it changes.

@@ -2301,8 +2301,8 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
 
 def test_two_renewals_of_a_page_take_turns(claimed, monkeypatch):
     """Two readers acting for the session can set out to renew one page at once, as
-    the watch that takes over from a replaced copy and the restart of the page's
-    server do. The second waits for the first through its restart, then finds the
+    a hook reading the session's pages and the restart of a page's server whose copy
+    was replaced can. The second waits for the first through its restart, then finds the
     page renewed and changes nothing: it neither restarts the server the first just
     started nor reports a refusal, as it would were it to pass its first reading
     while the first is still stopping the server."""

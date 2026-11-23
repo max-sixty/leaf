@@ -894,46 +894,48 @@ def check_servable(page_dir: Path) -> None:
         page_endpoint(page_dir, host_key())
 
 
-def follow_copy(
-    page_dir: Path, server_id: str, harness: Harness | None, handshake: Handshake
-) -> None:
-    """`server _follow`: restart at its address, under this Leaf and for `harness`'s
-    session, the server `server_id` names, which the installed copy this Leaf
-    replaced at the same path started, and which asked
-    (`server.stop_when_service_ends`).
+def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
+    """`server _follow`: restart at its address, under this Leaf, the server
+    `server_id` names, which the installed copy this Leaf replaced at the same path
+    started, and which asked (`server.stop_when_service_ends`).
 
     The answer through `handshake` says only that this copy runs, since only a
     failed launch is worth the server's trying again. A page at an older page
     protocol, as the update that replaced the copy can leave it, is renewed first,
-    for `harness`'s session (`vendoring.renew_held`) or while no session holds it
-    (`vendoring.renew_layer`), and what holds the renewal back is queued for that
-    session's next step (`clerk.queue`). The renewal restarts the server itself, and
-    so does the session's watch where it renews the page first (`session.Watch`);
-    renewals take turns, and the later finds the page renewed and changes nothing
-    (`vendoring._reinit`). The restart (`restarting_server`) then follows
-    unless the page changed since the server asked: a page this Leaf still can't
-    serve, as one whose renewal was refused, stays with the server serving it
-    (`check_servable`); a server another start put in place, such as a checkout's
-    or a renewal's, keeps running; and a session service whose session has ended
+    for the live session holding the page (`vendoring.renew_held`) or while none
+    does (`vendoring.renew_layer`), and what holds the renewal back is queued for
+    that session's next step (`clerk.queue`). This is the one renewal the update
+    makes for the page, so the successors of the session's watch and of Codex's
+    adapter read the page once it lands. The renewal restarts the server itself,
+    and takes turns with a hook's renewal of the same page (`vendoring._reinit`).
+
+    Otherwise the restart (`restarting_server`) follows, for the session holding the
+    page, unless the page changed since the server asked: a page this Leaf still
+    can't serve, as one whose renewal was refused, stays with the server serving it
+    (`check_servable`); a server another start put in place, such as a checkout's or
+    a renewal's, keeps running; and a session service whose session has ended
     retires after its grace, as it would have on the old copy. These checks come
     last, so that little time passes between them and the stop."""
     if not handshake.announce():
         return
     from .vendoring import renew_held, renew_layer
 
-    if harness is None:
+    held = page_claim(page_dir)
+    if held is None or not claim_is_active(held):
         renew_layer(page_dir, None, command=False)
-    elif unready := renew_held(page_dir, harness.session):
+    elif unready := renew_held(page_dir, held["id"]):
         from .clerk import queue
 
-        queue(harness.session, [str(unready)], wake=True)
+        queue(held["id"], [str(unready)], wake=True)
     check_servable(page_dir)
     running = running_server(page_dir)
+    held = page_claim(page_dir)
+    live = claim_is_active(held)
     if running is None or running["server_id"] != server_id:
-        raise Refused(f"the server that asked to restart no longer serves {page_dir}")
-    if running["lifetime"] == "session" and not claim_is_active(page_claim(page_dir)):
-        raise Refused(f"no live session holds {page_dir} any more")
-    with restarting_server(page_dir, harness):
+        return
+    if running["lifetime"] == "session" and not live:
+        return
+    with restarting_server(page_dir, claim_harness(held) if held and live else None):
         pass
 
 

@@ -208,8 +208,7 @@ def test_a_server_has_the_copy_its_harness_puts_in_its_place_restart_it(
     into its path, and Pi resets its clone in place and then removes the clone's
     environment. A server the old copy started has the new copy restart it once a
     pass finds that copy at its path: it starts `server _follow` once, through the
-    new copy's launcher, naming itself and the session holding the page, tries
-    again when that launch fails, and goes on serving until that restart stops it.
+    new copy's launcher, naming itself, tries again when that launch fails, and goes on serving until that restart stops it.
     The child's environment names no harness, so it can't hand itself to a checkout
     the session selected. A server whose session has ended retires after its grace
     instead, as does one from Claude Code's copy, which Claude Code deletes rather
@@ -281,12 +280,8 @@ def test_a_server_has_the_copy_its_harness_puts_in_its_place_restart_it(
     if not follows:
         assert attempts == []
         return
-    claim = service_model.page_claim(claimed)
-    assert claim is not None
-    holder = harness_model.claim_harness(claim)
-    arguments = ["server", "_follow", str(claimed), "--server-id", "fixture-server"]
     launch = (
-        [*arguments, "--harness", harness_model.harness_argument(holder)],
+        ["server", "_follow", str(claimed), "--server-id", "fixture-server"],
         None,
         (root / "bin" / "leaf").resolve(),
     )
@@ -298,7 +293,8 @@ def test_a_new_copy_restarts_only_the_server_that_asked(claimed, monkeypatch):
     as it runs, then restarts that server under itself, at its address and for the
     session holding the page (`hosting.follow_copy`). A server another start put in
     its place, such as one a checkout started, keeps running, and so does one whose
-    session has ended, which retires after its grace."""
+    session has ended, which retires after its grace; neither is a failure of the
+    follow."""
     serving(claimed, available_loopback_port(), "session")
     claim = service_model.page_claim(claimed)
     assert claim is not None
@@ -313,21 +309,19 @@ def test_a_new_copy_restarts_only_the_server_that_asked(claimed, monkeypatch):
         yield
 
     monkeypatch.setattr(hosting_model, "restarting_server", restarting)
-    assert "no longer serves" in follow(claimed, "a-checkout-s-server", asking).output
+    assert follow(claimed, "a-checkout-s-server", asking).exit_code == 0
     assert restarted == []
     assert follow(claimed, "fixture-server", asking).exit_code == 0
     assert restarted == [(claimed, holder)]
     cleanup_model.end_harness_instance("s1")
-    assert "no live session" in follow(claimed, "fixture-server", asking).output
+    assert follow(claimed, "fixture-server", asking).exit_code == 0
     assert restarted == [(claimed, holder)]
 
 
 def follow(page_dir: Path, server_id: str, asking: dict):
-    """Run `server _follow` for the server `server_id` names, for the session
-    holding the page, as a server that accepts the answer as it hears it, which it
-    keeps at `asking["server"]` while the command runs."""
-    claim = service_model.page_claim(page_dir)
-    holder = harness_model.claim_harness(claim) if claim else None
+    """Run `server _follow` for the server `server_id` names, as a server that
+    accepts the answer as it hears it, which it keeps at `asking["server"]` while the
+    command runs."""
     asking["server"], child = socket.socketpair()
     with asking["server"]:
         asking["server"].sendall(b"\n")
@@ -335,20 +329,26 @@ def follow(page_dir: Path, server_id: str, asking: dict):
             cli_model.cli,
             [
                 *("server", "_follow", str(page_dir), "--server-id", server_id),
-                *("--harness", harness_model.harness_argument(holder)),
                 *("--handshake", str(child.detach())),
             ],
         )
 
 
-def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(claimed, monkeypatch):
+@pytest.mark.parametrize("hooks_run", ["this Leaf", "another Leaf"])
+def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
+    claimed, monkeypatch, hooks_run
+):
     """An update that moves the page protocol leaves the page at the old one, which
     the new copy can't serve. `server _follow` renews it first, for the session
     holding the page, as that session's next hook would, and queues what holds the
-    renewal back for the session. The renewal restarts the server, as does the
-    session's watch where it renews first, so the follow finds another server in
-    place of the one that asked and restarts nothing more."""
-    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    renewal back for the session. The renewal restarts the server, so the follow
+    finds another server in place of the one that asked and restarts nothing more.
+    Where the session's hooks run another Leaf, the page stays at the protocol they
+    read."""
+    mark = hooks_model.skill_mark()
+    if hooks_run == "another Leaf":
+        mark = mark.replace(str(cleanup_model.PLUGIN_ROOT), "/another/leaf", 1)
+    leases_model.mark_skill("s1", mark)
     serving(claimed, available_loopback_port(), "session")
     claim = service_model.page_claim(claimed)
     assert claim is not None
@@ -364,14 +364,22 @@ def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(claimed, monke
         server_model.write_service(page_dir, {**service, "server_id": "renewed"})
         return held_back
 
+    restarted = []
+
+    @contextlib.contextmanager
+    def restarting(page_dir, harness):
+        restarted.append(page_dir)
+        yield
+
     monkeypatch.setattr(vendoring_model, "renew_layer", renew)
-    monkeypatch.setattr(
-        hosting_model,
-        "restarting_server",
-        lambda *_args: pytest.fail("the follow restarted the renewed server again"),
-    )
-    assert "no longer serves" in follow(claimed, "fixture-server", {}).output
+    monkeypatch.setattr(hosting_model, "restarting_server", restarting)
+    assert follow(claimed, "fixture-server", {}).exit_code == 0
+    if hooks_run == "another Leaf":
+        assert renewals == []
+        assert clerk_model.waking("s1") == []
+        return
     assert renewals == [(claimed, harness_model.claim_harness(claim))]
+    assert restarted == [], "the follow restarted the renewed server again"
     assert clerk_model.waking("s1") == [str(held_back)]
 
 

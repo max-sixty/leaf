@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .detached import starting_detached
 from .files import read_json
-from .harness import Harness, claim_harness, harness_argument
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
 from .schema import (
@@ -280,14 +279,11 @@ def stop_when_service_ends(page_dir: Path) -> None:
         if not service or not service["enabled"]:
             exit_serving(0)
         persistent = service["lifetime"] == "persistent"
-        claim = None if persistent else page_claim(page_dir)
-        claimed = claim_is_active(claim)
+        claimed = not persistent and claim_is_active(page_claim(page_dir))
         if not following and (persistent or claimed) and copy.replaced():
             following = True
             threading.Thread(
-                target=_follow_copy,
-                args=(page_dir, service["server_id"], claim and claim_harness(claim)),
-                daemon=True,
+                target=_follow_copy, args=(page_dir, service["server_id"]), daemon=True
             ).start()
         if persistent:
             time.sleep(2.0)
@@ -316,10 +312,9 @@ def stop_when_service_ends(page_dir: Path) -> None:
         time.sleep(min(2.0, ORPHAN_GRACE_SECS))
 
 
-def _follow_copy(page_dir: Path, server_id: str, harness: Harness | None) -> None:
+def _follow_copy(page_dir: Path, server_id: str) -> None:
     """Hand the restart of this server to the copy now standing at its copy's path
-    (`hosting.follow_copy`), for `harness`, the session holding the page, or None
-    for a persistent service, and return once that copy runs and has taken it on.
+    (`hosting.follow_copy`), and return once that copy runs and has taken it on.
 
     It runs through that copy's launcher, since this process's environment went
     with its copy, in a thread of its own, so the lifetime check goes on while the
@@ -327,10 +322,11 @@ def _follow_copy(page_dir: Path, server_id: str, harness: Harness | None) -> Non
     can't build the environment does, is tried again on the retry ladder
     (`codex.retry_delay`) for as long as this server serves.
 
-    The child gets the harness as an argument, and its environment names none, as
-    a server a hook starts runs: a command whose environment names a session hands
-    itself to the checkout that session selected (`session_runtime.hand_off_command`),
-    and only the copy at this server's own path may restart it.
+    The child's environment names no session, as a server a hook starts runs: a
+    command whose environment names a session hands itself to the checkout that
+    session selected (`session_runtime.hand_off_command`), and only the copy at this
+    server's own path may restart it. The child reads the session from the page's
+    claim.
 
     It loads no module the server has not: the server loads `leaf.codex` before it
     serves, as `exit_serving` relies on too, and every hook loads this module, so
@@ -347,8 +343,6 @@ def _follow_copy(page_dir: Path, server_id: str, harness: Harness | None) -> Non
                     str(page_dir),
                     "--server-id",
                     server_id,
-                    "--harness",
-                    harness_argument(harness),
                 ],
                 harness=None,
                 what=f"the restart of the server for {page_dir} under the new copy",

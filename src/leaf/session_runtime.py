@@ -43,6 +43,7 @@ delivery does not replace a comparison arm's renderer.
 
 import os
 from pathlib import Path
+from typing import NoReturn
 
 from .refusals import Refused
 from .state import (
@@ -105,6 +106,13 @@ def hand_off_command(argv: list[str]) -> None:
     launcher = delivering_launcher(harness.session if harness else "")
     if launcher == own_launcher():
         return
+    run_under(launcher, argv)
+
+
+def run_under(launcher: Path, argv: list[str]) -> NoReturn:
+    """Replace this process with `launcher` running `leaf` with `argv`. Its
+    environment drops the host's choice of launcher (`LEAF_HOST_LAUNCHER`, which
+    `bin/leaf` reads), since that would send the call back to the host's."""
     environment = dict(os.environ)
     environment.pop("LEAF_HOST_LAUNCHER", None)
     os.execve(launcher, [str(launcher), *argv], environment)

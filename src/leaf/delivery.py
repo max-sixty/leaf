@@ -1159,10 +1159,10 @@ def deliverable(
     None on a page whose log this Leaf may not write
     (`event_contracts.write_refusal`), where `receive_batch` refuses its receipt.
     Handed over anyway, it stayed pending, so a watch woke its session on every pass
-    and a Codex watch opened a turn for it each time. Its session's hooks, watches
-    and commands renew such a page's layer before they read it
-    (`vendoring.renew_layer`), so input waits here only on a page whose renewal was
-    refused, and the hooks name why (`hook_transport.remedies`).
+    and a Codex watch opened a turn for it each time. Its session's hooks and
+    commands renew such a page's layer before they read it (`vendoring.renew_layer`),
+    so input waits here only on a page whose renewal was refused, and the hooks name
+    why (`hook_transport.remedies`).
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. A tool hook runs after every tool call, so Codex's passes

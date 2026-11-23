@@ -80,6 +80,7 @@ from .refusals import Refused
 from .service import owned_pages
 from .state import (
     PLUGIN_ROOT,
+    SKILL_SUFFIX,
     CopyReplaced,
     advance_turn,
     close_session_turn,
@@ -87,6 +88,7 @@ from .state import (
     held_claims,
     installed_copy,
     prompt_turn,
+    session_file,
     session_lock_path,
     session_record,
     still_named,
@@ -249,6 +251,18 @@ def skill_mark() -> str:
         }
     )
     return f"{PLUGIN_ROOT}\n{skill}"
+
+
+def hooks_run_here(session_id: str) -> bool:
+    """Whether the session's hooks last ran this Leaf, by the root their latest
+    `skill_mark` names (`leases.mark_skill`), as a process the session's hooks didn't
+    start asks before it acts for the session: a page it renews must stay readable
+    to the Leaf the session's hooks run."""
+    try:
+        marked = session_file(session_id, SKILL_SUFFIX).read_text()
+    except FileNotFoundError:
+        return False
+    return marked.rpartition("\n")[0] == str(PLUGIN_ROOT)
 
 
 def skill_changed(session_id: str, before: str, now: str) -> None:
@@ -585,12 +599,10 @@ def _run_hook(
     The stdin is a file rather than a pipe, which a large tool payload would fill."""
     import tempfile
 
+    from .session_runtime import run_under
+
     with tempfile.TemporaryFile() as incoming:
         incoming.write(json.dumps(payload).encode())
         incoming.seek(0)
         os.dup2(incoming.fileno(), 0)
-    environment = dict(os.environ)
-    environment.pop("LEAF_HOST_LAUNCHER", None)
-    os.execve(
-        launcher, [str(launcher), "hook", "--harness", harness, *flags], environment
-    )
+    run_under(launcher, ["hook", "--harness", harness, *flags])

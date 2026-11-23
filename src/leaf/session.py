@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, NamedTuple
 
-from .clerk import QUEUED, queue, waking
+from .clerk import QUEUED, waking
 from .detached import StartRefused
 from .file_changes import FileChanges, target_paths
 from .files import file_stamp
@@ -161,11 +161,6 @@ class Watch:
     the agent's own choice, and `page init` stops a served page to re-initialize it and
     starts it again, so the wait watches a disabled service without reviving it.
 
-    A watch for a session renews a page it holds at an older page protocol before it
-    reads it, as the session's hooks do (`vendoring.renew_held`), once a watch. What
-    holds the renewal back, which a hook would tell its turn, is queued for the
-    session's next step, waking an idle session for it (`clerk.queue`).
-
     Between passes native subscriptions follow this session's claim partition,
     canonical targets (including prepared claims), lifecycle, and each page a pass
     found. A subscription is installed before its observation; its generation
@@ -189,8 +184,6 @@ class Watch:
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
-        # The pages this watch has offered to renew, each once (`_renew`).
-        self._renewal_tried: set = set()
         self.claims = (
             session_claims(self.session_id) if self.session_id else claims_home()
         )
@@ -342,7 +335,6 @@ class Watch:
             return
         self.watched = self.pages()
         for page_dir in self.watched:
-            self._renew(page_dir)
             # Every act uses the reading under the lock below: a claim or
             # SessionEnd can win after page selection, and _read must then decline
             # every stale act.
@@ -390,26 +382,6 @@ class Watch:
                     yield reading
             except FileNotFoundError:
                 continue
-
-    def _renew(self, page_dir: Path) -> None:
-        """Renew the page for the session, the first time this watch reads it, and
-        queue what holds it back. One try a watch, so a renewal refused, which
-        composes the page's layer first, isn't tried and told again every pass."""
-        key = str(page_dir)
-        if self.session_id is None or key in self._renewal_tried:
-            return
-        self._renewal_tried.add(key)
-        from .vendoring import renew_held
-
-        try:
-            unready = renew_held(page_dir, self.session_id)
-        except FileNotFoundError:
-            if page_dir.is_dir():
-                raise
-            # A page deleted meanwhile, which the reading below passes over.
-            return
-        if unready:
-            queue(self.session_id, [str(unready)], wake=True)
 
     def _read(self, page: PageTransaction) -> tuple[PageTick, bool]:
         """Read one page transaction and say whether revival is due."""
@@ -751,8 +723,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     one that cannot read a page the session now holds. Nor does a watch read a page
     once its harness has put another copy in place of the installed copy it loaded:
     it ends at its next pass, which comes within `REVIVAL_CHECK_S`, by raising
-    `CopyReplaced`, and that copy's watch, renewing the pages it can't read
-    (`Watch`), goes on in its place.
+    `CopyReplaced`, and that copy's watch goes on in its place.
     """
     interrupted = payload.get("hook_event_name") == "Interrupt"
     at_prompt = payload.get("hook_event_name") == "UserPromptSubmit"

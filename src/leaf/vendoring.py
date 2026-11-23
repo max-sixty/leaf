@@ -35,7 +35,7 @@ from .layer import (
     named_package,
     package_files,
 )
-from .leases import hooks_run_here, lock_is_held, page_locked
+from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
 from .registry.kernel import kernel_protocol
@@ -166,12 +166,10 @@ def renew_layer(
     its threads and decisions, its source and its selection, so it asks nothing of
     the agent's judgment, and the first Leaf to act for the page's session makes it
     instead: a write command naming the page (`cli.resolve_dir`), the prompt hook
-    serving the page again (`reconnect`), a reader of the session's pages
-    (`renew_held`), or the restart of a page server whose copy its harness
-    replaced (`hosting.follow_copy`). A command that only reads the page leaves it
-    as it is, but for `leaf wait`, which renews the pages its session holds as the
-    session's other watches do (`renew_held`). Only the session holding the page
-    renews it, or any caller while no live
+    serving the page again (`reconnect`), a hook that reads the session's pages
+    (`renew_held`), or the restart of a page server whose copy its harness replaced
+    (`hosting.follow_copy`). A command that only reads the page leaves it as it is.
+    Only the session holding the page renews it, or any caller while no live
     session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
@@ -223,21 +221,21 @@ def renew_layer(
 
 
 def renew_held(page_dir: Path, session_id: str) -> Finding | None:
-    """`renew_layer` for a reader of the pages `session_id` holds, acting for that
-    session: a hook that reads them (`hook_transport.read_plans`), as the prompt and
-    Stop hooks do and a tool boundary does with something to carry or a status check
-    due, and a watch that reads them (`session.Watch`): the between-turn watch,
-    Codex's delivery adapter and the session's `leaf wait`, and the restart of a page
-    server whose copy its harness replaced (`hosting.follow_copy`). So the copy of
-    Leaf that takes over a session's delivery from the copy its harness replaced, at
-    another page protocol, renews the session's pages itself rather than delivering
-    nothing until the session's next prompt.
+    """`renew_layer` for a reader acting for `session_id`, the session holding the
+    page: a hook that reads the session's pages (`hook_transport.read_plans`), as the
+    prompt and Stop hooks do and a tool boundary does with something to carry or a
+    status check due, and the restart of a page server whose copy its harness
+    replaced (`hosting.follow_copy`). The restart's renewal is the one an update
+    that moves the page protocol makes before the session's next hook, so the
+    successors of the session's watch and of Codex's adapter, which only read the
+    page, deliver its input once the renewal lands.
 
     A page another session holds is left alone, and so is one whose session's hooks
-    run another Leaf (`leases.hooks_run_here`), such as a checkout's `leaf wait` the
-    session never selected, or a server another harness's copy started for a page a
-    session of another harness took since: renewed, the page would be one its
-    session's hooks can no longer read."""
+    run another Leaf (`hooks.hooks_run_here`), as a server another harness's copy
+    started can serve a page a session of another harness took since: renewed, the
+    page would be one its session's hooks can no longer read."""
+    from .hooks import hooks_run_here
+
     held = page_claim(page_dir)
     if held is None or held["id"] != session_id or not hooks_run_here(session_id):
         return None
@@ -261,8 +259,8 @@ def _reinit(
 
     A rewrite holds the page's init lock from `still`'s second reading through the
     restart, so re-initializations of one page take turns: two renewals at once, as
-    the watch that takes over from a replaced copy and the restart of the page's
-    server make, would each pass their first reading, since the page lock can't span
+    a hook reading the session's pages and the restart of a server whose copy was
+    replaced can make, would each pass their first reading, since the page lock can't span
     the restart whose stop takes it, and the second would then find the old server
     still exiting from the first's stop, and be refused, or stop the server the first
     had just started. In turn, the second finds the page renewed and changes nothing.

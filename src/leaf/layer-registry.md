@@ -83,10 +83,9 @@ outside the page. Root `AGENTS.md`, "Pages across Leaf updates", says when it mo
 
 Every page server and the append door refuse a page at another number
 (`layer.incompatible_layer` says what each refusal names). The session holding a page
-at a lower number takes it to this Leaf's at its first command that writes to the page,
-or hook or watch, `leaf wait` included, that reads its pages (`vendoring.renew_layer`
-says which do); any other command that only reads the page leaves it and its server
-alone. No Leaf takes a page down. A
+at a lower number takes it to this Leaf's at its first command that writes to the page
+or hook that reads its pages (`vendoring.renew_layer` says which do); a command that
+only reads the page leaves it and its server alone. No Leaf takes a page down. A
 session's hooks and watch run the copy of Leaf its harness loaded, or a checkout the
 session selected (`session-lifetime.md`, "Which Leaf runs a session").
 

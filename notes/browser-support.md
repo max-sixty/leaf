@@ -627,7 +627,9 @@ opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chro
 its frame shows, except that a block's page counts until it arrives or a deadline
 passes, since its arrival sets the frame's height (`browser/runtime/sample.js`), and
 `page check --render` scrolls each frame still waiting into view
-(`src/leaf/render_checks.py`, `start_near_work`). Recheck with
+(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+holds the page's presentation, or the jump that showed it, only while they still see
+its frame (`packages/default/widgets/lf-sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.

@@ -13,8 +13,8 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
-from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_layout import ring_faults, rings_drawn
+from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
     INLINE_PAGE,

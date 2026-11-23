@@ -187,7 +187,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
- * stood: number, stationary: boolean, fromSubject: boolean,
+ * stood: number, stationary: boolean, widens: boolean,
  * scale: {x: number, y: number}}) => void,
  * edge?: "top" | "foot", rises?: boolean}} PlacementRequest */
 /** @typedef {{reference: DOMRect,
@@ -506,9 +506,8 @@ export function commentSide({
 }
 
 // The minimum width chooses the side: a side whose room holds less stands nothing. The
-// measure is the width a card takes once a message outgrows the minimum, or where its
-// start stands away from its text (`size-width`), and decides whether clearing the
-// margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
+// measure is the widest a box or card stands (`size-width`), and decides whether
+// clearing the margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
 // card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
@@ -577,7 +576,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale, stationary, fromSubject })` sizes the surface for the room its
+   `fit({ side, width, height, room, stood, scale, stationary, widens })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
    is the height a held surface caps no lower than, or 0. `stationary` says its
@@ -585,13 +584,17 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    boundary, never by its passage's column. Under or over, it stands at the intended
    inline start, which reserves that width (`size-width`). On the left, it instead holds
    its right edge clear of the target, so a change of its room moves its far edge and
-   never carries it across the words it comments on. `fromSubject` says its inline
-   start stands by what it is about: beside it on the right, under or over quoted words
-   at their first character, or at the room's edge with nothing to stand by. A surface
-   narrower than the measure, as the box and a slim card are, stands by its subject
-   and widens away from it only there. Elsewhere its start is the measure's far end
-   from its subject, where a narrower surface would stand apart from it and widen by
-   moving its words, so the box and card take the measure there. */
+   never carries it across the words it comments on. `widens` says it may stand
+   narrower than the measure, as the box and a slim card do, and widen with its words:
+   the edge the placement holds still is the one its words start from, its left left to
+   right and its right right to left, and that edge stands by what it is about or where
+   the user carried it. The placement holds a surface beside its subject on the left
+   by its right edge, and any other, carried ones included, by its left (`hold`). So
+   left to right it widens beside its subject on the right, under or over quoted words
+   from their first character, at the room's left edge with nothing to stand by, and
+   where the user carried it; right to left, only beside its subject on the left.
+   Elsewhere a narrower surface would widen by moving its words, or stand apart from
+   its subject, so the box and card take the measure there. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
@@ -685,11 +688,20 @@ export function commentPlacement() {
       const span = Math.min(cardMeasure() * scale.x, boundary.width);
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
-    /** @param {{x: number}} scale */
-    const fromSubject = (scale) =>
-      unanchored ||
-      side === "right" ||
-      (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
+    // The placement holds the surface by its right edge beside its subject on the
+    // left, and by its left edge elsewhere, carried included (`hold`).
+    const holdsLeft = () => side !== "left" || carriedInline !== null;
+    /** @param {{x: number}} scale @param {boolean} rtl */
+    const widens = (scale, rtl) => {
+      if (rtl) return !holdsLeft();
+      return (
+        holdsLeft() &&
+        (!across ||
+          unanchored ||
+          carriedInline !== null ||
+          (column !== null && Math.abs(inlineStart(scale) - column) < 0.5))
+      );
+    };
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -740,16 +752,38 @@ export function commentPlacement() {
     // the answer it is given and the order of the two solves stops mattering.
     /** @type {Room} */
     let shown = boundary;
+    // The room from the edge the surface is held by to the boundary, in client pixels.
+    /** @param {{x: number}} scale */
+    const lane = (scale) =>
+      carriedInline !== null
+        ? boundary.right - (column ?? clear.left) - carriedInline
+        : across
+          ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
+          : side === "right"
+            ? boundary.right - box.right - gap
+            : clear.left - boundary.left - gap;
+    // A surface may widen away from its held edge, to the measure or its lane where
+    // that is narrower, without being placed again (`size-width`), so it stands clear
+    // of chrome across every column it may widen into, as of the window's foot.
     /** @param {MiddlewareState} state */
     const overflow = (state) => {
       const { scale } = measure(state);
       const width = state.rects.floating.width * scale.x;
+      const reach = Math.min(
+        Math.max(width, Math.min(cardMeasure() * scale.x, lane(scale))),
+        boundary.width,
+      );
       const left = clamp(
         box.left + (state.x - state.rects.reference.x) * scale.x,
         boundary.left,
         boundary.right - width,
       );
-      shown = boundary.across({ left, right: left + width });
+      const start = clamp(
+        holdsLeft() ? left : left + width - reach,
+        boundary.left,
+        boundary.right - reach,
+      );
+      shown = boundary.across({ left: start, right: start + reach });
       return { boundary: [], rootBoundary: shown, padding: 0 };
     };
     const spot = held ?? initialHold;
@@ -797,25 +831,20 @@ export function commentPlacement() {
               tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
             ) / scale.y
           : 0;
-        const lane =
-          carriedInline !== null
-            ? boundary.right - (column ?? clear.left) - carriedInline
-            : across
-              ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
-              : side === "right"
-                ? boundary.right - box.right - gap
-                : clear.left - boundary.left - gap;
         fit({
           side,
           width: Math.max(
             Math.min(minimumWidth, boundary.width) / scale.x,
-            Math.min(state.availableWidth, lane / scale.x),
+            Math.min(state.availableWidth, lane(scale) / scale.x),
           ),
           height: rises ? shown.height / scale.y : state.availableHeight,
           room: shown,
           stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
           stood,
-          fromSubject: fromSubject(scale),
+          widens: widens(
+            scale,
+            getComputedStyle(state.elements.floating).direction === "rtl",
+          ),
           scale,
         });
       },

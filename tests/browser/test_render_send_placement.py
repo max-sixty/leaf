@@ -65,6 +65,7 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS, MARGIN_TEXT_LINES
 from browser.threads import append_agent_reply
 from leaf import event_log
 from leaf import thread as thread_model
@@ -681,12 +682,250 @@ def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser,
     assert wide["right"] > sent["right"] + 1, (sent, wide)
 
 
-def test_typing_keeps_the_box_slim_and_send_widens_a_long_comment_s_card(
+def test_a_box_widens_with_its_words_and_send_keeps_their_lines(browser, serve):
+    """By its text the comment box is as wide as its words' longest line, from the
+    card's least width to the measure: a first line widens it away from its start,
+    words past the measure wrap there, and taking them out narrows it again. Send opens
+    the card at the box's width, so the comment keeps the lines the box broke it
+    into."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(
+        browser, serve(PAGE), init_script=MARGIN_EDITOR_ROOTS, context=context
+    )
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    measure = page.evaluate(MEASURE)
+
+    def typed():
+        rendered(page)
+        return page.locator(".lf-fab-input").evaluate(
+            "(box, read) => eval(read)(window.marginEditorRoots.get(box)"
+            ".querySelector('.cm-content'))",
+            MARGIN_TEXT_LINES,
+        )
+
+    def width(rect):
+        return rect["right"] - rect["left"]
+
+    empty = page.evaluate(RECT, ".lf-fab-bar")
+    assert width(empty) == pytest.approx(minimum, abs=0.5), empty
+    sentence = "Pin the runner to one image so every step builds alike."
+    page.keyboard.insert_text(sentence)
+    lines = typed()
+    assert len(lines) == 1, lines
+    wider = page.evaluate(RECT, ".lf-fab-bar")
+    assert wider["left"] == pytest.approx(empty["left"], abs=0.5), (empty, wider)
+    assert minimum + 1 < width(wider) < measure - 1, wider
+    page.keyboard.insert_text(" Then a failed run leaves nothing behind for the next.")
+    assert len(typed()) > 1
+    full = page.evaluate(RECT, ".lf-fab-bar")
+    assert full["left"] == pytest.approx(empty["left"], abs=0.5), (empty, full)
+    assert width(full) == pytest.approx(measure, abs=0.5), full
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(sentence)
+    assert typed() == lines
+    assert page.evaluate(RECT, ".lf-fab-bar") == pytest.approx(wider, abs=0.5)
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    sides = ("left", "right")
+    assert {side: sent[side] for side in sides} == pytest.approx(
+        {side: wider[side] for side in sides}, abs=0.5
+    ), (wider, sent)
+    shown = card.locator(".lf-msg-body").first.evaluate(MARGIN_TEXT_LINES)
+    assert len(shown) == len(lines), (lines, shown)
+    for line, was in zip(shown, lines, strict=True):
+        assert line == pytest.approx(was, abs=0.5), (lines, shown)
+
+
+# The measure the box and card widen to, in the page's pixels.
+MEASURE = (
+    "parseFloat(getComputedStyle(document.documentElement)"
+    ".getPropertyValue('--lf-thread-card'))"
+)
+
+
+@pytest.mark.parametrize("declared", ["dir", "style"])
+def test_a_right_to_left_box_keeps_the_start_of_its_words_as_it_fills(
+    browser, serve, declared
+):
+    """Right to left, a box's words start at its right edge, which stands away from its
+    text on the right of it, so the box takes its card's width at once rather than
+    widening and carrying those words with each key. The direction counts however the page
+    states it: a `dir` attribute, or the `direction` its stylesheet sets."""
+    page_html = leaf_page(
+        "Right to left",
+        '<p id="first">هذه فقرة قصيرة يمكن التعليق عليها حتى يقف التعليق بجانبها.</p>',
+    )
+    if declared == "dir":
+        page_html = page_html.replace('<html lang="en">', '<html lang="ar" dir="rtl">')
+    else:
+        page_html = page_html.replace(
+            "</head>", "<style>html { direction: rtl }</style>\n</head>"
+        )
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(page_html), context=context)
+    page.locator("#first").click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile("^right")
+    )
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    empty = page.evaluate(RECT, ".lf-fab-bar")
+    page.keyboard.insert_text("تعليق أطول قليلا من السطر الأول حتى يتسع الصندوق أكثر")
+    rendered(page)
+    full = page.evaluate(RECT, ".lf-fab-bar")
+    sides = ("left", "right")
+    assert {side: full[side] for side in sides} == pytest.approx(
+        {side: empty[side] for side in sides}, abs=0.5
+    ), (empty, full)
+
+
+def test_a_right_to_left_box_carried_by_its_grip_keeps_the_start_of_its_words(
     browser, serve
 ):
-    """The comment box keeps the card's least width however many lines are typed in
-    it. Send opens the card at the measure from the box's start where the words stand
-    taller than they are wide there."""
+    """Left of its text, a right-to-left box holds the edge beside the text, where its
+    words start, and widens away from it. Carried by its grip, it holds its left edge
+    where it was dropped, so it takes its card's width as it lands there rather than
+    carrying the start of its words with each key."""
+    page_html = leaf_page(
+        "Right to left",
+        # At the window's right edge, with room for the box only left of it.
+        '<p id="first" style="position: fixed; top: 160px; right: 24px; width: 360px">'
+        "هذه فقرة قصيرة يمكن التعليق عليها حتى يقف التعليق بجانبها.</p>",
+    ).replace('<html lang="en">', '<html lang="ar" dir="rtl">')
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(page_html), context=context)
+    page.locator("#first").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("^left"))
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    grip = page.locator(".lf-fab-bar > .lf-surface-grip").bounding_box()
+    x, y = grip["x"] + grip["width"] / 2, grip["y"] + 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - 55, y, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    dropped = page.evaluate(RECT, ".lf-fab-bar")
+    page.keyboard.insert_text("تعليق أطول قليلا من السطر الأول حتى يتسع الصندوق أكثر")
+    rendered(page)
+    typed = page.evaluate(RECT, ".lf-fab-bar")
+    assert typed["right"] == pytest.approx(dropped["right"], abs=0.5), (dropped, typed)
+
+
+@pytest.mark.parametrize("opened", ["in-the-pane", "in-the-page"])
+def test_a_box_widening_in_a_pane_stays_in_the_pane_after_it_narrows(
+    browser, serve, opened
+):
+    """A box widens inside the room its placement gave it, which a pane bounds. A
+    pane narrowing beside a target that keeps its width gives the box less room, so
+    it is placed again there, where it stands still, and its words widen it no
+    further than the pane. That holds for a box opened while the page scrolled the
+    pane's words, before a wider window gave the pane its own scroll."""
+    source = leaf_page(
+        "Comments in a pane",
+        '<div id="split"><lf-pane id="notes" label="Notes"><div>'
+        '<p id="short" style="width: 125px">Short words to comment on.</p>'
+        '<div style="height: 1200px"></div></div></lf-pane>'
+        # The pane beside it holds no words, which its move as the notes narrow would
+        # carry without input.
+        '<lf-pane id="other" label="Other"><div style="height: 400px"></div></lf-pane>'
+        "</div>",
+        head=regions_side_by_side("split", "950px 1fr"),
+        layout="workspace",
+    )
+    context = browser.new_context(
+        viewport={"width": 1440 if opened == "in-the-pane" else 700, "height": 900},
+        reduced_motion="reduce",
+    )
+    page = open_page(browser, serve(source), context=context)
+    pane_scroll_behavior(
+        page, page.locator("#notes"), "bounded" if opened == "in-the-pane" else "flow"
+    )
+    page.locator("#short").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile(".+"))
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    if opened == "in-the-page":
+        resized(page, 1440, 900)
+        pane_scroll_behavior(page, page.locator("#notes"), "bounded")
+        rendered(page)
+    stood = page.evaluate(RECT, ".lf-fab-bar")
+    page.locator("#split").evaluate(
+        "split => { split.style.gridTemplateColumns = '600px 1fr'; }"
+    )
+    rendered(page)
+    assert page.evaluate(RECT, ".lf-fab-bar") == stood
+    page.keyboard.insert_text(
+        # One line, wider than the narrowed pane holds, narrower than the measure.
+        "A first line that widens the box past what the narrowed pane holds"
+    )
+    rendered(page)
+    box = page.evaluate(RECT, ".lf-fab-bar")
+    pane = page.evaluate(RECT, "#notes > div")
+    assert pane["left"] - 0.5 <= box["left"] and box["right"] <= pane["right"] + 0.5, (
+        box,
+        pane,
+    )
+
+
+def test_a_draft_that_scrolls_in_its_box_keeps_its_width_as_it_scrolls(browser, serve):
+    """A draft long enough to scroll in its box stands at the measure. The editor draws
+    only the lines near what the box shows, so a box as wide as the lines drawn widened
+    as a wheel brought a long first line into view, and the field then scrolled back
+    to its caret. At the measure, the wheel leaves the box's width and the field's
+    scroll where it took them."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(PAGE), context=context)
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    page.keyboard.insert_text(
+        "A first line long enough to widen the box past its least width at once.\n"
+        + "\n".join(f"Line {n}" for n in range(260))
+    )
+    rendered(page)
+    field = page.locator(".lf-fab-input")
+    assert field.evaluate("field => field.scrollTop > 0")
+    stood = page.evaluate(RECT, ".lf-fab-bar")
+    assert stood["right"] - stood["left"] == pytest.approx(
+        page.evaluate(MEASURE), abs=0.5
+    ), stood
+    field.hover()
+    page.mouse.wheel(0, -100_000)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fab-input').scrollTop === 0"
+    )
+    rendered(page)
+    rendered(page)
+    assert field.evaluate("field => field.scrollTop") == 0
+    assert page.evaluate(RECT, ".lf-fab-bar") == pytest.approx(stood, abs=0.5)
+
+
+def test_short_lines_keep_the_box_slim_and_send_widens_a_tall_comment_s_card(
+    browser, serve
+):
+    """Short lines keep the comment box at the card's least width, however many are
+    typed in it until they scroll there. Send opens the card at the measure from the
+    box's start where the words stand taller than they are wide there."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )

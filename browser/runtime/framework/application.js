@@ -45,8 +45,8 @@ import { kept, keptEach } from "../kept.js";
  *   ActionSpec, PendingProjection, ProjectionEntry, ContentVersion
  * } from "../../types/domain.js" */
 /** @import {
- *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedTodo,
- *   ServedView, ServedWorkflow
+ *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedView,
+ *   ServedWorkflow
  * } from "../../types/contract.js" */
 /** @import { Immutable } from "./snapshot.js" */
 
@@ -217,21 +217,13 @@ function advance(entry, signal, admitted = null) {
  */
 
 /** One row of On Me, On <agent> or Done, as `served_state.queues` serves it or this
- * tab places it: `owner` names the list. A row names its record by `id`, and `also`,
- * on a record's row, the other records the user answers at its place. `localQueues`
- * joins the current obligation or to-do record before publication
- * (`CurrentQueueItem`), which says where the item stands: whether the agent has it in
- * hand, and how a done one ended.
+ * tab places it: `owner` names the list. A row names its record by `id`, and `also`
+ * the other records the user answers at its place. `localQueues` joins the current
+ * obligation record before publication (`CurrentQueueItem`), which says where the item
+ * stands: whether the agent has it in hand, and how a done one ended.
  *
  * @typedef {import("../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
- */
-
-/** The current record joined onto a queue row before publication. A to-do's row reads
- * the to-do inventory; every other row names its canonical obligation record.
- * @typedef {Exclude<QueueItem, {kind: "todo"}>} ObligationQueueItem
- * @typedef {(ObligationQueueItem & {obligation: ObligationRecord, todo?: never}) |
- * {kind: "todo", owner: "agent", todo: ServedTodo, obligation?: never}} QueueRecord
- * @typedef {QueueItem & QueueRecord} CurrentQueueItem
+ * @typedef {QueueItem & {obligation: ObligationRecord}} CurrentQueueItem
  */
 
 /**
@@ -558,7 +550,7 @@ function currentWidgetRelations(descriptors, widgets, desired) {
 
 /* What is on the user (On Me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
- * placed against them. Every row but a to-do names an obligation record, and only the
+ * placed against them. Every row names an obligation record, and only the
  * agent ends a to-do, so a send moves an item the server listed only where the record
  * is its own subject. What a send leaves anything else, such as which obligations in
  * its thread it answers, waits for the server's reading of it. This adds only the
@@ -570,10 +562,6 @@ const recordRow = keptEach(
   /** @param {QueueItem} item @param {ObligationRecord} obligation */
   (item, obligation) => ({ ...item, obligation }),
 );
-const todoRow = keptEach(
-  /** @param {QueueItem} item @param {ServedTodo} todo */
-  (item, todo) => ({ ...item, kind: "todo", owner: "agent", todo }),
-);
 // A row with the strongest workflow serving its record, the first in the published
 // order.
 const servedRow = keptEach(
@@ -584,14 +572,12 @@ const servedRow = keptEach(
 /**
  * @param {WireQueues} served
  * @param {readonly Workflow[]} workflows
- * @param {readonly ServedTodo[]} todos
  * @param {ObligationLists} items
  * @param {readonly ObligationRecord[]} local
  * @param {ReadonlyMap<string, ObligationRecord>} record each of `items` by its id
  */
-function localQueues(served, workflows, todos, items, local, record) {
+function localQueues(served, workflows, items, local, record) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
-  const todoRecord = new Map(todos.map((todo) => [todo.id, todo]));
   // The threads holding a send this tab has in flight.
   const sentIn = new Set(
     workflows.flatMap((workflow) =>
@@ -613,7 +599,6 @@ function localQueues(served, workflows, todos, items, local, record) {
   // sent to since, whose own record stands for it.
   /** @param {QueueItem} item */
   const standsOpen = (item) => {
-    if (!namesRecord(item)) return true;
     const current = obligationOf(item);
     return (
       current.next_actor === item.owner &&
@@ -627,29 +612,13 @@ function localQueues(served, workflows, todos, items, local, record) {
   // Whether an item the server listed as done stands open again in this tab.
   /** @param {QueueItem} item */
   const reopened = (item) =>
-    namesRecord(item) &&
-    obligationOf(item).state !== "done" &&
-    obligationOf(item).next_actor === item.owner;
+    obligationOf(item).state !== "done" && obligationOf(item).next_actor === item.owner;
   // Whether an item the server listed as open has ended in this tab.
   /** @param {QueueItem} item */
-  const endedHere = (item) => namesRecord(item) && obligationOf(item).state === "done";
-  /** @param {QueueItem} item */
-  const todoOf = (item) => {
-    const todo = todoRecord.get(item.id);
-    if (!todo) throw new Error(`Queue item ${item.id} names no to-do`);
-    return todo;
-  };
-  // A record's row carries this tab's record of its obligation, and a to-do's row the
-  // served to-do.
+  const endedHere = (item) => obligationOf(item).state === "done";
+  // A row carries this tab's record of its obligation.
   /** @param {QueueItem} item @returns {CurrentQueueItem} */
-  const current = (item) =>
-    /** @type {CurrentQueueItem} */ (
-      /** @type {unknown} */ (
-        namesRecord(item)
-          ? recordRow(item, obligationOf(item))
-          : todoRow(item, todoOf(item))
-      )
-    );
+  const current = (item) => recordRow(item, obligationOf(item));
   /** @param {"user" | "agent"} owner */
   const reopenedFor = (owner) =>
     served.done.filter((item) => item.owner === owner && reopened(item));
@@ -676,10 +645,8 @@ function localQueues(served, workflows, todos, items, local, record) {
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (namesRecord(a) && namesRecord(b)
-          ? /** @type {number} */ (inventoryAt.get(a.id)) -
-            /** @type {number} */ (inventoryAt.get(b.id))
-          : 0),
+        /** @type {number} */ (inventoryAt.get(a.id)) -
+          /** @type {number} */ (inventoryAt.get(b.id)),
     ),
     on_agent: [
       ...served.on_agent
@@ -732,6 +699,7 @@ function localUpdates(workflows) {
             target: "id" in workflow.subject ? workflow.subject.id : workflow.input,
           },
           answer: null,
+          end: null,
           next_actor: refused ? "user" : "agent",
           state: workflow.state,
           reason: workflow.reason,
@@ -750,10 +718,6 @@ function localUpdates(workflows) {
 // records of a kind among themselves in the order the view's inventory holds them.
 /** @param {QueueItem} item */
 const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
-
-// Every row but a to-do names the canonical obligation inventory.
-/** @param {QueueItem} item @returns {item is ObligationQueueItem} */
-const namesRecord = (item) => item.kind !== "todo";
 
 /** @typedef {ReturnType<ReturnType<typeof createSemanticApplication>["read"]>} SemanticRoot */
 /** @typedef {SemanticRoot["effective"]["projection"]} RootProjection */
@@ -1094,7 +1058,6 @@ export function createSemanticApplication({ presentation } = {}) {
       widgets,
       projection.desired,
     );
-    const todos = ready ? (state?.browser.todos ?? []) : [];
     const servedItems = ready
       ? obligationsOf(
           view?.obligations,
@@ -1240,10 +1203,7 @@ export function createSemanticApplication({ presentation } = {}) {
     // refused send hands a thread the server left with the agent back to the user,
     // whose Retry it is. And a thread this tab opened, which the server has yet to
     // read, stands by the record its newest send in flight publishes.
-    const servedIds = new Set([
-      ...servedItems.all.map((item) => item.id),
-      ...todos.map((todo) => todo.id),
-    ]);
+    const servedIds = new Set(servedItems.all.map((item) => item.id));
     const servedUsers = new Set(servedItems.user.map((item) => item.id));
     const sendingIn = new Map(
       sends.records.flatMap((item) =>
@@ -1285,7 +1245,6 @@ export function createSemanticApplication({ presentation } = {}) {
       widgets,
       workflows,
       items.all,
-      todos.filter((todo) => todo.state !== "done"),
       markingRead,
       ready,
     );
@@ -1297,7 +1256,6 @@ export function createSemanticApplication({ presentation } = {}) {
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       workflows,
-      todos,
       items,
       localRecords,
       obligationsById,

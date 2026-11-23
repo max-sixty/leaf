@@ -365,18 +365,12 @@ test("a status asks the user to act only where its words do", () => {
   assert.equal(reached("refused"), true);
 });
 
-// The served lists as `readQueues` publishes them, each row joined to its record, a
-// to-do's to its to-do.
+// The served lists as `readQueues` publishes them, each row joined to its record.
 function publishedQueues(reading) {
   const { obligations, queues } = reading.browser.views["1"];
   const records = new Map(obligations.map((record) => [record.id, record]));
-  const todos = new Map(reading.browser.todos.map((todo) => [todo.id, todo]));
   const join = (rows) =>
-    rows.map((row) =>
-      row.kind === "todo"
-        ? { ...row, todo: todos.get(row.id) }
-        : { ...row, obligation: records.get(row.id) },
-    );
+    rows.map((row) => ({ ...row, obligation: records.get(row.id) }));
   return { on_user: join(queues.on_user), on_agent: join(queues.on_agent) };
 }
 

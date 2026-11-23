@@ -5,7 +5,7 @@ A plan is the newest `plan` event's `steps`, an outline in order. Each step has 
 nearest step above it at one less depth. The schema caps depth at 8, which keeps the
 served tree well within the nesting its readers and JSON encoders take. A step is either plain, a `title` with a
 `state` the agent sets (`open`, `working`, `done` or `dropped`), or it names an
-`item`, a to-do's id or an obligation's id, and shows that item's title and
+`item`, an obligation's id, a to-do's among them, and shows that item's title and
 standing. Every reader takes a step's standing in the fields every record uses
 (`standing`): a plain step is the agent's, its `open` reads `waiting`, `working` reads
 `running`, and `done` and `dropped` are how a `done` step ended.
@@ -108,16 +108,13 @@ def _label(step: dict) -> str:
     return step.get("title") or step["item"]
 
 
-def plan_reading(
-    events: list, withdrawn: set, todos: list[dict], items: list[dict]
-) -> dict | None:
-    """The plan in force as a tree, its items read from `todos` and `items`, or None
-    when the agent has written none or cleared it."""
+def plan_reading(events: list, withdrawn: set, records: list[dict]) -> dict | None:
+    """The plan in force as a tree, its items read from `records`, the page's
+    obligation records, or None when the agent has written none or cleared it."""
     event = latest_plan(events, withdrawn)
     if event is None or not event["steps"]:
         return None
-    todos_by_id = {todo["id"]: todo for todo in todos}
-    obligations_by_id = {item["id"]: item for item in items}
+    by_id = {record["id"]: record for record in records}
     plans = [e for e in events if e["kind"] == "plan" and e["id"] not in withdrawn]
 
     def node(step: dict) -> dict:
@@ -131,24 +128,17 @@ def plan_reading(
                 if step["state"] == "working"
                 else None,
             }
-        if todo := todos_by_id.get(step["item"]):
-            running = todo["line"]
-            return {
-                "title": todo["title"],
-                **_item_standing(todo),
-                "item": {"kind": "todo", "id": todo["id"]},
-                "running": running,
-                "since": running["ts"] if running else None,
-            }
-        # An obligation whose source a later version removed is gone from
-        # `obligations`, so it reads as dropped.
-        item = obligations_by_id.get(step["item"])
+        # An obligation whose source a later version removed is gone from the
+        # inventory, so it reads as dropped.
+        item = by_id.get(step["item"])
+        todo = item is not None and item["source"]["kind"] == "todo"
+        running = item["line"] if todo else None
         return {
             "title": item["prompt"]["text"] if item else None,
             **(_item_standing(item) if item else ended("dropped")),
-            "item": {"kind": "obligation", "id": step["item"]},
-            "running": None,
-            "since": None,
+            "item": {"kind": "todo" if todo else "obligation", "id": step["item"]},
+            "running": running,
+            "since": running["ts"] if running else None,
         }
 
     root: dict = {"steps": []}

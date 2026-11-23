@@ -78,8 +78,8 @@ export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   addressable?: boolean;
   plainText?: string;
 };
-/** The id of the obligation record or to-do that speaks for a thread, or null where
- * nobody owes a move there. */
+/** The id of the obligation record that speaks for a thread (`standing.leading`), or
+ * null where nobody owes a move there. */
 export type Attention = string | null;
 export interface Thread {
   id: string;

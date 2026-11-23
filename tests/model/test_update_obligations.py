@@ -120,7 +120,9 @@ def _listed_once(state) -> dict:
         "agents": sorted(
             record["id"]
             for record in records.values()
-            if standing_model.is_open(record) and record["next_actor"] == "agent"
+            if standing_model.is_open(record)
+            and record["next_actor"] == "agent"
+            and record["source"]["kind"] != "todo"
         ),
     }
 

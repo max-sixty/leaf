@@ -1,9 +1,9 @@
 """The two lists, On Me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what each has finished (`done`).
 
-Every user row is an obligation record (`obligations.py`): a message request,
-a widget's input, or an update handed back for resending (`workflows.handed_over`).
-An agent row is an update's record it owes or a to-do it opened.
+Every row is an obligation record (`obligations.py`). A user row is a message
+request, a widget's input, or an update handed back for resending
+(`workflows.handed_over`); an agent row is an update it owes or a to-do it opened.
 Each source owns completion: conversational requests take a reply, widgets take their
 declared answer, and only the agent ends a to-do.
 A browser view serves these lists and `page state` prints them, so their counts and
@@ -27,20 +27,19 @@ place: an answer about a decision rides on the decision's row. Each record still
 by its own rule, so a decision answered leaves the thread's records on a row of their own
 until the user replies or resolves the thread.
 
-A row names its kind (its record's `source.kind`, or `todo`), its subject, the list it
-stands on (`owner`), the thread it stands in, and, on a record's row, the records it
-carries beside its own (`also`). A row names its record by `id` and carries no copy of
-it: the view serves each obligation record in `obligations`, and a to-do row instead
-reads the page's `todos`. The record or to-do says where it stands (`standing`), so a
-row's reader takes whether the agent has it in hand, and how a done one ended, from
-there. The browser's publisher joins each row to its current record. On <agent>
+A row names its kind (its record's `source.kind`), its subject, the list it stands on
+(`owner`), the thread it stands in, and the records it carries beside its own (`also`).
+A row names its record by `id` and carries no copy of it: the view serves each
+obligation record in `obligations`, and the record says where it stands (`standing`),
+so a row's reader takes whether the agent has it in hand, and how a done one ended,
+from there. The browser's publisher joins each row to its current record. On <agent>
 orders the updates by their strongest workflow (`work.served_workflows`), the order
 every surface showing one of several reads.
 
 A row that leaves a list lands in Done, whose `owner` names the list: the records no
-longer open, which an update's is when the agent's reply answered it and a widget's
-when the user answered it, here or elsewhere, or it was withdrawn; and the to-dos the
-agent ended. Done is served newest first by when each ended, and a row without a
+longer open, which an update's is when the agent's reply answered it, a widget's
+when the user answered it, here or elsewhere, or it was withdrawn, and a to-do's when
+the agent ended it. Done is served newest first by when each ended, and a row without a
 time goes last. An answer the agent owes in markup settles when a version writes the
 action in, and its widget's record carries that ending, so the update's leaves the
 inventory and lands in no Done.
@@ -51,22 +50,11 @@ from ..registry.schema import aware_instant
 from ..standing import is_open
 
 
-def _todo_row(todo: dict) -> dict:
-    """One to-do's row, on the agent's list or in its Done. It names the to-do by
-    `id`; the record is the page's `todos` entry."""
-    return {
-        "kind": "todo",
-        "id": todo["id"],
-        "owner": "agent",
-        "subject": todo["subject"],
-        "thread": todo["thread"],
-    }
-
-
 def _subject(record: dict) -> dict:
-    """What a record's row stands on: an update's own subject, a widget, or the page."""
+    """What a record's row stands on: an update's or a to-do's own subject, a widget,
+    or the page."""
     source = record["source"]
-    if source["kind"] == "update":
+    if source["kind"] in {"update", "todo"}:
         return source["subject"]
     if source["kind"] == "message":
         return {"kind": "thread", "id": record["thread"]}
@@ -88,10 +76,9 @@ def _record_row(record: dict, owner: str) -> dict:
     }
 
 
-def _ended_at(item: dict) -> str | None:
-    """When a done record or to-do ended: a record's answer's time, or a to-do's
-    end's."""
-    return ((item.get("end") or item.get("answer") or {}).get("event") or {}).get("ts")
+def _ended_at(record: dict) -> str | None:
+    """When a done record ended: its agent end's time, or its answer's."""
+    return ((record["end"] or record["answer"] or {}).get("event") or {}).get("ts")
 
 
 def _on_user(records: list[dict], threads: dict, within: dict) -> list[dict]:
@@ -135,18 +122,14 @@ def _on_user(records: list[dict], threads: dict, within: dict) -> list[dict]:
 
 
 def queues(
-    workflows: list[dict],
-    todos: list[dict],
-    records: list[dict],
-    threads: dict,
-    within: dict,
+    workflows: list[dict], records: list[dict], threads: dict, within: dict
 ) -> dict:
-    """Select records and to-dos once, by next actor.
+    """Select records once, by next actor.
 
-    `workflows` are served strongest first, `todos` are every to-do, open and ended,
-    and `records` are the view's obligation records, the user's updates'
-    included, in inventory order. `threads` are the page's threads by id and `within`
-    the document's containment, which say what a thread is about."""
+    `workflows` are served strongest first, and `records` are the view's obligation
+    records, the user's updates' and the agent's to-dos included, in inventory order.
+    `threads` are the page's threads by id and `within` the document's containment,
+    which say what a thread is about."""
     on_user = _on_user(records, threads, within)
     owing = {
         record["id"]: record
@@ -159,26 +142,24 @@ def queues(
         if workflow["obligation"] in owing
     )
     on_agent = [_record_row(owing[identity], "agent") for identity in served]
-    on_agent += [_todo_row(todo) for todo in todos if is_open(todo)]
-    ended = [
-        (
-            _ended_at(record),
-            _record_row(
-                record, "agent" if record["source"]["kind"] == "update" else "user"
-            ),
-        )
+    on_agent += [
+        _record_row(record, "agent")
         for record in records
-        if not is_open(record)
-    ] + [(_ended_at(todo), _todo_row(todo)) for todo in todos if not is_open(todo)]
-    ended.sort(
-        key=lambda item: (
-            item[0] is not None,
-            aware_instant(item[0]) if item[0] else None,
+        if record["source"]["kind"] == "todo" and is_open(record)
+    ]
+    ended = sorted(
+        (record for record in records if not is_open(record)),
+        key=lambda record: (
+            (at := _ended_at(record)) is not None,
+            aware_instant(at) if at else None,
         ),
         reverse=True,
     )
-    return {
-        "on_user": on_user,
-        "on_agent": on_agent,
-        "done": [row for _at, row in ended],
-    }
+    done = [
+        _record_row(
+            record,
+            "agent" if record["source"]["kind"] in {"update", "todo"} else "user",
+        )
+        for record in ended
+    ]
+    return {"on_user": on_user, "on_agent": on_agent, "done": done}

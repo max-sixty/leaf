@@ -195,11 +195,11 @@ export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 // reply (thread_titles.py), so one comes while a session holds the page's claim and the
 // agent owes the thread work. A turn that ended, stalled or was never picked up sends
 // none, nor does a page nobody has claimed, and the thread reads its opening words.
-/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source?: {readonly kind: string}} | null}} thread */
+/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source: {readonly kind: string}} | null}} thread */
 export const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.next_actor === "agent" &&
-  thread.attention.source?.kind === "update" &&
+  thread.attention.source.kind === "update" &&
   thread.attention.state !== "blocked" &&
   pageClaimed();
 

@@ -263,9 +263,10 @@ function workingMessage(thread, messages) {
   );
   // The line of the start on a to-do of the agent's on the thread: one running, else
   // one that stopped or went quiet, which keeps the line it last said.
-  const todo = thread.todos.find(inHand)?.line ?? null;
+  const todos = thread.obligations.filter((item) => item.source.kind === "todo");
+  const todo = todos.find(inHand)?.line ?? null;
   const stoppedTodo =
-    thread.todos.find((item) => item.state === "blocked" && item.line) ?? null;
+    todos.find((item) => item.state === "blocked" && item.line) ?? null;
   /** @typedef {{words: string, position: number, live: boolean,
    * condition: import("../voice.js").Said | null, agent: string | null | undefined}} Step */
   /** @type {Step | null} */
@@ -374,7 +375,11 @@ export function threadReading(thread, surface, commands) {
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
       .map((item) => item.message),
   );
-  const openTodos = new Map(thread.todos.map((todo) => [todo.id, todo]));
+  const openTodos = new Map(
+    thread.obligations
+      .filter((item) => item.source.kind === "todo" && item.state !== "done")
+      .map((todo) => [todo.id, todo]),
+  );
   /** @param {ThreadRecord["msgs"][number]} message */
   const leaves = (message) => {
     if (asking.has(message.id)) return { word: leafSays("Waiting on me"), todo: null };

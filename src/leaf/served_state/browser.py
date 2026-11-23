@@ -13,7 +13,7 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..standing import answered, is_open, leading, strength
+from ..standing import answered, is_open, leading
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -35,47 +35,22 @@ class BrowserReading(NamedTuple):
     documents: dict[int, DocumentReading]
 
 
-def _speaks(records: list[dict], todos: list[dict]) -> dict | None:
-    """What speaks for a thread holding these open `records` and open `todos`: the
-    record `standing.leading` picks where it is the user's move or an update the agent
-    owes, else the agent's to-do there, the strongest and then the newest."""
-    record = leading(records)
-    if record is not None and (
-        record["next_actor"] == "user" or record["source"]["kind"] == "update"
-    ):
-        return record
-    return (
-        max(todos, key=lambda todo: (strength(todo), todo["seq"]), default=None)
-        or record
-    )
-
-
-def _apply_thread_attention(
-    records: list[dict], threads: list[dict], todos: list[dict]
-):
+def _apply_thread_attention(records: list[dict], threads: list[dict]):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is and where it stands: the id of the open obligation record or to-do that
-    speaks for it (`_speaks`), or None where nobody owes a move there. A resolved
-    thread reads None whatever the agent still owes in it: the user took it off their
-    lists, and the record stands on the agent's. `records` are the obligation records
-    of the view these threads are served in, so a pinned revision's threads take the
-    attention its own vocabulary reads; the updates' among them, and the open `todos`,
-    stand as `activity` read them."""
+    it is and where it stands: the id of the open obligation record that speaks for it
+    (`standing.leading`), or None where nobody owes a move there. A resolved thread
+    reads None whatever the agent still owes in it: the user took it off their list,
+    and the record stands on the agent's. `records` are the obligation records of
+    the view these threads are served in, so a pinned revision's threads take the
+    attention its own vocabulary reads; the updates' and to-dos' among them stand as
+    `activity` read them."""
     open_records: dict[str, list[dict]] = {}
     for record in records:
         if record["thread"] is not None and is_open(record):
             open_records.setdefault(record["thread"], []).append(record)
-    open_todos: dict[str, list[dict]] = {}
-    for todo in todos:
-        if todo["thread"] is not None:
-            open_todos.setdefault(todo["thread"], []).append(todo)
     for thread in threads:
         speaks = (
-            None
-            if thread["resolved"]
-            else _speaks(
-                open_records.get(thread["id"], []), open_todos.get(thread["id"], [])
-            )
+            None if thread["resolved"] else leading(open_records.get(thread["id"], []))
         )
         thread["attention"] = speaks["id"] if speaks else None
 
@@ -125,8 +100,6 @@ def browser_state(
         events, withdrawn=withdrawn, absorbed=active_page.projection.absorbed
     )
     workflows = work.workflows
-    todos = work.todos
-    open_todos = [todo for todo in todos if is_open(todo)]
 
     words = GestureWords(events, active_registry, revisions or readings.__getitem__)
     views = {}
@@ -154,7 +127,7 @@ def browser_state(
             lambda event: turn_runs(event, work.presence, work.turn),
         )
         # The view's obligations are its own document's beside its threads', and
-        # the page's updates', served once: a list row names a
+        # the page's updates' and to-dos', served once: a list row names a
         # record by its id.
         # Each says whether its source's own answer stands on it, so no reader
         # restates that rule.
@@ -162,7 +135,7 @@ def browser_state(
             {**record, "answered": answered(record)}
             for record in (*viewed.all_obligations["all"], *work.records)
         ]
-        _apply_thread_attention(items, thread["threads"], open_todos)
+        _apply_thread_attention(items, thread["threads"])
         documents[revision] = reading
         projection = reading.projection
         published_at = next(
@@ -187,7 +160,7 @@ def browser_state(
                 words=words,
             ),
             "published_at": published_at,
-            "queues": queues(workflows, todos, items, threads, reading.within),
+            "queues": queues(workflows, items, threads, reading.within),
         }
     if wants_history(readings[revision] for revision in view_revisions):
         page_history = {
@@ -205,8 +178,7 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        "todos": todos,
-        "plan": durable.plan(todos),
+        "plan": durable.plan(work.records),
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(

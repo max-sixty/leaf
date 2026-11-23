@@ -14,7 +14,7 @@ import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
 
-/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
+/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
 
 const awaitingWidgets = perVocabulary(() =>
   tagsDeclaring((entry) => entry.awaits).join(","),

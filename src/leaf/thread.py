@@ -798,7 +798,7 @@ def _resolve_obligation(
                     todo for todo in TodoReading(events).owed if todo["id"] in opened
                 ]
                 promised = [
-                    {"todo": todo["id"], "title": todo["title"]}
+                    {"todo": todo["id"], "title": todo["prompt"]["text"]}
                     for todo in owed_todos
                     if done
                 ]

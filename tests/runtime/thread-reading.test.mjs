@@ -53,7 +53,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     }),
   ];
   const read = (acknowledging) =>
-    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], [], acknowledging)[0];
+    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], acknowledging)[0];
 
   const unread = read([]);
   assert.deepEqual(
@@ -169,12 +169,11 @@ test("marking one thread read reads that thread's record again, and no other", (
     servedThread([agent(id, { kind: "comment" })], { unread: { [id]: id } }),
   );
   const read = readThreadRecords;
-  const before = read(threads, NO_DOCUMENT, new Map(), [], [], [], []);
+  const before = read(threads, NO_DOCUMENT, new Map(), [], [], []);
   const after = read(
     threads,
     NO_DOCUMENT,
     new Map(),
-    [],
     [],
     [],
     [{ message: "a", version: "a" }],

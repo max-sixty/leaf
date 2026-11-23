@@ -9,8 +9,8 @@
    writes as the glyph and its word, or as Deleted once the user takes the mark back
    (`deleted`), and any other reaction stands as its chip on the message it answers. Whose turn a thread is is read
    from the complete browser Thread's `attention` and nothing else, the obligation
-   record or to-do that speaks for it: a user obligation outranks concurrent agent
-   work, which stays the card's secondary status.
+   record that speaks for it: a user obligation outranks concurrent agent work, which
+   stays the card's secondary status.
 
    A thread's `id` is its one identity: the id the server keys it by, which every obligation,
    workflow, placement, and view names it by. Its `root` is its opening message, a
@@ -464,7 +464,6 @@ function grouped(items, key) {
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../types/domain.js").AuthoredWidget["state"]}} Unit */
 /** @typedef {import("../framework/application.js").Workflow} Workflow */
 /** @typedef {import("../framework/application.js").ObligationRecord} ObligationRecord */
-/** @typedef {import("../../types/contract.js").ServedTodo} ServedTodo */
 /** @typedef {import("../../types/domain.js").ContentVersion} ContentVersion */
 /** @typedef {ReadonlyMap<string, CapturedBody>} ThreadBodies */
 
@@ -474,12 +473,10 @@ const NO_STATE = Object.freeze({});
 
 // Each list a thread holds, selected once for every thread while the lists stand.
 const byThread = kept(
-  /** @param {readonly Workflow[]} workflows @param {readonly ObligationRecord[]} obligations
-   * @param {readonly ServedTodo[]} todos */
-  (workflows, obligations, todos) => ({
+  /** @param {readonly Workflow[]} workflows @param {readonly ObligationRecord[]} obligations */
+  (workflows, obligations) => ({
     workflows: grouped(workflows, (workflow) => workflow.thread),
     obligations: grouped(obligations, (obligation) => obligation.thread),
-    todos: grouped(todos, (todo) => todo.thread),
   }),
 );
 // What this tab is marking read, by message.
@@ -584,9 +581,8 @@ const threadRecord = keptEach(
    * @param {Record<string, {glyph: string}>} tokens
    * @param {readonly ContentVersion[]} marking what this tab is marking read of its messages
    * @param {readonly Workflow[]} workflows @param {readonly ObligationRecord[]} obligations
-   * @param {readonly ServedTodo[]} todos @param {readonly Unit[]} units
-   * @param {ThreadBodies | undefined} bodies */
-  (thread, ready, tokens, marking, workflows, obligations, todos, units, bodies) => {
+   * @param {readonly Unit[]} units @param {ThreadBodies | undefined} bodies */
+  (thread, ready, tokens, marking, workflows, obligations, units, bodies) => {
     const key = threadKey(thread);
     const locallyRead = new Set(marking.map(versionKey));
     /** @type {ContentVersion[]} */
@@ -661,20 +657,16 @@ const threadRecord = keptEach(
       detached_from: thread.detached_from,
       rewritten_from: thread.rewritten_from,
       resolved: thread.resolved,
-      // The record or to-do that speaks for the thread, one of those standing in it:
-      // whose turn it is and where it stands.
+      // The record that speaks for the thread, one of those standing in it: whose
+      // turn it is and where it stands.
       attention:
-        obligations.find((obligation) => obligation.id === thread.attention) ??
-        todos.find((todo) => todo.id === thread.attention) ??
-        null,
+        obligations.find((obligation) => obligation.id === thread.attention) ?? null,
       // The obligations that stand in it: those widgets in its messages make, such as
-      // an `lf-options` the user owes a pick there, and those its updates publish.
+      // an `lf-options` the user owes a pick there, those its updates publish, and the
+      // agent's to-dos on it. A reply that promised a to-do says it is still open (a
+      // to-do a reply opens takes the reply's id, `todos.py`), and a running one is
+      // work the thread's working message reads whoever's turn the thread is.
       obligations,
-      // The agent's open to-dos on the thread: a reply that promised one says it is
-      // still open (a to-do a reply opens takes the reply's id, `todos.py`), and a
-      // running one is work the thread's working message reads whoever's turn the
-      // thread is.
-      todos,
       workflows,
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
@@ -690,7 +682,6 @@ const threadRecord = keptEach(
  * @param {readonly Workflow[]} workflows
  * @param {readonly ObligationRecord[]} obligations
  *   the view's obligations, of which each thread holds those that stand in it
- * @param {readonly ServedTodo[]} todos the open to-dos, of which each thread holds those on it
  * @param {readonly ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -700,12 +691,11 @@ export function readThreadRecords(
   widgets,
   workflows,
   obligations = NONE,
-  todos = NONE,
   markingRead = NONE,
   ready = true,
 ) {
   const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
-  const lists = byThread(workflows, obligations, todos);
+  const lists = byThread(workflows, obligations);
   const marking = markingByMessage(markingRead);
   const units = unitsByThread(document.descriptors, widgets);
   return threads.map((thread) =>
@@ -716,7 +706,6 @@ export function readThreadRecords(
       Object.keys(thread.unread).flatMap((id) => marking.get(id) ?? []),
       lists.workflows.get(thread.id) ?? NONE,
       lists.obligations.get(thread.id) ?? NONE,
-      lists.todos.get(thread.id) ?? NONE,
       units.get(thread.id) ?? NONE,
       document.messageBodies?.get(thread.id),
     ),

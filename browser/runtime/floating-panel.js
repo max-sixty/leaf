@@ -301,7 +301,6 @@ import {
   itemEnding,
   itemNoun,
   itemOutcome,
-  itemRecord,
   onList,
 } from "./queues.js";
 import { agePreview, ago, shortAgo, timeOfDay } from "./presence.js";
@@ -4119,11 +4118,11 @@ export function createFloatingPanel({
   // says it, and since when.
   /** @param {PanelQueueItem} item */
   const workOn = (item) =>
-    item.todo
+    item.obligation.source.kind === "todo"
       ? {
-          word: todoWord(item.todo),
-          line: item.todo.line ? agentSays(item.todo.line.text) : null,
-          since: item.todo.line?.ts ?? item.todo.ts,
+          word: todoWord(item.obligation),
+          line: item.obligation.line ? agentSays(item.obligation.line.text) : null,
+          since: item.obligation.line?.ts ?? item.obligation.ts ?? null,
         }
       : {
           word: workflowWord(item.workflow, agentName()),
@@ -4330,7 +4329,7 @@ export function createFloatingPanel({
     // A finished item says how it ended and when: on its card, where its answers
     // stood, and on a line at the line's end, so the line's card holds Discuss.
     const ending =
-      !record && itemRecord(item).state === "done" ? itemEnding(item) : null;
+      !record && item.obligation.state === "done" ? itemEnding(item) : null;
     if (ending)
       answers = card
         ? html`<span class="lf-fp-said"
@@ -4750,8 +4749,8 @@ export function createFloatingPanel({
   // the agent has in hand, what is up next, and what it finished, folded under Done.
   /** @param {ReturnType<typeof queueLists>} lists */
   function workView(lists) {
-    const held = lists.agent.filter((item) => inHand(itemRecord(item)));
-    const queued = lists.agent.filter((item) => !inHand(itemRecord(item)));
+    const held = lists.agent.filter((item) => inHand(item.obligation));
+    const queued = lists.agent.filter((item) => !inHand(item.obligation));
     const groups = [
       { key: "in-hand", title: "In hand", items: held },
       { key: "queued", title: "Up next", items: queued },

@@ -116,9 +116,9 @@ def attention_reading(readings) -> dict:
         for item in workflows
         if item["held_by"] is not None
     ] + [
-        (todo["id"], todo["subject"])
+        (todo["id"], todo["source"]["subject"])
         for todo in work.log.owed
-        if todo["subject"]["kind"] != "page"
+        if todo["source"]["subject"]["kind"] != "page"
     ]
     inputs = [
         (source, spec)
@@ -332,8 +332,9 @@ def handed_over(
     starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
     for todo in log.owed:
-        if todo["line"] and todo["subject"]["kind"] == "widget":
-            widget_starts.setdefault(todo["subject"]["id"], []).append(todo["line"])
+        subject = todo["source"]["subject"]
+        if todo["line"] and subject["kind"] == "widget":
+            widget_starts.setdefault(subject["id"], []).append(todo["line"])
 
     def delivered_at(source: dict) -> int:
         delivery = deliveries.get(source["id"], {})

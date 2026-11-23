@@ -95,6 +95,7 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
       message: null,
       prompt: { text: `Choose ${id}.`, target: id },
       answer: null,
+      end: null,
       next_actor: "user",
       state: "waiting",
       reason: null,

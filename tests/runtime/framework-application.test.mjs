@@ -104,6 +104,7 @@ const wireObligation = (
   message,
   prompt: { text: null, target },
   answer: null,
+  end: null,
   ...OPEN,
 });
 // A view's obligations as the served lists hold them: each the user owes on their list, On Me,
@@ -1491,6 +1492,7 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
     message: item.id,
     prompt: { text: item.text, target: null },
     answer: { value: { token: "keep" }, event: kept },
+    end: null,
     ...ANSWERED,
   };
   accepted.browser.views[1].obligations = [answered];

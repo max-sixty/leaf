@@ -1,7 +1,7 @@
 # `page state` doesn't copy each to-do into its On list row or into its thread's
 # `attention`: a row names its to-do by `id`, and the record, with its title and the
-# start in force on it, is in `todos`, where a to-do stands `waiting` or `running`, and
-# a thread's `attention` is the id of the record or to-do that speaks for it.
+# start in force on it, is in `obligations`, where a to-do stands `waiting` or
+# `running` and a thread's `attention` is the id of the record that speaks for it.
 # Scores conversation-loop.md, "The On lists", reading those rows. The reading below
 # lists the to-dos in another order than the rows, so only a join by id puts each to-do
 # on its side.
@@ -23,7 +23,7 @@ vars:
     resumed after a break, and the user wrote in the terminal: "Where are we? What's
     waiting on me, and what are you still doing?" You ran
 
-        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, obligations, todos, queues, threads: [.threads[] | {id, title, attention}]}'
+        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, obligations, queues, threads: [.threads[] | {id, title, attention}]}'
 
     and it printed:
 
@@ -35,32 +35,31 @@ vars:
          "thread": null, "message": null, "next_actor": "user",
          "state": "waiting", "reason": null, "outcome": null, "answered": false,
          "prompt": {"text": "Which window should the deploy go out in?", "target": "deploy-window"},
-         "answer": null},
+         "answer": null, "end": null},
         {"id": "message:9f3a21c0", "source": {"kind": "message", "id": "9f3a21c0"},
          "thread": "b2e40d17", "message": "9f3a21c0", "next_actor": "user",
          "state": "waiting", "reason": null, "outcome": null, "answered": false,
          "prompt": {"text": "Try the build on your phone, and reply once it installs.", "target": null},
-         "answer": null},
+         "answer": null, "end": null},
         {"id": "update:a83f0e5d", "source": {"kind": "update", "id": "a83f0e5d", "subject": {"kind": "thread", "id": "5aa04c19"}},
          "thread": "5aa04c19", "message": "a83f0e5d", "next_actor": "agent",
          "state": "waiting", "reason": null, "outcome": null, "answered": false, "seen": true, "workflow": "a83f0e5d",
          "prompt": {"text": null, "target": "5aa04c19"},
-         "answer": null}
-      ],
-      "todos": [
-        {"id": "0d2c55aa", "subject": {"kind": "thread", "id": "c71e9b04"},
-         "title": "Write the migration note", "next_actor": "agent",
-         "state": "waiting", "reason": null, "outcome": null, "line": null, "end": null,
-         "seq": 41, "ts": "2026-10-19T15:02:11+00:00", "agent": "Claude", "session": "s-7731", "revision": 3,
-         "thread": "c71e9b04"},
-        {"id": "4be81d02", "subject": {"kind": "widget", "id": "p95-chart"},
-         "title": "Rebuild the latency chart", "next_actor": "agent",
-         "state": "running", "reason": null, "outcome": null,
+         "answer": null, "end": null},
+        {"id": "0d2c55aa", "source": {"kind": "todo", "id": "0d2c55aa", "subject": {"kind": "thread", "id": "c71e9b04"}},
+         "thread": "c71e9b04", "message": null, "next_actor": "agent",
+         "state": "waiting", "reason": null, "outcome": null, "answered": false,
+         "prompt": {"text": "Write the migration note", "target": "c71e9b04"},
+         "answer": null, "end": null, "line": null,
+         "seq": 41, "ts": "2026-10-19T15:02:11+00:00", "agent": "Claude", "session": "s-7731", "revision": 3},
+        {"id": "4be81d02", "source": {"kind": "todo", "id": "4be81d02", "subject": {"kind": "widget", "id": "p95-chart"}},
+         "thread": null, "message": null, "next_actor": "agent",
+         "state": "running", "reason": null, "outcome": null, "answered": false,
+         "prompt": {"text": "Rebuild the latency chart", "target": "p95-chart"},
+         "answer": null, "end": null,
          "line": {"id": "e6610f3a", "item": "4be81d02", "text": "Re-running the benchmark", "seq": 44,
                   "ts": "2026-10-19T15:10:30+00:00", "turn": "t-19", "agent": "Claude", "session": "s-7731"},
-         "end": null,
-         "seq": 33, "ts": "2026-10-19T14:21:07+00:00", "agent": "Claude", "session": "s-7731", "revision": 2,
-         "thread": null}
+         "seq": 33, "ts": "2026-10-19T14:21:07+00:00", "agent": "Claude", "session": "s-7731", "revision": 2}
       ],
       "queues": {
         "on_user": [
@@ -73,9 +72,9 @@ vars:
           {"kind": "update", "id": "update:a83f0e5d", "owner": "agent",
            "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "also": []},
           {"kind": "todo", "id": "4be81d02", "owner": "agent",
-           "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null},
+           "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null, "also": []},
           {"kind": "todo", "id": "0d2c55aa", "owner": "agent",
-           "subject": {"kind": "thread", "id": "c71e9b04"}, "thread": "c71e9b04"}
+           "subject": {"kind": "thread", "id": "c71e9b04"}, "thread": "c71e9b04", "also": []}
         ]
       },
       "threads": [

@@ -246,8 +246,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     resolved: null,
     workflows,
     attention,
-    obligations: attention && "source" in attention ? [attention] : [],
-    todos: attention && !("source" in attention) ? [attention] : [],
+    obligations: attention ? [attention] : [],
     unread: Array.from({ length: unread }, (_, index) => ({ message: `m${index}` })),
   });
   // A record of `kind` on `next_actor`, standing as `standing` says (`standing.py`).
@@ -258,17 +257,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     state: "waiting",
     reason: null,
     outcome: null,
-    prompt: { text: null },
-    ...standing,
-  });
-  // A to-do of the agent's on the thread, standing as `standing` says.
-  const todo = (standing = {}) => ({
-    id: "t1",
-    title: "Rebuild the banner quieter",
-    next_actor: "agent",
-    state: "waiting",
-    reason: null,
-    outcome: null,
+    prompt: { text: kind === "todo" ? "Rebuild the banner quieter" : null },
     ...standing,
   });
   // Each line with who says it, on the margin entry and the Page Map row alike.
@@ -283,9 +272,9 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     [text, voice],
     [text, voice],
   ];
-  assert.deepEqual(said(thread(todo())), both("Still to do", "agent"));
+  assert.deepEqual(said(thread(record("todo", "agent"))), both("Still to do", "agent"));
   assert.deepEqual(
-    said(thread(todo({ state: "running" }), { unread: 1 })),
+    said(thread(record("todo", "agent", { state: "running" }), { unread: 1 })),
     both("On it", "agent"),
   );
   // A thread whose workflow is under way carries it as its receipt, which says it in

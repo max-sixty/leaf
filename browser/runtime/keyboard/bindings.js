@@ -79,6 +79,12 @@
      other command leaves the control it was pressed on where it stood on screen
      (browser/AGENTS.md, "The page holds still under the user's aim"). The dispatcher announces it with the
      invocation, where the suite's shift watch reads it.
+   - `opens`, on a row of the page's scopes, is the scope a press of the command
+     enters, as `g` enters the Go-to sequence's and `g V` Versions'; the scope's `at`
+     says whether that scope stands already. A row in that scope shows the command's
+     steps before its own (control-keys.js, `commandSteps`), and the command's keys
+     before its own wherever its own key doesn't reach it (`pressNow`), so Open latest
+     says `g V l` wherever Versions isn't open.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -170,6 +176,7 @@ import { runtime } from "../context.js";
  * @property {import("../page-controls.js").PageControlGroup} [menu]
  * @property {keyof typeof import("../icon-paths.js").ACTIONS} [action]
  * @property {Cell<readonly CommandRoute[]>} [routes]
+ * @property {() => Scope | null} [opens]
  * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command
  * @typedef {Command & {binding?: string, [ROUTED_COMMAND]?: CommandReference}} CommandRoute
  * @typedef {Object} Scope
@@ -181,7 +188,6 @@ import { runtime } from "../context.js";
  * @property {Cell<Element | Document | null>} [root]
  * @property {(binding: string) => boolean} [shadow]
  * @property {Cell<readonly string[]>} [sequence]
- * @property {Cell<readonly string[]>} [sequencePrefix]
  * @property {boolean} [contextual]
  * @property {object} [identity]
  * @property {Element} [el]
@@ -446,6 +452,17 @@ const scopeReadiness = new WeakMap();
 // Terminal absence is known input too. Availability still comes from the owner's
 // `when` (widget actions require a complete reading); only unfinished input queues.
 export const savedReadingSettled = () => runtime.statePhase !== "waiting";
+// Whether the page has finished restoring the place a reload Leaf asked for handed it
+// (version.js, `installArrival`). Until then no key is ready, so a printed key waits
+// in the early hold (controller.js, `takeHeldKeys`): a user typing through the reload
+// meant it for the box they were writing in, which the restore brings back, not as one
+// of the page's commands.
+let handingBack = false;
+export const placeHandedBack = () => !handingBack;
+/** @param {boolean} pending */
+export const handingBackPlace = (pending) => {
+  handingBack = pending;
+};
 // A scope supplies a shared input contract without replacing its rows or their identity.
 /** @param {readonly Command[]} rows @param {(() => boolean) | undefined} ready */
 export function declareCommandReadiness(rows, ready) {

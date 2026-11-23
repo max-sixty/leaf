@@ -673,7 +673,9 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     # to once the ordering has decided it.
     presses = versions.locator(".lf-fp-compare")
     expect(presses).to_have_count(9)
-    expect(presses.first).to_have_attribute("aria-label", "Compare with v9")
+    expect(presses.first).to_have_attribute(
+        "aria-label", re.compile(r"\bCompare with v9\b")
+    )
     page.locator(".lf-fp-leaf").click()
     compare_with(page)
     expect(page.locator(".lf-fp-row")).to_contain_text("since v9")

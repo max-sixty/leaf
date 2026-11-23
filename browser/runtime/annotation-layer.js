@@ -34,7 +34,6 @@ import { signal } from "/runtime/framework.js";
 import { tabStore } from "./tab-store.js";
 import { chromeRoot } from "./chrome.js";
 import { notice } from "./notifications.js";
-import { pressCommand } from "./keyboard/dispatch.js";
 
 import { ANNOTATIONS_KEY } from "./restore-state.js";
 
@@ -71,7 +70,6 @@ export const ANNOTATIONS_TOGGLE = {
         ? {
             action: "show-annotations",
             command: "annotations.toggle",
-            run: () => pressCommand("annotations.toggle"),
             stands,
           }
         : null,

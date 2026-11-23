@@ -434,6 +434,7 @@ function createApplication(dependencies) {
     threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    revealThread: dependencies.anchorTravel.revealThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
     ...(overlay ? { preview: overlay.threadPreview } : {}),
@@ -466,6 +467,7 @@ function createApplication(dependencies) {
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node ?? null) ?? null,
+    travellingTo: dependencies.anchorTravel.travellingTo,
     // The margin's own commit, which reply continuity waits for; before the margin
     // mounts there is nothing to wait for.
     marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),

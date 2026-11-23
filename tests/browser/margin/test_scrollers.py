@@ -107,7 +107,12 @@ def test_a_passage_s_row_moves_with_the_page_s_scroll_in_the_task_that_scrolls(
     text = " ".join(
         f"Sentence number {i} says something about the release." for i in range(120)
     )
-    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    # The page goes on past the passage, so the scroll can put the words a third of the
+    # way down rather than stop at the page's end, under the floating panel.
+    body = (
+        f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+        '<div style="height: 100vh"></div>'
+    )
     events = [_comment_on("long", quote="the last words land")]
     page = open_page(browser, serve(leaf_page("Passage rows", body), events=events))
     row = page.locator('[data-lf-margin-for="long"]')
@@ -1144,21 +1149,26 @@ TAB_PIN_PAGE = leaf_page(
 )
 
 
-def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
+def test_a_row_behind_an_inactive_tab_stands_on_the_tab_set(browser, serve):
     """An inactive tab keeps its content laid out under `content-visibility: hidden`,
     where an anchor is invalid and a row would be drawn wherever it stood with no
-    anchor at all. The row is withheld instead — nothing drawn, nothing to Tab to — and
-    comes back with its tab."""
+    anchor at all. The row stands level with the tab set instead, which the page
+    draws, and moves to its passage with its tab."""
     page = open_page(browser, serve(TAB_PIN_PAGE, events=[_comment_on("behind")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="behind"]')
-    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    expect(row).to_be_hidden()
+
+    def level_with(selector):
+        top = page.locator(selector).bounding_box()["y"]
+        assert abs(row.bounding_box()["y"] - top) <= 2, selector
+
+    expect(row).to_be_visible()
+    level_with("#views")
     page.get_by_role("tab", name="Second").click()
     margins_laid_out(page)
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+    level_with("#behind")
 
 
 # A deck whose script moves its slides with transitions: the next slide hidden below the
@@ -1191,10 +1201,10 @@ DECK_PAGE = leaf_page(
 
 def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
     """A slide hidden by `visibility`, or moved out of the box that clips it, withholds
-    its comment's row, as a closed disclosure does. When the deck swaps slides by a
-    transition, the class change that starts it is read while the transition still holds
-    the old values, and nothing after it resizes or mutates; the rows follow once the
-    transitions end, without a reload."""
+    its comment's row, while a closed disclosure stands its row on itself. When the deck
+    swaps slides by a transition, the class change that starts it is read while the
+    transition still holds the old values, and nothing after it resizes or mutates; the
+    rows follow once the transitions end, without a reload."""
     page = open_page(
         browser,
         serve(
@@ -1214,7 +1224,8 @@ def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
     }
     withheld = re.compile(r"\blf-withheld\b")
     expect(row["slide-one"]).to_be_visible()
-    for hidden in ("slide-two", "slide-three", "note"):
+    expect(row["note"]).to_be_visible()
+    for hidden in ("slide-two", "slide-three"):
         expect(row[hidden]).to_have_class(withheld)
         expect(row[hidden]).to_be_hidden()
 

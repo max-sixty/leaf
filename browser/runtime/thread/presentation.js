@@ -61,6 +61,7 @@ function renderHolds(threads) {
  * continueThread: Parameters<typeof holdReplyCompositions>[1],
  * returnToPage: ReturnType<typeof import("./destination.js").createThreadDestinations>["returnToPage"],
  * threadAt: ReturnType<typeof import("./destination.js").createThreadDestinations>["threadAtCurrentLocation"],
+ * travellingTo: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["travellingTo"],
  * marginCommitted: () => unknown,
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "begin" | "present" | "abort">}} dependencies */
 export function createThreadPresentation({
@@ -77,6 +78,7 @@ export function createThreadPresentation({
   continueThread,
   returnToPage,
   threadAt,
+  travellingTo,
   marginCommitted,
   read,
 }) {
@@ -131,6 +133,7 @@ export function createThreadPresentation({
     const restorePlace = holdThreadPlace(openThread, {
       threadAt,
       seated: (id) => Boolean(surfaceFocusTarget(id, { part: "thread" })),
+      travellingTo,
     });
     /** @type {ReturnType<typeof renderSurfaces> | null} */
     let surfaces = null;

@@ -109,6 +109,7 @@ import {
 import { drawnThreadId, THREAD, THREAD_VIEW, wholeThread } from "./thread/selectors.js";
 import { nextRender } from "./rendering.js";
 import { aborted } from "./abort.js";
+import { reloadDocument } from "./layer-client.js";
 
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
  * @typedef {{id: string, reader: "primary" | null, scroll: number | null}} ThreadPlace
@@ -292,11 +293,12 @@ export function replaceEntry(url, state) {
   }
 }
 
-/** Rename the entry the user is on to `url` and reload it, without waiting for a
- * navigation under way. @param {URL} url */
+/** Rename the entry the user is on to `url` and reload it as Leaf's own reload
+ * (layer-client.js, `reloadDocument`), without waiting for a navigation under way.
+ * @param {URL} url */
 export function reloadAt(url) {
   write("replaceState", history.state, named(url));
-  location.reload();
+  reloadDocument();
 }
 
 // A route can reveal or hydrate before it knows whether arrival will succeed. Capture

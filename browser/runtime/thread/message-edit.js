@@ -123,7 +123,6 @@ import { seenRect } from "../geometry.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { pressCommand } from "../keyboard/dispatch.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -475,7 +474,6 @@ export class MessageEditor {
         press: {
           action: "restore-edit",
           command: RESTORE,
-          run: () => pressCommand(RESTORE),
           stands: () => discarded === thrown,
         },
       });

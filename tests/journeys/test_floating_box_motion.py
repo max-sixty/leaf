@@ -137,9 +137,11 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
     painted part of the box travels one way per input on each axis: its outline's
     edges, its controls and its words (`motion_frames.js`)."""
     browser = request.getfixturevalue(engine)
-    url = serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT])
 
-    # Each example loads a page, so a failure is reported as drawn rather than shrunk.
+    # Each example serves its own page, so a failure is reported as drawn rather than
+    # shrunk, and no example opens on another's leftovers: the page's server keeps a
+    # field's words as its draft, and a comment box reopened with its draft beside the
+    # low passage takes focus under the panel's row, which folds the panel.
     @settings(
         max_examples=20,
         derandomize=True,
@@ -171,12 +173,11 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
         quick=False,
     )
     def moves_one_way(composer, gap, draft, edits, quick):
+        url = serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT])
         page = open_page(browser, url, init_script=MOTION_FRAMES)
         page.emulate_media(reduced_motion="no-preference")
         resized(page, 1440, 900)
         field = open_composer(page, composer)
-        # The page's server keeps the words an example typed as its draft, and the next
-        # example's field opens with them, so each writes its own, an empty one included.
         write(field, draft)
         at_rest(page, composer)
         stand_foot(page, composer, gap)

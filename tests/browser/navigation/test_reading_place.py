@@ -522,31 +522,26 @@ def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serv
     assert page.url.endswith("#other")
 
 
-def test_a_rename_waiting_on_a_navigation_answers_once_written(browser, serve):
-    """A rename asked for during a navigation answers once it is written, so a caller
-    that acts on the renamed entry, as a revision's reload does, can wait for it."""
-    page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
-    marked = page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          let release = () => {};
-          navigation.addEventListener('navigate', (event) => {
-            if (event.destination.url.endsWith('#slow'))
-              event.intercept({
-                handler: () => new Promise((resolve) => (release = resolve)),
+def test_a_revision_s_reload_during_a_navigation_carries_its_mark(browser, serve):
+    """A revision's reload writes its mark and reloads at once, though a navigation is
+    under way, which the reload ends anyway, so the document it asks for carries the
+    mark rather than a rename that waited and was dropped when the user moved on."""
+    page = open_page(browser, serve(leaf_page("Reloads", "<h1>Reloads</h1>")))
+    with page.expect_request(lambda request: request.is_navigation_request()) as reload:
+        page.evaluate(
+            """async () => {
+              const {reloadAt} = await import('/runtime/history.js');
+              navigation.addEventListener('navigate', (event) => {
+                if (event.navigationType === 'push')
+                  event.intercept({handler: () => new Promise(() => {})});
               });
-          });
-          const slow = navigation.navigate('#slow');
-          await slow.committed;
-          const url = new URL(location.href);
-          url.searchParams.set('marked', '1');
-          const renamed = api.replaceEntry(url);
-          release();
-          await renamed;
-          return new URL(location.href).searchParams.get('marked');
-        }"""
-    )
-    assert marked == "1"
+              navigation.navigate('#slow').finished.catch(() => {});
+              const url = new URL(location.href);
+              url.searchParams.set('_leaf-revision', '2');
+              setTimeout(() => reloadAt(url));
+            }"""
+        )
+    assert "_leaf-revision=2" in reload.value.url
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

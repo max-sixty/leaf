@@ -198,7 +198,7 @@ import {
 } from "./widget-loader.js";
 import { byRenderedOrder, under } from "./shadow-tree.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { replaceEntry } from "./history.js";
+import { reloadAt } from "./history.js";
 import {
   blocksOnScreen,
   capturePlace,
@@ -2261,8 +2261,7 @@ export function createVersionController({
   // Changed executable identity requires a fresh document. Serialize the continuity
   // handoff before reload; installArrival consumes it once after upgrade.
   const reloadInto =
-    (/** @type {import("../types/contract.js").ServedRevision} */ target) =>
-    async () => {
+    (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
       forceActivation = false;
       const live = pageDocument();
       const source = authoredSource;
@@ -2286,10 +2285,7 @@ export function createVersionController({
       );
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
-      // A rename waits for a navigation under way (history.js, `replaceEntry`), and the
-      // reload must carry its mark.
-      await replaceEntry(marked);
-      location.reload();
+      reloadAt(marked);
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.
       return new Promise(() => {});

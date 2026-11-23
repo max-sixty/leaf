@@ -17,7 +17,10 @@
  * a document's entries skippable by Back once one is added without the user's
  * activation, and Firefox 135 and later skip such entries, so an entry added without a
  * gesture would cost the user the Back steps they made. A rename waits for a
- * navigation under way to end (`replaceEntry`), since a history write aborts it.
+ * navigation under way to end (`replaceEntry`), since a history write aborts it. A
+ * reload's rename doesn't wait (`reloadAt`): the reload ends any navigation under way
+ * anyway, and an intercepted navigation commits its URL at once, so the address the
+ * reload marks is the entry the user is on.
  *
  * Which thread view an entry shows is its URL's (`?thread=`, thread/address.js), which
  * claims each traversal first, to open or put away that view. A working-place
@@ -267,30 +270,33 @@ export function pushEntry(url, state = null) {
 // another, it is dropped. Without `state`, the entry keeps its own, read when the rename
 // is written. A rename that would change nothing writes nothing, and one the browser
 // refuses over its rate limit, as Safari does by throwing past 100 in 30 seconds, is
-// dropped, since the next write names the entry again. It answers once it is written
-// or dropped, for a caller that acts on the renamed entry, as a revision's reload does.
-/** @param {string | URL | null | undefined} [url] @param {unknown} [state]
- * @returns {Promise<void>} */
+// dropped, since the next write names the entry again.
+/** @param {string | URL | null | undefined} [url] @param {unknown} [state] */
 export function replaceEntry(url, state) {
   const transition = window.navigation.transition;
   if (transition) {
     const asked = window.navigation.currentEntry?.key;
-    const rename = () =>
-      window.navigation.currentEntry?.key === asked
-        ? replaceEntry(url, state)
-        : undefined;
-    return transition.finished.then(rename, rename);
+    const rename = () => {
+      if (window.navigation.currentEntry?.key === asked) replaceEntry(url, state);
+    };
+    transition.finished.then(rename, rename);
+    return;
   }
   const address = named(url);
   const kept = state === undefined ? history.state : state;
-  if (address.href === location.href && kept === history.state)
-    return Promise.resolve();
+  if (address.href === location.href && kept === history.state) return;
   try {
     write("replaceState", kept, address);
   } catch (error) {
     if (!(error instanceof DOMException && error.name === "SecurityError")) throw error;
   }
-  return Promise.resolve();
+}
+
+/** Rename the entry the user is on to `url` and reload it, without waiting for a
+ * navigation under way. @param {URL} url */
+export function reloadAt(url) {
+  write("replaceState", history.state, named(url));
+  location.reload();
 }
 
 // A route can reveal or hydrate before it knows whether arrival will succeed. Capture

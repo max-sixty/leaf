@@ -4,7 +4,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "duration": {
           "type": "string",
           "pattern": "^[1-9][0-9]*$"

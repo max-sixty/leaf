@@ -76,13 +76,37 @@ async function sourceMovedOn() {
   return generation ? generation !== layerGeneration : undefined;
 }
 
+// A reload Leaf asks for, as a delivery that moved on and a revision that needs a fresh
+// document do, rather than the user. The document going hands the one it loads the
+// user's place (version.js, `handOff`), and the tab carries its unsent words to it
+// (drafts.js), so the leave prompt that reload raises asks the user nothing
+// (`takeLeafUnload`). A page's own prompt can still keep the document: `leafReloads`
+// stays true, so whichever departure ends it later hands over the place it leaves,
+// while a later prompt is no longer the reload's, so a close asks before dropping words.
+let leafReloading = false;
+let unloadAsked = false;
+export const leafReloads = () => leafReloading;
+// Whether the `beforeunload` being dispatched is the reload's: the first after Leaf
+// asks for one, whether the engine fires it inside `location.reload()`, as Chromium and
+// Firefox do, or later, as WebKit does. Its one reader takes it.
+export const takeLeafUnload = () => {
+  const asked = unloadAsked;
+  unloadAsked = false;
+  return asked;
+};
+export function reloadDocument() {
+  leafReloading = true;
+  unloadAsked = true;
+  location.reload();
+}
+
 let layerReloading = false;
 /** @param {string} message */
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
   notice(message);
-  location.reload();
+  reloadDocument();
 }
 
 // Each foreign answer gets its own reading of the source, because the source may move

@@ -817,7 +817,6 @@ def tail_cases() -> list[dict]:
             "attributes": {
                 "type": "object",
                 "properties": {
-                    "id": {"type": "string"},
                     "active": {"type": "boolean"},
                     "value": {
                         "type": ["boolean", "integer", "array", "object"],

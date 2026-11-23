@@ -42,10 +42,9 @@ LEAF_CODEX_APP_SERVER="<supplied-endpoint>" leaf page claim <page>
 ```
 
 If an adapter already holds a different endpoint, follow the conflict message.
-To connect a claimed page without serving it, run `leaf page claim <page>`. It
-prepares the adapter before taking ownership; without an App Server endpoint, it uses
-the queue route. A task or watcher already running `leaf wait` keeps that delivery loop and
-answers with explicit reply commands, as `harness-codex.md` describes.
+Without an App Server endpoint, a terminal task's claim uses the queue route. A task
+or watcher already running `leaf wait` keeps that delivery loop and answers with
+explicit reply commands, as `harness-codex.md` describes.
 
 Leaf accepts only `unix://<absolute path>` sockets and unauthenticated loopback `ws://`
 endpoints. Keep a socket in a directory only you can reach, as `leaf codex launch`

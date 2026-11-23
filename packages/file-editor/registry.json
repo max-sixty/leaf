@@ -4,7 +4,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "binding": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)*$"

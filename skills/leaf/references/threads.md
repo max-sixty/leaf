@@ -131,10 +131,9 @@ gives. Progress and failure reports use the active revision without checking or
 publishing an in-progress draft. Rerunning an
 answer with the same `ref`, text and flags adds nothing.
 
-When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
-"Replies"). Use `leaf thread reply` instead when the answer needs a question back,
-a to-do, a title, or a moved anchor, or is news the user would want to stop and
-read. To
+When an answer has `writer: "turn"`, which only a Codex turn receives, your turn's
+final text answers it, and `harness-codex.md`, "Replies", says when to use
+`leaf thread reply` instead. To
 have a command hub worker answer, forward it the `answer.ref` as that package's
 coordinator instructions say.
 

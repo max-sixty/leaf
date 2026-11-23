@@ -126,7 +126,7 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
+export { atScrollEnd, scrollLimit } from "./scrolling.js";
 export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
@@ -148,13 +148,7 @@ export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export { declarationFor, layerFact, matchesWhen } from "./registry.js";
-export {
-  flashDuration,
-  foldDuration,
-  returnDuration,
-  backgroundFlash,
-  motion,
-} from "./motion.js";
+export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;

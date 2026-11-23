@@ -3284,15 +3284,21 @@
   // what it carries after the frame's callbacks, where the watch reads, so a reading
   // that finds the anchor scrolled can find the box where the anchor stood at the
   // reading before, whatever a script wrote to the box meanwhile. So the node at each
-  // end may stand by the anchor as it stood then, or as it stood before that reading
-  // moved it. The first pairing that keeps the node's offset, the anchor keeping its
-  // layout place, answers; null where the node or the anchor moved otherwise.
+  // end may stand by the anchor as it stood then, or as it stood before a reading
+  // moved it: the reading at that end, or the one that last placed the node, which
+  // precedes the end where the anchor scrolled again before the node caught up. The
+  // first pairing that keeps the node's offset, the anchor keeping its layout place,
+  // answers; null where the node or the anchor moved otherwise.
   const laggedTravel = (node, anchor, from, to, axis) => {
     const ends = (at) => {
       const samples = placed.get(anchor) ?? [];
-      const i = samples.findLastIndex((item) => item.at <= at);
-      const before = Math.max(samples[i - 1]?.at, retainedFrom);
-      return samples[i]?.at === at && before < at ? [at, before] : [at];
+      const times = [at];
+      for (const read of new Set([at, readingAt(node, at)?.at ?? at])) {
+        const i = samples.findLastIndex((item) => item.at <= read);
+        const before = Math.max(samples[i - 1]?.at, retainedFrom);
+        if (samples[i]?.at === read && before < read) times.push(before);
+      }
+      return times;
     };
     const offset = (at, by) => boxAt(node, at)?.[axis] - boxAt(anchor, by)?.[axis];
     const place = (at) => layoutAt(anchor, at)?.[axis];

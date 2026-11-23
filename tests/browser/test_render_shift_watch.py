@@ -4449,13 +4449,21 @@ place();</script>"""
 
 @pytest.mark.parametrize(
     ("scroll", "fault"),
-    [("step", ""), ("step", "row"), ("smooth", ""), ("smooth", "row")],
+    [
+        ("step", ""),
+        ("step", "row"),
+        ("twice", ""),
+        ("twice", "row"),
+        ("smooth", ""),
+        ("smooth", "row"),
+    ],
 )
 def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault):
     """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
     frame callback can read the words moved and the row not yet. A row its script places
-    again in that frame, by the same offset from the words, and a row through a smooth
-    scroll no input makes, are credited; a row placed elsewhere still fails."""
+    again in that frame, by the same offset from the words, a row whose words scroll
+    again before it catches up, and a row through a smooth scroll no input makes, are
+    credited; a row placed elsewhere still fails."""
     page = browser.new_page()
     page.goto("data:text/html," + quote(CARRIED_ROW))
     paint(page)
@@ -4463,6 +4471,24 @@ def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault)
     moved = "5" if fault else "0"
     if scroll == "step":
         page.evaluate(f"scrollBy(0, -9); place({moved})")
+    elif scroll == "twice":
+        # A second scroll from another script, as `scrollIntoView` and then `scrollBy`
+        # make, in the task after the frame that carries the row to the first. A
+        # user-blocking task posted from that frame's callbacks runs ahead of the
+        # delivery of its painted shifts, so the watch's reading of that paint finds
+        # the words moved by the second scroll and the row caught up to the first.
+        page.evaluate(
+            """by => new Promise((done) => {
+              scrollBy(0, -9);
+              place();
+              requestAnimationFrame(() => scheduler.postTask(() => {
+                scrollBy(0, -40);
+                place(by);
+                done();
+              }, {priority: 'user-blocking'}));
+            })""",
+            int(moved),
+        )
     else:
         page.evaluate(
             """by => new Promise((done) => {

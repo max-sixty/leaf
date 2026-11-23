@@ -328,8 +328,10 @@ directly as in a terminal").
 - **A box inside a frame either meets its edge or stands clear of it.** A box that
   meets its frame's edge, as the floating panel's field and a thread card's reply box
   do, takes the frame's rounding at the corners they share and is square at the
-  others. A box that stands clear of every edge, as a message's rewrite does, is
-  rounded all round.
+  others. A box that stands clear, by `--lf-clear` or more, keeps the corners its kind
+  takes (`styles/tokens.css`, at `--lf-r`). So does a thumb that slides along its
+  track, or a mark round by meaning such as a dot, wherever it stands. Boxes joined at
+  seams count as one box.
 - **A word about shown material stands outside it.** Where the page shows an
   interface rather than says something, as a capture or a quoted sample does, a word
   about it, such as Before and After or a sample's note, stands on the page just above

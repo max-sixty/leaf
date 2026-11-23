@@ -25,7 +25,7 @@ from leaf.revision_artifact import (
     resource_type,
 )
 from leaf.sample_content import initial_sample_events
-from leaf.server import another_leaf_serving
+from leaf.server import other_serving_leaf
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     placed_thread,
@@ -288,13 +288,14 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     (`thread._revision_advice`) advise beside what `check_source` found: the
     source's non-blocking drift, what the page's own declarations advise
     (`composition.declaration_advice`), and a live server running another Leaf
-    (`server.another_leaf_serving`). It is read apart from the check, which every
+    (`server.other_serving_leaf`). It is read apart from the check, which every
     reply and activation runs, because judging the page's recorded data can take a
     cold process about 200 ms on a large page."""
     from .composition import declaration_advice
 
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
+    served = other_serving_leaf(page_dir)
     return [
         *checked.notes,
         *(
@@ -316,7 +317,20 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
             if "error" in reading
         ),
         *unpointable_blocks(parser),
-        *another_leaf_serving(page_dir),
+        *(
+            [
+                Finding(
+                    "another-leaf-serving",
+                    values={
+                        "page": str(page_dir),
+                        "path": served.get("path"),
+                        "commit": served.get("commit"),
+                    },
+                )
+            ]
+            if served is not None
+            else []
+        ),
     ]
 
 

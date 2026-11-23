@@ -616,6 +616,13 @@ export function createThreadDestinations({
     },
     holdsThreadDraft: (/** @type {string} */ context) =>
       Boolean(threadHolding(context)),
+    // The reader drawing `node`, as a route's `reader` names it: "primary" for a node
+    // the primary's presentation holds, else null, which leaves the route its default.
+    // A route asked with it returns the user to the reader they had the thread in.
+    readerOf: (/** @type {Node} */ node) =>
+      presentation?.owner.isConnected && renderedUnder(node, presentation.owner)
+        ? /** @type {const} */ ("primary")
+        : null,
     threadFocusTarget,
     threadHere,
     threadAtCurrentLocation,

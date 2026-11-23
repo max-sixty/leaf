@@ -1442,9 +1442,15 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     expect(previous).to_be_enabled()
     expect(next_thread).to_be_disabled()
     expect(reply).to_be_focused()
+    # A step lands on its thread as every opening does, gliding the passage into the
+    # reading band in the task that focuses the reply; the card rides the glide, so a
+    # press before it ends falls on the page where the button stood.
+    scroll_settled(page)
     previous.click()
     expect(next_thread).to_be_visible()
     expect(preview.get_by_role("button", name="Dismiss thread view")).to_be_visible()
+    expect(reply).to_be_focused()
+    scroll_settled(page)
     next_thread.click()
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")

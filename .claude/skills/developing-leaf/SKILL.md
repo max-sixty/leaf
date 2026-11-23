@@ -155,8 +155,9 @@ failure there means. `wt merge` checks the rebased tree and lands it; `✗ Can't
 local main branch` means a fast-forward failed.
 
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude
-Code picks up a push on its marketplace sweep, and Codex refreshes at startup. To
-refresh Codex in a running session, run `codex plugin marketplace upgrade leaf`.
+Code installs a push on its marketplace sweep, which a running session loads at
+`/reload-plugins`, and Codex refreshes at startup. To refresh Codex in a running
+session, run `codex plugin marketplace upgrade leaf`.
 
 ## Tasks with their own reference
 

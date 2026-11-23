@@ -80,7 +80,10 @@ const SVG = "http://www.w3.org/2000/svg";
 /** @param {string} icon */
 export const iconMarkup = (icon) => {
   const markup = ICONS[icon];
-  if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
+  if (!markup)
+    throw new TypeError(
+      `Unknown Leaf icon: ${icon}. Leaf's icons are ${Object.keys(ICONS).sort().join(", ")}`,
+    );
   return markup;
 };
 
@@ -169,7 +172,10 @@ export const ACTIONS = {
 /** @param {string} action */
 const namedAction = (action) => {
   const named = ACTIONS[action];
-  if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+  if (!named)
+    throw new TypeError(
+      `Unknown Leaf action: ${action}. Leaf's actions are ${Object.keys(ACTIONS).sort().join(", ")}`,
+    );
   return named;
 };
 /** The symbol `action` shows. @param {string} action */

@@ -48,17 +48,25 @@
   inherits: true;
   initial-value: 8px;
 }
+/* Registered as a length so it computes to one, which the reach of a mark over a list
+   marker reads back (geometry.js, `markerReach`). */
+@property --lf-list-inset {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 24px;
+}
 :root {
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  /* The room the chrome keeps at the window's head and foot, stated in the
-     render-blocking theme so the initial document and the eventual chrome share one
-     box. At the head the chrome draws nothing, so the room is the window's safe area. At
-     the foot the floating panel's row rests (floating-panel.css), with a gap below and
-     above it, so the end of the page can scroll clear of it. A page that is not live
-     draws no chrome and keeps no room (below).
+  /* The window's head and foot as the chrome sees them, stated in the render-blocking
+     theme so the initial document and the eventual chrome share one box. At the head
+     the chrome draws nothing, and the room is the window's safe area, which the body
+     keeps (base.css). At the foot the floating panel's row rests (floating-panel.css),
+     with a gap below and above it. The page keeps no room for that band: the row stands
+     over the page, and Leaf's landings stop above it (`--lf-foot-band`, base.css). A page
+     that is not live draws no chrome (below).
 
      The row is its one line (`--lf-line`) and the padding around it. The leaf, each
      mark and press beside the field, and the field's first line of words are each a line
@@ -71,11 +79,12 @@
   --lf-foot-room: calc(
     var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom)
   );
-  /* What a page reads of the chrome, and only where it needs a number: a box that fills
-     the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room and any sticky header under it. Ordinary content never sees either
-     band; the document already keeps clear of both (html[data-lf-live], base.css). */
-  --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
+  /* What a page reads of the window, and only where it needs a number: a box that
+     fills the window takes --lf-view-height, and a box that sticks stops at --lf-top,
+     below the head room and any sticky header under it. Ordinary content never sees
+     either; the document already keeps clear of the head room (html[data-lf-live],
+     base.css). The floating panel takes no room: it stands over the page. */
+  --lf-view-height: calc(100dvh - var(--lf-head-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's
      `--lf-landing-top`, base.css), in two parts: how much of the sticky-header slot it
@@ -292,8 +301,10 @@
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
   /* The room inside a thread card's border, wherever the card stands: over the page
-     in the margin, or in a widget's flow (surfaces.css). */
-  --lf-comment-inset: 12px;
+     in the margin, or in a widget's flow (surfaces.css). With the border it comes to
+     the floating panel's padding and the hairline round it (`--lf-thread-text-inset`,
+     surfaces.css). */
+  --lf-comment-inset: 6px;
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus
@@ -312,10 +323,11 @@
      which a column page's rail stands; narrower, a thread opens in the floating panel
      rather than a margin card (content-layout.js, `windowHoldsRail`). */
   --lf-rail-room: calc(var(--lf-col) + 2 * var(--lf-rail));
-  /* The room a page Layout leaves above its first block and below its last. A phone's
-     and a block sample's are smaller (base.css). */
+  /* The room a page Layout leaves above its first block and below its last, the latter
+     past the window's safe area at its foot, where a phone draws its home indicator. A
+     phone's and a block sample's are smaller (base.css). */
   --lf-page-pad-start: 72px;
-  --lf-page-pad-end: 96px;
+  --lf-page-pad-end: calc(96px + var(--lf-safe-bottom));
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */

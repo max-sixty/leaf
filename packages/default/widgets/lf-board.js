@@ -583,6 +583,9 @@ customElements.define(
     /** @param {BoardCard} card */
     #grip(card) {
       const grip = offerAction("symbol", "lf-grip", undefined, { action: "move" });
+      // A revision that rewrites any card replaces the board, and a user on this grip
+      // is on the same card's grip in the replacement (carry.js).
+      grip.setAttribute("data-lf-carry", "grip");
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
       // focus, so only a real departure still lacks focus when this settles.

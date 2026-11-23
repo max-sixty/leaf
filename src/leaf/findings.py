@@ -943,15 +943,6 @@ _TEXT = {
             f" {_json(v['covered'])}"
         ),
     ),
-    "under-panel": _fails(
-        _REACHES,
-        lambda at, v: (
-            f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
-            " far the page scrolls, so leave the panel's room, var(--lf-foot-room),"
-            " between the last words and the window's foot (page-authoring.md, \"Style"
-            ' the page")'
-        ),
-    ),
     # What the author decides.
     "unreduced-motion": lambda at, v: (
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
@@ -1288,9 +1279,9 @@ _TEXT = {
     ),
     "ungrouped-question": lambda at, v: (
         f"{_line(at, v)}: asks the user, but no group holds its question, so On Me"
-        " names it by the widget's label alone and selects the widget without its"
-        f" premise; write its premise and this widget in {_question_group(v)}, its"
-        " label asking the question"
+        " names it by the widget's label alone and selects only the widget; where"
+        " its premise stands outside it, write that premise and this widget in"
+        f" {_question_group(v)}, its label asking the question"
     ),
     "unnamed-question": _refuses(
         _ASKS,
@@ -1800,8 +1791,9 @@ _TEXT = {
     ),
     "record-within": _declared(
         lambda v: (
-            f"verb `{v['verb']}` (`verbs`) records a position within unknown"
-            f" widget <{v['within']}>"
+            f"verb `{v['verb']}` (`verbs`) records a position within"
+            f" <{v['within']}>, but a position's container is a declared element"
+            " inside the widget, whose children are the units it orders"
         )
     ),
     "body-content": _declared(
@@ -2013,7 +2005,8 @@ _TEXT = {
         lambda at, v: (
             f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
             f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
-            " write the page. Use a newer Leaf."
+            " write the page. Use a newer Leaf; in Claude Code, /reload-plugins loads"
+            " the installed copy."
         ),
     ),
     "no-registry": _refuses(
@@ -2389,12 +2382,17 @@ _TEXT = {
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
     # back or could not, and why it ended. A prompt hook that could not serve a
-    # session's page again says so too (`reconnect.serve_again`).
+    # session's page again, or restart its server under this Leaf, says so too
+    # (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
         f"{v['page']}: server was down and did not start again: {v['error']}"
+    ),
+    "restart-refused": lambda at, v: (
+        f"{v['page']}: this Leaf stopped the server another installed copy of Leaf"
+        f" ran, to restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

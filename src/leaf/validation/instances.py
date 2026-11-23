@@ -204,9 +204,9 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     (`gesture_words.element_name`), the words On Me lists and the agent hears. Leaf
     reads both from the author's markup and infers neither. A question with no words,
     as where neither the widget nor a group round it has a label that isn't blank, is
-    refused (`unnamed-question`). One named by its widget alone stands outside the
-    region On Me selects and the ring draws round, so its premise is out of view
-    (`ungrouped-question`, advice). A widget with words of its own needs no group: one
+    refused (`unnamed-question`). Where the widget's own label alone names it, On Me
+    selects and rings only the widget, so a premise written outside the widget is out
+    of view (`ungrouped-question`, advice). A widget with words of its own needs no group: one
     set among words (`inline`) is named by them, and one asking about each record of
     its data (`awaits.records`) by each record's label. A message's widget needs none
     either, since the message names what it asks, so only a page's documents are

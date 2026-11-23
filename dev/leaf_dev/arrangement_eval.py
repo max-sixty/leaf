@@ -34,6 +34,7 @@ import turbohtml
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.render_checks import SERVED_TIMEOUT_MS
 from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
 from leaf.structure import source_index, splice
@@ -390,7 +391,7 @@ def open_as_user(run: Run, url: str) -> None:
             "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => false})"
         )
         load(view, url)
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
         while not read_user_views(run.authored_page, None)["sessions"]:
             if time.monotonic() > deadline:
                 raise RuntimeError(f"the page recorded no view of {url}")

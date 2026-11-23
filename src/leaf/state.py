@@ -313,7 +313,7 @@ class LoadedCopy:
 class CopyReplaced(Exception):
     """A watch between turns has found another copy in place of the installed copy
     it loaded (`LoadedCopy.replaced`), as Pi puts one there when it updates its
-    clone, and one that reads the session's pages (`session._successor_reads`), and
+    clone, and one that reads the session's pages (`session.successor_reads`), and
     has stopped reading pages and let its lease go for that copy's watch to take
     (`hooks.main`). It is defined here rather than beside the watch so that
     `hooks.main` catches it without importing the watch, which a hook in a session
@@ -475,9 +475,9 @@ class Record(Generic[_RecordValue]):
 
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. Only retirement (`retire_if_gone`), `Record.newer` and a watch asking
-    whether a newer copy reads a page (`session._successor_reads`) read a record
-    this way; every other reader goes through `Record.read`."""
+    none. Only retirement (`retire_if_gone`), `Record.newer` and a process asking
+    whether the copy replacing its own reads a page (`session.successor_reads`)
+    read a record this way; every other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:

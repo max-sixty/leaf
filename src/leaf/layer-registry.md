@@ -109,7 +109,9 @@ build refuses a shape change at the same `since` or a `since` moved anywhere els
 reader treats a record at another format as absent, except a layer
 record at a later shape than its own, which refuses the page as a newer Leaf's
 (`registry.storage.layer_record`): read as absent, it would have `page init` replace
-the page's selection.
+the page's selection. Every shape of the layer record keeps `protocol` at its top
+level, where a process that follows its copy reads it whichever Leaf wrote it
+(`session.successor_reads`).
 
 ## Composition stamps
 

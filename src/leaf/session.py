@@ -723,7 +723,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     harness runs now, while an older one may run a Leaf the session has since left,
     one that cannot read a page the session now holds. Nor does a watch read a page
     once its harness has put another copy in place of the installed copy it loaded
-    and that copy reads every page the session holds (`_successor_reads`): it ends
+    and that copy reads every page the session holds (`successor_reads`): it ends
     at its next pass, which comes within `REVIVAL_CHECK_S`, by raising
     `CopyReplaced`.
     """
@@ -840,7 +840,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     ended = "stopped"
     try:
         while harness.process_runs():
-            if copy.replaced() and _successor_reads(harness.session):
+            if copy.replaced() and successor_reads(harness.session):
                 ended = "copy-replaced"
                 raise CopyReplaced
             mark = watch.mark()
@@ -879,15 +879,16 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     return None
 
 
-def _successor_reads(session: str) -> bool:
+def successor_reads(session: str) -> bool:
     """Whether the copy of Leaf now at this one's path reads every page the session
-    holds, each being at that copy's page protocol (`layer.incompatible_layer`). An
-    update that moves the protocol leaves the pages at the old one, which only the
-    watch already running reads, until the session's next hook renews them
-    (`vendoring.renew_layer`), as a page server waits for that hook
-    (`hosting.follow_copy`). Each page's protocol is read off its layer record
-    whichever Leaf wrote it, since a renewal may write a later shape of the record,
-    and a record or registry read mid-write reads as not yet."""
+    holds, each being at that copy's page protocol (`layer.incompatible_layer`),
+    which a process that follows its copy asks before handing the session to it.
+
+    An update that moves the protocol leaves the pages at the old one until the
+    session's next hook renews them (`vendoring.renew_layer`), and until then only
+    the process already running reads them. Each page's protocol is read off its
+    layer record whichever Leaf wrote it (`layer-registry.md`, "Page protocol"), and
+    a record or registry read mid-write reads as not yet."""
     try:
         protocol = installed_protocol()
         return all(

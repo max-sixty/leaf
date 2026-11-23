@@ -281,20 +281,22 @@ it again (`hooks.skill_changed` says when an edit counts).
 
 A page server, Codex's adapter and Pi's watch between turns from a copy that Codex
 or Pi updates in place follow that copy without waiting for a hook, within a pass of
-the update (`state.LoadedCopy`). A server whose service is persistent, or whose page
-a live session holds, has the copy now at its path restart it at the same address,
-for the session holding the page where one does, and serves meanwhile
-(`server.stop_when_service_ends`). The adapter releases its leases and starts a
-successor from the new copy. It holds the task's start lock until the successor
-holds its leases and its transport answers, so a claim meanwhile waits and then
-joins the successor (`codex_adapter.py`). Until then, a hook that reads the adapter
-lease without the start lock finds no adapter. Pi's watch follows once the new copy
-reads every page the session holds; an update that moves the page protocol leaves
-the pages at the old one, which the old watch goes on watching until the session's
-next hook renews them. The watch then lets its lease go and execs the new copy's
-watch with the payload that started it, so the process Pi's extension started stays
-the one it reads and stops (`hooks.main`). Until the new watch takes the lease, a reader finds
-no watch, and the new watch's first pass reads the input that arrived meanwhile.
+the update (`state.LoadedCopy`). After an update that moves the page protocol, the
+session's pages stay at the old one until its next hook renews them: a server whose
+page the new copy can't serve goes on serving until that renewal restarts it
+(`hosting.follow_copy`), and the adapter and the watch keep the session until the
+new copy reads every page it holds (`session.successor_reads`). A server whose
+service is persistent, or whose page a live session holds, has the copy now at its
+path restart it at the same address, for the session holding the page where one
+does, and serves meanwhile (`server.stop_when_service_ends`). The adapter releases
+its leases and starts a successor from the new copy. It holds the task's start lock
+until the successor holds its leases and its transport answers, so a claim meanwhile
+waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
+reads the adapter lease without the start lock finds no adapter. Pi's watch lets its
+lease go and execs the new copy's watch with the payload that started it, so the
+process Pi's extension started stays the one it reads and stops (`hooks.main`).
+Until the new watch takes the lease, a reader finds no watch, and the new watch's
+first pass reads the input that arrived meanwhile.
 
 ### A session's files
 

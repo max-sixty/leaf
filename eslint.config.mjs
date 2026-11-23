@@ -1897,8 +1897,10 @@ export default [
   },
   {
     // An import or binding nothing reads is a dependency edge the graph still carries
-    // and a name the next reader has to account for. Arguments and caught errors are
-    // left alone: a signature says what a callback is handed.
+    // and a name the next reader has to account for. Arguments are the type checks'
+    // (`noUnusedParameters`), which count a use in a JSDoc type where this rule
+    // doesn't. A callback keeps an argument it must take to reach a later one behind a
+    // `_`, so its signature still says what it is handed. Caught errors are left alone.
     files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-unused-vars": [

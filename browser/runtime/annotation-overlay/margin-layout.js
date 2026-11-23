@@ -1073,8 +1073,8 @@ function drawnChildren(node) {
 function childIndex() {
   /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number, boxless: Child[]}>} */
   const read = new Map();
-  /** @param {Element} parent @param {Iterable<Node>} children */
-  const index = (parent, children) => {
+  /** @param {Iterable<Node>} children */
+  const index = (children) => {
     /** @type {Child[]} */
     const sized = [];
     /** @type {Child[]} */
@@ -1133,7 +1133,7 @@ function childIndex() {
   /** @param {Element} parent @param {() => Iterable<Node>} children @param {Pick<Box, "top" | "bottom">} band */
   return (parent, children, band) => {
     let held = read.get(parent);
-    if (!held) read.set(parent, (held = index(parent, children())));
+    if (!held) read.set(parent, (held = index(children())));
     const { sized, tops, lowest, leaves, boxless } = held;
     const to = firstPast(tops, (top) => top >= band.bottom);
     /** @type {Child[]} */

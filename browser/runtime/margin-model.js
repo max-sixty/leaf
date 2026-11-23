@@ -95,7 +95,7 @@ const noticeItems = (entry) =>
 // outranks an open interaction; the ordinary idle state never forces peers open.
 // Generated acknowledgment readings are settled server facts, so only a face that
 // explicitly declares an interaction state joins this axis.
-/** @template {Offer} O @param {Pick<MarginGroup, "offers" | "items">} entry */
+/** @param {Pick<MarginGroup, "offers" | "items">} entry */
 const deriveEntryState = (entry) => {
   const states = [
     ...entry.offers.map(contributionState),

@@ -20,7 +20,6 @@ const { wireInput } = createCompositionInputs({
 function discard(id, text, said = "Original words") {
   const editor = new editing.MessageEditor(
     id,
-    {},
     {
       wireInput,
       said: () => said,

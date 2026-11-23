@@ -149,7 +149,7 @@
  * asked for as a margin card's reply box shows it, and beside Comment at rest, which
  * they chose to match the box that rests beside a target (composing/surface.js,
  * `restFab`); and a passing press's key, such as Next thread's `t` or Next On Me's `m`
- * (notifications.js, `pressReading`). The menu's rows carry every other key and `?` opens the full
+ * (`pressReading`). The menu's rows carry every other key and `?` opens the full
  * reference, which the user chose over a hint or two in the line over the field, to
  * keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
@@ -300,13 +300,12 @@ import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import {
-  COMPARE_KEY,
-  LATEST_KEY,
   changesCounted,
+  comparable,
   comparisonBase,
   comparisonChanges,
   countWhenShown,
-  throughVersions,
+  offeredVersion,
   versionsReading,
 } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -316,7 +315,6 @@ import {
   gestureReading,
   noticeReading,
   noticeWords,
-  pressReading,
 } from "./notifications.js";
 import {
   dismissError,
@@ -430,11 +428,26 @@ const PAGE_FIELD_NAME = "Comment on the page";
 // decides when it stands.
 /** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
 /** @type {FieldPress} */
-const NEXT_ON_ME = {
-  action: "next-on-me",
-  keys: () => commandKeysNow("queue.next"),
-  run: () => pressCommand("queue.next"),
-};
+const NEXT_ON_ME = { action: "next-on-me", command: "queue.next" };
+// The keys that would make the press's command (control-keys.js, `commandKeysNow`).
+// The field's end shows the press with them, and shows no press without them, as on
+// a touchscreen or with the caret in a box.
+/** @param {FieldPress} press */
+const pressKeys = (press) =>
+  press.command === null ? [] : commandKeysNow(press.command);
+// A notice's press, or a page's own (`pagePress`), as the field's end offers it
+// (composing/input.js, `BoxPress`): its action's word, its keys (`pressKeys`), read at
+// each ask, so a box standing it rechecks its keys without reading the field's words
+// again (composing/input.js, `pressing`), and what it does: its own `run`, else the
+// command it names.
+/** @param {FieldPress} press @returns {import("./composing/input.js").BoxPress} */
+const pressReading = (press) => ({
+  word: actionName(press.action),
+  get keys() {
+    return pressKeys(press);
+  },
+  run: press.run ?? (() => press.command !== null && pressCommand(press.command)),
+});
 
 // What the field's own search box asks for, in each list it searches, in Leaf's words
 // as every search's prompt is (control-labels.js, `searchField`).
@@ -501,7 +514,7 @@ const NO_STANDING = new Set();
 function passingFacts(says) {
   const notice = noticeReading();
   const { goTo, walk } = statusContextReading();
-  const offers = notice.press !== null && notice.press.keys().length > 0;
+  const offers = notice.press !== null && pressKeys(notice.press).length > 0;
   const said = notice.about !== null && !offers && says.has(notice.about);
   return {
     notice: notice.visible && !said ? notice : null,
@@ -1341,7 +1354,7 @@ export function createFloatingPanel({
       .map((part) => saidBy(part.voice, `${part.text} · `));
   }
   // The page's own press at the field's end: Open latest while the page shows an older
-  // version (`latestPress`), else Next On Me while On Me lists anything, or null, where
+  // version (`OPEN_LATEST`), else Next On Me while On Me lists anything, or null, where
   // Comment and c stand (`pageOffer`). It comes and goes with the server's reading
   // rather than with the user's input, so while the pointer rests on the panel the
   // field's end keeps what it showed, and takes the change at the user's next input or
@@ -1349,9 +1362,9 @@ export function createFloatingPanel({
   // about to press another (browser/AGENTS.md, "The page holds still under the user's
   // aim"). A notice's press needs no such hold: it comes and goes with its words, which
   // say why the end changed (notifications.js, `showNotice`).
-  /** @returns {FieldPress | "latest" | null} */
+  /** @returns {FieldPress | null} */
   const pageOffer = () =>
-    latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
+    latestOffered() ? OPEN_LATEST : onUserCount() ? NEXT_ON_ME : null;
   /** @type {ReturnType<typeof pageOffer>} */
   let shownOffer = null;
   let offerShownAt = -1;
@@ -1360,7 +1373,6 @@ export function createFloatingPanel({
       shownOffer = pageOffer();
       offerShownAt = inputCount();
     }
-    if (shownOffer === "latest") return latestPress();
     return shownOffer ? pressReading(shownOffer) : null;
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
@@ -1730,7 +1742,7 @@ export function createFloatingPanel({
   /** @type {import("./keyboard/bindings.js").Command} */
   const latestRow = {
     id: "panel.floating.versions.latest",
-    keys: [LATEST_KEY],
+    keys: ["l"],
     title: "latest version",
     touch: false,
     when: () => {
@@ -1755,14 +1767,21 @@ export function createFloatingPanel({
   // Versions' key that compares the version the user stands on, by pressing its
   // Compare, so `g V v` marks what changed since the version Versions offers, and on a
   // lit Compare takes the marks off. The Compare beside each row is a finger's route.
+  // While Versions stands, the row holding focus decides through `control`; before it
+  // opens, the version it opens at does (version.js, `offeredVersion`), so the keys of
+  // Show changes can say `g V v` (keyboard/control-keys.js, `pressNow`).
   /** @type {import("./keyboard/bindings.js").Command} */
   const compareRow = {
     id: "panel.floating.versions.compare",
-    keys: [COMPARE_KEY],
+    keys: ["v"],
     title: "compare",
     touch: false,
     control: standingCompare,
-    when: () => standingCompare() !== null,
+    when: () => {
+      if (versionsShown()) return true;
+      const offered = offeredVersion();
+      return offered !== null && comparable(offered);
+    },
   };
   /** @type {PanelViews} */
   const VIEWS = Object.freeze({
@@ -3122,7 +3141,8 @@ export function createFloatingPanel({
                   ${offeredAction("word", "lf-fp-error-press")}
                   ?disabled=${!live.has(error.id) || !error.press.stands()}
                   aria-label=${`${actionName(error.press.action)}: ${error.message}, ${timeOfDay(error.at)}`}
-                  @click=${() => putAwayThen(() => error.press?.run())}
+                  @click=${() =>
+                    putAwayThen(() => error.press && pressReading(error.press).run())}
                 >
                   ${actionName(error.press.action)}
                 </button>`
@@ -5240,7 +5260,7 @@ export function createFloatingPanel({
 
   // ---------- the field's presses ----------
   // A notice's press, or the page's own (`pagePress`), stands at the field's end as
-  // notifications.js reads it (`pressReading`). The user chose that the right side of
+  // `pressReading` reads it. The user chose that the right side of
   // the box is for shortcuts, so a notice's press stands there with its key, in the
   // face Comment and c wear, over the notice's own line with an inked Undo over the
   // field's start, the one press in the row in a face of its own.
@@ -5277,25 +5297,18 @@ export function createFloatingPanel({
   // than the latest, as its words say first (`standing`), when no other press is
   // offered there (`pagePress`). Its verb and its keys say it acts, as every other
   // press at the field's end says its key: "Latest" alone, in the dim face every word
-  // at the field's end wears, read as a status. Its keys are Versions' `g V` and then
-  // Versions' own `l` (`latestRow`), which opens the live page as the press does, where
-  // a version's digit there opens that version pinned; they stand only while Versions'
-  // do (`commandKeysNow`). The menu's row that opens the latest offers it too.
-  /** @returns {import("./composing/input.js").BoxPress | null} */
-  function latestPress() {
-    const { latest } = versionsReading();
-    if (latest.shown === null || latest.disabled) return null;
-    return {
-      word: "Open latest",
-      // Read at each ask, as a notice's press's key is (`pressReading`).
-      get keys() {
-        return throughVersions(LATEST_KEY);
-      },
-      // The press puts nothing away: a revision installed under an open thread hands
-      // back the reply being written there (version.js, `restoreEditingContinuity`).
-      run: () => versionPicker.latest(),
-    };
-  }
+  // at the field's end wears, read as a status. It names Versions' own `l`
+  // (`latestRow`), which opens the live page as the press does, where a version's digit
+  // there opens that version pinned. The menu's row that opens the latest offers it too.
+  /** @type {FieldPress} */
+  const OPEN_LATEST = {
+    action: "open-latest",
+    command: latestRow.id,
+    // The press puts nothing away: a revision installed under an open thread hands
+    // back the reply being written there (version.js, `restoreEditingContinuity`).
+    run: () => versionPicker.latest(),
+  };
+  const latestOffered = () => latestRow.when?.() ?? false;
 
   // ---------- gestures ----------
   // The leaf unfolds a folded panel, and otherwise opens the On view on the tab its
@@ -5749,37 +5762,51 @@ export function createFloatingPanel({
   // that opened it closes it. The On Me and On <agent> doors turn the On view to their
   // list where it shows another tab (`openOnList`), and the Threads door to Threads.
   // `shows` says whether the press would put its view away, and `name` what a door
-  // with no fixed name opens.
+  // with no fixed name opens. `scope` is what the press enters, for the command that
+  // presses it to name (`opens`, keyboard/bindings.js): the view's own keys, standing
+  // while `shows` says so.
   function putVersionsAway() {
     const inside = currentLocationIn(host);
     close();
     if (inside) focusDestination(leaf, "return");
   }
+  /** @param {{keys?: readonly import("./keyboard/bindings.js").Command[]}} view @param {() => boolean} shows */
+  const doorScope = (view, shows) =>
+    Object.freeze({ rows: view.keys ?? [], at: shows });
+  const threadsShown = () => showing({ view: "threads" });
+  const onMeShown = () => showing({ view: "queue" }) && queueTab === "you";
+  const agentShown = () => showing({ view: "queue" }) && queueTab === "agent";
+  const leavesShown = () => showing({ view: "leaves" });
   const doors = Object.freeze({
     threads: {
-      shows: () => showing({ view: "threads" }),
+      shows: threadsShown,
       press: () => {
         query = "";
         refit();
         open({ view: "threads" });
       },
+      scope: doorScope(VIEWS.threads, threadsShown),
     },
     queue: {
-      shows: () => showing({ view: "queue" }) && queueTab === "you",
+      shows: onMeShown,
       press: () => openOnList("you"),
+      scope: doorScope(VIEWS.queue, onMeShown),
     },
     agent: {
       name: () => tabLabel("agent"),
-      shows: () => showing({ view: "queue" }) && queueTab === "agent",
+      shows: agentShown,
       press: () => openOnList("agent"),
+      scope: doorScope(VIEWS.queue, agentShown),
     },
     leaves: {
-      shows: () => showing({ view: "leaves" }),
+      shows: leavesShown,
       press: () => open({ view: "leaves" }),
+      scope: doorScope(VIEWS.leaves, leavesShown),
     },
     versions: {
       shows: versionsShown,
       press: () => (versionsShown() ? putVersionsAway() : open({ view: "versions" })),
+      scope: doorScope(VIEWS.versions, versionsShown),
     },
   });
 

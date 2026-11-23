@@ -119,6 +119,18 @@ export function createFloatingResponsePlacement({
   // scroller where the window does (`commentBoundary`).
   /** @type {Element} */
   let fabRegion = pageScroller;
+  // The editing watch's size observer and the region it observes, which follows
+  // `fabRegion`: a workspace's layout can hand the box's text from the page's scroll
+  // to a pane's and back while the box stays open.
+  /** @type {{sizes: ResizeObserver, region: Element} | null} */
+  let watchedRegion = null;
+  function watchRegion() {
+    if (!watchedRegion || watchedRegion.region === fabRegion) return;
+    const { sizes, region } = watchedRegion;
+    if (region !== pageScroller) sizes.unobserve(region);
+    if (fabRegion !== pageScroller) sizes.observe(fabRegion);
+    watchedRegion.region = fabRegion;
+  }
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
@@ -359,7 +371,8 @@ export function createFloatingResponsePlacement({
       });
       sizes.observe(reference.contextElement);
       sizes.observe(floating);
-      if (fabRegion !== pageScroller) sizes.observe(fabRegion);
+      watchedRegion = { sizes, region: pageScroller };
+      watchRegion();
       let x = reference.getBoundingClientRect().left;
       // Each native scroll carrier owns its previous coordinates; there are no
       // parallel arrays whose positions must keep naming the same ancestor.
@@ -406,6 +419,7 @@ export function createFloatingResponsePlacement({
         stopMotion();
         stopSize();
         sizes.disconnect();
+        if (watchedRegion?.sizes === sizes) watchedRegion = null;
       };
     };
   }
@@ -556,6 +570,7 @@ export function createFloatingResponsePlacement({
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     fabScroller = place.scroller;
     fabRegion = boundary.scroller;
+    watchRegion();
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap

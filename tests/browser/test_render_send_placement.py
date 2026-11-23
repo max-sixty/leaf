@@ -827,36 +827,53 @@ def test_a_right_to_left_box_carried_by_its_grip_keeps_the_start_of_its_words(
     assert typed["right"] == pytest.approx(dropped["right"], abs=0.5), (dropped, typed)
 
 
-def test_a_box_widening_in_a_pane_stays_in_the_pane_after_it_narrows(browser, serve):
+@pytest.mark.parametrize("opened", ["in-the-pane", "in-the-page"])
+def test_a_box_widening_in_a_pane_stays_in_the_pane_after_it_narrows(
+    browser, serve, opened
+):
     """A box widens inside the room its placement gave it, which a pane bounds. A
     pane narrowing beside a target that keeps its width gives the box less room, so
-    it is placed again there, and its words widen it no further than the pane."""
+    it is placed again there, where it stands still, and its words widen it no
+    further than the pane. That holds for a box opened while the page scrolled the
+    pane's words, before a wider window gave the pane its own scroll."""
     source = leaf_page(
         "Comments in a pane",
         '<div id="split"><lf-pane id="notes" label="Notes"><div>'
         '<p id="short" style="width: 125px">Short words to comment on.</p>'
         '<div style="height: 1200px"></div></div></lf-pane>'
-        '<lf-pane id="other" label="Other"><div><p>Other notes.</p></div></lf-pane>'
+        # The pane beside it holds no words, which its move as the notes narrow would
+        # carry without input.
+        '<lf-pane id="other" label="Other"><div style="height: 400px"></div></lf-pane>'
         "</div>",
         head=regions_side_by_side("split", "950px 1fr"),
         layout="workspace",
     )
     context = browser.new_context(
-        viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
+        viewport={"width": 1440 if opened == "in-the-pane" else 700, "height": 900},
+        reduced_motion="reduce",
     )
     page = open_page(browser, serve(source), context=context)
-    pane_scroll_behavior(page, page.locator("#notes"), "bounded")
+    pane_scroll_behavior(
+        page, page.locator("#notes"), "bounded" if opened == "in-the-pane" else "flow"
+    )
     page.locator("#short").click(modifiers=["Alt"])
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", re.compile(".+"))
     expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
     rendered(page)
+    if opened == "in-the-page":
+        resized(page, 1440, 900)
+        pane_scroll_behavior(page, page.locator("#notes"), "bounded")
+        rendered(page)
+    stood = page.evaluate(RECT, ".lf-fab-bar")
     page.locator("#split").evaluate(
-        "split => { split.style.gridTemplateColumns = '450px 1fr'; }"
+        "split => { split.style.gridTemplateColumns = '600px 1fr'; }"
     )
     rendered(page)
+    assert page.evaluate(RECT, ".lf-fab-bar") == stood
     page.keyboard.insert_text(
-        "A first line long enough to widen the box well past what the pane now holds"
+        # One line, wider than the narrowed pane holds, narrower than the measure.
+        "A first line that widens the box past what the narrowed pane holds"
     )
     rendered(page)
     box = page.evaluate(RECT, ".lf-fab-bar")

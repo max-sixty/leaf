@@ -663,3 +663,42 @@ test("chrome beside a card's columns leaves it the window's height", async () =>
   assert.equal(over.room, rowed);
   assert.equal(over.foot, rowed.bottom);
 });
+
+test("a surface stands clear of chrome across the columns it may widen into", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 700 }));
+  // A panel like the floating panel stands at the window's foot right of 800. A surface
+  // 320px wide right of words ending at 400 stops short of it, but widening with its
+  // words to the measure would take it over the panel.
+  const whole = windowBoundary(8, 50, 1284, 842);
+  const paneled = Object.assign(windowBoundary(8, 50, 1284, 700), {
+    across: ({ right }) => (right > 800 ? paneled : whole),
+  });
+  const surface = commentPlacement();
+  const clear = block(100, 300, 300, 330);
+  const seat = surface.choose({
+    clear,
+    room: paragraph,
+    boundary: paneled,
+    element: subject,
+    scroller: scroller(1000),
+    coarse: false,
+  });
+  let offered = null;
+  const { reference, placement, middleware } = seat.options(ui, {
+    clear,
+    room: paragraph,
+    row: clear.top,
+    boundary: paneled,
+    fit: ({ room }) => (offered = room),
+    rises: true,
+  });
+  const { x, y } = await ui.computePosition(
+    { getBoundingClientRect: () => reference },
+    document.body,
+    { placement, middleware, platform, strategy: "fixed" },
+  );
+  assert.equal(x, 416);
+  assert.equal(offered, paneled);
+  assert.equal(y + 700, paneled.bottom);
+});

@@ -687,12 +687,14 @@ export function commentPlacement() {
       const span = Math.min(cardMeasure() * scale.x, boundary.width);
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
+    // The placement holds the surface by its right edge beside its subject on the
+    // left, and by its left edge elsewhere, carried included (`hold`).
+    const holdsLeft = () => side !== "left" || carriedInline !== null;
     /** @param {{x: number}} scale @param {boolean} rtl */
     const widens = (scale, rtl) => {
-      const holdsLeft = side !== "left" || carriedInline !== null;
-      if (rtl) return !holdsLeft;
+      if (rtl) return !holdsLeft();
       return (
-        holdsLeft &&
+        holdsLeft() &&
         (!across ||
           unanchored ||
           carriedInline !== null ||
@@ -749,16 +751,38 @@ export function commentPlacement() {
     // the answer it is given and the order of the two solves stops mattering.
     /** @type {Room} */
     let shown = boundary;
+    // The room from the edge the surface is held by to the boundary, in client pixels.
+    /** @param {{x: number}} scale */
+    const lane = (scale) =>
+      carriedInline !== null
+        ? boundary.right - (column ?? clear.left) - carriedInline
+        : across
+          ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
+          : side === "right"
+            ? boundary.right - box.right - gap
+            : clear.left - boundary.left - gap;
+    // A surface may widen away from its held edge, to the measure or its lane where
+    // that is narrower, without being placed again (`size-width`), so it stands clear
+    // of chrome across every column it may widen into, as of the window's foot.
     /** @param {MiddlewareState} state */
     const overflow = (state) => {
       const { scale } = measure(state);
       const width = state.rects.floating.width * scale.x;
+      const reach = Math.min(
+        Math.max(width, Math.min(cardMeasure() * scale.x, lane(scale))),
+        boundary.width,
+      );
       const left = clamp(
         box.left + (state.x - state.rects.reference.x) * scale.x,
         boundary.left,
         boundary.right - width,
       );
-      shown = boundary.across({ left, right: left + width });
+      const start = clamp(
+        holdsLeft() ? left : left + width - reach,
+        boundary.left,
+        boundary.right - reach,
+      );
+      shown = boundary.across({ left: start, right: start + reach });
       return { boundary: [], rootBoundary: shown, padding: 0 };
     };
     const spot = held ?? initialHold;
@@ -806,19 +830,11 @@ export function commentPlacement() {
               tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
             ) / scale.y
           : 0;
-        const lane =
-          carriedInline !== null
-            ? boundary.right - (column ?? clear.left) - carriedInline
-            : across
-              ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
-              : side === "right"
-                ? boundary.right - box.right - gap
-                : clear.left - boundary.left - gap;
         fit({
           side,
           width: Math.max(
             Math.min(minimumWidth, boundary.width) / scale.x,
-            Math.min(state.availableWidth, lane / scale.x),
+            Math.min(state.availableWidth, lane(scale) / scale.x),
           ),
           height: rises ? shown.height / scale.y : state.availableHeight,
           room: shown,

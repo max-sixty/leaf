@@ -549,6 +549,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
  * openThreadSubject: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openThreadSubject"],
  * showsOnPage: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["showsOnPage"],
  * annotationsHidden: () => boolean,
+ * prepareNavigationStep: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
  * resumeDraft: ReturnType<typeof import("./drafts.js").createWritingResume>["resumeDraft"]}} FloatingPanelOptions */
 /** @param {FloatingPanelOptions} dependencies */
 export function createFloatingPanel({
@@ -565,6 +566,7 @@ export function createFloatingPanel({
   openThreadSubject,
   showsOnPage,
   annotationsHidden,
+  prepareNavigationStep,
   resumeDraft,
 }) {
   const host = new FloatingPanel();
@@ -1488,7 +1490,7 @@ export function createFloatingPanel({
         // view, as every send leaves its box for its thread (thread/landing.js,
         // `landSent`).
         route = { view: "thread", thread: handle.attempt };
-        open(route, { replace: true, part: "thread" });
+        open(route, { replace: true, part: "thread", travel: false });
       },
     });
     sync();
@@ -1917,21 +1919,29 @@ export function createFloatingPanel({
   const openedIn = new WeakMap();
   // A thread lands the user in its reply (`focusView`), or on the thread itself
   // (`part`), as the thread a send starts does.
-  /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean, part?: "reply" | "thread"}} [options] */
+  /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean, part?: "reply" | "thread", travel?: boolean}} [options]
+   * @returns {(() => void) | null} */
   function open(
     route,
-    { replace = false, reopen = false, focus = true, part = "reply" } = {},
+    {
+      replace = false,
+      reopen = false,
+      focus = true,
+      part = "reply",
+      travel = true,
+    } = {},
   ) {
     const before = trail.value.at(-1);
     if (before && routeKey(before) === routeKey(route) && !replace) {
-      if (reopen) return;
+      if (reopen) return null;
       close();
-      return;
+      return null;
     }
     if (route.thread && presentation && !presentation.primary) {
-      openInPackage(route.thread, { focus, part });
-      return;
+      openInPackage(route.thread, { focus, part, travel });
+      return null;
     }
+    const landed = route.thread && travel ? departing() : null;
     // A view opened from a list it opens over, as a thread from Threads or On, has that
     // list behind it, so its back link returns where the user came from.
     trail.value =
@@ -1947,7 +1957,24 @@ export function createFloatingPanel({
     if (route.thread) arriveAt(route.thread);
     openedIn.set(route, new Set(standingStances().map(({ scope }) => scope)));
     openLayer(host);
-    transition(before, { focus, part });
+    transition(before, { focus, part, landed });
+    return landed;
+  }
+  // A thread a press opens here, from a row of Threads or On or as Resolve moves the user
+  // on, takes the user somewhere they weren't, a Back step by travel's rule
+  // (anchor-travel.js, `prepareNavigationStep`), read before the view they are in goes
+  // and committed once focus lands in the one arriving (`focusView`), or by the caller
+  // that places focus itself (`resolveLanding`). A thread opened where the user stands,
+  // as a send's or Open in panel's, passes `travel: false`; one a route opens through
+  // the reader (`reveal`) takes no focus here, so its route's own departure stands alone.
+  function departing() {
+    const departure = prepareNavigationStep();
+    return () => {
+      const view = shownView();
+      if (!view) return;
+      departure.plan(view);
+      departure.commit();
+    };
   }
   // Where the page's package draws its conversations, a thread opens in its reader, in
   // its reply as a row's opening does (`focusView`), or on the thread a send starts
@@ -2014,9 +2041,13 @@ export function createFloatingPanel({
       const kept = openThreads();
       const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
       if (next) {
-        open({ view: "thread", thread: next.key }, { replace: true, focus: false });
+        const landed = open(
+          { view: "thread", thread: next.key },
+          { replace: true, focus: false },
+        );
         const view = shownView();
         if (view) focusDestination(view, "move");
+        landed?.();
       } else back();
       return true;
     };
@@ -2474,8 +2505,12 @@ export function createFloatingPanel({
       if (holdRoom()) paint();
     });
   }
-  /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean, part?: "reply" | "thread"}} [options] */
-  function transition(before, { focus = true, handedOn = false, part = "reply" } = {}) {
+  /** @param {PanelRoute | null | undefined} before
+   * @param {{focus?: boolean, handedOn?: boolean, part?: "reply" | "thread", landed?: (() => void) | null}} [options] */
+  function transition(
+    before,
+    { focus = true, handedOn = false, part = "reply", landed = null } = {},
+  ) {
     const after = trail.value.at(-1);
     postureMoved = true;
     // The thread the user is in as the change begins, on the page or in the panel,
@@ -2506,7 +2541,7 @@ export function createFloatingPanel({
     if (!changed || !motionPlays()) {
       leaving = null;
       paint();
-      if (focus) focusView(after, drawn, stoodIn, part);
+      if (focus) focusView(after, drawn, stoodIn, part, landed);
       return;
     }
     // A view a send opens rises with the box as the stream does (`streamSend`).
@@ -2534,11 +2569,12 @@ export function createFloatingPanel({
         release();
       }, release);
     } else leaving = null;
-    if (focus) focusView(after, drawn, stoodIn, part);
+    if (focus) focusView(after, drawn, stoodIn, part, landed);
   }
   /** @param {PanelRoute | undefined} route @param {PromiseLike<unknown> | null} drawn
-   * @param {string | null} [stoodIn] @param {"reply" | "thread"} [part] */
-  function focusView(route, drawn, stoodIn = null, part = "reply") {
+   * @param {string | null} [stoodIn] @param {"reply" | "thread"} [part]
+   * @param {(() => void) | null} [landed] */
+  function focusView(route, drawn, stoodIn = null, part = "reply", landed = null) {
     if (!route) return;
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
@@ -2573,6 +2609,7 @@ export function createFloatingPanel({
             (!coarsePointer.matches && viewParts.reply(at)) || at,
             "move",
           );
+        landed?.();
       });
       return;
     }
@@ -5667,7 +5704,7 @@ export function createFloatingPanel({
   function openThread(id) {
     const thread = threadByKey(id);
     if (!thread) return;
-    open({ view: "thread", thread: thread.key }, { reopen: true });
+    open({ view: "thread", thread: thread.key }, { reopen: true, travel: false });
   }
 
   // A promise's word in a message's head hands its to-do here (thread/messages.js):

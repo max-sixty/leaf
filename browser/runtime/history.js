@@ -267,26 +267,30 @@ export function pushEntry(url, state = null) {
 // another, it is dropped. Without `state`, the entry keeps its own, read when the rename
 // is written. A rename that would change nothing writes nothing, and one the browser
 // refuses over its rate limit, as Safari does by throwing past 100 in 30 seconds, is
-// dropped, since the next write names the entry again.
-/** @param {string | URL | null | undefined} [url] @param {unknown} [state] */
+// dropped, since the next write names the entry again. It answers once it is written
+// or dropped, for a caller that acts on the renamed entry, as a revision's reload does.
+/** @param {string | URL | null | undefined} [url] @param {unknown} [state]
+ * @returns {Promise<void>} */
 export function replaceEntry(url, state) {
   const transition = window.navigation.transition;
   if (transition) {
     const asked = window.navigation.currentEntry?.key;
-    const rename = () => {
-      if (window.navigation.currentEntry?.key === asked) replaceEntry(url, state);
-    };
-    void transition.finished.then(rename, rename);
-    return;
+    const rename = () =>
+      window.navigation.currentEntry?.key === asked
+        ? replaceEntry(url, state)
+        : undefined;
+    return transition.finished.then(rename, rename);
   }
   const address = named(url);
   const kept = state === undefined ? history.state : state;
-  if (address.href === location.href && kept === history.state) return;
+  if (address.href === location.href && kept === history.state)
+    return Promise.resolve();
   try {
     write("replaceState", kept, address);
   } catch (error) {
     if (!(error instanceof DOMException && error.name === "SecurityError")) throw error;
   }
+  return Promise.resolve();
 }
 
 // A route can reveal or hydrate before it knows whether arrival will succeed. Capture
@@ -356,7 +360,6 @@ export function mountHistory({ followFragment, returnToFragment, thread }) {
     if (event.navigationType === "traverse") {
       const place = places.get(event.destination.key);
       const claim = claimed(url);
-      const showThread = thread.claim(url, place ?? null);
       const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
       const applied = traversalApplied(event.signal);
       event.intercept({
@@ -401,10 +404,12 @@ export function mountHistory({ followFragment, returnToFragment, thread }) {
           // The thread view opens or goes once the page stands where the entry left it,
           // so a card takes its side against the page the user returns to: opened
           // against the page they leave, it stood below its words and over them once
-          // the page moved back.
+          // the page moved back. What it does is decided then too, from the views the
+          // earlier steps left open: revealing the fragment can put away the panel's
+          // view of the very thread the entry names.
           work = undefined;
           mayReturn.handoff(() => {
-            work = showThread?.();
+            work = thread.claim(url, place ?? null)?.();
           });
           await work;
           if (!mayReturn() || (!placed && !place)) return;

@@ -520,6 +520,7 @@ async function boot() {
 
   floatingPanel = createFloatingPanel({
     wireInput: inputs.wireInput,
+    prepareNavigationStep: anchorTravel.prepareNavigationStep,
     observeFeedback: app.read.observeFeedback,
     threadActions: app.threadActions,
     registerChromeThreadPresentation: app.registerChromeThreadPresentation,

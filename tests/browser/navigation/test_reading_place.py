@@ -522,6 +522,33 @@ def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serv
     assert page.url.endswith("#other")
 
 
+def test_a_rename_waiting_on_a_navigation_answers_once_written(browser, serve):
+    """A rename asked for during a navigation answers once it is written, so a caller
+    that acts on the renamed entry, as a revision's reload does, can wait for it."""
+    page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
+    marked = page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          let release = () => {};
+          navigation.addEventListener('navigate', (event) => {
+            if (event.destination.url.endsWith('#slow'))
+              event.intercept({
+                handler: () => new Promise((resolve) => (release = resolve)),
+              });
+          });
+          const slow = navigation.navigate('#slow');
+          await slow.committed;
+          const url = new URL(location.href);
+          url.searchParams.set('marked', '1');
+          const renamed = api.replaceEntry(url);
+          release();
+          await renamed;
+          return new URL(location.href).searchParams.get('marked');
+        }"""
+    )
+    assert marked == "1"
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, engine):
     """A root tab set takes Back to an entry in another of its views and opens that

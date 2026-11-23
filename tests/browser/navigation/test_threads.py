@@ -19,6 +19,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     opened_tab,
     panel_field,
     panel_settled,
@@ -1377,6 +1378,81 @@ def test_t_after_a_reload_goes_on_from_the_thread_it_reopened(browser, serve):
     expect(card).to_be_focused()
     page.wait_for_function("navigation.transition === null")
     assert page.evaluate("history.length") == entries + 1
+
+
+def test_back_to_a_hidden_fragment_opens_the_thread_its_entry_names(browser, serve):
+    """Back to an entry naming a thread and a fragment the page has hidden since reveals
+    the fragment, which puts away the panel's view standing over it, and opens the
+    thread the entry names again after, as the page then stands."""
+    filler = "".join(f"<p>Reading context {n}.</p>" for n in range(40))
+    url = serve(
+        leaf_page(
+            "Hidden fragment",
+            '<h1 id="top">Hidden fragment</h1><p id="middle">The middle.</p>'
+            f'{filler}<details id="more" open><summary>More</summary>'
+            '<p id="foot">The foot.</p></details>',
+        )
+    )
+    root = panel_comment(serve.page_dir, "About the whole page.")
+    for n in range(3):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {n}. " + "More of the explanation. " * 12,
+            },
+        )
+    page = open_page(browser, thread_url(url, root, "foot"))
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(thread).to_be_visible()
+    # To another entry with the thread still open, by no press that would put it away.
+    page.evaluate("location.hash = 'middle'")
+    expect(page.locator("#middle")).to_be_focused()
+    expect(thread).to_be_visible()
+    page.evaluate("document.getElementById('more').open = false")
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator("#foot")).to_be_visible()
+    expect(thread).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+    query = dict(parse_qsl(urlsplit(page.url).query))
+    assert query.get("thread") == root
+    assert urlsplit(page.url).fragment == "foot"
+
+
+def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve):
+    """A press on a row of Threads lands the user in a thread they weren't in, a Back
+    step as every other route's is, and so does Resolve moving them on from it to the
+    next thread; Back returns to the thread they resolved."""
+    url = serve(LONG_PAGE)
+    threads = [
+        panel_comment(serve.page_dir, "First question?"),
+        panel_comment(serve.page_dir, "Second question?"),
+    ]
+    page = open_page(browser, url)
+    open_threads(page)
+    view = page.locator(PANEL_THREAD)
+    rows = page.locator(".lf-fp-thread")
+    expect(rows).to_have_count(2)
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    rows.first.click()
+    expect(view).to_be_visible()
+    opened = view.get_attribute("data-lf-thread")
+    assert opened in threads
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+    with sending(page, "the resolve that moves on"):
+        page.locator(".lf-fp-thread-controls .lf-resolve").click()
+    expect(view).not_to_have_attribute("data-lf-thread", opened or "")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 2
+    page.go_back()
+    expect(view).to_have_attribute("data-lf-thread", opened or "")
 
 
 def test_following_a_thread_url_uses_native_history(browser, serve):

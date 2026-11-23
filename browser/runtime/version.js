@@ -2264,10 +2264,6 @@ export function createVersionController({
     (/** @type {import("../types/contract.js").ServedRevision} */ target) =>
     async () => {
       forceActivation = false;
-      // A rename waits for a navigation under way (history.js, `replaceEntry`), and
-      // the reload must carry its mark, so it waits for the navigation first and marks
-      // the entry the navigation leaves the user on.
-      await window.navigation.transition?.finished.catch(() => {});
       const live = pageDocument();
       const source = authoredSource;
       if (!live || !source)
@@ -2290,7 +2286,9 @@ export function createVersionController({
       );
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
-      replaceEntry(marked);
+      // A rename waits for a navigation under way (history.js, `replaceEntry`), and the
+      // reload must carry its mark.
+      await replaceEntry(marked);
       location.reload();
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.

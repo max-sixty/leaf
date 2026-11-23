@@ -105,7 +105,7 @@ def _validate_widget_relations(
     )
     validate_deciding_verb(tag, entry, path)
     validate_widget_retirement(tag, entry, declarations, path)
-    validate_answered_conditions(tag, entry, data, declarations, path)
+    validate_answered_conditions(tag, entry, declarations, path)
 
 
 def _typed(properties: dict, attr: str, kind: str) -> bool:

@@ -228,35 +228,18 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
 
 
 def validate_answered_conditions(
-    tag: str, entry: dict, data: dict, declarations: dict, path
+    tag: str, entry: dict, declarations: dict, path
 ) -> None:
     # Asked only after the declaration's record and retirement gates have reported
     # their more fundamental structural errors. Each answering verb's condition reads
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
     # verb recording positions, the emptiness of one member container inside the
     # widget.
-    awaits = entry.get("awaits") or {}
-    records = awaits.get("records")
-    if records:
-        binding = entry.get("inputs", {}).get(records["input"])
-        if (
-            not binding
-            or not binding.get("source")
-            or binding.get("reference")
-            or binding.get("output")
-            or not data["contracts"][binding["contract"]].get("records")
-        ):
-            raise registry_error("awaits-records", path, tag)
     for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
         spec = entry["verbs"][verb]
         empty = condition.get("empty")
         record = spec.get("record") or {}
-        if records:
-            if spec["unit"] == "widget" or empty is not None or record:
-                raise registry_error("answering-record", path, tag, verb=verb)
-            if spec["unit"] != entry["verbs"][awaits["value"]]["unit"]:
-                raise registry_error("answering-record", path, tag, verb=verb)
-        elif empty is None:
+        if empty is None:
             if spec["unit"] != "widget":
                 raise registry_error("answering-part", path, tag, verb=verb)
             if "detail" not in condition:

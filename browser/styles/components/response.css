@@ -761,6 +761,21 @@ leaf-composition-field {
     );
   }
 }
+/* Under a finger, the room the words keep for Send at each line's end
+   (`--lf-field-end-room`, text-field.js) is the room a message keeps there
+   (`--lf-comment-text-end`), less the words' inset, which the field's end padding
+   already keeps past the band the box runs over; so the words wrap where they will
+   once sent. Rejected: reckoning the room from Send, which stands centred inside the
+   box's own border and so a pixel nearer its edge, which ran the words a pixel past
+   the message's. */
+@media not ((hover: hover) and (pointer: fine)) {
+  :is(.lf-margin-preview, [data-lf-thread-surface])
+    .lf-thread-reply
+    .lf-compose-field
+    > leaf-text {
+    --lf-field-end-room: calc(var(--lf-comment-text-end) - var(--lf-thread-text-inset));
+  }
+}
 :is(.lf-margin-preview, [data-lf-thread-surface]) .lf-thread-reply .lf-composer-media {
   padding-inline: calc(
     var(--lf-media-room) + var(--lf-thread-pad) + var(--lf-thread-text-inset)

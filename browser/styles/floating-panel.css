@@ -35,9 +35,13 @@
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
     --lf-fp-press: 28px;
-    /* The room the field's words keep at the end of every line for Send, which stands
-       in the corner past its 6px end padding (`.lf-fp-field`). */
-    --lf-fp-send-room: calc(max(var(--lf-line), var(--lf-aim-floor)) - 6px);
+    /* The field's corner, where Dictate or Send stands: a line tall and the floor wide.
+       The words keep its room, less the field's 6px end padding (`.lf-fp-field`). */
+    --lf-fp-corner: max(var(--lf-line), var(--lf-aim-floor));
+    /* Where the panel's words start: the row's padding in from the panel's edge, then
+       the words' inset, as the field's stand beside the leaf. A view's name, its tabs,
+       its messages and the line over the row all start there. */
+    --lf-fp-text-edge: calc(var(--lf-fp-row-pad) + var(--lf-thread-text-inset));
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
        more room) where the window holds it, and the window less a gutter where not.
        The window is the viewport the panel is fixed to (`100%`), which a page's root
@@ -187,7 +191,7 @@
      field, which stacked three in the menu's foot. */
   .lf-floating-panel[data-lf-open] .lf-fp-row {
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-thread-text-inset))) 1px no-repeat;
+      calc(100% - 2 * var(--lf-fp-text-edge)) 1px no-repeat;
   }
   /* The more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
@@ -459,7 +463,11 @@
 
      The field names the row as the box that shows its focus, so the row can give up
      its line while the ring stands. The ring is the field's slot's (`.lf-fp-field`)
-     rather than the editor's, so Send, standing in the editor's corner, stays put. */
+     rather than the editor's, so Send, standing in the editor's corner, stays put. It
+     is drawn on a box laid over what the slot holds (surfaces.css, "A focused box
+     whose band something would cover"): Send's box reaches the slot's end edge, under
+     the ring's band, and paints the field's paper over the words it stands on, as an
+     error does over the whole field. */
   .lf-fp-field .lf-compose-field > leaf-text {
     --lf-focus-box: .lf-fp-row;
   }
@@ -468,13 +476,23 @@
     margin-inline-start: calc(-1 * var(--lf-fp-row-pad));
     padding-block: var(--lf-fp-row-pad);
     padding-inline-start: var(--lf-fp-row-pad);
-    outline: var(--lf-focus-ring);
     --lf-ring-at: var(--lf-focus-ring-inset);
     border-radius: 0;
     border-start-start-radius: var(--lf-r-l);
     border-end-start-radius: var(--lf-r-l);
     background: var(--lf-card);
     --lf-wears-ring: 1;
+  }
+  /* As high as Send and the error (response.css) and after them, so over them. */
+  .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    outline: var(--lf-focus-ring);
+    outline-offset: var(--lf-focus-ring-inset);
   }
   .lf-floating-panel[data-lf-open]
     .lf-fp-row[data-lf-control-focus-visible]
@@ -770,63 +788,40 @@
      (below). Each is a line tall, standing on the row's foot, and as wide as the
      floor, as the row's other presses are. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
+    display: grid;
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
-    width: max(var(--lf-line), var(--lf-aim-floor));
+    width: var(--lf-fp-corner);
     min-width: 0;
     height: var(--lf-line);
     min-height: 0;
     padding: 0;
   }
-  /* An open thread's Reply, standing at the field's end, keeps the room drafting
-     reserves for the Send corner, so it doesn't move by that corner's width as writing
-     starts and ends. In a stance the box offers no Reply and takes no words, so a
-     stance's Close stands at its end as on the page. */
-  .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
-    .lf-fp-field
-    .lf-compose-field
-    > leaf-text,
-  .lf-fp-field .lf-compose-field > leaf-text[data-lf-says="turn"][data-lf-offers] {
-    --lf-field-end-room: var(--lf-fp-send-room);
+  /* The field keeps the corner's room exactly while a press shows there, which the
+     composer decides: Dictate while the user writes in the empty field, Send while it
+     holds words (composing/input.js, `cornerAtRest`). The empty field's end press,
+     such as Reply or Next On Me and its key, stands only while neither shows, so it
+     stands as far from the leaf in a thread as on the page. */
+  .lf-fp-field
+    .lf-compose-field:has(> :is(.lf-compose-submit, .lf-compose-dictate):not([hidden]))
+    > leaf-text {
+    --lf-field-end-room: calc(var(--lf-fp-corner) - 6px);
   }
   /* Under a mouse, once the field holds words they run the whole line and Send takes
      its corner only while the row beside it leaves it free, as in every composer
      (response.css, `:state(corner-taken)`). Send is then as tall as the row it stands
      beside, centred on the field's last line, so over the words it stands clear of
-     the row above. The empty field keeps the room, where the status and an open
-     thread's Reply stand. */
+     the row above. The empty field keeps the room while Dictate stands in it. */
   @media (hover: hover) and (pointer: fine) {
     .lf-floating-panel .lf-fp-field .lf-compose-field[data-lf-words] > leaf-text {
       --lf-field-end-room: 0px;
-      --lf-field-corner: max(var(--lf-line), var(--lf-aim-floor));
+      --lf-field-corner: var(--lf-fp-corner);
     }
     .lf-fp-field .lf-compose-submit {
       height: var(--lf-send-height);
       inset-block-end: calc((var(--lf-line) - var(--lf-send-height)) / 2);
     }
-  }
-  /* Send shows while the user writes words, in every composer's face: the accent arrow,
-     not a press of its own, in Dictate's seat. While the user writes or the field
-     holds a draft, the mark steps aside, so the field takes its room, and Send stays
-     in its corner with the caret elsewhere, so no line of the draft moves
-     (floating-panel.js, `writing` and `drafted`). */
-  .lf-fp-field .lf-compose-submit {
-    display: none;
-  }
-  .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
-    .lf-fp-field
-    .lf-compose-submit {
-    display: grid;
-  }
-  .lf-fp-field .lf-compose-dictate {
-    display: grid;
-  }
-  /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
-     while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
-     lands on Dictate rather than hiding it as the field lets go. */
-  .lf-floating-panel:not([data-lf-writing]) .lf-compose-dictate {
-    display: none;
   }
 
   /* The way out of a search or a stance, between the field and the leaf
@@ -937,11 +932,11 @@
     align-items: center;
     gap: 2px;
     min-height: 36px;
-    padding: 8px 6px 0 calc(6px + var(--lf-thread-text-inset));
+    padding: 8px var(--lf-fp-row-pad) 0 var(--lf-fp-text-edge);
     box-sizing: border-box;
   }
   .lf-fp-head:has(> .lf-fp-name > .lf-fp-back) {
-    padding-inline-start: 6px;
+    padding-inline-start: var(--lf-fp-row-pad);
   }
   /* The name takes the room the presses leave, and they keep the line's end and their
      room, a name that names the view to assistive tech alone included, so the name
@@ -980,7 +975,7 @@
     align-items: center;
     gap: var(--lf-fp-controls-gap);
     min-height: 40px;
-    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-thread-text-inset));
+    padding: 3px var(--lf-fp-row-pad) var(--lf-reach-room) var(--lf-fp-text-edge);
     box-sizing: border-box;
   }
   .lf-fp-crumb {
@@ -1027,7 +1022,7 @@
      row it stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
     min-height: 32px;
-    padding: 6px 6px 0 calc(6px + var(--lf-thread-text-inset));
+    padding: 6px var(--lf-fp-row-pad) 0 var(--lf-fp-text-edge);
   }
   .lf-fp-joined {
     display: flex;
@@ -1223,7 +1218,7 @@
     --lf-top: 0px;
     --lf-top-covered: 0px;
     --lf-landing-room: 0px;
-    --lf-rows-bleed: 6px;
+    --lf-rows-bleed: var(--lf-fp-row-pad);
     grid-area: 1 / 1;
     min-height: 0;
     max-height: 100%;
@@ -1308,7 +1303,8 @@
   .lf-fp-view .lf-awaited {
     --lf-awaited-ground: var(--lf-fp-surface);
     bottom: calc(-1 * var(--lf-fp-view-pad-end));
-    margin-inline: calc(-6px - var(--lf-thread-text-inset)) calc(-14px - var(--lf-sp-1));
+    margin-inline: calc(-1 * var(--lf-fp-text-edge))
+      calc(-1 * (var(--lf-fp-row-pad) + var(--lf-fp-transcript-room)));
     margin-block-end: calc(
       -1 * (var(--lf-fp-view-pad-end) + var(--lf-fp-transcript-end))
     );

@@ -6,6 +6,7 @@ import pytest
 from browser.startup.test_hosting import (
     NESTED,
     SAMPLE_DOCUMENT,
+    SAMPLE_REGISTRY,
     held_sample_page,
     live_sample,
     readiness,
@@ -368,3 +369,44 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
     page.locator("#last").evaluate("sample => sample.reset()")
     assert allocated == ["far-source", "folded-source", "last-source"]
+
+
+def test_a_reader_who_looks_away_from_a_sample_they_were_shown_lets_the_page_go_on(
+    browser, serve
+):
+    """A sample the reader sees as it starts holds what showed it, the page's
+    presentation or the jump that brought it into view, until the frame fits its page.
+    Once the reader scrolls past the frame its fit moves nothing they see, so the page
+    presents and settles while its page still loads, as it must in Chromium, where a
+    chart's page gets no rendering while its frame is off screen."""
+    chart = (
+        '<lf-chart id="line" data-height="120"><pre>'
+        '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
+        "</pre></lf-chart>"
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    page.route(SAMPLE_REGISTRY, lambda request_route: held.append(request_route))
+    page.goto(
+        serve(
+            leaf_page(
+                "Charts",
+                "<h1>Charts</h1>"
+                + live_sample("first", "", chart)
+                + '<div id="middle" style="height: 400vh"></div>'
+                + live_sample("jumped", "", chart)
+                + '<div style="height: 400vh"></div>',
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the first sample's registry")
+    page.locator("#jumped").evaluate("sample => sample.scrollIntoView()")
+    holding(page, held, 2, "the jumped-to sample's registry")
+    page.locator("#middle").evaluate("middle => middle.scrollIntoView()")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    rendered(page)
+    page.unroute(SAMPLE_REGISTRY)
+    for each in held:
+        each.continue_()

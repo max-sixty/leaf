@@ -91,7 +91,6 @@ import {
   signal,
   untracked,
 } from "/runtime/framework.js";
-import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
   HOLDS,
@@ -521,6 +520,12 @@ const apartBox = () => {
   return box;
 };
 
+// How many views this document has drawn, which names each view's quote for its Full
+// quote press (`#quoteId`). One thread can stand in two views at once, a margin card and
+// the panel's view, so the name counts views rather than naming the thread, and a load
+// that draws the same views in the same order gives them the same names.
+let drawnViews = 0;
+
 export class ThreadView {
   #commands;
   #messageCommands;
@@ -565,7 +570,7 @@ export class ThreadView {
   #quoteHead = Object.assign(document.createElement("header"), {
     className: "lf-thread-quote-head",
   });
-  #quoteId = `lf-thread-quote-${randomId()}`;
+  #quoteId = `lf-thread-quote-${++drawnViews}`;
   #quoteExpanded = signal(false);
   // Whether three lines cut the quote, which its label then opens (`#fitQuote`).
   #quoteCut = signal(false);

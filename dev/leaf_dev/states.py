@@ -47,6 +47,15 @@ from leaf_dev.corpus import sources as corpus_sources
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
+def keyboard_modality(page: Page) -> None:
+    """Press Tab, so focus placed next draws as the keyboard's, and wait until the Tab's
+    step has ended. Focus arriving before then is the step's own, which opens the
+    focused control's preview (focus.js, `stepping`). The step ends in a timer the
+    Tab's keydown queued, and a timer queued now runs after it."""
+    page.keyboard.press("Tab")
+    page.evaluate("() => new Promise((done) => setTimeout(done))")
+
+
 def printed_exhibit(page: Page) -> None:
     """A breakout exhibit within the paper's prose track."""
     page.emulate_media(media="print")
@@ -131,7 +140,7 @@ def long_source_selected(page: Page) -> None:
 def captured_source_by_keyboard(page: Page) -> None:
     """The captured source's scroller focused by keyboard, its ring over the lines."""
     captured_source(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
 
 
@@ -168,7 +177,7 @@ def recorded_video_by_keyboard(page: Page) -> None:
     """The recording the keyboard stands on, where the browser's controls take its
     keys."""
     recorded_video(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-recording").focus()
 
 
@@ -199,7 +208,7 @@ def dynamic_request_preview(page: Page) -> None:
 
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-tab-btn").first.focus()
 
 
@@ -214,7 +223,7 @@ def boxed_tab_by_keyboard(page: Page) -> None:
         "Page & layout", exact=True
     ).click()
     page.locator("#bg-tabs").scroll_into_view_if_needed()
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
 
 
@@ -306,9 +315,11 @@ def thread_reply_photo(page: Page) -> None:
 
 
 def page_comment_photo_hover(page: Page) -> None:
-    """The panel's attached screenshot under the pointer, which shows its removal."""
+    """The panel's attached screenshot under a resting pointer, which shows its removal
+    and the preview naming the press that views it."""
     page_comment_photo(page)
     page.locator(".lf-fp-field .lf-composer-media-open").hover()
+    preview_shown(page)
 
 
 def panel_corner_hover(page: Page) -> None:
@@ -403,13 +414,15 @@ def page_about(page: Page) -> None:
 def panel_leaf(page: Page) -> None:
     """The floating panel's leaf, which opens the On view, with its keyboard focus
     paint."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-fp-leaf").focus()
 
 
 def panel_status_hover(page: Page) -> None:
-    """The expanded panel while the pointer rests over its leaf."""
+    """The expanded panel while the pointer rests over its leaf, whose preview says
+    what waits on the user."""
     page.locator(".lf-fp-leaf").hover()
+    preview_shown(page)
 
 
 def panel_status_cut(page: Page) -> None:
@@ -674,13 +687,21 @@ def control_preview(page: Page) -> None:
     the card alone."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview .lf-resolve").hover()
+    preview_shown(page)
+    settle(page)
+
+
+def preview_shown(page: Page) -> None:
+    """Wait until the preview of what the pointer rests on has opened, which it does
+    after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
+    state ending on such a hover waits here, or its still catches the preview in one
+    capture and not the next."""
     page.wait_for_function(
         """() => {
           const tip = document.getElementById('lf-preview');
           return !tip || tip.matches(':popover-open');
         }"""
     )
-    settle(page)
 
 
 # Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
@@ -1208,7 +1229,7 @@ def section_ring_by_keyboard(page: Page) -> None:
         '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
     )
     marker.wait_for()
-    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    keyboard_modality(page)
     marker.focus()
     page.keyboard.press("Enter")
     resolve = page.locator(".lf-margin-preview").get_by_role(
@@ -1735,6 +1756,9 @@ def retained_quote(page: Page) -> None:
     ).click()
     sample = page.locator("#bg-retained-quote-sample")
     sample.scroll_into_view_if_needed()
+    # Its page's body is inert until the page starts, and each attempt Playwright's
+    # click retries on it scrolls with another alignment, so the press waits for it.
+    sample.evaluate("sample => sample.ready")
     child = sample.frame_locator("iframe")
     go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-lf-key="bg-retained-quote-thread"]').click()
@@ -1973,7 +1997,7 @@ LONG_DRAFT = (
 def composer_send_focused(page: Page) -> None:
     """The same comment with the keyboard on its Send."""
     composer(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     send = page.locator(".lf-composer .lf-compose-submit")
     send.focus()
     expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
@@ -2069,11 +2093,13 @@ def option_long(page: Page) -> None:
 
 
 def option_add_hover(page: Page) -> None:
-    """A compact alternative's Add face beside its one-line draft."""
+    """A compact alternative's Add face beside its one-line draft, under a resting
+    pointer whose preview names the press and its key."""
     form = page.locator("#bg-choice > .lf-another")
     form.locator("leaf-text").click()
     page.keyboard.insert_text("Keep the current behavior")
     form.get_by_role("button", name="Add and select option", exact=True).hover()
+    preview_shown(page)
 
 
 def options_in_pane(page: Page) -> None:
@@ -2096,7 +2122,7 @@ def tally_after_an_answer(page: Page) -> None:
 
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
@@ -2269,6 +2295,10 @@ def theme_hierarchy(page: Page) -> None:
     page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
     page.keyboard.press("Enter")
     page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    # The disclosure's closing queues a pass of the margin's layout, which writes the
+    # scroll offset into each carrier's place. A pass that lands after the scroll below
+    # writes the same places with the new offset, which the styles read as moved rows.
+    settle(page)
     page.locator("#bg-theme-hierarchy").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )

@@ -114,7 +114,7 @@ PLATE_PACKAGE = {
         "description": "A project package's picture, under a name the theme never sees.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

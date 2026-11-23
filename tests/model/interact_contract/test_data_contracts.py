@@ -529,7 +529,7 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
         "lf-producer": {
             "attributes": {
                 "type": "object",
-                "properties": {"id": {"type": "string"}},
+                "properties": {},
             },
             "content": "empty",
             "outputs": {"rows": {"contract": "rows"}},

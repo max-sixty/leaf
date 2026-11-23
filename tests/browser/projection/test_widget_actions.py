@@ -74,7 +74,6 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "phase": {"enum": ["closed", "open"]},
             },
             "required": ["id", "phase"],

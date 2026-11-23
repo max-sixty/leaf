@@ -120,7 +120,7 @@ def starter_element_declaration(tag: str) -> dict:
         "id.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

@@ -109,7 +109,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -133,7 +132,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -183,7 +181,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "state": {
           "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
         },
@@ -218,7 +215,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
       "required": ["id", "source"],

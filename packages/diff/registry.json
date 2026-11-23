@@ -120,7 +120,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" },
         "collapsed": {
           "type": "boolean"
@@ -166,7 +165,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" },
         "diff": { "type": "string" }
       },
@@ -197,9 +195,6 @@
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -214,7 +209,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -304,7 +298,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "file": {
           "type": "string",
           "minLength": 1

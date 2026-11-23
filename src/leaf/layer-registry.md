@@ -122,10 +122,10 @@ each widget's deciding verb (`verbs`) and the member tags each of its outcomes
 retires, and `$states`, each verb's writer and the operation definition an admitted
 event records. It also completes the attribute schemas validation reads: an attribute
 naming one of the layer's words, such as a tone, takes the layer's list as its `enum`,
-an attribute holding a name Leaf looks up, such as an element id, takes that name's
-grammar as its `pattern`, and a widget with a verb whose unit is the whole widget takes
-the boolean attribute a version sets to take that verb back, `restated` for the user's
-and `overruled` for the agent's.
+every element takes an `id`, an attribute holding a name Leaf looks up, such as that
+id, takes the name's grammar as its `pattern`, and a widget with a verb whose unit is
+the whole widget takes the boolean attribute a version sets to take that verb back,
+`restated` for the user's and `overruled` for the agent's.
 
 The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s

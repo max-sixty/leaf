@@ -18,7 +18,6 @@ KEYBOARD_HINT_REGISTRY = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "asks": {"type": "boolean"},
             },
             "required": ["id"],

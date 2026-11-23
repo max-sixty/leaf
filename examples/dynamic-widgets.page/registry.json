@@ -4,9 +4,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "data-part": {
           "type": "string",
           "enum": ["request", "instructions"]
@@ -26,9 +23,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "aria-label": {
           "type": "string"
         }

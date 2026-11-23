@@ -1343,7 +1343,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "description": "A preserving wrapper around a stateful child.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

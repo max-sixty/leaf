@@ -1580,14 +1580,6 @@ _TEXT = {
     "reading-role-attr": _declared(
         lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
-    "addressable-id": _declared(
-        lambda v: (
-            f"`{v['key']}` instances are addressable, but the element declaration"
-            " declares no string `id` attribute, so each instance's own id is checked"
-            " where it stands"
-        ),
-        keeps=None,
-    ),
     "data-contract": _declared(
         lambda v: (
             f"input `{v['input']}` (`inputs`) names unknown contract {v['contract']!r}"
@@ -1649,8 +1641,7 @@ _TEXT = {
     ),
     "visual-id": _declared(
         lambda v: (
-            "has addressable visual parts but does not require a string `id`"
-            " for their anchor"
+            "has addressable visual parts but does not require an `id` for their anchor"
         )
     ),
     # Its conditions, read against its own attributes.
@@ -1745,9 +1736,6 @@ _TEXT = {
     ),
     "creates-required": _declared(
         lambda v: _created(v, "which must require id and no other authored attributes")
-    ),
-    "creates-id": _declared(
-        lambda v: _created(v, "whose required id must be declared a string")
     ),
     "creates-semantic-owner": _declared(
         lambda v: _created(

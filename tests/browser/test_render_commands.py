@@ -1300,7 +1300,7 @@ FILM_DECLARATION = {
         "description": f"A <{tag}> page widget.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

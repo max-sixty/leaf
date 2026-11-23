@@ -975,7 +975,7 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
                         "description": "Text its module draws once, at upgrade.",
                         "attributes": {
                             "type": "object",
-                            "properties": {"id": {"type": "string"}},
+                            "properties": {},
                             "required": ["id"],
                             "additionalProperties": False,
                         },

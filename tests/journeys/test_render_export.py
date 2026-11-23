@@ -120,7 +120,6 @@ OFFLINE_REGISTRY = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
             },
             "required": ["id"],

@@ -58,9 +58,6 @@
     "description": "A short explanation the reader can open beside a phrase without leaving its sentence.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "additionalProperties": false
     },
     "inline": true,
@@ -73,7 +70,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" },
         "run": {
           "type": "string",
@@ -103,7 +99,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" },
         "label": {
           "type": "string",
@@ -149,7 +144,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "max-level": {
           "type": "string",
           "pattern": "^[2-6]$"
@@ -170,9 +164,6 @@
     "description": "A newest-first feed of the page\u2019s comments, actions, reports, and published revisions.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -187,7 +178,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -208,7 +198,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "multiple": {
           "type": "boolean"
         },
@@ -288,7 +277,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -322,7 +310,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "hi": {
           "type": "string",
           "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$"
@@ -344,7 +331,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "at": {
           "type": "string",
           "pattern": "^[0-9]+$"
@@ -360,9 +346,6 @@
     "description": "An Observable Plot chart authored with Plot\u2019s API and sized to its place in the page.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -377,7 +360,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "before": {
           "type": "string",
           "pattern": "^/media/\\S+$"
@@ -405,9 +387,6 @@
     "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -430,7 +409,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -454,7 +432,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -478,7 +455,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "list": {
           "type": "string",
           "enum": ["side"]
@@ -502,7 +478,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "for": { "type": "string" },
         "next": {
           "type": "boolean"
@@ -525,7 +500,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -547,9 +521,6 @@
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -563,7 +534,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -582,7 +552,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "required": {
           "type": "boolean"
         }
@@ -618,7 +587,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -639,7 +607,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1

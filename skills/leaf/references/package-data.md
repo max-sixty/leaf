@@ -235,7 +235,6 @@ contract").
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
       "required": ["id", "source"],

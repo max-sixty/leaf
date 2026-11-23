@@ -1307,7 +1307,6 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "attributes": {
         "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "asks": {"type": "boolean"},
         },
         "required": ["id"],

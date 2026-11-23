@@ -2927,7 +2927,7 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                 "description": "A reply whose presentation waits for its content.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },

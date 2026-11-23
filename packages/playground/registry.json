@@ -4,9 +4,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "contract": {
           "type": "string"
         },
@@ -79,9 +76,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "label": {
           "type": "string",
           "minLength": 1
@@ -118,11 +112,6 @@
     "description": "The task instruction displayed by a playground and sent with the chosen configuration; an `<output for>` inside shows a field's value.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
       "additionalProperties": false
     },
     "owners": ["lf-playground"]

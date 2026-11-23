@@ -645,7 +645,7 @@ ZONE_PACKAGE = {
         "description": "A project package's differently named pane.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+            "properties": {"label": {"type": "string"}},
             "required": ["id", "label"],
             "additionalProperties": False,
         },

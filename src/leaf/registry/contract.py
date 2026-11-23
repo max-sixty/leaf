@@ -724,16 +724,25 @@ def _named_attributes(entry: dict):
 
 
 def stamp_grammars(registry: dict) -> dict:
-    """Write into a validated vocabulary the grammar of each attribute
-    `_named_attributes` finds, as its schema's `pattern`, replacing any the
-    declaration gave. Leaf owns these grammars, so a package declares only that such
-    an attribute is a string, and validation and an author reading the entry read the
-    grammar here. An attribute's schema may be `true`, which then becomes the
-    grammar alone, or `false`, which admits no value already and is left as it is.
+    """Write into a validated vocabulary the `id` every element takes, as a string and
+    the first of its attributes, and the grammar of each attribute `_named_attributes`
+    finds, as its schema's `pattern`, replacing any the declaration gave. Leaf owns
+    `id` and these grammars, so a package declares only whether an element requires
+    its `id`, and that each other such attribute is a string; validation and an author
+    reading the entry read the rest here. A schema a declaration lists for `id` is
+    replaced, not kept: Leaf names a created child, an asking widget and a pane by id,
+    and one whose `id` took no string could never be named. Another such attribute's
+    schema may be `true`, which then becomes the grammar alone, or `false`, which
+    admits no value already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for entry in element_declarations(registry).values():
-        properties = entry["attributes"].get("properties", {})
+        attributes = entry["attributes"]
+        properties = attributes["properties"] = {"id": {"type": "string"}} | {
+            attr: schema
+            for attr, schema in attributes.get("properties", {}).items()
+            if attr != "id"
+        }
         for attr, grammar in _named_attributes(entry):
             if properties.get(attr) is True:
                 properties[attr] = {}

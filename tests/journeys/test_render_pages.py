@@ -499,7 +499,7 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
         "description": "A project package's compound review surface.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

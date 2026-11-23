@@ -121,11 +121,9 @@ def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Fi
     written in, advises its author, each finding naming the file `path`: a data
     input's source attribute not declared a string, which `leaf data`'s own grammar
     still checks; a measured input whose source or run receipt an instance may leave
-    out, so that instance is never compared with its source's latest run; a widget
-    that asks with no string `id` declared, which each instance's own check still
-    requires; and a `refers` relation no element in `declarations` can meet, which
-    each reference an instance makes still meets or is refused
-    (`reference-contract`)."""
+    out, so that instance is never compared with its source's latest run; and a
+    `refers` relation no element in `declarations` can meet, which each reference an
+    instance makes still meets or is refused (`reference-contract`)."""
     entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
@@ -158,8 +156,6 @@ def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Fi
                     "measured-run", path, tag, input=input_name, attr=run_attr
                 )
             )
-    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
-        found.append(registry_finding("addressable-id", path, tag, key="awaits"))
     for attribute, reference in entry.get("refers", {}).items():
         if problem := reference_relation_problem(reference, registry, declarations):
             code, values = problem
@@ -188,7 +184,7 @@ def _validate_widget_structure(
                 needs="content",
                 value="markup",
             )
-        if "id" not in required or not _typed(properties, "id", "string"):
+        if "id" not in required:
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if "label" not in required or not _typed(properties, "label", "string"):
             raise registry_error(
@@ -224,7 +220,7 @@ def _validate_widget_structure(
                 "undeclared-attributes", path, tag, key=key, names=unknown
             )
     if isinstance(entry.get("visual"), dict):
-        if not ("id" in required and _typed(properties, "id", "string")):
+        if "id" not in required:
             raise registry_error("visual-id", path, tag)
         part_attribute = entry["visual"].get("parts")
         if part_attribute and part_attribute not in properties:

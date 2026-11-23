@@ -3,9 +3,6 @@
     "description": "An animated, scrubbable film of worktrunk's wt merge, drawn as one SVG in the page's colours, with flags that re-plot the run. Its commits, refs, worktrees and hook chips are commentable visual parts while they are on screen. Each paint dispatches a bubbling film-frame event naming the current step, its caption and the run's status per step.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -20,7 +17,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "for": { "type": "string" }
       },
       "required": ["id", "for"],

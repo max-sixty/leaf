@@ -98,9 +98,9 @@ does not confirm it. Input your harness already confirmed arrives with
 
 Confirming marks the user's updates **Delivered**; it does not answer them.
 
-`leaf wait` waits only on pages this session holds; to take over a page, run
-`leaf page claim <page>` first. A wait exits 0 with input, or 2 with a diagnostic
-to follow.
+`leaf wait` waits only on pages this session holds; `serving-pages.md`, "Resuming a
+persistent or foreign page", says how to take one over. A wait exits 0 with input, or
+2 with a diagnostic to follow.
 
 ## After the batch
 

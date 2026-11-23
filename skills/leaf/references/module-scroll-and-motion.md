@@ -62,7 +62,7 @@ screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where
 keeps a `scrollbar-gutter` across states.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`).
+page's, which is the document's own (`document.scrollingElement`).
 
 When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
@@ -272,10 +272,9 @@ A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter
 `returnDuration()`.
 
-`backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
+`backgroundFlash(element)` gives an element a brief yellow tint that fades to its
 own background, and tints each box inside it that paints a background of its own too.
-`flashDuration()` is how long Leaf's own arrival tint lasts, as on a newly arrived
-message.
+It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 
 ## Notices and spoken words
 

@@ -75,7 +75,7 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
-from leaf.registry.contract import DECLARED_WORDS
+from leaf.registry.contract import DECLARED_WORDS, stamp_grammars
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
@@ -3725,8 +3725,11 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page)
-    assert registry["lf-local"] == project_entry
-    assert registry["lf-project-only"] == project_only
+    composed = stamp_grammars(
+        {"lf-local": project_entry, "lf-project-only": project_only}
+    )
+    assert registry["lf-local"] == composed["lf-local"]
+    assert registry["lf-project-only"] == composed["lf-project-only"]
     assert "lf-options" in registry and "$events" in registry
 
 

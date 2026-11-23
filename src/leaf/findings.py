@@ -293,7 +293,6 @@ _SAMPLED = (
     "a live sample opens with its authored history, every event one the log admits"
 )
 _DECLARED = "each widget's declaration means one thing to every part of Leaf"
-_RETRACTS = "every version can take back a decision or report it supersedes"
 _CAPTURED = "each revision draws every file it names, the same wherever it is shown"
 _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
@@ -1573,14 +1572,6 @@ _TEXT = {
     "reading-role-attr": _declared(
         lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
-    "addressable-id": _declared(
-        lambda v: (
-            f"`{v['key']}` instances are addressable, but the element declaration"
-            " declares no string `id` attribute, so each instance's own id is checked"
-            " where it stands"
-        ),
-        keeps=None,
-    ),
     "data-contract": _declared(
         lambda v: (
             f"input `{v['input']}` (`inputs`) names unknown contract {v['contract']!r}"
@@ -1623,8 +1614,7 @@ _TEXT = {
     ),
     "visual-id": _declared(
         lambda v: (
-            "has addressable visual parts but does not require a string `id`"
-            " for their anchor"
+            "has addressable visual parts but does not require an `id` for their anchor"
         )
     ),
     # Its conditions, read against its own attributes.
@@ -1689,22 +1679,6 @@ _TEXT = {
             " deciding verb that answers its obligation"
         )
     ),
-    "unoverruled": _declared(
-        lambda v: (
-            "declares agent-written `verbs`"
-            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
-            " version sets to overrule a worker's report"
-        ),
-        keeps=_RETRACTS,
-    ),
-    "unrestated": _declared(
-        lambda v: (
-            "declares user `verbs` on the whole widget but no boolean"
-            " `restated` attribute, which a version sets to retract the user's"
-            " decision"
-        ),
-        keeps=_RETRACTS,
-    ),
     "verb-detail-schema": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) has an invalid detail schema: {v['reason']}"
@@ -1735,9 +1709,6 @@ _TEXT = {
     ),
     "creates-required": _declared(
         lambda v: _created(v, "which must require id and no other authored attributes")
-    ),
-    "creates-id": _declared(
-        lambda v: _created(v, "whose required id must be declared a string")
     ),
     "creates-semantic-owner": _declared(
         lambda v: _created(

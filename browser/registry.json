@@ -4,13 +4,9 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "resolves": {
           "type": "string",
           "pattern": "^[a-z0-9]+$"
-        },
-        "restated": {
-          "type": "boolean"
         }
       },
       "required": ["id"],
@@ -49,9 +45,6 @@
     "description": "The current markup a suggestion proposes to replace or delete.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "additionalProperties": false
     },
     "owners": ["lf-suggestion"],
@@ -63,9 +56,6 @@
     "description": "The proposed markup in a suggestion.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "additionalProperties": false
     },
     "owners": ["lf-suggestion"],
@@ -153,7 +143,7 @@
     "instructions": "Instructions for an author using this element, read after choosing it and before writing markup. One non-empty string, separate from the short `description` and the attribute schema."
   },
   "$attributes": {
-    "description": "The attributes that mean the same on every widget, as HTML's global attributes do. A declaration lists each one its element takes among its `properties`, like any other attribute, and Leaf supplies the meaning, so no key maps a widget's own name for it. `id`, `restated` ($restated), `overruled` ($report) and `resolves` (`verbs`) are global the same way.",
+    "description": "The attributes that mean the same on every widget, as HTML's global attributes do. A declaration lists each one its element takes among its `properties`, like any other attribute, and Leaf supplies the meaning, so no key maps a widget's own name for it. `id`, `restated` ($restated), `overruled` ($report) and `resolves` (`verbs`) are global the same way, and composing the vocabulary writes in all of them but `resolves`. `id` goes on every element, so a declaration never lists it and says only whether `required` names it. `restated` goes on a widget with a user verb whose `unit` is `widget`, and `overruled` on a widget with an agent verb, so such a widget lists neither. An element that another widget's verb names by id, as a board's `move` names a card, lists `restated` itself.",
     "label": "The element's name, which the page uses to name the element elsewhere, as On Me and the activity feed do. An option card, a board card, a group, a column and a tab take it; a section is already named by its heading and a disclosure by its summary. Whether the element shows its name is the element's own: a column and a tab draw theirs, and a card or a group shows whatever title its author writes in it. An attribute the element merely shows first, such as a metric's value, is not its name.",
     "tone": "One of the layer's semantic tints. Composing the vocabulary gives the attribute `$tones.names`, which the theme has a rule for, as its `enum`."
   },
@@ -173,7 +163,7 @@
   },
   "$report": {
     "answering": "By explicit id. `page stamp` adds a report to the version note's `settles` list when the stamped revision writes in its reported state or marks its element `overruled`, and from that revision on the report no longer applies. A revision that changes nothing answers nothing, so the report stays shown.",
-    "overruled": "A boolean attribute on the reported element, declared by every widget with an agent-written verb (`verbs`): this revision keeps its own state over the report in force. It belongs only to the revision whose stamp overrules; the stamp records the answer on the version note, so later revisions leave it off.",
+    "overruled": "A boolean attribute on the reported element, which every widget with an agent-written verb (`verbs`) takes ($attributes): this revision keeps its own state over the report in force. It belongs only to the revision whose stamp overrules; the stamp records the answer on the version note, so later revisions leave it off.",
     "feed": "All reports form one feed, in log order. Each entry carries its target, action, detail, optional text, speaker, time and version, and one disposition: `effective` (part of current state), `outranked` (a newer report on the same key takes precedence), or `settled` (named in a version note). Work the agent has in hand is not a report: it is an update's Working stage or a started to-do.",
     "wakes": "A report joins the watcher's batch: `leaf wait` prints it with the user's updates, the same `ack` confirms it, and `leaf page close` is refused while one is unread. The user's On Me doesn't count reports, which are news the agent owes the page."
   },

@@ -246,7 +246,6 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
   "description": "A merge replayed frame by frame.",
   "attributes": {
     "type": "object",
-    "properties": { "id": { "type": "string" } },
     "required": ["id"],
     "additionalProperties": false
   },
@@ -286,11 +285,15 @@ module adds to a verbatim widget stands inside a box it built with `offer`, with
 words marked `says: true`, which would make them the page's (`module-authoring.md`,
 "Generated controls").
 
+Every element takes an `id`. Composition writes it into the merged registry as a string,
+so a declaration leaves `id` out of `properties` and says only whether the element
+requires one, by listing `id` in `required`.
+
 Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
-attribute (`inputs`) and a verb's `contract` attribute. Declare each as `{"type":
-"string"}`; composition writes its `pattern` into the merged registry, replacing any the
-declaration gives. A `refers` attribute needs no pattern either, since `page
-check` requires its value to name an element the page holds.
+attribute (`inputs`) and a verb's `contract` attribute. Declare each of the last two as
+`{"type": "string"}`; composition writes each one's `pattern` into the merged registry,
+replacing any the declaration gives. A `refers` attribute needs no pattern either, since
+`page check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

@@ -170,8 +170,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
-      const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
+      const {agentArrivalDuration} = await window.__lfCheckApi();
+      const animation = owner.backgroundFlash(document.querySelector('#subject'));
       const played = animation.effect.getTiming().duration;
       animation.finish();
       arrival.remove();

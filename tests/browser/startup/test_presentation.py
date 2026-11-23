@@ -218,7 +218,7 @@ def test_reduced_motion_reaches_declared_shadow_stages(
         "description": "A package motion control.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -344,9 +344,7 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
         "description": "A project-supplied link.",
         "attributes": {
             "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-            },
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

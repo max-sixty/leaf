@@ -36,7 +36,7 @@ outside both packages that selects them by path, write both widgets into its
 `index.html`, and run the render check, which draws the pair:
 
 ```bash
-leaf page init --package ./shortlist --package ./finalists <page>
+leaf page init --package reading --package ./shortlist --package ./finalists <page>
 leaf page check <page> --render
 ```
 

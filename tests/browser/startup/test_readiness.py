@@ -619,7 +619,7 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
     thread they had open, in the margin card or the floating panel they had it in, its
     reply box with the words they had selected, and a disclosure they opened. The
     handoff is spent on that reload, so an ordinary one after it keeps only what a
-    reload keeps."""
+    reload keeps, such as the thread its address names, and not the disclosure."""
     version_url = serve(
         leaf_page(
             "Restarted",
@@ -670,7 +670,6 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
 
     page.reload()
     wait_until_ready(page)
-    expect(thread).to_have_count(0)
     expect(page.locator("#why")).to_have_js_property("open", False)
 
 

@@ -1898,12 +1898,14 @@ export function createMarginProjection({
       focusMap &&
         (() => {
           if (!landsOnTarget) return handBack(...mapControlPlaces(entry));
-          inventory.activate(item);
+          inventory.activate(item, { travel: false });
           const target = targetFor(entry);
           if (target?.isConnected) focusDestination(target, "move");
         }),
     );
-    if (!landsOnTarget) inventory.activate(item);
+    // A press in the margin opens what it names where the user stands, a draft as well
+    // as a thread (`openThreadChoice`), so it adds no Back step.
+    if (!landsOnTarget) inventory.activate(item, { travel: false });
   }
 
   /** @param {Entry} entry @param {Element} button */
@@ -2203,11 +2205,9 @@ export function createMarginProjection({
   // that accompanied the target the user was on, with the user outside the card,
   // comes back only beside that target's marker (`openInlineThread`, `unfold: false`).
   // A reply being written in the card carries its thread back itself (version.js,
-  // `restoreEditingContinuity`), so the card is left to it. A return to a working place,
-  // as Back from a link followed out of the card is, reopens the card the same way
-  // (history.js, `returnPlace`).
-  /** @param {Element | null} [active] the node the user is on, else where focus is */
-  function captureCurrentLocation(active = focused()) {
+  // `restoreEditingContinuity`), so the card is left to it.
+  function captureCurrentLocation() {
+    const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
     const selected = card.selection();
@@ -2392,6 +2392,7 @@ export function createMarginProjection({
       open: openInlineThread,
       focusTarget: card.focusTarget,
       accompanied: accompaniedThreadHere,
+      shown: card.shownThread,
       close: closePreview,
       control: (/** @type {string} */ id) => {
         const entry = threadEntry(id);

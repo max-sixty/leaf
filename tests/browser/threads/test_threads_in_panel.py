@@ -323,10 +323,11 @@ def test_a_move_while_writing_keeps_the_caret_in_the_reply(browser, serve):
     assert field.evaluate("f => [f.selectionStart, f.selectionEnd]") == [20, 23]
 
 
-def test_reopening_a_thread_on_the_element_read_adds_no_back_step(browser, serve):
+def test_reopening_a_thread_on_the_element_read_moves_nothing(browser, serve):
     """With the panel chosen, reopening from Threads the thread on an element taller
-    than the window, while reading inside it, moves nothing, so it adds no Back step:
-    history judges the landing the travel makes."""
+    than the window, while reading inside it, moves nothing, since the landing of its
+    passage finds it already shown. The press is one Back step, as every Threads row's
+    is, since it lands the user in a thread they weren't in."""
     paragraphs = "".join(
         f"<p>Tall paragraph {n}. " + "Words. " * 40 + "</p>" for n in range(30)
     )
@@ -344,9 +345,10 @@ def test_reopening_a_thread_on_the_element_read_adds_no_back_step(browser, serve
         "p => p.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
     scroll_settled(page)
-    before = page.evaluate("[scrollY, history.length]")
+    top, entries = page.evaluate("[scrollY, history.length]")
     open_threads(page)
     page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{root}"]').click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
     scroll_settled(page)
-    assert page.evaluate("[scrollY, history.length]") == before
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("[scrollY, history.length]") == [top, entries + 1]

@@ -4331,7 +4331,7 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
                 "<tr><th>Key</th><th>Value</th></tr><tr><td>name</td><td>leaf</td></tr>"
                 "</table>",
             ),
-            theme=False,
+            reading=False,
         ),
     )
     measured = page.evaluate(
@@ -4368,7 +4368,7 @@ def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, 
                 "</table>",
                 layout=None,
             ),
-            theme=False,
+            reading=False,
         ),
     )
     resized(page, 390, 844)

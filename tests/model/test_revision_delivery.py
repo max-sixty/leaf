@@ -625,7 +625,7 @@ def test_two_leaf_versions_capture_one_source_as_the_same_revision(tmp_path):
     one, and each composes its own vocabulary over the page's selection. The capture
     names only what the page owns, so the source is one revision under either and
     an open tab keeps its document; the page's own declarations still replace it."""
-    layer = {"generation": "g1", "packages": [], "theme": None}
+    layer = {"generation": "g1", "packages": []}
 
     def capture(description):
         registry = {"$layer": layer, "lf-note": {"description": description}}

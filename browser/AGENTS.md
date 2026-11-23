@@ -89,8 +89,10 @@ rule draws at once is drawn.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
-  and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
-  anchoring off on no box the reader reads in. A revision then restores the reader's
+  and a message's words (`setRenderedChildren` in `dom-children.js`) do. Leaf turns
+  anchoring off in a box the reader reads in only while its own motion moves the box,
+  as a glide does, whose landing then places the destination (`scrolling.js`), or the
+  box's content, as a ride does (`box-motion.js`). A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
   control under the user's hands; for a reader whose focus is scrolled away, the
   reading line where growth starts between anchoring's box and it; and a place the
@@ -300,7 +302,7 @@ concrete and playable").
   diagram shows its name as a tooltip (check: the `lf-diagram` case in
   `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
-  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
+  (`lfPreview`, `../skills/leaf/references/module-previews.md`), a control's
   word and keys come from its name and the register, a link an author wrote into the
   page shows the place it names (`runtime/place-preview.js`), and a range's owner says
   where the pointer or a holding finger rests on it, as a thread's passage marks do
@@ -698,6 +700,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
+| Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                          |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                |

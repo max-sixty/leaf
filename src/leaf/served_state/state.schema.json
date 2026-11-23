@@ -12,15 +12,6 @@
         "generation": { "type": "string" },
         "fingerprint": { "type": "string" },
         "packages": { "type": "array", "items": { "type": "string" } },
-        "theme": {
-          "type": ["object", "null"],
-          "properties": {
-            "name": { "type": "string" },
-            "source": { "enum": ["explicit", "default"] }
-          },
-          "required": ["name", "source"],
-          "additionalProperties": false
-        },
         "producer": { "$ref": "#/$defs/Provenance" }
       },
       "required": ["generation", "fingerprint"]

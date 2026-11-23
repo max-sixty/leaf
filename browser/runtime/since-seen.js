@@ -120,24 +120,18 @@ export function createSinceSeen({ markSeen }) {
     const holds = () =>
       mine === arrival.value && !selectedBase() && comparable(since.revision);
     await whenDocumentPresented();
-    while (holds()) {
-      const revision = runtime.currentRevision;
-      const n = await changesSince(revisionBase(since)).catch(() => undefined);
-      if (n === undefined) return;
-      if (n === null || runtime.currentRevision !== revision) continue;
-      if (n && holds())
-        notice(`${counted(n, "change")} since v${since.version}`, {
-          background: true,
+    const n = await changesSince(revisionBase(since), holds).catch(() => null);
+    if (n && holds())
+      notice(`${counted(n, "change")} since v${since.version}`, {
+        background: true,
+        stands: holds,
+        press: {
+          action: "show-changes",
+          keys: () => throughVersions(COMPARE_KEY),
+          run: () => showComparison(revisionBase(since)),
           stands: holds,
-          press: {
-            action: "show-changes",
-            keys: () => throughVersions(COMPARE_KEY),
-            run: () => showComparison(revisionBase(since)),
-            stands: holds,
-          },
-        });
-      return;
-    }
+        },
+      });
   }
 
   function present() {

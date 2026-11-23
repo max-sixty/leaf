@@ -1004,6 +1004,12 @@ def cursor_over(page, locator):
     return cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
 
 
+def comparison_view(url):
+    """Whether `url` is a comparison's own `/api/view` request, which names the revision
+    it is shown on (`shown=`); Versions' counts of changes ask without it."""
+    return "/api/view?" in url and "shown=" in url
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
@@ -3552,7 +3558,7 @@ def compare_with(page, version=None):
         versions.locator(".lf-fp-compare").first
         if version is None
         else versions.get_by_role(
-            "button", name=re.compile(rf"^Compare with v{version}( |$)")
+            "button", name=re.compile(rf"\bCompare with v{version}( |,|$)")
         )
     )
     press.click()

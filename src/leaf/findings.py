@@ -1862,8 +1862,9 @@ _TEXT = {
     ),
     "record-within": _declared(
         lambda v: (
-            f"verb `{v['verb']}` (`verbs`) records a position within unknown"
-            f" widget <{v['within']}>"
+            f"verb `{v['verb']}` (`verbs`) records a position within"
+            f" <{v['within']}>, but a position's container is a declared element"
+            " inside the widget, whose children are the units it orders"
         )
     ),
     "body-content": _declared(

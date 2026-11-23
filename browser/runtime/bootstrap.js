@@ -524,7 +524,9 @@
       letGo();
       endRow();
     };
-    holdKeys(holds);
+    // A bare modifier acts on nothing, as the Shift before a capital the hold keeps, so
+    // it is no input either while the hold stands.
+    holdKeys((event) => HALF_PRESSES.has(event.key) || holds(event));
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through

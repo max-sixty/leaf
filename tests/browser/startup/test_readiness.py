@@ -776,8 +776,10 @@ def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
 def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, serve):
     """A user typing on as the tab reloads means the keys for the reply they were
     writing. Those the new document hears before it has handed the reply back wait for
-    it and go there, rather than running the page's single-key commands, one of which
-    resolves the thread (keyboard/bindings.js, `placeHandedBack`)."""
+    it and go there, a capital's Shift included, rather than running the page's
+    single-key commands, one of which resolves the thread (keyboard/bindings.js,
+    `placeHandedBack`). The new document's first state answer is held while the keys
+    are typed, so they reach it before the hand-back however fast the machine is."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -800,17 +802,44 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, 
     reply = page.locator(
         '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] .lf-thread-reply leaf-text'
     )
-    write(reply, "Hold")
-    typed = " the resend until the queue drains, then retry it"
+    write(reply, "Hold ")
     original_document = page.evaluate("performance.timeOrigin")
+    replaced = {"document": False}
+    held = []
 
-    restart_under_another_runtime(
-        page, serve, answer=lambda: page.keyboard.type(typed, delay=80)
-    )
+    def navigated(frame):
+        if frame == page.main_frame:
+            replaced["document"] = True
+
+    def state_answer(route):
+        if replaced["document"]:
+            held.append(route)
+        else:
+            route.fallback()
+
+    answer_as_another_runtime(page)
+    page.on("framenavigated", navigated)
+    page.route("**/api/state*", state_answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    page.wait_for_function("() => document.readyState !== 'loading'")
+    # The run starts on a letter: a Space with no run before it scrolls the page, as on
+    # any page still loading, and that ends the hand-back.
+    page.keyboard.press("Shift+T")
+    page.keyboard.type("he resend")
+    page.unroute("**/api/state*", state_answer)
+    for route in held:
+        route.fallback()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
 
     assert page.evaluate("performance.timeOrigin") != original_document
     expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "Hold" + typed)
+    expect(reply).to_have_js_property("value", "Hold The resend")
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)

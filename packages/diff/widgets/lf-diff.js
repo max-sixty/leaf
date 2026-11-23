@@ -319,8 +319,8 @@ function pathTemplate(path) {
 }
 
 // While a file's row cuts its path short, the row's preview is the whole path, which a
-// resting pointer, the keyboard and a held press read (`lfPreview`, module-input.md,
-// "Previews"). A path the row shows whole previews nothing, since it would repeat it.
+// resting pointer, the keyboard and a held press read (`lfPreview`,
+// module-previews.md). A path the row shows whole previews nothing, since it would repeat it.
 // Whether the row cuts the path changes only with the width
 // of a part of it, the folders or the name (at a new window width, face or press beside
 // it), so each part's size is watched rather than polled. A part is cut where its words

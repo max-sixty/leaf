@@ -36,7 +36,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { bindingAttributes, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
-import { referencedProjection, requireReference } from "./references.js";
+import { referencedProjection } from "./references.js";
 import { reportPageError } from "./layer-client.js";
 import { tick } from "./version-signal.js";
 
@@ -286,7 +286,6 @@ export function dataReader(element, input, accepted) {
     throw new Error(
       `<${element.localName}> input binds both an external source and widget output`,
     );
-  if (declaration.reference) requireReference("data", element, declaration.reference);
   const bound = source
     ? deliveredSource(source, declaration, input, accepted)
     : widget && declaration.reference

@@ -339,7 +339,6 @@ function outputScene(draw) {
       inputs: {
         rows: { reference: "for", contract: "rows", property: "value" },
       },
-      refers: { for: {} },
     },
   });
   customElements.define(

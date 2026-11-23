@@ -202,13 +202,6 @@ def _validate_widget_structure(
                 output=output_name,
                 contract=spec["contract"],
             )
-    for input_name, spec in entry.get("inputs", {}).items():
-        if (reference := spec.get("reference")) and reference not in entry.get(
-            "refers", {}
-        ):
-            raise registry_error(
-                "data-reference", path, tag, input=input_name, attr=reference
-            )
     for key in ATTRIBUTE_FACTS:
         declared = entry.get(key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)

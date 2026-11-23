@@ -6,7 +6,7 @@ Read with [packages.md](packages.md), which holds the package contract and a wid
 
 A widget shares what it has the way its element would in plain HTML, so two widgets
 whose authors never met work together on a Leaf page and on a page without Leaf. One
-names the other by id in an attribute it declares under `refers`, `for` by
+names the other by id in an attribute its declaration says names an element, `for` by
 convention ("References between widgets"), and then:
 
 | To                                               | Use                                                                                                                                                   | `page check` holds                                         |
@@ -265,8 +265,9 @@ and its schema.
 ## References between widgets
 
 When an attribute names another element, declare it in `refers`, mapping the
-attribute to `{}`, which accepts any element id. `page check` refuses an id that names
-no element.
+attribute to `{}`, which accepts any element id. The attribute an input names as its
+`reference` ("Widget outputs") needs no entry, as the registry's `$keys.inputs`
+defines. `page check` refuses an id that names no element.
 
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
@@ -413,15 +414,13 @@ of input, declaring `source`, `reference` or both:
     "reference": "for",
     "property": "value"
   }
-},
-"refers": { "for": {} }
+}
 ```
 
-The input's `reference` names its ordinary element relation, and the consumer
-declares each attribute the input names in `attributes`. A page binds either
-`source="project-files"` or `for="review"`, where `review` is a widget holding a
-`file-list`. The input binds by contract: it reads the one output of its contract the
-named widget declares, whatever that widget calls it, so a consumer never names a
+The consumer declares each attribute the input names in `attributes`. A page binds
+either `source="project-files"` or `for="review"`, where `review` is a widget holding
+a `file-list`. The input binds by contract: it reads the one output of its contract
+the named widget declares, whatever that widget calls it, so a consumer never names a
 producer's tag or its output and works beside any producer of the contract. `page
 check` refuses a `for` naming a widget with no output of the contract, or with more
 than one.

@@ -41,7 +41,6 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "refers": { "for": {} },
     "inputs": {
       "shortlist": {
         "contract": "shortlist",

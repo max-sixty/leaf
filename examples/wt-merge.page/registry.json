@@ -64,9 +64,6 @@
         "reference": "for",
         "property": "frame"
       }
-    },
-    "refers": {
-      "for": {}
     }
   }
 }

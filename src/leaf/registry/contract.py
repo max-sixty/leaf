@@ -112,12 +112,23 @@ MODULES = "$modules"
 
 
 def complete_declarations(registry: dict) -> dict:
-    """Write into a merged vocabulary's element declarations the default each may
-    leave unsaid, so every reader reads a complete entry: an element's content is its
-    author's markup (`content`) unless it declares another."""
+    """Write into a merged vocabulary's element declarations what each may leave
+    unsaid, so every reader reads a complete entry: an element's content is its
+    author's markup (`content`) unless it declares another, and the attribute an
+    input's `reference` names is one naming an element (`refers`). Nothing has
+    validated the declarations yet, so one of another shape is left for validation
+    to name."""
     for entry in element_declarations(registry).values():
-        if isinstance(entry, dict):
-            entry.setdefault("content", "markup")
+        if not isinstance(entry, dict):
+            continue
+        entry.setdefault("content", "markup")
+        inputs = entry.get("inputs")
+        for spec in inputs.values() if isinstance(inputs, dict) else ():
+            reference = spec.get("reference") if isinstance(spec, dict) else None
+            if isinstance(reference, str) and isinstance(
+                entry.setdefault("refers", {}), dict
+            ):
+                entry["refers"].setdefault(reference, {})
     return registry
 
 

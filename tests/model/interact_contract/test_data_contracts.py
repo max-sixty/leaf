@@ -25,6 +25,7 @@ from leaf import files as files_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
 from leaf.findings import Rejected
+from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
@@ -549,9 +550,11 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
                     "reference": "for",
                 }
             },
-            "refers": {"for": {}},
         },
     }
+    # As composing a layer completes it: the consumer's input reads another widget
+    # through `for`, which declares `for` an element relation.
+    registry_contract.complete_declarations(registry)
 
     def errors(binding):
         document = SourceDocument(
@@ -585,3 +588,24 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]
+
+
+@pytest.mark.parametrize(
+    ("declared", "refers"),
+    [
+        # A relation the entry declares for another attribute stays beside the input's.
+        ({"refers": {"about": {}}}, {"about": {}, "for": {}}),
+        # An entry that writes the input's relation out as well declares it once.
+        ({"refers": {"for": {}}}, {"for": {}}),
+        # A declaration of another shape is left as written, for validation to name.
+        ({"refers": ["for"]}, ["for"]),
+        ({"inputs": {"rows": {"contract": "rows", "reference": ["for"]}}}, None),
+        ({"inputs": ["rows"]}, None),
+    ],
+)
+def test_composing_declares_an_inputs_reference_an_element_relation(declared, refers):
+    entry = {"inputs": {"rows": {"contract": "rows", "reference": "for"}}} | declared
+
+    composed = registry_contract.complete_declarations({"lf-reader": entry})
+
+    assert composed["lf-reader"].get("refers") == refers

@@ -411,7 +411,7 @@ export function createAnchorTravel({
     { success = "", missing = "", focus = true } = {},
   ) {
     const mayArrive = retainTravel();
-    requireReference("navigateToDatum", owner, attribute);
+    requireReference(owner, attribute);
     if (typeof key !== "string" || !key)
       throw new TypeError("navigateToDatum key must be a non-empty string");
     let source = referencedProjection(owner, attribute);

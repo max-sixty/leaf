@@ -569,11 +569,11 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
   assert.equal(answer.y, boundary.top + 8);
 });
 
-test("a surface starts by its subject right of it, or under words that leave it its width", async () => {
+test("a surface widens with its words right of its subject, or under words that leave it its width", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));
   // The side a surface on `clear` takes, quoting words that start at `column`, and
-  // whether its fit is told its start stands by them.
+  // whether its fit is told it may widen with its words there.
   const starts = async (clear, column = null) => {
     const surface = commentPlacement();
     const seat = surface.choose({
@@ -585,7 +585,7 @@ test("a surface starts by its subject right of it, or under words that leave it 
       scroller: scroller(100),
       coarse: false,
     });
-    let fromSubject = null;
+    let widens = null;
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
       room: paragraph,
@@ -593,7 +593,7 @@ test("a surface starts by its subject right of it, or under words that leave it 
       column,
       boundary,
       fit(room) {
-        ({ fromSubject } = room);
+        ({ widens } = room);
       },
     });
     await ui.computePosition(
@@ -601,7 +601,7 @@ test("a surface starts by its subject right of it, or under words that leave it 
       document.body,
       { placement, middleware, platform, strategy: "fixed" },
     );
-    return [seat.side, fromSubject];
+    return [seat.side, widens];
   };
   assert.deepEqual(await starts(block(300, 656, 300, 500)), ["right", true]);
   // Left of its words it holds the edge beside them, and starts at its far end.

@@ -199,7 +199,7 @@ function listen() {
 // depth, would miss the new size, and the browser reports that as a loop. A placement
 // whose fit would change a size makes that change in the next frame, before layout.
 // It is the only observer that asks the comment box's placement for a change of the
-// box's size: that box's watch observes its reference alone
+// open box's size: that box's watch leaves the box it follows to it
 // (annotation-overlay/composing/floating-response.js). The card's watch, Floating UI's
 // `autoUpdate` with its `elementResize`, asks too, so the order observers are made in
 // still matters there. We could consider, in future, giving the card's watch the

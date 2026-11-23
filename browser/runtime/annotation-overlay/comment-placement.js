@@ -188,7 +188,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
- * stood: number, stationary: boolean, fromSubject: boolean,
+ * stood: number, stationary: boolean, widens: boolean,
  * scale: {x: number, y: number}}) => void,
  * edge?: "top" | "foot", rises?: boolean}} PlacementRequest */
 /** @typedef {{reference: DOMRect,
@@ -575,7 +575,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale, stationary, fromSubject })` sizes the surface for the room its
+   `fit({ side, width, height, room, stood, scale, stationary, widens })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
    is the height a held surface caps no lower than, or 0. `stationary` says its
@@ -583,14 +583,17 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    boundary, never by its passage's column. Under or over, it stands at the intended
    inline start, which reserves that width (`size-width`). On the left, it instead holds
    its right edge clear of the target, so a change of its room moves its far edge and
-   never carries it across the words it comments on. `fromSubject` says its inline
-   start, where its words start, stands by what it is about: left to right, beside it
-   on the right, under or over quoted words at their first character, or at the room's
-   left edge with nothing to stand by; right to left, beside it on the left. A surface
-   narrower than the measure, as the box and a slim card are, stands by its subject
-   and widens away from it only there. Elsewhere its start is the measure's far end
-   from its subject, where a narrower surface would stand apart from it and widen by
-   moving its words, so the box and card take the measure there. */
+   never carries it across the words it comments on. `widens` says it may stand
+   narrower than the measure, as the box and a slim card do, and widen with its words:
+   the edge the placement holds still is the one its words start from, its left left to
+   right and its right right to left, and that edge stands by what it is about or where
+   the user carried it. The placement holds a surface beside its subject on the left
+   by its right edge, and any other, carried ones included, by its left (`hold`). So
+   left to right it widens beside its subject on the right, under or over quoted words
+   from their first character, at the room's left edge with nothing to stand by, and
+   where the user carried it; right to left, only beside its subject on the left.
+   Elsewhere a narrower surface would widen by moving its words, or stand apart from
+   its subject, so the box and card take the measure there. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
@@ -685,12 +688,17 @@ export function commentPlacement() {
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
     /** @param {{x: number}} scale @param {boolean} rtl */
-    const fromSubject = (scale, rtl) =>
-      rtl
-        ? !unanchored && side === "left"
-        : unanchored ||
-          side === "right" ||
-          (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
+    const widens = (scale, rtl) => {
+      const holdsLeft = side !== "left" || carriedInline !== null;
+      if (rtl) return !holdsLeft;
+      return (
+        holdsLeft &&
+        (!across ||
+          unanchored ||
+          carriedInline !== null ||
+          (column !== null && Math.abs(inlineStart(scale) - column) < 0.5))
+      );
+    };
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -816,7 +824,7 @@ export function commentPlacement() {
           room: shown,
           stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
           stood,
-          fromSubject: fromSubject(
+          widens: widens(
             scale,
             getComputedStyle(state.elements.floating).direction === "rtl",
           ),

@@ -79,8 +79,9 @@
    which placement keeps room for. A long comment widens the card Send opens; a long
    answer widens it as it arrives, carrying the controls at its far edge
    (`data-lf-widens`; browser/AGENTS.md, "Controls stay where the user aims"), or,
-   while the user writes a reply, as they send it. A card whose start stands away from
-   its text takes the measure at once, a narrower room caps either width, and a card
+   while the user writes a reply, as they send it. A card its placement can't widen
+   from the edge its words start at takes the measure at once (comment-placement.js,
+   `widens`), a narrower room caps either width, and a card
    the user carried keeps the width it was carried at. The user chose these slim
    cards, and a box that widens with its words, over three rules: a card as wide as its
    first words, kept while it is open, which wraps every answer, however long, in a
@@ -863,7 +864,7 @@ export function createThreadPreview({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, stood, scale, stationary, fromSubject }) {
+          fit({ width, height, stood, scale, stationary, widens }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
@@ -883,24 +884,26 @@ export function createThreadPreview({
             // at the measure until another selection, so it widens at most once (the
             // header's rule), and never while the user writes words in its reply box:
             // news that shows meanwhile, above a card held by its foot, widens it once
-            // they send. One whose start stands away from its text takes the measure
-            // at once. The room caps either where the room is narrower. One the user
+            // they send. One its placement can't widen from the edge its words start
+            // at takes the measure at once (comment-placement.js, `widens`). The room
+            // caps either where the room is narrower. One the user
             // carried keeps the width it was carried at (`session.width`) until its
             // side is chosen again.
             const carried = (session.width ?? Infinity) / scale.x;
             const narrow = Math.min(
               Math.max(cardMinimum(), session.sent?.width ?? 0),
+              cardMeasure(),
               width,
               carried,
             );
             const room = () =>
-              session.wide || !fromSubject
+              session.wide || !widens
                 ? Math.min(cardMeasure(), width, carried)
                 : narrow;
             // Only the messages it shows count: the turns under a closed checkpoint
             // fold (`hidden="until-found"`) and still lay out when measured.
             const outgrown = () =>
-              fromSubject &&
+              widens &&
               !held.writing &&
               standsTall(preview.querySelectorAll(".lf-msg-text:not([hidden] *)"));
             // A card at the width it starts at, the least width where `select` leaves

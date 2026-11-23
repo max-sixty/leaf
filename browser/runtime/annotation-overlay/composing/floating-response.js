@@ -4,9 +4,9 @@
    side, measure and CSS attachment. While editing, the browser carries that attachment
    through every ancestor scroll; generic repaint and scroll publications do not solve
    another position. A resized target, a change of the field's height, a resized
-   viewport, horizontal target motion and declared layout changes invalidate the
-   attachment; the field widening with its words stays inside the room the attachment
-   gave it. Replacing its target or native seat retires it. The compact response strip retains ordinary
+   viewport or pane, horizontal target motion and declared layout changes invalidate
+   the attachment; the field widening with its words stays inside the room the
+   attachment gave it. Replacing its target or native seat retires it. The compact response strip retains ordinary
    collision placement and scroll observation. A seated editor carries its frame
    through attachment changes under the shared rule in comment-placement.js;
    its durable anchor and native editor stay intact.
@@ -115,6 +115,10 @@ export function createFloatingResponsePlacement({
   // carry in.
   /** @type {Element} */
   let fabScroller = pageScroller;
+  // The element whose box bounds that placement, as a workspace pane does, or the page
+  // scroller where the window does (`commentBoundary`).
+  /** @type {Element} */
+  let fabRegion = pageScroller;
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
@@ -147,6 +151,10 @@ export function createFloatingResponsePlacement({
   // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
+  // The open box a placement stands, whose motion asks that placement again when the
+  // box's size changes.
+  const followedOpen = () =>
+    following !== null && response.open && fabBar.hasAttribute("data-lf-placement");
   function fabMotion() {
     const box = fabField();
     // The composer holding the composition is the root, since the composition's frame is
@@ -164,7 +172,7 @@ export function createFloatingResponsePlacement({
       placement: {
         held: fabPosition.held,
         place: () => {
-          if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
+          if (!followedOpen()) return false;
           nativeAttachment = false;
           return placeFab();
         },
@@ -335,15 +343,23 @@ export function createFloatingResponsePlacement({
         nativeAttachment = false;
         update();
       };
-      // The box's own size asks its placement through its motion (`fabMotion`), so
-      // this watch hears only the window's and the reference's.
+      // The placement stands the box by the window's size, its region's and its
+      // reference's, and by the box's own. The open box a placement stands asks for
+      // it through its motion as its size changes (`fabMotion`), so a change of that
+      // box alone is the motion's; this watch hears every other.
       const stopSize = autoUpdate(reference, floating, invalidate, {
         ancestorScroll: false,
         elementResize: false,
         layoutShift: false,
       });
-      const referenceSize = sizeObserver(invalidate);
-      referenceSize.observe(reference.contextElement);
+      const sizes = sizeObserver((entries) => {
+        if (followedOpen() && entries.every(({ target }) => target === floating))
+          return;
+        invalidate();
+      });
+      sizes.observe(reference.contextElement);
+      sizes.observe(floating);
+      if (fabRegion !== pageScroller) sizes.observe(fabRegion);
       let x = reference.getBoundingClientRect().left;
       // Each native scroll carrier owns its previous coordinates; there are no
       // parallel arrays whose positions must keep naming the same ancestor.
@@ -389,7 +405,7 @@ export function createFloatingResponsePlacement({
       return () => {
         stopMotion();
         stopSize();
-        referenceSize.disconnect();
+        sizes.disconnect();
       };
     };
   }
@@ -539,6 +555,7 @@ export function createFloatingResponsePlacement({
       place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     fabScroller = place.scroller;
+    fabRegion = boundary.scroller;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
@@ -607,11 +624,11 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, room, scale, fromSubject }) {
+          fit({ width, room, scale, widens }) {
             if (!stillCurrent()) return;
-            // A box whose start stands away from its text takes its card's width
-            // (annotation-chrome.css).
-            keeps(fabBar, "data-lf-card-width", fromSubject ? null : "");
+            // A box its placement can't widen from the edge its words start at takes
+            // its widest at once (annotation-chrome.css).
+            keeps(fabBar, "data-lf-card-width", widens ? null : "");
             setWidth(width, scale.x);
             setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();

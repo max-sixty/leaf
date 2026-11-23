@@ -790,6 +790,83 @@ def test_a_right_to_left_box_keeps_the_start_of_its_words_as_it_fills(
     ), (empty, full)
 
 
+def test_a_right_to_left_box_carried_by_its_grip_keeps_the_start_of_its_words(
+    browser, serve
+):
+    """Left of its text, a right-to-left box holds the edge beside the text, where its
+    words start, and widens away from it. Carried by its grip, it holds its left edge
+    where it was dropped, so it takes its card's width as it lands there rather than
+    carrying the start of its words with each key."""
+    page_html = leaf_page(
+        "Right to left",
+        # At the window's right edge, with room for the box only left of it.
+        '<p id="first" style="position: fixed; top: 160px; right: 24px; width: 360px">'
+        "هذه فقرة قصيرة يمكن التعليق عليها حتى يقف التعليق بجانبها.</p>",
+    ).replace('<html lang="en">', '<html lang="ar" dir="rtl">')
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(page_html), context=context)
+    page.locator("#first").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("^left"))
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    grip = page.locator(".lf-fab-bar > .lf-surface-grip").bounding_box()
+    x, y = grip["x"] + grip["width"] / 2, grip["y"] + 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - 55, y, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    dropped = page.evaluate(RECT, ".lf-fab-bar")
+    page.keyboard.insert_text("تعليق أطول قليلا من السطر الأول حتى يتسع الصندوق أكثر")
+    rendered(page)
+    typed = page.evaluate(RECT, ".lf-fab-bar")
+    assert typed["right"] == pytest.approx(dropped["right"], abs=0.5), (dropped, typed)
+
+
+def test_a_box_widening_in_a_pane_stays_in_the_pane_after_it_narrows(browser, serve):
+    """A box widens inside the room its placement gave it, which a pane bounds. A
+    pane narrowing beside a target that keeps its width gives the box less room, so
+    it is placed again there, and its words widen it no further than the pane."""
+    source = leaf_page(
+        "Comments in a pane",
+        '<div id="split"><lf-pane id="notes" label="Notes"><div>'
+        '<p id="short" style="width: 125px">Short words to comment on.</p>'
+        '<div style="height: 1200px"></div></div></lf-pane>'
+        '<lf-pane id="other" label="Other"><div><p>Other notes.</p></div></lf-pane>'
+        "</div>",
+        head=regions_side_by_side("split", "950px 1fr"),
+        layout="workspace",
+    )
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(source), context=context)
+    pane_scroll_behavior(page, page.locator("#notes"), "bounded")
+    page.locator("#short").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile(".+"))
+    expect(page.locator(".lf-fab-bar leaf-text")).to_be_focused()
+    rendered(page)
+    page.locator("#split").evaluate(
+        "split => { split.style.gridTemplateColumns = '450px 1fr'; }"
+    )
+    rendered(page)
+    page.keyboard.insert_text(
+        "A first line long enough to widen the box well past what the pane now holds"
+    )
+    rendered(page)
+    box = page.evaluate(RECT, ".lf-fab-bar")
+    pane = page.evaluate(RECT, "#notes > div")
+    assert pane["left"] - 0.5 <= box["left"] and box["right"] <= pane["right"] + 0.5, (
+        box,
+        pane,
+    )
+
+
 def test_a_draft_that_scrolls_in_its_box_keeps_its_width_as_it_scrolls(browser, serve):
     """A draft long enough to scroll in its box stands at the measure. The editor draws
     only the lines near what the box shows, so a box as wide as the lines drawn widened
@@ -829,9 +906,9 @@ def test_a_draft_that_scrolls_in_its_box_keeps_its_width_as_it_scrolls(browser, 
 def test_short_lines_keep_the_box_slim_and_send_widens_a_tall_comment_s_card(
     browser, serve
 ):
-    """Short lines keep the comment box at the card's least width however many are
-    typed in it. Send opens the card at the measure from the box's start where the
-    words stand taller than they are wide there."""
+    """Short lines keep the comment box at the card's least width, however many are
+    typed in it until they scroll there. Send opens the card at the measure from the
+    box's start where the words stand taller than they are wide there."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )

@@ -22,7 +22,6 @@ itself (`PrintsItself`), and what it notes goes to stderr.
 """
 
 import json
-import shlex
 import sys
 from pathlib import Path
 from typing import NamedTuple, TextIO
@@ -55,8 +54,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
         )
     if not initialized(page_dir):
         raise click.ClickException(
-            f"{page_dir} is not an initialized page; "
-            f"run `leaf page init {shlex.quote(str(page_dir))}`"
+            f"{page_dir} is not an initialized page; run `leaf page init` first"
         )
     acting_on(page_dir)
     if not renew:

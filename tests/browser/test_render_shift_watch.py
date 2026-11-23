@@ -2183,6 +2183,63 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
     assert page.lf_errors == []
 
 
+def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
+    browser, serve
+):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
+    landing draws in, after that frame's tick. The motion is the input's though news
+    lands before the next tick, as a pasted image's landing in an open thread can,
+    where the panel's head jumped the rest of its carry in one frame and read as moved
+    by news. The growing box stands after the control, so only the carry moves it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></lf-group>'
+                '<button id="control" style="display:block">Control</button>'
+                '<div id="after"></div>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfWidgetApi();
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const control = document.querySelector('#control');
+      const after = document.querySelector('#after');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      new ResizeObserver(() => {
+        if (!after.offsetHeight || window.carry) return;
+        control.style.translate = 'var(--carry)';
+        window.carry = control.animate(
+          [{'--carry': '0px 60px'}, {'--carry': '0px 0px'}], {duration: 300});
+        document.body.setAttribute('data-lf-reading', 'news');
+      }).observe(after);
+      document.querySelector('#press').addEventListener('click', () => {
+        widgetController(widget).present(gate.promise.then(() => {
+          after.style.height = '40px';
+        }));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate("release()")
+    page.wait_for_function("window.carry !== undefined")
+    page.evaluate("carry.finished")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+
 @pytest.mark.parametrize(
     "input_at",
     ["outside", "same-widget", "same-disclosure-attr-node"],

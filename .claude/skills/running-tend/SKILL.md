@@ -149,11 +149,12 @@ failed in, with its commit, since that brackets the change that broke it; a
 `journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
 request that broke it usually passed its own CI. Before fixing, check current main:
 the complete suite takes hours, and later changes may have removed the cause. A passing rerun
-alone does not clear a failure that comes and goes.
+alone doesn't show that a failure that comes and goes is fixed.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision
-route. An unresolved diagnosis, or a verification environment you can reach another
-way, remains engineering work, owned by the cause's session through
+route. While the session has a step left to take, an unresolved diagnosis, or a
+verification environment you can reach another way, remains engineering work, owned
+by the cause's session through
 `/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
@@ -163,6 +164,18 @@ as a decision. Assign it to the maintainer while it waits (`notes/TODO.md`, "Bac
 names them), say in it what you found and what their answer should settle, and
 unassign them once they act. A cause that asks them something without
 assigning them is missing from their list of assigned issues.
+
+A failure waits on a recurrence when its next occurrence is the only way left to
+advance its diagnosis, repair or verification. Before concluding that, run copies on
+its runner under the load it failed on, and force each ordering it could depend on
+(`tests/AGENTS.md`, **Races**); where its evidence is too thin to diagnose, merge what
+would capture it first. An open issue for such a failure tells the maintainer and the
+next session that work remains when none does, so the maintainer counts the failure as
+handled. Close its cause issue, or record the failure in the report's diagnosis
+without filing one, saying what you tried and what its next failure should show; this
+holds over **Retain engineering ownership** in `/tend-ci-runner:fix-a-bug`. The next
+failed run brings it back to triage. An issue that tracks several tests closes once
+each is fixed, owned elsewhere or waiting on a recurrence.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then

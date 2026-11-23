@@ -138,15 +138,17 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         expect(page.locator(f"#{expected}")).to_be_focused()
     page.keyboard.press("Shift+h")
     expect(page.locator("#d")).to_be_focused()
-    # The marks are annotations: Escape lets go of the change and leaves them, and `o`
+    # The marks are annotations: Escape lets go of the change and leaves them, and `g H`
     # hides them with the rest.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
     beta = page.locator('.lf-change-bar[data-lf-for="b"]')
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(beta).to_have_css("background-color", clear)
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(beta).not_to_have_css("background-color", clear)
     # A changed block the agent is at work on shows both bars, the change's nearer it.
     _start(d, _comment_on(d, "b", BETA[1], revision=3)["id"], "Rewriting Beta")
@@ -900,7 +902,8 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
 def test_the_bar_beside_a_list_item_stands_clear_of_its_marker(browser, serve):
     """The browser draws a list item's marker outside the item's box, in its list's
     inset, so the bar beside an item, or beside a block in one, stands beyond that
-    inset rather than across the marker. An item in a list laid out as a grid of cards
+    inset rather than across the marker, as it does beside an item's block that a
+    `display: contents` wrapper holds. An item in a list laid out as a grid of cards
     keeps its bar beside its own card."""
     url = live_url(
         serve(
@@ -910,6 +913,7 @@ def test_the_bar_beside_a_list_item_stands_clear_of_its_marker(browser, serve):
 <ul id="l">
   <li id="i">An item.</li>
   <li><p id="p">A paragraph in an item.</p></li>
+  <li><div id="w" style="display: contents"><p>A wrapped paragraph.</p></div></li>
 </ul>
 <ul id="g" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
     list-style: none; padding: 0">
@@ -928,19 +932,27 @@ def test_the_bar_beside_a_list_item_stands_clear_of_its_marker(browser, serve):
         ("g2", "Second card."),
     ):
         _start(d, _comment_on(d, section, words)["id"], "Rewording it")
-    expect(page.locator(".lf-at-work-bar")).to_have_count(3)
+    # A to-do on the wrapper is about the wrapper itself, where a quote in it would be
+    # about the paragraph holding the words.
+    wrapper = {"kind": "element", "id": "w"}
+    todo = {"kind": "todo", "author": "agent", "agent": "Claude", "title": "Reword it"}
+    _start(d, append_command(d, {**todo, "subject": wrapper})["id"], "Rewording it")
+    expect(page.locator(".lf-at-work-bar")).to_have_count(4)
     placed = page.evaluate(
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const bar = (id) => box(`.lf-at-work-bar[data-lf-for="${id}"]`);
           const [list, first, second] = [box('#l'), box('#g1'), box('#g2')];
           return {
-            clear: ['i', 'p'].every((id) => bar(id).right <= list.left),
+            clear: ['i', 'p', 'w'].map(
+              (id) => [id, bar(id).right <= list.left && bar(id).left > 0],
+            ),
             beside: bar('g2').right <= second.left && bar('g2').left > first.right,
           };
         }"""
     )
-    assert placed["clear"], (
-        "a list item's bar stands inside its list, across the marker"
-    )
+    for target, clear in placed["clear"]:
+        assert clear, (
+            f"#{target}'s bar stands off the list's start or across its marker"
+        )
     assert placed["beside"], "a grid card's bar stands away from its own card"

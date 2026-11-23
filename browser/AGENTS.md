@@ -113,7 +113,8 @@ rule draws at once is drawn.
   CSS geometry for annotations and never reallocates document space. The floating
   panel stands over the page too, with no room kept for it: the page lays out in the
   whole window, and the user folds the panel to its leaf where it covers what they
-  read. Leaf's landings and readings of what the user sees count the panel's box
+  read; it folds itself where focus lands on a place it alone would hide
+  (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
   (`geometry.js`, `declareCover`). Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
@@ -845,6 +846,15 @@ them itself.
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
+
+Add a fact only where some part of Leaf, such as the server, `page check` or the first
+paint, must act on it without running the widget's module, and the module can't keep
+the same rule itself. A rule about one widget's markup that its module can check as it
+draws stays in the module, which reports a breach with `reportFailure`, even where
+static validation could observe the same breach. The author then hears of the breach
+from `page check --render`, and in a thread message only after the user opens the
+thread. Keep a rule static where a breach would otherwise reach the log or a stored
+decision (root `AGENTS.md`, "Leaf's role").
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and words a module generates are a passage

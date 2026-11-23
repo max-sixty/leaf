@@ -374,7 +374,8 @@ the columns to what fits at the narrowest width the page's readers use.
 
 Give each section, major block and Leaf element a stable, meaningful `id` on the
 smallest element a user would point at. A user comments on words by selecting them and
-on anything else by pointing at it, and a pointed comment lands on the nearest element
+on anything else by pointing at it, with Alt-click or by pressing `s` for Select mode
+and then the target or its hint. A pointed comment lands on the nearest element
 around the pointer that has an id. So each block they would point at whole, such as a
 picture, a drawing, a code block, a table or an aside, needs an id of its own, on
 itself or on a block that holds only it and its caption, such as its `<figure>` or its

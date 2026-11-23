@@ -227,7 +227,9 @@ the browser's find-in-page does: it opens each closed `<details>` holding it, an
 `beforematch` at each element holding it that is `hidden="until-found"`, then removes
 that attribute. It also opens a closed popover holding the target. A widget that folds
 content hides it with `hidden="until-found"` and opens it on `beforematch`, as `lf-tabs`
-does for a panel, so the browser's find reaches it too. A widget that switches view sets
+does for a panel, so the browser's find reaches it too; print shows it open. Take a
+folded element that is itself a Tab stop out of the Tab order, since the fold hides
+only what it holds. A widget that switches view sets
 `hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
 handler returns; Leaf reads that as a replaced view and places the target at once rather
 than scrolling from the old view's reading position. A widget that keeps the box of

@@ -18,8 +18,8 @@ visual change between two versions as a before-and-after pair of captures, whose
 widget's instructions cover preparing the pair and the comparison controls. Capture
 both versions at the same viewport. Before writing the prose and `alt`, open both
 images and compare them where the change should be.
-For a small change, crop both frames to the subject rather than making the reader
-search a whole window. Captures that vary along other axes need each axis labelled
+For a small change, open the pair on the subject rather than making the reader search
+a whole window. Captures that vary along other axes need each axis labelled
 once, which a table does by default ("Source files and media").
 
 Write a diagram that automatic layout can place, such as a flowchart or a sequence

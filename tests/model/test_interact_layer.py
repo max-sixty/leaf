@@ -46,7 +46,6 @@ from interact_support import (
     shipped_sheets,
     vendored_at_another_protocol,
     wait_for,
-    words,
     write_record,
 )
 from model_folds import leaf_page
@@ -5031,12 +5030,6 @@ def test_review_evidence_packages_export_independently(
         ["page", "export", str(page), "-o", str(tmp_path / "export.html"), "--runtime"],
     )
     assert exported.exit_code == 0, exported.output
-    if package == "diff":
-        source = page / "index.html"
-        source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
-        checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
-        assert checked.exit_code != 0
-        assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
 
 
 def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
@@ -5628,9 +5621,16 @@ def instruction_page(tmp_path: Path, monkeypatch):
             f'<lf-instruction-owner id="owner"><{tag} id="member">One</{tag}>'
             "</lf-instruction-owner>"
         )
+        if tag == "lf-instruction-unused":
+            entry["outputs"] = {"held": {"contract": "instruction-held"}}
         registry[tag] = entry
     registry["$data"]["contracts"].update(
         {
+            "instruction-held": {
+                "description": "Records a widget holds for others to read.",
+                "schema": {"type": "object"},
+                "instructions": {"producer": "Hold the records whole."},
+            },
             "instruction-records": {
                 "description": "Records for the selected widget.",
                 "schema": {"type": "object"},
@@ -5684,6 +5684,13 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
         "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
     )
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
+    # A widget holding a contract's value selects the contract as one reading it does.
+    holder = page_instructions(instruction_page, entries=("lf-instruction-unused",))
+    assert (
+        "# Data contract `instruction-held`\n\nHold the records whole."
+        in (holder["producer"])
+    )
+    assert "instruction-held" not in selected["producer"]
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):

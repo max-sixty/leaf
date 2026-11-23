@@ -903,15 +903,30 @@ def follow_copy(
     (`server.stop_when_service_ends`).
 
     The answer through `handshake` says only that this copy runs, since only a
-    failed launch is worth the server's trying again. The restart
-    (`restarting_server`) then follows unless the page changed since the server
-    asked: a page this Leaf can't serve stays with the server serving it
-    (`check_servable`), for the session's next hook to renew; a server another start
-    put in place, such as a checkout's, keeps running; and a session service whose
-    session has ended retires after its grace, as it would have on the old copy.
-    These checks come last, so that little time passes between them and the stop."""
+    failed launch is worth the server's trying again. A page at an older page
+    protocol, as the update that replaced the copy can leave it, is renewed first,
+    for `harness`'s session (`vendoring.renew_held`) or while no session holds it
+    (`vendoring.renew_layer`), and what holds the renewal back is queued for that
+    session's next step (`clerk.queue`). The renewal restarts the server itself, and
+    so does the session's watch where it renews the page first (`session.Watch`);
+    renewals take turns, and the later finds the page renewed and changes nothing
+    (`vendoring._reinit`). The restart (`restarting_server`) then follows
+    unless the page changed since the server asked: a page this Leaf still can't
+    serve, as one whose renewal was refused, stays with the server serving it
+    (`check_servable`); a server another start put in place, such as a checkout's
+    or a renewal's, keeps running; and a session service whose session has ended
+    retires after its grace, as it would have on the old copy. These checks come
+    last, so that little time passes between them and the stop."""
     if not handshake.announce():
         return
+    from .vendoring import renew_held, renew_layer
+
+    if harness is None:
+        renew_layer(page_dir, None, command=False)
+    elif unready := renew_held(page_dir, harness.session):
+        from .clerk import queue
+
+        queue(harness.session, [str(unready)], wake=True)
     check_servable(page_dir)
     running = running_server(page_dir)
     if running is None or running["server_id"] != server_id:

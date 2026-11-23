@@ -281,12 +281,15 @@ it again (`hooks.skill_changed` says when an edit counts).
 
 A page server, Codex's adapter and Pi's watch between turns from a copy that Codex
 or Pi updates in place follow that copy without waiting for a hook, within a pass of
-the update (`state.LoadedCopy`). After an update that moves the page protocol, the
-session's pages stay at the old one until its next hook renews them: a server whose
-page the new copy can't serve goes on serving until that renewal restarts it
-(`hosting.follow_copy`), and the adapter and the watch keep the session until the
-new copy reads every page it holds (`session.successor_reads`). A server whose
-service is persistent, or whose page a live session holds, has the copy now at its
+the update (`state.LoadedCopy`). An update that moves the page protocol leaves the
+session's pages at the old one, and the new copy renews each as it first acts for
+the session there, as the session's next hook would: the successor adapter or watch
+as it first reads the page (`vendoring.renew_held`), and the restart of a page's
+server before it starts the server again (`hosting.follow_copy`). The renewal
+restarts the page's server itself. What holds a renewal back is queued for the
+session's next step, and wakes an idle session where a watch runs between turns.
+
+A server whose service is persistent, or whose page a live session holds, has the copy now at its
 path restart it at the same address, for the session holding the page where one
 does, and serves meanwhile (`server.stop_when_service_ends`). The adapter releases
 its leases and starts a successor from the new copy. It holds the task's start lock

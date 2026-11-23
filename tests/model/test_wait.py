@@ -46,8 +46,10 @@ from interact_support import (
     yaml_document,
 )
 
+from leaf import clerk as clerk_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
@@ -60,8 +62,8 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
+from leaf.findings import Finding
 from leaf.interaction_log import read_interactions
-from leaf.registry import storage as storage_model
 from leaf.registry.kernel import kernel_protocol
 
 
@@ -511,11 +513,12 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
-def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
-    """A server that died under a page another Leaf has since been updated past
-    stays down: the wait's revival is a start like any other, served by the Leaf
-    running the wait. The page reads as lost, and the refusal reaches the agent
-    reading the wait with the re-vendor that brings it back."""
+def test_wait_does_not_revive_a_page_a_newer_leaf_vendored(page_dir, capsys):
+    """A server that died under a page a newer Leaf has vendored stays down: the
+    wait's revival is a start like any other, served by the Leaf running the wait,
+    which neither serves nor takes back a newer Leaf's page. The page reads as lost,
+    and the refusal reaches the agent reading the wait, naming the newer Leaf it
+    needs."""
     write_record(
         page_dir / "service.json",
         {
@@ -528,7 +531,7 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
     )
     assert service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
-    vendored_at_another_protocol(page_dir)
+    vendored_at_another_protocol(page_dir, newer=True)
 
     # One pass first, so a revival that went through fails here rather than
     # leaving the wait below holding a live page open for input.
@@ -542,11 +545,11 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
     assert reading.restarted is None
     assert server_model.running_server(page_dir) is None
     refused = capsys.readouterr().err
-    assert f"leaf page init {page_dir}" in refused
+    assert "initialized by a Leaf newer than this one" in refused
 
     assert session_model.cmd_wait(page_dir) == 2
     printed = capsys.readouterr().err
-    assert f"leaf page init {page_dir}" in printed
+    assert "initialized by a Leaf newer than this one" in printed
     assert "server had died; restarted" not in printed
 
 
@@ -818,40 +821,30 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
 
 # `leaf ARGS` as a child running this tree's modules from the copy of Leaf at the
 # path in its first argument, as a process runs that loaded that copy before Pi
-# updated it: its plugin root, its launcher and the kernel registry on disk are that
-# copy's.
+# updated it: its plugin root and its launcher are that copy's.
 _RUNNING_FROM = """
 import sys
 from pathlib import Path
 
 from leaf import session_runtime, state
 from leaf.__main__ import main
-from leaf.registry import kernel
 
-root = Path(sys.argv[1])
-state.PLUGIN_ROOT = session_runtime.PLUGIN_ROOT = root
-kernel.KERNEL_REGISTRY = root / "browser" / "runtime" / "kernel-registry.json"
+state.PLUGIN_ROOT = session_runtime.PLUGIN_ROOT = Path(sys.argv[1])
 sys.argv = ["leaf", *sys.argv[2:]]
 main()
 """
 
 
-@pytest.mark.parametrize(
-    "renewed", [True, False], ids=["pages renewed", "pages at the old protocol"]
-)
 def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
-    page_dir, monkeypatch, sessionless, spawn, tmp_path, renewed
+    page_dir, monkeypatch, sessionless, spawn, tmp_path
 ):
     """Pi updates its clone of Leaf in place and then removes the clone's
-    environment. Once the copy now at that path reads every page the session holds,
-    the watch between turns that the old copy started reads no page: it lets its
-    lease go and, in the process Pi's extension started and reads, runs that copy's
-    watch with the payload it started with, so the extension's handle on it holds.
-    An update that moves the page protocol leaves the pages at the old one until the
-    session's next hook renews them, and until then the old watch goes on watching
-    and wakes the session for input."""
+    environment. The watch between turns that the old copy started reads no page
+    after that: it lets its lease go and, in the process Pi's extension started and
+    reads, runs the watch of the copy now at its path, with the payload it started
+    with, so the extension's handle on it holds."""
     root = tmp_path.joinpath(".pi", "agent", "git", "github.com", "max-sixty", "leaf")
-    for directory in (".git", ".venv", "bin", "browser/runtime"):
+    for directory in (".git", ".venv", "bin"):
         (root / directory).mkdir(parents=True)
     (root / "bin" / "leaf").write_text(
         f"#!{sys.executable}\n"
@@ -886,29 +879,10 @@ def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
         lambda live: live,
         failure="the watch never took its lease",
     )
-    # Pi's reset brings the next page protocol, and its clean removes the
-    # environment.
-    protocol = kernel_protocol() + 1
-    (root / "browser" / "runtime" / "kernel-registry.json").write_text(
-        json.dumps({"$events": {"protocol": protocol}})
-    )
     (root / ".venv").rmdir()
-    if not renewed:
-        append_carried_log_record(
-            page_dir, {"kind": "comment", "author": "user", "text": "meanwhile"}
-        )
-        output, errors = watch.communicate(timeout=STATED_TIMEOUT)
-        assert watch.returncode == 0, errors
-        assert output.startswith(f"{page_dir} has new input")
-        [ended] = read_interactions(page_dir, types=("watch",))
-        assert ended["ended"] == "woke"
-        return
-    # The session's next hook renews the page at the new copy's protocol, a write
-    # that moves the page's reading, so the watch passes again at once.
-    layer = page_dir / "layer.json"
-    record = storage_model.LAYER.read(layer)
-    assert record is not None
-    storage_model.LAYER.write(layer, {**record, "protocol": protocol})
+    # A write to the page moves its reading, so the watch passes again at once
+    # rather than at its next timed look.
+    session_model.cmd_waiting(page_dir)
     output, errors = watch.communicate(timeout=STATED_TIMEOUT)
     assert watch.returncode == 0, errors
     assert json.loads(output) == {
@@ -917,6 +891,69 @@ def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
     }
     [ended] = read_interactions(page_dir, types=("watch",))
     assert ended["ended"] == "copy-replaced"
+
+
+@pytest.mark.parametrize("hooks_run", ["this Leaf", "another Leaf"])
+def test_a_watch_renews_a_page_an_older_leaf_vendored_and_delivers_its_input(
+    claimed, hooks_run
+):
+    """An update that moves the page protocol leaves the session's pages at the old
+    one, whose input no reader at the new protocol may receipt. A watch for the
+    session renews such a page before it reads it, as the session's hooks do, so the
+    copy that takes over a watch or Codex's adapter from one its harness replaced
+    delivers the input waiting there rather than nothing until the next prompt. A
+    watch from a Leaf the session's hooks don't run, as a checkout's `leaf wait` the
+    session never selected, leaves the page at the protocol its hooks read."""
+    mark = hooks_model.skill_mark()
+    if hooks_run == "another Leaf":
+        mark = mark.replace(str(cleanup_model.PLUGIN_ROOT), "/another/leaf", 1)
+    leases_model.mark_skill("s1", mark)
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    vendored_at_another_protocol(claimed)
+    watch = session_model.Watch(harness_model.session_harness())
+    try:
+        assert watch.acquire()
+        ticks = list(watch.tick())
+    finally:
+        watch.release()
+    [tick] = [tick for tick in ticks if tick.page_dir == claimed]
+    if hooks_run == "another Leaf":
+        assert event_contracts_model.write_refusal(claimed) is not None
+        assert tick.batch == []
+        return
+    assert event_contracts_model.write_refusal(claimed) is None
+    assert [event["id"] for event in tick.batch] == [comment["id"]]
+
+
+def test_what_holds_a_watchs_renewal_back_reaches_the_session_once(
+    claimed, monkeypatch
+):
+    """A renewal a watch makes can leave the page held back, as by source the new
+    Leaf's checks refuse, which a hook would tell its turn. The watch queues it for
+    the session's next step and wakes an idle session for it (`clerk.waking`). It
+    tries each page once, so a refused renewal, which composes the page's layer
+    first, isn't tried and told again on every pass."""
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    held_back = Finding(
+        "unready-reinit", values={"page": str(claimed), "errors": ["not activated"]}
+    )
+    renewals = []
+    monkeypatch.setattr(
+        vendoring_model,
+        "renew_layer",
+        lambda page_dir, harness, *, command: renewals.append(page_dir) or held_back,
+    )
+    watch = session_model.Watch(harness_model.session_harness())
+    try:
+        assert watch.acquire()
+        list(watch.tick())
+        list(watch.tick())
+    finally:
+        watch.release()
+    assert renewals == [claimed]
+    assert clerk_model.waking("s1") == [str(held_back)]
 
 
 @pytest.mark.parametrize("ending", ["Stop", "Escape"])

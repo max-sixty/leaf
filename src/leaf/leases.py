@@ -25,6 +25,7 @@ from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     MODULE_SUFFIX,
+    PLUGIN_ROOT,
     SKILL_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
@@ -270,6 +271,18 @@ def mark_skill(session_id: str, mark: str) -> str | None:
         held.truncate(0)
         held.write(mark.encode())
     return before or None
+
+
+def hooks_run_here(session_id: str) -> bool:
+    """Whether the session's hooks last ran this Leaf, by the root their latest mark
+    names (`mark_skill`), as a process the session's hooks didn't start may ask
+    before it acts for the session: the Leaf its hooks run is the one a page it
+    renews must stay readable to."""
+    try:
+        marked = session_file(session_id, SKILL_SUFFIX).read_text()
+    except FileNotFoundError:
+        return False
+    return marked.rpartition("\n")[0] == str(PLUGIN_ROOT)
 
 
 def mark_module(session_id: str, pid: int) -> None:

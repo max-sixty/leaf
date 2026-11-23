@@ -53,27 +53,20 @@ copy in place (`session-lifetime.md`, "Which Leaf runs a session"), deleting the
 one, environment included, so an adapter left running would load each module it
 imports later from the new copy, beside the old modules it already holds. So an
 adapter holds the copy it loaded (`state.LoadedCopy`) and asks each pass whether
-another copy stands at its path that reads every page the task holds
-(`session.successor_reads`); once one does, the adapter hands its task to an
+another copy stands at its path; once one does, the adapter hands its task to an
 adapter from the new copy (`_hand_over`). An update that moves the page protocol
-leaves the task's pages at the old one until the task's next hook renews them, and
-no adapter at the new protocol could read them, so until then the old adapter keeps
-the task. One that has delivered before goes on delivering on the modules it holds.
-One that hasn't loads the rest of the delivery path from the new copy and fails on
-a package the deleted environment held: inside its retry boundary it retries on the
-ladder until the renewal, and so hands over up to a step of the ladder after it;
-outside, it exits, and the task's next prompt hook starts its adapter again. As with
-page servers (`server.stop_when_service_ends`), only an installed copy follows its
-replacement. A checkout's adapter keeps the modules it loaded and imports any later
-one from the checkout as it stands, since whoever runs a checkout decides when it
-changes.
+leaves the task's pages at the old one, which the successor renews as it first reads
+them, as the task's hooks would (`session.Watch`). As with page servers
+(`server.stop_when_service_ends`), only an installed copy follows its replacement. A
+checkout's adapter keeps the modules it loaded and imports any later one from the
+checkout as it stands, since whoever runs a checkout decides when it changes.
 
 Restarting the adapter from the task's prompt hook, as `reconnect.py` restarts a page
 server another copy started, would leave it on its deleted copy until the task's next
-prompt even after an update that keeps the protocol, and that prompt can come hours
-later. Replacing the process with `exec` through the new copy's launcher would leave
-nothing to try again when the new adapter fails to start, and would carry the start
-lock across the exec only if the new adapter knew to release it.
+prompt, which can come hours later. Replacing the process with `exec` through the new
+copy's launcher would leave nothing to try again when the new adapter fails to start,
+and would carry the start lock across the exec only if the new adapter knew to
+release it.
 
 `codex.py` owns the protocol, the per-turn fold every App Server client runs, the
 delivery records, and the page writers both transports share. What is here is the
@@ -140,7 +133,7 @@ from .leases import (
 )
 from .refusals import Refused
 from .service import owned_pages
-from .session import Watch, read_watch_pass, successor_reads
+from .session import Watch, read_watch_pass
 from .state import (
     LoadedCopy,
     Record,
@@ -966,9 +959,8 @@ def run_adapter(
     app_server: str | None = None,
 ) -> int:
     """Own the session watch until every claimed page ends or transfers, the session
-    selects another Leaf, or Codex replaces the copy this adapter started from with
-    one that reads the task's pages, in which case the adapter first starts its
-    successor from the new copy.
+    selects another Leaf, or Codex replaces the copy this adapter started from, in
+    which case the adapter first starts its successor from the new copy.
 
     A detached adapter announces its readiness through `handshake` once it holds
     its leases and its transport answers, and exits if `leaf page claim` left
@@ -1028,7 +1020,7 @@ def run_adapter(
                 # before reading another page. Preparation holds the start lock
                 # until these leases and the connection are released.
                 return 0
-            if copy.replaced() and successor_reads(harness.session):
+            if copy.replaced():
                 return _hand_over(harness, codex_path, app_server, resources)
             try:
                 recovered = codex.recover_codex_receipt(harness.session)

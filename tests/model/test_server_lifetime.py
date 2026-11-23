@@ -32,9 +32,11 @@ from interact_support import (
     write_record,
 )
 
+from leaf import clerk as clerk_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import harness as harness_model
+from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
@@ -43,7 +45,9 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
+from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
+from leaf.findings import Finding
 from leaf.refusals import Refused
 
 
@@ -308,28 +312,67 @@ def test_a_new_copy_restarts_only_the_server_that_asked(claimed, monkeypatch):
         restarted.append((page_dir, harness))
         yield
 
-    def follow(server_id):
-        """Run `server _follow` for a server that accepts the answer as it hears it."""
-        asking["server"], child = socket.socketpair()
-        with asking["server"]:
-            asking["server"].sendall(b"\n")
-            return CliRunner().invoke(
-                cli_model.cli,
-                [
-                    *("server", "_follow", str(claimed), "--server-id", server_id),
-                    *("--harness", harness_model.harness_argument(holder)),
-                    *("--handshake", str(child.detach())),
-                ],
-            )
-
     monkeypatch.setattr(hosting_model, "restarting_server", restarting)
-    assert "no longer serves" in follow("a-checkout-s-server").output
+    assert "no longer serves" in follow(claimed, "a-checkout-s-server", asking).output
     assert restarted == []
-    assert follow("fixture-server").exit_code == 0
+    assert follow(claimed, "fixture-server", asking).exit_code == 0
     assert restarted == [(claimed, holder)]
     cleanup_model.end_harness_instance("s1")
-    assert "no live session" in follow("fixture-server").output
+    assert "no live session" in follow(claimed, "fixture-server", asking).output
     assert restarted == [(claimed, holder)]
+
+
+def follow(page_dir: Path, server_id: str, asking: dict):
+    """Run `server _follow` for the server `server_id` names, for the session
+    holding the page, as a server that accepts the answer as it hears it, which it
+    keeps at `asking["server"]` while the command runs."""
+    claim = service_model.page_claim(page_dir)
+    holder = harness_model.claim_harness(claim) if claim else None
+    asking["server"], child = socket.socketpair()
+    with asking["server"]:
+        asking["server"].sendall(b"\n")
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                *("server", "_follow", str(page_dir), "--server-id", server_id),
+                *("--harness", harness_model.harness_argument(holder)),
+                *("--handshake", str(child.detach())),
+            ],
+        )
+
+
+def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(claimed, monkeypatch):
+    """An update that moves the page protocol leaves the page at the old one, which
+    the new copy can't serve. `server _follow` renews it first, for the session
+    holding the page, as that session's next hook would, and queues what holds the
+    renewal back for the session. The renewal restarts the server, as does the
+    session's watch where it renews first, so the follow finds another server in
+    place of the one that asked and restarts nothing more."""
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    serving(claimed, available_loopback_port(), "session")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    held_back = Finding(
+        "unready-reinit", values={"page": str(claimed), "errors": ["not activated"]}
+    )
+    renewals = []
+
+    def renew(page_dir, harness, *, command):
+        renewals.append((page_dir, harness))
+        service = server_model.read_service(page_dir)
+        assert service is not None
+        server_model.write_service(page_dir, {**service, "server_id": "renewed"})
+        return held_back
+
+    monkeypatch.setattr(vendoring_model, "renew_layer", renew)
+    monkeypatch.setattr(
+        hosting_model,
+        "restarting_server",
+        lambda *_args: pytest.fail("the follow restarted the renewed server again"),
+    )
+    assert "no longer serves" in follow(claimed, "fixture-server", {}).output
+    assert renewals == [(claimed, harness_model.claim_harness(claim))]
+    assert clerk_model.waking("s1") == [str(held_back)]
 
 
 def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):

@@ -67,8 +67,6 @@ from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.json_block import json_block, read_json_block
 from leaf.refusals import Refused
-from leaf.registry import kernel as kernel_model
-from leaf.registry.kernel import kernel_protocol
 
 
 def codex_start_announcement(process) -> str:
@@ -788,19 +786,16 @@ class _NextPass(BaseException):
     `Exception`."""
 
 
-@pytest.mark.parametrize("copy", ["installed", "bumped", "checkout"])
+@pytest.mark.parametrize("installed", [True, False], ids=["installed", "checkout"])
 def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
-    monkeypatch, tmp_path, copy
+    monkeypatch, tmp_path, installed
 ):
     """Codex replaces its installed copy by moving it aside and renaming a new one
-    into its path. Once that copy reads every page the task holds, the adapter the
-    old copy started reads no page: it starts its successor through the new copy's
-    launcher once its own leases are gone, while it holds the start lock that keeps
-    a claim from starting another adapter meanwhile, and tries again when the
-    successor refuses. A copy at the next page protocol reads the task's pages only
-    once the task's next hook renews them, and until then the old adapter keeps the
-    task. An adapter that runs a checkout goes on."""
-    installed = copy != "checkout"
+    into its path. The adapter the old copy started reads no page after that: it
+    starts its successor through the new copy's launcher once its own leases are
+    gone, while it holds the start lock that keeps a claim from starting another
+    adapter meanwhile, and tries again when the successor refuses. An adapter that
+    runs a checkout goes on."""
     for name in CLAUDE_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
@@ -814,34 +809,19 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     for module in (cleanup_model, session_runtime_model):
         monkeypatch.setattr(module, "PLUGIN_ROOT", root)
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
-    page = tmp_path / "page"
-    page.mkdir()
-    protocol = kernel_protocol()
-    layer = page / "layer.json"
-    layer.write_text(json.dumps({"protocol": protocol}))
-    for module in (codex_adapter_model, session_model):
-        monkeypatch.setattr(module, "owned_pages", lambda _session: [page])
+    monkeypatch.setattr(
+        codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]
+    )
     monkeypatch.setattr(codex_adapter_model, "retry_delay", lambda _failures: 0)
     passes = itertools.count()
 
     def replace_the_copy(_session):
-        number = next(passes)
-        if number == 1 and copy == "bumped":
-            assert started == [], "the adapter followed a copy that can't read the page"
-            # The task's next hook renews the page at the new copy's protocol.
-            layer.write_text(json.dumps({"protocol": protocol + 1}))
-            return True
-        if number:
+        if next(passes):
             if installed:
                 pytest.fail("the adapter went on after Codex replaced its copy")
             raise _NextPass
         root.rename(tmp_path / "replaced")
         (root / ".git").mkdir(parents=True)
-        if copy == "bumped":
-            registry = root / "browser" / "runtime" / "kernel-registry.json"
-            registry.parent.mkdir(parents=True)
-            registry.write_text(json.dumps({"$events": {"protocol": protocol + 1}}))
-            monkeypatch.setattr(kernel_model, "KERNEL_REGISTRY", registry)
         return True
 
     monkeypatch.setattr(codex_model, "recover_codex_receipt", replace_the_copy)
@@ -854,10 +834,6 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
         assert leases_model.lock_is_held(start_lock)
         assert not leases_model.adapter_is_live(harness.session)
         assert not leases_model.wait_is_live(None, harness.session)
-        renewed = protocol + 1 if copy == "bumped" else protocol
-        assert json.loads(layer.read_text())["protocol"] == renewed, (
-            "the adapter followed a copy that can't read the page"
-        )
         started.append((arguments, launcher))
         if refusal := next(refusals, None):
             raise refusal

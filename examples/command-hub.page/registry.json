@@ -191,12 +191,7 @@
     },
     "owners": ["lf-atlas-plan", "lf-atlas-task"],
     "refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "verbs": {
       "state": {

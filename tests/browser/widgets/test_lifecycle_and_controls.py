@@ -13,7 +13,6 @@ from browser.widgets import (
     _bound_diff,
 )
 from leaf.render_checks import wait_until_ready
-from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -346,8 +345,7 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
 
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
     """The copy button consumes the tooltip's completion to release its copy lock."""
-    source = named_source("visual-review-gallery")
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(leaf_page("Copy", "<h1>Copy feedback</h1>")))
     page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate("""async () => {

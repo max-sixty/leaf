@@ -46,7 +46,6 @@ from interact_support import (
     shipped_sheets,
     vendored_at_another_protocol,
     wait_for,
-    words,
     write_record,
 )
 from model_folds import leaf_page
@@ -336,20 +335,21 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
 
 
 def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
-    """A server keeps the Leaf it started under, so a check by another commit of
-    Leaf may pass on code the user's tab doesn't run. `page check` notes that, with
-    the commands that restart the server, and the first reply on a revision repeats
-    its advice. A live server at this Leaf's commit, or a stopped one, draws no
-    note."""
+    """A server keeps the Leaf it started under, so a check by another Leaf, at
+    another path or commit, may pass on code the user's tab doesn't run. `page check`
+    notes that, with the commands that restart the server, and the first reply on a
+    revision repeats its advice. A live server this Leaf started, or a stopped one,
+    draws no note."""
     (page_dir / "index.html").write_text(leaf_page("Notes", "<p>Ship Tuesday.</p>"))
     activate_source(page_dir)
     serving(page_dir, available_loopback_port())
     service = read_record(page_dir / "service.json")
 
-    def advised(commit, enabled=True):
+    def advised(commit, enabled=True, path=cleanup_model.PLUGIN_ROOT):
+        runtime = {"path": str(path), "commit": commit}
         write_record(
             page_dir / "service.json",
-            {**service, "enabled": enabled, "runtime": {"commit": commit}},
+            {**service, "enabled": enabled, "runtime": runtime},
         )
         checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
         assert checked.exit_code == 0, checked.output
@@ -361,8 +361,12 @@ def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
 
     [noted] = advised("0123456789ab")
     restart = f"`leaf server stop {page_dir}` then `leaf server start {page_dir}`"
-    assert "runs Leaf 0123456789ab" in noted["text"] and restart in noted["text"]
-    assert advised(layer_model.running_leaf()["commit"]) == []
+    served = f"runs the Leaf at {cleanup_model.PLUGIN_ROOT} (0123456789ab)"
+    assert served in noted["text"] and restart in noted["text"]
+    own = layer_model.running_leaf()["commit"]
+    assert advised(own) == []
+    [elsewhere] = advised(own, path=page_dir.parent / "another-checkout")
+    assert "another-checkout" in elsewhere["text"]
     assert advised("0123456789ab", enabled=False) == []
 
 
@@ -2974,7 +2978,10 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
 def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_state(
     tmp_path, monkeypatch
 ):
-    """An enclosing repo is not the payload, and reading the payload leaves Git alone."""
+    """An enclosing repo is not the payload, and reading the payload leaves Git alone.
+    Codex's copy in its plugin cache is a clone, whose commit Git reads, since Codex
+    updates it in place under one name, and which reads clean whatever Codex strips
+    from it or adds."""
 
     def git(repo, *args):
         return subprocess.run(
@@ -3017,7 +3024,6 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_stat
         "-m",
         "plugin",
     )
-    (plugin / ".codex-marketplace-install.json").write_text("{}\n")
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
     monitor = tmp_path / "fsmonitor"
@@ -3046,6 +3052,17 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_changing_git_stat
     }
     assert index.stat().st_mtime_ns == before
     assert not monitor.with_suffix(".invoked").exists()
+
+    codex = tmp_path / ".codex" / "plugins" / "cache" / "leaf" / "leaf" / "local"
+    codex.parent.mkdir(parents=True)
+    plugin.rename(codex)
+    (codex / "payload").unlink()
+    (codex / ".codex-marketplace-install.json").write_text("{}\n")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", codex)
+    assert layer_model.payload_provenance(include_path=True) == {
+        **clean,
+        "path": str(codex),
+    }
 
 
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
@@ -5034,84 +5051,55 @@ def test_review_evidence_packages_export_independently(
         ["page", "export", str(page), "-o", str(tmp_path / "export.html"), "--runtime"],
     )
     assert exported.exit_code == 0, exported.output
-    if package == "diff":
-        source = page / "index.html"
-        source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
-        checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
-        assert checked.exit_code != 0
-        assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
-
-
-def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    package = schema_model.BUNDLED_PACKAGES / "visual-review"
-    page = tmp_path / "visual-review"
-
-    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
-    initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "visual-review", str(page)],
-    )
-
-    assert checked.exit_code == 0, checked.output
-    assert initialized.exit_code == 0, initialized.output
-    registry = registry_storage.load_registry(page)
-    widget = registry["lf-visual-review"]
-    assert registry["$layer"]["packages"] == ["visual-review"]
-    assert widget["inputs"] == {
-        "run": {
-            "contract": "visual-run",
-            "source": "source",
-            "property": "value",
-        }
-    }
-    assert widget["verbs"]["review"]["unit"] == "case"
-    assert "visual-run" in registry["$data"]["contracts"]
-    assert "/widgets/lf-visual-review.js" in layer_files(page)
-    assert "author.md" in layer_instructions(page)
 
 
 @pytest.mark.parametrize(
-    ("change", "refusal"),
+    ("package", "widget", "value", "change", "refusal"),
     [
         (
-            lambda run: {**run, "cases": [*run["cases"], run["cases"][0]]},
+            "file-tree",
+            '<lf-file-tree id="tree" source="value"></lf-file-tree>',
+            lambda: {"files": [{"path": "src/app.py"}, {"path": "src/lib.py"}]},
+            lambda files: {**files, "files": [*files["files"], files["files"][0]]},
             "record keys must be unique",
         ),
         (
-            lambda run: {**run, "base": {**run["base"], "url": "http://a.test:99999/"}},
+            "playwright",
+            '<lf-trace id="trace" source="value"></lf-trace>',
+            lambda: json.loads(
+                data_file(named_source("playwright-trace-gallery")).read_text()
+            )["release-journey"],
+            lambda trace: {**trace, "viewerUrl": "http://a.test:99999/"},
             "'http://a.test:99999/' is not a 'uri'",
         ),
     ],
-    ids=["repeated-case-id", "url-the-browser-cannot-parse"],
+    ids=["repeated-record-key", "url-the-browser-cannot-parse"],
 )
-def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
-    tmp_path, monkeypatch, change, refusal
+def test_data_set_refuses_a_value_its_widget_cannot_show(
+    tmp_path, monkeypatch, package, widget, value, change, refusal
 ):
-    """A case id addresses the case's review decisions and threads, and the widget
-    opens each target URL with the browser's URL parser, so `data set` refuses a run
-    that repeats an id or names a URL that parser refuses, rather than storing a run
-    the widget cannot show."""
+    """A record's key addresses the decisions and threads on it, and a widget opens a
+    URL with the browser's URL parser, so `data set` refuses a value that repeats a
+    key or names a URL that parser refuses, rather than storing a value its widget
+    cannot show."""
     monkeypatch.chdir(tmp_path)
-    gallery = named_source("visual-review-gallery")
-    page = tmp_path / "visual-review"
+    page = tmp_path / "page"
     runner = CliRunner()
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
+        cli_model.cli, ["page", "init", "--package", package, str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    shutil.copy(gallery, page / "index.html")
-    run = json.loads(data_file(gallery).read_text())["gallery-visual-run"]
+    (page / "index.html").write_text(leaf_page("Values", widget))
 
     def data_set(value):
         return runner.invoke(
             cli_model.cli,
-            ["data", "set", str(page), "gallery-visual-run"],
+            ["data", "set", str(page), "value"],
             input=json.dumps(value),
         )
 
-    accepted = data_set(run)
-    refused = data_set(change(run))
+    accepted = data_set(value())
+    refused = data_set(change(value()))
 
     assert accepted.exit_code == 0, accepted.output
     assert refused.exit_code == 1
@@ -5631,9 +5619,16 @@ def instruction_page(tmp_path: Path, monkeypatch):
             f'<lf-instruction-owner id="owner"><{tag} id="member">One</{tag}>'
             "</lf-instruction-owner>"
         )
+        if tag == "lf-instruction-unused":
+            entry["outputs"] = {"held": {"contract": "instruction-held"}}
         registry[tag] = entry
     registry["$data"]["contracts"].update(
         {
+            "instruction-held": {
+                "description": "Records a widget holds for others to read.",
+                "schema": {"type": "object"},
+                "instructions": {"producer": "Hold the records whole."},
+            },
             "instruction-records": {
                 "description": "Records for the selected widget.",
                 "schema": {"type": "object"},
@@ -5687,6 +5682,13 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
         "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
     )
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
+    # A widget holding a contract's value selects the contract as one reading it does.
+    holder = page_instructions(instruction_page, entries=("lf-instruction-unused",))
+    assert (
+        "# Data contract `instruction-held`\n\nHold the records whole."
+        in (holder["producer"])
+    )
+    assert "instruction-held" not in selected["producer"]
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):

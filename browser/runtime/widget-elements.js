@@ -66,6 +66,7 @@ import {
   isNativeLayer,
   renderedUnder,
   renderedParent,
+  untilFound,
 } from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";
@@ -101,7 +102,7 @@ export function reveal(el, mayReveal) {
     if (a instanceof HTMLDetailsElement && !a.open) a.open = true;
     if (a instanceof HTMLElement && a.hasAttribute("popover") && !isNativeLayer(a))
       showNativeLayer(a, { modal: false });
-    if (a.getAttribute?.("hidden") !== "until-found") continue;
+    if (!untilFound(a)) continue;
     const shown = [...(a.parentNode?.children ?? [])].filter(
       (s) => !("hidden" in s && s.hidden),
     );

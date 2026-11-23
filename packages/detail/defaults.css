@@ -10,27 +10,6 @@ lf-dial {
   margin-block: var(--lf-sp-3);
   margin-inline-start: auto;
 }
-/* The dial's row, drawn at upgrade, keeps the box it has at first paint. */
-html[data-lf-interactive] lf-dial {
-  min-block-size: calc(var(--lf-line) + var(--lf-sp-2));
-}
-/* Measure the three labels in their radios' face before the radios arrive, each as
-   wide as the widest, Everything. Zero width separators prevent kerning across radio
-   boundaries. The inset is the three radios' padding and borders (the word face,
-   controls.css), the row's frame, and its two gaps (webawesome.css). In a column too
-   narrow for three, it takes the column's width, as the row then does. */
-html[data-lf-interactive] lf-dial:not(:defined)::before {
-  content: "Everything\200b Everything\200b Everything";
-  display: block;
-  max-inline-size: 100%;
-  overflow: hidden;
-  visibility: hidden;
-  white-space: nowrap;
-  font: var(--lf-font-choice);
-  padding-inline: calc(
-    3 * (var(--wa-form-control-padding-inline) + 1px) + 2px + 1px + var(--lf-sp-1)
-  );
-}
 .lf-dial-depths {
   display: block;
   font: var(--lf-font-compact);

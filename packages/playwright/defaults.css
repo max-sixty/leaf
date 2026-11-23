@@ -30,14 +30,6 @@ lf-trace {
   overflow-wrap: anywhere;
 }
 
-/* The module's waiting line replaces this fixed-height slot when it connects. */
-@scope (html[data-lf-interactive]) {
-  lf-trace:not(:defined)::before {
-    content: "";
-    display: block;
-    block-size: 1lh;
-  }
-}
 .lf-trace-view {
   display: contents;
 }
@@ -922,16 +914,6 @@ lf-trace-compare .lf-trace-heading {
 lf-trace-compare > *,
 lf-trace-compare lf-trace {
   margin-block: 0;
-}
-
-/* The chooser has fixed apparatus geometry; its native slot holds that room
- * while the module loads. View selection remains the shared view owner's job. */
-@scope (html[data-lf-interactive]) {
-  lf-trace-compare:not(:defined)::before {
-    content: "";
-    display: block;
-    block-size: calc(var(--lf-chooser) + 2 * var(--lf-trace-chooser-padding) + 1px);
-  }
 }
 
 .lf-trace-image-scale {

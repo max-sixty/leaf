@@ -428,12 +428,13 @@ customElements.define(
         });
         this.#source = { bundle: await loadPlot(), body, failed };
         await delivered;
-        const { width, height } = /** @type {DOMRectReadOnly} */ (room);
+        const { width } = /** @type {DOMRectReadOnly} */ (room);
         // The box each drawing goes in. A redraw replaces what is in it and nothing else,
         // because by then the runtime may have hung its own words on the widget — the
         // line saying a comment stands on this chart is a child of the element. It holds
-        // the height the page held the chart at, so the chart's box keeps it whatever a
-        // drawing measures, and only its width moves the observer.
+        // the chart's stated height, so the chart's box keeps it whatever a drawing
+        // measures, and only its width moves the observer.
+        const height = Number(this.getAttribute("data-lf-height")) || 400;
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";
         this.drawing.style.blockSize = layoutPx(height);

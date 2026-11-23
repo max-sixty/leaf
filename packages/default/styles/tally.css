@@ -43,22 +43,3 @@ lf-tally {
   min-height: var(--lf-aim-floor);
   margin-inline-end: var(--lf-focus-ring-room);
 }
-
-lf-tally:not(:defined)::before {
-  content: "00 left to answer · 00 on the agent";
-  display: inline-block;
-  visibility: hidden;
-  font: var(--lf-font-chip);
-  padding: var(--lf-chip-pad);
-}
-lf-tally[next]:not(:defined)::after {
-  content: "Next On Me";
-  display: inline-block;
-  visibility: hidden;
-  font: var(--lf-font-small);
-  box-sizing: border-box;
-  padding-inline: var(--wa-form-control-padding-inline);
-  border: 1px solid transparent;
-  margin-inline-end: var(--lf-focus-ring-room);
-  min-block-size: var(--lf-aim-floor);
-}

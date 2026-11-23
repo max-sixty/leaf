@@ -7,17 +7,6 @@ lf-motion {
   --lf-motion-toolbar-height: calc(var(--lf-motion-control-height) + 16px);
 }
 
-lf-motion:not(:defined)::before {
-  content: "";
-  display: block;
-  block-size: calc(var(--lf-motion-toolbar-height) + var(--lf-sp-3));
-}
-@container (max-width: 30rem) {
-  lf-motion:not(:defined)::before {
-    --lf-motion-toolbar-height: calc(2 * var(--lf-motion-control-height) + 24px);
-  }
-}
-
 .lf-motion-controls {
   position: sticky;
   top: var(--lf-top);

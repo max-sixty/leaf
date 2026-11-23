@@ -275,30 +275,3 @@ lf-worktree dd {
 :host(lf-worktree-diffs) > slot {
   display: contents;
 }
-
-lf-worktree:not(:defined) {
-  display: block;
-  padding-inline: var(--lf-sp-4);
-}
-html[data-lf-interactive] lf-worktree:not(:defined)::before {
-  content: "";
-  display: block;
-  block-size: max(4rem, var(--lf-aim-floor));
-}
-html[data-lf-interactive] lf-worktree[open]:not(:defined) {
-  padding-block-end: var(--lf-sp-4);
-}
-html[data-lf-interactive] lf-worktree[open]:not(:defined)::before {
-  /* The path adds its line and top gap after the fixed summary. */
-  font: var(--lf-font-small);
-  block-size: calc(max(4rem, var(--lf-aim-floor)) + var(--lf-sp-3) + 1lh);
-}
-html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
-  display: none;
-}
-html[data-lf-interactive] lf-worktree-diffs:not(:defined)::before {
-  content: "";
-  grid-column: 1 / -1;
-  font: var(--lf-font-title);
-  block-size: calc(1lh + var(--lf-sp-3));
-}

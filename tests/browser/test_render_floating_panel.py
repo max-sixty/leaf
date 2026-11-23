@@ -3560,6 +3560,37 @@ def test_an_open_thread_s_reply_stands_only_while_its_key_enters_the_field(
     expect(key).to_have_text("c")
 
 
+END_KEY = """() => {
+  const keys = [...document.querySelectorAll('.lf-fp-field kbd')].filter(
+    (k) => k.textContent && k.checkVisibility({ visibilityProperty: true }));
+  return keys.length ? keys.at(-1).getBoundingClientRect().right : null;
+}"""
+
+
+def test_the_field_s_end_press_stands_one_place_beside_the_leaf(browser, serve):
+    """The empty field's end press, its word and key, stands as far from the leaf in an
+    open thread as on the page, and as far once the user has written in the thread's
+    reply and stepped out of it: the field keeps the room of its corner only while
+    Dictate or Send stands there, which is never beside the end press."""
+    url = serve(OBLIGATION_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    on_page = page.evaluate(END_KEY)
+    assert on_page is not None, "the page's field ends in a press and its key"
+    page.keyboard.press("t")
+    expect(field(page)).to_have_attribute("placeholder", "Reply… c")
+    assert page.evaluate(END_KEY) == on_page, "Reply stands where the page's press does"
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).not_to_be_focused()
+    expect(field(page)).to_have_attribute("placeholder", "Reply… c")
+    assert page.evaluate(END_KEY) == on_page, (
+        "Reply stands there once the user has stepped out of the reply"
+    )
+
+
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
     """The leaf opens its menu in the place of the view open above the row, however
     tall that stood, above the leaf, and within a short window it keeps every row

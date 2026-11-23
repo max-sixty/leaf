@@ -264,12 +264,13 @@ def _reinit(
     A rewrite holds the page's init lock from `still`'s second reading through the
     restart, so re-initializations of one page take turns: two renewals at once, as
     a hook reading the session's pages and the restart of a server that follows the
-    session's copy can make, would each pass their first reading, since the page lock can't span
-    the restart whose stop takes it, and the second would then find the old server
-    still exiting from the first's stop, and be refused, or stop the server the first
-    had just started. In turn, the second finds the page renewed and changes nothing.
-    A re-initialization that changes nothing takes no lock and so writes nothing; the
-    plan is taken again only under the transaction (`_init_page`)."""
+    session's copy can make, would each pass their first reading, since the page
+    lock can't span the restart whose stop takes it, and the second would then find
+    the old server still exiting from the first's stop, and be refused, or stop the
+    server the first had just started. In turn, the second finds the page renewed
+    and changes nothing. A re-initialization that changes nothing takes no lock and
+    so writes nothing; the plan is taken again only under the transaction
+    (`_init_page`)."""
     with page_locked(page_dir):
         if not still():
             return [], ()

@@ -265,12 +265,12 @@ def stop_when_service_ends(page_dir: Path) -> None:
     each module it loads later from the new copy, beside the old modules it holds,
     and the browser would load the new copy's runtime from it. So each pass, while
     the service is persistent or a live session holds the page, asks which copy
-    should run the server now (`state.LoadedCopy.successor`), and has each copy it
-    names restart it (`_follow_copy`). A copy that declines, as one that can't serve
-    the page does, is asked again only after the session has run another. A server whose session has
-    ended retires on its copy after its grace, which leaves its service enabled for
-    a resumed session's prompt to serve again; a restart would instead disable it
-    (`hosting.restarting_server`)."""
+    should run the server now (`state.LoadedCopy.successor`), and has the copy it
+    names restart it (`_follow_copy`). It asks again only once it names another
+    copy, so a copy that declines, as one that can't serve the page does, isn't
+    asked on every pass. A server whose session has ended retires on its copy after
+    its grace, which leaves its service enabled for a resumed session's prompt to
+    serve again; a restart would instead disable it (`hosting.restarting_server`)."""
 
     copy = LoadedCopy()
     asked = None

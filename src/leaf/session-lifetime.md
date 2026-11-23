@@ -283,7 +283,8 @@ Codex or Pi puts in place of its own. It then has that copy take over from it. A
 watch between turns asks only whether another copy was put in place of its own,
 since under Claude Code each turn's hooks start a new watch from the session's copy,
 and the newest watch supersedes an older one (`session.watch_between_turns`). A
-process from a checkout follows nothing.
+process from a checkout follows no copy.
+
 An update that moves the page protocol leaves the session's pages at the old one.
 The restart of each page's server renews the page first, as the session's next hook
 would (`hosting.follow_copy`), and the renewal restarts the server itself; the
@@ -294,7 +295,7 @@ where a watch runs between turns.
 A server whose service is persistent, or whose page a live session holds, has the copy
 it follows restart it at the same address, for the session holding the page where one
 does, and serves meanwhile (`server.stop_when_service_ends`). The adapter releases
-its leases and starts a successor from the new copy. It holds the task's start lock
+its leases and starts a successor from the copy it follows. It holds the task's start lock
 until the successor holds its leases and its transport answers, so a claim meanwhile
 waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
 reads the adapter lease without the start lock finds no adapter. Pi's watch lets its

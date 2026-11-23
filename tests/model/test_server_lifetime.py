@@ -237,11 +237,11 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
     restart it once a pass finds it: it starts `server _follow` once, through the new
     copy's launcher, naming itself, tries again when that launch fails, and goes on
     serving until that restart stops it. Where that copy left it running, it asks
-    again only once the session's hooks run yet another copy. The child's environment names no harness,
-    so it can't hand itself to a checkout the session selected. A server whose
-    session has ended retires after its grace instead, as does one from Claude
-    Code's copy whose environment Claude Code deleted, one whose session's hooks run
-    a checkout, and one a checkout started."""
+    again only once the session's hooks run yet another copy. The child's
+    environment names no harness, so it can't hand itself to a checkout the session
+    selected. A server whose session has ended retires after its grace instead, as
+    does one from Claude Code's copy whose environment Claude Code deleted, one
+    whose session's hooks run a checkout, and one a checkout started."""
     follows = copy in (
         "codex",
         "pi",

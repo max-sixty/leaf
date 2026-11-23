@@ -54,13 +54,15 @@ one, environment included, so an adapter left running would load each module it
 imports later from the new copy, beside the old modules it already holds. So the
 adapter asks each pass which copy should run it now (`state.LoadedCopy.successor`),
 as a page server does (`server.stop_when_service_ends`), and once that names one,
-hands its task to an adapter from that copy (`_hand_over`). Under Codex the answer
-is the copy Codex put at the adapter's own path. An update that moves the page
-protocol leaves the task's pages at the old one, which the restart of each page's
-server renews (`hosting.follow_copy`), and the successor delivers their input once
-it does. A checkout's adapter follows no copy: it keeps the modules it loaded and
-imports any later one from the checkout as it stands, since whoever runs a checkout
-decides when it changes.
+hands its task to an adapter from that copy (`_hand_over`). An adapter running
+Codex's copy moves to the copy Codex puts at its path, and one that another
+installed copy started, as a bare `leaf` from a Claude Code shell does, moves to
+the copy the task's hooks run. An update that moves the page protocol leaves the
+task's pages at the old one, which the restart of each page's server renews
+(`hosting.follow_copy`), and the successor delivers their input once it does. A
+checkout's adapter follows no copy: it keeps the modules it loaded and imports any
+later one from the checkout as it stands, since whoever runs a checkout decides
+when it changes.
 
 Restarting the adapter from the task's prompt hook would leave it on its deleted
 copy until the task's next prompt, which can come hours later. Replacing the process

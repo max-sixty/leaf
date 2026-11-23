@@ -412,6 +412,11 @@ class HandoverProgress:
         return True
 
 
+# The query marks `runtime/bootstrap.js` takes off a document's address before the user
+# sees it: a revision mark, startup recovery's mark (`asked_again`) and the host key.
+ADDRESS_MARKS = frozenset({"_leaf-revision", "_leaf-recovered", "t"})
+
+
 def asked_again(url: str) -> str:
     """`url` as the document startup recovery asks the server for once more
     (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for

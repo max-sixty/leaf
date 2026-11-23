@@ -563,6 +563,7 @@ export function createFloatingResponsePlacement({
       extent: place.extent,
       boundary,
       scroller: boundary.scroller,
+      element: place.element,
       coarse: coarsePointer.matches,
     });
     if (

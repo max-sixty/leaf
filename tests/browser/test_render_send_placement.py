@@ -2050,7 +2050,7 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
           const gap = subjectGap(room, 'bottom');
           const overflow = before.bottom + gap + height - boundary.bottom;
           const moved = makeRoom(
-            'bottom', before, before, room, height, boundary, scroller);
+            'bottom', before, before, room, height, boundary, scroller, target);
           const after = target.getBoundingClientRect();
           return {moved, overflow, remaining:after.bottom + gap + height - boundary.bottom,
                   visible:after.top >= boundary.top && after.bottom <= boundary.bottom};

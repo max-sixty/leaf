@@ -123,16 +123,17 @@ rule draws at once is drawn.
   `annotation-overlay/thread-preview.js` for the edge a card holds. A freshly opened card
   may scroll to open clear of its target, and otherwise only a field in flow scrolls to
   keep its controls in view (`thread/reply-landing.js`).
-- **Readable content comes before activation.** Authored HTML paints while browser
-  modules load. Each widget owns one Lit view across its lifetime; native slots retain
-  authored children and CSS owns their initial layout. Each control waits only for the
-  behavior or state it needs, and nothing holds the whole document behind widget
-  readiness (`../skills/leaf/references/module-authoring.md`, "First paint").
+- **The page's content shows once its widgets have drawn.** The panel shows from first
+  paint; body waits for `data-lf-upgraded` (`base.css`), so nothing in it moves as a
+  module arrives and no widget holds room for its drawing. A page that cannot start
+  shows its readable fallback at once, and one still drawing after 3s shows as it
+  stands. Each widget owns one Lit view across its lifetime; native slots retain
+  authored children (`../skills/leaf/references/module-authoring.md`, "First paint").
 - **A widget grows with its content.** In ordinary flow a widget grows with its content,
   and keeps its visible geometry as its state updates. It scrolls inside itself only when
   its task needs a region kept in view while its contents move, or for a live stream
-  whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Checks: the widget
-  quality checks `keeps-first-box` and `grows-with-content`
+  whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Check:
+  the widget quality check `grows-with-content`
   (`src/leaf/render_gate/widget_quality.py`).
 - **Room is held only for what will be drawn**, such as a widget's upgraded controls, and
   generated interface appears in its final position. A state that may never come, such

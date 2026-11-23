@@ -1,10 +1,9 @@
-"""Observed widget-quality limits, including accepted content-derived startup changes
-(`leaf/render_gate/widget_quality.py`, `test_widget_quality.py`).
+"""Observed widget-quality limits (`leaf/render_gate/widget_quality.py`,
+`test_widget_quality.py`).
 
 `KNOWN` names each finding by package directory, tag, and check. A finding it does not
 name fails the test, and so does an entry that no longer occurs. Each entry names an
-observed limitation or an explicitly accepted content-derived startup change, with its
-reason beside it. The corpus sweep reads the same list, since a widget's defect is
+observed limitation, with its reason beside it. The corpus sweep reads the same list, since a widget's defect is
 its own wherever it stands (`test_render_gate.py`, `held_scroller_findings`)."""
 
 from leaf import schema as schema_model
@@ -18,17 +17,4 @@ PACKAGES = [
     ),
 ]
 
-KNOWN: dict[str, set[tuple[str, str]]] = {
-    # Formatting replaces raw unified-diff header lines with file/hunk rows.
-    # Matching that content-derived height before upgrade needs another renderer.
-    "diff": {("lf-diff", "keeps-first-box")},
-    # The live view sets the preview beside the aside and draws the presets'
-    # buttons and the bar of actions, so the playground resizes once on activation.
-    "playground": {
-        ("lf-playground", "keeps-first-box"),
-        ("lf-playground-preset", "keeps-first-box"),
-    },
-    # The authored event list becomes a chart whose labels are packed from measured
-    # text. Duplicating that layout in CSS would restore a second renderer.
-    "timeline": {("lf-timeline", "keeps-first-box")},
-}
+KNOWN: dict[str, set[tuple[str, str]]] = {}

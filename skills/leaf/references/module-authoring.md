@@ -226,19 +226,15 @@ now would move what the user sees, pass the work to the widget controller's
 
 ### First paint
 
-The document paints its authored HTML while browser modules load. Each widget renders
-when its module loads, then updates that same view from Leaf's readings. A control
-that needs JavaScript or saved state waits only for its own behavior or reading;
-native disclosures, links and authored content need no such wait.
+The page's content shows once every widget on it has drawn, so a widget needs no room
+held for it before its module loads. Each widget renders when its module loads, then
+updates that same view from Leaf's readings.
 
 - Return a widget's complete view from `LeafElement.render()`. The same rendering
   root handles fresh mounts, thread messages and later updates; do not add a second
   initial renderer or transfer generated nodes between renderers.
-- Size the widget in the package theme, including its initial authored drawing.
-  A shadow template uses native slots for authored children, keeping their nodes and
+- A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as

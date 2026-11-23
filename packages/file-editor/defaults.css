@@ -17,6 +17,11 @@ lf-file-editor {
   overflow: clip;
   --lf-file-editor-height: clamp(24rem, 60vh, 42rem);
 }
+/* A stated height (`height`, which delivery paints as `data-lf-height`) is the box the
+ * editor keeps, in place of its default. */
+lf-file-editor[data-lf-height]:not([data-lf-height=""]) {
+  block-size: attr(data-lf-height px);
+}
 /* The comparison the reader opened shares the editing region with the editor. */
 lf-file-editor:state(comparing) {
   grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);

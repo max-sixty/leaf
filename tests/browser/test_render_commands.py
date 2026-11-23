@@ -648,46 +648,6 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
-    browser, serve
-):
-    """Before its module draws, a shot holds the height its drawing takes at each width,
-    on both sides of the narrow toolbar's breakpoint. Where scrollbars are classic, as on
-    Linux, the stage's gutter narrows the frame and not the width the toolbar reads."""
-    widths = [430, 450, 455, 465, 480, 640]
-    shots = "".join(
-        f'<div style="inline-size: {w}px"><lf-shot id="w{w}" alt="a pair"'
-        f' before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot></div>'
-        for w in widths
-    )
-    url = serve(
-        leaf_page("Held shots", f"<h1>Held shots</h1>{shots}"),
-        media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
-    )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held_entry = []
-    # As the widget check holds it (`render_gate/widget_quality.py`): the first
-    # request for the entry waits, and the route stays until the page closes.
-    page.route(
-        "**/leaf.js",
-        lambda route: route.fallback() if held_entry else held_entry.append(route),
-    )
-    heights = "shots => shots.map(shot => shot.getBoundingClientRect().height)"
-    with page.expect_request("**/leaf.js"):
-        page.goto(url, wait_until="commit")
-    page.wait_for_function(
-        "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
-    )
-    held = page.locator("lf-shot").evaluate_all(heights)
-    held_entry[0].fallback()
-    render_checks_model.wait_until_ready(page)
-    expect(page.locator("lf-shot .lf-shotframe").first).to_be_visible()
-    drawn = page.locator("lf-shot").evaluate_all(heights)
-    assert dict(zip(widths, held, strict=True)) == pytest.approx(
-        dict(zip(widths, drawn, strict=True)), abs=1
-    )
-
-
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     browser, serve
 ):

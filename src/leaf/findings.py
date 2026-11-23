@@ -396,24 +396,6 @@ def _broken_names(at: str, v: dict) -> str:
     )
 
 
-def _drawn_height(at: str, v: dict) -> str:
-    # `box` is the height the element holds now: past `before`, what follows it moved
-    # as it drew; past `drawn`, a stated height larger than the drawing left room.
-    text = (
-        f"{at} was {v['before']}px tall before drawing and its drawing is"
-        f" {v['drawn']}px tall"
-    )
-    if moved := v["box"] - v["before"]:
-        direction = "down" if moved > 0 else "up"
-        text += f", so what follows it moved {direction} {abs(moved)}px as it drew"
-    if (blank := v["box"] - v["drawn"]) > 0:
-        text += f", leaving {blank}px blank under the drawing"
-    return (
-        f'{text}; data-height="{v["drawn"]}" holds the drawing\'s height from'
-        " first paint"
-    )
-
-
 def _clipped_content(at: str, v: dict) -> str:
     cuts = []
     if v["down"]:
@@ -970,7 +952,6 @@ _TEXT = {
     ),
     "squeezed-table": _squeezed,
     "broken-name": _broken_names,
-    "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
         f" {v['width']}px, the smallest ({v['words']!r}) at {v['drawn']:g}px from"
@@ -2030,10 +2011,6 @@ _TEXT = {
         _EXAMPLES, lambda at, v: f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
-    "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
-        f" before upgrade, {_size(v['now'])} once presented"
-    ),
     "shows-context-keys": lambda at, v: (
         f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
         " context keys and no"

@@ -3531,6 +3531,14 @@ def compare_with(page, version=None):
     press.click()
 
 
+def show_changes(page):
+    """Press `g V v`: Versions opens on the version it offers, the one the user last
+    saw or else the newest one older than the version being read, or the one compared
+    with while a comparison stands, and `v` presses its Compare."""
+    for key in ("g", "Shift+V", "v"):
+        page.keyboard.press(key)
+
+
 def scroll_writes(page, steps, scroller="document.scrollingElement"):
     """Scroll `scroller` (a page expression) by each of `steps`, waiting for every
     repaint a step queues, and return each DOM write the scroll caused, numbered by

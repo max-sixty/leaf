@@ -263,6 +263,7 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
+import { openingPart } from "./thread/focus.js";
 import { inPageOrder, threadPlace } from "./thread/placement.js";
 import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
@@ -280,7 +281,6 @@ import {
   draftsReading,
   loadDraft,
   mirrorDraft,
-  replyContext,
   saveDraft,
   sendMessage,
   tellDraft,
@@ -5686,13 +5686,6 @@ export function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
 
-  // A move between a thread's card and this view lands in the thread's reply where the
-  // reply holds words, which the move carries along so the user goes on writing, and
-  // otherwise on the thread, where this field shows the switch's notice and its press
-  // back (thread/threads-in-panel.js), which the caret in a reply would cover.
-  /** @param {string} key */
-  const movedPart = (key) =>
-    loadDraft(replyContext(key))?.text?.trim() ? "reply" : "thread";
   // A margin card's Open in panel hands its thread here, where a long thread reads
   // wider than in the card's room beside the column (thread-preview.js). It chooses
   // this panel for the threads after it, offering this thread's Show on page back, and
@@ -5705,7 +5698,7 @@ export function createFloatingPanel({
     const { key } = thread;
     chooseThreadsInPanel(true, () => showOnPage(key));
     void threadActions.open(key, {
-      part: movedPart(key),
+      part: openingPart({ moved: key }),
       travel: false,
       intent: retainUserIntent(),
     });
@@ -5733,7 +5726,7 @@ export function createFloatingPanel({
     // keeping its reply's words as a close does. A route that lands nowhere leaves the
     // view where the user was.
     void threadActions
-      .open(key, { part: movedPart(key), intent, reader: "page" })
+      .open(key, { part: openingPart({ moved: key }), intent, reader: "page" })
       .then((landed) => {
         if (!landed || !intent()) return;
         if (threadOf(trail.value.at(-1))?.key === key) close();

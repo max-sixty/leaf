@@ -274,3 +274,79 @@ def test_a_press_on_words_the_panel_opens_over_brings_them_clear(browser, serve)
     assert box["y"] + box["height"] <= view.bounding_box()["y"] + 1, (
         "the words stand under the panel's view"
     )
+
+
+def test_p_moves_a_thread_whose_reply_holds_words_the_user_left(browser, serve):
+    """`p` lands on the thread it moves, even where its reply holds words the user
+    stopped writing, so a second `p` moves it back rather than typing a letter into
+    them."""
+    url, roots = threads_page(serve)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    cards = page.locator(".lf-margin-preview")
+    card = cards.locator(f'.lf-page-thread[data-lf-thread="{roots["near"]}"]')
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["near"]}"]')
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    reply = card.locator(".lf-thread-reply leaf-text")
+    reply.click()
+    page.keyboard.type("Halfway through a reply")
+    page.keyboard.press("Escape")
+    expect(card).to_be_focused()
+
+    page.keyboard.press("p")
+    expect(view).to_be_focused()
+    page.keyboard.press("p")
+    expect(card).to_be_focused()
+    expect(reply).to_have_js_property("value", "Halfway through a reply")
+
+
+def test_a_move_while_writing_keeps_the_caret_in_the_reply(browser, serve):
+    """A click on Open in panel while the user writes in the card's reply carries the
+    reply to the panel with its words and selection, and the caret stays in it, so
+    they go on writing."""
+    url, roots = threads_page(serve)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    cards = page.locator(".lf-margin-preview")
+    card = cards.locator(f'.lf-page-thread[data-lf-thread="{roots["near"]}"]')
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    card.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.type("Halfway through a reply")
+    for _ in range(3):
+        page.keyboard.press("Shift+ArrowLeft")
+    cards.get_by_role("button", name="Open in panel", exact=True).click()
+    field = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Halfway through a reply")
+    assert field.evaluate("f => [f.selectionStart, f.selectionEnd]") == [20, 23]
+
+
+def test_reopening_a_thread_on_the_element_read_adds_no_back_step(browser, serve):
+    """With the panel chosen, reopening from Threads the thread on an element taller
+    than the window, while reading inside it, moves nothing, so it adds no Back step:
+    history judges the landing the travel makes."""
+    paragraphs = "".join(
+        f"<p>Tall paragraph {n}. " + "Words. " * 40 + "</p>" for n in range(30)
+    )
+    url = serve(
+        leaf_page(
+            "Tall section",
+            f"<h1>Tall section</h1>{FILLER}<section id='tall'>{paragraphs}</section>{FILLER}",
+        )
+    )
+    root = panel_comment(serve.page_dir, "About the tall section?", {"section": "tall"})
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    choose_threads_in_panel(page)
+    page.locator("#tall p").nth(15).evaluate(
+        "p => p.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    before = page.evaluate("[scrollY, history.length]")
+    open_threads(page)
+    page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{root}"]').click()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
+    scroll_settled(page)
+    assert page.evaluate("[scrollY, history.length]") == before

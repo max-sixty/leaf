@@ -639,8 +639,13 @@ export function createAnchorTravel({
       return true;
     }
     // Decided before the navigation step awaits anything: a destination that is not readable now,
-    // or one a widget has yet to hydrate, is somewhere else.
-    if (destination || hydrationTarget) departure?.plan(destination);
+    // or one a widget has yet to hydrate, is somewhere else. One readable now is already
+    // there where the landing below, at its `block`, would move nothing, so history
+    // judges the placement the scroll makes (`threadLanding`).
+    if (destination || hydrationTarget)
+      departure?.plan(destination, {
+        there: () => destination !== null && alreadyShown(destination, { block }),
+      });
     if (hydrationTarget) {
       const source = sectionOf(hydrationTarget);
       // A visual settles on its part, including cancelling a pending replacement of

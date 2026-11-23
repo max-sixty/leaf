@@ -167,6 +167,56 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
 
 
+def test_versions_counts_the_changes_since_each_older_version(browser, serve):
+    """Each version older than the one shown says before its Compare's word how many
+    changes a comparison with it would mark, in the press's name too. Reopening
+    Versions shows the counts it holds without asking the server again, and a pick
+    that adds a change counts again. The version shown has no Compare."""
+    options = PAGE.replace(
+        '<p id="a">',
+        '<lf-group id="g-q" label="When to ship?">'
+        '<lf-options id="g"><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-option id="g-b">Ship later</lf-option></lf-options></lf-group>\n<p id="a">',
+    )
+    url = live_url(serve(options))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    stamp_page(d, revised(options, BETA), "rewrote Beta")
+    stamp_page(d, revised(options, BETA, DELTA), "rewrote Delta")
+    wait_for_revision(page, 3)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    compare = {n: page.get_by_role("button", name=f"Compare with v{n}") for n in (1, 2)}
+    for n, said in ((2, "1 change"), (1, "2 changes")):
+        expect(compare[n]).to_have_text(f"{said} Compare")
+        expect(compare[n]).to_have_accessible_name(f"{said}, Compare with v{n}")
+    expect(
+        page.locator(".lf-fp-version").first.locator(".lf-fp-compare")
+    ).to_have_count(0)
+    views = []
+    page.on("request", lambda request: "/api/view?" in request.url and views.append(1))
+    page.keyboard.press("Escape")
+    expect(compare[1]).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(compare[1]).to_have_text("2 changes Compare")
+    assert not views, "reopening Versions counted again with nothing changed"
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 3,
+            "widget": "g",
+            "action": "choose",
+            "detail": {"value": ["g-a"]},
+        },
+    )
+    expect(compare[1]).to_have_text("3 changes Compare")
+    compare[1].click()
+    expect(page.locator(".lf-live")).to_contain_text("3 changes since v1")
+
+
 def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser, serve):
     """The page's field says "2 changes since v1" while a comparison stands, so a
     change's place there is its place alone. A thread open in the panel says no such

@@ -303,6 +303,7 @@ import { versionPicker } from "./version-picker.js";
 import {
   COMPARE_KEY,
   LATEST_KEY,
+  changesCounted,
   comparisonBase,
   comparisonChanges,
   throughVersions,
@@ -2949,11 +2950,36 @@ export function createFloatingPanel({
   // pointer that can't hover (floating-panel.css). A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
   // the two words line up. Showing stands outside the press, as Compare does, over
-  // the row's end; the press carries it as `aria-current`. Versions opens at the
-  // version it offers to compare with (version.js, `selection.offered`), else at the
-  // version shown, the row marked `data-lf-at`.
+  // the row's end; the press carries it as `aria-current`. Before its word, Compare
+  // says how many changes a comparison with its version would mark, once Versions has
+  // counted them (version.js, `changesCounted`), so the counts stand one under another
+  // and a press on a count shows those changes. The count's room is held from the
+  // start, so a count coming in moves no words beside it. The press's name says the
+  // count first, as the press shows it, then "Compare with" the version. Versions opens
+  // at the version it offers to compare with (version.js, `selection.offered`), else
+  // at the version shown, the row marked `data-lf-at`.
   /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry */
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
+  // The room a count holds: three digits, past which a count is cut.
+  const CHANGES_ROOM = "100 changes";
+  /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry
+   * @param {ReturnType<typeof versionsReading>["selection"]} selection */
+  function comparePress(entry, selection) {
+    const n = changesCounted(entry.revision);
+    const said = n === null ? "" : n ? counted(n, "change") : "No changes";
+    return html`<button
+      type="button"
+      ${offeredAction("word", "lf-fp-compare")}
+      aria-pressed=${String(selection.on && selection.base === entry.revision)}
+      aria-label=${[said, `Compare with ${entry.name}`].filter(Boolean).join(", ")}
+      @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
+    >
+      <span class="lf-fp-changes" data-lf-room=${CHANGES_ROOM}
+        ><span>${said}</span></span
+      >
+      Compare
+    </button>`;
+  }
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     /** @param {(typeof versions)[number]} entry */
@@ -2999,22 +3025,7 @@ export function createFloatingPanel({
                 entry.current
                   ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
                   : nothing
-              }${
-                entry.comparable
-                  ? html`<button
-                      type="button"
-                      ${offeredAction("word", "lf-fp-compare")}
-                      aria-pressed=${String(
-                        selection.on && selection.base === entry.revision,
-                      )}
-                      aria-label=${`Compare with ${entry.name}`}
-                      @click=${() =>
-                        putAwayThen(() => versionPicker.compare(entry.version))}
-                    >
-                      Compare
-                    </button>`
-                  : nothing
-              }
+              }${entry.comparable ? comparePress(entry, selection) : nothing}
             </div>`,
         )}
       </div>

@@ -2686,13 +2686,26 @@ def versions_menu(page: Page) -> None:
     wait_until_ready(page, PageClient(served_page.get().address).state())
     more_menu(page)
     page.locator('.lf-fp-item[data-lf-row="versions"]').click()
+    versions_counted(page)
+
+
+def versions_counted(page: Page) -> None:
+    """Wait for Versions to stand with each older version's count of changes before
+    its Compare, which Versions counts after it opens. A Leaf that counts none holds
+    no room for a count."""
     page.locator(".lf-fp-version").first.wait_for()
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.lf-fp-changes')].every(
+          (count) => count.textContent.trim()
+        )"""
+    )
 
 
 def versions_last_seen(page: Page) -> None:
     """Versions opened by its key on return to a page the agent stamped twice while
     the tab was hidden: the version the user last saw reads last seen, and the key
-    lands on it, whose Compare `v` presses."""
+    lands on it, whose Compare `v` presses. Each older version's Compare says how many
+    changes stand since it before its word."""
     page.evaluate("""() => {
       Object.defineProperty(document, 'visibilityState', {
         configurable: true, get: () => window.__lfVisibility ?? 'visible',
@@ -2720,7 +2733,7 @@ def versions_last_seen(page: Page) -> None:
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
-    page.locator(".lf-fp-version").first.wait_for()
+    versions_counted(page)
 
 
 def all_pages(page: Page) -> None:

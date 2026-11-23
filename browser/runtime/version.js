@@ -170,8 +170,8 @@ import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
-import { projectDocument, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/runtime/framework.js";
+import { projectDocument, readApplication, readPart } from "./semantic-state.js";
+import { batch, effect, signal, untracked } from "/runtime/framework.js";
 
 import {
   ADDRESSABLE,
@@ -425,6 +425,50 @@ const parenthesized = (roles) => {
   const said = roles.filter(Boolean);
   return said.length ? ` (${said.join(", ")})` : "";
 };
+
+// How many changes stand since each version older than the one being read, which
+// Versions says on its Compare: what a comparison with it would mark (`changesSince`).
+// A count reads the revision being read and the widgets' state, so it stands while
+// both do; the publisher keeps the widgets' state the same object while it holds.
+// Versions counts the missing ones while it is open, newest first and one at a time,
+// so a count, which compares the whole page, runs only while the user can read it,
+// and closing Versions or the page moving on leaves at most one count half done.
+const widgetStates = readPart((root) => root.effective.widgets);
+const versionCounts = signal(
+  /** @type {{revision: number | null, widgets: unknown, counts: ReadonlyMap<number, number>}} */ ({
+    revision: null,
+    widgets: null,
+    counts: new Map(),
+  }),
+);
+/** How many changes a comparison with the version at `revision` would mark, or null
+ * until Versions has counted them for the page as it stands.
+ * @param {number} revision */
+export const changesCounted = (revision) => {
+  const at = versionCounts.value;
+  return at.revision === runtime.currentRevision && at.widgets === widgetStates()
+    ? (at.counts.get(revision) ?? null)
+    : null;
+};
+/** @param {number} revision @param {unknown} widgets @param {() => boolean} open */
+async function countVersions(revision, widgets, open) {
+  const counts = () => {
+    const at = versionCounts.peek();
+    return at.revision === revision && at.widgets === widgets ? at.counts : new Map();
+  };
+  for (const entry of runtime.versions.toReversed()) {
+    if (!comparable(entry.revision) || counts().has(entry.revision)) continue;
+    // A version whose count fails keeps Compare's word, and the older ones still count.
+    const n = await changesSince(revisionBase(entry), open).catch(() => null);
+    if (!open()) return;
+    if (n !== null)
+      versionCounts.value = {
+        revision,
+        widgets,
+        counts: new Map(counts()).set(entry.revision, n),
+      };
+  }
+}
 
 /** @typedef {{revision: number, version: number | null, name: string, note: string | null, current: boolean, active: boolean, comparable: boolean}} VersionRow */
 /** @param {import("../types/contract.js").ServedState} state
@@ -1540,9 +1584,7 @@ export async function showComparison(base) {
   // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
-    n
-      ? `${counted(n, "change")} since ${base.name}`
-      : `No text changes since ${base.name}`,
+    n ? `${counted(n, "change")} since ${base.name}` : `No changes since ${base.name}`,
     { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
@@ -1574,15 +1616,19 @@ async function loadBase(base, wanted, shown = null) {
     return { doc, baseDocument, baseAuthored, savedAfter };
   }
 }
-/** How many changes a comparison with `base` would mark, read without marking any, or
- * null where the revision being read moved on meanwhile.
- * @param {ComparisonBase} base */
-export async function changesSince(base) {
-  const revision = runtime.currentRevision;
-  const wanted = () => runtime.currentRevision === revision;
-  const loaded = await loadBase(base, wanted);
-  if (!loaded || !wanted()) return null;
-  return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
+/** How many changes a comparison with `base` would mark, read without marking any, for
+ * the revision being read when the count is in; null once `wanted` says it is moot.
+ * @param {ComparisonBase} base @param {() => boolean} wanted */
+export async function changesSince(base, wanted) {
+  while (wanted()) {
+    const revision = runtime.currentRevision;
+    const current = () => wanted() && runtime.currentRevision === revision;
+    const loaded = await loadBase(base, current);
+    if (loaded && current())
+      return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes
+        .length;
+  }
+  return null;
 }
 // A press that ends a comparison says so, as `g H` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count; the page
@@ -3202,6 +3248,19 @@ export function createVersionController({
       latest: goActive,
     });
     effect(paintPicker);
+    // Versions counts while it is open, for the page as it stands: a revision landing
+    // or a widget's state moving stops the counting under way and starts the next.
+    effect(() => {
+      if (!versions.shows()) return;
+      const revision = runtime.currentRevision;
+      const widgets = widgetStates();
+      if (revision === null) return;
+      let open = true;
+      untracked(() => void countVersions(revision, widgets, () => open));
+      return () => {
+        open = false;
+      };
+    });
   }
 
   return {

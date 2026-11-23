@@ -127,8 +127,7 @@
         "../../packages/playground/vendor/*",
         "../../packages/playwright/vendor/*",
         "../../packages/reading/vendor/*",
-        "../../packages/timeline/vendor/*",
-        "../../packages/visual-review/vendor/*"
+        "../../packages/timeline/vendor/*"
       ],
       "/widgets/*": [
         "../widgets/*",
@@ -145,8 +144,7 @@
         "../../packages/playground/widgets/*",
         "../../packages/playwright/widgets/*",
         "../../packages/reading/widgets/*",
-        "../../packages/timeline/widgets/*",
-        "../../packages/visual-review/widgets/*"
+        "../../packages/timeline/widgets/*"
       ],
       "/runtime/*": [
         "../runtime/*"

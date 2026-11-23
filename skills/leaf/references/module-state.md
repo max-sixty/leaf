@@ -131,11 +131,10 @@ shape of its `unit`:
   container's members in that order (`module-authoring.md`, "Retained nodes").
 
 `detail` follows the payload [package-data.md, "User state"](package-data.md#user-state)
-gives each record kind. A recorded body, attribute or value sends `detail: {value}`. A
-move sends `detail: {unit, value, rank}`: the moved element's id, the destination
-container's id, and `rankAt(state.<verb>, container, index, unit)`, which places the
-unit at `index` among the container's others and keeps it there however other units
-move. A verb with no record sends what its `detail` schema declares.
+gives each record kind. A move's `rank` is
+`rankAt(state.<verb>, container, index, unit)`, which places the unit at `index` among
+the container's others and keeps it there however other units move. A verb with no
+record sends what its `detail` schema declares.
 
 A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On

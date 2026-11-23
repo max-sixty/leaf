@@ -210,8 +210,9 @@ styles in a card adds visual weight without meaning; give a card a grouping or
 interaction to express.
 
 Wrap content with its own design in a themed page in a box that sets
-`--lf-reading-face: initial`, which keeps the reading face out of it
-(`package-themes.md`, "Personal themes").
+`--lf-reading-face: initial`, which keeps the reading face out of it and leaves the
+controls in it the browser's, as on a page that takes no theme (`package-themes.md`,
+"Personal themes").
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page. Three colours carry a

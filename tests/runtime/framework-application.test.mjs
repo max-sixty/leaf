@@ -596,7 +596,7 @@ test("document capture and its matching admitted reading publish atomically", ()
 test("accepted reading order includes non-event activity and data taken in order", () => {
   const app = setup();
   const newer = state(3);
-  newer.activity.kind = "working";
+  newer.activity.state = "running";
   assert.equal(app.adopt(newer), true);
   // Transport asks the same question before preparing anything for an answer.
   assert.equal(app.overtaken(state(2)), true);

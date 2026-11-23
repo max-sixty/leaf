@@ -22,12 +22,12 @@ The shared authoring prompt lives in `evals/workflows/authoring_eval.yaml`.
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 
-from leaf.data import read_data
 from leaf.media import media_name
-from leaf.registry.storage import load_registry
 from leaf.render_gate import command as render_command_model
 from leaf_dev.arms import (
     author_failure,
@@ -129,6 +129,29 @@ def check_log(trace: list[dict]) -> list[dict]:
             entry["output"] = output or ""
         log.append(entry)
     return log
+
+
+def bound_sources(page: Path, state: Path) -> dict:
+    """What each of `page`'s sources holds, judged against the page's layer. A child
+    process reads it under the run's state home `state`, where the run installed its
+    packages (`metadata.installed`), so a layer that selects one of them composes.
+    Read in this process, such a page's layer names a package this machine lacks."""
+    code = (
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "from leaf.data import read_data\n"
+        "from leaf.registry.storage import load_registry\n"
+        "page = Path(sys.argv[1])\n"
+        'print(json.dumps(read_data(page, load_registry(page))["sources"]))\n'
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(page)],
+        env=environment(XDG_STATE_HOME=str(state)),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
 
 
 def execute(
@@ -254,9 +277,7 @@ def execute(
             # doesn't hold, so a rubric can read a patch or a code view as the
             # reader sees it.
             sources = (
-                read_data(page, load_registry(page))["sources"]
-                if page_valid and is_leaf(condition)
-                else {}
+                bound_sources(page, state) if page_valid and is_leaf(condition) else {}
             )
             page_data = {
                 source: reading.get("value", reading.get("error"))

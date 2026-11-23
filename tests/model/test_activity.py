@@ -26,6 +26,7 @@ from interact_support import (
     record_claim,
     response_reference,
     said,
+    served_state_error,
     serving,
     state_json,
     working,
@@ -187,8 +188,20 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     leases_model.release_lease(lease)
 
 
+def _served_at(page, minutes=0):
+    """The whole reading the server serves of the page `minutes` from now, held to its
+    schema, so every standing these tests reach is one the schema names."""
+    now = datetime.now().astimezone() + timedelta(minutes=minutes)
+    events = events_model.read_events(page)
+    state = served_page.full_state(page, events, now=now.isoformat())
+    assert (error := served_state_error(state)) is None, error
+    return state
+
+
 def _activity_at(page, minutes=0):
-    """The page's activity as the server would read it `minutes` from now."""
+    """The page's activity as the server would read it `minutes` from now, read
+    beside the whole reading it serves then (`_served_at`)."""
+    _served_at(page, minutes)
     now = datetime.now().astimezone() + timedelta(minutes=minutes)
     return activity_reading(page, now.isoformat())
 
@@ -291,6 +304,11 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     harness_says("idle", ago=5)
     assert _start(claimed, comment["id"], "Cutting the lede").exit_code == 0
     assert _activity_at(claimed)["counts"]["running"] == 1
+
+    # A dialog over work the turn has started holds that work, too, on the user's
+    # answer in the terminal.
+    harness_says("waiting")
+    assert _standing(_activity_at(claimed)["obligations"][0]) == ("blocked", "terminal")
     harness_says("idle")
     ended = _activity_at(claimed)
     assert (
@@ -336,6 +354,19 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     consume_pending_input("s1")
+    follow_up = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "Keep the wide one in.",
+        },
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    consume_pending_input("s1")
     harness_says("busy")
     assert (
         _start(claimed, comment["id"], "Workers are comparing layouts").exit_code == 0
@@ -364,6 +395,12 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             "Workers are comparing layouts",
             activity_model.BACKGROUND_DETAIL,
         )
+        # One reply answers both messages, so the one the ended turn took in beside
+        # the started one waits with it and does not read stopped.
+        assert {
+            item["id"]: _standing(item)
+            for item in _served_at(claimed, minutes)["workflows"]
+        } == {comment["id"]: ("running", None), follow_up["id"]: ("waiting", None)}
 
     for idle in ("idle", "shell"):
         harness_says(idle)

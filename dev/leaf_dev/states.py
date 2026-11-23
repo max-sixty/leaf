@@ -2739,6 +2739,40 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-fp-version").first.wait_for()
 
 
+def versions_last_seen(page: Page) -> None:
+    """Versions opened by its key on return to a page the agent stamped twice while
+    the tab was hidden: the version the user last saw reads last seen, and the key
+    lands on it, whose Compare `v` presses."""
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.__lfVisibility ?? 'visible',
+      });
+      window.__lfVisibility = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    client = PageClient(served_page.get().address)
+    while client.state().get("seen") is None:
+        page.wait_for_timeout(50)
+    source = served_page.get().directory / "index.html"
+    for old, new, note in (
+        ("remaining decision", "one decision left", "Named the decision left"),
+        ("one decision left", "last decision", "Shortened the status line"),
+    ):
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(old, new, 1), encoding="utf-8"
+        )
+        as_agent("page", "stamp", "--text", note)
+    page.evaluate("""() => {
+      window.__lfVisibility = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    expect(page.locator(".lf-live")).to_contain_text("since v3")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    page.locator(".lf-fp-version").first.wait_for()
+
+
 def all_pages(page: Page) -> None:
     """All pages with two neighbours of one title, told apart only by where their
     sessions work. A stills server has no neighbour of its own, so its news names a
@@ -2844,7 +2878,8 @@ def contents_marks(page: Page) -> None:
 def contents_marks_changes(page: Page) -> None:
     """The contents' marks with the changes view on, each changed section marked."""
     contents_marks(page)
-    page.keyboard.press("v")
+    for key in ("g", "Shift+V", "v"):
+        page.keyboard.press(key)
     expect(page.locator(".lf-ins-block").first).to_be_attached()
     settle(page)
 
@@ -3765,6 +3800,12 @@ STATES = (
         "review-a-plan",
         versions_menu,
         window=WINDOWS["phone"],
+    ),
+    State(
+        "plan-versions-seen",
+        "review-a-plan",
+        versions_last_seen,
+        region=".lf-fp-opened",
     ),
     State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),

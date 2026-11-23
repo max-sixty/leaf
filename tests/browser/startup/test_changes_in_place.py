@@ -1,5 +1,5 @@
-"""Changes in place: what changed since a version, which `v` or a Compare in Versions
-marks with a bar and `h` walks; how much changed since the user last saw the page,
+"""Changes in place: what changed since a version, which a Compare in Versions marks
+with a bar and `h` walks; how much changed since the user last saw the page,
 which coming back to it says; and where the agent is at work while it works
 (version.js, since-seen.js, change-walk.js, margin-bars.js).
 
@@ -26,6 +26,7 @@ from render_harness import (
     panel_field,
     preview_parts,
     sending,
+    show_changes,
     stamp_page,
     told,
     wait_for_revision,
@@ -197,11 +198,13 @@ def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser,
     expect(lead).to_contain_text(re.compile(r"\bChange \d of 2 since v1"))
 
 
-def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
+def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     """Leaving says which revision the user saw. Coming back after the agent revised
     says how much changed since the version they last saw and marks nothing, offering
-    Show changes with `v` at the field's end, and `v` marks those changes, though a
-    newer version stands between."""
+    Show changes with `g V v` at the field's end. Versions names that version last seen
+    and opens on it, so `g V v` marks those changes, though a newer version
+    stands between. While Versions stands, the news offers no press, since `g V` would
+    put Versions away."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -213,21 +216,29 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
 
     visibility(page, "visible")
     expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
-    expect_panel_says(page, "2 changes since v1 · Show changes v")
+    expect_panel_says(page, "2 changes since v1 · Show changes g V v")
     expect(marked).to_have_count(0)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_accessible_name(
+        re.compile(r"^v1 \(last seen\)")
+    )
+    # While Versions stands, `g V` would put it away, so the news offers no keys there.
+    expect_panel_says(page, "2 changes since v1")
+    expect_panel_says(page, "Show changes", says=False)
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
     assert marked_ids(page) == ["b", "d"]
-    # Once the comparison stands, the news that v would show it goes with it, read
-    # once the press has drawn, well before its moment would end.
+    # Once the comparison stands, the news that the press would show it goes with it,
+    # read once the press has drawn, well before its moment would end.
     rendered(page)
     assert "Show changes" not in (panel_field(page).get_attribute("placeholder") or "")
 
 
 def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):
     """A touchscreen shows no keys, and a press's word alone at the field's end reads as
-    status rather than a control, so the news offers no press there: the panel's menu
-    has Show changes."""
+    status rather than a control, so the news offers no press there: Versions names the
+    version the user last saw, beside its Compare."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     context = browser.new_context(
@@ -245,8 +256,8 @@ def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):
     expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
     page.locator(".lf-fp-leaf").tap()
     panel_tab(page, "Menu").tap()
-    page.locator(".lf-fp-item", has_text="Annotations").first.tap()
-    page.locator(".lf-fp-item", has_text="Show changes").tap()
+    page.locator('.lf-fp-item[data-lf-row="versions"]').tap()
+    page.get_by_role("button", name="Compare with v1 (last seen)").tap()
     expect(page.locator("main .lf-ins-block")).to_have_count(2)
 
 
@@ -278,7 +289,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     browser, serve
 ):
     """The browser beside the terminal: visible, but the user is typing elsewhere. What
-    lands then is news when they come back, and `v` marks it."""
+    lands then is news when they come back, and `g V v` marks it."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -293,7 +304,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
 
     attention(page, True)
     expect(page.locator(".lf-live")).to_have_text("1 change since v2")
-    page.keyboard.press("v")
+    show_changes(page)
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
 
@@ -657,7 +668,7 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     page = open_page(browser, url)
     wait_for_revision(page, 3)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     parts = preview_parts(entries.first)
     assert parts[-2:] == [
@@ -668,7 +679,6 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text(
         "Draft saved while your comment waited: “Is the title right?”"
     )
-    page.keyboard.press("v")
     compare_with(page, 1)
     page.keyboard.press("Escape")
     expect(entries).to_have_count(2)
@@ -751,7 +761,7 @@ def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, s
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     assert preview_parts(entries.first)[-4:] == [
         "Draft saved while your 3 comments waited:",
@@ -775,7 +785,7 @@ def test_a_version_quotes_a_comment_taken_back_since_in_the_words_it_had(
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     assert preview_parts(entries.first)[-2:] == [
         "Draft saved while your comment waited:",
@@ -799,7 +809,7 @@ def test_a_version_saved_while_a_deletion_waited_says_the_message_was_deleted(
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     assert preview_parts(entries.first)[-2:] == [
         "Draft saved while your comment waited:",

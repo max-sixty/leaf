@@ -18,6 +18,7 @@ from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwr
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.render_checks import (
+    one_frame,
     open_render_context,
     open_render_page,
     rendered,
@@ -381,10 +382,18 @@ def load(page: Page, address: str) -> None:
 
 def settle(page: Page) -> None:
     """Wait until the page is ready, its fonts have loaded, the runtime reports it
-    settled, and its hover is on the element under the pointer (`catch_up_hover`)."""
+    settled, and its hover is on the element under the pointer (`catch_up_hover`).
+
+    Readiness is read once the page has heard what could start more work: the input
+    before this, and then the motion `pageSettled` waits out. A scroll that brings a
+    live sample near starts it in the next rendering update, as the sample's observer
+    reports, so each read waits for that update first (runtime/rendering.js)."""
+    one_frame(page)
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    one_frame(page)
+    wait_until_ready(page)
     if catch_up_hover(page):
         settle(page)
 

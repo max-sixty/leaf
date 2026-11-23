@@ -133,7 +133,7 @@
 import { inlineStyle, keeps } from "./keeps.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
-import { onUserInput } from "./focus.js";
+import { VISIBLE_FOCUS_MARKS, onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides, laidOutHeight } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
@@ -1228,10 +1228,35 @@ export function boxMotion({
     const boxRing = ringOf(box, boxStyle);
     if (boxRing) drawRing(box, boxStyle, boxRing, boxFrom, boxAt, compact);
     else hold(box, "outlineColor", "transparent");
+    holdArrivingRing();
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
+    // A ring the box wears on its ::after can't be held before it arrives: that box
+    // exists only while the focus paint marks the box or the one it shows focus for,
+    // and a motion started for it before then never reaches it, nor one started for the
+    // ::after a focus leaving took away when focus comes back. So each time the paint
+    // marks it during the tween, the hold starts again, before the frame that would
+    // draw the ring, and ends with the tween.
+    function holdArrivingRing() {
+      const animations = running;
+      const clock = animations[0];
+      if (!clock) return;
+      const watch = new MutationObserver(() => {
+        if (running !== animations) return watch.disconnect();
+        const ring = ringOf(box, getComputedStyle(box));
+        if (!ring?.pseudo) return;
+        const held = hold(box, "outlineColor", "transparent", ring.pseudo);
+        if (held) held.currentTime = clock.currentTime;
+      });
+      watch.observe(box.getRootNode(), {
+        subtree: true,
+        attributeFilter: VISIBLE_FOCUS_MARKS,
+      });
+      const stop = () => watch.disconnect();
+      clock.finished.then(stop, stop);
+    }
     const animations = running;
     const last = animations.at(-1);
     if (last)

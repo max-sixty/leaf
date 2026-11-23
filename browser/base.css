@@ -522,6 +522,25 @@ body {
       opacity: 0 !important;
       visibility: hidden !important;
     }
+    /* The page's content shows once its widgets have drawn (`data-lf-upgraded`,
+     * presentation.js), so nothing in it moves as a module arrives and no widget holds
+     * room for its drawing. The panel stands outside body and shows from first paint.
+     * A page that cannot start loses `data-lf-interactive` (prepaint.js) and shows its
+     * readable fallback at once. The hold is an animation rather than a declaration so
+     * it ends by itself: a page still drawing after 3s shows as it stands, so a hung
+     * module never keeps the page's words from the reader. Opacity and visibility for
+     * the reasons the sample's hold above gives. Important, so the reduced-motion guard
+     * (state.css) doesn't shorten it. */
+    html[data-lf-interactive] body:not([data-lf-upgraded]) {
+      animation: lf-drawing 3s step-end !important;
+    }
+  }
+}
+@keyframes lf-drawing {
+  from,
+  to {
+    opacity: 0;
+    visibility: hidden;
   }
 }
 /* The room a text field keeps at the end of its lines for the action standing in its

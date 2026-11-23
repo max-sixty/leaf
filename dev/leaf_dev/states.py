@@ -2691,13 +2691,16 @@ def versions_menu(page: Page) -> None:
 
 def versions_counted(page: Page) -> None:
     """Wait for Versions to stand with each older version's count of changes before
-    its Compare, which Versions counts after it opens. A Leaf that counts none holds
-    no room for a count."""
+    its Compare, which Versions counts after it opens for the versions in view. A
+    Leaf that counts none holds no room for a count."""
     page.locator(".lf-fp-version").first.wait_for()
     page.wait_for_function(
-        """() => [...document.querySelectorAll('.lf-fp-changes')].every(
-          (count) => count.textContent.trim()
-        )"""
+        """() => [...document.querySelectorAll('.lf-fp-changes')].every((count) => {
+          const view = count.closest('.lf-fp-view').getBoundingClientRect();
+          const box = count.getBoundingClientRect();
+          const shown = box.bottom > view.top && box.top < view.bottom;
+          return !shown || count.textContent.trim();
+        })"""
     )
 
 

@@ -171,7 +171,15 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectDocument, readApplication, readPart } from "./semantic-state.js";
-import { batch, effect, signal, untracked } from "/runtime/framework.js";
+import {
+  AsyncDirective,
+  batch,
+  directive,
+  effect,
+  nothing,
+  signal,
+  untracked,
+} from "/runtime/framework.js";
 
 import {
   ADDRESSABLE,
@@ -430,9 +438,14 @@ const parenthesized = (roles) => {
 // Versions says on its Compare: what a comparison with it would mark (`changesSince`).
 // A count reads the revision being read and the widgets' state, so it stands while
 // both do; the publisher keeps the widgets' state the same object while it holds.
-// Versions counts the missing ones while it is open, newest first and one at a time,
-// so a count, which compares the whole page, runs only while the user can read it,
-// and closing Versions or the page moving on leaves at most one count half done.
+// While Versions is open it counts the missing ones among the versions whose Compare
+// shows in the window (`countWhenShown`), newest first and one at a time. A count
+// fetches its version and compares the whole page, so what opening Versions, a pick or
+// a stamp sets off follows the rows on screen, not how many versions the session has
+// stamped (AGENTS.md, "Responsiveness"). Closing Versions or the page moving on leaves
+// at most one count half done. Rejected: counting the rows near the window as
+// `nearObserver` reads it (geometry.js), whose 600px past each edge of a scroller suits
+// layout work; for counts, each pick would also fetch and compare those 600px of rows.
 const widgetStates = readPart((root) => root.effective.widgets);
 const versionCounts = signal(
   /** @type {{revision: number | null, widgets: unknown, counts: ReadonlyMap<number, number>}} */ ({
@@ -450,18 +463,75 @@ export const changesCounted = (revision) => {
     ? (at.counts.get(revision) ?? null)
     : null;
 };
+/** The versions whose Compare shows in the window, by revision.
+ * @type {Set<number>} */
+const countsShown = new Set();
+/** @type {WeakMap<Element, number>} */
+const shownRevision = new WeakMap();
+// Wakes Versions' counting for the page as it stands when a row comes into view; it
+// does nothing while Versions is closed.
+let countShown = () => {};
+/** @type {IntersectionObserver | undefined} */
+let showing;
+const watchShowing = () =>
+  (showing ??= new IntersectionObserver((entries) => {
+    for (const { target, isIntersecting } of entries) {
+      const revision = shownRevision.get(target);
+      if (revision === undefined) continue;
+      if (isIntersecting) countsShown.add(revision);
+      else countsShown.delete(revision);
+    }
+    countShown();
+  }));
+/** `<button ${countWhenShown(revision)}>`: while Versions is open, it counts the
+ * changes since the version at `revision` once this element shows in the window. */
+export const countWhenShown = directive(
+  class extends AsyncDirective {
+    /** @type {Element | null} */
+    node = null;
+    /** @param {number} revision */
+    render(revision) {
+      return nothing;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[number]} args */
+    update(part, [revision]) {
+      if (this.node !== part.element) {
+        this.node = part.element;
+        watchShowing().observe(this.node);
+      }
+      shownRevision.set(this.node, revision);
+      return nothing;
+    }
+    disconnected() {
+      if (!this.node) return;
+      showing?.unobserve(this.node);
+      const revision = shownRevision.get(this.node);
+      if (revision !== undefined) countsShown.delete(revision);
+    }
+    reconnected() {
+      if (this.node) watchShowing().observe(this.node);
+    }
+  },
+);
 /** @param {number} revision @param {unknown} widgets @param {() => boolean} open */
 async function countVersions(revision, widgets, open) {
   const counts = () => {
     const at = versionCounts.peek();
     return at.revision === revision && at.widgets === widgets ? at.counts : new Map();
   };
-  for (const entry of runtime.versions.toReversed()) {
-    if (!comparable(entry.revision) || counts().has(entry.revision)) continue;
-    // A version whose count fails keeps Compare's word, and the older ones still count.
+  // A version whose count fails keeps Compare's word, and the others still count.
+  /** @type {Set<number>} */
+  const failed = new Set();
+  while (open()) {
+    const entry = runtime.versions.findLast(
+      ({ revision: at }) =>
+        countsShown.has(at) && comparable(at) && !counts().has(at) && !failed.has(at),
+    );
+    if (!entry) return;
     const n = await changesSince(revisionBase(entry), open).catch(() => null);
     if (!open()) return;
-    if (n !== null)
+    if (n === null) failed.add(entry.revision);
+    else
       versionCounts.value = {
         revision,
         widgets,
@@ -3249,16 +3319,27 @@ export function createVersionController({
     });
     effect(paintPicker);
     // Versions counts while it is open, for the page as it stands: a revision landing
-    // or a widget's state moving stops the counting under way and starts the next.
+    // or a widget's state moving stops the counting under way and starts the next, and
+    // a row coming into view wakes it once it has counted those already in view.
     effect(() => {
       if (!versions.shows()) return;
       const revision = runtime.currentRevision;
       const widgets = widgetStates();
       if (revision === null) return;
       let open = true;
-      untracked(() => void countVersions(revision, widgets, () => open));
+      let counting = false;
+      const wake = () => {
+        if (counting) return;
+        counting = true;
+        void countVersions(revision, widgets, () => open).finally(() => {
+          counting = false;
+        });
+      };
+      countShown = wake;
+      untracked(wake);
       return () => {
         open = false;
+        countShown = () => {};
       };
     });
   }

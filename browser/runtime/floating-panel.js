@@ -305,6 +305,7 @@ import {
   changesCounted,
   comparisonBase,
   comparisonChanges,
+  countWhenShown,
   throughVersions,
   versionsReading,
 } from "./version.js";
@@ -2943,7 +2944,8 @@ export function createFloatingPanel({
   // the two words line up. Showing stands outside the press, as Compare does, over
   // the row's end; the press carries it as `aria-current`. Before its word, Compare
   // says how many changes a comparison with its version would mark, once Versions has
-  // counted them (version.js, `changesCounted`), so the counts stand one under another
+  // counted them, which it does for the presses that show in the window (version.js,
+  // `changesCounted`, `countWhenShown`), so the counts stand one under another
   // and a press on a count shows those changes. The count's room is held from the
   // start, so a count coming in moves no words beside it. The press's name says the
   // count first, as the press shows it, then "Compare with" the version. Versions opens
@@ -2961,6 +2963,7 @@ export function createFloatingPanel({
     return html`<button
       type="button"
       ${offeredAction("word", "lf-fp-compare")}
+      ${countWhenShown(entry.revision)}
       aria-pressed=${String(selection.on && selection.base === entry.revision)}
       aria-label=${[said, `Compare with ${entry.name}`].filter(Boolean).join(", ")}
       @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}

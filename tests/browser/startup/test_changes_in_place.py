@@ -217,6 +217,47 @@ def test_versions_counts_the_changes_since_each_older_version(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("3 changes since v1")
 
 
+def test_versions_counts_only_the_versions_in_view(browser, serve):
+    """A count fetches its version and compares the whole page, so Versions counts
+    the versions whose Compare shows in the window, and a version scrolled into view
+    gets its count then. The work opening Versions sets off follows the rows on
+    screen, not how many versions the session has stamped."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    for n in range(2, 16):
+        stamp_page(d, revised(PAGE, (BETA[0], f"Beta reads way {n}.")), f"draft {n}")
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 900, "height": 420})
+    views = []
+    page.on("request", lambda request: "/api/view?" in request.url and views.append(1))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    rows = """() => {
+        const presses = [...document.querySelectorAll('.lf-fp-compare')];
+        const view = presses[0]?.closest('.lf-fp-view').getBoundingClientRect();
+        return presses.map((press) => {
+            const box = press.getBoundingClientRect();
+            return {
+                shown: box.bottom > view.top && box.top < view.bottom,
+                said: press.querySelector('.lf-fp-changes').textContent.trim(),
+            };
+        });
+    }"""
+    page.wait_for_function(
+        f"() => {{ const rows = ({rows})(); "
+        "return rows.length && rows.every((row) => !row.shown || row.said); }"
+    )
+    in_view = page.evaluate(rows)
+    shown = [row for row in in_view if row["shown"]]
+    assert len(shown) < len(in_view), "every version's Compare shows; nothing to test"
+    assert all(row["said"] == "1 change" for row in shown), in_view
+    assert not any(row["said"] for row in in_view if not row["shown"]), in_view
+    assert len(views) == len(shown), "Versions asked for counts it doesn't show"
+    oldest = page.get_by_role("button", name=re.compile(r"\bCompare with v1$"))
+    oldest.scroll_into_view_if_needed()
+    expect(oldest).to_have_text("1 change Compare")
+
+
 def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser, serve):
     """The page's field says "2 changes since v1" while a comparison stands, so a
     change's place there is its place alone. A thread open in the panel says no such

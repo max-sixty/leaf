@@ -55,11 +55,13 @@ const WORK_WORDS = {
 };
 // What each canonical count says the agent owes, in the order a reader is told: the
 // answers by where their update stands, and those no turn has taken in. The server
-// counts each answer once (`activity.py`), so the phrases never say one twice.
+// counts each answer once (`activity.py`), so the phrases never say one twice. A
+// `blocked` answer's update may wait on a dialog in the agent's window, have stopped
+// or have gone quiet, so its phrase says only what those share.
 const COUNT_PHRASES = {
   running: "being worked on",
   waiting: "owed",
-  blocked: "owed on updates that stopped",
+  blocked: "held up",
   unseen: "owed on updates awaiting delivery",
 };
 /** @param {Activity["counts"]} counts @param {(keyof typeof COUNT_PHRASES)[]} kinds */

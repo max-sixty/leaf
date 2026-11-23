@@ -176,6 +176,41 @@ def test_a_thread_message_reaches_the_session_at_once_and_its_line_goes_in_besid
     assert on_it(claimed) == []
 
 
+def test_a_line_after_a_newer_message_leaves_one_its_turn_left_stopped(claimed):
+    """The line is no start, so it covers no other message of its thread. Where a turn
+    took in a message and ended without answering it, and a line then stands after a
+    newer message there, the newer one reads On it by the line alone and the older
+    still reads stopped."""
+    assert stamp(claimed).exit_code == 0
+    asked = said(claimed, "Why a 2-second poll?")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    with PageTransaction(claimed) as page:
+        delivery_model.record_pickup(
+            page, [asked], session=claim["id"], turn=claim["turn"]
+        )
+    state_model.close_session_turn(claim["id"])
+    again = said(claimed, "And why not a watch?", asked["id"])
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "parent": asked["id"],
+            "author": "agent",
+            "text": "checking why the poll is 2 s",
+            "ephemeral": True,
+        },
+    )
+
+    work = read_page(claimed, events_model.read_events(claimed)).work
+    assert {
+        item["input"]: (item["state"], item["reason"]) for item in work.workflows
+    } == {
+        asked["id"]: ("blocked", "stopped"),
+        again["id"]: ("running", None),
+    }
+
+
 @pytest.mark.parametrize("joins", ["reply", "edit"])
 def test_a_turn_joining_a_round_before_its_line_gets_a_line_fork_about_all(
     claimed, joins

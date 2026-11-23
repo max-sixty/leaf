@@ -5837,6 +5837,46 @@ def test_a_line_the_field_gives_up_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
 
 
+
+def test_a_ring_the_field_comes_back_to_mid_tween_waits_for_its_end(browser, serve):
+    """The panel's field wears its ring on its ::after (floating-panel.css), which
+    exists only while the focus paint marks the field's row. The field is a part of the
+    box that moves, and focus leaving it and coming back while a line it gave up still
+    travels makes that ::after anew. Its ring waits for the tween's end, as the one the
+    motion drew from the tween's start does (box-motion.js): drawn at once, it would
+    stand at the field's rest size inside a box still travelling."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A first line")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("x")
+    settled(page)
+    box = page.locator(".lf-fp-field")
+    ring = "node => getComputedStyle(node, '::after').outlineColor"
+    content = "node => getComputedStyle(node, '::after').content"
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).to_be_focused()
+    worn = box.evaluate(ring)
+    assert box.evaluate(content) != "none"
+    assert worn != "rgba(0, 0, 0, 0)", worn
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fp-ground'))"
+    )
+    page.keyboard.press("Tab")
+    expect(field(page)).not_to_be_focused()
+    assert box.evaluate(content) == "none"
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).to_be_focused()
+    assert page.evaluate("() => __lfHeld.some(motion => motion.playState === 'paused')")
+    assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
+    page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert box.evaluate(ring) == worn
+
 # How far the field's first line of words and the more-room mark stand below the box's
 # top edge as drawn, and how opaque the mark is.
 BELOW_THE_EDGE = r"""() => {

@@ -854,6 +854,10 @@ export function boxMotion({
     /** @param {Element} element @param {string} property @param {string} value @param {string | null} [pseudo] */
     const hold = (element, property, value, pseudo = null) =>
       start(element, [{ [property]: value }, { [property]: value }], pseudo);
+    // Each element whose ring the tween stands in for: the box, and each part it
+    // resizes. A ring that comes back on one's ::after waits for the tween's end.
+    /** @type {Set<Element>} */
+    const ringWaits = new Set();
     const translated = new Set();
     /** @param {Element} element @param {number} dx @param {number} dy */
     const move = (element, dx, dy) => {
@@ -1197,6 +1201,7 @@ export function boxMotion({
         }
         if (part.whole) return carryContent(part, from);
         if (!same(from, to)) within = { from, to };
+        if (!sized) ringWaits.add(element);
         const ring = sized ? null : ringOf(element, style);
         if (ring) drawRing(element, style, ring, from, to);
         else if (!sized && paints(style) && !part.holdsWindow) carryContent(part, from);
@@ -1228,27 +1233,30 @@ export function boxMotion({
     const boxRing = ringOf(box, boxStyle);
     if (boxRing) drawRing(box, boxStyle, boxRing, boxFrom, boxAt, compact);
     else hold(box, "outlineColor", "transparent");
+    ringWaits.add(box);
     holdArrivingRing();
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
-    // A ring the box wears on its ::after can't be held before it arrives: that box
-    // exists only while the focus paint marks the box or the one it shows focus for,
-    // and a motion started for it before then never reaches it, nor one started for the
-    // ::after a focus leaving took away when focus comes back. So each time the paint
-    // marks it during the tween, the hold starts again, before the frame that would
-    // draw the ring, and ends with the tween.
+    // A ring the box or a part it resizes wears on its ::after can't be held before it
+    // arrives: that box exists only while the focus paint marks the element or the one
+    // it shows focus for, and a motion started for it before then never reaches it, nor
+    // one started for the ::after a focus leaving took away when focus comes back. So
+    // each time the paint marks one during the tween, its hold starts again, before the
+    // frame that would draw the ring, and ends with the tween.
     function holdArrivingRing() {
       const animations = running;
       const clock = animations[0];
       if (!clock) return;
       const watch = new MutationObserver(() => {
         if (running !== animations) return watch.disconnect();
-        const ring = ringOf(box, getComputedStyle(box));
-        if (!ring?.pseudo) return;
-        const held = hold(box, "outlineColor", "transparent", ring.pseudo);
-        if (held) held.currentTime = clock.currentTime;
+        for (const element of ringWaits) {
+          const ring = ringOf(element, getComputedStyle(element));
+          if (!ring?.pseudo) continue;
+          const held = hold(element, "outlineColor", "transparent", ring.pseudo);
+          if (held) held.currentTime = clock.currentTime;
+        }
       });
       watch.observe(box.getRootNode(), {
         subtree: true,

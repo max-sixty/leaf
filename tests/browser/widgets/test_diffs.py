@@ -1975,7 +1975,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     touch("touchStart")
     long_press(page, point)
     expect(preview).to_be_visible()
-    expect(head).to_have_attribute("data-lf-held", "")
+    expect(head).to_have_attribute("data-lf-touch-held", "")
     held = head.evaluate(read)
     assert (held["word"], held["open"], held["above"]) == (path, True, True), held
     touch("touchEnd")

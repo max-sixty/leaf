@@ -181,7 +181,6 @@ PROGRESSIVE_REGISTRY = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
             "additionalProperties": False,

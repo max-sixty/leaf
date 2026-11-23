@@ -2,7 +2,7 @@
 and an obligation's digits and thread."""
 
 import pytest
-from interact_support import ROOT, append_carried_log_record
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -19,11 +19,9 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
-    EXAMPLE_PACKAGES,
     LONG_PAGE,
     RELEASE_FOCUS,
     expect_obligations_answered,
-    expect_on_me,
     held_frames,
     leaf_page,
     open_page,
@@ -38,12 +36,10 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
-    undo,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
-from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
@@ -1922,95 +1918,3 @@ IN_THREAD = """() => {
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
   return at?.closest('[data-lf-thread]')?.dataset.lfThread ?? null;
 }"""
-# A widget owing the user one answer per case of the run its `source` binds
-# (`awaits.records`), from a package of the suite's own, since no bundled widget
-# declares it. It shows one case at a time, the others `hidden="until-found"`.
-RECORDS = ROOT / "tests/fixtures/packages/records"
-RECORDS_RUN = {
-    "cases": [
-        {"id": "status-column", "title": "Run list status"},
-        {"id": "detail-link", "title": "Run detail link"},
-        {"id": "desktop-navigation", "title": "Desktop navigation"},
-    ]
-}
-REVIEW = '<lf-test-review id="review" source="run"></lf-test-review>'
-
-
-def records_page(serve, *events):
-    """A page whose `review` owes a case of the run, with `events` in its log."""
-    url = live_url(
-        serve(leaf_page("Cases", REVIEW), packages=(*EXAMPLE_PACKAGES, RECORDS))
-    )
-    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
-    for event in events:
-        append_carried_log_record(serve.page_dir, event)
-    return url
-
-
-def test_each_record_a_widget_owes_is_its_own_obligation(browser, serve):
-    """The walk reaches each case the widget owes, hidden ones included, and answering
-    one answers only that case. Its On Me card reaches it while another case shows,
-    and feedback on it hands only that case to the agent."""
-    page = open_page(browser, records_page(serve))
-    case = page.locator("#review .test-case:not([hidden])")
-    looks_right = case.get_by_role("checkbox", name="Looks right")
-    first, second, third = (each["id"] for each in RECORDS_RUN["cases"])
-    expect_on_me(page, 3)
-    looks_right.focus()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-    expect(case).to_be_focused()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", third)
-    expect(case).to_be_focused()
-    page.keyboard.press("Shift+m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-    with sending(page, "approve one independent case"):
-        looks_right.check()
-    expect_on_me(page, 2)
-    undo(page)
-    expect_on_me(page, 3)
-    expect(looks_right).not_to_be_checked()
-
-    page.locator(".lf-fp-leaf").click()
-    card = page.locator(".lf-fp-on-item").filter(
-        has=page.get_by_text(RECORDS_RUN["cases"][0]["title"], exact=True)
-    )
-    card.get_by_role("button", name="Show", exact=True).click()
-    expect(case).to_have_attribute("data-lf-datum", first)
-    expect(case).to_be_focused()
-    page.keyboard.press("c")
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    page.keyboard.type("Keep the status column narrow")
-    with sending(page, "hand feedback on this case to the agent"):
-        page.keyboard.press("Enter")
-    expect_on_me(page, 2)
-    looks_right.focus()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-
-
-def test_on_me_shows_a_record_a_reply_s_widget_owes(browser, serve):
-    """A record a widget in a reply owes is reachable from its On Me card before the
-    widget, or the case it shows, is drawn there."""
-    url = records_page(
-        serve,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "text": "Review the cases in this reply.\n\n"
-            '<lf-test-review id="reply-review" source="run"></lf-test-review>',
-        },
-    )
-    page = open_page(browser, url)
-    expect_on_me(page, 6)
-    page.locator(".lf-fp-leaf").click()
-    card = page.locator(
-        '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:detail-link"]'
-    )
-    card.get_by_role("button", name="Show", exact=True).click()
-    case = page.locator("#reply-review .test-case:not([hidden])")
-    expect(case).to_have_attribute("data-lf-datum", "detail-link")
-    expect(case).to_be_focused()
-    expect(case.get_by_role("checkbox", name="Looks right")).to_be_visible()

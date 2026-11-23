@@ -839,9 +839,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "description": "A test-owned reading scroller.",
         "attributes": {
             "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-            },
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

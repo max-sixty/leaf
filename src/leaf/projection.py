@@ -781,32 +781,23 @@ def folded_value(e: dict, spec: dict):
 
 
 def obligation_value(
-    owner, verb, spec, byid, marks, orders, projection, *, answered=False, unit=None
+    owner, verb, spec, byid, marks, orders, projection, *, answered=False
 ):
     """Read an obligation's typed value and presence from the canonical state fold.
     `marks` and `orders` are the document's `attribute_marks` and `AuthoredOrders`.
 
     Widget units use their declared record or custom action detail. Member units
-    form one mapping, or the exact member when `unit` is supplied; positions retain
-    every container, including empty ones.
+    form one mapping; positions retain every container, including empty ones.
     Empty authored values need completion to count as an answer; a value
     action in force counts even while completion is outstanding. Null never holds a value.
     """
     record = spec.get("record")
-    # The owner's coordinates of this verb, or the one member's when `unit` names it.
-    if unit is None:
-        actions = {
-            coordinate: held
-            for coordinate, held in projection.actions_by_owner.get(owner, {}).items()
-            if coordinate[2] == verb
-        }
-    else:
-        held = projection.actions.get((owner, unit, verb))
-        actions = {} if held is None else {(owner, unit, verb): held}
-    if unit is not None:
-        held = actions.get((owner, unit, verb))
-        value = (folded_value(*held) if record else held[0]["detail"]) if held else None
-    elif spec["unit"] == "widget":
+    actions = {
+        coordinate: held
+        for coordinate, held in projection.actions_by_owner.get(owner, {}).items()
+        if coordinate[2] == verb
+    }
+    if spec["unit"] == "widget":
         held = actions.get((owner, owner, verb))
         value = (
             (folded_value(*held) if record else held[0]["detail"])

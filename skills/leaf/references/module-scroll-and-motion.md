@@ -128,11 +128,12 @@ it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it sta
 inside a live sample. Use it only for a deliberate move; focusing a visible control or
 redrawing keeps the scroll.
 
-`scrollersOf(node)`, also available from `portable-api.js`, yields every box whose
-scroll moves a node, innermost first, out to the page's `document.scrollingElement`.
-A widget that keeps something in view as another widget moves, as `lf-code` keeps the
-line a film runs, sets the scroll of the first (`setScroll`, below) unless it is the
-page, so the page stays where the reader left it.
+`scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
+to the page's `document.scrollingElement`. A widget that keeps something in view as
+another widget moves, as `lf-code` keeps the line a film runs, sets the scroll of the
+first (`setScroll`, below) unless it is the page, so the page stays where the reader
+left it. It and `onUserInput` ([module-input.md](module-input.md)), which says when
+the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins

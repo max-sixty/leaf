@@ -52,11 +52,13 @@
  * the first marked line in the box that scrolls it. When the line stands outside a band
  * of that box, from 15% of its height to 70%, the block sets the box's scroll at once
  * so the line stands a third of the way down, with the lines that run next below it.
- * Where that box is the page, it moves nothing. Once the reader has scrolled the box, a
- * marked line out of their view leaves it where they put it, and the block follows
- * again from the first marked line in view there, as a terminal stops tailing, since no
- * timeout can tell how long they are reading. The box's record is shared, as one pane
- * holds several excerpts.
+ * Where that box is the page, it moves nothing.
+ *
+ * The reader's hand inside the box, a press, wheel, touch or key there, stops the
+ * following, so the box holds still while they read or scroll it, and their hand on
+ * the widget `for` names starts it again. Rejected: following again once a marked line
+ * came into the reader's view, which took the pane from a reader who had scrolled up to
+ * read the lede as soon as the film lit a line beside it.
  *
  * It is a `LeafElement` only to be handed `playhead`; it draws no Lit template, and its
  * source draw is the update's completion, so Leaf's first anchor pass waits for the
@@ -80,6 +82,7 @@ import {
   nameAction,
   offer,
   offerAction,
+  onUserInput,
   scrollersOf,
   synNodes,
   syntax,
@@ -87,10 +90,30 @@ import {
   tokenLines,
 } from "/runtime/portable-api.js";
 
-// Where each box stood when a block last followed in it, so a box elsewhere is one the
-// reader moved (see the header).
-/** @type {WeakMap<Element, number>} */
-const followed = new WeakMap();
+// Whether the blocks in each box still follow there, and the boxes each followed widget
+// keeps following. A box is shared, as one pane holds several excerpts, so the reader's
+// hand inside it stops every block there, and their hand on a widget the blocks follow
+// starts them again (see the header). The hand is read from the document's one reading
+// of the reader's inputs (`onUserInput`), which binds no key, and is one of its
+// gestures: an `input` follows a gesture already counted, and a script that moves the
+// followed widget dispatches one with no reader behind it.
+/** @typedef {{follows: boolean}} Following */
+/** @type {WeakMap<Element, Following>} */
+const boxes = new WeakMap();
+/** @type {WeakMap<Element, Set<Following>>} */
+const resumes = new WeakMap();
+const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
+onUserInput((event) => {
+  if (!HAND.has(event.type)) return;
+  const path = event.composedPath();
+  for (const node of path) {
+    const box = node instanceof Element ? boxes.get(node) : undefined;
+    if (box) box.follows = false;
+  }
+  for (const node of path)
+    for (const box of (node instanceof Element && resumes.get(node)) || [])
+      box.follows = true;
+});
 
 // "3-5,8" → [[3, 5], [8, 8]].
 /** @param {string | null} spec @returns {[number, number][]} */
@@ -207,20 +230,29 @@ customElements.define(
       this.#mark();
       const [row] = this.#at;
       if (!row) return;
-      const [box] = scrollersOf(row);
-      if (!box || box === document.scrollingElement) return;
-      const frame = box.getBoundingClientRect();
+      const [scroller] = scrollersOf(row);
+      if (!scroller || scroller === document.scrollingElement) return;
+      let box = boxes.get(scroller);
+      if (!box) boxes.set(scroller, (box = { follows: true }));
+      const id = this.getAttribute("for");
+      const followed =
+        id &&
+        /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id);
+      if (followed) {
+        let followers = resumes.get(followed);
+        if (!followers) resumes.set(followed, (followers = new Set()));
+        followers.add(box);
+      }
+      if (!box.follows) return;
+      const frame = scroller.getBoundingClientRect();
       const { top, bottom } = row.getBoundingClientRect();
-      const placed = followed.get(box);
-      const inView = top >= frame.top && bottom <= frame.bottom;
-      if (placed !== undefined && Math.abs(box.scrollTop - placed) > 1 && !inView)
-        return;
       if (
         top < frame.top + frame.height * 0.15 ||
         bottom > frame.top + frame.height * 0.7
       )
-        setScroll(box, { top: box.scrollTop + top - frame.top - frame.height / 3 });
-      followed.set(box, box.scrollTop);
+        setScroll(scroller, {
+          top: scroller.scrollTop + top - frame.top - frame.height / 3,
+        });
     }
 
     async #draw() {

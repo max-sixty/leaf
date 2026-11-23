@@ -50,7 +50,7 @@ const moduleOwnsBox = (el) => {
 //
 // A content box that holds draws its frame by holding, since the box ends where it
 // does. The document shell's padding instead spaces content from the viewport: Leaf's
-// panel clearance and the author's page gutters do not make paragraph margins wrong.
+// head room and the author's page gutters do not make paragraph margins wrong.
 // Only a border or an explicit frame declaration makes html/body a content frame.
 //
 // Two exclusions, both about what a margin means where it stands. A flex or grid

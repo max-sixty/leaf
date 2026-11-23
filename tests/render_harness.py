@@ -3197,8 +3197,20 @@ def tab_onto(target):
     """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
     back. Focus moved by Tab shows the target's preview (preview.js) whatever input came
     before; a script's focus shows it only where the browser shows that focus
-    (`:focus-visible`)."""
+    (`:focus-visible`).
+
+    Shift+Tab steps off the target only where the user can see it: a key pressed while
+    focus stands where the user can't see it lets go of that focus first
+    (keyboard/controller.js). A script's focus doesn't scroll a target the window
+    already holds, which may stand under the floating panel's row at the window's foot,
+    so the helper then brings the target clear of the panel with Leaf's own landing
+    (landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves
+    nothing where the user already sees the target."""
     target.focus()
+    target.evaluate(
+        "async node => (await window.__lfWidgetApi())"
+        ".scrollIntoView(node, {block: 'nearest', behavior: 'instant'})"
+    )
     target.page.keyboard.press("Shift+Tab")
     target.page.keyboard.press("Tab")
     expect(target).to_be_focused()

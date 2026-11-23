@@ -54,8 +54,10 @@
    shows. Its departure counts as moving the page only where the passage is out of
    view. Without the landing, a thread in the panel stands apart from the words it is
    about, where comparable products scroll the document to a comment's place. A route
-   that doesn't travel, as a press on the passage's words, leaves the page where it
-   stands. A thread about an element an agent sent
+   that doesn't travel, as a press on the passage's words, moves the page only where the
+   view now stands over the passage, as far as brings it clear, as a freshly opened card
+   may scroll to open clear of its target (browser/AGENTS.md, "A box floating over the
+   page grows inside the window"). A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
    A route shows one thread at a time: the primary taking a thread closes the page's
@@ -126,7 +128,6 @@ import { threadPlace as placementOf } from "./placement.js";
  * scrollToThread: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToThread"],
  * arrive: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["arrive"],
  * prepareNavigationStep: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
- * threadDestination: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["threadDestination"],
  * preview?: ReturnType<typeof import("../annotation-overlay/margin-projection.js").createMarginProjection>["threadPreview"] | null}} dependencies */
 export function createThreadDestinations({
   placedAt,
@@ -134,7 +135,6 @@ export function createThreadDestinations({
   scrollToThread,
   arrive,
   prepareNavigationStep,
-  threadDestination,
   preview = null,
 }) {
   /** @type {Presentation | null} */
@@ -344,38 +344,41 @@ export function createThreadDestinations({
           await whileCurrent(reveal(destination, intent).ready);
           return mayPresent() ? destination : null;
         }
-        // Travel also brings the thread's passage into view where the page draws it,
-        // opening what holds it, nearest, so a passage already shown stays put (the
-        // header).
-        const place = navigationStep ? threadTarget(thread.id) : null;
-        const passage = () =>
-          place && placeDrawn(thread.id) ? threadDestination(thread.id) : null;
-        departure?.plan(passage() ?? destination);
+        // The user lands in the reader's view at once. The page then brings the
+        // thread's passage into view, as travel to its card does (anchor-travel.js,
+        // `scrollToThread`): after a route that travels, wherever the passage is, the
+        // widget holding it drawing it, with a departure that counts only where the page
+        // moves; after one that doesn't, as a press on the passage, only where the page
+        // draws it, so a passage the view opened over comes clear of it. Focus stays in
+        // the view (the header).
         const reached = await whileCurrent(
           arrive(
             () => {
               const current = selected.reader.destination(thread.key, request);
-              const words = passage();
               return (
                 current && {
                   where: current,
                   focus: current,
-                  ...(place && { reveal: [place] }),
-                  scroll: navigationStep
-                    ? [
-                        { at: current, block: "nearest" },
-                        ...(words
-                          ? [{ at: words, block: /** @type {const} */ ("nearest") }]
-                          : []),
-                      ]
-                    : [],
+                  scroll: navigationStep ? [{ at: current, block: "nearest" }] : [],
                 }
               );
             },
-            { intent: arriving, departure },
+            { intent: arriving, departure: thread.anchor ? null : departure },
           ),
         );
-        return reached ? selected.reader.destination(thread.key, request) : null;
+        if (!reached) return null;
+        if (thread.anchor && (navigationStep || (scroll && placeDrawn(thread.id))))
+          await whileCurrent(
+            scrollToThread(thread.id, {
+              part: null,
+              focus: false,
+              intent: arriving,
+              departure,
+              block: "nearest",
+              drawn: !navigationStep,
+            }),
+          );
+        return mayPresent() ? selected.reader.destination(thread.key, request) : null;
       }
     }
     // The page's own drawings of the thread: its outlet or seat, a preview. Its

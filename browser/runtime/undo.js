@@ -115,7 +115,6 @@ import { PENDING } from "./thread/identity.js";
 import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
-import { focusDestination } from "./focus.js";
 import { placeBox, placeHolder } from "./geometry.js";
 import { seenLanded } from "./scroll-containers.js";
 import { messageHolding, threadName } from "./thread/messages.js";
@@ -431,15 +430,14 @@ export function createUndo({
     return place !== null && !inView(place);
   }
 
-  // Put the user on a thread, under the intent of the gesture that asked for it: where
-  // they see it drawn on the page, which needs no travel, else where a route to it opens
-  // it (thread/destination.js).
+  // Put the user on a thread, under the intent of the gesture that asked for it, where a
+  // route to it opens it (thread/destination.js), which reads the user's choice of
+  // where threads open. Where the user sees the thread drawn on the page, as in a
+  // widget's seat, the route doesn't travel.
   /** @param {string} id @param {UserIntent} intent */
-  async function returnToThread(id, intent) {
-    const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
-    if (!seated) return openThread(id, { part: "thread", intent });
-    intent.handoff(() => focusDestination(seated, "move"));
-    return seated;
+  function returnToThread(id, intent) {
+    const drawn = drawingsOf(id).some((node) => node && !inChrome(node) && seen(node));
+    return openThread(id, { part: "thread", intent, ...(drawn && { travel: false }) });
   }
 
   // Whether this page made the settlement `event` is.

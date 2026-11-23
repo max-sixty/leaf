@@ -263,7 +263,6 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
-import { openingPart } from "./thread/focus.js";
 import { inPageOrder, threadPlace } from "./thread/placement.js";
 import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
@@ -281,6 +280,7 @@ import {
   draftsReading,
   loadDraft,
   mirrorDraft,
+  replyContext,
   saveDraft,
   sendMessage,
   tellDraft,
@@ -2160,6 +2160,16 @@ export function createFloatingPanel({
   let writtenBand = 0;
   let bandFrame = 0;
   function followBox() {
+    stateBand();
+    const compact = host.dataset.lfRest === "mark";
+    const duration = compact
+      ? foldMs()
+      : performance.now() < viewMovingUntil && following.theirs() !== "send"
+        ? viewResizeMs()
+        : resizeMs();
+    following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
+  }
+  function stateBand() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
     // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
@@ -2191,13 +2201,6 @@ export function createFloatingPanel({
         announceRoom();
       });
     }
-    const compact = host.dataset.lfRest === "mark";
-    const duration = compact
-      ? foldMs()
-      : performance.now() < viewMovingUntil && following.theirs() !== "send"
-        ? viewResizeMs()
-        : resizeMs();
-    following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
 
   // A view is as tall as what it holds, up to its cap (floating-panel.css,
@@ -4952,37 +4955,9 @@ export function createFloatingPanel({
             ?disabled=${!thread.anchor}
             ?data-lf-unoffered=${!thread.anchor}
             @click=${() => {
-              if (inMessage) {
+              if (inMessage)
                 void openThreadSubject(thread.id, { intent: retainUserIntent() });
-                return;
-              }
-              // On a window wide enough for cards the press chooses them for the
-              // threads after this one too, which its preview says
-              // (thread/threads-in-panel.js), and the route then opens this one in its
-              // card. On a narrower one it leaves the choice as it stood.
-              chooseThreadsInPanel(false);
-              // The words come into view in the press's own task, so a widget
-              // hiding them, as a diff's file filter does, gives them up to this
-              // press rather than after the route's awaits (widget-elements.js,
-              // `reveal`).
-              const intent = retainUserIntent();
-              const place = placedAt(thread.id)?.place;
-              if (place) reveal(place, intent);
-              // The route reads where the user is before anything moves, so Back
-              // returns to this view, then draws the thread on the page and has this
-              // view put away, handing the reply box the field drew to the page's
-              // drawing; it lands there where an opening does (thread/focus.js,
-              // `openingPart`). Where the page draws no view of the thread, as a
-              // window with no room for the rail does, it lands on the thread's place
-              // (thread/destination.js, `reader: "page"`) and the view goes once it
-              // has, keeping its reply's words as a close does. A route that lands
-              // nowhere leaves the view where the user was.
-              void threadActions
-                .open(thread.key, { part: null, intent, reader: "page" })
-                .then((landed) => {
-                  if (!landed || !intent()) return;
-                  if (threadOf(trail.value.at(-1))?.key === thread.key) close();
-                });
+              else showOnPage(thread.key);
             }}
           ></button>`
         : nothing
@@ -5608,6 +5583,9 @@ export function createFloatingPanel({
   // answer, by the rule every reading of what the user sees takes (geometry.js,
   // `covered`), so a place in the top layer or the panel's own is never under it; the
   // view gives way only where it is the part that does, and the row stays either way.
+  // A route that opens a thread here and takes the page to its passage leaves the user
+  // in the view (thread/destination.js, `taken`), so travel that moves no one to the
+  // passage of the thread the view shows leaves the view standing (`ownPassage`).
   /** @param {Element | Range} where @param {DOMRect | null} landed */
   const standsOver = (where, landed) => {
     const holder = placeHolder(where);
@@ -5619,9 +5597,18 @@ export function createFloatingPanel({
       overlaps(box, opened.getBoundingClientRect()),
     );
   };
+  // Whether `where` stands in the place of the thread the view shows.
+  /** @param {Element | Range} where */
+  const ownPassage = (where) => {
+    const thread = threadOf(trail.value.at(-1));
+    const place = thread ? placedAt(thread.id)?.place : null;
+    const holder = placeHolder(where);
+    return Boolean(place && holder && (holder === place || under(holder, place)));
+  };
   /** @param {Pick<import("./anchor-travel.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
+    if (!focus && ownPassage(where)) return;
     if (
       doors.queue.shows() &&
       focus !== false &&
@@ -5699,16 +5686,58 @@ export function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
 
+  // A move between a thread's card and this view lands in the thread's reply where the
+  // reply holds words, which the move carries along so the user goes on writing, and
+  // otherwise on the thread, where this field shows the switch's notice and its press
+  // back (thread/threads-in-panel.js), which the caret in a reply would cover.
+  /** @param {string} key */
+  const movedPart = (key) =>
+    loadDraft(replyContext(key))?.text?.trim() ? "reply" : "thread";
   // A margin card's Open in panel hands its thread here, where a long thread reads
-  // wider than in the card's room beside the column (thread-preview.js). It lands where
-  // opening a thread does (thread/focus.js, `openingPart`): by a press in the reply, the
-  // reply being written in the card along with it, and by `p` on the thread, where the
-  // next `p` shows it on the page again.
+  // wider than in the card's room beside the column (thread-preview.js). It chooses
+  // this panel for the threads after it, offering this thread's Show on page back, and
+  // opens the thread by the route every opening takes (thread/destination.js), which
+  // the choice now puts here.
   /** @param {string} id */
   function openThread(id) {
     const thread = threadByKey(id);
     if (!thread) return;
-    open({ view: "thread", thread: thread.key }, { reopen: true, part: openingPart() });
+    const { key } = thread;
+    chooseThreadsInPanel(true, () => showOnPage(key));
+    void threadActions.open(key, {
+      part: movedPart(key),
+      travel: false,
+      intent: retainUserIntent(),
+    });
+  }
+  // A thread's Show on page. On a window wide enough for cards it chooses them for the
+  // threads after this one too, which its preview says, offering this thread's Open in
+  // panel back, and the route then opens this one in its card; on a narrower one it
+  // leaves the choice as it stood.
+  /** @param {string} key */
+  function showOnPage(key) {
+    const thread = threadByKey(key);
+    if (!thread) return;
+    chooseThreadsInPanel(false, () => openThread(key));
+    // The words come into view in the press's own task, so a widget hiding them, as a
+    // diff's file filter does, gives them up to this press rather than after the
+    // route's awaits (widget-elements.js, `reveal`).
+    const intent = retainUserIntent();
+    const place = placedAt(thread.id)?.place;
+    if (place) reveal(place, intent);
+    // The route reads where the user is before anything moves, so Back returns to this
+    // view, then draws the thread on the page and has this view put away, handing the
+    // reply box the field drew to the page's drawing. Where the page draws no view of
+    // the thread, as a window with no room for the rail does, it lands on the thread's
+    // place (thread/destination.js, `reader: "page"`) and the view goes once it has,
+    // keeping its reply's words as a close does. A route that lands nowhere leaves the
+    // view where the user was.
+    void threadActions
+      .open(key, { part: movedPart(key), intent, reader: "page" })
+      .then((landed) => {
+        if (!landed || !intent()) return;
+        if (threadOf(trail.value.at(-1))?.key === key) close();
+      });
   }
 
   // A promise's word in a message's head hands its to-do here (thread/messages.js):
@@ -5869,7 +5898,13 @@ export function createFloatingPanel({
           }
         }
         open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
-        return present({ release: true });
+        // The band the view takes is stated once it is drawn, before the box's size
+        // delivery, so the route's landing of the thread's passage, which may follow in
+        // the same task, stands clear of the view (thread/destination.js, `taken`).
+        return present({ release: true }).then((shown) => {
+          stateBand();
+          return shown;
+        });
       },
     });
     // Upgrade turns the status to its loading words without a publication.

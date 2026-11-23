@@ -277,6 +277,7 @@ export function declareThreadKeys(threadHere) {
         id: "thread.move",
         touch: false,
         keys: ["p"],
+        travels: true,
         title: () =>
           (
             movingControl(threadHere())?.getAttribute("aria-label") ?? "Open in panel"

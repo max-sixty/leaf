@@ -436,7 +436,6 @@ function createApplication(dependencies) {
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
-    threadDestination: dependencies.anchorTravel.threadDestination,
     ...(overlay ? { preview: overlay.threadPreview } : {}),
   });
 

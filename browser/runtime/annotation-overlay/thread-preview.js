@@ -195,7 +195,7 @@ import { retainUserIntent } from "../user-intent.js";
 import { openingPart, threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
 import { dismissReply, releaseReplies, replyIsEditing } from "../thread/replies.js";
-import { chooseThreadsInPanel, IN_PANEL } from "../thread/threads-in-panel.js";
+import { IN_PANEL } from "../thread/threads-in-panel.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
 import { errorOver } from "../errors.js";
 
@@ -280,8 +280,8 @@ export function createThreadPreview({
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
   // reads a long thread wider than the card's room beside the column, and chooses the
-  // panel for the threads after it (thread/threads-in-panel.js), which its preview
-  // says. The card closes, so one thread stands open, and the view's Show on page comes
+  // panel for the threads after it (floating-panel.js, `openThread`), which its
+  // preview says. The card closes, so one thread stands open, and the view's Show on page comes
   // back. It is the card's press that moves its thread (`lf-thread-move`,
   // thread/selectors.js), which `p` presses (thread/landing.js).
   const previewOpenInPanel = offerAction(
@@ -1205,7 +1205,6 @@ export function createThreadPreview({
     // The panel's view carries the reply being written along from the closed card
     // (thread/replies.js, `carry`).
     previewOpenInPanel.onclick = () => {
-      chooseThreadsInPanel(true);
       dismiss();
       openInPanel(shownThread.id);
     };

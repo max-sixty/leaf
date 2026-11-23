@@ -22,7 +22,6 @@
 import { signal } from "/runtime/framework.js";
 import { tabStore } from "../tab-store.js";
 import { notice } from "../notifications.js";
-import { pressCommand } from "../keyboard/dispatch.js";
 import { windowHoldsRail } from "../content-layout.js";
 import { THREADS_IN_PANEL_KEY } from "../restore-state.js";
 
@@ -46,12 +45,14 @@ function keep(on) {
 
 // Choose where threads about a passage open, as a press of the user's moves the thread
 // they are in there. On a window too narrow for cards the press chooses nothing, and a
-// press that repeats the choice in force says nothing. The notice offers `p`, which
-// presses the move of the thread the user is at (`thread.move`, landing.js), the other
-// way, while this choice stands; the field shows it only while `p` would press it, as
-// it shows every press.
-/** @param {boolean} on */
-export function chooseThreadsInPanel(on) {
+// press that repeats the choice in force says nothing. The notice's press is `back`,
+// the other press for the thread this one moved, which its caller captured, so it
+// moves that thread back and makes the other choice wherever the user stands when they
+// press it. The field shows the press while its key would make it (`thread.move`,
+// landing.js), as it shows every press, so never to a finger, which reaches the same
+// result by the thread's own control.
+/** @param {boolean} on @param {() => unknown} back */
+export function chooseThreadsInPanel(on, back) {
   if (!wouldChoose(on)) return;
   keep(on);
   const stands = () => inPanel.value === on;
@@ -59,7 +60,7 @@ export function chooseThreadsInPanel(on) {
     press: {
       action: on ? "show-on-page" : "open-in-panel",
       command: "thread.move",
-      run: () => pressCommand("thread.move"),
+      run: back,
       stands,
     },
     stands,

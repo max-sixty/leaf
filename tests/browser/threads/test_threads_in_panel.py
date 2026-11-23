@@ -4,10 +4,22 @@ on page chooses cards again (thread/threads-in-panel.js; the rule is
 thread/destination.js's)."""
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
-from render_harness import leaf_page, open_page, open_threads, resized, scroll_settled
+from render_cases_interaction import SEAT, SEATED_OBLIGATION_PAGE, panel_comment
+from render_harness import (
+    leaf_page,
+    open_page,
+    open_threads,
+    resized,
+    round_trip,
+    scroll_settled,
+    sending,
+    undo,
+)
 
+from browser.navigation.test_reading_place import ITEMS_LAYER, ITEMS_WIDGETS
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL, PANEL_THREAD, panel_view
 
@@ -58,12 +70,11 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
 
     page.keyboard.press("t")
     expect(card("near")).to_be_focused()
-    cards.get_by_role("button", name="Open in panel").click()
-    expect(view("near")).to_be_visible()
+    cards.get_by_role("button", name="Open in panel", exact=True).click()
+    # The click lands on the thread, where `t` walks on.
+    expect(view("near")).to_be_focused()
     expect(cards).to_be_hidden()
 
-    # The caret leaves the reply for the view, where `t` walks.
-    page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(view("mid")).to_be_focused()
     expect(cards).to_be_hidden()
@@ -100,10 +111,9 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
     expect(cards).to_be_hidden()
 
     shown = page.locator(PANEL_THREAD).get_attribute("data-lf-thread")
-    page.locator(PANEL).get_by_role("button", name="Show on page").click()
+    page.locator(PANEL).get_by_role("button", name="Show on page", exact=True).click()
     expect(cards.locator(f'.lf-page-thread[data-lf-thread="{shown}"]')).to_be_visible()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
-    page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(cards.locator(".lf-page-thread")).to_be_focused()
     walked = cards.locator(".lf-page-thread").get_attribute("data-lf-thread")
@@ -132,17 +142,17 @@ def test_a_narrow_window_puts_threads_in_the_panel_and_keeps_the_choice(browser,
     resized(page, 700, 900)
     page.keyboard.press("t")
     expect(view("near")).to_be_focused()
-    page.locator(PANEL).get_by_role("button", name="Show on page").click()
+    page.locator(PANEL).get_by_role("button", name="Show on page", exact=True).click()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     resized(page, 1440, 900)
     page.keyboard.press("t")
     card = cards.locator(f'.lf-page-thread[data-lf-thread="{roots["near"]}"]')
     expect(card).to_be_focused()
 
-    cards.get_by_role("button", name="Open in panel").click()
+    cards.get_by_role("button", name="Open in panel", exact=True).click()
     expect(view("near")).to_be_visible()
     resized(page, 700, 900)
-    page.locator(PANEL).get_by_role("button", name="Show on page").click()
+    page.locator(PANEL).get_by_role("button", name="Show on page", exact=True).click()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     # Show on page left the user at the thread's place, so `t` arrives at it first.
     page.keyboard.press("t")
@@ -152,3 +162,115 @@ def test_a_narrow_window_puts_threads_in_the_panel_and_keeps_the_choice(browser,
     resized(page, 1440, 900)
     expect(view("mid")).to_be_visible()
     expect(cards).to_be_hidden()
+
+
+def test_a_walk_into_the_panel_draws_the_widget_part_its_thread_is_on(browser, serve):
+    """With the panel chosen, a walk to a thread about a part of a widget that the
+    widget isn't drawing asks the widget to draw it (`lfRevealDatum`), as a walk to the
+    thread's card does, rather than bringing the widget into view with the part still
+    undrawn."""
+    url = serve(
+        leaf_page(
+            "Items",
+            "<h1>Items</h1><div style='height:1200px'></div>"
+            "<lf-items id='items'></lf-items><div style='height:1600px'></div>",
+        ),
+        layer_registry=ITEMS_LAYER,
+        layer_widgets=ITEMS_WIDGETS,
+    )
+    root = panel_comment(
+        serve.page_dir, "About item b?", {"section": "items", "datum": "b/2"}
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    choose_threads_in_panel(page)
+    page.keyboard.press("t")
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_focused()
+    expect(page.locator('#items [data-item="b"][data-part="2"]')).to_have_count(1)
+
+
+def test_undo_returns_a_seated_thread_where_the_user_chose(browser, serve):
+    """With the panel chosen, taking back a Resolve made in the panel's view of a thread
+    a widget also seats on the page opens the thread in the panel again, where the user
+    reads threads, though its seat shows it too, rather than leaving the panel on the
+    thread the Resolve moved on to."""
+    filler = "".join(f"<p>Filler {n}. " + "Words. " * 30 + "</p>" for n in range(12))
+    url = serve(SEATED_OBLIGATION_PAGE.replace("</main>", filler + "</main>"))
+    seated = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "These jobs can share one visit.",
+        },
+    )["id"]
+    panel_comment(serve.page_dir, "Is the plan ready?")
+    page = open_page(browser, url)
+    resized(page, 1920, 900)
+    view = open_panel_thread(page, seated)
+    expect(page.locator(f"#jobs > {SEAT} .lf-page-thread")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(view).to_be_focused()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    expect(view).to_have_count(0)
+    undo(page)
+    round_trip(page)
+    expect(view).to_be_focused()
+
+
+def test_a_click_on_either_switch_offers_its_way_back(browser, serve):
+    """A click on Open in panel or Show on page lands on the thread, where the panel's
+    field shows the notice saying the choice lasts, with the press that switches back.
+    That press moves the thread the notice was raised for, though pressing it takes the
+    user out of the thread, and makes the choice either way."""
+    url, roots = threads_page(serve)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    cards = page.locator(".lf-margin-preview")
+    card = cards.locator(f'.lf-page-thread[data-lf-thread="{roots["near"]}"]')
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["near"]}"]')
+    back = page.locator(".lf-fp-field .lf-compose-press")
+
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    cards.get_by_role("button", name="Open in panel", exact=True).click()
+    expect(view).to_be_focused()
+    expect(back).to_contain_text("Show on page")
+
+    page.locator(PANEL).get_by_role("button", name="Show on page", exact=True).click()
+    expect(card).to_be_focused()
+    expect(back).to_contain_text("Open in panel")
+    back.click()
+    expect(view).to_be_focused()
+    expect(cards).to_be_hidden()
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["mid"]}"]')
+    ).to_be_focused()
+
+
+def test_a_press_on_words_the_panel_opens_over_brings_them_clear(browser, serve):
+    """With the panel chosen, a press on a passage's words low in the window, where the
+    panel's view of its thread opens, scrolls the page just far enough to show the
+    words above the view."""
+    url, roots = threads_page(serve)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    choose_threads_in_panel(page)
+    words = page.locator("#mid p")
+    words.evaluate(
+        "p => scrollBy({top: p.getBoundingClientRect().top - innerHeight + 90,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    words.get_by_text("The question about the mid section.").click()
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["mid"]}"]')
+    expect(view).to_be_visible()
+    scroll_settled(page)
+    box = words.bounding_box()
+    assert box["y"] + box["height"] <= view.bounding_box()["y"] + 1, (
+        "the words stand under the panel's view"
+    )

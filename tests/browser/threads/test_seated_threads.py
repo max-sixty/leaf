@@ -4,9 +4,9 @@ settlement and new patches do to their reply box and to the reading around them.
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import ROOT, append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, panel_comment
+from render_cases_interaction import OBLIGATION_PAGE, live_url, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     EXAMPLE_PACKAGES,
@@ -27,12 +27,6 @@ from render_harness import (
 )
 
 from browser.drafts import choose_comment_target
-from browser.navigation.test_obligation_walk import (
-    RECORDS,
-    RECORDS_RUN,
-    REVIEW,
-    records_page,
-)
 from browser.threads import (
     PANEL_REPLY,
     SEAT_DIFF,
@@ -53,6 +47,28 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# A widget showing one case at a time of the run its `source` binds, from a package
+# of the suite's own. Each case is a datum that keeps its identity across new values
+# (`data-lf-identity`), and the shown case seats the threads on it.
+RECORDS = ROOT / "tests/fixtures/packages/records"
+RECORDS_RUN = {
+    "cases": [
+        {"id": "status-column", "title": "Run list status"},
+        {"id": "detail-link", "title": "Run detail link"},
+        {"id": "desktop-navigation", "title": "Desktop navigation"},
+    ]
+}
+REVIEW = '<lf-test-review id="review" source="run"></lf-test-review>'
+
+
+def records_page(serve):
+    """A page whose `review` shows the cases of the run."""
+    url = live_url(
+        serve(leaf_page("Cases", REVIEW), packages=(*EXAMPLE_PACKAGES, RECORDS))
+    )
+    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
+    return url
 
 
 def test_a_widget_seats_the_thread_about_itself_and_none_inside_it(browser, serve):

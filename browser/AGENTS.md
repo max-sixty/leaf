@@ -300,7 +300,7 @@ concrete and playable").
   diagram shows its name as a tooltip (check: the `lf-diagram` case in
   `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
-  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
+  (`lfPreview`, `../skills/leaf/references/module-previews.md`), a control's
   word and keys come from its name and the register, a link an author wrote into the
   page shows the place it names (`runtime/place-preview.js`), and a range's owner says
   where the pointer or a holding finger rests on it, as a thread's passage marks do
@@ -427,7 +427,11 @@ A box that follows page content is positioned by CSS, with an anchor, a sticky o
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
 the page's targets goes through `paintSet` in `target-paint-geometry.js`. What a scroll
 changes that CSS can't follow is read again when the scroll ends (`watchScrollEnds` in
-`arrivals.js`).
+`arrivals.js`), unless the reader would see it wrong until then. Such a reading is
+taken at each scroll and writes only where its answer changes, as the solve of a
+floating box an edge holds in does (`annotation-overlay/floating.js`), and the paint
+that follows whether focus is in sight (`user-place.js`, through `geometry.js`
+`whenChanges`).
 
 Lit owns template bindings and skips unchanged values. For imperative writes outside
 those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant
@@ -722,7 +726,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                     |
 | Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
-| When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
+| When a reading of what is seen starts or stops holding, or holds for none of some nodes               | `geometry.js` `whenChanges`, `whenNone`                                            |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
 | The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
 | Whether a box shows what it holds, not only its own box as one hidden until found does                | `geometry.js` `showsContents`                                                      |

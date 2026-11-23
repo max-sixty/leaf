@@ -5342,12 +5342,12 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
-      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
+      owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place(); const first=selected();
       if(!first||first.plane!=='page')throw Error('First placement was not supported page');
       const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
       host.style.removeProperty('transform');plane='window';await place();const second=selected();
       if(!second)throw Error('Supported window placement missing');
-      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
+      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place();const third=selected();
       window.reviewOwner=owner;window.reviewPlace=place;
       return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
     }""")
@@ -6016,7 +6016,7 @@ def test_real_floating_plane_retains_local_motion(
               {placement:'right-start',middleware:[]}, ()=>plane, subject);
             if (placed) {owner.stand(placed); answer = placed;}
           }
-          owner.watch(subject, subject, ui.autoUpdate);
+          owner.watch(subject, subject, ui.autoUpdate, ui.getOverflowAncestors);
           await place();
           holder.style.removeProperty('visibility');
           const original = selection();

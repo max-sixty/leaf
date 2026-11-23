@@ -93,7 +93,7 @@
  * minutes on each ⋯.
  *
  * The sheets are the dial's preview, drawn by the dial while Leaf keeps its own preview
- * face unseen (`unseen`, module-input.md, "Previews"). Leaf's preview stands clear of the
+ * face unseen (`unseen`, module-previews.md). Leaf's preview stands clear of the
  * controls on the page, so where a link sat under the dial a chart in it stood beside
  * the dial, away from the buttons it compares; hanging each sheet under its own button
  * is an exception to one preview face the maintainer chose. Leaf still opens and ends

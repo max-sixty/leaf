@@ -1641,18 +1641,6 @@ _TEXT = {
         )
     ),
     # Its interactions: its obligation, and the state its verbs write.
-    "awaits-records": _declared(
-        lambda v: (
-            "`awaits.records` must name an input (`inputs`) whose contract declares"
-            " records and whose binding names only an external source attribute"
-        )
-    ),
-    "answering-record": _declared(
-        lambda v: _answering(
-            v,
-            "must use the same record unit as `awaits.value`, with custom detail and no empty condition",
-        )
-    ),
     "answering-detail": _declared(
         lambda v: _answering(
             v, f"detail condition names an undeclared or invalid field `{v['field']}`"

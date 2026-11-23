@@ -209,7 +209,7 @@ the user's decision back. Leaf writes both into the composed declaration, so the
 package's own lists neither. An element that another widget's verb names by id, as
 `lf-board`'s `move` names an `lf-card`, lists `restated` itself.
 
-`awaits` puts a widget's obligations on the user's list, On Me. Its `value` names
+`awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
 `awaits.answered` separately says when the obligation is complete: `{}` once the
@@ -227,18 +227,6 @@ named container has no members. A page-owned queue can declare:
 
 The obligation is answered once the marked column is empty, and returning a card reopens it. If
 the widget's `when` stops holding, a complete obligation stays answered and an incomplete one is withdrawn.
-
-A widget whose bound data contains independently answered records declares `records:
-{"input": "run", "label": "title"}` in `awaits`. The input binds to a stored
-source, which the server can read; widget outputs remain browser-local. The input's
-contract supplies `records.items` and `records.key`; each record's key identifies its
-obligation and its answering action's unit. The named label field supplies the prompt.
-For example, `value: "review"` with `answered: {"review": {"detail": {"approved":
-true}}}` completes each record's obligation while that unit's latest review approves it.
-Clearing or undoing approval reopens it. Source reordering preserves these identities;
-removing a record removes its obligation. The widget marks those same keys as its drawn
-data ([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so
-Leaf's On Me navigation can reveal each record.
 
 `awaits.retired` names the attribute an author sets to close an obligation but
 keep its widget on the page, such as a decided question collapsed with its options;
@@ -450,9 +438,7 @@ element itself: a control inside the element says a bubbling `change` of its own
 which Leaf doesn't count, and which a module listening on its own element tells apart
 by `event.target`.
 
-A consumer draws after the producer's `change`, in the same frame, not inside it. A
-producer that goes on to act on the page as its consumers leave it, such as scrolling
-to a place, does that in the next frame (`frameFor`).
+A consumer draws after the producer's `change`, in the same frame, not inside it.
 
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
@@ -514,7 +500,6 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key. `data set` refuses a value in which two rows share a key, or a row's key is
-missing, empty or not a string, and an `awaits.records` input ([User
-state](#user-state)) keys each row's obligation by it. `lf-diff`'s contract, whose value
+missing, empty or not a string. `lf-diff`'s contract, whose value
 has a `files` array of `{path, patch}` objects, declares `{ "records": { "items":
 "files", "key": "path" } }`.

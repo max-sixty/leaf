@@ -108,11 +108,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panel_s_row(
 def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
     """`g T` from the page stands Threads on its first row, which wears a ring, and
     Escape from a thread's reply in the panel stands the user on the thread's view,
-    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
+    which wears none (floating-panel.css, `.lf-fp-view:focus`). A thread about the
+    whole page opens in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
-    panel_comment(
-        serve.page_dir, "Where should this explanation go?", {"section": "lede"}
-    )
+    panel_comment(serve.page_dir, "Where should this explanation go?")
     page = open_page(browser, url)
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("g")

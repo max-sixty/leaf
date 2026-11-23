@@ -184,7 +184,7 @@ the drawing needs them.
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls").
+(`module-controls.md`).
 [`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
 The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
 names, each with its symbol and the words its press says. For a symbol whose action
@@ -260,8 +260,6 @@ is that group's `label`, else the widget's own name, and `null` for an update. `
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 
-- A bound-data record's obligation names the owning widget in `source.id` and the
-  record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
   settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its

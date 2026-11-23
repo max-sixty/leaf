@@ -50,7 +50,7 @@ import {
 const CLUSTER_WIDTH = 168;
 
 // What a mark says to a pointer resting on it or a finger holding it, as its preview
-// (`lfPreview`, module-input.md, "Previews"): its name, then its time and what else the
+// (`lfPreview`, module-previews.md): its name, then its time and what else the
 // recording says of it. A time keeps its unit on its line. It is about the lane the mark
 // stands in, which the user reads along, so the preview keeps clear of the whole lane.
 // The lane's marks are thinner than the preview owner's hit tests are apart, so naming

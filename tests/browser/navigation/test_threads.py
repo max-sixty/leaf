@@ -650,8 +650,9 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
             if (event.target === document)
               window.lfPageTrip.push(document.scrollingElement.scrollTop);
           }, {capture: true});
-          // Registered after the runtime's own listener, which answers a shortcut as
-          // the document captures it, so this reads the press's task once the walk has.
+          // Nothing is focused, so the key is aimed at the page itself, and the
+          // runtime answers it in its capture listener on the document. Registered
+          // after that one, this reads the press's task once the walk has.
           document.addEventListener('keydown', () => {
             window.lfAfterPress = {
               page: document.scrollingElement.scrollTop,

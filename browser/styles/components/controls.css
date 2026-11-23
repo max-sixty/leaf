@@ -1655,17 +1655,24 @@ wa-copy-button.lf-icon-action {
   border-radius: var(--lf-r);
   background: var(--lf-card);
 }
+/* A mark standing as its own toolbar takes the focus itself, and it stands in a block's
+   corner, so its ring lies inside its edge, over its hairline, as a press seated in a
+   corner does (tokens.css, "Where it stands"): outside, it would nearly meet the
+   block's edge. */
+.lf-mark-action[data-lf-bar] {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
 /* A toolbar's marks are a joined run (`data-lf-joined`, below) meeting its hairline, so
-   where they meet its corners they take its rounding less the hairline. */
+   where they meet its corners they take its rounding inside it. */
 .lf-mark-bar {
-  --lf-joined-r: calc(var(--lf-r) - 1px);
+  --lf-joined-r: var(--lf-r-in);
 }
 /* A joined run: a holder whose presses join into one control declares
    `data-lf-joined` (control-faces.js), as a block's toolbar of marks and a question's
    Done do. Each press is square where it meets the next and stands its ring one band
    inside its edge, and the first and last press shown take the holder's rounding at
    the corners they share with it (`--lf-joined-r`, which the holder's owner states; 0
-   where the holder clips its presses to its own corners). The holder clips nothing
+   where a frame round the holder clips them). The holder clips nothing
    itself, since a finger's reach (surfaces.css) stands outside a toolbar's box. A
    press the holder hides (`hidden`), or a word standing before them, as a draft's
    refused save, is no end of the run. */
@@ -1692,9 +1699,9 @@ wa-copy-button.lf-icon-action {
   border-start-end-radius: var(--lf-joined-r, 0px);
   border-end-end-radius: var(--lf-joined-r, 0px);
 }
-/* A holder that clips its presses to its own corners (`--lf-joined-r: 0px`), as a
-   question's joined options do for Done, draws the run's edge and seams itself, so a
-   word in it draws no edge of its own: two edges would stand where its neighbours
+/* A holder standing in a frame that clips it (`--lf-joined-r: 0px`), as Done's cell in
+   a question's joined options does, leaves the run's edge and seams to that frame, so
+   a word in it draws no edge of its own: two edges would stand where its neighbours
    share one. */
 @container style(--lf-joined-r: 0px) {
   [data-lf-joined] > .lf-btn {

@@ -102,7 +102,7 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
      square where the evidence follows it (above). It stands its ring, and every mark
      on it, inside its edge (base.css, "Where it stands"), as a row padded inside a
      frame it fills does. */
-  border-radius: calc(var(--lf-r) - 1px);
+  border-radius: var(--lf-r-in);
   font-weight: 400;
   --lf-ring-at: var(--lf-focus-ring-inset);
 }

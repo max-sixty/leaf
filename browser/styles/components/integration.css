@@ -37,9 +37,9 @@
    It casts no shadow: it lies on one surface, which the ring alone sets it apart from.
    Its marks stand a reach apart, so neighbouring reaches meet rather than overlap and
    the finger's wider reach widens only the toolbar. A code block's Copy is such a
-   toolbar of one mark (`data-lf-bar`, controls.css), standing 1px inside its own ring
-   so its focus ring, outside the mark, covers it; a draft's toolbar (draft.css) stands
-   in the same seat, and its Copy is one of its marks. */
+   toolbar of one mark (`data-lf-bar`, controls.css), its mark 1px inside its own ring;
+   a draft's toolbar (draft.css) stands in the same seat, and its Copy is one of its
+   marks. */
 :root {
   --lf-block-control-inset: calc(1px + var(--lf-clear));
 }

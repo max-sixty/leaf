@@ -636,8 +636,43 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
+    /* Done joins as a cell: square and edgeless in it (controls.css, `data-lf-joined`),
+     * its cell wearing its ring, as a row wears its mark's (below). */
     & > lf-options-done {
       --lf-joined-r: 0px;
+      --lf-ring-at: var(--lf-focus-ring-inset);
+      &[data-lf-control-focus-visible] {
+        outline: var(--lf-focus-ring);
+        --lf-wears-ring: 1;
+      }
+      & > .lf-done {
+        --lf-focus-box: lf-options-done;
+        &[data-lf-focus-visible] {
+          outline: none;
+        }
+      }
+    }
+    /* A cell standing in the group's corners takes its rounding there (`--lf-r-in`), so a
+     * ring the cell draws inside its edge, a pick's or the keyboard's, follows the frame
+     * rather than squaring a corner the clip then thins. The first cell takes the head's
+     * start corner and the last cell the foot's end corner. A cell filling its row takes
+     * both corners at that end of the group, as every cell does in a stack and Add and
+     * Done always do. Options laid across (`--lf-option-in-row`) share the head: the last
+     * takes its end corner and, where no cell follows them, the first takes the foot's
+     * start corner. */
+    & > :first-child {
+      border-start-start-radius: var(--lf-r-in);
+      border-start-end-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
+    }
+    & > :last-child {
+      border-end-start-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
+      border-end-end-radius: var(--lf-r-in);
+    }
+    & > lf-option:last-of-type:not(:first-child) {
+      border-start-end-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
+    }
+    &:not(:has(> lf-option:last-of-type ~ *)) > lf-option:first-of-type:not(:last-child) {
+      border-end-start-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -739,8 +774,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * need a box around a card's chips, and a card's children stay as the author wrote
    * them. */
   lf-options:has(> lf-option:where([label])) > lf-option {
-    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
     align-content: first baseline;
+    &:not(:only-of-type) {
+      --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    }
   }
   @container style(--lf-option-in-row: 1) {
     /* Each chip's row is the seat's height, so the chips wrap level beside the seat and

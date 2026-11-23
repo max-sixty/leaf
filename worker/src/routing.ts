@@ -176,8 +176,10 @@ function pageCookieName(prefix: string, pageRoot: string): string {
   return `${prefix}-${suffix}`;
 }
 
-export function newSessionId(random: Uint8Array): string {
-  return Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("");
+// The lowercase hex of `bytes`, which names a session minted from random bytes and a
+// stored chunk by its digest.
+export function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // A support handle, not a credential: project a random identity into a short numeric

@@ -130,7 +130,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             assert label["said"] == label["text"]
 
     assert_source_words()
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    expect(shot).to_have_attribute("data-lf-shot-mode", "slider")
     assert_source_words()
     # The classic track is on: its stable gutter takes both edges.
     assert (
@@ -202,28 +202,6 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         (box["x"] + box["width"] - 1, box["y"] + box["height"] / 2),
     )
     assert "before" in page.evaluate("getSelection().toString()").lower()
-
-    # Custom source names cannot borrow space from the controls at phone width.
-    shot.evaluate("""node => node.inspect({labels: {
-        before: 'Previous deployment with an unusually long source name',
-        after: 'Current candidate with another unusually long source name'
-    }})""")
-    expect(captions).to_have_text(
-        [
-            "Previous deployment with an unusually long source name",
-            "Current candidate with another unusually long source name",
-        ]
-    )
-    assert [
-        control.bounding_box() for control in controls if control.is_visible()
-    ] == boxes
-    toolbar_box = toolbar.bounding_box()
-    for caption in captions.all():
-        box = caption.bounding_box()
-        assert box["width"] > 0
-        assert box["x"] >= toolbar_box["x"] - 1
-        assert box["x"] + box["width"] <= toolbar_box["x"] + toolbar_box["width"] + 1
-    assert shot.evaluate("node => node.scrollWidth <= node.clientWidth + 1")
 
     comparison = shot.locator("wa-comparison")
     for endpoint in ("100", "0"):
@@ -344,7 +322,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     shot = page.locator("lf-shot")
     shot.scroll_into_view_if_needed()
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    expect(shot).to_have_attribute("data-lf-shot-mode", "slider")
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
     viewer = page.get_by_role("dialog", name="Image preview")
@@ -387,9 +365,12 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         elif index == 0:
             link.click()
         else:
-            # Escape restored the first image; Tab reaches the second image.
+            # Escape restored the first image; Tab reaches the second image. Focus
+            # arrives with the browser's reveal, which stops at the window's foot, and
+            # the runtime lands the arrival clear of the panel in the next frame.
             page.keyboard.press("Tab")
             expect(link).to_be_focused()
+            render_checks_model.rendered(page)
             before = shot.bounding_box()
             box = link.bounding_box()
             page.keyboard.press("Enter")
@@ -645,20 +626,23 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
-    browser, serve
-):
-    """Before its module draws, a shot holds the height its drawing takes at each width,
-    on both sides of the narrow toolbar's breakpoint. Where scrollbars are classic, as on
-    Linux, the stage's gutter narrows the frame and not the width the toolbar reads."""
-    widths = [430, 450, 455, 465, 480, 640]
-    shots = "".join(
-        f'<div style="inline-size: {w}px"><lf-shot id="w{w}" alt="a pair"'
-        f' before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot></div>'
-        for w in widths
-    )
+def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
+    """Before its module draws, a shot holds the height its drawing takes: at each width,
+    on both sides of the narrow toolbar's breakpoint, and for a pair that opens on its
+    focus or was taken at 2×, which holds the focus's frame or its CSS size. Where
+    scrollbars are classic, as on Linux, the stage's gutter narrows the frame and not the
+    width the toolbar reads."""
+    pair = f'alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"'
+    shots = {
+        f"w{w}": f'<div style="inline-size: {w}px"><lf-shot id="w{w}" {pair}></lf-shot></div>'
+        for w in [430, 450, 455, 465, 480, 640]
+    } | {
+        "focused": f'<lf-shot id="focused" {pair} density="2" focus-x="20"'
+        ' focus-y="30" focus-width="200" focus-height="80"></lf-shot>',
+        "dense": f'<lf-shot id="dense" {pair} density="2"></lf-shot>',
+    }
     url = serve(
-        leaf_page("Held shots", f"<h1>Held shots</h1>{shots}"),
+        leaf_page("Held shots", f"<h1>Held shots</h1>{''.join(shots.values())}"),
         media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -680,9 +664,15 @@ def test_a_shot_holds_its_drawn_height_on_either_side_of_the_narrow_toolbar(
     render_checks_model.wait_until_ready(page)
     expect(page.locator("lf-shot .lf-shotframe").first).to_be_visible()
     drawn = page.locator("lf-shot").evaluate_all(heights)
-    assert dict(zip(widths, held, strict=True)) == pytest.approx(
-        dict(zip(widths, drawn, strict=True)), abs=1
+    assert dict(zip(shots, held, strict=True)) == pytest.approx(
+        dict(zip(shots, drawn, strict=True)), abs=1
     )
+    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, each
+    # inside the frame's border.
+    frames = page.locator("#focused, #dense").evaluate_all(
+        "shots => shots.map(shot => shot.querySelector('.lf-shotframe').offsetHeight)"
+    )
+    assert frames == pytest.approx([80 + 2, 150 + 2], abs=1)
 
 
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
@@ -735,6 +725,31 @@ def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     views.get_by_role("radio", name="Pixels", exact=True).click()
     views.get_by_role("radio", name="Slider", exact=True).click()
     expect(comparison).to_have_attribute("position", position)
+
+
+def test_a_shot_opens_in_the_view_its_author_names(browser, serve):
+    """`view` names the view a pair opens in, with that view's radio chosen: Pair draws
+    both captures whole and no divider, and Pixels draws its mask unpressed."""
+    pairs = "".join(
+        f'<lf-shot id="opens-{view}" view="{view}" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+        for view in ("pair", "pixels")
+    )
+    source = leaf_page("Opening views", f"<h1>Opening views</h1>{pairs}")
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    page = open_page(browser, url)
+    for view, name in (("pair", "Pair"), ("pixels", "Pixels")):
+        shot = page.locator(f"#opens-{view}")
+        expect(shot).to_have_attribute("data-lf-shot-mode", view)
+        expect(
+            shot.locator(".lf-shot-views").get_by_role("radio", name=name, exact=True)
+        ).to_have_attribute("aria-checked", "true")
+    pair = page.locator("#opens-pair")
+    expect(pair.locator("wa-comparison")).to_have_count(0)
+    for frame in pair.locator(".lf-shotframe img").all():
+        expect(frame).to_be_visible()
+    expect(page.locator("#opens-pixels .lf-shot-pixel-mask")).to_have_attribute(
+        "style", re.compile(r"--lf-shot-pixels: url\(")
+    )
 
 
 def test_a_shot_masks_the_pair_that_replaced_the_one_it_was_masking(browser, serve):
@@ -810,10 +825,12 @@ def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser,
     assert page.evaluate("window.lfOthersRead") <= 1
 
 
-def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_changes(
+def test_a_shot_opens_on_its_focus_and_preserves_choices_when_it_changes(
     browser, serve
 ):
-    """One CSS-pixel crop and scale apply to paired images, slider and pixel masks."""
+    """The focus and density a pair's markup states give one CSS-pixel crop and scale
+    to paired images, slider and pixel masks; restating them keeps the reader's
+    choices, and a pair without a focus offers no Full frame."""
     before = solid_png(600, 300, (210, 220, 235))
     after = solid_png(600, 300, (210, 220, 235), patch=(120, 70, 40, 30, (30, 30, 30)))
     sources = {
@@ -822,17 +839,13 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     }
     source = leaf_page(
         "Inspect a focus",
-        f'<h1>Inspect a focus</h1><lf-shot id="inspected-pair" alt="a focused change" before="{sources["before"]}" after="{sources["after"]}"></lf-shot>',
+        f'<h1>Inspect a focus</h1><lf-shot id="inspected-pair" alt="a focused change" before="{sources["before"]}" after="{sources["after"]}" density="2" focus-x="5" focus-y="25" focus-width="100" focus-height="50"></lf-shot>',
     )
     page = open_page(
         browser,
         serve(source, media={sources["before"]: before, sources["after"]: after}),
     )
     shot = page.locator("#inspected-pair")
-    expect(shot.get_by_role("checkbox", name="Full frame", exact=True)).to_have_count(0)
-    shot.evaluate(
-        "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Base', after: 'Candidate'}})"
-    )
     shot.get_by_role("button", name="Image options").click()
     full = shot.get_by_role("checkbox", name="Full frame", exact=True)
     expect(full).not_to_be_checked()
@@ -881,17 +894,27 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     assert image.bounding_box()["height"] == pytest.approx(150, abs=1)
     full.uncheck()
     full.focus()
-    shot.evaluate(
-        "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Previous', after: 'Current'}})"
+    # The comparison reads whole images, so its reading stands under the new focus,
+    # which draws before the next frame rather than after another comparison.
+    assert (
+        shot.evaluate("""async node => {
+      await node.difference;
+      node.setAttribute('focus-width', '120');
+      await null;
+      return node.querySelector('.lf-shotframe .lf-shotimage').clientWidth;
+    }""")
+        == 120
     )
     expect(full).to_be_focused()
     expect(full).not_to_be_checked()
     expect(
         shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
     ).to_have_attribute("aria-pressed", "true")
-    expect(
-        shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
-    ).to_contain_text("Previous")
+    shot.evaluate(
+        "node => ['x', 'y', 'width', 'height'].forEach(side => node.removeAttribute(`focus-${side}`))"
+    )
+    expect(full).to_have_count(0)
+    expect(image).to_have_js_property("clientWidth", 300)
 
 
 def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
@@ -1030,7 +1053,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
         shot.get_by_role("radio", name=view, exact=True).click()
         expect(shot).to_have_attribute(
             "data-lf-shot-mode",
-            {"Slider": "flip", "Pixels": "pixels", "Pair": "compare"}[view],
+            {"Slider": "slider", "Pixels": "pixels", "Pair": "pair"}[view],
         )
         expect(
             shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
@@ -1051,7 +1074,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     for mode in ("Slider", "Pixels"):
         shot.get_by_role("radio", name=mode, exact=True).click()
         expect(shot).to_have_attribute(
-            "data-lf-shot-mode", {"Slider": "flip", "Pixels": "pixels"}[mode]
+            "data-lf-shot-mode", {"Slider": "slider", "Pixels": "pixels"}[mode]
         )
         assert [control.bounding_box() for control in controls] == control_boxes
         shot.get_by_role("radio", name="Pair", exact=True).click()

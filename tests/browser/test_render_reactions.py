@@ -888,8 +888,8 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
     narrow screen the same room caps the bar and the field spans it, since words take
-    the picker trigger out of its corner. The sent message spans the card as its reply
-    does."""
+    the picker trigger out of its corner. The sent message spans the card's padding,
+    which its reply box runs over to the card's sides."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -966,9 +966,12 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     expect(card).to_have_css("opacity", "1")
     message = card.locator(".lf-msg-body").first.bounding_box()
     reply = card.locator(".lf-compose-field").bounding_box()
-    assert message["x"] + message["width"] == pytest.approx(
+    padding = card.evaluate(
+        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-thread-pad'))"
+    )
+    assert message["x"] + message["width"] + padding == pytest.approx(
         reply["x"] + reply["width"], abs=1
-    ), (message, reply)
+    ), (message, reply, padding)
 
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
@@ -2063,8 +2066,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     """Reaction belongs to its own header, including an agent-authored root, and
     stands clear of the view's Resolve. It stands on the head's line, and a control
     that ends the line may hang into the room the transcript keeps at its end
-    (floating-panel.css, `.lf-msg-control-room`) but no further. Both actions stay
-    reachable, and a touch trigger reaches its floor without its face covering the
+    (floating-panel.css, `.lf-fp-messages .lf-msg-head`) but no further. Both actions
+    stay reachable, and a touch trigger reaches its floor without its face covering the
     message's first line."""
     url = serve(PANEL_PAGE)
     text = (
@@ -2245,7 +2248,7 @@ def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
             rendered(page)
             expect(preview).to_be_hidden()
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-held'))
+            .filter((chip) => chip.hasAttribute('data-lf-touch-held'))
             .map((chip) => [chip.dataset.lfToken,
                             document.getElementById('lf-preview').innerText])""")
 

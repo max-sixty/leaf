@@ -54,8 +54,9 @@ def starting_detached(
     module: str = "leaf",
     launcher: Path | None = None,
 ):
-    """Spawn `python -m MODULE ARGUMENTS --handshake FD` in a session of its own, and
-    yield its announcement, then accept and confirm on context exit.
+    """Spawn `python -P -m MODULE ARGUMENTS --handshake FD` in a session of its own,
+    and yield its announcement, then accept and confirm on context exit. `-P` keeps
+    the caller's working directory off the child's module path, as `bin/leaf` does.
 
     Raises `StartRefused` with the child's reason when it refuses, exits, or has not
     answered by `deadline`, a `time.monotonic()` reading, which also bounds the wait
@@ -73,7 +74,11 @@ def starting_detached(
         with open(log or os.devnull, "wb", buffering=0) as output:
             process = subprocess.Popen(
                 [
-                    *([str(launcher)] if launcher else [sys.executable, "-m", module]),
+                    *(
+                        [str(launcher)]
+                        if launcher
+                        else [sys.executable, "-P", "-m", module]
+                    ),
                     *arguments,
                     "--handshake",
                     str(child.fileno()),

@@ -123,6 +123,19 @@ def test_a_theme_stands_alone_or_builds_on_the_base_it_names(tmp_path):
     assert ".lf-callout" in layer.vocabulary.registry
 
 
+def test_the_catalogue_may_name_leaf_s_own_theme_as_its_default(tmp_path):
+    """Every page may take `reading` without the catalogue listing it, so a catalogue
+    of personal themes may still make it the default; a default it neither lists nor
+    bundles is refused."""
+    config = catalogue(tmp_path, default="reading")
+    page = tmp_path / "page"
+    cmd_init(page)
+    assert layer_metadata(page)["theme"] == {"name": "reading", "source": "default"}
+    config.write_text('themes = ["dense"]\ndefault = "editorial"\n')
+    with pytest.raises(Refused, match="default 'editorial' must be in themes"):
+        cmd_init(tmp_path / "other")
+
+
 def test_package_check_composes_a_theme_as_a_page_taking_it_does(tmp_path):
     """`leaf package check` composes a package as a new page selecting it would: a theme
     the catalogue lists over its bases alone, so one that stands alone is checked
@@ -171,7 +184,9 @@ def test_a_theme_s_bases_must_be_installed_and_lead_nowhere_back(tmp_path):
 
 def test_a_project_package_restates_a_kernel_idiom(tmp_path, monkeypatch):
     """The kernel's idioms compose before every package, so a project package that
-    restates one replaces the entry and its rule follows the kernel's."""
+    restates one replaces the entry. Its rule for the idiom outranks the kernel's
+    whatever its weight, which the browser decides
+    (`test_a_package_restyles_an_idiom_whatever_its_rule_weighs`)."""
     project = tmp_path / "proj" / ".leaf"
     project.mkdir(parents=True)
     callout = {
@@ -187,7 +202,4 @@ def test_a_project_package_restates_a_kernel_idiom(tmp_path, monkeypatch):
     assert layer_5 is not None
     layer = selected(layer_5, page)
     assert layer.vocabulary.registry[".lf-callout"] == callout
-    sheet = layer.files["/theme.css"].decode()
-    assert sheet.index(
-        "background: var(--lf-ground);\n  padding: 12px 16px"
-    ) < sheet.index("background: teal")
+    assert "background: teal" in layer.files["/theme.css"].decode()

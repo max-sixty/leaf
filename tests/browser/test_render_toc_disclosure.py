@@ -355,6 +355,30 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     expect(page.locator("#contents .lf-toc-start")).to_be_visible()
 
 
+# Pauses each CSS transition the next gesture starts, in the frame the browser starts
+# it, and collects them in `window.heldFades` until `window.stopHolding()`. A
+# transition's `transitionrun` event is dispatched in the frame after the style change
+# that created it, well inside a fade, and before the third frame after the gesture,
+# when FADES_HELD counts them.
+HOLD_FADES = """() => {
+  window.heldFades = new Set();
+  const holding = new AbortController();
+  window.stopHolding = () => holding.abort();
+  document.addEventListener('transitionrun', () => {
+    for (const fade of document.getAnimations()) {
+      if (!(fade instanceof CSSTransition) || window.heldFades.has(fade)) continue;
+      fade.pause();
+      window.heldFades.add(fade);
+    }
+  }, {capture: true, signal: holding.signal});
+}"""
+FADES_HELD = """async () => {
+  for (let frame = 0; frame < 3; frame++)
+    await new Promise(requestAnimationFrame);
+  return window.heldFades.size;
+}"""
+
+
 @pytest.mark.parametrize("sections", [3, 80], ids=["map", "long"])
 def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     browser, serve, sections
@@ -387,14 +411,20 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     y = track["y"] + 200
     page.mouse.move(track["x"] + 3, y)
     expect(toc.locator(".lf-toc-labels")).to_have_css("opacity", "1")
+    # The browser holds each transition the gesture starts as it starts, so a driver
+    # that pauses between the gesture and its next call can't let the fade finish
+    # before it is read at its start, midway and its end.
+    page.evaluate(HOLD_FADES)
     page.mouse.move(track["x"] + 900, y)
-    page.evaluate(
+    assert page.evaluate(FADES_HELD) > 0, "leaving the map started no transition"
+    frames = page.evaluate(
         """([x, y]) => {
+          window.stopHolding();
           const toc = document.getElementById('contents');
           const words = [...toc.querySelectorAll('.lf-toc-link')]
             .filter(node => node.checkVisibility({visibilityProperty: true}));
-          window.fade = {frames: [], done: false};
-          const watch = () => {
+          return [0, 120, 240].map(time => {
+            for (const fade of window.heldFades) fade.currentTime = time;
             // What the reader sees of a word is its opacity times its ancestors'.
             const opacities = words.map(node => {
               let seen = 1;
@@ -402,24 +432,21 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
                 seen *= Number(getComputedStyle(at).opacity);
               return seen;
             });
-            const frame = {
+            return {
+              time,
               least: Math.min(...opacities),
               most: Math.max(...opacities),
               mapTakesProse: toc.contains(document.elementFromPoint(x, y)),
             };
-            window.fade.frames.push(frame);
-            if (frame.most === 0) window.fade.done = true;
-            else requestAnimationFrame(watch);
-          };
-          watch();
+          });
         }""",
         [track["x"] + track["width"] + 150, y],
     )
-    page.wait_for_function("() => window.fade.done")
-    frames = page.evaluate("() => window.fade.frames")
-    assert any(0 < f["most"] < 1 for f in frames), frames
+    start, middle, end = frames
+    assert start["most"] == 1 and 0 < middle["most"] < 1 and end["most"] == 0, frames
     wrong = [f for f in frames if f["most"] > f["least"] or f["mapTakesProse"]]
     assert wrong == [], frames
+    page.evaluate("window.heldFades.forEach(fade => fade.finish())")
     in_track = page.evaluate(
         """trackEnd => {
           const nav = document.querySelector('#contents .lf-toc-nav');
@@ -443,15 +470,13 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
 
     page.mouse.move(track["x"] + 3, y)
     expect(toc.locator(".lf-toc-labels")).to_have_css("opacity", "1")
+    page.evaluate(HOLD_FADES)
     page.mouse.move(track["x"] + 900, y)
+    assert page.evaluate(FADES_HELD) > 0, "leaving the map started no transition"
     label = page.evaluate(
         """trackEnd => {
-          const fades = document.getAnimations()
-            .filter(motion => motion instanceof CSSTransition);
-          for (const fade of fades) {
-            fade.pause();
-            fade.currentTime = 100;
-          }
+          window.stopHolding();
+          for (const fade of window.heldFades) fade.currentTime = 100;
           const range = document.createRange();
           range.selectNodeContents(document.querySelector('#contents li .lf-toc-link'));
           const text = range.getClientRects()[0];

@@ -554,8 +554,8 @@ A complete task names `metadata.executor`, a `leaf_dev` Python module, and
 `metadata.scenario`, a case in `workflows/<module-name>.yaml`. That YAML owns the
 authored prompts, scenario inputs and native Promptfoo `assert` blocks, including
 text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
-tasks use one JavaScript assertion to pass the final live judge's verdict through
-the Python provider. Shared request files
+tasks use one Python assertion, `regrade.py:authoring`, which runs the live judge
+with the prompt under `authoring:` in `workflows/regrade.yaml`. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
 A task's pinned assets are copied to the root of the agent's working directory
 (`arms.stage_task_files`), so `evals/<task>/captures/before.png` reaches the agent as

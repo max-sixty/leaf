@@ -354,9 +354,10 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one for each "
-        "summary a summary fork wrote or left to the agent (`summary_fork`). Each "
-        "says whether it wakes the session (`wake`): a "
+        "clerk wrote and each finding it passes on (`clerk`), one for each summary "
+        "a summary fork wrote or left to the agent (`summary_fork`), and one for "
+        "each time the session's hooks moved to a copy of Leaf with another skill "
+        "(`hooks.copy_changed`). Each says whether it wakes the session (`wake`): a "
         "line that tells it of work it now owes wakes it while it is idle, until a "
         "hook has printed the line.",
         object_schema(
@@ -1234,7 +1235,7 @@ def _held(session_id: str) -> list[dict]:
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk and from line forks."""
+    """The lines queued for the session's next step (`QUEUED`)."""
     return [held["line"] for held in _held(session_id)]
 
 

@@ -182,7 +182,14 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "node => ({family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize})"
     )
-    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box()["height"] == 32
+    # One line of words and the frame's padding on either side, inside its one-pixel
+    # edge (browser/AGENTS.md, "Shared containers determine control dimensions").
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    assert box.bounding_box()["height"] == box.evaluate(
+        """box => { const style = getComputedStyle(box);
+          return parseFloat(style.getPropertyValue('--lf-line'))
+            + 2 * parseFloat(style.getPropertyValue('--lf-thread-pad')) + 2; }"""
+    )
     write(field, "Carry this comment into its thread.")
     page.evaluate(
         """() => {
@@ -770,7 +777,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1
-    while (box := bar.bounding_box())["y"] + box["height"] + 21 < foot:
+    while (box := bar.bounding_box())["y"] + box["height"] + 21 <= foot:
         page.keyboard.press("Shift+Enter")
         page.keyboard.type(f"Line {lines}")
         lines += 1
@@ -827,6 +834,45 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     rest = page.evaluate(SIDE_COMMENT_DRAWN)
     assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1)
     assert rest["top"] > stood["top"] + 0.5, (stood, rest)
+
+
+def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
+    browser, serve
+):
+    """The comment box wears its ring on a box laid over its field, its ::after
+    (annotation-chrome.css), which exists only while the focus paint marks the box. Focus
+    coming back to the box while a line it gave up still travels makes that ::after
+    anew, and its ring waits for the tween's end as one the box wore from its start
+    does (box-motion.js): drawn at once, it would stand at the box's rest size over an
+    outline still travelling."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator("#p2").click(modifiers=["Alt"])
+    field = open_compact_comment(page, "Line 0")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("x")
+    rendered(page)
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    ring = "node => getComputedStyle(node, '::after').outlineColor"
+    worn = box.evaluate(ring)
+    assert worn != "rgba(0, 0, 0, 0)", worn
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fab-ground'))"
+    )
+    page.keyboard.press("Tab")
+    expect(field).not_to_be_focused()
+    assert box.evaluate("node => getComputedStyle(node, '::after').content") == "none"
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => __lfHeld.some(motion => motion.playState === 'paused')")
+    assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
+    page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert box.evaluate(ring) == worn
 
 
 def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
@@ -2261,7 +2307,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Pick this passage." in said.text_content():
                 break
         else:
@@ -2340,7 +2386,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             if "Volume ·" in said.text_content():
                 break
         else:
@@ -2464,11 +2510,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if (
-                f": {inventory[1]['label']}. Press Enter to choose."
-                in said.text_content()
-            ):
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {inventory[1]['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The middle control lost its spoken context")
@@ -2887,7 +2930,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             previous = live.text_content()
             page.keyboard.press("Tab")
             expect(live).not_to_have_text(previous)
-            expect(live).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            expect(live).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
             heard.append(live.text_content())
         missing = [
             target["label"]
@@ -2895,7 +2938,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
             for target in got
             if "part" in target["anchor"]
             and not any(
-                f": {target['label']}. Press Enter to choose." in said for said in heard
+                f": {target['label']}. Enter choose target" in said for said in heard
             )
         ]
         assert not missing, (missing, heard)
@@ -4936,7 +4979,7 @@ def test_design_hint_faces_follow_controls_and_their_native_labels(browser, serv
         before = said.text_content()
         page.keyboard.press("Tab")
         expect(said).not_to_have_text(before)
-        expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+        expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
         heard.append(said.text_content())
         name = next(
             (
@@ -5003,8 +5046,8 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
             previous = said.text_content()
             page.keyboard.press("Tab")
             expect(said).not_to_have_text(previous)
-            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
-            if f": {target['label']}. Press Enter to choose." in said.text_content():
+            expect(said).to_have_text(re.compile(r"^Hint .*Enter choose target$"))
+            if f": {target['label']}. Enter choose target" in said.text_content():
                 break
         else:
             pytest.fail("The Choice B control was not offered")
@@ -5463,3 +5506,58 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect_design_mode(page, on=False)
+
+
+def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, so the aim on an
+    item, or on the paragraph that opens one, reaches over a marker that fits the
+    list's inset rather than running between it and the words, where it would cross
+    a number's full stop."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul><li id="i">An item.</li><li><p id="p">A paragraph in an item.</p></li></ul>
+<ol start="9"><li id="n">A numbered item.</li></ol>
+""",
+            )
+        ),
+    )
+
+    def beside(target):
+        clip = page.evaluate(
+            """(id) => {
+              const box = document.getElementById(id).getBoundingClientRect();
+              return { x: box.left - 48, y: box.top, width: 48, height: 18 };
+            }""",
+            target,
+        )
+        rgb = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        data = rgb.tobytes()
+        return [
+            (i // 3 % rgb.width, data[i], data[i + 1], data[i + 2])
+            for i in range(0, len(data), 3)
+        ]
+
+    for target in ("i", "p", "n"):
+        page.locator(f"#{target}").hover(position={"x": 4, "y": 4})
+        before = beside(target)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(target)
+        after = beside(target)
+        page.keyboard.up("Alt")
+        # The marker is the text's near-black before the aim. The band is the
+        # accent's blue the aim adds, so the coloured edges of text that a
+        # subpixel-smoothed font draws, blue before as after, aren't band.
+        marker = [x for x, r, g, b in before if max(r, g, b) < 110]
+        band = [
+            x
+            for (x, r, _, b), (_, r0, _, b0) in zip(after, before, strict=True)
+            if b - r > 40 and b0 - r0 <= 40
+        ]
+        assert band and marker, f"#{target}: no band or no marker beside the item"
+        assert max(band) < min(marker), (
+            f"#{target}: the aim's band runs across the list marker"
+        )

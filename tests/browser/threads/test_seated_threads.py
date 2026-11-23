@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
+    FAKE_RECOGNITION,
     PANEL,
     RELEASE_FOCUS,
     consume_browser_errors,
@@ -806,20 +807,6 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(box).to_have_js_property("value", "Half a thought more")
     page.keyboard.press("ControlOrMeta+z")
     expect(box).to_have_js_property("value", "Half a thought")
-
-
-# The browser's speech recognizer, replaced at its boundary as tests/runtime's
-# dictation tests replace it: each instance records whether it was aborted, and a
-# test hears words through its `onresult`.
-FAKE_RECOGNITION = """
-window.lfRecognizers = [];
-window.SpeechRecognition = class {
-  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
-  start() { setTimeout(() => this.onstart?.()); }
-  stop() { setTimeout(() => this.onend?.()); }
-  abort() { this.aborted = true; }
-};
-"""
 
 
 def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(

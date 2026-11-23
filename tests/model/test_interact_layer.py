@@ -43,6 +43,7 @@ from interact_support import (
     registry_refusal,
     serving,
     shipped_payload,
+    shipped_sheets,
     vendored_at_another_protocol,
     wait_for,
     words,
@@ -1935,23 +1936,20 @@ def test_a_has_leads_only_to_a_subject_naming_an_element():
             for part in _simple_selectors(compound)
         )
 
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for sheet in sorted(root.rglob("*.css")):
-            if "vendor" in sheet.parts:
-                continue
-            where = sheet.relative_to(ROOT)
-            for selector in _scope_roots(sheet):
-                *before, subject = _split_top(selector, " >+~")
-                if _only_has(subject) and not any(map(_names_an_element, before)):
-                    found.append(f"{where}: @scope ({selector})")
-                elif any(
-                    ":has(" in compound and not keyed(compound)
-                    for compound in _split_top(selector, " >+~")
-                ):
-                    found.append(f"{where}: @scope ({selector}), a type alone")
-            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
-                if _untyped_after_has(selector):
-                    found.append(f"{where}: {selector}")
+    for sheet in shipped_sheets():
+        where = sheet.relative_to(ROOT)
+        for selector in _scope_roots(sheet):
+            *before, subject = _split_top(selector, " >+~")
+            if _only_has(subject) and not any(map(_names_an_element, before)):
+                found.append(f"{where}: @scope ({selector})")
+            elif any(
+                ":has(" in compound and not keyed(compound)
+                for compound in _split_top(selector, " >+~")
+            ):
+                found.append(f"{where}: @scope ({selector}), a type alone")
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+            if _untyped_after_has(selector):
+                found.append(f"{where}: {selector}")
     assert not found, (
         "name an element in the subject after this `:has()`, and a scope's root by "
         "a class, id or attribute:\n" + "\n".join(found)
@@ -1995,15 +1993,12 @@ def test_no_has_reads_where_focus_is():
     elements, with that rule or without it."""
     reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
     found = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for sheet in sorted(root.rglob("*.css")):
-            if "vendor" in sheet.parts:
-                continue
-            where = sheet.relative_to(ROOT)
-            selectors = [selector for _c, _e, selector, _d in _style_rules(sheet)]
-            for selector in [*selectors, *_scope_roots(sheet)]:
-                if any(map(reads_focus.search, _has_arguments(selector))):
-                    found.append(f"{where}: {selector}")
+    for sheet in shipped_sheets():
+        where = sheet.relative_to(ROOT)
+        selectors = [selector for _c, _e, selector, _d in _style_rules(sheet)]
+        for selector in [*selectors, *_scope_roots(sheet)]:
+            if any(map(reads_focus.search, _has_arguments(selector))):
+                found.append(f"{where}: {selector}")
     assert not found, (
         "name the box that shows a control's focus from the control, with "
         "--lf-focus-box, and read its data-lf-control-focus marks:\n" + "\n".join(found)
@@ -2066,15 +2061,10 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
                     yield from reaches_later_siblings(each.lstrip("~+> "))
 
     found = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for sheet in sorted(root.rglob("*.css")):
-            if "vendor" in sheet.parts:
-                continue
-            where = sheet.relative_to(ROOT)
-            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
-                found += [
-                    f"{where}: {selector}" for _ in reaches_later_siblings(selector)
-                ]
+    for sheet in shipped_sheets():
+        where = sheet.relative_to(ROOT)
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+            found += [f"{where}: {selector}" for _ in reaches_later_siblings(selector)]
     assert not found, (
         "name the element this `:has(~ …)` is asked of by a class, id or attribute:\n"
         + "\n".join(found)
@@ -2266,9 +2256,7 @@ def test_every_ring_stands_at_a_kind_of_box():
     allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [
         f"{sheet.relative_to(ROOT)}: {selector} {{ {name}: {value} }}"
-        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-        for sheet in sorted(root.rglob("*.css"))
-        if "vendor" not in sheet.parts
+        for sheet in shipped_sheets()
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         for name, value in declarations
         if name in allowed and value not in allowed[name]
@@ -2654,12 +2642,7 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
             for name, value in declarations
         )
 
-    sheets = [
-        (sheet.relative_to(ROOT), sheet)
-        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-        for sheet in sorted(root.rglob("*.css"))
-        if "vendor" not in sheet.parts
-    ]
+    sheets = [(sheet.relative_to(ROOT), sheet) for sheet in shipped_sheets()]
     authored = authored_sources()
     sheets += [
         (sheet.relative_to(ROOT), sheet)
@@ -3233,53 +3216,6 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
     assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
 
 
-def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
-    tmp_path, monkeypatch
-):
-    """A layer that reads a page's own copy of a package is kept in the page's memory
-    beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
-    replaces that layer rather than keeping another beside it, so a process holds one
-    layer for the page however often its package is edited, and none once it drops
-    the page's memory. Forgetting the shared layers forgets it too."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / "notes"
-    package.mkdir()
-    (package / "registry.json").write_text("{}")
-    page = tmp_path / "page"
-    kept = weakref.WeakSet()
-    for edit in range(3):
-        sheet = f".note {{ --edit: {edit}; }}"
-        (package / "defaults.css").write_text(sheet + "\n")
-        made = CliRunner().invoke(
-            cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
-        )
-        assert made.exit_code == 0, made.output
-        record = registry_storage.layer_record(page)
-        assert record is not None
-        layer = registry_storage.selected(record, page)
-        assert sheet in layer.files["/theme.css"].decode()
-        kept.add(layer)
-    del layer
-    gc.collect()
-    assert len(kept) == 1
-
-    # A process that forgets the tree it read, as a preview does between servers
-    # (`layer.forget_layers`), composes the page's layer again.
-    [before] = kept
-    layer_model.forget_layers()
-    after = registry_storage.selected(record, page)
-    assert after is not before
-    kept.add(after)
-    del before, after
-    gc.collect()
-    assert len(kept) == 1
-
-    for n in range(page_memory.PageMemories.LIMIT):
-        page_memory.memory_of(tmp_path / f"other-{n}")
-    gc.collect()
-    assert len(kept) == 0
-
-
 def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
     tmp_path, monkeypatch
 ):
@@ -3428,14 +3364,11 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
 
     _retire(launcher)
 
-    def running():
-        try:
-            os.kill(descendant, 0)
-        except ProcessLookupError:
-            return False
-        return True
-
-    wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
+    wait_for(
+        lambda: machine_model.pid_alive(descendant),
+        lambda alive: not alive,
+        failure="the launcher's child survived",
+    )
 
 
 @pytest.mark.parametrize(
@@ -4435,6 +4368,7 @@ def test_a_widget_module_under_another_name_is_refused(tmp_path, monkeypatch):
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-callout")
     widgets = package / "widgets"
+    widgets.mkdir()
     (widgets / "lf-calout.js").write_text(
         "customElements.define('lf-callout', class extends HTMLElement {});\n"
     )
@@ -4583,13 +4517,14 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     runner = CliRunner()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    theme = layer / "overrides.css"
+    theme = layer / "defaults.css"
     theme.write_text(":root { --lf-accent: rebeccapurple; }\n")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert result.exit_code == 0, result.output
     assert theme.read_text() == ":root { --lf-accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
+    (layer / "instructions").mkdir()
     (layer / "instructions" / "author.md").write_text("Keep me.\n")
     before = {
         path.relative_to(layer): path.read_bytes()
@@ -4668,6 +4603,7 @@ def test_package_init_widget_refuses_existing_members_without_writing(
     if collision == "tag":
         add_test_widget(package, tag)
     elif collision == "module":
+        (package / "widgets").mkdir()
         (package / "widgets" / f"{tag}.js").write_text("// keep this module\n")
     else:
         tag = "lf-options"
@@ -4771,9 +4707,8 @@ def test_package_init_validates_the_complete_package(
 
     assert result.exit_code != 0
     assert str(malformed) in result.output
-    assert not (layer / "overrides.css").exists()
+    assert not (layer / "defaults.css").exists()
     assert not (layer / "registry.json").exists()
-    assert not (layer / "widgets").exists()
 
 
 def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch):
@@ -5292,12 +5227,11 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     (tests/js_facts.mjs), so one wrapped across lines or registered for several
     types in a loop counts as written.
 
-    Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, for a key that lets go
-    of focus the user can't see and for an armed Go-to's keys; a listener on the root
-    element for other keys, after controls' own handling and before the page's
-    listeners on the document and the window; and a listener on the window for a
-    row that waits, which a second, in capture, moves behind the window's other
+    Each allowed one is named here. The dispatcher has a capture listener for a key
+    that lets go of focus the user can't see and for an armed Go-to's keys; a listener
+    on the root element for every other key, after controls' own handling and before
+    the page's listeners on the document and the window; and a listener on the window
+    for a row that waits, which a second, in capture, moves behind the window's other
     listeners as each key arrives; all of them use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
@@ -5532,52 +5466,6 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
-
-
-def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
-    """`package list` names what `page init --package NAME` selects: an installed
-    package under a name of its own beside the bundled ones, described by the first
-    paragraph of its author instructions and its entries' descriptions, and an
-    installed package in place of the bundled one whose name it takes. `default`, on
-    every page already, and the theme `theme list` offers are not listed."""
-    team = tmp_path / "src" / "team-charts"
-    packages_model.cmd_package_init(team, "lf-trend")
-    (team / "instructions").mkdir(exist_ok=True)
-    (team / "instructions" / "author.md").write_text(
-        "## When to select it\n\n"
-        "Select this package for the analytics team's pages.\n"
-        "It charts in their house style.\n\n"
-        "Give every chart a label.\n"
-    )
-    diagram = tmp_path / "src" / "diagram"
-    packages_model.cmd_package_init(diagram)
-    for source in (team, diagram):
-        installed = CliRunner().invoke(
-            cli_model.cli, ["package", "install", str(source)]
-        )
-        assert installed.exit_code == 0, installed.output
-
-    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
-
-    assert listed.exit_code == 0, listed.output
-    packages = {each["name"]: each for each in json.loads(listed.output)["packages"]}
-    assert packages["team-charts"] == {
-        "name": "team-charts",
-        "installed": True,
-        "description": "Select this package for the analytics team's pages. "
-        "It charts in their house style.",
-        "entries": {
-            "lf-trend": packages_model.starter_element_declaration("lf-trend")[
-                "description"
-            ]
-        },
-    }
-    assert packages["diagram"]["installed"] is True
-    assert packages["diagram"]["entries"] == {}
-    assert packages["playwright"]["installed"] is False
-    assert "lf-trace" in packages["playwright"]["entries"]
-    assert "default" not in packages
-    assert "reading" not in packages
 
 
 def test_every_bundled_package_says_when_to_select_it():

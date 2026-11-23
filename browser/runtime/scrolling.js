@@ -35,6 +35,7 @@ import { cancelRender, nextFrame, sizeObserver } from "./rendering.js";
 import {
   browserScrolls,
   holdScroll,
+  readScrolled,
   readerScrolls,
   scrollDrawn,
   setScroll,
@@ -249,13 +250,16 @@ document.addEventListener(
   },
   { capture: true },
 );
-// Opening a closed `<details>` onto its match fires no `beforematch`, and its `toggle`
-// follows in a task of its own. A disclosure the reader opens activates its summary,
-// which dispatches a click first; one that opens without that, as find-in-page opens
-// one, travels into it, until the sequence the travel starts has ended. That travel
-// counts only for the disclosure and the boxes inside it, since Leaf itself opens
-// disclosures too, carrying one open across a revision (carry.js) while layout moves
-// the page around it.
+// Opening a closed `<details>` onto its match fires no `beforematch`. A disclosure the
+// reader opens activates its summary, which dispatches a click first; one that opens
+// without that, as find-in-page opens one, travels into it, until the sequence the
+// travel starts has ended. That travel counts only for the disclosure and the boxes
+// inside it, since Leaf itself opens disclosures too, carrying one open across a
+// revision (carry.js) while layout moves the page around it. The opening is read from
+// its `open` attribute, whose record arrives before the next rendering update, rather
+// than from `toggle`, which follows in a task of its own: on a busy main thread the
+// rendering update that ends the travel's sequence can run first, and that end would
+// read as layout's, so continuity would put back the place the travel left.
 /** @type {Element | null} */
 let activated = null;
 /** @type {Element | null} */
@@ -270,13 +274,13 @@ document.addEventListener(
   },
   { capture: true },
 );
-document.addEventListener(
-  "toggle",
-  ({ target }) => {
-    if (!(target instanceof HTMLDetailsElement) || !target.open) return;
+new MutationObserver((records) => {
+  for (const { target, oldValue } of records) {
+    if (!(target instanceof HTMLDetailsElement) || !target.open || oldValue !== null)
+      continue;
     if (activated === target) {
       activated = null;
-      return;
+      continue;
     }
     opened = target;
     nextFrame(() =>
@@ -284,9 +288,12 @@ document.addEventListener(
         if (opened === target) opened = null;
       }),
     );
-  },
-  { capture: true },
-);
+  }
+}).observe(document, {
+  subtree: true,
+  attributeFilter: ["open"],
+  attributeOldValue: true,
+});
 /** @param {EventTarget | null} target */
 const eventScroller = (target) =>
   target === document ? pageScroller : target instanceof Element ? target : null;
@@ -619,6 +626,19 @@ const holding = (box) => {
 /** @param {Element} box */
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
+// Read `read` with each of `boxes` that a glide is moving at its goal, as the page will
+// stand once the glides under way land, though none has (arrivals.js, `readScrolled`).
+// Only a box a glide holds is written, so no scroll the browser drives is stopped and
+// the write's events fold into those the glide sends every frame.
+/** @template T @param {Iterable<Element>} boxes @param {() => T} read @returns {T} */
+export const whereGlidesLand = (boxes, read) =>
+  readScrolled(
+    [...boxes].flatMap((box) => {
+      const goal = scrollGoal(box);
+      return holding(box) && goal !== box.scrollTop ? [[box, goal]] : [];
+    }),
+    read,
+  );
 // Whether `box` stands at its end with no glide taking it away. A glide a press has just
 // started may not have moved the box yet, since its first frame can write where the box
 // already stands. A keeper that read that box as following its end would put it back

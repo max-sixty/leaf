@@ -108,11 +108,16 @@ const byId = (node, id) => {
 };
 
 // Place `node` in `parent` before `before`, keeping its focus where the browser can.
+// A node that already stands there stays.
 /** @param {Element} parent @param {Element} node @param {Element | null} before */
 const put = (parent, node, before) => {
-  // WebKit lacks moveBefore.
-  if (parent.moveBefore) parent.moveBefore(node, before);
-  else parent.insertBefore(node, before);
+  if (node.parentNode === parent && node.nextElementSibling === before) return;
+  // WebKit lacks moveBefore, and its insertBefore takes focus from what it moves.
+  if (parent.moveBefore) return void parent.moveBefore(node, before);
+  /** @type {HTMLElement | null} */
+  const focus = node.querySelector(":focus");
+  parent.insertBefore(node, before);
+  focus?.focus({ preventScroll: true });
 };
 
 // Slide `card` to where it now stands from `dx`, `dy` away, for a reader who takes
@@ -680,6 +685,8 @@ customElements.define(
       this.#grabbed = { card, grip, from, index };
       this.#beginGesture();
       card.classList.add("lf-lift");
+      // The grip's rows read the grab, so its keys and its preview are told of it.
+      commandsChanged(grip);
       previewChanged(grip);
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
@@ -776,22 +783,17 @@ customElements.define(
     #release(grab) {
       grab.card.classList.remove("lf-lift");
       this.#grabbed = null;
+      commandsChanged(grab.grip);
       previewChanged(grab.grip);
     }
 
     // Arrow steps and a cancelled grab place through one writer. Start from the
     // current paint before cancelling a superseded FLIP, so a reversal continues
-    // where the user sees the card. Cancel smooth reveal before measuring, too.
+    // where the user sees the card.
     // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
     // back at the old box; native scrolling and the card's motion then run together.
     /** @param {Element} card @param {Element} col @param {number} index @param {HTMLElement | null} [grip] */
     #place(card, col, index, grip = null) {
-      for (const box of [this, scrollerFor(this)])
-        box.scrollTo({
-          left: box.scrollLeft,
-          top: box.scrollTop,
-          behavior: "instant",
-        });
       const first = card.getBoundingClientRect();
       for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);

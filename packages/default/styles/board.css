@@ -220,6 +220,12 @@ lf-column > .lf-column-count {
 lf-column:has(> .lf-column-name)::before {
   content: none;
 }
+/* A card the browser reveals at the window's foot stops above the floating panel's row
+   (`--lf-foot-room`), so a card moved down by keyboard stays whole and its grip in
+   reach. */
+lf-card {
+  scroll-margin-block-end: calc(var(--lf-foot-room) + var(--lf-landing-room));
+}
 lf-card {
   --lf-card-inset-block: 12px;
   display: block;

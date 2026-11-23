@@ -299,7 +299,7 @@ export const THREAD_CARD = "lf-margin-preview";
 // one query over the layer finds them all without asking `:has()` of every row.
 const ROW = ".lf-margin-cluster";
 const HOLDS_ROW = ":is(:hover, :focus-within, [data-lf-options-expanded])";
-const HOLDS_PART = `:is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HOLDS_PART = `:is([data-lf-touch-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 const HELD = `${ROW}${HOLDS_ROW}, ${ROW} ${HOLDS_PART}`;
 /** @param {Layer} layer */
 const heldRows = (layer) =>

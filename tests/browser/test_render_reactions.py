@@ -2248,7 +2248,7 @@ def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
             rendered(page)
             expect(preview).to_be_hidden()
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-held'))
+            .filter((chip) => chip.hasAttribute('data-lf-touch-held'))
             .map((chip) => [chip.dataset.lfToken,
                             document.getElementById('lf-preview').innerText])""")
 

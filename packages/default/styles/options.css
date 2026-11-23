@@ -786,14 +786,13 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   .lf-another {
     --lf-ring-at: var(--lf-focus-ring-inset);
-    /* Add stands 4px clear of the row's edges, the least room that reads as standing
-       clear rather than nearly meeting them, at any density: its face is the row's
-       line and a pixel either side, inside the row's least padding
-       (`--lf-option-pad-min`), and it stands 4px from the row's end. Its hit box is
-       worked out again from its face, for the seats below. */
+    /* Add stands clear of the row's edges (`--lf-clear`) at any density: its face is
+       the row's line and a pixel either side, inside the row's least padding
+       (`--lf-option-pad-min`), and it stands that clearance from the row's end. Its
+       hit box is worked out again from its face, for the seats below. */
     --lf-icon-action-face: calc(var(--lf-option-line) + 2px);
     --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
-    --lf-option-add-seat-inset: 4px;
+    --lf-option-add-seat-inset: var(--lf-clear);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(

@@ -1655,11 +1655,10 @@ wa-copy-button.lf-icon-action {
   border-radius: var(--lf-r);
   background: var(--lf-card);
 }
-/* A toolbar's marks are a joined run (`data-lf-joined`, below) standing 1px inside its
-   hairline (integration.css pads it by 1px), so where they meet its corners they take
-   its rounding less those 2px. */
+/* A toolbar's marks are a joined run (`data-lf-joined`, below) meeting its hairline, so
+   where they meet its corners they take its rounding less the hairline. */
 .lf-mark-bar {
-  --lf-joined-r: calc(var(--lf-r) - 2px);
+  --lf-joined-r: calc(var(--lf-r) - 1px);
 }
 /* A joined run: a holder whose presses join into one control declares
    `data-lf-joined` (control-faces.js), as a block's toolbar of marks and a question's
@@ -1692,6 +1691,15 @@ wa-copy-button.lf-icon-action {
 [data-lf-joined] > .lf-btn:nth-last-child(1 of :not([hidden])) {
   border-start-end-radius: var(--lf-joined-r, 0px);
   border-end-end-radius: var(--lf-joined-r, 0px);
+}
+/* A holder that clips its presses to its own corners (`--lf-joined-r: 0px`), as a
+   question's joined options do for Done, draws the run's edge and seams itself, so a
+   word in it draws no edge of its own: two edges would stand where its neighbours
+   share one. */
+@container style(--lf-joined-r: 0px) {
+  [data-lf-joined] > .lf-btn {
+    border-color: transparent;
+  }
 }
 /* A corner mark stands on a patch of the ground the thing it rides stands on, set off
    by that ground's ring and a lift. Rejected: a dark disc with a light cross for an

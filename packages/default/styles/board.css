@@ -38,7 +38,7 @@ lf-board {
   --lf-board-columns: 1;
   --lf-grip-room: 0px;
   --lf-grip-block: 0px;
-  --lf-grip-inset: 4px;
+  --lf-grip-inset: var(--lf-clear);
 }
 @media screen {
   lf-board {

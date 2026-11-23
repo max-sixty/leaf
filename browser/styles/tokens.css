@@ -208,6 +208,12 @@
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
+  /* The least room between a box and its frame's edge that reads as standing clear of
+     the edge rather than nearly meeting it (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). A seat that stands a box clear of an
+     edge, such as a card's grip or a block's toolbar, reads it. It is a length of its
+     own rather than --lf-sp-1, which a denser layout narrows below it. */
+  --lf-clear: 4px;
   /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one

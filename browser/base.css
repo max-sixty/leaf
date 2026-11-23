@@ -1001,9 +1001,9 @@ lf-suggestion:has(
   display: block;
   & > :is(lf-old, lf-new) {
     display: block;
-    /* 4px above and below, so a framed box that starts or ends the slot, such as an
-       options group, stands clear of the tint's edge rather than nearly meeting it. */
-    padding: 4px 10px;
+    /* A framed box that starts or ends the slot, such as an options group, stands
+       clear of the tint's edge (`--lf-clear`) rather than nearly meeting it. */
+    padding: var(--lf-clear) 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
     transition: padding var(--lf-motion-fold) ease;

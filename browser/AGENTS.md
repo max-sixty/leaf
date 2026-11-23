@@ -89,8 +89,10 @@ rule draws at once is drawn.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
-  and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
-  anchoring off on no box the reader reads in. A revision then restores the reader's
+  and a message's words (`setRenderedChildren` in `dom-children.js`) do. Leaf turns
+  anchoring off in a box the reader reads in only while its own motion moves the box,
+  as a glide does, whose landing then places the destination (`scrolling.js`), or the
+  box's content, as a ride does (`box-motion.js`). A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
   control under the user's hands; for a reader whose focus is scrolled away, the
   reading line where growth starts between anchoring's box and it; and a place the

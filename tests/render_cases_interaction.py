@@ -457,8 +457,14 @@ HOLD_MOTION = """
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
     // A scroll timeline owns its progress; assigning an absolute time to it throws.
-    // The hold is for gesture animations on the document timeline.
-    if (motion.timeline !== document.timeline) return motion;
+    // The hold is for gesture animations on the document timeline that end. An endless
+    // one has no last frame to step to or finish, as a glide's hold on scroll anchoring
+    // has none (scrolling.js, `holdBox`).
+    if (
+      motion.timeline !== document.timeline ||
+      motion.effect?.getComputedTiming().endTime === Infinity
+    )
+      return motion;
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);

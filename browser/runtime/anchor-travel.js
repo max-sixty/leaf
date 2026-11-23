@@ -326,7 +326,9 @@ export function createAnchorTravel({
   // thread/destination.js) and takes no departure. Capture where the user is before any
   // reveal; plan answers whether the arrival moves the page, which a caller may use to
   // decide its scroll, and arrive commits only its successful handoff, after it has
-  // placed focus. Failure or newer intent leaves history untouched. A destination not
+  // placed focus. A step commits once, by the last plan made before it, so a route that
+  // lands in two places in turn, as a thread's view and then its passage, commits after
+  // the last landing it reached. Failure or newer intent leaves history untouched. A destination not
   // yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
   // own (an obligation's arrival region), built on the reading it is handed.
@@ -352,6 +354,7 @@ export function createAnchorTravel({
         if (moving || !stayed) write(url ?? window.location.href);
         // No departure, but the entry the user stays on now names where they are.
         else if (url) replaceEntry(url);
+        moving = undefined;
       },
     };
   }

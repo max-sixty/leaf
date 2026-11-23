@@ -1448,14 +1448,21 @@ def test_back_to_a_hidden_fragment_opens_the_thread_its_entry_names(browser, ser
     assert urlsplit(page.url).fragment == "foot"
 
 
-def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve):
+@pytest.mark.parametrize(
+    "anchor",
+    [None, {"section": "gone", "quote": "Words a revision removed."}],
+    ids=["about the page", "passage removed"],
+)
+def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve, anchor):
     """A press on a row of Threads lands the user in a thread they weren't in, a Back
     step as every other route's is, and so does Resolve moving them on from it to the
-    next thread; Back returns to the thread they resolved."""
+    next thread; Back returns to the thread they resolved. A thread with no passage on
+    the page opens in the panel with nothing to land beside it, about the whole page or
+    about words a revision removed, and its view alone makes the step."""
     url = serve(LONG_PAGE)
     threads = [
-        panel_comment(serve.page_dir, "First question?"),
-        panel_comment(serve.page_dir, "Second question?"),
+        panel_comment(serve.page_dir, "First question?", anchor),
+        panel_comment(serve.page_dir, "Second question?", anchor),
     ]
     page = open_page(browser, url)
     open_threads(page)

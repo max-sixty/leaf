@@ -350,13 +350,15 @@ export function createThreadDestinations({
         // The user lands in the reader's view at once. The page then brings the
         // thread's passage into view, as travel to its card does (anchor-travel.js,
         // `scrollToThread`): after a route that travels, wherever the passage is, the
-        // widget holding it drawing it, the route's departure planned by where that
-        // landing puts the passage; after one that doesn't, as a press on the passage,
-        // only where the page draws it, so a passage the view opened over comes clear of
-        // it. Focus stays in the view (the header). A thread about the whole page has no
-        // passage, so its departure is planned on the view: a Back step where the user
-        // lands in a thread they weren't in (anchor-travel.js, `prepareNavigationStep`).
-        if (!thread.anchor) departure?.plan(destination);
+        // widget holding it drawing it; after one that doesn't, as a press on the
+        // passage, only where the page draws it, so a passage the view opened over comes
+        // clear of it. Focus stays in the view (the header). The route's departure is
+        // planned on the view, a Back step where the user lands in a thread they weren't
+        // in (anchor-travel.js, `prepareNavigationStep`), and planned again by where the
+        // passage's landing puts the passage. It commits once the last landing is
+        // reached, so a thread with no passage on the page, one about the whole page or
+        // one whose passage a revision removed, is a step as well.
+        departure?.plan(destination);
         const reached = await whileCurrent(
           arrive(
             () => {
@@ -369,7 +371,7 @@ export function createThreadDestinations({
                 }
               );
             },
-            { intent: arriving, departure: thread.anchor ? null : departure },
+            { intent: arriving },
           ),
         );
         if (!reached) return null;
@@ -384,7 +386,9 @@ export function createThreadDestinations({
               drawn: !navigationStep,
             }),
           );
-        return mayPresent() ? selected.reader.destination(thread.key, request) : null;
+        if (!mayPresent()) return null;
+        departure?.commit();
+        return selected.reader.destination(thread.key, request);
       }
     }
     // The page's own drawings of the thread: its outlet or seat, a preview. Its

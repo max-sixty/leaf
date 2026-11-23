@@ -5837,7 +5837,6 @@ def test_a_line_the_field_gives_up_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
 
 
-
 def test_a_ring_the_field_comes_back_to_mid_tween_waits_for_its_end(browser, serve):
     """The panel's field wears its ring on its ::after (floating-panel.css), which
     exists only while the focus paint marks the field's row. The field is a part of the
@@ -5876,6 +5875,7 @@ def test_a_ring_the_field_comes_back_to_mid_tween_waits_for_its_end(browser, ser
     assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
     page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
     assert box.evaluate(ring) == worn
+
 
 # How far the field's first line of words and the more-room mark stand below the box's
 # top edge as drawn, and how opaque the mark is.

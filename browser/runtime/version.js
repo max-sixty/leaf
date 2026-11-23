@@ -63,7 +63,7 @@
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
  * different revision. Ordinary reloads and full-document history travel keep the browser's
- * restored offset; history.js owns same-document working-place checkpoints.
+ * restored offset; history.js keeps where the user was on each same-document entry.
  * Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
@@ -3021,7 +3021,7 @@ export function createVersionController({
   function installArrival() {
     installReadingContinuity();
     // Ordinary reload and full-document history travel keep the browser's restored
-    // offset; history.js owns same-document working-place checkpoints. The root is
+    // offset; history.js keeps where the user was on each same-document entry. The root is
     // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a

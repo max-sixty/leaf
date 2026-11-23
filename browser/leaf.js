@@ -836,10 +836,12 @@ async function boot() {
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
     thread: {
-      claim: (url, place) => threadAddress.claim(url, place),
-      drawing: (id) => app.threadDestinations.threadFocusTarget(id, { part: "thread" }),
+      claim: (url, record) => threadAddress.claim(url, record),
+      open: () => openThreadView(),
+      focusTarget: (id, part) => app.threadDestinations.threadFocusTarget(id, { part }),
       name: (url) => threadAddress.name(url),
     },
+    list: () => floatingPanel.listShown(),
   });
   const landFragment = version.aimArrival();
   const { landArrival, savedView, handedOff, restored } = offlineInteractive
@@ -857,8 +859,8 @@ async function boot() {
   }
   const threadAddress = createThreadAddress({
     shown: openThreadView,
-    putAway: () => {
-      floatingPanel.putThreadAway();
+    putAway: (list) => {
+      floatingPanel.putThreadAway(list);
       app?.overlay?.threadPreview.close();
     },
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),

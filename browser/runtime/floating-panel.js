@@ -6041,10 +6041,20 @@ export function createFloatingPanel({
     restoreCurrentLocation,
     // The thread whose view stands open above the row, read through the trail, and
     // putting that view away: what the entry's thread address follows and asks for
-    // (thread/address.js).
+    // (thread/address.js). The view gives way to `list` where it stood over that list,
+    // by its way back (`back`), which stands the list on the thread's row, else closes.
+    // `listShown` names a list a thread view opens over that stands open, which an
+    // entry's record keeps (history.js).
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
-    putThreadAway: () => {
-      if (threadOf(trail.value.at(-1))) close();
+    /** @param {string | null} [list] */
+    putThreadAway: (list = null) => {
+      if (!threadOf(trail.value.at(-1))) return;
+      if (list && trail.value.at(-2)?.view === list) back();
+      else close();
+    },
+    listShown: () => {
+      const view = trail.value.at(-1)?.view;
+      return view && VIEWS.thread.over?.some((over) => over === view) ? view : null;
     },
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,

@@ -468,9 +468,7 @@ export function createUndo({
     // Back returns to where the user was reading.
     const url = new URL(window.location.href);
     url.hash = place.fragment;
-    if (window.navigation)
-      return window.navigation.navigate(url.href).finished.catch(() => {});
-    window.location.assign(url);
+    return window.navigation.navigate(url.href).finished.catch(() => {});
   }
 
   // Tint what taking `event` back changed, as the page draws it now (the header): the

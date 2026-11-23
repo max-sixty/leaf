@@ -132,6 +132,45 @@ const returnTurn = (transcript, unread) => {
   return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
+// Where a box scrolling a transcript starts showing its turns: where their heads stick,
+// below the focus-ring room the box keeps over them. A turn landed in that room would
+// start where read tracking sees nothing of it (geometry.js, `seenRect`), and never read.
+/** @param {Element} scroller */
+const headLine = (scroller) =>
+  scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
+
+// Where the user has read a thread's view to: the turn standing at the top of the box
+// scrolling its transcript (`headLine`), by the message it draws, and how far below
+// that line it starts. `showReading` stands that turn there again in a new drawing of
+// the thread, so its lines come back where they stood though turns above them grew,
+// folded or arrived since. History keeps it for each entry (history.js).
+/** @typedef {{message: string, offset: number}} ThreadReading */
+/** @param {Element} held @returns {ThreadReading | null} */
+export function readingIn(held) {
+  const transcript = held.querySelector(".lf-thread-transcript");
+  if (!transcript) return null;
+  const line = headLine(scrollerFor(transcript));
+  for (const turn of transcript.querySelectorAll(":scope > .lf-msg[data-lf-message]")) {
+    const { top, bottom } = turn.getBoundingClientRect();
+    const message = turn.getAttribute("data-lf-message");
+    if (bottom > line && message) return { message, offset: top - line };
+  }
+  return null;
+}
+/** @param {Element} held @param {ThreadReading} reading */
+export function showReading(held, { message, offset }) {
+  const transcript = held.querySelector(".lf-thread-transcript");
+  const turn = transcript?.querySelector(
+    `:scope > .lf-msg[data-lf-message="${CSS.escape(message)}"]`,
+  );
+  if (!transcript || !turn || !showsContents(turn)) return;
+  const scroller = scrollerFor(transcript);
+  moveScrollerBy(
+    scroller,
+    turn.getBoundingClientRect().top - headLine(scroller) - offset,
+  );
+}
+
 // A thread opened for reading shows the turn the user comes back for: the end of the
 // box scrolling its transcript where that turn is still in view there, or else that
 // turn's head at the box's top. The box is the transcript itself on a card and the
@@ -145,14 +184,7 @@ export function showReturnTurn(transcript, thread) {
   const start = thread?.msgs.find((message) => message.id === unread)?.key;
   const turn = returnTurn(transcript, start ?? null);
   if (!turn) return;
-  // Measured from where the heads stick, below the focus-ring room the box keeps over
-  // them: a turn landed in that room would start where read tracking sees nothing of it
-  // (geometry.js, `seenRect`), and never read.
-  const over =
-    scroller.getBoundingClientRect().top +
-    scroller.clientTop +
-    slotTop(scroller) -
-    turn.getBoundingClientRect().top;
+  const over = headLine(scroller) - turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when
   // scrolling to the end would hide that head altogether.

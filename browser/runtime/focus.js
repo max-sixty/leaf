@@ -1467,6 +1467,13 @@ const dropped = () => {
   const node = lastLocation?.deref();
   return node && !drawn(node) ? node : null;
 };
+// What makes a control like another to a user who comes back for it, as Remove for
+// Remove: its tag and its classes, as a selector.
+/** @param {Element} control */
+export const likeSelector = (control) =>
+  control.localName +
+  [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+
 // A list of keyed items names its place by `key`, the attribute each item carries. The
 // hold then reads the item the user is in and the order of every item at the hold,
 // and its restore, after the held node, tries the item now carrying the same key, then
@@ -1502,9 +1509,7 @@ export function holdFocus(scope, { key = null } = {}) {
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
-  const like =
-    control.localName +
-    [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  const like = likeSelector(control);
   const [same, ...rest] = order;
   return (...standIns) => {
     // The items now present, by key, read once for the whole restore: a list whose keys

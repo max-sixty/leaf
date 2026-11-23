@@ -22,10 +22,13 @@
    A traversal shows the thread its entry names (`claim`): it opens that thread where
    the user stands, or puts the open thread away where the entry names none, beside any
    fragment the entry carries, and resolves to false, leaving the page and the user's
-   place in it to the entry's record (history.js). Where the user was in the thread's
-   view, the record holds the route's `reader` request for that view, which the claim
-   passes on, so a thread about a passage the user read in the floating panel opens
-   there again rather than beside its passage.
+   place in it to the entry's record (history.js). The record holds the reader the
+   entry's view was, the route's `reader` request for it, which the claim passes on, so
+   a thread about a passage the user read in the floating panel opens there again
+   rather than beside its passage. A thread view put away where the record says the
+   floating panel showed a list, which a press on its row opened the thread over, gives
+   way to that list, as the view's own way back does, so Back from a thread opened from
+   Threads returns to Threads on the thread's row.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
    focus. Where the browser restored the page's place, as on a reload, the arrival is a
@@ -45,7 +48,7 @@ import { threadNamed } from "./state.js";
 
 /** @typedef {{id: string, reader: "primary" | null}} OpenThread */
 
-/** @param {{shown: () => OpenThread | null, putAway: () => void,
+/** @param {{shown: () => OpenThread | null, putAway: (list: string | null) => void,
  * openPageThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} options */
 export function createThreadAddress({ shown, putAway, openPageThread }) {
   // The thread an entry's URL names, by its id, or null.
@@ -79,14 +82,14 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   }
 
   /** @type {import("../history.js").ThreadClaim} */
-  function claim(url, place) {
+  function claim(url, record) {
     const id = named(url);
     const open = shown();
-    const kept = place?.thread?.id === id ? place.thread : null;
+    const kept = record?.thread ?? null;
     if (!id)
       return open
         ? () => {
-            putAway();
+            putAway(record?.list ?? null);
             return false;
           }
         : null;

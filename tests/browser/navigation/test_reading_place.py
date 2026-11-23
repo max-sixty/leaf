@@ -34,7 +34,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -187,6 +187,44 @@ def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serv
     expect(page.locator(".lf-fab-input")).to_have_attribute(
         "aria-label", "Comment on a · Read the destination"
     )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_after_a_reload_returns_to_the_place_the_entry_left(
+    request, serve, engine
+):
+    """An entry keeps where the user was across a reload of the document, as a revision
+    that changes the page's code reloads it: Back after the reload returns to the line
+    they were reading and to the link they followed, as Back before it does."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Return across a reload",
+                "<h1>Return across a reload</h1>"
+                + "".join(
+                    f"<p>Reading paragraph {n} carries on long enough to name a place.</p>"
+                    for n in range(40)
+                )
+                + '<p><a id="reference" href="#destination">Read the destination</a></p>'
+                + "".join(f"<p>Middle paragraph {n}.</p>" for n in range(60))
+                + '<section id="destination" style="min-height:900px">'
+                "<h2>Destination</h2></section>",
+            )
+        ),
+    )
+    page.locator("#reference").scroll_into_view_if_needed()
+    page.evaluate("scrollBy({top: 120, behavior: 'instant'})")
+    scroll_settled(page)
+    read_to = page.evaluate("scrollY")
+    page.locator("#reference").click()
+    expect(page.locator("#destination")).to_be_focused()
+    scroll_settled(page)
+    page.reload()
+    wait_until_ready(page)
+    page.go_back()
+    expect(page.locator("#reference")).to_be_focused()
+    page.wait_for_function("top => Math.abs(scrollY - top) <= 2", arg=read_to)
 
 
 TWO_LINE_PATCH = """diff --git a/app.py b/app.py
@@ -2339,30 +2377,29 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     assert take_browser_errors(page) == []
 
 
-@pytest.mark.parametrize("navigation_api", [False, True])
-def test_restore_selection_back_keeps_the_offset_before_reveal(
-    browser, serve, navigation_api
-):
-    """Disclosure can reshape the source before successful arrival commits its entry."""
-    page = open_page(
-        browser,
-        serve(RESTORE_SELECTION_PAGE),
-        init_script=None
-        if navigation_api
-        else "Object.defineProperty(window, 'navigation', {value:undefined});",
-    )
+def test_restore_selection_back_keeps_the_place_read_before_reveal(browser, serve):
+    """The disclosure the arrival opens reshapes the page above the place the user left
+    before the arrival commits its entry, so the entry keeps the place read before it:
+    Back stands what the user was reading where it stood on screen, though the page
+    above it has grown since."""
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE))
     page.emulate_media(reduced_motion="reduce")
     _select_remembered_backwards(page)
     page.keyboard.press("Escape")
     page.locator("#selected-details summary").click()
     page.locator("#away").scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
+    stood = page.locator("#away").evaluate("node => node.getBoundingClientRect().top")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function("() => getSelection().toString().includes('amber passage')")
     assert page.evaluate("scrollY") < before - 300
     page.go_back()
-    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before)
+    page.wait_for_function(
+        "top => Math.abs(document.getElementById('away').getBoundingClientRect().top"
+        " - top) < 2",
+        arg=stood,
+    )
     assert take_browser_errors(page) == []
 
 

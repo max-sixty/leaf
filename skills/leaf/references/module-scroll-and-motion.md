@@ -239,9 +239,11 @@ user is on. To
 restore the page itself when the user goes Back or Forward to one of its entries, call
 `claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
 the page for an entry of the widget's, or nothing. The handler may be asynchronous.
-When it only reveals the destination view, it resolves to `false`, and Leaf restores
-the entry's saved viewport after the view is shown. Otherwise the handler owns
-viewport placement. Either way, where the entry's fragment still names a place the
+When it only reveals the destination view, it resolves to `false`, and Leaf returns the
+user to where they were on the entry after the view is shown. Otherwise the handler owns
+viewport placement. Leaf keeps where the user was on each entry in the entry's
+Navigation API state (`navigation.updateCurrentEntry`), so a widget keeps its own
+state for an entry in `history.state`, which `pushEntry(url, state)` writes. Either way, where the entry's fragment still names a place the
 page doesn't show once the handler finishes, Leaf reveals that place and lands there.
 
 ## Motion

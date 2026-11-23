@@ -107,11 +107,12 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
 def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
     """Leaving a thread for a place its view would stand over puts the view away, and
     Back reopens the thread in the reader the user had it in, where they had read it
-    to, with the user on it and no other thread open: the panel for a thread they read
-    there, about the whole page or a passage, and the margin card for one they read in
-    the card. A `t` walk from the panel's thread to a card, and Show on page, read
-    where the user was before the panel puts its view away. Forward lands on the place
-    again and puts the view away again."""
+    to, with the user on what they left by, the thread or a link in it, and no other
+    thread open: the panel for a thread they read there, about the whole page or a
+    passage, and the margin card for one they read in the card. A `t` walk from the
+    panel's thread to a card, and Show on page, read where the user was before the
+    panel puts its view away. Forward lands on the place again and puts the view away
+    again."""
     url = serve(LONG_PAGE)
     page_root = panel_comment(serve.page_dir, "Where does this end?")
     passage_root = panel_comment(
@@ -153,6 +154,7 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
             page.evaluate("scrollTo({top: 1e6, behavior: 'instant'})")
         open_panel_thread(page, root)
         thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    left_by = thread
     if left == "walk":
         page.keyboard.press("Escape")
         expect(thread).to_be_focused()
@@ -163,16 +165,16 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         # A press lands in the card's reply (thread/focus.js, `openingPart`).
         destination = page.locator(".lf-margin-preview .lf-thread-reply :focus")
     else:
-        link = thread.get_by_role("link", name="the last paragraph")
-        link.scroll_into_view_if_needed()
+        left_by = thread.get_by_role("link", name="the last paragraph")
+        left_by.scroll_into_view_if_needed()
         read_to = thread.evaluate("view => view.scrollTop")
-        link.click()
+        left_by.click()
         destination = page.locator("#p59")
     expect(destination).to_be_focused()
     expect(thread).to_be_hidden()
 
     page.go_back()
-    expect(thread).to_be_focused()
+    expect(left_by).to_be_focused()
     if left in ("page thread's link", "passage thread's link"):
         assert abs(thread.evaluate("view => view.scrollTop") - read_to) <= 2
     expect(
@@ -185,6 +187,51 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         page.go_forward()
         expect(destination).to_be_focused()
         expect(thread).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_reopens_a_card_where_the_user_had_read_it_to(request, serve, engine):
+    """Back to an entry whose card a trip put away opens the card again at the reply the
+    user had read it to, standing where it stood in the card, rather than at the card's
+    first unread reply, with the user on the link they left by."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
+    )
+    for n in range(7):
+        text = f"Reply {n}. " + "More of the explanation. " * 30
+        if n == 3:
+            text += "See [the last paragraph](#p59)."
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": text,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("t")
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    expect(card).to_be_focused()
+    transcript = card.locator(".lf-thread-transcript")
+    link = card.get_by_role("link", name="the last paragraph")
+    link.scroll_into_view_if_needed()
+    scroll_settled(page)
+    read_to = transcript.evaluate("box => box.scrollTop")
+    link.click()
+    expect(page.locator("#p59")).to_be_focused()
+    expect(card).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+
+    page.go_back()
+    expect(link).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    scroll_settled(page)
+    assert abs(transcript.evaluate("box => box.scrollTop") - read_to) <= 2
 
 
 def test_back_reopens_a_card_on_the_side_it_opened_on(browser, serve):

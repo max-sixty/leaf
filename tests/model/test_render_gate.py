@@ -474,6 +474,15 @@ def test_a_marked_address_reads_as_the_address_the_bootstrap_leaves():
     assert frame_address(rewritten) == rewritten
 
 
+def test_a_marked_address_keeps_an_empty_fragment():
+    from leaf.render_gate.page_code import frame_address
+
+    rewritten = "http://leaf.test/v1.html?q=%7E*#"
+    assert frame_address("http://leaf.test/v1.html?q=~*&t=key#") == rewritten
+    assert frame_address(rewritten) == rewritten
+    assert frame_address("http://leaf.test/v1.html?t=key#") == "http://leaf.test/v1.html#"
+
+
 def test_the_address_marks_are_the_ones_the_bootstrap_takes_off():
     from leaf.schema import ASSETS
 

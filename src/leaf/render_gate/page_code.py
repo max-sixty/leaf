@@ -235,7 +235,9 @@ def frame_address(url: str) -> str:
     before that rewrite reaches this process, and the same document stays named the
     same whichever comes first, so the query left is spelled as the bootstrap's
     `URLSearchParams` spells it."""
-    parts = urlsplit(url)
+    # `urlsplit` drops an empty fragment's `#`, which the browser keeps.
+    document, hash_mark, fragment = url.partition("#")
+    parts = urlsplit(document)
     pairs = parse_qsl(parts.query, keep_blank_values=True)
     if not any(name in ADDRESS_MARKS for name, _ in pairs):
         return url
@@ -244,7 +246,7 @@ def frame_address(url: str) -> str:
         for name, value in pairs
         if name not in ADDRESS_MARKS
     )
-    return urlunsplit(parts._replace(query=query))
+    return urlunsplit(parts._replace(query=query)) + hash_mark + fragment
 
 
 def _form_encoded(text: str) -> str:

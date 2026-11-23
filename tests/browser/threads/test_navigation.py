@@ -14,7 +14,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import append_agent_reply, open_panel_thread
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -236,3 +236,34 @@ def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serv
     )
     page.locator("#matches").click()
     page.locator("#body").click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_reopened_on_its_thread_draws_the_decision_it_closed_on(
+    request, serve, engine
+):
+    """A card closed while `m` had the user on the choice an agent's reply asks, then
+    opened on that thread again by `m`, draws the choice and puts the user on it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Every node, or the hot shards?",
+        {"section": "p40", "quote": "Paragraph 40."},
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Every node. Choose which budget to take it from.",
+        '<lf-group id="budget" label="Which budget pays?"><h3 id="budget-h">Which budget'
+        ' pays?</h3><lf-options id="budget-pick"><lf-option id="infra">Infrastructure'
+        ' reserve</lf-option><lf-option id="team">The team\'s quarter</lf-option>'
+        "</lf-options></lf-group>",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    decision = page.locator(".lf-margin-preview lf-options#budget-pick")
+    page.keyboard.press("m")
+    expect(decision).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(decision).not_to_be_visible()
+    page.keyboard.press("m")
+    expect(decision).to_be_focused()

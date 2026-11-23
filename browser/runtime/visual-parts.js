@@ -40,7 +40,11 @@
  *
  * A reading of a visual's inventory reads its version (kept.js, `version`), so a
  * reading kept from it is made again after the visual's `update()`, which a reveal that
- * draws calls too, or a registration for a source it found none for. */
+ * draws calls too, or a registration for a source it found none for.
+ *
+ * A visual that registers nothing marks its parts instead: each node under it carrying
+ * `data-lf-part="<id>"` is the part of that id, named by its `aria-label` or else its
+ * words, in document order. The marks are read as they stand at each reading. */
 
 import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
@@ -63,6 +67,15 @@ import { version } from "./kept.js";
 const registrations = new WeakMap();
 // How many sources have registered, which a reading of a source with none reads.
 const registered = version();
+
+// The inventory of a source that registered none: the parts its nodes mark.
+/** @param {Element} source @returns {VisualPart[]} */
+const markedParts = (source) =>
+  [...source.querySelectorAll("[data-lf-part]")].map((element) => ({
+    id: element.getAttribute("data-lf-part") ?? "",
+    element,
+    label: element.getAttribute("aria-label") ?? element.textContent ?? "",
+  }));
 
 /** Register the current visual-part inventory for one rendered source.
  *
@@ -138,7 +151,8 @@ export function revealRegisteredVisualPart(source, id) {
 /** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!registrations.has(source)) return [{ kind: "unregistered" }];
+  if (!registrations.has(source) && !markedParts(source).length)
+    return [{ kind: "unregistered" }];
   const parts = registeredVisualParts(source);
   const admission = visualPartAdmission(source, declaration);
   const outside =
@@ -170,8 +184,7 @@ function checkedPart(source, part, number) {
 export function registeredVisualParts(source) {
   const registration = registrations.get(source);
   (registration?.drawn ?? registered).read();
-  if (!registration) return [];
-  const { read } = registration;
+  const read = registration?.read ?? (() => markedParts(source));
   const seenIds = new Set();
   const seenElements = new Set();
   const seenSurfaces = new Set();

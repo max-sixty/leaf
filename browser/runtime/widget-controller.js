@@ -236,12 +236,84 @@ export function widgetController(owner) {
   return controller;
 }
 
+// The nearest widget an event passed through on its way out that `holds` admits.
+/** @param {Event} event @param {(descriptor: WidgetDescriptor) => unknown} [holds] */
+const widgetOn = (event, holds = () => true) =>
+  event
+    .composedPath()
+    .filter((node) => node instanceof Element)
+    .find((node) => {
+      const descriptor = widgetDescriptor(node);
+      return descriptor && holds(descriptor);
+    });
+
 // Drawing a widget announced from outside Leaf's helpers: the nearest widget the event
 // passed through on its way out holds its presentation on it, as `present` does.
 document.addEventListener(PENDING_TASK, (event) => {
-  const owner = event
-    .composedPath()
-    .filter((node) => node instanceof Element)
-    .find((node) => widgetDescriptor(node));
+  const owner = widgetOn(event);
   if (owner) widgetController(owner).present(event.complete);
 });
+
+// The action in force for a verb, or for one of its units, that the user may take back.
+/** @param {WidgetReading["actions"][string] | undefined} action @param {string} [unit] */
+const takenBack = (action, unit) => {
+  const held = action?.inForce.find(
+    (entry) => unit === undefined || entry.unit === unit,
+  )?.event;
+  return (held && action?.undo.find((event) => event.id === held.id)) ?? null;
+};
+
+// A widget's reading as the `state` property Leaf sets on an element that draws itself
+// without Leaf's helpers (element-integration.js): each declared verb's folded state,
+// with whether the user may act on it now, why not, and whether `lf-undo` would take
+// its action in force back.
+/** @param {WidgetReading} reading */
+export const widgetState = ({ state, actions }) =>
+  Object.fromEntries(
+    Object.entries(state).map(([verb, held]) => [
+      verb,
+      {
+        ...held,
+        available: actions[verb]?.available ?? false,
+        unavailable: actions[verb]?.unavailable ?? null,
+        undoable: Boolean(takenBack(actions[verb])),
+      },
+    ]),
+  );
+
+// Recording announced from outside Leaf's helpers. A widget dispatches a cancelable,
+// bubbling, composed `lf-action` whose detail is `{verb, detail, says?}`, or `lf-undo`
+// whose detail is `{verb, unit?}`, and the nearest recording widget on the event's way
+// out sends it as `dispatch` does: the widget's reading holds the result before
+// `dispatchEvent` returns. The event's `delivery` resolves to the admitted event, or
+// null once the server refuses it; an action Leaf sends nothing for is cancelled, so
+// `dispatchEvent` returns false.
+/** @param {CustomEvent & {delivery?: unknown}} event
+ * @param {(reading: WidgetReading) => import("./pending/dispatch.js").WidgetCommand | null} command */
+function record(event, command) {
+  const owner = widgetOn(event, ({ declaration }) => declaration.verbs);
+  if (!owner) return;
+  let delivery = null;
+  try {
+    const controller = widgetController(owner);
+    const sent = command(controller.read());
+    delivery = (sent && controller.dispatch(sent)?.delivery) ?? null;
+  } finally {
+    if (delivery) event.delivery = delivery;
+    else event.preventDefault();
+  }
+}
+document.addEventListener("lf-action", (event) =>
+  record(event, () => ({ ...event.detail, kind: "action" })),
+);
+document.addEventListener("lf-undo", (event) =>
+  record(event, ({ actions }) => {
+    const taken = takenBack(actions[event.detail.verb], event.detail.unit);
+    return (
+      taken && {
+        kind: "undo",
+        target: ("attempt" in taken ? taken.attempt : null) ?? taken.id,
+      }
+    );
+  }),
+);

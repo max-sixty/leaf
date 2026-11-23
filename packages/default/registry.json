@@ -132,7 +132,6 @@
         "contract": "text-document",
         "source": "source",
         "reference": "for",
-        "output": "document",
         "property": "value"
       }
     },

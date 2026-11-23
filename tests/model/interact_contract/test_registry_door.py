@@ -764,35 +764,26 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
 
 @pytest.mark.parametrize(
-    ("reference", "code", "values"),
+    "reference",
     [
-        (
-            {"via": "$missing.widgets", "where": {"role": "goal"}},
-            "refers-unknown-map",
-            {"via": "$missing.widgets"},
-        ),
-        (
-            {"via": "$work.widgets", "where": {"role": "imaginary"}},
-            "refers-unmatched",
-            {"via": "$work.widgets", "where": {"role": "imaginary"}},
-        ),
+        {"via": "$work.widgets", "where": {"role": "goal"}},
+        {"owns": True},
+        {"tag": "lf-option", "key": "id"},
     ],
 )
-def test_a_typed_reference_no_declared_widget_meets_is_advised(
-    page_dir, reference, code, values
-):
-    """A relation no declared widget meets breaks no vocabulary: each reference an
-    instance makes through it is refused where it stands (`reference-contract`), so
-    the registry door admits it and `page check` tells the declaration's author."""
+def test_a_reference_names_an_element_and_nothing_more(page_dir, reference):
+    """A reference maps its attribute to an empty object, which accepts any element
+    id: a role table, an owned target or a keyed member is refused at the registry
+    door."""
     registry = vocabulary(page_dir)
     registry["lf-option"]["refers"]["for"] = reference
-    registry_validation.validate_registry(registry, "test registry")
-    declare_vocabulary(page_dir, registry)
 
-    _, findings = check_findings(page_dir)
-
-    [advice] = found(findings, code, "<lf-option>", attr="for", **values)
-    assert advice.severity == "advice"
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert found(
+        [finding], "invalid-declaration", "<lf-option>", keyword="additionalProperties"
+    ), finding
 
 
 def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):

@@ -238,8 +238,9 @@ def _markdown_body_input(registry):
     [(_second_document_input, "inputs"), (_markdown_body_input, "words")],
 )
 def test_a_data_widget_s_pre_feeds_at_most_one_input(page_dir, mutate, reason):
-    """An unbound data widget's <pre> is its one input's text, so two inputs would
-    share it, and an element whose <pre> is already its words takes none."""
+    """An unbound data widget's <pre> is its `value` input's text, so two `value`
+    inputs would share it, and an element whose <pre> is already its words takes
+    none."""
     status, findings = _mutated_registry_check(page_dir, mutate)
     assert status != 0
     assert found(findings, "data-input", reason=reason), findings

@@ -111,6 +111,7 @@ const PAGE_COMMANDS = [
   "thread.unread.first",
   "navigation.panel.threads",
   "navigation.panel.queue",
+  "navigation.panel.agent",
   "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
@@ -121,9 +122,11 @@ const PAGE_COMMANDS = [
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
-  // Beside `o`, so the Annotations list reads its two hides together.
+  // The Annotations list's two hides, side by side.
   "changes.toggle",
   "annotations.toggle",
+  // The panel's two keys together: the leaf's press, and folding to the leaf.
+  "panel.floating.leaf",
   "panel.floating.fold",
   COMMAND_REFERENCE,
   // Real keys the browser owns, and one gesture that is not a key at all.

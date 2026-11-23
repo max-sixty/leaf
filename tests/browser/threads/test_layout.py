@@ -714,6 +714,78 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     assert colors["other"] != "rgb(0, 128, 0)", colors
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_package_restyles_an_idiom_whatever_its_rule_weighs(
+    request, serve, tmp_path, engine
+):
+    """Leaf's idioms are defaults (idioms.css), so a package's rule for an idiom's
+    element outranks Leaf's however little it weighs. In the document, a theme's
+    `.lf-tag` beats the tone of Leaf's `.lf-tag.warn` and its bare `dt` beats
+    `dl.lf-facts dt`; in a declared shadow tree, the package's
+    `:host(lf-idiom-tree) :where(dt)` beats `dl.lf-facts dt` too. The idioms still
+    outrank markup's reading face, so a fact's label stays regular where the face sets
+    a `dt` bold, and a numeric cell stands right where the face sets a cell at its
+    start."""
+    declaration, _module = _shadow_tree_widget("lf-idiom-tree")
+    look = tmp_path / "look"
+    (look / "widgets").mkdir(parents=True)
+    (look / "registry.json").write_text(json.dumps({"lf-idiom-tree": declaration}))
+    (look / "widgets" / "lf-idiom-tree.js").write_text("""
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-idiom-tree', class extends HTMLElement {
+  connectedCallback() {
+    if (this.shadowRoot) return;
+    const facts = document.createElement('dl');
+    facts.className = 'lf-facts';
+    facts.append(document.createElement('dt'), document.createElement('dd'));
+    facts.firstChild.textContent = 'Owner';
+    facts.lastChild.textContent = 'Imani';
+    shadowStage(this, [facts]);
+  }
+});
+""")
+    (look / "defaults.css").write_text(
+        ".lf-tag { background-color: rgb(0, 128, 0); }\ndt { color: rgb(0, 0, 255); }\n"
+    )
+    (look / "widget-shadow.css").write_text(
+        ":host(lf-idiom-tree) :where(dt) { color: rgb(0, 0, 255); }\n"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Idioms",
+                '<h1>Idioms</h1><p><span class="lf-tag warn" id="tag">late</span></p>'
+                '<dl class="lf-facts"><dt id="label">Owner</dt><dd>Imani</dd></dl>'
+                "<table><tr><th>Run</th><th>Time</th></tr>"
+                '<tr><td>one</td><td class="lf-numeric" id="figure">12</td></tr></table>'
+                '<lf-idiom-tree id="tree"></lf-idiom-tree>',
+            ),
+            packages=("./look",),
+        ),
+    )
+    drawn = page.evaluate("""() => {
+      const cs = el => getComputedStyle(el);
+      const tree = document.getElementById('tree').shadowRoot;
+      return {
+        tag: cs(document.getElementById('tag')).backgroundColor,
+        label: cs(document.getElementById('label')).color,
+        labelWeight: cs(document.getElementById('label')).fontWeight,
+        figure: cs(document.getElementById('figure')).textAlign,
+        treeLabel: cs(tree.querySelector('dt')).color,
+        treeFacts: cs(tree.querySelector('dl')).display,
+      };
+    }""")
+    assert drawn == {
+        "tag": "rgb(0, 128, 0)",
+        "label": "rgb(0, 0, 255)",
+        "labelWeight": "400",
+        "figure": "right",
+        "treeLabel": "rgb(0, 0, 255)",
+        "treeFacts": "grid",
+    }, drawn
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, engine):
     """A theme restyles Leaf's chrome on purpose from its chrome.css, naming surfaces
@@ -912,7 +984,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             },
         )
     page = open_page(browser, url)
-    resized(page, 1200, 900)
+    # A height whose scroll limit stands a head on the top row, rather than the gap
+    # between two turns there (the known edge below).
+    resized(page, 1200, 880)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
@@ -1062,7 +1136,7 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
                 "kind": "reply",
                 "author": author,
                 "parent": root,
-                "text": f"Turn {turn}. " + LANDING_WORDS * 4,
+                "text": f"Turn {turn}. " + LANDING_WORDS * 6,
             },
         )
     context = browser.new_context(

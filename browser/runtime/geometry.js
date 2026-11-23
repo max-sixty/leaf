@@ -15,6 +15,7 @@ import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
 import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
+import { elementAxes } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { keeps } from "./keeps.js";
 
@@ -23,7 +24,8 @@ import { keeps } from "./keeps.js";
  * placer: Element | null | undefined, scrolls: boolean}} ClipEntry
  * @typedef {Map<Element, ClipEntry>} ClipCache
  * @typedef {{box: Element, axes: {x: boolean, y: boolean}, scrolls: boolean,
- * covered: boolean, footed: boolean, band: Box | null}} ClipCut */
+ * covered: boolean, footed: boolean, band: Box | null}} ClipCut
+ * @typedef {Record<keyof Box, Element | null>} Holders */
 
 // The geometry owner uses the active document's visual viewport, including pinch
 // zoom and the on-screen keyboard. Refuse a missing capability at this boundary.
@@ -51,7 +53,8 @@ export const visualViewport = nativeViewport;
    - `shownParts` for obligation rings and element-anchor outlines;
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
-   - `shownRect` for visible placement of floating chrome and key badges;
+   - `shownRect` for visible placement of floating chrome and key badges, and
+     `shownRectHeld` for the box each of its edges belongs to;
    - `seenRect` for whether, and how much of, something is in front of the user;
    - `growthIsSeen` and `growthAfterIsSeen` for whether a change of size would move what
      the user sees (`motionBand`), which scroll anchoring makes a different question;
@@ -686,11 +689,11 @@ export const shownExtent = (el) =>
 // start edge as a loose list's paragraph does, reaches by the list inset
 // (`--lf-list-inset`) on the item's start side. Every other box reaches 0, such as an
 // item's second paragraph, which no marker stands beside, or a link that opens an item,
-// which keeps to its own edge. The margin's bars and its outline round a change
-// (margin-bars.js) and the marks a box draws round itself (surfaces.css,
+// which keeps to its own edge. What a target draws (`inkedBox`), where its marks stand
+// (`markedBox`) and the marks a box draws round itself (surfaces.css,
 // `[data-lf-beside-marker]`) all reach by this.
 /** @param {Element} box @returns {{left: number, right: number}} */
-export function markerReach(box) {
+function markerReach(box) {
   const none = { left: 0, right: 0 };
   const own = getComputedStyle(box);
   if (own.display.startsWith("inline")) return none;
@@ -724,12 +727,13 @@ export function markerReach(box) {
 /** @param {DOMRect} at @param {Element} holder @param {CSSStyleDeclaration} style */
 function opens(at, holder, style) {
   const outer = holder.getBoundingClientRect();
+  const scale = scaleOf(holder);
   const px = (/** @type {string} */ value) => Number.parseFloat(value);
-  const top = outer.top + px(style.borderTopWidth) + px(style.paddingTop);
+  const top = outer.top + (px(style.borderTopWidth) + px(style.paddingTop)) * scale.y;
   const start =
     style.direction === "rtl"
-      ? outer.right - px(style.borderRightWidth) - px(style.paddingRight)
-      : outer.left + px(style.borderLeftWidth) + px(style.paddingLeft);
+      ? outer.right - (px(style.borderRightWidth) + px(style.paddingRight)) * scale.x
+      : outer.left + (px(style.borderLeftWidth) + px(style.paddingLeft)) * scale.x;
   const edge = style.direction === "rtl" ? at.right : at.left;
   return Math.abs(edge - start) <= 1 && Math.abs(at.top - top) <= 1;
 }
@@ -748,6 +752,60 @@ export function readMarkerSides(boxes) {
       keeps(box, RUNTIME_PAINT_ATTRIBUTE.besideMarker, sides[at]),
     );
 }
+// How many of the window's pixels a band one CSS pixel wide round `box` takes across
+// (`x`) and down (`y`), under the transforms on it and every box round it
+// (element-axes.js, `elementAxes`): other than 1 under a scale, as in a slide scaled
+// to fit the window, and under a rotation, which turns each side's band partly
+// across and partly down.
+/** @param {Element} box @returns {{x: number, y: number}} */
+function scaleOf(box) {
+  const { x, y } = elementAxes(box);
+  return { x: Math.abs(x.x) + Math.abs(y.x), y: Math.abs(x.y) + Math.abs(y.y) };
+}
+// What `part` draws: its border box, reaching over a list marker beside it.
+/** @param {Element} part @param {DOMRect} [rect] @param {{x: number, y: number}} [scale] @returns {Box} */
+function inkOf(part, rect = part.getBoundingClientRect(), scale = scaleOf(part)) {
+  const reach = markerReach(part);
+  return {
+    left: rect.left - reach.left * scale.x,
+    top: rect.top,
+    right: rect.right + reach.right * scale.x,
+    bottom: rect.bottom,
+  };
+}
+// The box a target occupies on screen, as the reader sees it: what its shown parts
+// (`shownParts`) draw together, each reaching over a list marker beside it
+// (`markerReach`), or null where no part shows. Paint that stands beside a target,
+// such as the margin's bars, stands beside this.
+/** @param {Element} target @returns {Box | null} */
+export const inkedBox = (target) =>
+  union(shownParts(target).map((part) => inkOf(part)));
+// Where the marks Leaf draws round `part` stand: the room its band takes
+// (`--lf-band-room`, its gap and its width) outside what it draws (`inkOf`), or none
+// where they stand inside it, as a table cell's do.
+/** @param {Element} part @returns {Box} */
+function markedOf(part) {
+  const rect = part.getBoundingClientRect();
+  const scale = scaleOf(part);
+  const ink = inkOf(part, rect, scale);
+  const room = Math.max(
+    0,
+    Number.parseFloat(getComputedStyle(part).getPropertyValue("--lf-band-room")),
+  );
+  return {
+    left: ink.left - room * scale.x,
+    top: ink.top - room * scale.y,
+    right: ink.right + room * scale.x,
+    bottom: ink.bottom + room * scale.y,
+  };
+}
+// Where the marks Leaf draws round `target` stand (surfaces.css): round each shown
+// part, the room its band takes outside what the part draws (`inkedBox`), together;
+// or null where no part shows. Every box states its room whether or not a mark shows,
+// so a surface that stands clear of the marks, such as a thread's card or a preview,
+// clears them before they show.
+/** @param {Element} target @returns {Box | null} */
+export const markedBox = (target) => union(shownParts(target).map(markedOf));
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an
@@ -772,6 +830,19 @@ export function readMarkerSides(boxes) {
 /** @param {Element} item @param {ClipCache} clips */
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
+}
+// `shownRect` with the box that supplies each of its edges (`holders`): the item's own,
+// a box whose band clips it there, or null where the window does. A floating surface
+// held in at one of those edges stands in that box's plane (floating.js).
+/** @param {Element} item @param {ClipCache} clips @returns {(Box & {holders: Holders}) | null} */
+export function shownRectHeld(item, clips) {
+  const root = item.ownerDocument.scrollingElement;
+  const own = item === root ? null : item;
+  /** @type {Holders} */
+  const holders = { left: own, top: own, right: own, bottom: own };
+  const cuts = clipWalk(item, clips, false).cuts;
+  const shown = cutBy(shownBox(item), cuts, root, true, holders);
+  return shown && { ...shown, holders };
 }
 // What of an item the user sees: what every box over it lets through, within the visible
 // viewport's height, less the boxes the chrome covers (`coverBoxes`), or null when none
@@ -1188,17 +1259,29 @@ function clipped(box, item, clips, held, inWindow = true, stop) {
   const root = item.ownerDocument.scrollingElement;
   return cutBy(box, clipWalk(item, clips, held, stop).cuts, root, inWindow && !stop);
 }
+/** @type {readonly (keyof Box)[]} */
+const BOX_EDGES = ["left", "top", "right", "bottom"];
 // `box` less the bands of `cuts`, each on the axes it clips, or null where they leave
 // none of it. In the window's plane the window cuts it; in the page's plane the root's
 // band is the window, which cuts nothing there, and only a header stuck over its top
-// does.
-/** @param {Box} box @param {ClipCut[]} cuts @param {Element | null} root @param {boolean} inWindow */
-function cutBy(box, cuts, root, inWindow) {
-  let shown = inWindow ? intersect(box, layoutWindow()) : box;
-  for (const { box: cut, band, axes, covered } of cuts) {
+// does. `holders`, where given, starts with the box each edge of `box` belongs to and
+// ends with the box each edge of the answer does: the clip whose band cut that edge
+// furthest in, the first on a tie, or null where the window or the root's band did.
+/** @param {Box} box @param {ClipCut[]} cuts @param {Element | null} root @param {boolean} inWindow @param {Holders} [holders] */
+function cutBy(box, cuts, root, inWindow, holders) {
+  /** @param {Box} shown @param {Box} edges @param {Element | null} holder @param {{x: boolean, y: boolean}} [axes] */
+  const cut = (shown, edges, holder, axes) => {
+    const next = intersect(shown, edges, axes);
+    if (holders)
+      for (const edge of BOX_EDGES)
+        if (next[edge] !== shown[edge]) holders[edge] = holder;
+    return next;
+  };
+  let shown = inWindow ? cut(box, layoutWindow(), null) : box;
+  for (const { box: clip, band, axes, covered } of cuts) {
     if (!band) return null;
     const edges =
-      !inWindow && cut === root
+      !inWindow && clip === root
         ? {
             left: -Infinity,
             top: covered ? band.top : -Infinity,
@@ -1206,7 +1289,7 @@ function cutBy(box, cuts, root, inWindow) {
             bottom: Infinity,
           }
         : band;
-    shown = intersect(shown, edges, axes);
+    shown = cut(shown, edges, clip === root ? null : clip, axes);
   }
   const { left, top, right, bottom } = shown;
   return hasArea(shown) ? { left, top, right, bottom } : null;

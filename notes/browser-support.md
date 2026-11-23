@@ -1004,6 +1004,29 @@ scene, as a hint map's, waits until the rendering update after a script's scroll
 Chromium; a 90px scroll means the gap has closed, and the matrix's known case
 then passes.
 
+### A fixed box's new default anchor before the next frame in Chromium
+
+A `position: fixed` box whose `position-anchor` changes from one anchor to
+another, under a scrolled page, reads off by that scroll until the next
+rendering update, though Chromium paints it where the new anchor puts it.
+Give a 4000px body two absolutely positioned anchors at `top: 1000px` and
+`top: 1100px`, a fixed box at `top: anchor(top)` naming the first, scroll the
+page 231px, and name the second in an animation frame callback: the box reads
+at 638 in that callback and at 869 in the next frame's, and Chromium's
+layout-shift entry records it moving from 769 straight to 869. That was
+Playwright Chromium 159.0.8154.6 (build 1255) on 2026-11-21. Playwright Firefox
+159.0 (build 1572) reads 869 at once, and both read right at once where the box
+takes an anchor from none, drops one, or changes only its insets.
+
+In Leaf it reaches a floating surface whose placement moves it from one
+anchor's plane to another's (floating.js), such as a thread card that an answer
+grows against a pane's foot. floating.js reads where an answer stands the box
+from the answer (`clientBox`), not off the box. `tests/shift_watch.js` reads the
+box in an animation frame callback, where the offset shows. A CDP screencast of
+such a card showed no frame at the offset spot, so with no user-visible effect
+Leaf leaves the gap. Recheck with the reproduction above; 869 in the switching
+callback means the gap has closed.
+
 ### `calc()` in `overflow-clip-margin` in Chromium
 
 Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`

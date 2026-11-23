@@ -111,7 +111,7 @@ import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import {
   annotationsHidden,
-  mountAnnotationControls,
+  ANNOTATIONS_TOGGLE,
   restoreAnnotations,
 } from "./runtime/annotation-layer.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
@@ -219,7 +219,6 @@ async function boot() {
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-  mountAnnotationControls();
 
   /** @type {ReturnType<typeof mountApplication>} */
   let app;
@@ -697,6 +696,7 @@ async function boot() {
       navigation.alignTop,
       app.read.firstUnreadCommand,
       version.PICKER,
+      ANNOTATIONS_TOGGLE,
     ],
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,

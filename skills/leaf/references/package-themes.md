@@ -53,7 +53,10 @@ Leaf composes the base first, after any base that one names, and the theme after
 so a theme that builds on `reading` states only what it changes, such as its three
 colours, a face and a corner, and its rule wins a tie with the reading look's. A theme
 that names no base composes without `reading`. Either way its pages keep Leaf's idioms,
-such as `.lf-callout` and `.lf-tag`, which Leaf draws on every page. Leaf refuses a
+such as `.lf-callout` and `.lf-tag`, which Leaf draws on every page. Leaf's rules for
+them rank above the reading face's and below every other rule of `lf-base`, so a
+theme's rule for an idiom's element, such as `.lf-tag` or a bare `dt`, outranks
+Leaf's whatever its weight. Leaf refuses a
 base that isn't installed, and bases that name each other, when `leaf package
 install` installs the theme and when a page taking it composes.
 

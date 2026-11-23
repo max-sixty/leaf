@@ -12,7 +12,8 @@
  *   threads with news, the row gathered into it where it stands at the row's end. The
  *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
  *   button that rides the box's top-left corner while the pointer is near it and no
- *   view's head line holds that corner; a
+ *   view's head line holds that corner. It folds itself where focus lands on a place
+ *   the row alone would hide (`giveWay`). A
  *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
  *   Once the page presents, its status tooltip keeps the explanation it opened for
  *   one pointer or focus exposure, so news and aging words cannot move text being
@@ -280,7 +281,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput, writesIn } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
-import { holdPlace, standsAt } from "./user-place.js";
+import { focusPlace, holdPlace, standsAt } from "./user-place.js";
 import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
@@ -366,6 +367,7 @@ import {
   announceRoom,
   covered,
   declareCover,
+  hiddenByCovers,
   placeBox,
   placeHolder,
   seenRect,
@@ -5726,21 +5728,51 @@ export function createFloatingPanel({
       overlaps(box, opened.getBoundingClientRect()),
     );
   };
+  /** @param {Element | null} node */
+  const onMeHolds = (node) => doors.queue.shows() && onMe.lists(node);
   /** @param {Pick<import("./anchor-travel.js").Arrival, "where" | "focus">} destination
    * @param {DOMRect | null} landed */
   function clearFor({ where, focus }, landed) {
-    if (
-      doors.queue.shows() &&
-      focus !== false &&
-      onMe.lists(focus ? focusElement(focus) : placeHolder(where))
-    )
+    if (focus !== false && onMeHolds(focus ? focusElement(focus) : placeHolder(where)))
       return;
     if (standsOver(where, landed)) close();
   }
+  // Focus that lands where the panel alone would hide it, once its landing has taken it
+  // as far as its regions scroll, leaves the user unable to see where they are, and the
+  // next key would let go of it (keyboard/controller.js, `letsGo`): a Tab onto an
+  // action at the foot of a workspace that fills the window, an arrow onto a tab low in
+  // a stuck side list, or a press on a label whose control stands there. The page keeps
+  // no band at the window's foot for the row, as the user chose, so the panel gives way
+  // there: the view closes where it stands over the place (above), and where the row
+  // would still hide all of it, the panel folds to the leaf as `.` folds it. It stays
+  // folded until the user unfolds it or asks to write (`clearRow`). "All of it" is cut
+  // by the rule every reading of what the user sees takes (geometry.js, `uncovered`),
+  // which gives the row every column of a place it reaches into, so a control mostly
+  // beside the row folds it too, as the let-go would otherwise read it out of sight.
+  // On Me stays open over an item it lists, as travel leaves it, since its card rings
+  // the stop the walk reached (`standsAt`), and a place the user is held at elsewhere
+  // folds nothing. The panel asks once the script that moved focus has run, of the node
+  // focus then holds, so a script that passes focus through a place on its way
+  // elsewhere folds nothing. Rejected: a fold that comes back once focus leaves the
+  // place, which would need a second way of resting beside the one `.` keeps, and would
+  // carry the row back over the page between two Tabs.
+  /** @type {Element | null} */
+  let reached = null;
+  function giveWay() {
+    const node = reached;
+    reached = null;
+    if (!node || node !== focused() || prefs().rest === "mark") return;
+    if (onMeHolds(node) || focusPlace()) return;
+    if (!hiddenByCovers(node, landedBox(node))) return;
+    setRest("mark");
+    announce("Folded to the leaf");
+  }
   onCurrentLocation((node, cause) => {
-    if (!node) return;
+    if (!node || cause === "drop" || renderedUnder(node, host)) return;
     if (cause === "return") clearFor({ where: node, focus: node }, landedBox(node));
     else if (cause === "step" && standsOver(node, landedBox(node))) close();
+    reached = node;
+    afterScript(giveWay);
   });
 
   // The doors to the panel's views and to Versions, as Go-to's named destinations

@@ -113,7 +113,8 @@ rule draws at once is drawn.
   CSS geometry for annotations and never reallocates document space. The floating
   panel stands over the page too, with no room kept for it: the page lays out in the
   whole window, and the user folds the panel to its leaf where it covers what they
-  read. Leaf's landings and readings of what the user sees count the panel's box
+  read; it folds itself where focus lands on a place it alone would hide
+  (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
   (`geometry.js`, `declareCover`). Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.

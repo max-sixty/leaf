@@ -54,7 +54,8 @@ const WORK_WORDS = {
   replying: "Writing a reply",
 };
 // What each canonical count says the agent owes, in the order a reader is told: the
-// answers by where their update stands, and those no turn has taken in.
+// answers by where their update stands, and those no turn has taken in. The server
+// counts each answer once (`activity.py`), so the phrases never say one twice.
 const COUNT_PHRASES = {
   running: "being worked on",
   waiting: "owed",

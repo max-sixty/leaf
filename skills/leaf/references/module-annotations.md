@@ -66,7 +66,9 @@ draws its own control as an entry with
 `presentContributionEntry(control, entry, {selected, unread})`, where `unread` draws
 the dot for agent words the user hasn't read beside the entry's count, and shows whether the agent is
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
-`receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
+`receipt` is `null` or a workflow's `{id, subject, state, reason, seen, detail}`. The
+control shows the agent at work while `state` is `"running"`, and an update a turn has
+taken in while `state` is `"waiting"` and `seen` is true.
 
 The returned registration's `hasCurrentLocation()` says whether the user's focus is
 inside any control presenting that contribution, across shadow roots and presentation

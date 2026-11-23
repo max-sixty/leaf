@@ -505,9 +505,8 @@ export function commentSide({
 }
 
 // The minimum width chooses the side: a side whose room holds less stands nothing. The
-// measure is the width a card takes once a message outgrows the minimum, or where its
-// start stands away from its text (`size-width`), and decides whether clearing the
-// margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
+// measure is the widest a box or card stands (`size-width`), and decides whether
+// clearing the margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
 // card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
@@ -585,8 +584,9 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    inline start, which reserves that width (`size-width`). On the left, it instead holds
    its right edge clear of the target, so a change of its room moves its far edge and
    never carries it across the words it comments on. `fromSubject` says its inline
-   start stands by what it is about: beside it on the right, under or over quoted words
-   at their first character, or at the room's edge with nothing to stand by. A surface
+   start, where its words start, stands by what it is about: left to right, beside it
+   on the right, under or over quoted words at their first character, or at the room's
+   left edge with nothing to stand by; right to left, beside it on the left. A surface
    narrower than the measure, as the box and a slim card are, stands by its subject
    and widens away from it only there. Elsewhere its start is the measure's far end
    from its subject, where a narrower surface would stand apart from it and widen by
@@ -684,11 +684,13 @@ export function commentPlacement() {
       const span = Math.min(cardMeasure() * scale.x, boundary.width);
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
-    /** @param {{x: number}} scale */
-    const fromSubject = (scale) =>
-      unanchored ||
-      side === "right" ||
-      (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
+    /** @param {{x: number}} scale @param {boolean} rtl */
+    const fromSubject = (scale, rtl) =>
+      rtl
+        ? !unanchored && side === "left"
+        : unanchored ||
+          side === "right" ||
+          (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -814,7 +816,10 @@ export function commentPlacement() {
           room: shown,
           stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
           stood,
-          fromSubject: fromSubject(scale),
+          fromSubject: fromSubject(
+            scale,
+            getComputedStyle(state.elements.floating).direction === "rtl",
+          ),
           scale,
         });
       },

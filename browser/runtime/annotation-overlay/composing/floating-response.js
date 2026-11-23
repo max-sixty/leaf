@@ -3,8 +3,10 @@
    Composition owns its durable target and native editor. This owner chooses its initial
    side, measure and CSS attachment. While editing, the browser carries that attachment
    through every ancestor scroll; generic repaint and scroll publications do not solve
-   another position. Target or field resize, viewport resize, horizontal target motion,
-   and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
+   another position. A resized target, a change of the field's height, a resized
+   viewport, horizontal target motion and declared layout changes invalidate the
+   attachment; the field widening with its words stays inside the room the attachment
+   gave it. Replacing its target or native seat retires it. The compact response strip retains ordinary
    collision placement and scroll observation. A seated editor carries its frame
    through attachment changes under the shared rule in comment-placement.js;
    its durable anchor and native editor stay intact.
@@ -36,7 +38,7 @@
    among them, and the next press there would open it (browser/AGENTS.md, "Controls
    stay where the user aims"), so there it waits for `c`. */
 import { pageRange } from "../../native-selection.js";
-import { cancelRender, nextRender } from "../../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
@@ -145,6 +147,8 @@ export function createFloatingResponsePlacement({
   // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
+  // The box's height where its placement last stood it.
+  let stoodHeight = 0;
   function fabMotion() {
     const box = fabField();
     // The composer holding the composition is the root, since the composition's frame is
@@ -161,8 +165,13 @@ export function createFloatingResponsePlacement({
       outset: 0,
       placement: {
         held: fabPosition.held,
+        // The words widen the box inside the room its placement gave it, away from
+        // the edge that holds it (annotation-chrome.css), so a change of its width
+        // alone leaves it where it stands, and is read there.
         place: () => {
           if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
+          if (Math.abs(fabBar.getBoundingClientRect().height - stoodHeight) < 0.5)
+            return false;
           nativeAttachment = false;
           return placeFab();
         },
@@ -212,6 +221,9 @@ export function createFloatingResponsePlacement({
         height * scaleY,
       ),
       placement: fabPlacement.capture(),
+      // The frame's width in its own CSS pixels, which the card Send opens starts at
+      // (thread-preview.js, `size-width`), whatever scales the page after Send.
+      width,
       // The field the card grows out of (box-motion.js, `drawnAt`).
       field: following ? shown(following.outline()) : field,
       // How far the words stand above their end: where the user was reading them,
@@ -330,10 +342,15 @@ export function createFloatingResponsePlacement({
         nativeAttachment = false;
         update();
       };
+      // The box's own size asks its placement through its motion (`fabMotion`), so
+      // this watch hears only the window's and the reference's.
       const stopSize = autoUpdate(reference, floating, invalidate, {
         ancestorScroll: false,
+        elementResize: false,
         layoutShift: false,
       });
+      const referenceSize = sizeObserver(invalidate);
+      referenceSize.observe(reference.contextElement);
       let x = reference.getBoundingClientRect().left;
       // Each native scroll carrier owns its previous coordinates; there are no
       // parallel arrays whose positions must keep naming the same ancestor.
@@ -379,6 +396,7 @@ export function createFloatingResponsePlacement({
       return () => {
         stopMotion();
         stopSize();
+        referenceSize.disconnect();
       };
     };
   }
@@ -635,6 +653,7 @@ export function createFloatingResponsePlacement({
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
           const moved = fabPosition.stand(position);
+          stoodHeight = fabBar.getBoundingClientRect().height;
           keeps(fabBar, "data-lf-media-side", hang(fabPosition.clientBox(position)));
           carry.placed();
           return moved;

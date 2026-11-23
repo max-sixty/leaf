@@ -195,11 +195,12 @@ function listen() {
 // holding it: another observer of that box, delivered before this one or at a shallower
 // depth, would miss the new size, and the browser reports that as a loop. A placement
 // whose fit would change a size makes that change in the next frame, before layout.
-// We could consider, in future, making this the only observer that asks a placed box's
-// placement for a change of its size: Floating UI's watch (`autoUpdate`'s
-// `elementResize`) asks too, and observes the reference with the same option, so its
-// owners would have to observe the reference another way. The order observers are
-// made in would then stop mattering.
+// It is the only observer that asks the comment box's placement for a change of the
+// box's size: that box's watch observes its reference alone
+// (annotation-overlay/composing/floating-response.js). The card's watch, Floating UI's
+// `autoUpdate` with its `elementResize`, asks too, so the order observers are made in
+// still matters there. We could consider, in future, giving the card's watch the
+// comment box's.
 /** @type {WeakMap<Element, () => void>} */
 const readers = new WeakMap();
 const placedParts = sizeObserver((entries) => {

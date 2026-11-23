@@ -210,7 +210,7 @@ import { errorOver } from "../errors.js";
  * @typedef {{entry: Entry, choice: Choice, threadItem: string, control: Element | null,
  * accompanies: boolean, forced: boolean, disclosed: boolean}} Selection
  * @typedef {Selection & {item: Item, preparing: boolean,
- * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field" | "box"> | null, away: boolean,
+ * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field" | "width"> | null, away: boolean,
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
@@ -888,8 +888,11 @@ export function createThreadPreview({
             // carried keeps the width it was carried at (`session.width`) until its
             // side is chosen again.
             const carried = (session.width ?? Infinity) / scale.x;
-            const typed = (session.sent?.box.width ?? 0) / scale.x;
-            const narrow = Math.min(Math.max(cardMinimum(), typed), width, carried);
+            const narrow = Math.min(
+              Math.max(cardMinimum(), session.sent?.width ?? 0),
+              width,
+              carried,
+            );
             const room = () =>
               session.wide || !fromSubject
                 ? Math.min(cardMeasure(), width, carried)
@@ -1083,7 +1086,7 @@ export function createThreadPreview({
       // The box Send replaced, whose reading the card keeps (`showArrival`), whose
       // field it grows out of and whose width it starts at (`placeThreadPreview`).
       sent: origin
-        ? { fromEnd: origin.fromEnd, field: origin.field, box: origin.box }
+        ? { fromEnd: origin.fromEnd, field: origin.field, width: origin.width }
         : null,
       away: false,
       positionFrame: 0,
@@ -1104,8 +1107,8 @@ export function createThreadPreview({
       // (`placeThreadPreview`), which it keeps in place of the measure.
       itemView: null,
       width: null,
-      // Whether a sent message has run past the least width's lines, which holds the
-      // card at the measure for this selection (`placeThreadPreview`).
+      // Whether a message has stood taller than wide at the width the card started
+      // at, which holds it at the measure for this selection (`placeThreadPreview`).
       wide: false,
       scroller: pageScroller,
       // Whether the card's placement has landed for this selection, whose first spot its

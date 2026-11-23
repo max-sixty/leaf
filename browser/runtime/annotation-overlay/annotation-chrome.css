@@ -100,10 +100,12 @@
      The frame is as wide as its words' longest line, from the card's least width
      (`--lf-thread-card-min`) to the measure (`--lf-thread-card`) or its room where that
      is narrower, and wraps them there, so a first line widens it away from its start,
-     and the card Send opens keeps that width (thread-preview.js, `size-width`). Right
-     to left, its words start at the edge that widening would carry, so it keeps the
-     least width. Where its start stands away from its text, it takes the measure at
-     once (`data-lf-card-width`; comment-placement.js, `fromSubject`). Only the
+     and the card Send opens keeps that width (thread-preview.js, `size-width`). Where
+     the edge its words start from stands away from its text, it takes its widest at
+     once (`data-lf-card-width`; comment-placement.js, `fromSubject`). So does a
+     draft that scrolls in it (`:state(overflows)`, composing/text-field.js): its editor
+     draws only the lines near what the box shows, so the longest drawn would change as
+     the reader scrolls, and so would the box's width. Only the
      field paints; the transparent rows neither take document flow nor intercept
      presses. Its tracks shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
@@ -127,10 +129,11 @@
     padding: var(--lf-comment-frame-top) 0 var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
-  .lf-fab-bar:dir(rtl):not([data-lf-target-only], [data-lf-presentation="inline"]) {
-    width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
-  }
   .lf-fab-bar[data-lf-card-width]:not(
+      [data-lf-target-only],
+      [data-lf-presentation="inline"]
+    ),
+  .lf-fab-bar:has(.lf-compose-field > leaf-text:state(overflows)):not(
       [data-lf-target-only],
       [data-lf-presentation="inline"]
     ) {
@@ -325,7 +328,7 @@
     pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
     /* The width of a card no placement has sized yet, where each selection starts;
-       placement stands it at the least width or the measure, capped by its room
+       placement stands it at the width `size-width` gives it, capped by its room
        (thread-preview.js, `measureThreadCard`). */
     width: min(var(--lf-thread-card-min), calc(100vw - 16px));
     max-height: calc(100vh - var(--lf-head-room) - 16px);

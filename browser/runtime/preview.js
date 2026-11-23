@@ -342,6 +342,7 @@ import {
 import { hasArea, holds } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
 import { markRoom } from "./mark-room.js";
+import { anchorBox } from "./css-anchors.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -1465,9 +1466,12 @@ function stand(record, reading, standing, aim = false) {
   // since the preview stands over all of it; its width bounds the preview's.
   const room = shownWindow({ gap: EDGE, item: tip });
   tip.style.setProperty("--lf-preview-span", layoutPx(room.width));
-  const by = source.getBoundingClientRect();
+  // Its edges stand at offsets from the box `anchor()` reads its source at, which in
+  // Firefox leaves out the source's transforms (css-anchors.js, `anchorBox`).
+  const by = anchorBox(source);
   // The size this decision read, which the observer of what it stands by compares.
-  followedSize = { width: by.width, height: by.height };
+  const { width: sourceWidth, height: sourceHeight } = source.getBoundingClientRect();
+  followedSize = { width: sourceWidth, height: sourceHeight };
   const width = tip.getBoundingClientRect().width;
   const height = atLayoutPrecision(wholeHeight());
   // What it is about stays in view: the box it stands by, and what its declaration

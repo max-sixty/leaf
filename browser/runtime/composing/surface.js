@@ -54,7 +54,11 @@
    its placement, in the frame the field will have, so the press moves nothing; only its
    face stands (`.lf-fab-rest`), with no anchor or composer behind it. So it holds no
    revision back, takes no Escape step, closes no thread card and builds no editor, and
-   it goes with the focus that raised it.
+   it goes with the focus that raised it. It goes in the frame a scroll takes that focus
+   out of sight, though its placement would keep it on screen a little longer, carried
+   up by the target's foot (comment-placement.js, `scroll-held-in`). From that frame `c`
+   opens the panel's field, and a box still on screen would show a key that no longer
+   opens it.
 
    Boot may supply an actual physical placement. The default floating presentation
    owns collision geometry and off-flow reveals in floating-response.js. This owner
@@ -1541,7 +1545,8 @@ export function createResponseSurface({
     placement?.release();
     keeps(fabBar, "data-lf-rest", null);
   }
-  // Read in each repaint, since where `c` goes follows focus, a scroll's end and the state.
+  // Read in each repaint, since where `c` goes follows focus, whether a scroll has taken
+  // it out of sight (user-place.js), and the state.
   function restFab() {
     const next = restingTarget();
     const key = next && commentKey;

@@ -9,16 +9,17 @@
  * the arriving geometry is ready.
  *
  * The picker owns the complete version list, where each version older than the one
- * shown offers a Compare that marks what changed since it; `v` marks what changed since
- * the version the user last saw, or the newest older one (since-seen.js). A lit
- * Compare, or `v` again, clears the comparison. The
+ * shown offers a Compare that marks what changed since it, and names the version the
+ * user last saw (since-seen.js) "last seen" while the page has changed since it.
+ * Versions opens on the version it offers (`selection.offered`), whose Compare
+ * Versions' `v` presses (floating-panel.js). A lit Compare clears the comparison. The
  * comparison and the picker's presentation need no application capability, so they
  * live at module scope, one per document, and other surfaces import their readers
  * directly; the controller keeps travel and activation, which do. Block marks show
  * which blocks changed; a change is a hunk of the block diff as the page shows it, its
  * run of changed blocks and the base blocks it took out (`changeRuns`), which a reader
  * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
- * request. A base is a stamped version, the one a Compare or `v` names.
+ * request. A base is a stamped version, the one a Compare names.
  * `changesSince` counts a comparison's changes without marking them.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
@@ -109,8 +110,8 @@ import {
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
-import { savedReadingSettled } from "./keyboard/bindings.js";
-import { commandSteps } from "./keyboard/control-keys.js";
+import { savedReadingSettled, spell } from "./keyboard/bindings.js";
+import { commandKeysNow, commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
@@ -169,8 +170,16 @@ import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
-import { projectDocument, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/runtime/framework.js";
+import { projectDocument, readApplication, readPart } from "./semantic-state.js";
+import {
+  AsyncDirective,
+  batch,
+  directive,
+  effect,
+  nothing,
+  signal,
+  untracked,
+} from "/runtime/framework.js";
 
 import {
   ADDRESSABLE,
@@ -404,16 +413,147 @@ const shownBehind = (active) =>
       ? `v${runtime.currentStamp}`
       : `v${runtime.currentStamp} of ${active.version}`;
 
+/** @typedef {import("../types/contract.js").ServedReading["versions"][number]} StampedVersion */
+// The version the user last saw, as their arrival found it (since-seen.js, `sawLast`).
+const lastSeen = signal(/** @type {StampedVersion | null} */ (null));
+/** @param {StampedVersion | null} version */
+export const sawLast = (version) => {
+  lastSeen.value = version;
+};
+// The version the user last saw while the page being read is newer than it, which
+// Versions names "last seen" and offers first, or null.
+const seenBase = () => {
+  const seen = lastSeen.value;
+  return seen && comparable(seen.revision) ? seen : null;
+};
+// What a version's name says it is after its number, as in "v3 (latest version, last
+// seen)".
+/** @param {(string | false)[]} roles */
+const parenthesized = (roles) => {
+  const said = roles.filter(Boolean);
+  return said.length ? ` (${said.join(", ")})` : "";
+};
+
+// How many changes stand since each version older than the one being read, which
+// Versions says on its Compare: what a comparison with it would mark (`changesSince`).
+// A count reads the revision being read and the widgets' state, so it stands while
+// both do; the publisher keeps the widgets' state the same object while it holds.
+// While Versions is open it counts the missing ones among the versions whose Compare
+// shows in the window (`countWhenShown`), newest first and one at a time. A count
+// fetches its version and compares the whole page, so what opening Versions, a pick or
+// a stamp sets off follows the rows on screen, not how many versions the session has
+// stamped (AGENTS.md, "Responsiveness"). Closing Versions or the page moving on leaves
+// at most one count half done. Rejected: counting the rows near the window as
+// `nearObserver` reads it (geometry.js), whose 600px past each edge of a scroller suits
+// layout work; for counts, each pick would also fetch and compare those 600px of rows.
+const widgetStates = readPart((root) => root.effective.widgets);
+const versionCounts = signal(
+  /** @type {{revision: number | null, widgets: unknown, counts: ReadonlyMap<number, number>}} */ ({
+    revision: null,
+    widgets: null,
+    counts: new Map(),
+  }),
+);
+/** How many changes a comparison with the version at `revision` would mark, or null
+ * until Versions has counted them for the page as it stands.
+ * @param {number} revision */
+export const changesCounted = (revision) => {
+  const at = versionCounts.value;
+  return at.revision === runtime.currentRevision && at.widgets === widgetStates()
+    ? (at.counts.get(revision) ?? null)
+    : null;
+};
+/** The versions whose Compare shows in the window, by revision.
+ * @type {Set<number>} */
+const countsShown = new Set();
+/** @type {WeakMap<Element, number>} */
+const shownRevision = new WeakMap();
+// Wakes Versions' counting for the page as it stands when a row comes into view; it
+// does nothing while Versions is closed.
+let countShown = () => {};
+/** @type {IntersectionObserver | undefined} */
+let showing;
+const watchShowing = () =>
+  (showing ??= new IntersectionObserver((entries) => {
+    for (const { target, isIntersecting } of entries) {
+      const revision = shownRevision.get(target);
+      if (revision === undefined) continue;
+      if (isIntersecting) countsShown.add(revision);
+      else countsShown.delete(revision);
+    }
+    countShown();
+  }));
+/** `<button ${countWhenShown(revision)}>`: while Versions is open, it counts the
+ * changes since the version at `revision` once this element shows in the window. */
+export const countWhenShown = directive(
+  class extends AsyncDirective {
+    /** @type {Element | null} */
+    node = null;
+    /** @param {number} revision */
+    render(revision) {
+      return nothing;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[number]} args */
+    update(part, [revision]) {
+      if (this.node !== part.element) {
+        this.node = part.element;
+        watchShowing().observe(this.node);
+      }
+      shownRevision.set(this.node, revision);
+      return nothing;
+    }
+    disconnected() {
+      if (!this.node) return;
+      showing?.unobserve(this.node);
+      const revision = shownRevision.get(this.node);
+      if (revision !== undefined) countsShown.delete(revision);
+    }
+    reconnected() {
+      if (this.node) watchShowing().observe(this.node);
+    }
+  },
+);
+/** @param {number} revision @param {unknown} widgets @param {() => boolean} open */
+async function countVersions(revision, widgets, open) {
+  const counts = () => {
+    const at = versionCounts.peek();
+    return at.revision === revision && at.widgets === widgets ? at.counts : new Map();
+  };
+  // A version whose count fails keeps Compare's word, and the others still count.
+  /** @type {Set<number>} */
+  const failed = new Set();
+  while (open()) {
+    const entry = runtime.versions.findLast(
+      ({ revision: at }) =>
+        countsShown.has(at) && comparable(at) && !counts().has(at) && !failed.has(at),
+    );
+    if (!entry) return;
+    const n = await changesSince(revisionBase(entry), open).catch(() => null);
+    if (!open()) return;
+    if (n === null) failed.add(entry.revision);
+    else
+      versionCounts.value = {
+        revision,
+        widgets,
+        counts: new Map(counts()).set(entry.revision, n),
+      };
+  }
+}
+
 /** @typedef {{revision: number, version: number | null, name: string, note: string | null, current: boolean, active: boolean, comparable: boolean}} VersionRow */
 /** @param {import("../types/contract.js").ServedState} state
  * @param {Readonly<Record<string, string>>} notes @param {NonNullable<typeof runtime.active>} active */
 function menuRows(state, notes, active) {
   const latest = state.versions.at(-1)?.version;
+  const seen = seenBase()?.revision;
   /** @type {VersionRow[]} */
   const entries = state.versions.map((entry) => ({
     revision: entry.revision,
     version: entry.version,
-    name: `v${entry.version}${entry.version === latest ? " (latest version)" : ""}`,
+    name: `v${entry.version}${parenthesized([
+      entry.version === latest && "latest version",
+      entry.revision === seen && "last seen",
+    ])}`,
     note: notes[entry.version] ?? null,
     current: entry.version === runtime.currentStamp,
     active: false,
@@ -473,10 +613,17 @@ function pickerModel(state) {
         : menuRows(state, runtime.browser?.version_notes ?? {}, active),
     selection: Object.freeze({
       // The base's revision, which each row of the menu names it by.
-      base:
-        (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
-        null,
+      base: selectedBase()?.revision ?? null,
       on: diffOn.value,
+      // The version Versions offers to compare with, which it opens at: the base, else
+      // the version the user last saw while the page has changed since, else the newest
+      // version older than the one being read; null where none is older.
+      offered:
+        (
+          selectedBase() ??
+          seenBase() ??
+          runtime.versions.findLast((entry) => comparable(entry.revision))
+        )?.revision ?? null,
     }),
   });
 }
@@ -499,6 +646,22 @@ function paintPicker() {
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
 export const versionsReading = () => pickerModel(runtime.state);
+// Versions' own keys that other surfaces wear after Versions' keys: the one that
+// compares the version the user stands on, as its Compare does, and the one that opens
+// the latest version (floating-panel.js, `compareRow` and `latestRow`).
+export const COMPARE_KEY = "v";
+export const LATEST_KEY = "l";
+// Whether Versions stands open, as the floating panel says (`createVersionController`).
+let versionsStand = () => false;
+/** The keys that would make a press of one of Versions' own keys now: Versions' keys,
+ * then that key, as `g V v`. None while Versions stands, where `g V` would put it away
+ * and its rows are in front of the user, or where no key would open it.
+ * @param {string} key */
+export const throughVersions = (key) => {
+  if (versionsStand()) return [];
+  const opening = commandKeysNow("version.open");
+  return opening.length ? [...opening, spell(key)] : [];
+};
 // Versions, a list of the floating panel's own, and a newer page to open, as rows of the
 // page's controls.
 registerPageControl({
@@ -621,7 +784,7 @@ const diffWordsOf = new Map();
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
 // dropped rather than painted over the base they are on now. Reachable because each
-// press of Compare or `v` is one fetch, and the presses come faster than the network.
+// press of Compare is one fetch, and the presses come faster than the network.
 let diffRequest = 0;
 // A containing prose block owns its words, not an opaque child's rendered data.
 // Use the same boundary for comparison keys, stored words and inline ranges.
@@ -1455,8 +1618,8 @@ function setDiff(on, base = null, pendingBase = null) {
     tick(comparisonGeneration);
   });
 }
-// The one way a comparison starts, from a row's Compare, from `v`, or from an
-// activation putting back the one it dropped. It states a base rather than toggling
+// The one way a comparison starts, from a row's Compare, from the return notice's Show
+// changes (since-seen.js), or from an activation putting back the one it dropped. It states a base rather than toggling
 // one — the toggle is each press's own reading of it. Everything touching the live page
 // happens in one synchronous stretch after the single await: presses can ask for a
 // comparison faster than one arrives, and a marking pass that could interleave with the
@@ -1491,9 +1654,7 @@ export async function showComparison(base) {
   // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
-    n
-      ? `${counted(n, "change")} since ${base.name}`
-      : `No text changes since ${base.name}`,
+    n ? `${counted(n, "change")} since ${base.name}` : `No changes since ${base.name}`,
     { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
@@ -1525,26 +1686,30 @@ async function loadBase(base, wanted, shown = null) {
     return { doc, baseDocument, baseAuthored, savedAfter };
   }
 }
-/** How many changes a comparison with `base` would mark, read without marking any, or
- * null where the revision being read moved on meanwhile.
- * @param {ComparisonBase} base */
-export async function changesSince(base) {
-  const revision = runtime.currentRevision;
-  const wanted = () => runtime.currentRevision === revision;
-  const loaded = await loadBase(base, wanted);
-  if (!loaded || !wanted()) return null;
-  return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
+/** How many changes a comparison with `base` would mark, read without marking any, for
+ * the revision being read when the count is in; null once `wanted` says it is moot.
+ * @param {ComparisonBase} base @param {() => boolean} wanted */
+export async function changesSince(base, wanted) {
+  while (wanted()) {
+    const revision = runtime.currentRevision;
+    const current = () => wanted() && runtime.currentRevision === revision;
+    const loaded = await loadBase(base, current);
+    if (loaded && current())
+      return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes
+        .length;
+  }
+  return null;
 }
-// A press that ends a comparison says so, as `o` does when it hides annotations, so a
+// A press that ends a comparison says so, as `g H` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count; the page
 // field's standing words go with it, so it shows where they don't.
-export const endComparison = () => {
+const endComparison = () => {
   setDiff(false);
   notice("Changes hidden", { about: "comparison", stands: () => !comparisonBase() });
 };
 // A press names one stamped version, so pressing the current one again is the way off
-// it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is
-// the keyboard's way off, from whichever base.
+// it: Compare is a toggle where it is lit and a switch of base where it isn't. Versions
+// opens on its version, so `g V v` is the keyboard's way off, from whichever base.
 /** @param {number | null} version */
 const pressComparison = (version) => {
   if (version === null) return;
@@ -1634,7 +1799,7 @@ function revisionDocument(revision) {
  *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => Promise<boolean>,
  *   captureObligationCurrentLocation: () => ObligationLocation,
  *   restoreObligationCurrentLocation: (currentLocation: ObligationLocation | null) => void,
- *   versions: { press: () => void },
+ *   versions: { press: () => void, shows: () => boolean },
  * }} controller */
 export function createVersionController({
   initialDocument,
@@ -1652,6 +1817,7 @@ export function createVersionController({
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions,
 }) {
+  versionsStand = versions.shows;
   let {
     authoredHeadNodes,
     authoredHtmlAttributes,
@@ -3152,6 +3318,30 @@ export function createVersionController({
       latest: goActive,
     });
     effect(paintPicker);
+    // Versions counts while it is open, for the page as it stands: a revision landing
+    // or a widget's state moving stops the counting under way and starts the next, and
+    // a row coming into view wakes it once it has counted those already in view.
+    effect(() => {
+      if (!versions.shows()) return;
+      const revision = runtime.currentRevision;
+      const widgets = widgetStates();
+      if (revision === null) return;
+      let open = true;
+      let counting = false;
+      const wake = () => {
+        if (counting) return;
+        counting = true;
+        void countVersions(revision, widgets, () => open).finally(() => {
+          counting = false;
+        });
+      };
+      countShown = wake;
+      untracked(wake);
+      return () => {
+        open = false;
+        countShown = () => {};
+      };
+    });
   }
 
   return {

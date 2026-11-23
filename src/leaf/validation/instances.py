@@ -18,7 +18,6 @@ from leaf.registry.contract import (
 )
 from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
-from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import (
@@ -218,9 +217,9 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     (`gesture_words.element_name`), the words On Me lists and the agent hears. Leaf
     reads both from the author's markup and infers neither. A question with no words,
     as where neither the widget nor a group round it has a label that isn't blank, is
-    refused (`unnamed-question`). One named by its widget alone stands outside the
-    region On Me selects and the ring draws round, so its premise is out of view
-    (`ungrouped-question`, advice). A widget with words of its own needs no group: one
+    refused (`unnamed-question`). Where the widget's own label alone names it, On Me
+    selects and rings only the widget, so a premise written outside the widget is out
+    of view (`ungrouped-question`, advice). A widget with words of its own needs no group: one
     set among words (`inline`) is named by them, and one asking about each record of
     its data (`awaits.records`) by each record's label. A message's widget needs none
     either, since the message names what it asks, so only a page's documents are
@@ -380,10 +379,6 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
-            elif attr == entry.get("shows", {}).get("reference") and target not in own:
-                # A view and the answer it shows travel in one document, so a board
-                # in a reply shows widgets in the same reply (`shown_answers`).
-                errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
@@ -586,7 +581,6 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
-        + shown_errors(document, registry)
         + pane_advice(document, registry)
         + unnamed_card_advice(document, registry)
     )

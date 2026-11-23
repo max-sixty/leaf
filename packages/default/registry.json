@@ -235,7 +235,6 @@
         "settled": [false]
       },
       "retired": "settled",
-      "key": "value",
       "answered": {
         "choose": {
           "when": {
@@ -498,11 +497,7 @@
     "refers": {
       "shows": {}
     },
-    "shows": {
-      "reference": "shows",
-      "value": "value"
-    },
-    "instructions": "Give the card its name in `label`, which names it wherever Leaf does, such as when the user moves it, and its title and prose as content, the title a leading `<strong>`: the card draws none of its label. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (read the `lf-board` instructions for the composition)."
+    "instructions": "Give the card its name in `label`, which names it wherever Leaf does, such as when the user moves it, and its title and prose as content, the title a leading `<strong>`: the card draws none of its label. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (read the `lf-board` instructions for the composition). Name a widget in the card's own page or message whose answer is one value, or members that carry a `value`, as an `lf-options` and its options do. A card that names anything else stays where you wrote it and can't be moved; on a page `page check --render` reports it, and in a message nothing does before the user opens the thread."
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",

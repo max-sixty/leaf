@@ -325,16 +325,12 @@ export class ShotView {
       const regions = reading?.regions
         .filter((region) => region.side === state)
         .map((region) => differenceMark(region, reading));
-      return html`<div
-        class="lf-shotframe lf-media-frame"
-        data-lf-state=${state}
-        ${box()}
-      >
+      return html`<div class="lf-shotframe" data-lf-state=${state} ${box()}>
         <div class="lf-shot-frame-label" data-lf-state=${state} ${box()}>
           ${caption(state, true)}
         </div>
         <div
-          class="lf-shotviewport"
+          class="lf-shotviewport lf-media-frame"
           role="region"
           aria-label=${`${label} — ${alt}`}
           ${box()}

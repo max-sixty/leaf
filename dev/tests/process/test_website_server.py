@@ -38,7 +38,7 @@ from process.website_server import (  # noqa: F401
 import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
-from leaf.render_checks import OUTSTANDING
+from leaf.render_checks import HANDOVER_DEADLINE_MS, OUTSTANDING
 from leaf.state import session_record
 from leaf_dev import ROOT, startup, website
 from leaf_dev.commands.journey import _journey as journey
@@ -230,8 +230,10 @@ class _DeployedPage:
             presented_at if initial_presented_at is None else initial_presented_at
         )
         self.init_scripts: list[Path] = []
-        self.presentation_waits: list[int] = []
-        self.revision_waits: list[tuple[int, int]] = []
+        # The context that opened the page, which sets its default deadline.
+        self.context: object = None
+        self.presentation_waits: list[int | None] = []
+        self.revision_waits: list[int] = []
 
     def add_init_script(self, *, path: Path) -> None:
         self.init_scripts.append(path)
@@ -251,7 +253,9 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, *, arg, timeout: int, polling=None):
+    def wait_for_function(
+        self, expression: str, *, arg, timeout: int | None = None, polling=None
+    ):
         if expression == OUTSTANDING:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":
@@ -261,7 +265,7 @@ class _DeployedPage:
             if self.reloaded and self.reload_stalls_at is not None:
                 raise PlaywrightTimeout("the page never got ready")
             return SimpleNamespace(json_value=lambda: "ready")
-        self.revision_waits.append((arg, timeout))
+        self.revision_waits.append(arg)
         if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
@@ -324,7 +328,11 @@ class _DeployedContainer:
         self.request = self
         self.closed = False
 
+    def set_default_timeout(self, timeout: int) -> None:
+        pass
+
     def new_page(self) -> _DeployedPage:
+        self.page.context = self
         return self.page
 
     def get(self, url: str, headers: dict | None = None, **kwargs) -> _Read:
@@ -363,7 +371,11 @@ class _PreviousImageContainer:
         self.request = self
         self.closed = False
 
+    def set_default_timeout(self, timeout: int) -> None:
+        pass
+
     def new_page(self) -> _DeployedPage:
+        self.page.context = self
         return self.page
 
     def get(self, url: str, headers: dict | None = None, **kwargs) -> _Read:
@@ -1344,11 +1356,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             )
         )
 
-    # The ordinary first load uses the edge-page presentation bound. The post-turn
-    # reload gets its own bound for both presentation and the later revision follow.
-    assert page.presentation_waits == [30_000, journey.TURN_PRESENTATION]
-    assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
-    assert journey.TURN_PRESENTATION > 30_000
+    # The first load and the post-turn reload each present within the handover's own
+    # bound on progress, which a container slow to answer its first read stays
+    # inside, and the reload then follows the published revision.
+    assert page.presentation_waits == [HANDOVER_DEADLINE_MS] * 2
+    assert page.revision_waits == [2]
     # The startup profile the run reports, and the verifier's own readings.
     assert page.init_scripts == [startup.SCRIPT, website.SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
@@ -1439,7 +1451,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 direct_agent=False,
             )
         )
-    assert refused.presentation_waits == [30_000]
+    assert refused.presentation_waits == [HANDOVER_DEADLINE_MS]
     assert refused.revision_waits == []
 
     pending = _DeployedPage(
@@ -1454,7 +1466,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 direct_agent=False,
             )
         )
-    assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
+    assert pending.revision_waits == [2]
 
 
 def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
@@ -1525,7 +1537,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     assert "never presented" in str(reported.value)
     assert "never finished replaying the log" in str(reported.value)
     # Reported once the gate's own patience ran out, at presentation.
-    assert offline.presentation_waits == [30_000, journey.TURN_PRESENTATION]
+    assert offline.presentation_waits == [HANDOVER_DEADLINE_MS] * 2
     assert offline.revision_waits == []
 
     # A page whose read answered is standing under an ordinary activity line rather
@@ -1549,7 +1561,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     assert "stands on revision 1" in str(named.value)
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
-    assert told.revision_waits == [(2, journey.TURN_PRESENTATION)]
+    assert told.revision_waits == [2]
 
 
 def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(

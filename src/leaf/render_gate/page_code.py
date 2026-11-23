@@ -150,53 +150,42 @@ class PageCode:
         """The reports, each in the words the runtime gave it, then the stage the page
         never reached (`unready`), and where any of those failed it, the requests that
         failed; [] is a pass. Read once the page is ready, or has missed a stage."""
-        reports = self.reports
-        if unready is not None:
-            reports.append(
-                Finding(
-                    "not-ready", values={"stage": unready.stage, "error": str(unready)}
-                )
-            )
         # A page that refused to start still answers, and posts why; one that missed a
         # stage may not answer at all. The report is posted asynchronously, and the
         # route answers it, and the console line reaches this process, only while it
-        # is waiting on the page.
-        if unready is None or unready.stage == "refused":
-            wait_for_probe(page, "sendsAcked")
-        return [*reports, *self.network_errors] if reports else []
+        # is waiting on the page, so the stage joins the reports once that wait ends.
+        try:
+            if unready is None or unready.stage == "refused":
+                wait_for_probe(page, "sendsAcked")
+        finally:
+            if unready is not None:
+                self.reports.append(
+                    Finding(
+                        "not-ready",
+                        values={"stage": unready.stage, "error": str(unready)},
+                    )
+                )
+        if not self.reports:
+            return []
+        return [*self.reports, *self.network_errors.findings()]
 
 
-def _failed_requests(page) -> list[Finding]:
+def _failed_requests(page) -> "FailedRequests":
     """The requests of `page` that fail or answer an error status from now on, filled
-    in as they do, each with its resource type and the address of the frame that made
-    it, which the bootstrap rewrites before any request it makes, taking off its marks
-    (`asked_again`) and the host key. A request the page itself abandons, as a
+    in as they do (`FailedRequests`). A request the page itself abandons, as a
     navigation does, is not a failure: Chromium names it `net::ERR_ABORTED`, Firefox
     `NS_BINDING_ABORTED`."""
-    from playwright.sync_api import Error as PlaywrightError
-
-    network_errors = []
-
-    def frame_of(request) -> str:
-        try:
-            return request.frame.url
-        except PlaywrightError:
-            # A service worker's request belongs to no frame.
-            return "<no-frame>"
+    failures = FailedRequests()
 
     def failed(request):
         failure = request.failure or "request failed"
         if "ERR_ABORTED" in failure or "NS_BINDING_ABORTED" in failure:
             return
-        network_errors.append(
-            Finding(
+        failures.heard.append(
+            (
+                request,
                 "request-failed",
-                values={
-                    "kind": request.resource_type,
-                    "error": failure,
-                    "frame": frame_of(request),
-                    "url": request.url,
-                },
+                {"kind": request.resource_type, "error": failure},
             )
         )
 
@@ -204,21 +193,47 @@ def _failed_requests(page) -> list[Finding]:
         if response.status < 400:
             return
         request = response.request
-        network_errors.append(
-            Finding(
+        failures.heard.append(
+            (
+                request,
                 "request-status",
-                values={
-                    "status": response.status,
-                    "kind": request.resource_type,
-                    "frame": frame_of(request),
-                    "url": request.url,
-                },
+                {"status": response.status, "kind": request.resource_type},
             )
         )
 
     page.on("requestfailed", failed)
     page.on("response", answered)
-    return network_errors
+    return failures
+
+
+class FailedRequests:
+    """The failed requests a page made, each stated with its resource type and the
+    address of the frame that made it. The bootstrap takes its marks (`asked_again`)
+    and the host key off that address as the document starts, but a failure can reach
+    this process before the rewrite does, so each frame's address is read when the
+    findings are stated, once the page has settled or missed its stage, rather than
+    as the failure arrives."""
+
+    def __init__(self):
+        self.heard: list[tuple[object, str, dict]] = []
+
+    def findings(self) -> list[Finding]:
+        from playwright.sync_api import Error as PlaywrightError
+
+        def frame_of(request) -> str:
+            try:
+                return request.frame.url
+            except PlaywrightError:
+                # A service worker's request belongs to no frame.
+                return "<no-frame>"
+
+        return [
+            Finding(
+                code,
+                values={**values, "frame": frame_of(request), "url": request.url},
+            )
+            for request, code, values in self.heard
+        ]
 
 
 def run_page_code(browser, url: str) -> list[Finding]:
@@ -248,6 +263,6 @@ def run_page_code(browser, url: str) -> list[Finding]:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
         browser_error = Finding("browser-error", values={"error": str(error).strip()})
-        return [*code.reports, browser_error, *code.network_errors]
+        return [*code.reports, browser_error, *code.network_errors.findings()]
     finally:
         page.close()

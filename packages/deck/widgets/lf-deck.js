@@ -686,7 +686,7 @@ customElements.define(
     /** @param {DeckHeld} held @returns {[string, "leaf" | null]} */
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
-      if (held.some((item) => item.status === "open"))
+      if (held.some((item) => item.state !== "done"))
         return [`Waiting on ${agentName()}`, "leaf"];
       const words = held.map(answerWords).filter(Boolean).join("; ");
       return words ? [words, null] : ["Answered", "leaf"];

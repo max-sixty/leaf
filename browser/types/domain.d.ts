@@ -9,7 +9,6 @@ import type {
   MessageKind,
   ServedState,
   ServedVerb,
-  ServedAttention,
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
@@ -79,7 +78,9 @@ export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   addressable?: boolean;
   plainText?: string;
 };
-export type Attention = ServedAttention;
+/** The id of the obligation record or to-do that speaks for a thread, or null where
+ * nobody owes a move there. */
+export type Attention = string | null;
 export interface Thread {
   id: string;
   root: Message;

@@ -930,7 +930,7 @@ def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the threads' obligations, or
     with `page` the document's obligations. The records the user's updates publish
-    are `served_updates`."""
+    are `served_updates`, and the agent's to-dos `served_todos`."""
     [view] = browser["views"].values()
     return collection(
         [
@@ -946,6 +946,17 @@ def served_updates(browser: dict) -> list[dict]:
     `browser` serves."""
     [view] = browser["views"].values()
     return [item for item in view["obligations"] if item["source"]["kind"] == "update"]
+
+
+def served_todos(browser: dict) -> list[dict]:
+    """The agent's to-dos, open and ended, as `browser` serves them (`todos`)."""
+    return browser["todos"]
+
+
+def open_todos(state: dict) -> list[dict]:
+    """The to-dos the agent still owes in an agent-facing state, as `page state` prints
+    them for the page, a thread or a widget (`todos`)."""
+    return state["todos"]
 
 
 @pytest.fixture
@@ -1279,7 +1290,7 @@ def owed(state):
     its record names, with the record's id as `obligation` and the owed `answer`.
 
     `activity.obligations` names each by its record's id beside its answer, so this
-    is the join an agent makes to reach a move's stage or subject.
+    is the join an agent makes to reach where a move stands or its subject.
     """
     records = {item["id"]: item for item in state["obligations"]}
     by_input = {item["input"]: item for item in state["workflows"]}

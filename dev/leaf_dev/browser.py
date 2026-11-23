@@ -572,16 +572,28 @@ def panel_tab(page: Page | FrameLocator, name: str):
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
+def unfold(page: Page | FrameLocator, press=None):
+    """Unfold a panel folded to the leaf, by `.` or where focus landed on a place its
+    row alone would hide (floating-panel.js, `giveWay`), with a press on the leaf, which
+    then opens no view. `press` presses a control, a click by default."""
+    host = page.locator(PANEL)
+    if host.get_attribute("data-lf-rest") == "mark":
+        (press or (lambda control: control.click()))(page.locator(LEAF))
+        expect(host).to_have_attribute("data-lf-rest", "row")
+
+
 def on_tab(page: Page | FrameLocator, name: str):
-    """Stand the On view open and return its tab `name` (`panel_tab`). From the row the
-    leaf opens the view on the tab its marks point at; another view, stance or search is
-    closed first by its exit. `page` may be a live sample's frame."""
+    """Stand the On view open and return its tab `name` (`panel_tab`). A folded panel is
+    unfolded first (`unfold`). From the row the leaf opens the view on the tab its marks
+    point at; another view, stance or search is closed first by its exit. `page` may be
+    a live sample's frame."""
     # A stance's exit goes in the repaint frame. Read the controls only after the
     # previous input has rendered, before choosing a pointer route.
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
     host = page.locator(PANEL)
+    unfold(page)
     if host.get_attribute("data-lf-open") not in ("menu", "queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
@@ -602,9 +614,7 @@ def open_menu(page: Page | FrameLocator, press=None):
     host = page.locator(PANEL)
     leaf = page.locator(LEAF)
     on_view = re.compile("^(menu|queue|threads)$")
-    if host.get_attribute("data-lf-rest") == "mark":
-        press(leaf)
-        expect(host).to_have_attribute("data-lf-rest", "row")
+    unfold(page, press)
     if host.get_attribute("data-lf-open") != "menu":
         back = page.locator(".lf-fp-head").get_by_role(
             "button", name="Back to Menu", exact=True

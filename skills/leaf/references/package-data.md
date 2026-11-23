@@ -26,15 +26,16 @@ since the server has to place it.
 
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`. A page composing both keeps the later
-package's copy, and `page check --render` holds what the producer holds to that copy.
-Both packages' widgets are held to that one copy, so the copies must be equal in
-everything but their `description` and `instructions`. `page init` refuses packages
-whose copies differ in anything else, such as the `schema`, and names the contract and
-both packages. Copy the `description` and `instructions` too, since a page's author
-reads only the kept copy's. Two contracts for different data need different names, and
-a name can carry its package, as `builds/status` does. What a producer of the contract
-must take as commands goes in the contract's `instructions`, under `producer`: `leaf
-page instructions --use` returns it for a widget on either side of the contract.
+package's copy. `page check --render` checks the value the producer holds against that
+copy, and `leaf data set` checks a source's value against it, so the two copies must be
+equal in everything but their `description` and `instructions`. `page init` refuses
+packages whose copies differ in anything else, such as the `schema`, and names the
+contract and both packages. Copy the `description` and `instructions` too, since a
+page's author reads only the kept copy's. Two contracts for different data need
+different names, and a name can carry its package, as `builds/status` does. What a
+producer of the contract must take as commands goes in the contract's `instructions`,
+under `producer`: `leaf page instructions --use` returns it for a widget on either
+side of the contract.
 
 `package check` reads one package, so check a pair on a page. Start one in a directory
 outside both packages that selects them by path, write both widgets into its

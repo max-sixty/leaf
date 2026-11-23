@@ -1,15 +1,14 @@
 """Registry composition and current declaration validation, and what an author's
 own declarations advise.
 
-Composition refuses only what breaks the vocabulary (`registry.validation`), and two
-packages whose copies of one data contract differ
-(`registry.layer.differing_contracts`). What a layer's own declarations do that works
-but may not be what their author meant, such as a restated kernel fact or an example
-a page could not hold, is advice only that author can act on: `declaration_advice`
-reads it, and the commands that check what an author wrote report it, `package
-check` for a package, `page init` for the packages it selects, and `page check` for
-a page's own declarations. Composition itself, which every reader of a page runs,
-reports nothing.
+Composition refuses only what breaks the vocabulary (`registry.validation`), or
+gives one data contract two meanings (`registry.layer.differing_contracts`). What a
+layer's own declarations do that works but may not be what their author meant, such
+as a restated kernel fact or an example a page could not hold, is advice only that
+author can act on: `declaration_advice` reads it, and the commands that check what
+an author wrote report it, `package check` for a package, `page init` for the
+packages it selects, and `page check` for a page's own declarations. Composition
+itself, which every reader of a page runs, reports nothing.
 """
 
 from pathlib import Path

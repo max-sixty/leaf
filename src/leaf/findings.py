@@ -1502,10 +1502,9 @@ _TEXT = {
     "contract-differs": _declared(
         lambda v: (
             f"$data contract {v['contract']!r} differs from the copy in {v['other']}"
-            " in more than its `description` and `instructions`, and a layer holds"
-            " both packages' widgets to one copy; make the two copies equal, or"
-            " give one a name that carries its package, as"
-            f" `<package>/{v['contract']}`"
+            " in more than its `description` and `instructions`; a layer keeps one"
+            " copy for both packages' widgets, so make the two copies equal, or give"
+            f" one a name that carries its package, as `<package>/{v['contract']}`"
         ),
         keeps=_DATA,
     ),

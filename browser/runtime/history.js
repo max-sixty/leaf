@@ -55,9 +55,12 @@
  * hidden tab without it, so the record is written as the page is hidden too, and
  * written again at whatever departure follows. The user arrives
  * at an entry by a traversal within the document, or by a reload or a traversal from
- * another document (`arrivalRecord`), and each returns them to its record the same way
- * (`returnOnArrival`). Rejected: a map of live nodes and pixel offsets by entry key,
- * which a reload emptied, so Back after it had nothing to return to, and whose offsets
+ * another document, and each returns them to its record the same way. A document's own
+ * arrival is one operation bound to its entry (`beginArrival`, `returnOnArrival`): a
+ * navigation away ends it, a traversal taken while the page still starts returns to
+ * its own record once the page has presented, and until the arrival settles a
+ * departure writes what it owes. Rejected: a map of live nodes and pixel offsets by
+ * entry key, which a reload emptied, so Back after it had nothing to return to, and whose offsets
  * named content a revision had moved.
  *
  * A revision's reload is a reload, so it returns to this record too; its handoff
@@ -136,7 +139,7 @@ import {
   landAtReading,
 } from "./focus.js";
 
-import { retainUserIntent } from "./user-intent.js";
+import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
 import { closestAcross, inChrome, renderedUnder, upFrom } from "./shadow-tree.js";
 import { presented } from "./geometry.js";
@@ -171,6 +174,8 @@ import {
 import { focusByKey, focusKey } from "./carry.js";
 import { draftFocus } from "./drafts.js";
 import { nextRender } from "./rendering.js";
+import { afterPresentation } from "./presentation.js";
+import { pagePresented } from "./page-paint.js";
 import { aborted } from "./abort.js";
 
 /** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
@@ -182,7 +187,7 @@ import { aborted } from "./abort.js";
  * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
  * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus
  * @typedef {{anchor: import("./anchor-resolution.js").CapturedAnchor, ends: [number, number]}
- * | {thread: string | null, message: string, ends: [number, number]}} RecordSelection
+ * | {thread: string | null, message: string, ends: [number, number], words: string}} RecordSelection
  * @typedef {{view: string, row: string | null}} RecordList
  * @typedef {{page: import("./reading-place.js").ReadingPlace | null,
  * focus: RecordFocus | null, selection: RecordSelection | null,
@@ -290,9 +295,11 @@ function returnEnd([ref, offset]) {
 // glide had reached. The reading is taken over the goal in one synchronous round trip,
 // which the glide, holding the box only while it stands where the glide wrote it, goes
 // on from. Before the page's words can be anchored, the page has no place to read, and
-// its entry comes back where the browser restores it.
+// its entry comes back where the browser restores it. While an arrival still owes the
+// user its record, that record is where they are (`beginArrival`).
 /** @returns {EntryRecord} */
 function readRecord() {
+  if (arriving?.record && arriving.intent()) return arriving.record;
   const goal = scrollGoal(pageScroller);
   const top = pageScroller.scrollTop;
   const gliding = Math.abs(goal - top) >= 1;
@@ -347,18 +354,21 @@ function readSelection() {
   const anchor = words && anchorForRange(words);
   const segments = anchor?.quote ? targetSegments(resolveAnchor(anchor)) : [];
   if (!anchor || !segments[0]) return null;
+  // Where the passage starts in the reading holding its first words: a passage across
+  // data runs on into the readings of other parts, which hold the rest of it.
   const reading = readingHolding(segments[0].node);
-  const [base] = spanIn(reading, segments);
+  const [base] = spanIn(reading, [segments[0]]);
   const start = readingIndex(reading, range.startContainer, range.startOffset);
   const end = readingIndex(reading, range.endContainer, range.endOffset);
   if (start === null || end === null) return null;
   return { anchor, ends: directed([start - base, end - base]) };
 }
 // A selection inside one message of a thread, which the page's reading doesn't hold:
-// the message, by its thread and its id, and each end as how many characters of its
-// body come before it (passages.js, `authoredScope`), which name the same place in
-// every drawing of the message, since its body's words are the log's. Its head, whose
-// age changes as time passes, is no part of them.
+// the message, by its thread and its id, the words selected, and each end as how many
+// characters of its body come before it (passages.js, `authoredScope`), which name the
+// same place in every drawing of the message while its words stay the log's. Its
+// head, whose age changes as time passes, is no part of them, and a rewrite of the
+// message, which can move the words, is answered by the words (`messageEnds`).
 /** @param {Element} turn @param {AbstractRange} range @param {(ends: [number, number]) => [number, number]} directed
  * @returns {RecordSelection | null} */
 function inMessage(turn, range, directed) {
@@ -377,7 +387,7 @@ function inMessage(turn, range, directed) {
   };
   const start = before(range.startContainer, range.startOffset);
   const end = before(range.endContainer, range.endOffset);
-  return { thread, message, ends: directed([start, end]) };
+  return { thread, message, ends: directed([start, end]), words: range.toString() };
 }
 // The words of the block holding `node`, as a range.
 /** @param {Node} node */
@@ -467,7 +477,7 @@ function passageEnds({ anchor, ends }) {
   // Words the page draws, since a passage resolves through what a reader has shut too.
   if (!segments[0] || !segments.every(({ node }) => drawn(upFrom(node)))) return null;
   const reading = readingHolding(segments[0].node);
-  const [base] = spanIn(reading, segments);
+  const [base] = spanIn(reading, [segments[0]]);
   /** @param {number} i @returns {import("./native-selection.js").SelectionEnd | null} */
   const point = (i) => {
     const at = pointAt(reading, base + i);
@@ -480,11 +490,13 @@ function passageEnds({ anchor, ends }) {
   return from && to ? [from, to] : null;
 }
 
-// The ends a message selection names in the drawing of its thread, or none where the
-// message is gone or shut.
+// The ends a message selection names in the drawing of its thread: at its offsets
+// where its words still stand there, else at the one place the body says them, else
+// none, as where the message is gone or shut, or a rewrite took the words out or says
+// them twice. A comment detaches on the same terms rather than take a copy by order.
 /** @param {Extract<RecordSelection, {message: string}>} selection @param {string | null} thread
  * @returns {[import("./native-selection.js").SelectionEnd, import("./native-selection.js").SelectionEnd] | null} */
-function messageEnds({ message, ends }, thread) {
+function messageEnds({ message, ends, words }, thread) {
   const drawing = thread ? threadParts?.focusTarget(thread, "thread") : null;
   const turn = drawing?.querySelector(`[data-lf-message="${CSS.escape(message)}"]`);
   const body = turn?.querySelector(MESSAGE_BODY);
@@ -500,8 +512,16 @@ function messageEnds({ message, ends }, thread) {
     }
     return null;
   };
-  const from = point(ends[0]);
-  const to = point(ends[1]);
+  const said = body.textContent ?? "";
+  const [low, high] = ends[0] <= ends[1] ? ends : [ends[1], ends[0]];
+  let shift = 0;
+  if (said.slice(low, high) !== words) {
+    const at = said.indexOf(words);
+    if (at < 0 || said.indexOf(words, at + 1) >= 0) return null;
+    shift = at - low;
+  }
+  const from = point(ends[0] + shift);
+  const to = point(ends[1] + shift);
   return from && to ? [from, to] : null;
 }
 
@@ -630,34 +650,92 @@ let threadClaim = null;
 /** @type {((key: NonNullable<ReturnType<typeof draftFocus>>) => unknown) | null} */
 let draftReturn = null;
 
-// The record of the entry this document arrived at by a reload, or by Back or Forward
-// from another document (the Navigation API's `activation`), which history wrote as the
-// user left it; null for a fresh visit, whose address alone says where to go.
-/** @returns {EntryRecord | null} */
-export function arrivalRecord() {
+// The document's arrival, one operation bound to the entry it arrived at: the entry's
+// record, which history wrote as the user left it, read where the document came by a
+// reload or by Back or Forward from another document (the Navigation API's
+// `activation`), and null for a fresh visit, whose address alone says where to go; the
+// one intent every part of the arrival runs under, a revision's handoff included
+// (version.js), which ends with any navigation away from the entry or the user's own
+// move; and what the handoff adds (`extras`), which the arrival holds until it
+// settles. The handoff readies the page for the record's claim first (`prepared`), as
+// by opening again the session of a reply being written, so the claim opens its
+// thread where that session stands; the record's return follows, and the words being
+// written go back after it, into the box it put the user in. It settles once the
+// record's return (`returnOnArrival`) and the handoff's landing have both run. Until then a departure, the hidden page's checkpoint or a
+// second revision's handoff writes what the arrival owes rather than a reading of the
+// page it is still putting back (`readRecord`, version.js `reloadInto`).
+/** @typedef {{key: string | undefined, record: EntryRecord | null,
+ * intent: ReturnType<typeof retainUserIntent>, extras: unknown,
+ * prepared: () => void, returned: () => void, landed: () => void,
+ * whenPrepared: Promise<void>, whenReturned: Promise<void>, end: () => void}} Arrival */
+/** @type {Arrival | null} */
+let arriving = null;
+/** @param {ReturnType<typeof retainUserIntent>} intent @returns {Arrival} */
+export function beginArrival(intent) {
+  const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;
-  if (type !== "reload" && type !== "traverse") return null;
-  const record = /** @type {EntryRecord | undefined} */ (
-    window.navigation.currentEntry?.getState()
-  );
-  return record ?? null;
+  const record =
+    type === "reload" || type === "traverse"
+      ? (/** @type {EntryRecord | undefined} */ (entry?.getState()) ?? null)
+      : null;
+  let ended = false;
+  /** @type {() => void} */
+  let prepared = () => {};
+  /** @type {() => void} */
+  let returned = () => {};
+  /** @type {() => void} */
+  let landed = () => {};
+  const whenPrepared = new Promise((resolve) => (prepared = () => resolve(undefined)));
+  const whenReturned = new Promise((resolve) => (returned = () => resolve(undefined)));
+  const whenLanded = new Promise((resolve) => (landed = () => resolve(undefined)));
+  /** @type {Arrival} */
+  const arrival = {
+    key: entry?.key,
+    record,
+    intent: restrictUserIntent(
+      intent,
+      () => !ended && window.navigation.currentEntry?.key === entry?.key,
+    ),
+    extras: null,
+    prepared,
+    returned,
+    landed,
+    whenPrepared,
+    whenReturned,
+    end: () => {
+      ended = true;
+      if (arriving === arrival) arriving = null;
+    },
+  };
+  if (!record) returned();
+  void Promise.all([whenReturned, whenLanded]).then(arrival.end);
+  arriving = arrival;
+  return arrival;
 }
+// The arrival still under way, whose record and extras a departure writes.
+export const pendingArrival = () => arriving;
 
 // Return to an arrival's record once the page is presented, as a traversal within the
 // document returns to its destination's: the page placed by its record, the thread or
 // list the entry shows opened by the URL's claim (thread/address.js), then where the user
-// was in it (`returnTo`).
-/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent */
-export async function returnOnArrival(record, intent) {
-  if (!intent()) return;
-  if (record.page && placesPage(record.page)) restorePlace(record.page, null, intent);
-  /** @type {unknown} */
-  let work;
-  intent.handoff(() => {
-    work = threadClaim?.(new URL(location.href), record)?.();
-  });
-  await work;
-  if (intent()) intent.handoff(() => returnTo(record));
+// was in it (`returnTo`), each only while the arrival's intent holds.
+/** @param {Arrival} arrival */
+export async function returnOnArrival({ record, intent, returned, whenPrepared }) {
+  try {
+    if (!record || !intent()) return;
+    if (record.page && placesPage(record.page)) restorePlace(record.page, null, intent);
+    await whenPrepared;
+    if (!intent()) return;
+    /** @type {unknown} */
+    let work;
+    intent.handoff(() => {
+      work = threadClaim?.(new URL(location.href), record)?.();
+    });
+    await work;
+    if (intent()) intent.handoff(() => returnTo(record));
+  } finally {
+    returned();
+  }
 }
 let mounted = false;
 /** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
@@ -696,8 +774,11 @@ export function mountHistory({
   window.navigation.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
-    if (event.navigationType !== "replace")
+    if (event.navigationType !== "replace") {
       window.navigation.updateCurrentEntry({ state: leaving ?? readRecord() });
+      // Leaving the entry ends any arrival still putting it back.
+      arriving?.end();
+    }
     if (event.navigationType === "traverse") {
       const record = /** @type {EntryRecord | undefined} */ (
         event.destination.getState()
@@ -709,6 +790,9 @@ export function mountHistory({
         scroll: "manual",
         focusReset: "manual",
         handler: async () => {
+          // A traversal while the page is still starting, which ended the arrival it
+          // interrupted, returns to its own record once the page has presented.
+          if (!pagePresented()) await afterPresentation(() => undefined);
           if (!mayReturn()) return;
           // Cancel the outgoing placement, including its nested reading regions: a
           // return goes back to a place, so a glide under way stops where it stands.

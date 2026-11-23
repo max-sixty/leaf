@@ -1,6 +1,16 @@
 // The server places this script before any loadable page resource.
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
+  // The one rename this script makes of the entry the user is on: to `url`, keeping the
+  // entry's own state, the record of where the user was on it, which a reload returns
+  // them to (history.js) and `replaceState` alone drops. A sandboxed sample's document
+  // keeps no entries.
+  /** @param {URL} url */
+  const rename = (url) => {
+    const state = window.navigation.currentEntry?.getState();
+    history.replaceState(history.state, "", url);
+    if (state !== undefined) window.navigation.updateCurrentEntry({ state });
+  };
   const arrived = new URL(location.href);
   // `_leaf-recovered` is the mark recovery puts on the one document it asks for, so a
   // document that comes back on the same dead release, or fails to load again from the
@@ -13,12 +23,7 @@
   const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
     for (const mark of marks) arrived.searchParams.delete(mark);
-    // The rename drops the entry's own state, the record of where the user was on it
-    // that a revision's reload returns them to (history.js), so the state is written
-    // back to the renamed entry. A sandboxed sample's document keeps no entries.
-    const state = window.navigation.currentEntry?.getState();
-    history.replaceState(history.state, "", arrived);
-    if (state !== undefined) window.navigation.updateCurrentEntry({ state });
+    rename(arrived);
   }
   const script = (() => {
     const entry = document.currentScript;
@@ -711,7 +716,7 @@
     const ask = () => {
       const next = new URL(location.href);
       next.searchParams.set("_leaf-recovered", "");
-      history.replaceState(history.state, "", next);
+      rename(next);
       location.reload();
     };
     const check = async () => {

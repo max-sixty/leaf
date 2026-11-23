@@ -1,17 +1,27 @@
 """An entry's record across a reload and a return from another document: the user
 comes back where they left the entry, as Back within the page brings them."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
+from render_cases_interaction import executable_revision, live_url, panel_comment
 from render_harness import (
     LONG_PAGE,
+    compare_with,
+    holding,
+    leaf_page,
+    open_latest,
     open_page,
     open_threads,
     panel_view,
     scroll_settled,
     select_words,
+    stamp_page,
+    take_browser_errors,
+    told,
+    wait_for_revision,
 )
 
 from browser.test_render_drawing import draw_over
@@ -249,3 +259,255 @@ def test_a_tab_discarded_while_hidden_comes_back_where_it_was_left(
     }""")
     reload(page)
     page.wait_for_function("() => getSelection().toString() === 'Paragraph 20.'")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("control", ["Close", "Resolve", "Show on page"])
+def test_a_reload_keeps_focus_on_a_control_of_a_thread_view(
+    request, serve, engine, control
+):
+    """Focus on one of the controls on the head of a thread's view in the floating
+    panel comes back to that control after a reload, not to the view as a whole."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    open_threads(page)
+    page.locator(".lf-fp-thread").first.click()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
+    button = page.locator(".lf-fp-head").get_by_role(
+        "button", name=re.compile(f"^{control}")
+    )
+    button.focus()
+    expect(button).to_be_focused()
+    reload(page)
+    expect(button).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_reload_recovery_asks_for_again_returns_to_the_record(request, serve, engine):
+    """A reload whose module failed on its way, so that startup's recovery asks for the
+    document once more, still returns the user to where they left the entry: the words
+    they had selected come back."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const text = document.getElementById('p20').firstChild;
+      getSelection().setBaseAndExtent(text, 0, text, 'Paragraph 20.'.length);
+    }""")
+    documents, failed = [], []
+    page.on(
+        "request",
+        lambda req: (
+            documents.append(req.url) if req.resource_type == "document" else None
+        ),
+    )
+
+    def lose(route):
+        if failed:
+            route.continue_()
+        else:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+
+    page.route("**/runtime/rendering.js", lose)
+    page.wait_for_function("navigation.transition === null")
+    page.reload(wait_until="commit")
+    holding(page, documents, 2, "the document recovery asks for")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    assert len(failed) == 1, failed
+    page.wait_for_function("() => getSelection().toString() === 'Paragraph 20.'")
+    # The module the test failed on its way, as the browser reports it.
+    take_browser_errors(page)
+
+
+# A page whose prose a revision can add room above, with a field to type in partway
+# down and words to select, served live so its revisions reach it.
+FILLER = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
+ARRIVAL_PAGE = leaf_page(
+    "Arrivals",
+    f"""<h1>Arrivals</h1><section id="above">{FILLER}</section>
+<p id="lead">The note below holds what the user types.</p>
+<label>Note <input id="note"></label>
+<section id="below">{FILLER}</section>""",
+)
+
+
+def hold_the_next_documents_reading(page):
+    """Hold every reading of the page's state from the moment the page's address next
+    changes, as a revision's reload marks it, so the document that reload brings waits
+    for its first reading; returns the held requests."""
+    held, gate = [], {"hold": False}
+    page.on("framenavigated", lambda frame: gate.update(hold=True))
+    page.route(
+        "**/api/state*",
+        lambda route: held.append(route) if gate["hold"] else route.continue_(),
+    )
+    return held
+
+
+def release(page, held):
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    held.clear()
+
+
+def revise(page, serve, source, mark):
+    """Stamp `source` as a revision whose inline module is new, so the page reloads
+    into it, and press Open latest where the page holds the revision back."""
+    birth = page.evaluate("performance.timeOrigin")
+    stamp_page(serve.page_dir, executable_revision(source, mark), f"Revise: {mark}")
+    told(page)
+    if page.evaluate("performance.timeOrigin") == birth:
+        open_latest(page)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_revision_keeps_a_field_being_typed_in_where_it_stood(request, serve, engine):
+    """A field the user types in stands where it stood in the window after a revision
+    that reloads the page and adds room above it, with its words and selection: the
+    field taking focus back early, so typing goes on, doesn't stop the return to the
+    user's place."""
+    page = open_page(request.getfixturevalue(engine), live_url(serve(ARRIVAL_PAGE)))
+    note = page.locator("#note")
+    note.evaluate("el => el.scrollIntoView({block: 'center', behavior: 'instant'})")
+    scroll_settled(page)
+    note.fill("kept words")
+    note.evaluate("el => el.setSelectionRange(2, 6)")
+    top = note.evaluate("el => el.getBoundingClientRect().top")
+    revise(
+        page,
+        serve,
+        ARRIVAL_PAGE.replace(
+            '<section id="above">',
+            '<section id="above"><div style="height: 400px"></div>',
+        ),
+        "room above",
+    )
+    wait_for_revision(page, 2)
+    scroll_settled(page)
+    expect(note).to_be_focused()
+    assert note.evaluate("el => [el.value, el.selectionStart, el.selectionEnd]") == [
+        "kept words",
+        2,
+        6,
+    ]
+    assert abs(note.evaluate("el => el.getBoundingClientRect().top") - top) <= 2
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_back_during_a_revisions_arrival_ends_it(request, serve, engine):
+    """Back while a revision's reload is still arriving ends that arrival: the page
+    stays at the entry Back reached, rather than going back to where the revision's
+    entry was once the arrival's first reading of the page comes."""
+    url = live_url(serve(LONG_PAGE))
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    second = panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    scroll_settled(page)
+    at = page.evaluate("scrollY")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", second)
+    scroll_settled(page)
+    assert abs(page.evaluate("scrollY") - at) > 200
+    page.wait_for_function("navigation.transition === null")
+    held = hold_the_next_documents_reading(page)
+    try:
+        stamp_page(serve.page_dir, executable_revision(LONG_PAGE, "back"), "Revise")
+        holding(page, held, 1, "the arriving document's first reading")
+        page.evaluate("history.back()")
+        page.wait_for_function(
+            f"new URL(location.href).searchParams.get('thread') === '{first}'"
+        )
+        release(page, held)
+        wait_until_ready(page)
+        expect(card).to_have_attribute("data-lf-thread", first)
+        scroll_settled(page)
+        assert abs(page.evaluate("scrollY") - at) <= 2
+        assert new_url_thread(page) == first
+    finally:
+        release(page, held)
+
+
+def new_url_thread(page):
+    return page.evaluate("new URL(location.href).searchParams.get('thread')")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_hiding_the_page_while_it_arrives_keeps_what_the_arrival_owes(
+    request, serve, engine
+):
+    """A page hidden while its reload is still arriving writes the record it is
+    returning the user to, not a reading of the page it hasn't put back yet, so a
+    discard then loses nothing: the words the user had selected come back."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const text = document.getElementById('p20').firstChild;
+      getSelection().setBaseAndExtent(text, 0, text, 'Paragraph 20.'.length);
+    }""")
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.wait_for_function("navigation.transition === null")
+        page.reload(wait_until="commit")
+        holding(page, held, 1, "the reload's first reading")
+        # The page's widgets and words have settled, so its words can be anchored, as
+        # they can before any state reading answers.
+        wait_until_ready(page, through="upgraded")
+        page.evaluate("""() => {
+          Object.defineProperty(document, 'visibilityState', {value: 'hidden', configurable: true});
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+        assert page.evaluate(
+            "navigation.currentEntry.getState()?.selection?.anchor?.quote"
+        )
+    finally:
+        page.unroute("**/api/state*")
+        for route in held:
+            route.continue_()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_revision_during_a_revisions_arrival_keeps_what_it_owes(
+    request, serve, engine
+):
+    """A second revision that reloads the page while the first one's reload is still
+    arriving carries what the first owes the user, the comparison they had open and
+    the words they had selected, rather than a reading of the page half put back."""
+    reworded = ARRIVAL_PAGE.replace(
+        "holds what the user types", "keeps what the user types"
+    )
+    url = live_url(serve(ARRIVAL_PAGE))
+    page = open_page(request.getfixturevalue(engine), url)
+    stamp_page(serve.page_dir, reworded, "Reword the lead")
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    marks = page.locator(".lf-ins-block, .lf-ins")
+    expect(marks.first).to_be_visible()
+    page.keyboard.press("Escape")
+    page.evaluate("""() => {
+      const text = document.getElementById('p20') ?? document.querySelector('#below p');
+      const words = text.firstChild;
+      getSelection().setBaseAndExtent(words, 0, words, words.data.length);
+    }""")
+    selected = page.evaluate("getSelection().toString()")
+    assert selected
+    held = hold_the_next_documents_reading(page)
+    try:
+        revise(page, serve, reworded, "third")
+        holding(page, held, 1, "the third revision's first reading")
+        stamp_page(serve.page_dir, executable_revision(reworded, "fourth"), "Fourth")
+        release(page, held)
+        wait_for_revision(page, 4)
+        expect(marks.first).to_be_visible()
+        page.wait_for_function("t => getSelection().toString() === t", arg=selected)
+    finally:
+        release(page, held)

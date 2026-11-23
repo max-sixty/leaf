@@ -180,7 +180,7 @@ import { retainUserIntent } from "../user-intent.js";
  * @typedef {ReturnType<typeof createThreadPreview>["show"]} ShowPreview
  * @typedef {{focusedPrimary: boolean, focusedOption: boolean, focusedToggle: boolean, restore: ReturnType<typeof holdFocus>}} FocusReading
  */
-/** @typedef {{kind: "entry", key: string | undefined, owner: string | null} | {kind: "preview-close"}
+/** @typedef {{kind: "entry", key: string | undefined, owner: string | null}
  * | {kind: "preview", key: import("../carry.js").FocusKey | null}} SavedFocus
  * @typedef {{thread: string, accompanies: boolean}} SavedPreview
  * @typedef {{entry: string, preview: SavedPreview | null, focus: SavedFocus | null}} MarginLocation
@@ -2147,17 +2147,15 @@ export function createMarginProjection({
           ? { thread: selected.threadItem, accompanies: selected.accompanies }
           : null,
       // Where the user is in the card, by the key history names it by (carry.js).
-      focus: card.closeFocused()
-        ? { kind: "preview-close" }
-        : under(active, preview)
-          ? { kind: "preview", key: focusKey(active) }
-          : control && host?.contains(control)
-            ? {
-                kind: "entry",
-                key: contributionEntryRecord(control)?.key,
-                owner: contributionEntryRecord(control)?.owner ?? null,
-              }
-            : null,
+      focus: under(active, preview)
+        ? { kind: "preview", key: focusKey(active) }
+        : control && host?.contains(control)
+          ? {
+              kind: "entry",
+              key: contributionEntryRecord(control)?.key,
+              owner: contributionEntryRecord(control)?.owner ?? null,
+            }
+          : null,
     };
     return currentLocation.preview || currentLocation.focus?.kind === "entry"
       ? currentLocation
@@ -2195,7 +2193,7 @@ export function createMarginProjection({
       selected.threadItem === item.id;
     if (kept && card.hasPlacement()) return true;
     if (kept) closePreview();
-    const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
+    const inCard = focus?.kind === "preview";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
     // Where the page no longer shows the passage, as when a revision closed a tab or
     // disclosure over it or hid it, or the window narrowed past the margin since the
@@ -2212,22 +2210,7 @@ export function createMarginProjection({
       intent,
     });
     return opened.then((destination) => {
-      if (
-        focus?.kind === "preview-close" &&
-        destination &&
-        under(destination, preview) &&
-        intent()
-      )
-        card.focusThread(Promise.resolve(true), {
-          closeControl: true,
-          cause: "return",
-        });
-      if (
-        focus?.kind === "preview" &&
-        focus.key &&
-        focus.key.on !== "thread" &&
-        destination
-      )
+      if (focus?.kind === "preview" && focus.key && destination)
         focusByKey(
           focus.key,
           () => destination,

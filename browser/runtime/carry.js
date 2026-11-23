@@ -111,14 +111,12 @@ export function focusKey(active) {
     const turn = closestAcross(active, "[data-lf-message]");
     const message =
       turn && renderedUnder(turn, whole) ? turn.getAttribute("data-lf-message") : null;
-    // A control the view draws in the thread, as a card's Close on its head line, by
-    // its place in the thread's drawing.
-    if (!turn || !message)
-      return withCaret({
-        thread,
-        on: "thread",
-        ...(active === whole ? {} : nameIn(whole, active)),
-      });
+    // A control a view of the thread draws as its own, as Close or Resolve on its head
+    // line, by the key it declares (`data-lf-carry`).
+    if (!turn || !message) {
+      const part = active.getAttribute("data-lf-carry");
+      return withCaret({ thread, on: "thread", ...(part !== null && { part }) });
+    }
     const named = turn === active ? {} : nameIn(turn, active);
     return withCaret({ thread, on: "message", message, ...named });
   }
@@ -140,6 +138,10 @@ function focusedBy(key, drawing) {
     if (!whole) return null;
     const reply = key.on === "reply" ? threadPart(whole, "reply") : null;
     if (reply) return reply;
+    if (key.on === "thread")
+      return (
+        (key.part !== undefined && threadControl(whole, key.thread, key.part)) || whole
+      );
     const turn = key.message
       ? whole.querySelector(`[data-lf-message="${CSS.escape(key.message)}"]`)
       : null;
@@ -154,6 +156,23 @@ function focusedBy(key, drawing) {
   const target =
     (placed && key.at && owner.querySelectorAll(key.at[0])[key.at[1]]) || owner;
   return target === page ? null : target;
+}
+
+// The control a view of the thread `id` draws as its own under the key `part`
+// (`data-lf-carry`): in the thread's drawing `whole`, as a card's Close on its head
+// line, else in a view of the thread the chrome declares beside it
+// (`data-lf-thread-view`), as the floating panel's head line.
+/** @param {Element} whole @param {string} id @param {string} part */
+function threadControl(whole, id, part) {
+  const control = `[data-lf-carry="${CSS.escape(part)}"]`;
+  const views = whole
+    .getRootNode()
+    .querySelectorAll(`[data-lf-thread-view][data-lf-thread="${CSS.escape(id)}"]`);
+  for (const view of [whole, ...views]) {
+    const found = view.querySelector(control);
+    if (found) return found;
+  }
+  return null;
 }
 
 // The element `key` names inside `holder` (`nameIn`), as a message or a draft's box:

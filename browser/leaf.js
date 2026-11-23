@@ -11,7 +11,7 @@ import { offlineInteractive, runtime, annotationMode } from "./runtime/context.j
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
-import { arrivalRecord, mountHistory, returnOnArrival } from "./runtime/history.js";
+import { beginArrival, mountHistory, returnOnArrival } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -854,10 +854,13 @@ async function boot() {
             ...(key.caret && { caret: key.caret }),
           }),
   });
+  // The document's one arrival (history.js, `beginArrival`), which a revision's handoff
+  // joins (version.js, `installArrival`).
+  const arrival = offlineInteractive ? null : beginArrival(threadArrival);
   const landFragment = version.aimArrival();
   const { landArrival, savedView, restored } = offlineInteractive
     ? { landArrival: () => {}, savedView: null, restored: false }
-    : version.installArrival();
+    : version.installArrival(arrival);
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
   // The entry's `?thread=` (thread/address.js).
   // The thread view standing open: the panel's, else a margin card's.
@@ -882,9 +885,8 @@ async function boot() {
   // (history.js, `returnOnArrival`); a revision's handoff adds only what the record
   // doesn't hold (version.js). Only a visit the entry kept no record of travels to the
   // thread its address names.
-  const arrival = offlineInteractive ? null : arrivalRecord();
-  if (arrival) void afterPresentation(() => returnOnArrival(arrival, threadArrival));
-  const threadArrive = arrival
+  if (arrival?.record) void afterPresentation(() => returnOnArrival(arrival));
+  const threadArrive = arrival?.record
     ? null
     : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
   if (threadArrive) void afterPresentation(threadArrive);
@@ -981,7 +983,7 @@ async function boot() {
       // The saved draft remains available through Resume writing, without taking that
       // arrival's focus.
       !threadArrive &&
-      !arrival &&
+      !arrival?.record &&
       recoverComposer() &&
       responseSurface.openDraft(savedComposer);
     if (draftOpened) {

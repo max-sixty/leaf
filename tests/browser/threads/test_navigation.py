@@ -163,7 +163,9 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         page.keyboard.press("t")
         destination = card
     elif left == "Show on page":
-        page.locator(".lf-fp-head .lf-fp-on-page").click()
+        # Back returns to the control the user left by, which the view draws again.
+        left_by = page.locator(".lf-fp-head .lf-fp-on-page")
+        left_by.click()
         # A press lands in the card's reply (thread/focus.js, `openingPart`).
         destination = page.locator(".lf-margin-preview .lf-thread-reply :focus")
     else:
@@ -374,10 +376,13 @@ def test_forward_to_a_decision_in_a_message_returns_to_the_decision(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_back_returns_words_selected_in_a_message(request, serve, engine):
+@pytest.mark.parametrize("change", ["age", "edit", "gone"])
+def test_back_returns_words_selected_in_a_message(request, serve, engine, change):
     """Words the user selected in a card's message are selected again when Back from
     the next thread reopens the card, though the message's age in its head reads
-    differently by then, as it does once a minute passes."""
+    differently by then, as it does once a minute passes, or the agent has rewritten
+    the words before them; where the rewrite took the words out, nothing is
+    selected."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
@@ -385,7 +390,7 @@ def test_back_returns_words_selected_in_a_message(request, serve, engine):
     panel_comment(
         serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
     )
-    append_agent_reply(
+    reply = append_agent_reply(
         serve.page_dir, root, "The importer reads the cache before the scan begins."
     )
     page = open_page(request.getfixturevalue(engine), url)
@@ -398,16 +403,40 @@ def test_back_returns_words_selected_in_a_message(request, serve, engine):
           const text = [...node.childNodes].find((n) => n.nodeType === 3 && n.data.includes('cache'));
           const at = text.data.indexOf('the cache');
           getSelection().setBaseAndExtent(text, at, text, at + 'the cache '.length);
-          for (const age of node.closest('.lf-msg').querySelectorAll('time span'))
-            age.textContent = '9m ago';
         }"""
     )
+    if change == "age":
+        words.evaluate(
+            """node => {
+              for (const age of node.closest('.lf-msg').querySelectorAll('time span'))
+                age.textContent = '9m ago';
+            }"""
+        )
     page.keyboard.press("t")
     expect(card).not_to_be_attached()
+    if change != "age":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "edit",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "pytest-summary",
+                "message": reply["id"],
+                "text": "Extra prefix. The importer reads the cache before the scan begins."
+                if change == "edit"
+                else "The importer reads its files before the scan begins.",
+            },
+        )
+        told(page)
     page.wait_for_function("navigation.transition === null")
     page.go_back()
     expect(card).to_be_attached()
-    page.wait_for_function("() => getSelection().toString() === 'the cache '")
+    if change == "gone":
+        expect(card.get_by_text("reads its files")).to_be_visible()
+        assert page.evaluate("getSelection().toString()") == ""
+    else:
+        page.wait_for_function("() => getSelection().toString() === 'the cache '")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

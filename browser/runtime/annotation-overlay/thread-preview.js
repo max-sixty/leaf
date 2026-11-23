@@ -279,6 +279,13 @@ export function createThreadPreview({
     action: "next",
   });
   previewNav.append(previewPrevious, previewPosition, previewNext);
+  // The card's own controls name themselves to focus's identity (carry.js, `focusKey`),
+  // so a return to the card, a reload's included, puts the user back on the one they
+  // were on. Close dismisses the card, as the panel's Close doesn't, so its key is its
+  // own, and a return that opens the thread in the panel lands on the thread.
+  previewClose.setAttribute("data-lf-carry", "dismiss");
+  previewPrevious.setAttribute("data-lf-carry", "previous");
+  previewNext.setAttribute("data-lf-carry", "next");
   // Open in panel moves the card's thread into the floating panel's view of it, which
   // reads a long thread wider than the card's room beside the column. The card closes,
   // so one thread stands open, and the view's Show on page comes back.
@@ -288,6 +295,7 @@ export function createThreadPreview({
     "Open in panel",
     { action: "expand" },
   );
+  previewOpenInPanel.setAttribute("data-lf-carry", "expand");
   // The card's head line: the thread's notice of held news and Next unread, Previous and
   // Next, Open in panel, the thread's Resolve or Reopen, and Close. It stands in the
   // thread, over its first message's head, whose track it shares (annotation-chrome.css),
@@ -1410,18 +1418,14 @@ export function createThreadPreview({
   // (thread/focus.js, `openingPart`): into its reply, or onto its thread. Either way the
   // thread lands whole: landing on its reply box would take its transcript to its end,
   // past the turn the card opened on (`showArrival`).
-  /** @param {Promise<boolean> | null} positioned @param {{closeControl?: boolean, cause?: import("../focus.js").PlacementCause}} [options] */
-  function focusThread(positioned, { closeControl = false, cause = "move" } = {}) {
+  /** @param {Promise<boolean> | null} positioned @param {{cause?: import("../focus.js").PlacementCause}} [options] */
+  function focusThread(positioned, { cause = "move" } = {}) {
     if (!positioned) return;
     const session = previewSession;
     if (!session) return;
     deferThreadPreviewFocus(
       positioned,
       () => {
-        if (closeControl) {
-          focusDestination(previewClose, cause);
-          return;
-        }
         const thread = previewList.querySelector(".lf-page-thread");
         if (!thread) return;
         const target =
@@ -1515,7 +1519,6 @@ export function createThreadPreview({
       previewSession && !previewSession.away
         ? previewList.querySelector(".lf-page-thread")
         : null,
-    closeFocused: () => focused() === previewClose,
     // Whether the user is in the card's reply box.
     replying: () =>
       under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),

@@ -38,6 +38,7 @@ from browser.drafts import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -335,6 +336,32 @@ def test_executable_revision_keeps_the_user_on_the_message_they_were_on(
     key = page.evaluate("document.activeElement.dataset.lfMessage")
     replace_editing_document(page, serve)
     expect(page.locator(f'.lf-msg[data-lf-message="{key}"]')).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_keeps_a_reply_where_it_was_written(request, serve, engine):
+    """A reply the user writes in the floating panel's view of a thread goes on there,
+    with its words and selection, through a revision that reloads the page, rather
+    than moving into a card beside the thread's passage."""
+    page = editing_reply_page(request.getfixturevalue(engine), serve)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    page.keyboard.press("Escape")
+    open_panel_thread(page, root)
+    reply = panel_field(page)
+    reply.focus()
+    expect(reply).to_have_attribute("name", "reply")
+    write(reply, "Words written in the panel's view.")
+    reply.evaluate("el=>el.setSelectionRange(6,13,'backward')")
+    before = editing_read(reply)
+    replace_editing_document(page, serve)
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
+    expect(reply).to_be_focused()
+    assert editing_read(reply) == before
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

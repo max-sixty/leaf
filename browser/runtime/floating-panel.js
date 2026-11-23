@@ -786,6 +786,7 @@ export function createFloatingPanel({
     const viewClose = html`<button
       type="button"
       ${offeredAction("symbol", "lf-fp-exit lf-fp-close", "Close", { action: "close" })}
+      data-lf-carry="close"
       ?data-lf-unoffered=${Boolean(search) && !menuSearching() && closeAtFoot}
       @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
       @click=${() => close()}
@@ -4994,6 +4995,7 @@ export function createFloatingPanel({
               inMessage ? "Show in message" : "Show on page",
               { action: "show" },
             )}
+            data-lf-carry="show"
             ?disabled=${!thread.anchor}
             ?data-lf-unoffered=${!thread.anchor}
             @click=${() => {

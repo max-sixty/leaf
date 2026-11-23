@@ -1468,11 +1468,6 @@ def thread_create(
     "thread, ended by `leaf task end` with the reply's id",
 )
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
-@click.option(
-    "--reopen",
-    is_flag=True,
-    help="bring a thread the user resolved back to their lists with this reply",
-)
 @_title_option
 @click.option(
     "--obligation",
@@ -1588,6 +1583,20 @@ def thread_resolve(page_dir: Path, message: str) -> dict:
     from leaf.thread import cmd_resolve
 
     return cmd_resolve(page_dir, message)
+
+
+@thread.command("reopen", short_help="Reopen a closed thread as the agent.")
+@page_argument(renew=True)
+@click.argument("message", metavar="MESSAGE")
+def thread_reopen(page_dir: Path, message: str) -> dict:
+    """Reopen the thread MESSAGE is in, as the agent.
+
+    It brings a thread the user resolved back to their list; the Leaf skill's
+    references/threads.md says when to.
+    """
+    from leaf.thread import cmd_reopen
+
+    return cmd_reopen(page_dir, message)
 
 
 @cli.group(short_help="Create or end to-dos, start work on your list, and plan.")

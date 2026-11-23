@@ -434,8 +434,8 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     """The user's resolve takes the thread off their list and leaves the request
     owed, so the reply the delivery addressed still answers it, in the thread the
-    user closed. The thread stays closed for what the agent says in it, unless the
-    agent chooses that a message brings it back or asks the user something."""
+    user closed. The thread stays closed for what the agent says in it, until the
+    agent reopens it or asks the user something."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -474,19 +474,34 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
         )
 
     assert says() == ("user", True)
-    # The agent's own resolve on top of the user's leaves the thread the user's to
-    # reopen: a later message still goes in unannounced.
+    # The agent's own resolve on top of the user's changes nothing for a later
+    # message, which still goes in unannounced.
     resolved = CliRunner().invoke(
         cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
     )
     assert resolved.exit_code == 0, resolved.output
     assert says() == ("agent", True)
-    for brings_back in ("--reopen", "--obligation"):
-        assert says(brings_back) == (None, None)
-        append_carried_log_record(
-            page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
-        )
-    assert says() == ("user", True)
+    # A question brings the thread back by itself.
+    assert says("--obligation") == (None, None)
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    # A message that stays closed says so beside its record, with the command that
+    # brings the thread back, which is the agent's call.
+    quiet = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), root["id"], "--text", "It can't be done."],
+    )
+    said = events_model.read_events(page_dir)[-1]
+    assert said["unannounced"]
+    assert f"leaf thread reopen {page_dir} {said['id']}" in quiet.output
+    reopened = CliRunner().invoke(
+        cli_model.cli, ["thread", "reopen", str(page_dir), said["id"]]
+    )
+    assert reopened.exit_code == 0, reopened.output
+    [thread] = state_json(page_dir)["threads"]
+    assert (thread["resolved"], thread["unread"]) == (None, [said["id"]])
+    assert says() == (None, None)
 
 
 def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_dir):

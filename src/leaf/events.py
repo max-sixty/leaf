@@ -416,8 +416,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 def _resumes(reply: dict) -> bool:
     """Whether a reply resumes its thread: reactions, failure receipts and progress
     leave its closure in force, and so does a message the agent sent into a thread
-    the user resolved without asking them anything or choosing to bring it back
-    (`unannounced`, `thread.post_reply`)."""
+    the user resolved without asking them anything (`unannounced`,
+    `thread.post_reply`)."""
     return not (
         "token" in reply
         or "failure" in reply
@@ -759,7 +759,8 @@ def owed_turns(thread: dict) -> list[dict]:
 
     The user's resolve takes a thread off their list and settles nothing the agent
     owes in it. A request made before it stays owed, and the reply that answers it
-    goes into the thread and leaves it closed (`thread.post_reply`, `unannounced`).
+    goes into the thread and leaves it closed unless it asks (`thread.post_reply`,
+    `unannounced`).
     The user chose
     this over a resolve that dropped the request, which left nothing on the page
     saying the agent owed it; cancelling a request takes their words. Every other

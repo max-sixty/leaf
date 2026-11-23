@@ -581,8 +581,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   a card can require no answer; the agent still receives the event.
                   Resolving a thread takes it off the user's list and leaves a comment
                   the agent has not answered owed its reply, which goes into the closed
-                  thread. A multi-select obligation submits the choice when the user
-                  presses Done.
+                  thread; the agent may reopen it. A multi-select obligation submits the
+                  choice when the user presses Done.
                 </p>
                 <p id="delivery-envelope">
                   A delivery is one JSON document, whose <code>format</code> field names
@@ -1029,14 +1029,16 @@ flowchart TD
                 <tr>
                   <td>
                     <strong>Write a conversation</strong><br />Open or answer a thread,
-                    edit an agent message or title, close a thread, or summarize a range
-                    of messages.
+                    edit an agent message or title, close or reopen a thread, or
+                    summarize a range of messages.
                   </td>
                   <td>
                     <code>leaf thread create</code><br /><code>leaf thread reply</code
                     ><br /><code>leaf thread edit</code><br /><code
                       >leaf thread resolve</code
-                    ><br /><code>leaf thread summarize</code>
+                    ><br /><code>leaf thread reopen</code><br /><code
+                      >leaf thread summarize</code
+                    >
                   </td>
                 </tr>
                 <tr>
@@ -3016,10 +3018,12 @@ flowchart TD
               <li id="updates-written-comment">
                 <strong
                   ><code>leaf thread create</code>, <code>leaf thread edit</code>,
-                  <code>leaf thread resolve</code></strong
+                  <code>leaf thread resolve</code>,
+                  <code>leaf thread reopen</code></strong
                 >
                 A thread the agent opens on a passage, a message it corrects, marked
-                <em>edited</em>, or a thread it closes (<em>✓ Resolved by Claude</em>).
+                <em>edited</em>, a thread it closes (<em>✓ Resolved by Claude</em>), or
+                one it brings back to the user's lists.
               </li>
               <li id="updates-written-stamp">
                 <strong><code>leaf page stamp --text "…"</code></strong> Names a version

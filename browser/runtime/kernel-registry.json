@@ -381,7 +381,7 @@
       ],
       "resolve": [
         {
-          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it. Add `--reopen` to a reply they would want to stop and read, such as a request you could not carry out as they asked; a question to them there reopens it by itself."
+          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it, unless it asks them something. `leaf thread reopen <page> <message>` brings the thread back to their list, for news they would want to stop and read, such as that you could not do what they asked (`references/threads.md`)."
         }
       ],
       "unresolve": [
@@ -532,7 +532,7 @@
           }
         },
         {
-          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`); an explicit reply posts at once, and your final message is then not posted.",
+          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`), and for news the user would want to stop and read, such as that you could not do what they asked: they may have resolved the thread by then, and only that command's record says so. An explicit reply posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -1501,6 +1501,8 @@
             "kind": { "const": "unresolve" },
             "seq": { "type": "integer", "minimum": 1 },
             "parent": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],

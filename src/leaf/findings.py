@@ -2512,7 +2512,7 @@ _TEXT = {
         _IN_THREAD,
         lambda at, v: (
             "--ephemeral is for progress text; it cannot ask the user, open a to-do, hold"
-            " a widget, report failure, or move or reopen the thread"
+            " a widget, report failure, or move the thread"
         ),
     ),
     "detach-with-target": _refuses(
@@ -2563,6 +2563,12 @@ _TEXT = {
         f"message {v['message']!r} is folded under summary {v['summary']!r}, which"
         " stands as you wrote it; if this edit changes what it reports, summarize"
         f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
+    ),
+    "stays-closed": lambda at, v: (
+        f"the user resolved thread {v['thread']!r}, so this message went into it"
+        " without bringing it back to their list, which suits the answer or result"
+        f" they asked for; `{v['command']}` brings it back where the message holds"
+        " news they would want to stop and read"
     ),
     "title-kept": lambda at, v: (
         f"the thread is already titled {v['title']!r}, so the reply's title went"

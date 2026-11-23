@@ -419,7 +419,6 @@ def ask_again(
         asks_back=False,
         explicit_obligation=False if widget else ([name] if asked[name] else True),
         ephemeral=False,
-        reopen=False,
         quote="",
         section="",
         part="",
@@ -533,7 +532,6 @@ def post_reply(
     asks_back: bool = False,
     obligation: bool | list[str] = False,
     ephemeral: bool = False,
-    reopen: bool = False,
     quote: str = "",
     section: str = "",
     part: str = "",
@@ -588,9 +586,6 @@ def post_reply(
     status, so the user's message gets the agent's first words and its Working line
     from one write, and a promise's thread and On <agent> row show the line its work
     runs under. A `Receipt`'s progress takes nothing in hand.
-
-    ``reopen`` is the agent's choice that the reply brings a thread the user resolved
-    back to their lists (`_goes_in_unannounced`).
     """
     title = agent_title(title)
     todo = agent_title(todo)
@@ -651,7 +646,6 @@ def post_reply(
             asks_back=asks_back,
             explicit_obligation=obligation,
             ephemeral=ephemeral,
-            reopen=reopen,
             quote=quote,
             section=section,
             part=part,
@@ -660,6 +654,18 @@ def post_reply(
         )
     if claimed_session is None:
         note(*addressed.advice)
+        if record.get("unannounced"):
+            # The agent may not have heard of the user's resolve, and what it just
+            # said may be news they would want to stop for, which only it can judge.
+            note(
+                Finding(
+                    "stays-closed",
+                    values={
+                        "thread": addressed.thread,
+                        "command": f"leaf thread reopen {page_dir} {record['id']}",
+                    },
+                )
+            )
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -882,7 +888,6 @@ def _compose_and_append(
     asks_back: bool,
     explicit_obligation: bool | list[str],
     ephemeral: bool,
-    reopen: bool,
     quote: str,
     section: str,
     part: str,
@@ -909,7 +914,7 @@ def _compose_and_append(
     moving = bool(quote or section or part)
     widget = bool(markup) and bool(SourceDocument(markup).lf_elements)
     if ephemeral and (
-        todo or explicit_obligation or widget or failure or moving or detach or reopen
+        todo or explicit_obligation or widget or failure or moving or detach
     ):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
@@ -1023,9 +1028,7 @@ def _compose_and_append(
     before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     unannounced = (
         before is not None
-        and _goes_in_unannounced(
-            before, asks=bool(explicit_obligation or asking), reopen=reopen
-        )
+        and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
         and not ephemeral
         and failure is None
     )
@@ -1076,28 +1079,36 @@ def _compose_and_append(
     return record, published
 
 
-def _goes_in_unannounced(thread: dict, *, asks: bool, reopen: bool) -> bool:
+def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
     """Whether the agent's message goes into `thread` without reopening it, which
     the reply records as `unannounced` (`events.build_threads`): the user resolved
-    the thread and has not reopened it, whatever closed it after, and the message
-    neither asks them anything, in words or with a widget, nor is one the agent
-    chose to bring the thread back with (`reopen`).
+    the thread and it has not reopened since, whatever closed it after, and the
+    message asks them nothing, in words or with a widget.
 
-    A thread the user resolved stays off their lists unless the agent says
-    otherwise. The user chose that: they end most threads with a last word and then
-    Resolve, which means they are done with the thread and not that they took the
-    word back, so the request stays owed (`events.owed_turns`) and its answer, like
-    the result of work the agent promised, brings nothing back to their lists.
+    A thread the user resolved stays off their list until someone reopens it. The
+    user chose that: they end most threads with a last word and then Resolve, which
+    means they are done with the thread and not that they took the word back, so
+    the request stays owed (`events.owed_turns`) and its answer, like the result of
+    work the agent promised, brings nothing back to their list.
 
-    The user also chose that which messages bring the thread back is the agent's
-    call (root `AGENTS.md`, "Leaf's role"), and no rule here reads it off the
-    message. A rule that kept every message quiet left a question as the agent's
-    only way to say it could not do what was asked. A rule keyed on the answer
-    reopened the thread for a promised result, which names no input, and left it
-    closed for the promise. A message that asks reopens the thread whatever the
-    agent chose, since the user answers a question in its thread and ends one they
-    won't answer by resolving it."""
-    return thread["closed_by_user"] and not (asks or reopen)
+    The user also chose that bringing the thread back is the agent's call (root
+    `AGENTS.md`, "Leaf's role"), which it makes with `cmd_reopen`, before or after
+    the message, so no rule here reads the call off the message. The reply's
+    command says that it stayed closed (`stays-closed`, `post_reply`), since the
+    user's resolve reaches the agent only where it retires a question, and the
+    agent that was never told can still bring back what it just said. A provider's
+    final message ends its turn and prints nothing its agent reads, so
+    `harness-codex.md` has the agent post such news with the command.
+
+    A rule that kept every message quiet would leave a question as the agent's only
+    way to say it could not do what was asked. A rule keyed on the answer would
+    reopen the thread for a promised result, which names no input, and leave it
+    closed for the promise. A flag on the reply would have to be chosen before the
+    agent knows the thread is closed, and a provider's final message could not
+    carry it. A message that asks reopens the thread by itself, since the user
+    answers a question in its thread and ends one they won't answer by resolving
+    it."""
+    return thread["closed_by_user"] and not asks
 
 
 def post_response(
@@ -1468,4 +1479,17 @@ def cmd_resolve(page_dir: Path, parent: str) -> dict:
             "author": "agent",
             "parent": parent,
         }
+        return append_admitted(page, event)[0]
+
+
+@contract_writer
+def cmd_reopen(page_dir: Path, parent: str) -> dict:
+    """Reopen a thread, as the user's own Reopen does: the same event, addressed as
+    `cmd_resolve` addresses its own. It is how the agent brings a thread the user
+    resolved back to their list (`_goes_in_unannounced`). Like any reopening, it
+    puts back a turn of theirs that a closing had ended unanswered
+    (`events.owed_turns`)."""
+    with PageTransaction(page_dir) as page:
+        _thread_id, parent = thread_addressed(page_dir, page.events, parent)
+        event = {"kind": "unresolve", "author": "agent", "parent": parent}
         return append_admitted(page, event)[0]

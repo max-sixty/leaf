@@ -141,6 +141,7 @@ Options:
 Commands:
   create     Create an agent thread \u2014 on a passage, or on the page whole.
   edit       Edit a message's text, or its thread's title.
+  reopen     Reopen a closed thread as the agent.
   reply      Reply using an answer reference or a page and message.
   resolve    Close a thread as the agent.
   summarize  Summarize a contiguous message range.

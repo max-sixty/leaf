@@ -18,11 +18,7 @@ export function defineSeatedObligation() {
         this.press = offer("button", "lf-settle", "Accept");
         this.press.onclick = () => {
           this.settled();
-          this.controller.dispatch({
-            kind: "action",
-            verb: "settle",
-            detail: { answer: "yes" },
-          });
+          this.record("settle", { answer: "yes" });
         };
         // The threads about the verdict, and the comment box that starts one, stand
         // under its press.

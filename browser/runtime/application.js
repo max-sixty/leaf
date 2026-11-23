@@ -185,7 +185,7 @@ function createApplication(dependencies) {
   };
 
   createProjectionPresentation();
-  // A widget's drawn marks reach it through `projectMarked` (leaf-element.js).
+  // A widget's drawn marks reach it through `projectMarked` (element-data.js).
   createDataProjection({ invalidateDom });
 
   /** @type {ReturnType<typeof createDelivery>} */

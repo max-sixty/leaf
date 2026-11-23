@@ -260,7 +260,7 @@ customElements.define(
     /** @returns {(Outcome | "undo")[]} */
     #offered() {
       const outcome = this.#outcome();
-      if (outcome) return this.#undoable(outcome) ? ["undo"] : [];
+      if (outcome) return this.state?.decide?.undoable ? ["undo"] : [];
       /** @type {Outcome[]} */
       const decisions = ["accept", "reject"];
       return decisions;
@@ -290,7 +290,7 @@ customElements.define(
           ...FACE[kind],
           label: WORDS[kind],
           accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
-          disabled: !this.controller.read().actions.decide?.available,
+          disabled: !this.state?.decide?.available,
           activation: kind,
           scope: this.#commandScope,
         });
@@ -406,7 +406,7 @@ customElements.define(
     /** @param {Outcome} outcome @param {((key: string) => void) | null} [focus] */
     #decide(outcome, focus = null) {
       if (this.#outcome()) return;
-      if (!this.controller.read().actions.decide?.available) return;
+      if (!this.state?.decide?.available) return;
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
       // reading, and `says` on what has left the reading answers nothing — the
       // announcement then named the widget's id instead of the words the user just judged.
@@ -416,12 +416,13 @@ customElements.define(
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
       getSelection()?.removeAllRanges();
-      const dispatched = this.controller.dispatch({
-        kind: "action",
-        verb: "decide",
-        detail: { outcome },
-        says: `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
-      });
+      const dispatched = this.record(
+        "decide",
+        { outcome },
+        {
+          says: `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+        },
+      );
       if (!dispatched) return;
       // The gesture has decided the slot's visible state. Fold it before the
       // document-wide settlement paint can hide the old words without motion. Undo takes
@@ -435,23 +436,8 @@ customElements.define(
       focus?.("undo");
     }
 
-    /** @param {Outcome} outcome */
-    #undoable(outcome) {
-      return this.controller
-        .read()
-        .actions.decide?.undo.find(
-          (event) => event.kind === "action" && event.detail.outcome === outcome,
-        );
-    }
-
     #undoOutcome() {
-      const outcome = this.#outcome();
-      const event = outcome && this.#undoable(outcome);
-      if (!event) return;
-      this.controller.dispatch({
-        kind: "undo",
-        target: ("attempt" in event ? event.attempt : null) ?? event.id,
-      });
+      if (this.#outcome()) this.takeBack("decide");
     }
 
     /** @param {Outcome} outcome */
@@ -579,7 +565,7 @@ customElements.define(
     }
 
     render() {
-      const { state } = this.controller.read();
+      const { state } = this;
       this.#draw(state);
       if (quoted(this) || !this.#margin) return nothing;
       // Signals publish before the projection adapter. Keep the currently focused entry
@@ -611,8 +597,7 @@ customElements.define(
     }
 
     #outcome() {
-      const state = this.reading?.state;
-      return state ? outcomeOf(state) : null;
+      return this.state ? outcomeOf(this.state) : null;
     }
   },
 );

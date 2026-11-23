@@ -2,72 +2,44 @@
 
    Leaf captures identity and declarations before upgrade. This controller exposes only
    immutable publisher selections and commands validated against the newest selection;
-   the owner DOM is never a semantic store. A widget draws as a `LeafElement`
-   (leaf-element.js), which owns the widget's render region; the controller owns its
+   the owner DOM is never a semantic store. Leaf sets a widget's reading on its element
+   and owns its render region (element-integration.js); the controller owns its
    asynchronous preparation region (`present`), which removal pauses and reconnection
    restores. Registered preparation also holds full rendering readiness until
-   completion or removal. Local editing holds the widget's drawing (`defer`) until the
-   gesture releases it. A widget that draws itself without Leaf's helpers says it has
-   drawing under way with a `pending-task` event instead (`PendingTaskEvent`,
-   widget-upgrade.js), which reaches the same preparation region here. */
+   completion or removal.
+
+   A widget's element reaches all of this by events, heard here at the document:
+   `pending-task` for drawing under way (`PendingTaskEvent`, widget-upgrade.js), which
+   reaches the preparation region of the nearest widget it passed through, or a region
+   of its own element's where it passed through none; `lf-action` and `lf-undo` to
+   record and take back; and `lf-hold` for a gesture that rewrites its nodes outside a
+   draw, at whose end the document-wide renderers read the page again. */
 import { untracked } from "/runtime/framework.js";
-import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
+import {
+  applicationState,
+  attachApplicationPresentation,
+  attachWidgetPresentation,
+} from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
+import { HOLD, PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
 /** @typedef {ReturnType<typeof createWidgetController>} WidgetController
  * @typedef {import('./framework/application.js').WidgetDescriptor} WidgetDescriptor
  * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
- * @typedef {{hold: () => (() => void), refresh: () => void}} Drawing
  * @typedef {{completion: Promise<unknown[]>}} Preparation
  * @typedef {ReturnType<typeof attachWidgetPresentation>} PreparationHandle */
 /** @type {WeakMap<Element, WidgetController>} */
 const controllers = new WeakMap();
-/** @type {Set<Drawing>} */
-const ancestorRefreshes = new Set();
-let ancestorRefreshQueued = false;
-// Owners that draw themselves (`LeafElement`, leaf-element.js), each with the hold its
-// gestures defer and the refresh an ancestor's remount asks of it.
-/** @type {WeakMap<Element, Drawing>} */
-const selfDrawn = new WeakMap();
-/** @param {Element} owner @param {Drawing} drawing */
-export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 
-// A widget connected to draw its reading. A data renderer may remount a nested widget
-// without changing its semantic reading. Its own owner restores its state; an ancestor
-// may own its placement, so refresh each mounted ancestor once for the new parent. The
-// caller remembers the parent, which keeps the ancestor's corrective move from looping.
-// A widget can also first appear when thread presentation mounts message markup after the
-// global projection pass, so coordinate and provenance work runs again now that it and
-// its units exist; state application coalesces the request.
-/** @param {Element} owner @param {WidgetDescriptor} descriptor @param {boolean} parentChanged */
-export function widgetMounted(owner, descriptor, parentChanged) {
-  if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
-    refreshAncestors(owner);
+// A widget connected to draw its reading. It can first appear when thread presentation
+// mounts message markup after the global projection pass, so coordinate and provenance
+// work runs again now that it and its units exist; state application coalesces the
+// request.
+export function widgetMounted() {
   invalidateDom();
-}
-
-/** @param {Element} owner */
-function refreshAncestors(owner) {
-  for (
-    let ancestor = owner.parentElement;
-    ancestor;
-    ancestor = ancestor.parentElement
-  ) {
-    const drawing = selfDrawn.get(ancestor);
-    if (drawing) ancestorRefreshes.add(drawing);
-  }
-  if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
-  ancestorRefreshQueued = true;
-  queueMicrotask(() => {
-    ancestorRefreshQueued = false;
-    const pending = [...ancestorRefreshes];
-    ancestorRefreshes.clear();
-    for (const drawing of pending) drawing.refresh();
-  });
 }
 
 /** @template T @param {T} value @returns {T} */
@@ -173,22 +145,6 @@ function createWidgetController(owner) {
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
     },
-    // Hold the widget's drawing through a gesture that rewrites its nodes; the release
-    // draws the newest reading at once and returns it.
-    defer() {
-      const drawing = selfDrawn.get(owner);
-      if (!drawing)
-        throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
-      const release = drawing.hold();
-      let released = false;
-      return () => {
-        if (released) return read();
-        released = true;
-        release();
-        invalidateDom();
-        return read();
-      };
-    },
     /** @template {PromiseLike<unknown>} P @param {P} promise @returns {P} */
     present(promise) {
       const value = read();
@@ -228,7 +184,6 @@ export function widgetController(owner) {
     controller = Object.freeze({
       read: () => resolve().read(),
       dispatch: (command) => resolve().dispatch(command),
-      defer: () => resolve().defer(),
       present: (promise) => resolve().present(promise),
     });
     controllers.set(owner, controller);
@@ -247,11 +202,46 @@ const widgetOn = (event, holds = () => true) =>
       return descriptor && holds(descriptor);
     });
 
-// Drawing a widget announced from outside Leaf's helpers: the nearest widget the event
-// passed through on its way out holds its presentation on it, as `present` does.
+// Drawing an element announces: the nearest widget the event passed through on its way
+// out holds its presentation on it, as `present` does. Where it passed through none, as
+// from an element with no id or one of Leaf's own surfaces, the page holds a region of
+// that element's on it, so the page still reads as presented only once the drawing is in.
 document.addEventListener(PENDING_TASK, (event) => {
   const owner = widgetOn(event);
-  if (owner) widgetController(owner).present(event.complete);
+  if (owner) return void widgetController(owner).present(event.complete);
+  const [origin] = event.composedPath();
+  if (origin instanceof Element) drawingRegion(origin)?.resolve(event.complete);
+});
+
+// An element's own region, attached while it stands and announces drawing.
+/** @type {WeakMap<Element, {handle: PreparationHandle | null}>} */
+const drawingRegions = new WeakMap();
+let drawings = 0;
+/** @param {Element} origin */
+function drawingRegion(origin) {
+  let region = drawingRegions.get(origin);
+  if (!region) {
+    const held = (region = { handle: /** @type {PreparationHandle | null} */ (null) });
+    drawingRegions.set(origin, held);
+    watchOwner(origin, {
+      disconnect() {
+        held.handle?.disconnect();
+        held.handle = null;
+      },
+    });
+  }
+  if (!origin.isConnected) return null;
+  region.handle ??= attachApplicationPresentation(
+    `element:${origin.localName}:drawing:${++drawings}`,
+  );
+  return region.handle.present((reason) => failSoftUnreported(origin, reason));
+}
+
+// A hold an element has on its nodes through a gesture that rewrites them
+// (`HoldEvent`): as it ends, the document-wide renderers read the page again.
+document.addEventListener(HOLD, (event) => {
+  const read = () => void invalidateDom();
+  Promise.resolve(event.complete).then(read, read);
 });
 
 // The action in force for a verb, or for one of its units, that the user may take back.
@@ -282,10 +272,11 @@ export const widgetState = ({ state, actions }) =>
   );
 
 // Recording announced from outside Leaf's helpers. A widget dispatches a cancelable,
-// bubbling, composed `lf-action` whose detail is `{verb, detail, says?}`, or `lf-undo`
-// whose detail is `{verb, unit?}`, and the nearest recording widget on the event's way
-// out sends it as `dispatch` does: the widget's reading holds the result before
-// `dispatchEvent` returns. The event's `delivery` resolves to the admitted event, or
+// bubbling, composed `lf-action` whose detail is `{verb, detail, says?, attempt?}`, or
+// `lf-undo` whose detail is `{verb, unit?}`, and the nearest recording widget on the
+// event's way out sends it as `dispatch` does: the widget's reading holds the result
+// before `dispatchEvent` returns. `attempt` is the id a draft minted for the words the
+// action sends (`sendDraft`, drafts.js), so a refusal gives them back to that draft. The event's `delivery` resolves to the admitted event, or
 // null once the server refuses it; an action Leaf sends nothing for is cancelled, so
 // `dispatchEvent` returns false.
 /** @param {CustomEvent & {delivery?: unknown}} event

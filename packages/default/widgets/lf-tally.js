@@ -37,6 +37,7 @@ import {
 customElements.define(
   "lf-tally",
   class extends LeafElement {
+    static shadow = true;
     #next = () => {
       const region = this.#region();
       if (region) obligationActions.next({ within: region });

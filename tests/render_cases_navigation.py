@@ -969,6 +969,7 @@ DATA_PROJECTION_MODULE = """
 import { nothing } from '/vendor/lit.js';
 import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     this.show(this.value);
     return nothing;

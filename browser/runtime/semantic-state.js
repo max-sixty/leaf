@@ -67,50 +67,19 @@ const widgetRegions = (widget) =>
 export const attachWidgetPresentation = (widget, kind) =>
   presentation.attach(widgetRegion(widget, kind));
 
-// These promises describe committed DOM, never semantic presentation completion. A
-// widget's native updateComplete includes Lit's updated callback; its preparation
-// and gesture holds belong only to its presentation tickets.
-/** @type {Map<string, Promise<void>>} */
-const widgetCommits = new Map();
+// These promises describe committed DOM, never semantic presentation completion.
 /** @type {Map<string, () => readonly PromiseLike<unknown>[]>} */
 const documentCommits = new Map();
-const currentWidgetParents = readPart((root) => root.effective.widgetParents);
-/**
- * @param {string} widget
- * @param {() => unknown} update
- * @param {() => PromiseLike<unknown>} committed
- */
-export const queueWidgetUpdate = (widget, update, committed) => {
-  const { ready, committed: dom } = schedule.enqueue(
-    () => {
-      const parents = untracked(currentWidgetParents);
-      const pending = [];
-      const seen = new Set([widget]);
-      for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-        // Optimistic moves precede server admission. A cyclic move has no DOM
-        // order; leave rendering and refusal free to report it instead of waiting
-        // on ourselves or another member of that cycle.
-        if (seen.has(parent)) return [];
-        seen.add(parent);
-        const dom = widgetCommits.get(parent);
-        if (dom) pending.push(dom);
-      }
-      return pending;
-    },
-    update,
-    committed,
-  );
-  widgetCommits.set(widget, dom);
-  const retire = () => {
-    if (widgetCommits.get(widget) === dom) widgetCommits.delete(widget);
-  };
-  void dom.then(retire, retire);
-  return ready;
-};
 
 // The DOM each document owner reads: projection decorates widget output, threads
 // resolve passages over that decoration, obligations locate controls in threads,
-// and annotations measure those targets. Imperative Lit render commits in its call;
+// and annotations measure those targets. A widget's element draws before the call
+// that moved it returns, its first connection or the `state` Leaf set
+// (element-integration.js), so its nodes are in before the pass that follows the
+// publication. A draw a widget makes later, on its own schedule, is ordered against
+// no pass; the one this file hears of is the end of a gesture's hold (`lf-hold`,
+// widget-controller.js), which presents the document again. Imperative Lit render
+// commits in its call;
 // what the thread pass decides later, where it places and seats each thread, reaches
 // the margin as readings its paint follows (anchor-placement.js `placedAt`,
 // thread/surfaces.js `claimed`), not as DOM it waits for. An obligation's control is a
@@ -119,7 +88,6 @@ export const queueWidgetUpdate = (widget, update, committed) => {
 // pass that follows. Each entry is transitive: it settles once its region and
 // everything upstream of it have committed.
 export const PRESENTATION_DOM = Object.freeze({
-  widgets: () => [...widgetCommits.values()],
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],
   thread: () => documentCommits.get("thread")?.() ?? [],
   obligations: () => documentCommits.get("obligations")?.() ?? [],

@@ -148,7 +148,7 @@ customElements.define(
     }
 
     get #savedText() {
-      const value = this.controller.read().state.edit?.value;
+      const value = this.state.edit?.value;
       if (typeof value !== "string")
         throw new Error("A draft reading must contain its Markdown text");
       return value;
@@ -244,12 +244,8 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
-        if (
-          this.#editor &&
-          !this.#resumeProjection &&
-          this.controller.read().actions.edit?.available
-        )
-          this.#resumeProjection = this.controller.defer();
+        if (this.#editor && !this.#resumeProjection && this.#available())
+          this.#resumeProjection = this.defer();
         return () => {
           this.#returnMotion?.cancel();
           this.#stopPressAway?.();
@@ -394,7 +390,7 @@ customElements.define(
     }
 
     #available() {
-      return Boolean(this.controller.read().actions.edit?.available);
+      return Boolean(this.state?.edit?.available);
     }
 
     // The draft as the rest of the chrome names it, never by its id.
@@ -405,13 +401,11 @@ customElements.define(
 
     /** @param {string} text @param {string | undefined} attempt */
     #dispatch(text, attempt) {
-      return this.controller.dispatch({
-        kind: "action",
-        verb: "edit",
-        detail: { value: text },
-        ...(attempt && { attempt }),
-        says: `Edited ${this.#named()}`,
-      });
+      return this.record(
+        "edit",
+        { value: text },
+        { says: `Edited ${this.#named()}`, attempt },
+      );
     }
 
     /** @param {string} [seed] @param {[number, number] | null} [at] @param {boolean} [arrive] */
@@ -423,7 +417,7 @@ customElements.define(
         raiseError("Wait for the current edit to finish saving");
         return;
       }
-      if (this.#available()) this.#resumeProjection ??= this.controller.defer();
+      if (this.#available()) this.#resumeProjection ??= this.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
       editor.dataset.lfRuntime = "";
       // It stands where the prose did, so it reads in the prose's faces.
@@ -525,7 +519,7 @@ customElements.define(
       const ok = await sendDraft(
         ctx(this.id),
         () => true,
-        (attempt) => this.#dispatch(text, attempt)?.delivery ?? null,
+        (attempt) => this.#dispatch(text, attempt),
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
@@ -568,15 +562,14 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      const { actions } = this.controller.read();
       paintMarkdown(this.#body, this.#savedText);
       if (quoted(this)) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
-      if (this.#editor && !this.#resumeProjection && actions.edit?.available)
-        this.#resumeProjection = this.controller.defer();
+      if (this.#editor && !this.#resumeProjection && this.#available())
+        this.#resumeProjection = this.defer();
       return nothing;
     }
   },

@@ -43,8 +43,8 @@ themes = ["editorial", "dense"]
 default = "editorial"
 ```
 
-`default` names one of `themes`. Leave it out to keep `reading` the default, which
-every page can select without its being listed.
+`default` names one of `themes`, or `reading`, which every page can select without its
+being listed. Leave `default` out to keep `reading` the default.
 
 A personal theme stands alone or builds on another theme it names as its base, in its
 `registry.json`:

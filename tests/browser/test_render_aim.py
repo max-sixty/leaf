@@ -4313,6 +4313,10 @@ def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
     if reopen == "reload":
         page.reload()
         wait_until_ready(page)
+        # The reload leaves the box the user put away shut; Resume writing opens it.
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
     elif reopen == "comment":
         page.keyboard.press("c")
     else:

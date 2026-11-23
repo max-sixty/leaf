@@ -299,8 +299,47 @@ def test_executable_revision_preserves_non_editor_thread_current_location(
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("reader", ["panel", "card"])
+def test_executable_revision_keeps_the_user_on_the_message_they_were_on(
+    request, serve, engine, reader
+):
+    """A revision that reloads the page brings the user back to the message they were
+    on in the thread it reopens, the panel's view or a card, rather than to the
+    thread as a whole: the same place Back returns them to."""
+    url = serve(editing_revision_source("before"))
+    root = panel_comment(
+        serve.page_dir,
+        "What does this passage hold?",
+        {"section": "passage", "quote": "A stable passage"}
+        if reader == "card"
+        else None,
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "It holds the words a revision keeps exact.",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    page.keyboard.press("g")
+    page.keyboard.press("u")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-msg[data-lf-message]')"
+    )
+    key = page.evaluate("document.activeElement.dataset.lfMessage")
+    replace_editing_document(page, serve)
+    expect(page.locator(f'.lf-msg[data-lf-message="{key}"]')).to_be_focused()
+
+
 def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, serve):
-    """A live replacement continues actual editing; an ordinary reload only saves words."""
+    """A live replacement continues actual editing, with its selection; an ordinary
+    reload returns the user to the reply with the selection's ends."""
     page = editing_reply_page(browser, serve)
     root = next(
         event["id"]
@@ -330,8 +369,12 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
 
     page.reload()
     wait_until_ready(page)
-    # The entry names the thread, so the reload opens it again, but no editing goes on.
-    expect(page.locator(".lf-thread-reply leaf-text:focus")).to_have_count(0)
+    # The entry's record names the reply focus was in, so the reload opens the thread
+    # again with focus in its reply.
+    reply = page.locator(".lf-thread-reply leaf-text:focus")
+    expect(reply).to_have_count(1)
+    expect(reply).to_have_js_property("value", words)
+    assert reply.evaluate("el=>[el.selectionStart,el.selectionEnd]") == [5, 12]
     assert stored_draft_text(page, context) == words
 
 
@@ -609,6 +652,11 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     if change == "reloaded-revision":
         page.reload()
         wait_until_ready(page)
+        # The reload leaves the box the user put away shut; Resume writing opens it.
+        expect(editor).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(editor).to_be_focused()
     elif change == "hidden-revision":
         page.keyboard.press("g")
         page.keyboard.press("i")

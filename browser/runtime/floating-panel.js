@@ -282,6 +282,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
+import { focusKey, focusedBy } from "./carry.js";
 import { holdPlace, standsAt } from "./user-place.js";
 import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
@@ -3566,6 +3567,9 @@ export function createFloatingPanel({
     return found ? [...found] : [];
   };
   const threadRows = () => (showing({ view: "threads" }) ? listRows() : []);
+  // What names a list's row: its item's key, or the route a menu row opens.
+  /** @param {HTMLElement} row */
+  const rowKey = (row) => row.dataset.lfKey ?? row.dataset.lfRow ?? null;
   /** @returns {HTMLElement | null} */
   const openView = () =>
     stage.querySelector(".lf-fp-view[data-lf-thread-view]:not([data-lf-leaving])");
@@ -5863,39 +5867,51 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     const view = openView();
     if (!top?.thread || !view) return null;
+    const inView = [view, head].some(
+      (part) => at && at !== document.body && renderedUnder(at, part),
+    );
+    // Where the user is in the thread, on its view, a message or its head line, whose
+    // Resolve and Show on page stand for the view, as history names it (carry.js,
+    // `focusKey`); the field's reply is its editing continuity's.
+    const focus = inView ? focusKey(at) : null;
     return {
       thread: threadByKey(top.thread)?.key ?? top.thread,
       reading: readingIn(view),
-      // The user is in the thread on its view or its head line, whose Resolve and
-      // Show on page stand for the view; the field's reply is its editing continuity's.
-      focus: [view, head].some(
-        (part) => at && at !== document.body && renderedUnder(at, part),
-      ),
+      focus: focus?.on === "reply" ? null : focus,
     };
   }
   // The view opens again through the thread's route, which keeps one thread open
   // (thread/destination.js), so a card a walk opened since closes. The route has this
   // panel open the view in the task that asks (`reveal`), so the landing set after it
-  // is the one the view's drawing lands at.
+  // is the one the view's drawing lands at, and the user goes back to what they were on
+  // in it once it is drawn.
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
     const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread || !currentLocation) return false;
     const { reading, focus } = currentLocation;
-    const view = openView();
-    if (trail.value.at(-1)?.thread === thread.key && view) {
-      if (focus && !currentLocationIn(view)) focusDestination(view, "return");
+    const intent = retainUserIntent();
+    const returnFocus = () => {
+      const view = openView();
+      const target = focus && view && (focusedBy(focus, () => view) ?? view);
+      if (target && intent() && !currentLocationIn(target))
+        focusDestination(target, "return");
+    };
+    if (trail.value.at(-1)?.thread === thread.key && openView()) {
+      returnFocus();
       return true;
     }
     const opened = threadActions.open(thread.key, {
       reader: "primary",
       part: "thread",
-      focus,
+      focus: false,
       travel: false,
       scroll: false,
     });
     landing = { key: thread.key, end: false, ...(reading && { reading }) };
-    return Boolean(await opened);
+    const shown = Boolean(await opened);
+    if (shown) returnFocus();
+    return shown;
   }
 
   // The page's comment box in this chrome, as `c` and Resume writing find it
@@ -6040,33 +6056,34 @@ export function createFloatingPanel({
     restoreCurrentLocation,
     // The thread whose view stands open above the row, read through the trail, and
     // putting that view away: what the entry's thread address follows and asks for
-    // (thread/address.js). Where an entry's record names `list`, the list shows: the
-    // view gives way to it where it stood over it, by its way back (`back`), which
-    // stands the list on the thread's row; else the list opens, or stays, standing on the
-    // row of `from`, the thread the user was in, wherever it showed, as after a reload,
-    // which forgets the views the panel stood. `listShown` names a list a thread view opens
-    // over that stands open, which the record keeps (history.js).
+    // (thread/address.js). Where an entry's record names a list, the list shows: the
+    // view gives way to it where it stood over it, by its way back (`back`); else the
+    // list opens, or stays, as after a reload, which forgets the views the panel stood.
+    // It stands on the row the record names, the one the user left by, else on the row
+    // of `from`, the thread the user was in, wherever it showed. `listShown` names a list
+    // a thread view opens over that stands open, and the row focus is on in it, which the
+    // record keeps (history.js).
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
-    /** @param {string | null} [list] @param {string | null} [from] */
+    /** @param {import("./history.js").RecordList | null} [list] @param {string | null} [from] */
     putThreadAway: (list = null, from = null) => {
       const top = trail.value.at(-1);
-      if (threadOf(top) && list && trail.value.at(-2)?.view === list) return back();
-      if (threadOf(top)) close();
-      const view = list && VIEWS.thread.over?.find((over) => over === list);
+      const view = list && VIEWS.thread.over?.find((over) => over === list.view);
+      if (threadOf(top) && view && trail.value.at(-2)?.view === view) back();
+      else {
+        if (threadOf(top)) close();
+        if (view && !showing({ view })) open({ view });
+      }
       if (!view) return;
-      if (!showing({ view })) open({ view });
-      const key = from && threadByKey(from)?.key;
-      const row =
-        key && view === "threads"
-          ? shownView()?.querySelector(
-              `${THREAD_ROW}[data-lf-key="${CSS.escape(key)}"]`,
-            )
-          : null;
+      const key = list?.row ?? (from && threadByKey(from)?.key);
+      const row = key && listRows().find((node) => rowKey(node) === key);
       if (row) focusDestination(row, "return");
     },
     listShown: () => {
       const view = trail.value.at(-1)?.view;
-      return view && VIEWS.thread.over?.some((over) => over === view) ? view : null;
+      if (!view || !VIEWS.thread.over?.some((over) => over === view)) return null;
+      const at = focused();
+      const row = at ? listRows().find((node) => renderedUnder(at, node)) : null;
+      return { view, row: row ? rowKey(row) : null };
     },
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,

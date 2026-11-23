@@ -121,6 +121,7 @@ import {
   rove,
   currentLocationIn,
 } from "../focus.js";
+import { focusKey, focusedBy } from "../carry.js";
 
 import { el, generatedElement, offerActionElement } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
@@ -179,7 +180,8 @@ import { retainUserIntent } from "../user-intent.js";
  * @typedef {ReturnType<typeof createThreadPreview>["show"]} ShowPreview
  * @typedef {{focusedPrimary: boolean, focusedOption: boolean, focusedToggle: boolean, restore: ReturnType<typeof holdFocus>}} FocusReading
  */
-/** @typedef {{kind: "entry", key: string | undefined, owner: string | null} | {kind: "preview" | "preview-close"}} SavedFocus
+/** @typedef {{kind: "entry", key: string | undefined, owner: string | null} | {kind: "preview-close"}
+ * | {kind: "preview", key: import("../carry.js").FocusKey | null}} SavedFocus
  * @typedef {{thread: string, accompanies: boolean}} SavedPreview
  * @typedef {{entry: string, preview: SavedPreview | null, focus: SavedFocus | null}} MarginLocation
  */
@@ -2144,10 +2146,11 @@ export function createMarginProjection({
         selected && previewOpen() && !card.replying()
           ? { thread: selected.threadItem, accompanies: selected.accompanies }
           : null,
+      // Where the user is in the card, by the key history names it by (carry.js).
       focus: card.closeFocused()
         ? { kind: "preview-close" }
         : under(active, preview)
-          ? { kind: "preview" }
+          ? { kind: "preview", key: focusKey(active) }
           : control && host?.contains(control)
             ? {
                 kind: "entry",
@@ -2219,6 +2222,11 @@ export function createMarginProjection({
           closeControl: true,
           cause: "return",
         });
+      const named =
+        focus?.kind === "preview" && focus.key?.on !== "thread" && destination
+          ? focus.key && focusedBy(focus.key, () => destination)
+          : null;
+      if (named && named !== destination && intent()) focusDestination(named, "return");
       return Boolean(destination);
     });
   }

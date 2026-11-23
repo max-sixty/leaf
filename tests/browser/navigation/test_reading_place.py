@@ -355,6 +355,57 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     assert returned == (None if close_source else before)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("where", ["before a space", "where an element ends"])
+def test_history_returns_a_caret_between_the_same_characters(
+    request, serve, engine, where
+):
+    """A caret in prose comes back between the characters it stood between, though it
+    stood just before a space, or where an element ends and the words after it begin."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Exact caret",
+                "<h1>Exact caret</h1>"
+                '<p id="spaced">Tend · sandboxing keeps the runner apart from the host.</p>'
+                '<p id="marked"><em>Emphasis</em> and then the words after it carry on.</p>'
+                '<div style="height:1600px"></div>'
+                '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+                '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+                '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+            )
+        ),
+    )
+    block = "spaced" if where == "before a space" else "marked"
+    page.evaluate(
+        """block => {
+          const at = document.getElementById(block);
+          if (block === 'spaced') getSelection().collapse(at.firstChild, 4);
+          else getSelection().collapse(at, 1);
+        }""",
+        block,
+    )
+    # How many of the block's characters stand before the caret.
+    before = """block => {
+      const s = getSelection();
+      if (!s.rangeCount || !s.isCollapsed) return null;
+      const r = document.createRange();
+      r.setStart(document.getElementById(block), 0);
+      r.setEnd(s.focusNode, s.focusOffset);
+      return document.getElementById(block).contains(s.focusNode) ? r.toString().length : null;
+    }"""
+    assert page.evaluate(before, block) == (4 if block == "spaced" else 8)
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(
+        f"([block, want]) => ({before})(block) === want",
+        arg=[block, 4 if block == "spaced" else 8],
+    )
+
+
 UNNAMED_PROSE = """
 <h1>Unnamed prose</h1>
 <div><p>The passage without a name carries the words to select and more after them.</p></div>

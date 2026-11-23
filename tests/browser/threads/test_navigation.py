@@ -14,9 +14,11 @@ from render_harness import (
     put_preview_away,
     resized,
     scroll_settled,
+    select_words,
+    told,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import append_agent_reply, open_panel_thread, summarize_thread
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -232,6 +234,176 @@ def test_back_reopens_a_card_where_the_user_had_read_it_to(request, serve, engin
     page.wait_for_function("navigation.transition === null")
     scroll_settled(page)
     assert abs(transcript.evaluate("box => box.scrollTop") - read_to) <= 2
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_reopens_a_card_read_to_a_folded_summary(request, serve, engine):
+    """A card read to the summary that folds its earlier replies reopens on Back with
+    that summary where it stood, though the replies it folds stand hidden under it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
+    )
+    panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    words = "More of the explanation. " * 30
+    folded = [
+        append_agent_reply(serve.page_dir, root, f"Folded {n}. {words}")
+        for n in range(3)
+    ]
+    for n in range(4):
+        append_agent_reply(serve.page_dir, root, f"Later {n}. {words}")
+    summarize_thread(
+        serve.page_dir, folded[0]["id"], folded[-1]["id"], "The first three, in short."
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("t")
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    expect(card).to_be_focused()
+    transcript = card.locator(".lf-thread-transcript")
+    summary = card.locator(".lf-thread-checkpoint")
+    expect(summary.locator(".lf-summary-expand")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    # The summary at the top of the transcript, a little scrolled into.
+    summary.evaluate(
+        """node => {
+          const box = node.closest('.lf-thread-transcript');
+          box.scrollTop += node.getBoundingClientRect().top - box.getBoundingClientRect().top + 20;
+        }"""
+    )
+    scroll_settled(page)
+    read_to = transcript.evaluate("box => box.scrollTop")
+    page.keyboard.press("t")
+    expect(card).not_to_be_attached()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(card).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    scroll_settled(page)
+    assert abs(transcript.evaluate("box => box.scrollTop") - read_to) <= 2
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_returns_to_a_named_control_in_a_message_the_agent_rewrote(
+    request, serve, engine
+):
+    """A control the message names, as an option by its id, comes back by that name
+    though the agent rewrote the message meanwhile and put another control before it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which way should we go?")
+    panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+
+    def ask(*options):
+        return (
+            'Pick one.\n\n<lf-group id="way" label="Which way?"><h3 id="way-h">Which way?'
+            '</h3><lf-options id="way-pick">'
+            + "".join(
+                f'<lf-option id="{name}">{name.title()}</lf-option>' for name in options
+            )
+            + "</lf-options></lf-group>"
+        )
+
+    reply = append_agent_reply(serve.page_dir, root, ask("keep", "drop"))
+    page = open_page(request.getfixturevalue(engine), url)
+    thread = open_panel_thread(page, root)
+    # The option's own control, which takes focus for it.
+    keep = thread.locator('#keep [role="checkbox"]')
+    keep.focus()
+    expect(keep).to_be_focused()
+    page.keyboard.press("t")
+    expect(thread).to_be_hidden()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-summary",
+            "message": reply["id"],
+            "text": ask("new", "keep", "drop"),
+        },
+    )
+    told(page)
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(thread.locator("#new")).to_be_attached()
+    expect(keep).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_returns_words_selected_in_a_message(request, serve, engine):
+    """Words the user selected in a card's message are selected again when Back from
+    the next thread reopens the card."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
+    )
+    panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    append_agent_reply(
+        serve.page_dir, root, "The importer reads the cache before the scan begins."
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("t")
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    expect(card).to_be_focused()
+    words = card.get_by_text("The importer reads the cache before the scan begins.")
+    words.evaluate(
+        """node => {
+          const text = [...node.childNodes].find((n) => n.nodeType === 3 && n.data.includes('cache'));
+          const at = text.data.indexOf('the cache');
+          getSelection().setBaseAndExtent(text, at, text, at + 'the cache '.length);
+        }"""
+    )
+    page.keyboard.press("t")
+    expect(card).not_to_be_attached()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(card).to_be_attached()
+    page.wait_for_function("() => getSelection().toString() === 'the cache '")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_to_a_kept_draft_stop_reopens_its_editor(request, serve, engine):
+    """A `t` walk that stopped at a comment the user had put away, standing on its open
+    box, is a stop Back returns to: the box opens again, holding the words, with the
+    user on it."""
+    url = serve(LONG_PAGE)
+    panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    select_words(page, "#p3")
+    page.keyboard.press("c")
+    composer = page.locator(".lf-composer leaf-text")
+    expect(composer).to_be_focused()
+    page.keyboard.type("Is this the overnight scan")
+    page.keyboard.press("Escape")
+    if composer.is_visible():
+        page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    page.evaluate(
+        "document.activeElement?.blur?.(); scrollTo({top: 0, behavior: 'instant'})"
+    )
+    on_box = """() => {
+      const box = document.querySelector('.lf-composer leaf-text');
+      const at = document.activeElement;
+      return Boolean(box && at && at !== document.body &&
+        (at === box || at.contains(box) || at.closest('.lf-composer')));
+    }"""
+    page.keyboard.press("t")
+    page.wait_for_function(on_box)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(on_box)
+    expect(composer).to_have_js_property("value", "Is this the overnight scan")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

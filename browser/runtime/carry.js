@@ -30,16 +30,21 @@
  * entry uses too (history.js): a page element by the id and tag above, or by its
  * owner's and its `data-lf-carry` key; or a part of a drawn thread by the thread's id,
  * its reply or a message by the message it draws, or the drawing itself; with the
- * caret. An element nothing names is named by its place among the elements like it
- * (focus.js, `likeSelector`) in the nearest holder something names, or the page. That
- * place names it only where the holder is drawn from the same words: a message, whose
- * words are the log's, or the page in the revision the key was read in. A revision's
- * handoff takes no such place, since it names nothing the arriving revision must hold.
+ * caret. Inside a message, as on the page, a name comes first: an element by its id,
+ * which focus in its shadow tree counts as on it, and a generated control by its
+ * owner's id and its key. An element nothing names is named by its place among the
+ * elements like it (focus.js, `likeSelector`) in the nearest holder something names,
+ * the message or the page. That place names it only where the holder is drawn from the
+ * same words: a message, whose words are the log's, or the page in the revision the key
+ * was read in. A revision's handoff of page elements takes no such place, since it
+ * names nothing the arriving revision must hold; the floating panel's and the margin's
+ * handoffs of a thread view take a thread key whole (floating-panel.js,
+ * margin-projection.js, `captureCurrentLocation`).
  */
 import { setScroll } from "./arrivals.js";
 import { focusDestination, likeSelector, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { isHTML, renderedUnder, skipped } from "./shadow-tree.js";
+import { hostIn, isHTML, renderedUnder, skipped } from "./shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
 import { closestAcross, elementById, inPage, pageDocument } from "./passages.js";
 import { ADDRESSABLE } from "./anchor-resolution.js";
@@ -63,14 +68,33 @@ const holdsTick = (node) =>
  * thread?: string, on?: "thread" | "message" | "reply", message?: string,
  * at?: [like: string, nth: number], revision?: number | null,
  * caret?: import("./focus.js").Caret}} FocusKey */
-// `active`'s place among the elements like it in `holder`, where it stands below it.
-/** @param {Element} holder @param {Element} active @returns {Pick<FocusKey, "at">} */
-const placeIn = (holder, active) => {
-  const like = likeSelector(active);
-  const nth =
-    holder === active ? -1 : [...holder.querySelectorAll(like)].indexOf(active);
-  return nth < 0 ? {} : { at: [like, nth] };
-};
+// How `active` is named inside `holder`, a message or the page, names first: a generated
+// control by its named owner's id and its `data-lf-carry` key and tag; the element
+// focus is on, or whose shadow tree holds it, by its id; else its place among the
+// elements like it in the nearest element with an id inside the holder, or the holder.
+/** @param {Element} holder @param {Element} active @returns {FocusKey} */
+function nameIn(holder, active) {
+  const page = holder === pageDocument();
+  /** @param {Element | null | undefined} node @returns {node is Element} */
+  const inside = (node) =>
+    Boolean(node && node !== holder && renderedUnder(node, holder)) &&
+    (!page || inPage(/** @type {Element} */ (node)));
+  const part = active.getAttribute("data-lf-carry");
+  const owner = part === null ? null : active.parentElement?.closest("[id]");
+  if (part !== null && inside(owner))
+    return { id: owner.id, name: owner.localName, part, partName: active.localName };
+  const found = closestAcross(active, ADDRESSABLE);
+  const named = inside(found) ? found : null;
+  const root = named ?? holder;
+  const standIn = hostIn(active, root.getRootNode()) ?? active;
+  if (named && standIn === named) return { id: named.id, name: named.localName };
+  const like = likeSelector(standIn);
+  const nth = [...root.querySelectorAll(like)].indexOf(standIn);
+  return {
+    ...(named && { id: named.id, name: named.localName }),
+    ...(nth >= 0 && { at: /** @type {[string, number]} */ ([like, nth]) }),
+  };
+}
 /** @param {Element | null} active @returns {FocusKey | null} */
 export function focusKey(active) {
   if (!active || active === document.body) return null;
@@ -87,40 +111,28 @@ export function focusKey(active) {
     const turn = closestAcross(active, "[data-lf-message]");
     const message =
       turn && renderedUnder(turn, whole) ? turn.getAttribute("data-lf-message") : null;
-    return withCaret(
-      turn && message
-        ? { thread, on: "message", message, ...placeIn(turn, active) }
-        : { thread, on: "thread" },
-    );
+    if (!turn || !message) return withCaret({ thread, on: "thread" });
+    const named = turn === active ? {} : nameIn(turn, active);
+    return withCaret({ thread, on: "message", message, ...named });
   }
   if (!inPage(active)) return null;
-  const part = active.getAttribute("data-lf-carry");
-  const owner = part === null ? null : active.parentElement?.closest("[id]");
-  if (part !== null && owner && inPage(owner))
-    return withCaret({
-      id: owner.id,
-      name: owner.localName,
-      part,
-      partName: active.localName,
-    });
-  if (active.id) return withCaret({ id: active.id, name: active.localName });
-  const holder = closestAcross(active, ADDRESSABLE);
-  const named = holder && inPage(holder) ? holder : null;
-  return withCaret({
-    ...(named && { id: named.id, name: named.localName }),
-    ...placeIn(named ?? pageDocument(), active),
-    revision: runtime.currentRevision,
-  });
+  const key = nameIn(pageDocument(), active);
+  return withCaret(key.at ? { ...key, revision: runtime.currentRevision } : key);
 }
 
 // The element a focus key names now, or null: a thread's part in the drawing of the
-// thread `drawing` finds, the reply, else the message's control at its place there,
-// else the message, else the drawing; a page element by its id or its owner's key, else
-// the element at its place in its holder while the page shows the key's revision, else
-// that holder.
+// thread `drawing` finds, its reply, else in the message the key names, the element
+// named there, else at its place there, else the message, else the drawing; a page
+// element by its id or its owner's key, else at its place in its holder while the page
+// shows the key's revision, else that holder.
 /** @param {FocusKey} key @param {(thread: string) => Element | null} drawing @returns {Element | null} */
 export function focusedBy(key, drawing) {
   const { at } = key;
+  /** @type {Element} */
+  let scope = pageDocument();
+  /** @type {(id: string) => Element | null} */
+  let find = (id) => elementById(id, scope);
+  let placed = key.revision === runtime.currentRevision;
   if (key.thread) {
     const whole = drawing(key.thread);
     if (!whole) return null;
@@ -129,13 +141,17 @@ export function focusedBy(key, drawing) {
     const turn = key.message
       ? whole.querySelector(`[data-lf-message="${CSS.escape(key.message)}"]`)
       : null;
-    return (at && turn?.querySelectorAll(at[0])[at[1]]) || turn || whole;
+    if (!turn) return whole;
+    scope = turn;
+    find = (id) => turn.querySelector(`[id="${CSS.escape(id)}"]`);
+    placed = true;
   }
-  const owner = key.id ? elementById(key.id, pageDocument()) : pageDocument();
-  if (!owner || (key.name && owner.localName !== key.name)) return null;
+  const owner = key.id ? find(key.id) : scope;
+  if (!owner || (key.name && owner.localName !== key.name))
+    return key.thread ? scope : null;
   if (key.part !== undefined) return keyedFocus(owner, key);
-  const placed = at && key.revision === runtime.currentRevision;
-  return (placed && owner.querySelectorAll(at[0])[at[1]]) || owner;
+  const target = (placed && at && owner.querySelectorAll(at[0])[at[1]]) || owner;
+  return target === pageDocument() ? null : target;
 }
 
 // The element a page key names under `owner`, the element with its id: the owner, or
@@ -156,7 +172,7 @@ const keyedFocus = (owner, { part, partName }) =>
 /** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
   const key = focusKey(focused(document));
-  const focus = key?.id && !key.at ? key : null;
+  const focus = key?.id && !key.at && !key.thread ? key : null;
   const records = [];
   const held = new Map();
   const regionBodies = new Set(readingRegions().map(({ body }) => body));

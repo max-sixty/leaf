@@ -27,10 +27,10 @@
    a thread about a passage the user read in the floating panel opens there again
    rather than beside its passage. Where the record says the floating panel showed a
    list, which a press on one of its rows opens a thread over, the list comes back
-   standing on the row of the thread put away (floating-panel.js, `putThreadAway`),
-   which the entry after names, so Back from a thread opened from Threads returns to
-   Threads on its row though a reload has forgotten the panel's views since, and the
-   thread came back beside its passage.
+   standing on the row the record names, the one the user left by, else the row of the
+   thread put away (floating-panel.js, `putThreadAway`), so Back from a thread opened
+   from Threads returns to Threads on its row though a reload has forgotten the panel's
+   views since, or Escape put the thread away first.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
    focus. Where the browser restored the page's place, as on a reload, the arrival is a
@@ -50,7 +50,8 @@ import { threadNamed } from "./state.js";
 
 /** @typedef {{id: string, reader: "primary" | null}} OpenThread */
 
-/** @param {{shown: () => OpenThread | null, putAway: (list: string | null, from: string | null) => void,
+/** @param {{shown: () => OpenThread | null,
+ * putAway: (list: import("../history.js").RecordList | null, from: string | null) => void,
  * openPageThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} options */
 export function createThreadAddress({ shown, putAway, openPageThread }) {
   // The thread an entry's URL names, by its id, or null.

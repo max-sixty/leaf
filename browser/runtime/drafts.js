@@ -1279,10 +1279,10 @@ function moveToPage(ctx) {
 // it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
-/** @typedef {{travel?: boolean}} DraftRoute */
+/** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string) => Promise<boolean>}} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -1295,16 +1295,15 @@ export function createWritingResume({
       : Boolean(writingRoute(ctx)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
   const resume = () => (writingPlace ? resumeAt(writingPlace) : Promise.resolve());
+  // A route that names the caret, as a return to an entry the user left writing does
+  // (history.js), puts it there rather than where the words were last written.
   /** @param {string} ctx @param {DraftRoute} [route] */
-  const resumeDraft = (ctx, route = {}) =>
-    resumeAt(
-      [writingPlace, ...earlierPlaces].find((place) => place?.context === ctx) ?? {
-        context: ctx,
-        selection: atEnd(ctx),
-        generation: randomId(),
-      },
-      route,
-    );
+  const resumeDraft = (ctx, route = {}) => {
+    const place = [writingPlace, ...earlierPlaces].find(
+      (place) => place?.context === ctx,
+    ) ?? { context: ctx, selection: atEnd(ctx), generation: randomId() };
+    return resumeAt(route.caret ? { ...place, selection: route.caret } : place, route);
+  };
   /** @param {WritingPlace} place @param {DraftRoute} [route] @returns {Promise<void>} */
   const resumeAt = async (place, route = {}) => {
     const intent = retainUserIntent();
@@ -1364,9 +1363,10 @@ export function createWritingResume({
   // box opens on its own record, as Resume writing opens it, and the user stands on the
   // box rather than in it (`standsOnDraft`), so a walk key goes on walking and `c` puts
   // the caret in the words. It answers whether the user arrived. Opening a draft is no
-  // content edit, so it leaves the writing place where it was.
-  /** @param {string} ctx */
-  const showDraft = async (ctx) => {
+  // content edit, so it leaves the writing place where it was. Back to such a stop opens
+  // the box where the user stands (`travel: false`, history.js).
+  /** @param {string} ctx @param {DraftRoute} [options] */
+  const showDraft = async (ctx, { travel = true } = {}) => {
     const route = writingRoute(ctx);
     if (!route) return false;
     const intent = retainUserIntent();
@@ -1374,6 +1374,7 @@ export function createWritingResume({
       intent,
       caret: null,
       onFrame: true,
+      travel,
     });
     return Boolean(frame) && intent();
   };
@@ -1414,6 +1415,25 @@ export function captureDraftEditing(at = focused()) {
     };
   }
   return null;
+}
+
+// The draft focus is on, as history keeps it for an entry the user left writing
+// (history.js): its context, and the caret where focus is in its editor, or `box` where
+// the user stands on the box it is written in, as a walk leaves them
+// (`standsOnDraft`). A reply's mirror is its thread's, which history names by the
+// thread. The words stay in the drafts store, which brings them back with the box.
+/** @param {Element | null} [at] @returns {{draft: string, caret?: import("./focus.js").Caret, box?: true} | null} */
+export function draftFocus(at = focused()) {
+  const editing = captureDraftEditing(at);
+  if (editing && !editing.mirrored)
+    return {
+      draft: editing.context,
+      ...(editing.selection && { caret: editing.selection }),
+    };
+  const stood = [...draftEditors].find(
+    (view) => !view.mirrored && standsOnDraft(view.ctx),
+  );
+  return stood ? { draft: stood.ctx, box: true } : null;
 }
 
 /** @typedef {NonNullable<ReturnType<typeof captureDraftEditing>>} DraftEditing */

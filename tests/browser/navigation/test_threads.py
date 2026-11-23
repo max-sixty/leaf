@@ -1472,7 +1472,8 @@ def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
     row, as the view's own way back does, rather than closing the panel; Forward opens
     the thread again. The entry keeps the list and its row across a reload of the
     document, which forgets the panel's views, so the thread about a passage the reload
-    opens beside its passage still gives way to Threads on Back."""
+    opens beside its passage still gives way to Threads on Back, and after Escape put
+    the thread away, when Back has no thread to put away."""
     url = serve(LONG_PAGE)
     for n, text in enumerate(("First question?", "Second question?", "Third?"), 1):
         panel_comment(
@@ -1504,6 +1505,17 @@ def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
         page.go_forward()
         expect(thread).to_be_visible()
         page.wait_for_function("navigation.transition === null")
+
+    # Escape puts the thread away where the user stands, so Back has no thread to put
+    # away, and the entry's own record names the row.
+    page.keyboard.press("Escape")
+    if thread.is_visible():
+        page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
+    expect(row).to_be_focused()
 
 
 def test_following_a_thread_url_uses_native_history(browser, serve):

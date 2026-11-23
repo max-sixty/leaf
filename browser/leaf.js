@@ -11,7 +11,7 @@ import { offlineInteractive, runtime, annotationMode } from "./runtime/context.j
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
-import { mountHistory } from "./runtime/history.js";
+import { arrivalRecord, mountHistory, returnOnArrival } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -842,6 +842,14 @@ async function boot() {
       name: (url) => threadAddress.name(url),
     },
     list: () => floatingPanel.listShown(),
+    // A draft's box opens where the user stands, as the walk or Resume writing opened it.
+    draft: (key) =>
+      key.box
+        ? writingResume.showDraft(key.draft, { travel: false })
+        : writingResume.resumeDraft(key.draft, {
+            travel: false,
+            ...(key.caret && { caret: key.caret }),
+          }),
   });
   const landFragment = version.aimArrival();
   const { landArrival, savedView, handedOff, restored } = offlineInteractive
@@ -866,11 +874,16 @@ async function boot() {
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
   });
   threadAddress.followOpenThread();
-  // A revision's handoff carries the thread views open across the reload itself
-  // (version.js, `captureRetainedCurrentLocation`).
-  const threadArrive = handedOff
-    ? null
-    : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
+  // A reload, or Back or Forward from another document, arrives at the entry's record,
+  // which returns the user where they left it (history.js, `returnOnArrival`); a
+  // revision's handoff carries its own reload (version.js). Only a visit the entry kept
+  // no record of travels to the thread its address names.
+  const arrival = offlineInteractive || handedOff ? null : arrivalRecord();
+  if (arrival) void afterPresentation(() => returnOnArrival(arrival, threadArrival));
+  const threadArrive =
+    handedOff || arrival
+      ? null
+      : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
   if (threadArrive) void afterPresentation(threadArrive);
 
   async function presentPage() {
@@ -960,9 +973,12 @@ async function boot() {
     // drawn content, so it cannot be a prerequisite for revealing the page itself.
     const draftOpened =
       !offlineInteractive &&
-      // A thread address takes the reader to its destination. The saved draft
-      // remains available through Resume writing, without taking that arrival's focus.
+      // A thread address takes the reader to its destination, and an entry's record
+      // back where they were, which opens the draft only where they were writing it.
+      // The saved draft remains available through Resume writing, without taking that
+      // arrival's focus.
       !threadArrive &&
+      !arrival &&
       recoverComposer() &&
       responseSurface.openDraft(savedComposer);
     if (draftOpened) {

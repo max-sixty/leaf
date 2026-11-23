@@ -198,8 +198,9 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
     words in place. Enter sends the rewrite; Escape and Cancel leave the message as it
     was and discard the words, so one Escape undoes the ↑ (the user's decision).
-    Words a rewrite still holds when the page goes, as on a reload, wait
-    for the next opening, which Resume writing reaches.
+    Words a rewrite still holds when the page goes wait for the next opening, which
+    Resume writing reaches, on a visit that isn't a return to the entry (a reload's is
+    in tests/browser/navigation/test_arrival_record.py).
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the
     log as one `edit` naming the message. The agent's words offer no rewrite, and the
@@ -272,7 +273,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     expect(editor).to_have_js_property("value", "Fit the south bracket.")
     page.keyboard.type(" Or the east.")
     # Words a rewrite holds when the page goes wait for its next opening.
-    page.reload()
+    page.goto(page.url)
     wait_until_ready(page)
     open_panel_thread(page, mine["id"])
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")

@@ -58,8 +58,8 @@ def test_reading_precedes_modules_and_widgets_restore_their_view(browser, serve)
         expect(page.locator("#feed .lf-activity-news")).to_have_attribute(
             "aria-expanded", "true"
         )
-        page.keyboard.press("Tab")
-        expect(page.locator("#early-link")).to_be_focused()
+        # The reload returns focus to the control the user last pressed.
+        expect(page.locator("#feed .lf-activity-news")).to_be_focused()
         summary = page.locator("#contents summary")
         summary.press("Enter")
         expect(page.locator("#contents details")).not_to_have_attribute("open", "")

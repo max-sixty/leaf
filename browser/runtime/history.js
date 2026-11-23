@@ -23,40 +23,52 @@
  *
  * Which thread view an entry shows is its URL's (`?thread=`, thread/address.js). Where
  * the user was on it is the entry's record (`readRecord`), which history keeps in the
- * entry's own state, the Navigation API's. That state outlives a reload of the
- * document, a revision's included, so Back after a reload returns as Back before it.
+ * entry's own state, the Navigation API's, which outlives a reload of the document.
  *
  * The record holds the page, by what stood on screen (reading-place.js,
- * `capturePlace`); the reply at the top of the open thread's view and how far into it
- * (thread/reply-landing.js, `readingIn`), since the view a return opens is a new
- * drawing of the thread; focus, by the identity a revision's reload carries it by,
- * with the caret (carry.js, `focusKey`); the page's selection, as the passage a comment
- * on it would quote (`readSelection`); and the list the floating panel showed, which
- * the URL's claim shows again (thread/address.js). It holds no copy of the thread the
- * URL names: focus in the open view names that view's thread as `null`. Until the
- * reader a thread opens in is the tab's setting, it also holds which reader the open
- * view was, which the URL's claim passes on. Where what focus was on is gone, the user
- * comes back to the reading place beside the page's landmark (focus.js,
- * `landAtReading`).
+ * `capturePlace`); the reply or summary at the top of the open thread's view and how far
+ * into it (thread/reply-landing.js, `readingIn`), since the view a return opens is a
+ * new drawing of the thread; focus, where it is in a draft's own box, as a new
+ * comment's or a message's being rewritten, by that draft (drafts.js, `draftFocus`),
+ * since the arriving document draws that box only once its owner's route reopens it,
+ * and anywhere else, a thread's reply included, by the identity a revision's reload
+ * carries it by, with the caret (carry.js, `focusKey`); the selection
+ * (`readSelection`); and the list
+ * the floating panel showed, with the row the user was on, which the URL's claim shows
+ * again (thread/address.js). It holds no copy of the thread the URL names: a part of
+ * the open view names that view's thread as `null`. Until the reader a thread opens in
+ * is the tab's setting, it also holds which reader the open view was, which the URL's
+ * claim passes on. Where what focus was on is gone, the user comes back to the reading
+ * place beside the page's landmark (focus.js, `landAtReading`); a draft's box opens
+ * again by its owner's Resume writing route, its words coming from the drafts store,
+ * which history never copies.
+ *
+ * The user leaves an entry whenever they leave it for another entry, by a reload, or
+ * for another document, and history writes the record then, and never earlier: the
+ * user may change where they are on an entry until they leave it, and a rename, which
+ * writes the entry's URL with `history.state`, drops the entry's own state in Chromium
+ * and Firefox alike. A route reads its record before it reveals anything, and the push
+ * it commits writes that record (`prepareEntry`); a departure from the document writes
+ * it at `beforeunload`, the last moment both engines keep the write through a reload
+ * (measured: Firefox drops one made at `pagehide` as the page reloads). The user arrives
+ * at an entry by a traversal within the document, or by a reload or a traversal from
+ * another document (`arrivalRecord`), and each returns them to its record the same way
+ * (`returnOnArrival`). Rejected: a map of live nodes and pixel offsets by entry key,
+ * which a reload emptied, so Back after it had nothing to return to, and whose offsets
+ * named content a revision had moved.
  *
  * A revision's handoff (version.js) and the floating panel's hold of where the user
  * stepped in from (`readPlace`) read the same page place, focus identity and thread
  * reading, and stay apart from this record where they need what it must not hold. The
- * handoff restores one entry across a reload it starts, with what that entry alone
- * owes: each reading region's place, the words being written and the values typed,
- * which history never puts back, the comparison and the pointer. The hold is read as
- * the user steps into the panel and used while they stand there, in this document, so
- * it keeps the node they left and its page place, read before the step put away the
- * card that drew it, where a record could name only what the arriving document draws.
- *
- * History writes the record to the entry being left, as the user leaves it, and never
- * earlier: the user may change where they are on an entry until they leave it, and a
- * rename, which writes the entry's URL with `history.state`, drops the entry's own
- * state in Chromium and Firefox alike. A route reads its record before it reveals
- * anything, and the push it commits writes that record (`prepareEntry`). Rejected: a
- * map of live nodes and pixel offsets by entry key, which a revision's reload emptied,
- * so Back after the reload had nothing to return to, and whose offsets named content a
- * revision had moved.
+ * handoff restores a revision's reload itself, in place of this record: besides what
+ * that reload alone owes, each reading region's place, the words being written and the
+ * values typed, which history never puts back, the comparison and the pointer, it
+ * reopens the thread views by the margin's and the panel's own rules for a revision,
+ * as a card whose passage the revision hid opening in the panel, and hands a reply
+ * being written back with its words. The hold is read as the user steps into the panel
+ * and used while they stand there, in this document, so it keeps the node they left
+ * and its page place, read before the step put away the card that drew it, where a
+ * record could name only what the arriving document draws.
  *
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
@@ -124,7 +136,7 @@ import {
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
-import { closestAcross, inChrome, upFrom } from "./shadow-tree.js";
+import { closestAcross, inChrome, renderedUnder, upFrom } from "./shadow-tree.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import {
@@ -143,8 +155,17 @@ import {
   resolveAnchor,
 } from "./anchor-resolution.js";
 import { targetSegments } from "./resolved-target.js";
-import { pageWords, rangeOf } from "./passages.js";
+import {
+  blockAt,
+  pageDocument,
+  pageWords,
+  pointAt,
+  readingHolding,
+  segmentsIn,
+  spanIn,
+} from "./passages.js";
 import { focusKey, focusedBy } from "./carry.js";
+import { draftFocus } from "./drafts.js";
 import { nextRender } from "./rendering.js";
 import { aborted } from "./abort.js";
 
@@ -154,12 +175,14 @@ import { aborted } from "./abort.js";
  * caret: import("./focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
  * thread: ThreadPlace | null}} WorkingPlace
  * @typedef {import("./thread/reply-landing.js").ThreadReading & {reader: "primary" | null}} ViewReading
- * @typedef {Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null}} RecordFocus
- * @typedef {{anchor: import("./anchor-resolution.js").CapturedAnchor} &
- * ({backward: boolean} | {caret: "start" | "end"})} RecordSelection
+ * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
+ * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus
+ * @typedef {{anchor: import("./anchor-resolution.js").CapturedAnchor, ends: [number, number]}
+ * | {thread: string | null, message: string, ends: [number, number]}} RecordSelection
+ * @typedef {{view: string, row: string | null}} RecordList
  * @typedef {{page: import("./reading-place.js").ReadingPlace | null,
  * focus: RecordFocus | null, selection: RecordSelection | null,
- * thread: ViewReading | null, list: string | null}} EntryRecord
+ * thread: ViewReading | null, list: RecordList | null}} EntryRecord
  * @typedef {import("./thread/address.js").OpenThread} OpenThread
  * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
  * @typedef {(url: URL) => TraversalHandler | null | undefined} TraversalClaim
@@ -275,42 +298,113 @@ function readRecord() {
   const open = threadParts?.open() ?? null;
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   const reading = drawing && readingIn(drawing);
-  const focus = focusKey(deepFocus());
+  const at = deepFocus();
+  // Focus in a draft's own box names the draft, whose owner draws the box again only
+  // as its route reopens it; its words stay in the drafts store.
+  const focus = draftFocus(at) ?? focusKey(at);
   return {
     page,
     // The open view's thread is the one the entry's URL names (the header).
-    focus:
-      focus?.thread && focus.thread === open?.id ? { ...focus, thread: null } : focus,
-    selection: anchoringIsReady() ? readSelection() : null,
+    focus: unnamed(focus, open),
+    selection: anchoringIsReady() ? unnamed(readSelection(), open) : null,
     thread: open && reading ? { ...reading, reader: open.reader } : null,
     list: listShown?.() ?? null,
   };
 }
 
-// The page's selection as the passage a comment on it would quote (anchor-resolution.js,
-// `anchorForRange`), found again by its words in whatever revision draws them, and its
-// direction. A caret is the passage from it to the end of its run of text, or from the
-// run's start to it where it stands at the end, and comes back at that end of the
-// passage. Words selected in Leaf's own interface are no passage of the page.
+// `part`, with the open view's thread, which the entry's URL names, named as `null`
+// (the header).
+/** @template {object | null} T @param {T} part @param {OpenThread | null} open @returns {T} */
+const unnamed = (part, open) =>
+  part && "thread" in part && part.thread === open?.id
+    ? { ...part, thread: null }
+    : part;
+
+// The page's selection: the passage a comment on its words would quote, or on its
+// block's words for a caret or a run of spaces (anchor-resolution.js, `anchorForRange`),
+// found again by its words in whatever revision draws them; and each of its ends, anchor
+// end first, as how far it stands from that passage's start in the reading of the page
+// that holds it (passages.js, `spanIn`, `pointAt`). The quote alone can't hold the ends:
+// it trims the spaces at its edges and holds no caret, so a caret before a space came
+// back after it. Words selected in Leaf's own interface are no passage of the page.
 /** @returns {EntryRecord["selection"]} */
 function readSelection() {
   const selection = getSelection();
   const range = selection?.rangeCount ? pageRange(selection) : null;
-  if (!selection || !range || !pageWords(range.startContainer)) return null;
-  if (!range.collapsed) {
-    const anchor = anchorForRange(range);
-    return anchor?.quote
-      ? { anchor, backward: selectionBackward(selection, range) }
-      : null;
-  }
-  const { startContainer: text, startOffset: at } = range;
-  if (!(text instanceof Text)) return null;
-  const caret = at < text.length ? "start" : "end";
+  if (!selection || !range) return null;
+  /** @param {[number, number]} ends @returns {[number, number]} */
+  const directed = (ends) =>
+    selectionBackward(selection, range) ? [ends[1], ends[0]] : ends;
+  const turn = closestAcross(range.startContainer, "[data-lf-message]");
+  if (turn && renderedUnder(range.endContainer, turn))
+    return inMessage(turn, range, directed);
+  if (!pageWords(range.startContainer)) return null;
+  const words = /\S/.test(range.toString()) ? range : blockWords(range.startContainer);
+  const anchor = words && anchorForRange(words);
+  const segments = anchor?.quote ? targetSegments(resolveAnchor(anchor)) : [];
+  if (!anchor || !segments[0]) return null;
+  const reading = readingHolding(segments[0].node);
+  const [base] = spanIn(reading, segments);
+  const start = readingIndex(reading, range.startContainer, range.startOffset);
+  const end = readingIndex(reading, range.endContainer, range.endOffset);
+  if (start === null || end === null) return null;
+  return { anchor, ends: directed([start - base, end - base]) };
+}
+// A selection inside one message of a thread, which the page's reading doesn't hold:
+// the message, by its thread and its id, and each end as how many of its characters
+// come before it, which name the same place in every drawing of the message, since its
+// words are the log's.
+/** @param {Element} turn @param {AbstractRange} range @param {(ends: [number, number]) => [number, number]} directed
+ * @returns {RecordSelection | null} */
+function inMessage(turn, range, directed) {
+  const drawing = closestAcross(turn, THREAD);
+  const thread = drawing && drawnThreadId(wholeThread(drawing));
+  const message = turn.getAttribute("data-lf-message");
+  if (!thread || !message) return null;
+  /** @param {Node} node @param {number} offset */
+  const before = (node, offset) => {
+    const words = document.createRange();
+    words.setStart(turn, 0);
+    words.setEnd(node, offset);
+    return words.toString().length;
+  };
+  const start = before(range.startContainer, range.startOffset);
+  const end = before(range.endContainer, range.endOffset);
+  return { thread, message, ends: directed([start, end]) };
+}
+// The words of the block holding `node`, as a range.
+/** @param {Node} node */
+function blockWords(node) {
+  const block = blockAt(node);
+  if (!block) return null;
   const words = document.createRange();
-  words.setStart(text, caret === "start" ? at : 0);
-  words.setEnd(text, caret === "start" ? text.length : at);
-  const anchor = anchorForRange(words);
-  return anchor?.quote ? { anchor, caret } : null;
+  words.selectNodeContents(block);
+  return words;
+}
+// Where a point stands in `reading`: its text's place there and its offset, or, for a
+// point between elements, the first character after it in its block, else the end of
+// the last before it; null for a point the reading doesn't hold.
+/** @param {import("./passages.js").PageReading} reading @param {Node} node @param {number} offset */
+function readingIndex(reading, node, offset) {
+  /** @type {Node} */
+  let text = node;
+  let at = offset;
+  if (!(node instanceof Text)) {
+    const block = blockAt(node) ?? pageDocument();
+    const after = document.createRange();
+    after.setStart(node, offset);
+    after.setEnd(block, block.childNodes.length);
+    const before = document.createRange();
+    before.setStart(block, 0);
+    before.setEnd(node, offset);
+    const next = segmentsIn(after)[0];
+    const last = next ? null : segmentsIn(before).at(-1);
+    if (next) [text, at] = [next.node, next.start];
+    else if (last) [text, at] = [last.node, last.end];
+    else return null;
+  }
+  const start = text instanceof Text ? reading.positions.get(text) : undefined;
+  return start === undefined ? null : start + at;
 }
 
 // Put the user back where a record says they were, once the claimants have revealed
@@ -326,16 +420,24 @@ function returnTo(record) {
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   if (record.thread && drawing) showReading(drawing, record.thread);
   const key = record.focus;
-  const thread = key?.thread === null ? (open?.id ?? null) : key?.thread;
   /** @param {string} id */
   const drawingOf = (id) => threadParts?.focusTarget(id, "thread") ?? null;
-  const focus =
-    key && thread !== null
-      ? focusedBy(
-          /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
-          drawingOf,
-        )
-      : null;
+  // A draft's box opens again where the user stands, by its owner's Resume writing
+  // route, with the user on the box or in its words at their caret.
+  if (key && "draft" in key) {
+    void draftReturn?.(key);
+    return;
+  }
+  /** @type {Element | null} */
+  let focus = null;
+  if (key) {
+    const thread = key.thread === null ? (open?.id ?? null) : key.thread;
+    if (thread !== null)
+      focus = focusedBy(
+        /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
+        drawingOf,
+      );
+  }
   const caret = key?.caret ?? null;
   if (focus && focus !== document.body && presented(focus)) {
     focusDestination(focus, "return", { caret });
@@ -343,25 +445,60 @@ function returnTo(record) {
     // collapse it.
     if (caret) return;
   } else if (!record.list) landAtReading();
-  returnSelection(record.selection && passageEnds(record.selection));
+  const { selection } = record;
+  returnSelection(
+    selection &&
+      ("message" in selection
+        ? messageEnds(selection, selection.thread ?? open?.id ?? null)
+        : passageEnds(selection)),
+  );
 }
 
-// The ends a record's selection names now, or none where its words are gone.
-/** @param {NonNullable<EntryRecord["selection"]>} selection
+// The ends a record's selection names now, or none where its words are gone. An end
+// standing on an edge between elements, which holds no character, comes back just after
+// the character before it.
+/** @param {Extract<RecordSelection, {anchor: unknown}>} selection
  * @returns {[import("./native-selection.js").SelectionEnd, import("./native-selection.js").SelectionEnd] | null} */
-function passageEnds(selection) {
-  const segments = targetSegments(resolveAnchor(selection.anchor));
+function passageEnds({ anchor, ends }) {
+  const segments = targetSegments(resolveAnchor(anchor));
   // Words the page draws, since a passage resolves through what a reader has shut too.
-  if (!segments.length || !segments.every(({ node }) => drawn(upFrom(node))))
+  if (!segments[0] || !segments.every(({ node }) => drawn(upFrom(node)))) return null;
+  const reading = readingHolding(segments[0].node);
+  const [base] = spanIn(reading, segments);
+  /** @param {number} i @returns {import("./native-selection.js").SelectionEnd | null} */
+  const point = (i) => {
+    const at = pointAt(reading, base + i);
+    if (at) return [at.node, at.offset];
+    const before = pointAt(reading, base + i - 1);
+    return before ? [before.node, before.offset + 1] : null;
+  };
+  const from = point(ends[0]);
+  const to = point(ends[1]);
+  return from && to ? [from, to] : null;
+}
+
+// The ends a message selection names in the drawing of its thread, or none where the
+// message is gone or shut.
+/** @param {Extract<RecordSelection, {message: string}>} selection @param {string | null} thread
+ * @returns {[import("./native-selection.js").SelectionEnd, import("./native-selection.js").SelectionEnd] | null} */
+function messageEnds({ message, ends }, thread) {
+  const drawing = thread ? threadParts?.focusTarget(thread, "thread") : null;
+  const turn = drawing?.querySelector(`[data-lf-message="${CSS.escape(message)}"]`);
+  if (!turn || !drawn(turn)) return null;
+  /** @param {number} count @returns {import("./native-selection.js").SelectionEnd | null} */
+  const point = (count) => {
+    const texts = document.createTreeWalker(turn, NodeFilter.SHOW_TEXT);
+    let left = count;
+    for (let text = texts.nextNode(); text; text = texts.nextNode()) {
+      const { length } = /** @type {Text} */ (text);
+      if (left <= length) return [text, left];
+      left -= length;
+    }
     return null;
-  const range = rangeOf(segments);
-  /** @type {import("./native-selection.js").SelectionEnd} */
-  const start = [range.startContainer, range.startOffset];
-  /** @type {import("./native-selection.js").SelectionEnd} */
-  const end = [range.endContainer, range.endOffset];
-  if ("caret" in selection)
-    return selection.caret === "start" ? [start, start] : [end, end];
-  return selection.backward ? [end, start] : [start, end];
+  };
+  const from = point(ends[0]);
+  const to = point(ends[1]);
+  return from && to ? [from, to] : null;
 }
 
 // Whether a record can place the page itself: a landmark it can find again, its start,
@@ -482,20 +619,72 @@ export function claimTraversals(claim, { signal } = {}) {
 // panel shows, which a thread opened from it stands over.
 /** @type {{open: () => OpenThread | null, focusTarget: (id: string, part: "thread" | "reply") => Element | null} | null} */
 let threadParts = null;
-/** @type {(() => string | null) | null} */
+/** @type {(() => RecordList | null) | null} */
 let listShown = null;
+/** @type {ThreadClaim | null} */
+let threadClaim = null;
+/** @type {((key: NonNullable<ReturnType<typeof draftFocus>>) => unknown) | null} */
+let draftReturn = null;
+
+// The record of the entry this document arrived at by a reload, or by Back or Forward
+// from another document (the Navigation API's `activation`), which history wrote as the
+// user left it; null for a fresh visit, whose address alone says where to go.
+/** @returns {EntryRecord | null} */
+export function arrivalRecord() {
+  const type = window.navigation.activation?.navigationType;
+  if (type !== "reload" && type !== "traverse") return null;
+  const record = /** @type {EntryRecord | undefined} */ (
+    window.navigation.currentEntry?.getState()
+  );
+  return record ?? null;
+}
+
+// Return to an arrival's record once the page is presented, as a traversal within the
+// document returns to its destination's: the page placed by its record, the thread or
+// list the entry shows opened by the URL's claim (thread/address.js), then where the user
+// was in it (`returnTo`).
+/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent */
+export async function returnOnArrival(record, intent) {
+  if (!intent()) return;
+  if (record.page && placesPage(record.page)) restorePlace(record.page, null, intent);
+  /** @type {unknown} */
+  let work;
+  intent.handoff(() => {
+    work = threadClaim?.(new URL(location.href), record)?.();
+  });
+  await work;
+  if (intent()) intent.handoff(() => returnTo(record));
+}
 let mounted = false;
 /** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
  * returnToFragment: (url: URL) => TraversalHandler | null | undefined,
  * thread: {claim: ThreadClaim, open: () => OpenThread | null,
  * focusTarget: (id: string, part: "thread" | "reply") => Element | null,
- * name: (url: URL) => URL}, list: () => string | null}} options */
-export function mountHistory({ followFragment, returnToFragment, thread, list }) {
+ * name: (url: URL) => URL}, list: () => RecordList | null,
+ * draft: (key: NonNullable<ReturnType<typeof draftFocus>>) => unknown}} options */
+export function mountHistory({
+  followFragment,
+  returnToFragment,
+  thread,
+  list,
+  draft,
+}) {
   if (mounted) return;
   mounted = true;
   threadParts = thread;
   nameThread = thread.name;
+  threadClaim = thread.claim;
   listShown = list;
+  draftReturn = draft;
+  // A document the browser keeps no entries for, as a sample's sandboxed frame, whose
+  // origin is opaque, has no entry to keep a record in.
+  if (!window.navigation.currentEntry) return;
+  // Leaving for another document, by a reload or a link out of the page, leaves the
+  // entry too (the header).
+  addEventListener("beforeunload", () => {
+    if (anchoringIsReady())
+      window.navigation.updateCurrentEntry({ state: readRecord() });
+  });
   window.navigation.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);

@@ -140,33 +140,45 @@ const headLine = (scroller) =>
   scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
 
 // Where the user has read a thread's view to: the turn standing at the top of the box
-// scrolling its transcript (`headLine`), by the message it draws, and how far below
-// that line it starts. `showReading` stands that turn there again in a new drawing of
-// the thread, so its lines come back where they stood though turns above them grew,
-// folded or arrived since. History keeps it for each entry (history.js), the panel's
+// scrolling its transcript (`headLine`), a message by the message it draws or a
+// summary's fold by its summary, of the turns the transcript shows, and how far below
+// that line it starts. A message a closed fold holds is no turn the user read to.
+// `showReading` stands that turn there again in a new drawing of the thread, so its
+// lines come back where they stood though turns above them grew, folded or arrived
+// since. History keeps it for each entry (history.js), the panel's
 // hold of where the user stepped in from, and a revision's handoff of the panel's view
 // (floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
 // one placement keeps the offset it reads and writes within that fit instead
 // (thread-preview.js), since the drawing it measures stays the same.
-/** @typedef {{message: string, offset: number}} ThreadReading */
+/** @typedef {{offset: number} & ({message: string} | {summary: string})} ThreadReading */
 /** @param {Element} held @returns {ThreadReading | null} */
 export function readingIn(held) {
   const transcript = held.querySelector(".lf-thread-transcript");
   if (!transcript) return null;
   const line = headLine(scrollerFor(transcript));
-  for (const turn of transcript.querySelectorAll(":scope > .lf-msg[data-lf-message]")) {
+  const turns = transcript.querySelectorAll(
+    ":scope > :is(.lf-msg[data-lf-message], .lf-thread-checkpoint[data-lf-summary-id])",
+  );
+  for (const turn of turns) {
+    if (!showsContents(turn)) continue;
     const { top, bottom } = turn.getBoundingClientRect();
+    if (bottom <= line) continue;
     const message = turn.getAttribute("data-lf-message");
-    if (bottom > line && message) return { message, offset: top - line };
+    const summary = turn.getAttribute("data-lf-summary-id");
+    if (message) return { message, offset: top - line };
+    if (summary) return { summary, offset: top - line };
   }
   return null;
 }
 /** @param {Element} held @param {ThreadReading} reading */
-export function showReading(held, { message, offset }) {
+export function showReading(held, reading) {
   const transcript = held.querySelector(".lf-thread-transcript");
   const turn = transcript?.querySelector(
-    `:scope > .lf-msg[data-lf-message="${CSS.escape(message)}"]`,
+    "message" in reading
+      ? `:scope > .lf-msg[data-lf-message="${CSS.escape(reading.message)}"]`
+      : `:scope > .lf-thread-checkpoint[data-lf-summary-id="${CSS.escape(reading.summary)}"]`,
   );
+  const { offset } = reading;
   if (!transcript || !turn || !showsContents(turn)) return;
   const scroller = scrollerFor(transcript);
   moveScrollerBy(

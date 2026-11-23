@@ -355,7 +355,13 @@ import {
   REPLY_HINT,
 } from "./words.js";
 import { coarsePointer } from "./pointer.js";
-import { afterScript, holdRendering, nextRender, sizeObserver } from "./rendering.js";
+import {
+  afterScript,
+  afterSettling,
+  holdRendering,
+  nextRender,
+  sizeObserver,
+} from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
@@ -5916,35 +5922,83 @@ export function createFloatingPanel({
     if (view) focusDestination(pressLed() || !line ? view : line, "move");
   }
 
-  // A live revision carries the thread open here, and where its view was read to,
-  // across it (version.js, `captureRetainedCurrentLocation`), and so does a return to
-  // a working place (history.js, `returnPlace`), as Back from a link followed out of
-  // the view is: the reader is still at it, so the view comes back as they left it,
-  // with the user in it where they were, and with the reply's own editing continuity
-  // handing back the field. A revision installed in place keeps the view, which still
-  // shows the thread, so its restore changes nothing. A view opened by the user's next
-  // visit does not come back (restore-state.js); this is not that.
+  // A live revision carries the view open here across it, a thread and where its view
+  // was read to, or a list (version.js, `captureRetainedCurrentLocation`), and so does a
+  // return to a working place (history.js, `returnPlace`), as Back from a link followed
+  // out of the view is: the reader is still at it, so the view comes back as they left
+  // it, with the user in it where they were, and with a reply's own editing continuity
+  // handing back the field. A revision installed in place keeps the view, so its
+  // restore changes nothing. A view opened by the user's next visit does not come back
+  // (restore-state.js); this is not that. The lists that come back are those whose
+  // route is the view's name alone, as Threads and On Me are; one a route qualifies,
+  // as a menu group or Errors, stays shut.
   /** @param {Element | null} [at] the node the user is on, else where focus is */
   function captureCurrentLocation(at = focused()) {
     const top = trail.value.at(-1);
-    const view = openView();
-    if (!top?.thread || !view) return null;
-    return {
-      thread: threadByKey(top.thread)?.key ?? top.thread,
-      scroll: view.scrollTop,
-      // The user is in the thread on its view or its head line, whose Resolve and
-      // Show on page stand for the view; the field's reply is its editing continuity's.
-      focus: [view, head].some(
+    // The user is in the view or on its head line, whose controls, as a thread's
+    // Resolve and Show on page, stand for the view; a reply in the field is its editing
+    // continuity's.
+    /** @param {Element} view */
+    const within = (view) =>
+      [view, head].some(
         (part) => at && at !== document.body && renderedUnder(at, part),
-      ),
+      );
+    if (top?.thread) {
+      const view = openView();
+      if (!view) return null;
+      return {
+        thread: threadByKey(top.thread)?.key ?? top.thread,
+        scroll: view.scrollTop,
+        focus: within(view),
+      };
+    }
+    const view = shownView();
+    if (!top || !view || Object.keys(top).some((part) => part !== "view")) return null;
+    const row = at ? listRows().find((node) => renderedUnder(at, node)) : null;
+    return {
+      list: top.view,
+      tab: top.view === "queue" ? queueTab : null,
+      row: row?.getAttribute("data-lf-key") ?? null,
+      scroll: view.scrollTop,
+      focus: within(view),
     };
   }
-  // The view opens again through the thread's route, which keeps one thread open
+  // A thread's view opens again through the thread's route, which keeps one thread open
   // (thread/destination.js), so a card a walk opened since closes. The route has this
   // panel open the view in the task that asks (`reveal`), so the landing set after it
-  // is the one the view's drawing lands at.
+  // is the one the view's drawing lands at. A list opens by its name, On on the tab it
+  // stood at, with the user on the list or on their row where it still stands, else
+  // where opening the list by a key puts them (`focusView`).
   /** @param {ReturnType<typeof captureCurrentLocation>} currentLocation */
   async function restoreCurrentLocation(currentLocation) {
+    if (currentLocation && "list" in currentLocation) {
+      const { list, tab, row, scroll, focus } = currentLocation;
+      const route = /** @type {PanelRoute} */ ({ view: list });
+      const turned = tab ? chooseQueueTab(tab) : false;
+      if (showing(route) && !turned) return true;
+      if (turned && showing(route)) paint();
+      else open(route, { reopen: true, focus: false });
+      const view = shownView();
+      if (!view) return false;
+      if (focus) {
+        const at =
+          row === null
+            ? view
+            : listRows().find((node) => node.getAttribute("data-lf-key") === row);
+        if (at) focusDestination(at, "return");
+        else focusView(trail.value.at(-1), null);
+      }
+      // The list stands where it was read to once what it holds has drawn, the cards
+      // the reader presents and the widgets in them, unless the user has moved since.
+      if (!scroll) return true;
+      const intent = retainUserIntent({ source: view });
+      await present();
+      afterSettling(() => {
+        if (intent() && shownView() === view)
+          moveScrollerBy(view, scroll - view.scrollTop);
+      });
+      return true;
+    }
     const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread || !currentLocation) return false;
     const { scroll, focus } = currentLocation;

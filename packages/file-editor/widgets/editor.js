@@ -51,7 +51,6 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from "/vendor/extensions.esm.js";
-import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 const LeafEditorView = leafEditorView(codemirror);
 
@@ -70,9 +69,6 @@ const theme = EditorView.theme({
   // Where another writer took whole lines away, a rule in the accent across the gap.
   ".cm-line.lf-written-gap": { boxShadow: "inset 0 2px var(--lf-accent)" },
   ".cm-line.lf-written-gap-below": { boxShadow: "inset 0 -2px var(--lf-accent)" },
-  ".cm-line.lf-written-gap.lf-written-gap-below": {
-    boxShadow: "inset 0 2px var(--lf-accent), inset 0 -2px var(--lf-accent)",
-  },
   ".cm-gutters": {
     backgroundColor: "var(--lf-paper)",
     color: "var(--lf-muted)",
@@ -283,42 +279,46 @@ const written = StateField.define({
   },
   provide: (field) => EditorView.decorations.from(field),
 });
-// The marks for a write from elsewhere that took `before` to `after`, read from a diff
-// of their lines: each line the write put in, and where a run of its changes took away
-// more lines than it put in, the gap they leave, after the lines it put in. The
-// changes CodeMirror applies are a diff of characters, which starts and ends wherever
-// the two texts stop agreeing, so one change can join and split lines, as a rewrapped
-// paragraph's do, and two can meet inside a line neither changed.
-/** @param {import("@codemirror/state").Text} before
+// The marks for `changes`, a write from elsewhere that took `before` to `after`: each
+// line of `after` whose text differs from the line it replaced, and where it took
+// lines away and put none in their place, the gap they leave. A change from the
+// dependency's diff starts and ends wherever the two texts stop agreeing, which can be
+// within a line the write left alone: a line inserted above "three" can arrive as
+// "wo\nt" inserted after the "t" of "three", and one appended below "one" as "\ntwo"
+// after it. So each change is read as the whole lines it touches, before and after,
+// and the lines the two ends of that run share are left unmarked.
+/** @param {ChangeSet} changes @param {import("@codemirror/state").Text} before
  * @param {import("@codemirror/state").Text} after */
-const writtenMarks = (before, after) => {
-  const marks = [];
-  let line = 1,
-    removed = 0,
-    added = 0;
-  const closeRun = () => {
-    if (removed > added)
-      marks.push(
-        (line > after.lines ? gapBelow : gapAbove).range(
-          after.line(Math.min(line, after.lines)).from,
-        ),
-      );
-    removed = added = 0;
+const writtenMarks = (changes, before, after) => {
+  /** @type {Map<number, Decoration>} */
+  const marks = new Map();
+  /** @param {import("@codemirror/state").Text} doc @param {number} from @param {number} to */
+  const linesOf = (doc, from, to) => {
+    const first = doc.lineAt(from).number;
+    const texts = [];
+    for (let n = first; n <= doc.lineAt(to).number; n++) texts.push(doc.line(n).text);
+    return { first, texts };
   };
-  for (const part of diffArrays(before.toJSON(), after.toJSON())) {
-    const { count } = part;
-    if (part.removed) removed += count;
-    else if (part.added) {
-      added += count;
-      for (const end = line + count; line < end; line++)
-        marks.push(writtenLine.range(after.line(line).from));
-    } else {
-      closeRun();
-      line += count;
-    }
-  }
-  closeRun();
-  return Decoration.set(marks, true);
+  changes.iterChanges((fromA, toA, fromB, toB) => {
+    const old = linesOf(before, fromA, toA).texts;
+    const { first, texts } = linesOf(after, fromB, toB);
+    const shared = Math.min(old.length, texts.length);
+    let lead = 0;
+    while (lead < shared && old[lead] === texts[lead]) lead++;
+    let trail = 0;
+    while (trail < shared - lead && old.at(-1 - trail) === texts.at(-1 - trail))
+      trail++;
+    for (let n = first + lead; n < first + texts.length - trail; n++)
+      marks.set(after.line(n).from, writtenLine);
+    if (lead + trail < texts.length || lead + trail === old.length) return;
+    const at = first + lead;
+    const line = after.line(Math.min(at, after.lines));
+    if (!marks.has(line.from))
+      marks.set(line.from, at > after.lines ? gapBelow : gapAbove);
+  });
+  return Decoration.set(
+    [...marks].sort(([a], [b]) => a - b).map(([at, mark]) => mark.range(at)),
+  );
 };
 // Every editor's undo history, in one compartment the module shares, so a write from
 // elsewhere restarts a kept file's history as it restarts the shown one's.
@@ -339,7 +339,9 @@ const writeFromElsewhere = (state, changes, mark = true) => [
     effects: [
       undoHistory.reconfigure([]),
       markWritten.of(
-        mark ? writtenMarks(state.doc, changes.apply(state.doc)) : Decoration.none,
+        mark
+          ? writtenMarks(changes, state.doc, changes.apply(state.doc))
+          : Decoration.none,
       ),
     ],
     annotations: [Transaction.addToHistory.of(false), fromElsewhere.of(true)],

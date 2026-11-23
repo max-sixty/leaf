@@ -2092,7 +2092,7 @@ def test_a_custom_command_is_one_its_targets_contracts_list(page_dir):
         {},
         None,
     )
-    assert found(in_message, "unknown-command", **unlisted), in_message
+    assert found(in_message, "unknown-command", None, **unlisted), in_message
 
     (page_dir / "index.html").write_text(
         PAGE.replace(

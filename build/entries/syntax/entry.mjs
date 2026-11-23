@@ -117,17 +117,20 @@ export async function registerLanguage(lang, grammar) {
   await instance.loadLanguage(grammar);
 }
 
+const maxLineLength = 20000;
+
 /** Offsets preserve original line endings even when Shiki normalizes its lines. Returns
  * the tokens and the grammar state their last line ends in, which a later call takes as
  * `state` to continue from it: a text tokenized a part at a time, each part from the
  * state the one before it ended in, is coloured as the whole text would be.
  *
- * A line is tokenized to its end however long it takes. Shiki's default stops a line
- * after 500 ms and leaves its rest uncoloured, and a grammar's first line pays for
- * compiling the rules it reaches, which on a loaded machine can run past that, so a
- * block's first line would keep its tail in plain ink. The limit bounds only the loop
- * between matches, not a single regex match, so without it a very long line pauses and
- * then ends coloured. */
+ * A line shorter than `maxLineLength` is coloured to its end however long it takes, and
+ * a longer one, such as minified code, stays in plain ink. The main thread's time is
+ * bounded by length rather than by Shiki's default of 500 ms a line, because a time
+ * limit depends on the machine's load: a grammar's first line pays for compiling the
+ * rules it reaches, which on a loaded machine runs past 500 ms and leaves the tail of a
+ * short line uncoloured. The maintainer chose the length bound over tokenizing in a
+ * worker. The cap is VS Code's; a line just under it takes nearly a second unloaded. */
 /** @param {string} source @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
 export async function tokenize(source, lang, state) {
   return (await tokenizer(lang))(source, state);
@@ -176,6 +179,7 @@ function tokenized(instance, source, lang, state) {
     lang,
     theme: themeName,
     tokenizeTimeLimit: 0,
+    tokenizeMaxLineLength: maxLineLength,
     ...(state && { grammarState: state }),
   });
   /** @type {{text: string, style: import("@shikijs/core").TokenStyles}[]} */

@@ -50,7 +50,6 @@ from leaf.registry.kernel import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
-from leaf.shown_answers import shown_widget
 from leaf.thread_context import thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
@@ -205,10 +204,6 @@ def position_record_error(
     unit = by_id.get(unit_id)
     if unit is None:
         return Finding("unknown-unit", values=named)
-    # A view's place is its widget's answer (`shown_answers.py`), so a move of it
-    # would be a second record of that answer.
-    if shows := shown_widget(unit, registry):
-        return Finding("shown-unit", values={**named, "shows": shows})
 
     target = by_id.get(target_id)
     if target is None:

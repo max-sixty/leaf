@@ -1,5 +1,5 @@
 // @ts-check
-/* What changed since the user last saw the page, and `v`, which marks it.
+/* What changed since the user last saw the page, and the version Versions names for it.
 
    A revision counts as seen when it is on the page while the user is there: the
    document visible, holding focus, and its reading continuous (reading-continuity.js).
@@ -25,13 +25,13 @@
    When the user comes back, by a load, a return to a hidden tab once its first
    refreshed reading is in, or focus returning to the window, to a revision newer than
    any they saw, a notice says how much changed since the version they last saw ("3
-   changes since v12") and offers Show changes, `v`'s press, as its own
-   (notifications.js, `press`). A return to a draft they watched land says nothing,
-   though it differs from that version, since nothing in it is news. The notice is
-   news, as a version's arrival is: it waits behind the user's own commands and passes
-   with its press after a notice's time (notifications.js), and the leaf's menu keeps
-   Show changes as the lasting route. A revision landing while the notice is counted
-   starts the count again. The page arrives unmarked: the user chose to call the marks
+   changes since v12") and offers Show changes as its press (notifications.js,
+   `press`), which marks those changes. A return to a draft they watched land says
+   nothing, though it differs from that version, since nothing in it is news. The
+   notice is news, as a version's arrival is: it waits behind the user's own commands
+   and passes with its press after a notice's time (notifications.js), and Versions
+   keeps the lasting route. A revision landing while the notice is counted starts the
+   count again. The page arrives unmarked: the user chose to call the marks
    up with a key rather than have them waiting, and to be told on return that there is
    something to call up, in a notice that passes like the others. Rejected: holding the
    notice and its press until the user's next input, as an Undo's is held, which held
@@ -39,13 +39,17 @@
    the document is presented, so the comparison it runs (version.js, `changesSince`)
    stays off the path to first showing the page.
 
-   `v` marks what changed since the version the user last saw while the page holds
-   changes since then, and otherwise since the newest version older than the one being
-   read; pressing it again takes off any comparison, whichever press started it. The
-   user chose a toggle over a key that opens Versions and re-marks the page as its rows
-   are walked. An older base stays with Versions, which `g V` opens. The version is the
-   one found at the user's arrival, so watching a revision land doesn't move what `v`
-   compares with until they leave and come back.
+   Versions names the version the user last saw "last seen" while the page holds
+   changes since then, and opens on it, else on the newest older version (version.js,
+   `sawLast`). `v` there presses the Compare of the version the user stands on, so
+   `g V v` marks what Show changes does, and the same keys take the marks off again,
+   since Versions opens on the version compared with. Show changes says those keys
+   (version.js, `throughVersions`). The user chose to keep this comparison in Versions,
+   where every other base is, at the cost of three presses rather than one. Rejected:
+   a page key of its own, a bare `v` toggling it on every page, which set the
+   comparison apart from Versions. The version is the one found at the user's arrival,
+   so watching a revision land doesn't move what Versions names until they leave and
+   come back.
 
    Only the page itself takes part: a sample or other framed page is part of the page
    around it, and a reader of a hosted copy, who has no private page until they act
@@ -57,16 +61,15 @@ import { sessionIsActive } from "./layer-client.js";
 import { whenDocumentPresented } from "./semantic-state.js";
 import { tabStore } from "./tab-store.js";
 import { notice } from "./notifications.js";
-import { pageCommand } from "./keyboard/register.js";
-import { pressCommand } from "./keyboard/dispatch.js";
-import { savedReadingSettled } from "./keyboard/bindings.js";
 import {
+  COMPARE_KEY,
   changesSince,
   comparable,
-  endComparison,
   revisionBase,
+  sawLast,
   selectedBase,
   showComparison,
+  throughVersions,
 } from "./version.js";
 import { counted } from "./words.js";
 
@@ -93,8 +96,6 @@ export function createSinceSeen({ markSeen }) {
   // Counts arrivals, so a count in flight answers only the arrival that started it, and
   // its notice stands only until the next (notifications.js, `stands`).
   const arrival = signal(0);
-  // The version the user last saw, as their arrival found it.
-  const lastSeen = signal(/** @type {Version | null} */ (null));
 
   const takesPart = () =>
     window === window.top && LIVE_ROOT && sessionIsActive() && runtime.state !== null;
@@ -111,60 +112,26 @@ export function createSinceSeen({ markSeen }) {
     seen
       ? (runtime.versions.findLast((entry) => entry.revision <= seen.revision) ?? null)
       : null;
-  // What `v` compares with: the version the user last saw while the page has changed
-  // since, otherwise the newest version older than the one being read.
-  const base = () => {
-    const since = lastSeen.value;
-    return since && comparable(since.revision)
-      ? since
-      : (runtime.versions.findLast((entry) => comparable(entry.revision)) ?? null);
-  };
-  const toggle = () => {
-    if (selectedBase()) return endComparison();
-    const since = base();
-    if (since) return showComparison(revisionBase(since));
-  };
-  const named = () => {
-    const since = base();
-    return since ? ` since v${since.version}` : "";
-  };
-  pageCommand({
-    id: "changes.toggle",
-    ready: savedReadingSettled,
-    keys: ["v"],
-    title: () => (selectedBase() ? "hide changes" : `show changes${named()}`),
-    touch: () => (selectedBase() ? "Hide changes" : `Show changes${named()}`),
-    menu: "annotate",
-    when: () => selectedBase() !== null || base() !== null,
-    run: toggle,
-  });
-
   // The notice of what changed since `since`, said once the count of the revision
   // being read is in, and only while no later arrival has come, nothing is marked
-  // meanwhile and `v` still compares with that version.
+  // meanwhile and the page still holds changes since that version.
   /** @param {Version} since @param {number} mine */
   async function tell(since, mine) {
     const holds = () =>
-      mine === arrival.value && !selectedBase() && base()?.revision === since.revision;
+      mine === arrival.value && !selectedBase() && comparable(since.revision);
     await whenDocumentPresented();
-    while (holds()) {
-      const revision = runtime.currentRevision;
-      const n = await changesSince(revisionBase(since)).catch(() => undefined);
-      if (n === undefined) return;
-      if (n === null || runtime.currentRevision !== revision) continue;
-      if (n && holds())
-        notice(`${counted(n, "change")} since v${since.version}`, {
-          background: true,
+    const n = await changesSince(revisionBase(since), holds).catch(() => null);
+    if (n && holds())
+      notice(`${counted(n, "change")} since v${since.version}`, {
+        background: true,
+        stands: holds,
+        press: {
+          action: "show-changes",
+          keys: () => throughVersions(COMPARE_KEY),
+          run: () => showComparison(revisionBase(since)),
           stands: holds,
-          press: {
-            action: "show-changes",
-            command: "changes.toggle",
-            run: () => pressCommand("changes.toggle"),
-            stands: holds,
-          },
-        });
-      return;
-    }
+        },
+      });
   }
 
   function present() {
@@ -176,7 +143,7 @@ export function createSinceSeen({ markSeen }) {
       arrival.value = mine;
       const seen = newestSeen();
       const since = versionAt(seen);
-      lastSeen.value = since;
+      sawLast(since);
       if (since && seen && seen.revision < current && comparable(since.revision))
         void tell(since, mine);
     }

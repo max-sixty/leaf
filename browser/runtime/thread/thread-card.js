@@ -111,12 +111,11 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  glideTo,
+  glideBy,
   SCROLL_SLACK,
   scrollGoal,
   scrollLimit,
   scrollToEnd,
-  whereGlidesLand,
 } from "../scrolling.js";
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
@@ -264,9 +263,10 @@ function workingMessage(thread, messages) {
   );
   // The line of the start on a to-do of the agent's on the thread: one running, else
   // one that stopped or went quiet, which keeps the line it last said.
-  const todo = thread.todos.find(inHand)?.line ?? null;
+  const todos = thread.obligations.filter((item) => item.source.kind === "todo");
+  const todo = todos.find(inHand)?.line ?? null;
   const stoppedTodo =
-    thread.todos.find((item) => item.state === "blocked" && item.line) ?? null;
+    todos.find((item) => item.state === "blocked" && item.line) ?? null;
   /** @typedef {{words: string, position: number, live: boolean,
    * condition: import("../voice.js").Said | null, agent: string | null | undefined}} Step */
   /** @type {Step | null} */
@@ -375,7 +375,11 @@ export function threadReading(thread, surface, commands) {
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
       .map((item) => item.message),
   );
-  const openTodos = new Map(thread.todos.map((todo) => [todo.id, todo]));
+  const openTodos = new Map(
+    thread.obligations
+      .filter((item) => item.source.kind === "todo" && item.state !== "done")
+      .map((todo) => [todo.id, todo]),
+  );
   /** @param {ThreadRecord["msgs"][number]} message */
   const leaves = (message) => {
     if (asking.has(message.id)) return { word: leafSays("Waiting on me"), todo: null };
@@ -1079,17 +1083,19 @@ export class ThreadView {
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
       // reply's ground, its head first where it is taller than that, read where the
-      // box is headed, New reply stuck at its foot (scrolling.js, `whereGlidesLand`),
-      // through the box's transforms. The box glides there, as it glides to the end.
-      const scale = scrollAxes(scroller).y.y;
-      const by = whereGlidesLand([scroller], () => {
+      // box is headed, New reply stuck at its foot, through the box's transforms. The
+      // box glides there, as it glides to the end, and reads the turn again at each
+      // frame (scrolling.js, `glideBy`), so a transcript that changes above the turn
+      // meanwhile still leaves it in sight.
+      glideBy(scroller, () => {
+        if (!turn.isConnected) return null;
+        const scale = scrollAxes(scroller).y.y;
         const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
         const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
         return scale
           ? carried(turn, scroller, Math.min(Math.max(below, 0), from()) / scale)
           : 0;
       });
-      glideTo(scroller, stood + by);
     });
   }
 

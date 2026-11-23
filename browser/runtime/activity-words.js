@@ -428,7 +428,7 @@ function queueKinds(items) {
       byWords.set(nouns, group);
     }
     group.count++;
-    const title = item.todo ? item.todo.title : null;
+    const title = item.kind === "todo" ? item.obligation.prompt.text : null;
     if (title !== null) {
       if (group.titles.length) group.titles.push(leafSays(" · "));
       group.titles.push(agentSays(title));

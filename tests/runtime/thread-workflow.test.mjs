@@ -250,21 +250,20 @@ test("a to-do whose start stopped keeps its last line on the thread, no longer l
     text: "Rebuild the chart",
     ts: "2026-11-05T10:00:00Z",
   };
-  const served = servedReading("queues on both sides").browser.todos.find(
-    ({ line }) => line,
-  );
+  const served = servedReading("queues on both sides").browser.views[
+    "1"
+  ].obligations.find(({ source }) => source.kind === "todo");
   const working = (standing) => {
     const todo = {
       ...served,
       thread: "root",
-      subject: { kind: "thread", id: "root" },
+      source: { ...served.source, subject: { kind: "thread", id: "root" } },
       ...standing,
     };
     const [record] = readThreadRecords(
       [servedThread([root], { attention: todo.id })],
       THREAD_BOARD,
       new Map(),
-      [],
       [],
       [todo],
     );
@@ -303,24 +302,14 @@ test("thread attention gives an open user obligation precedence over agent work"
 
 test("a thread an open to-do holds waits on the agent in the to-do's words", () => {
   // The server's reading once the reply settled the comment and the to-do stood.
-  const todo = (changes) => ({
-    id: "t1",
-    title: "Rebuild the banner quieter",
-    next_actor: "agent",
-    state: "waiting",
-    reason: null,
-    outcome: null,
-    ...changes,
-  });
+  const todo = (changes) =>
+    record("todo", "agent", {
+      prompt: { text: "Rebuild the banner quieter" },
+      ...changes,
+    });
   const attention = (held) =>
     threadAttention(
-      {
-        resolved: null,
-        workflows: [],
-        obligations: [],
-        todos: [held],
-        attention: held,
-      },
+      { resolved: null, workflows: [], obligations: [held], attention: held },
       "Claude",
     );
   assert.deepEqual(attention(todo({ state: "waiting" })), {

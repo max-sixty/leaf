@@ -1,7 +1,8 @@
 """To-dos, the work the agent owes, and the item the agent is working on.
 
-A to-do is work the agent owes, on its On <agent> list, which says where it stands in
-the fields every record uses (`standing`). Nothing is a to-do on the
+A to-do is work the agent owes, on its On <agent> list: an obligation record whose
+source is the agent's own promise (`source.kind` `todo`), which says where it stands as
+every record does (`standing`). Nothing is a to-do on the
 user: everything On Me is an obligation whose source says how the user answers it,
 a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
 of its own to any of them. The user chose this over a to-do on the user
@@ -26,7 +27,7 @@ outcome, `done`, `failed` or `dropped`, with a detail saying where the result is
 why there is none, or until a stamped version naming its widget with `--completes`
 ends it `done`. A reply, a resolution, another version, or the end of the session
 that opened it leaves it open; that is what a to-do adds over an update, which its
-answer settles. An open to-do keeps its thread the agent's (`served_state.browser`),
+answer settles. An open to-do keeps its thread the agent's (`standing.leading`),
 counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
@@ -144,8 +145,8 @@ def running(start: dict) -> dict:
 
 
 def _end(event: dict, detail: str | None) -> dict:
-    """How an event ended a to-do, as its `end`: the detail it gave, and which event,
-    when and by whom."""
+    """How an event ended a to-do, as a record's `end`: the detail it gave, and which
+    event, when and by whom."""
     return {
         "detail": detail,
         "event": {key: event[key] for key in ("id", "seq", "ts", "author")},
@@ -190,21 +191,26 @@ class TodoReading:
 
 
 def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
-    """Every to-do the log opened, saying where it stands (`standing`): the start in
-    force on an open one as its `line`, and how it ended as its `end`, by its
+    """Every to-do the log opened, as the obligation record it is: its title as the
+    prompt, the start in force on an open one as its `line`, and how it ended, by its
     `todo_end` in force (`ends`) or by the first stamped version whose `--completes`
-    names it, whichever came first."""
+    names it, whichever came first. Its `thread` is the one it was opened on; a reader
+    holding the thread markup adds a widget's (`served_state.work.work_state`)."""
     todos: dict[str, dict] = {}
     threads = thread_names(events)
     for event in events:
         if opened := todo_reading(event, threads):
+            subject = opened["subject"]
             todos[opened["id"]] = {
                 "id": opened["id"],
-                "subject": opened["subject"],
-                "title": opened["title"],
+                "source": {"kind": "todo", "id": opened["id"], "subject": subject},
+                "thread": subject["id"] if subject["kind"] == "thread" else None,
+                "message": None,
+                "prompt": {"text": opened["title"], "target": subject.get("id")},
+                "answer": None,
+                "end": None,
                 **on("agent"),
                 "line": None,
-                "end": None,
                 "seq": opened["seq"],
                 "ts": opened["ts"],
                 "agent": opened.get("agent"),

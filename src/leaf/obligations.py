@@ -257,6 +257,7 @@ def update_obligation(
         "message": message,
         "prompt": {"text": None, "target": subject["id"]},
         "answer": {"value": None, "event": event_reference(answer)} if answer else None,
+        "end": None,
         **(ended("done") if answer else on(next_actor)),
         "seen": answer is not None,
         "workflow": None,
@@ -432,7 +433,9 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     the agent opened on an element is not a thread's and holds nothing: work on a
     section doesn't say whether the user's decision there waits on it."""
     promised = {
-        todo["subject"]["id"] for todo in owed if todo["subject"]["kind"] == "thread"
+        todo["source"]["subject"]["id"]
+        for todo in owed
+        if todo["source"]["subject"]["kind"] == "thread"
     }
     return [
         anchor
@@ -923,6 +926,7 @@ class _ObligationReducer:
                     "answer": {"value": value, "event": event_reference(provenance)}
                     if has_content
                     else None,
+                    "end": None,
                     **stands,
                 }
             )
@@ -1005,6 +1009,7 @@ def thread_obligation_readings(
             "message": message["id"],
             "prompt": {"text": first[question], "target": None},
             "answer": None,
+            "end": None,
             **on("user"),
         }
         for question, (identity, message) in newest.items()
@@ -1013,9 +1018,11 @@ def thread_obligation_readings(
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
     for todo in log.owed:
-        if todo["subject"]["kind"] == "thread":
-            identity = todo["subject"]["id"]
-            newest_todo[identity] = max(newest_todo.get(identity, 0), todo["seq"])
+        subject = todo["source"]["subject"]
+        if subject["kind"] == "thread":
+            newest_todo[subject["id"]] = max(
+                newest_todo.get(subject["id"], 0), todo["seq"]
+            )
     readings: dict[str, ThreadAnswers] = {}
     for record in records:
         thread = threads[record["thread"]]

@@ -25,15 +25,13 @@ from ..work_reading import WorkReading
 
 class WorkState(NamedTuple):
     """`records` are the obligation records only the page's log and claim decide,
-    standing as `activity` reads them: each update's. A view adds the records its own
-    document and frozen threads publish. `todos` are the agent's to-dos, open and
-    ended, each standing as `activity` reads it and naming its thread."""
+    standing as `activity` reads them: each update's, and each to-do's, open or
+    ended. A view adds the records its own document and frozen threads publish."""
 
     durable: WorkReading
     activity: dict
     workflows: list[dict]
     records: list[dict]
-    todos: list[dict]
     live_reply: dict | None
     presence: dict
     # The claimant's turn as activity reads it (`activity.current_turn`), which says
@@ -152,25 +150,25 @@ def work_state(
         stream["activity"],
         datetime.fromisoformat(now),
     )
-    # An open to-do stands where `activity` read it, in the thread it was opened on;
-    # one a widget in a message opened stands in that message's thread.
+    # An open to-do stands where `activity` read it; one a widget in a message opened
+    # stands in that message's thread.
     stood = {todo["id"]: todo for todo in activity["todos"]}
-
-    def thread_of(subject: dict) -> str | None:
-        if source:
-            return durable.thread.subject_thread(subject)
-        return subject["id"] if subject["kind"] == "thread" else None
-
     todos = [
-        {**stood.get(todo["id"], todo), "thread": thread_of(todo["subject"])}
+        {
+            **stood.get(todo["id"], todo),
+            **(
+                {"thread": durable.thread.subject_thread(todo["source"]["subject"])}
+                if source
+                else {}
+            ),
+        }
         for todo in log.todos
     ]
     return WorkState(
         durable,
         activity,
         workflows,
-        activity["records"],
-        todos,
+        activity["records"] + todos,
         reply,
         present,
         turn,

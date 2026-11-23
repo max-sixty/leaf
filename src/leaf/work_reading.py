@@ -126,9 +126,9 @@ class WorkReading:
         on it is owed."""
         return self._handover.records
 
-    def plan(self, todos: list[dict]) -> dict | None:
-        """The plan in force, its steps reading this reading's obligations and
-        `todos`, the to-dos standing as `activity` reads them."""
+    def plan(self, records: list[dict]) -> dict | None:
+        """The plan in force, its steps reading the page's `records`: this reading's
+        obligations and the to-dos, standing as `activity` reads them."""
         return plan_reading(
-            self.events, self.log.withdrawn, todos, self.all_obligations["all"]
+            self.events, self.log.withdrawn, [*self.all_obligations["all"], *records]
         )

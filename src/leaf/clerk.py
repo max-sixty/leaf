@@ -391,7 +391,6 @@ def page_facts(state: dict, events: list) -> dict:
 
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
-    todos = {todo["id"]: todo for todo in state["todos"]}
     updates = {workflow["id"]: workflow for workflow in state["workflows"]}
 
     # What each message asking a question says now, edits included: a question asked
@@ -463,8 +462,9 @@ def page_facts(state: dict, events: list) -> dict:
             )
     started = []
     for item, start in item_starts(events).items():
-        if todos.get(item, {}).get("state", "done") != "done":
-            about = f'the agent\'s to-do "{todos[item]["title"]}"'
+        todo = obligations.get(item)
+        if todo and todo["source"]["kind"] == "todo" and todo["state"] != "done":
+            about = f'the agent\'s to-do "{todo["prompt"]["text"]}"'
         elif item in updates:
             subject = updates[item]["subject"]
             about = (

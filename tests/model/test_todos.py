@@ -162,7 +162,7 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     assert (todo["kind"], todo["todo"]) == ("reply", "Rebuild the banner quieter")
     state = state_json(page_dir)
     [item] = open_todos(state)
-    assert (item["id"], item["subject"]) == (
+    assert (item["id"], item["source"]["subject"]) == (
         todo["id"],
         {"kind": "thread", "id": comment["id"]},
     )
@@ -175,12 +175,12 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     # Resolving closes the thread for the user; the to-do stays the agent's, and the
-    # panel names it from the served `todos`.
+    # panel names it from its served record.
     state = state_json(page_dir)
     assert state["threads"][0]["attention"] is None
     assert kinds(state["queues"]["on_agent"]) == [("todo", todo["id"])]
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert [item["title"] for item in served_todos(served["browser"])] == [
+    assert [item["prompt"]["text"] for item in served_todos(served["browser"])] == [
         "Rebuild the banner quieter"
     ]
     thread = leaf("page", "state", page_dir, comment["id"])
@@ -370,9 +370,7 @@ def test_a_goal_counts_only_the_steps_that_ended_done(task_log):
             {"depth": 1, "item": todo["id"]},
         ],
     )
-    reading = plans_model.plan_reading(
-        log, set(), todos_model.TodoReading(log).todos, []
-    )
+    reading = plans_model.plan_reading(log, set(), todos_model.TodoReading(log).todos)
     assert reading is not None
     [goal] = reading["steps"]
     [step] = goal["steps"]

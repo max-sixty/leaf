@@ -127,8 +127,8 @@ Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and 
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, and
-`attention` is the obligation record or to-do that speaks for it, or `null` when nobody
-owes a move there: its `next_actor` is `"user"` when the thread waits on the user and
+`attention` is the obligation record that speaks for it, or `null` when nobody owes a
+move there: its `next_actor` is `"user"` when the thread waits on the user and
 `"agent"` when it is with the agent, and its `state` says where that stands. `resolved`
 is set while it stands resolved. A message's `reactions` lists the reactions it takes
 and those in force, and is `null` on a message that takes none. An agent's message

@@ -2488,7 +2488,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     )
     assert promised.exit_code == 0, promised.output
     [task] = open_todos(json.loads(run("page", "state").output))
-    assert (task["id"], task["subject"]) == (
+    assert (task["id"], task["source"]["subject"]) == (
         json.loads(promised.output)["id"],
         {"kind": "thread", "id": opened["id"]},
     )
@@ -4839,7 +4839,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     [item] = [
         item for item in reading["obligations"] if item["source"]["kind"] == "widget"
     ]
-    assert (item["state"], item["outcome"]) == ("done", "done")
+    assert (item["state"], item["outcome"], item["end"]) == ("done", "done", None)
     assert item["answer"]["event"]["id"] == picked["id"]
 
 

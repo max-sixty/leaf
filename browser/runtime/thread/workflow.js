@@ -4,8 +4,7 @@
    Python says where every obligation record and every update's delivery (its
    workflow) stands, in one vocabulary (`standing.py`): whose move it is (`next_actor`),
    `state` (waiting, running, blocked, done), the `reason` a state leaves out, and on an
-   update whether a turn has taken it in (`seen`). The agent's to-dos, which keep their
-   own list, say it in the same fields. Python names the record or to-do that speaks for
+   update whether a turn has taken it in (`seen`). It names the record that speaks for
    each thread (`attention`), the workflow each update's record stands by (`workflow`),
    which thread each workflow stands in (`thread`) and the workflows strongest first
    (`served_workflows`). The application publisher adds the unresolved local send after
@@ -168,21 +167,12 @@ export const todoWord = (todo) =>
     : agentSays(todo.state === "running" ? "On it" : "Still to do");
 
 // Whose turn a thread is while it isn't resolved, where it stands and its `word`: the
-// reading of the record or to-do that speaks for it (`attention`). `workflow` is the
-// one an update's record stands by.
+// reading of the record that speaks for it (`attention`). `workflow` is the one an
+// update's record stands by.
 /** @param {ThreadRecord} thread @param {string} agent */
 export function threadAttention(thread, agent) {
   const record = thread.resolved ? null : thread.attention;
   if (!record) return null;
-  // A to-do the agent opened on the thread holds it after the update it answered
-  // has settled: the agent's own commitment, in its voice.
-  if (!("source" in record))
-    return Object.freeze({
-      turn: /** @type {const} */ ("agent"),
-      state: record.state,
-      word: todoWord(record),
-      workflow: null,
-    });
   const workflow =
     record.source.kind === "update"
       ? (thread.workflows.find((candidate) => candidate.id === record.workflow) ?? null)
@@ -204,9 +194,13 @@ export function threadAttention(thread, agent) {
   return Object.freeze({
     turn: /** @type {const} */ ("agent"),
     state: record.state,
+    // A to-do the agent opened on the thread holds it after the update it answered
+    // has settled: the agent's own commitment, in its voice.
     word:
-      workflowWord(workflow, agent) ??
-      leafSays(record.state === "blocked" ? "Uncertain" : "Waiting"),
+      record.source.kind === "todo"
+        ? todoWord(record)
+        : (workflowWord(workflow, agent) ??
+          leafSays(record.state === "blocked" ? "Uncertain" : "Waiting")),
     workflow,
   });
 }

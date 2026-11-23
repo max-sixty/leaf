@@ -310,12 +310,7 @@ export function threadMarks(thread, agent) {
     userAttention: onUser
       ? {
           word: attention.word,
-          reason:
-            thread.attention &&
-            "source" in thread.attention &&
-            thread.attention.source.kind === "update"
-              ? "resend"
-              : "obligation",
+          reason: thread.attention?.source.kind === "update" ? "resend" : "obligation",
         }
       : null,
     unread,

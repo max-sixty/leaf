@@ -44,16 +44,14 @@ PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p
 
 
 def _served(events: tuple[dict, ...]) -> dict:
-    """The threads, workflows, obligation records and to-dos one log's reading serves,
-    so a thread's `attention`, the id of the record or to-do that speaks for it, joins
-    it."""
+    """The threads, workflows and obligation records one log's reading serves, so a
+    thread's `attention`, the id of the record that speaks for it, joins its record."""
     state = served_reading(PAGE, events)
     [view] = state["browser"]["views"].values()
     return {
         "threads": view["thread"]["threads"],
         "workflows": state["workflows"],
         "obligations": view["obligations"],
-        "todos": state["browser"]["todos"],
     }
 
 

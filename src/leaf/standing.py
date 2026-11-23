@@ -2,10 +2,9 @@
 
 The base record is the obligation (`obligations`): something one side owes the other.
 A widget or an agent's message asks the user; an update the user handed over asks the
-agent. A to-do, what the agent promised of its own accord, keeps its own list
-(`todos`). Every obligation, every to-do, every update's delivery (`workflows`), every
-plan step, each thread and the page say where they stand in the same fields, and no
-surface reads another vocabulary:
+agent; a to-do is what the agent promised of its own accord. Every obligation, every
+update's delivery (`workflows`), every plan step, each thread and the page say where
+they stand in the same fields, and no surface reads another vocabulary:
 
 - `next_actor`: whose move it is, `user` or `agent`, or None once nobody owes one.
 - `state`: `waiting` on that actor; `running` while the agent is observed at work on
@@ -63,10 +62,15 @@ def is_open(record: dict) -> bool:
 
 def answered(record: dict) -> bool:
     """Whether the answer its source takes stands on a record: the user's own answer to
-    a question, or the reply to an update. Every served record carries the
+    a question, or the reply to an update. The end the agent recorded on a to-do is
+    no such answer. Every served record carries the
     result as `answered` (`served_state.browser`), so the browser and packages read it
     rather than repeat the rule."""
-    return record["state"] == "done" and record["outcome"] == "done"
+    return (
+        record["state"] == "done"
+        and record["outcome"] == "done"
+        and record["end"] is None
+    )
 
 
 def strength(standing: dict) -> tuple:
@@ -79,7 +83,7 @@ def strength(standing: dict) -> tuple:
 def leading(records: list[dict]) -> dict | None:
     """The open record that speaks for a place holding `records`, or None: a question
     on the user, then an update handed back to them, then what the agent owes, an
-    update first, the strongest first."""
+    update ahead of a to-do, the strongest first and then the newest."""
     return max(
         (record for record in records if record["next_actor"] is not None),
         key=lambda record: (
@@ -87,7 +91,9 @@ def leading(records: list[dict]) -> dict | None:
             record["source"]["kind"] != "update"
             if record["next_actor"] == "user"
             else record["source"]["kind"] == "update",
+            record["source"]["kind"] == "todo",
             strength(record),
+            record.get("seq", 0),
         ),
         default=None,
     )

@@ -936,7 +936,8 @@ def served_obligations(browser: dict, *, page: bool = False) -> dict:
         [
             item
             for item in view["obligations"]
-            if item["source"]["kind"] != "update" and (item["thread"] is None) == page
+            if item["source"]["kind"] not in {"update", "todo"}
+            and (item["thread"] is None) == page
         ]
     )
 
@@ -949,14 +950,20 @@ def served_updates(browser: dict) -> list[dict]:
 
 
 def served_todos(browser: dict) -> list[dict]:
-    """The agent's to-dos, open and ended, as `browser` serves them (`todos`)."""
-    return browser["todos"]
+    """The agent's to-dos, open and ended, as the obligation records the one view
+    `browser` serves them in (`todos`)."""
+    [view] = browser["views"].values()
+    return [item for item in view["obligations"] if item["source"]["kind"] == "todo"]
 
 
 def open_todos(state: dict) -> list[dict]:
-    """The to-dos the agent still owes in an agent-facing state, as `page state` prints
-    them for the page, a thread or a widget (`todos`)."""
-    return state["todos"]
+    """The to-dos the agent still owes among an agent-facing state's `obligations`, as
+    `page state` prints them for the page, a thread or a widget."""
+    return [
+        item
+        for item in state["obligations"]
+        if item["source"]["kind"] == "todo" and item["state"] != "done"
+    ]
 
 
 @pytest.fixture
@@ -1961,7 +1968,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 (
                     task["id"]
                     for task in TodoReading(events_model.read_events(page_dir)).owed
-                    if task["subject"] == {"kind": "page"}
+                    if task["source"]["subject"] == {"kind": "page"}
                 ),
                 None,
             )
@@ -1995,7 +2002,7 @@ def end_work(page_dir):
     from leaf.todos import TodoReading
 
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == {"kind": "page"}:
+        if task["source"]["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
                 {
@@ -2014,7 +2021,7 @@ def end_work_on(page_dir, subject):
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == named:
+        if task["source"]["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
             )
@@ -2057,7 +2064,7 @@ def working(page_dir, line, subject="page"):
         (
             task
             for task in TodoReading(log_model.read_events(page_dir)).owed
-            if task["subject"] == named
+            if task["source"]["subject"] == named
         ),
         None,
     )

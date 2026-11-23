@@ -523,7 +523,11 @@ export function createQueueWalk({
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
       const record = readObligations().byId.get(stop.id);
-      if (!record || hasObligationSource(record, "update"))
+      if (
+        !record ||
+        hasObligationSource(record, "update") ||
+        hasObligationSource(record, "todo")
+      )
         return Promise.resolve(false);
       return arriveAtRecord(record);
     }

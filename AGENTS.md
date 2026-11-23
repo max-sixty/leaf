@@ -404,8 +404,8 @@ outlives its node: the page's server keeps it for every tab and device
 Python decides where the agent's work stands, in the one vocabulary every record and
 surface reads (`standing.py`): whose move it is, and whether the work is waiting,
 running, blocked or done. `activity.py` decides it for the agent's work on the whole
-page, which the Leaf panel shows, and for each obligation record, each to-do and each
-update the user handed over (`workflows.py`), which messages, thread attention, the On lists,
+page, which the Leaf panel shows, and for each obligation record and each update the
+user handed over (`workflows.py`), which messages, thread attention, the On lists,
 margin entries and the Stop hook read. A busy page doesn't mean every message is being
 worked on. The browser adds its own unsent gestures to what the server sends, but
 never changes where a workflow stands, not even as time passes. Another page

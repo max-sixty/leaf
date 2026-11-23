@@ -1225,6 +1225,23 @@ def write_comment(tab: Tab, nth: int = 0) -> Goals:
     }
 
 
+def open_draft(tab: Tab) -> Goals:
+    """Open a comment on the third passage holding words that fill the box's least
+    width, so each key `draft` types widens the box, as each key of a long first line
+    does (placement-rules.json, `size-width`)."""
+    write_comment(tab, nth=2)
+    tab.page.keyboard.insert_text(" Its words fill the least width ")
+    tab.quiet(600)
+    return {}
+
+
+def drop_draft(tab: Tab) -> None:
+    """Take the draft's words out and close its box, so it leaves no draft behind."""
+    tab.page.keyboard.press("ControlOrMeta+a")
+    tab.page.keyboard.press("Backspace")
+    tab.page.keyboard.press("Escape")
+
+
 def aim_at_line(tab: Tab) -> Goals:
     """Put away the comment box an earlier sample opened, and rest the mouse over the
     comment control of one of `PATCH`'s lines, another line each sample."""
@@ -1570,6 +1587,9 @@ INPUTS: dict[str, Input] = {
         whole=True,
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
+    "draft": Input(
+        type_letter, 20, open_draft, leave=drop_draft, each=False, after=60, needs="h1"
+    ),
     "open": Input(press, 4, aim_at_line, paints=True, after=400, needs="#patch"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
     "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),

@@ -87,7 +87,6 @@
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
-  afterScript,
   authoredTitle,
   setScroll,
   actionTemplate,
@@ -99,7 +98,6 @@ import {
   tally,
   under,
   backgroundFlash,
-  flashDuration,
   beginWalk,
   capturePlace,
   comparisonChanges,
@@ -115,7 +113,6 @@ import {
   generated,
   openingView,
   viewMembers,
-  pageScroller,
   preserveReadingRegions,
   pushEntry,
   registerReadingRegion,
@@ -141,6 +138,8 @@ import {
 } from "/runtime/widget-api.js";
 
 const PLACE_KEY = "lf-tabs-place:";
+// The document's own scroller, which scrolls a page-flow set's views.
+const pageScroller = /** @type {Element} */ (document.scrollingElement);
 /** @param {Element} owner */
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
@@ -272,11 +271,13 @@ export class TabSet extends LeafElement {
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
-      // sight, the tab would lose focus to the next key (keyboard/controller.js).
+      // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
+      // paint for the end of this script, so a microtask queued after the move runs
+      // behind it. Left out of sight, the tab would lose focus to the next key
+      // (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
-      afterScript(() => this.#showTab(next, null));
+      queueMicrotask(() => this.#showTab(next, null));
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()), {
         list: () => [tabs()[0], tabs().at(-1)],
       });
@@ -601,7 +602,7 @@ export class TabSet extends LeafElement {
       // motion's shared gate answers reduced motion and initial presentation.
       if (previous && reason === "reveal") {
         const name = button.querySelector(":scope > .lf-tab-name");
-        if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
+        if (name) this.#revealMotion = backgroundFlash(name);
       }
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });

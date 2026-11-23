@@ -95,6 +95,11 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   it through `service.read_stream`, and a missing file reads as an empty stream.
   [session-lifetime.md](session-lifetime.md) owns when each part stops being believed.
 
+- `init.lock` — the lock that holds a re-initialization of the page, a `page init` or
+  a renewal at this Leaf's page protocol, from the reading that decides it through the
+  restart of the page's service, so a second one decides after the first
+  (`vendoring._reinit`).
+
 - `waiter.lock` — the bare-shell wait lease; a harness session uses
   `<state-home>/sessions/<session>.wait` instead
   ([session-lifetime.md](session-lifetime.md)).

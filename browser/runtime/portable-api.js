@@ -19,7 +19,6 @@
    tests/smoke/test_plain_page.py holds the portable widgets to that. */
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
-  afterScript,
   cancelRender,
   cancelAnimation,
   nextAnimation,

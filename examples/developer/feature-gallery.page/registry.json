@@ -3,11 +3,6 @@
     "description": "A worked package reader sharing Leaf conversations and obligations.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -19,9 +14,6 @@
     "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -34,11 +26,6 @@
     "description": "A gallery producer whose changing Markdown is read by a text document.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
       "required": ["id"],
       "additionalProperties": false
     },

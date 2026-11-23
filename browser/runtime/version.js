@@ -130,7 +130,7 @@ import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
-import { backgroundFlash, flashDuration } from "./motion.js";
+import { backgroundFlash } from "./motion.js";
 import {
   authored,
   elementById,
@@ -2364,7 +2364,7 @@ export function createVersionController({
             readApplication().effective.widgets,
           );
           for (const block of changedSince(outgoingSource).changed)
-            backgroundFlash(block, flashDuration());
+            backgroundFlash(block);
           notice(`Updated to ${target.label}`, { background: true });
           gesture("version");
         }),

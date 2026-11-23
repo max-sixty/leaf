@@ -145,8 +145,8 @@ The record kind fixes the event's payload, a closed object with every field requ
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
   attribute holds no other JSON type, so a number is recorded as its digits.
-- `position` sends `{unit, value, rank}`: the moved element, the destination container,
-  and its rank. A container is an element of the tag `record.within` names, a declared
+- `position` sends `{unit, value, rank}`: the moved element's id, the destination
+  container's id, and the element's rank there. A container is an element of the tag `record.within` names, a declared
   one, inside the widget and with an id of its own, and its members are its children
   that have ids. The widget is never its own container, so a widget with one list of
   members still holds them in a container element.
@@ -202,10 +202,14 @@ A verb the agent writes, such as the task `status` on the Atlas example page, de
 it with `leaf page report`; the page shows it at once, and it stays until a new version
 answers it. `text: true` requires each report to carry short news for a person in
 `detail.text`. Each verb has one writer, so no key holds both a user's action and an
-agent's report. A widget with such a verb also declares a boolean `overruled` attribute,
-which a version sets to keep its authored state over the report.
+agent's report. A widget with such a verb takes a boolean `overruled` attribute, which a
+version sets to keep its authored state over the report. A widget whose user verb has
+`unit: "widget"` takes a boolean `restated` the same way, which a version sets to take
+the user's decision back. Leaf writes both into the composed declaration, so the
+package's own lists neither. An element that another widget's verb names by id, as
+`lf-board`'s `move` names an `lf-card`, lists `restated` itself.
 
-`awaits` puts a widget's obligations on the user's list, On Me. Its `value` names
+`awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
 `awaits.answered` separately says when the obligation is complete: `{}` once the
@@ -223,18 +227,6 @@ named container has no members. A page-owned queue can declare:
 
 The obligation is answered once the marked column is empty, and returning a card reopens it. If
 the widget's `when` stops holding, a complete obligation stays answered and an incomplete one is withdrawn.
-
-A widget whose bound data contains independently answered records declares `records:
-{"input": "run", "label": "title"}` in `awaits`. The input binds to a stored
-source, which the server can read; widget outputs remain browser-local. The input's
-contract supplies `records.items` and `records.key`; each record's key identifies its
-obligation and its answering action's unit. The named label field supplies the prompt.
-For example, `value: "review"` with `answered: {"review": {"detail": {"approved":
-true}}}` completes each record's obligation while that unit's latest review approves it.
-Clearing or undoing approval reopens it. Source reordering preserves these identities;
-removing a record removes its obligation. The widget marks those same keys as its drawn
-data ([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so
-Leaf's On Me navigation can reveal each record.
 
 `awaits.retired` names the attribute an author sets to close an obligation but
 keep its widget on the page, such as a decided question collapsed with its options;
@@ -371,7 +363,6 @@ contract").
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
       "required": ["id", "source"],
@@ -511,7 +502,6 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key. `data set` refuses a value in which two rows share a key, or a row's key is
-missing, empty or not a string, and an `awaits.records` input ([User
-state](#user-state)) keys each row's obligation by it. `lf-diff`'s contract, whose value
+missing, empty or not a string. `lf-diff`'s contract, whose value
 has a `files` array of `{path, patch}` objects, declares `{ "records": { "items":
 "files", "key": "path" } }`.

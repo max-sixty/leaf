@@ -126,8 +126,11 @@ export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival"
 // drawn inside the element that paints a background of its own, such as an option's
 // row, would cover the element's tint, so it takes the tint too, and the whole element
 // reads as one tinted box. Theirs end with the element's, which is the one returned.
-/** @param {Element} el @param {number} ms */
-export function backgroundFlash(el, ms) {
+// A flash lasts as long as the theme sets (`flashDuration`), whoever asks for it, so
+// the page marks each arrival and change alike.
+/** @param {Element} el */
+export function backgroundFlash(el) {
+  const ms = flashDuration();
   /** @param {Element} box */
   const tint = (box) =>
     motion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);

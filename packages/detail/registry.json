@@ -3,9 +3,6 @@
     "description": "A control that sets how much of the page shows: Skim shows the lede, the gists and the headings above them, Read the page as written, and Everything also opens every closed detail.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },

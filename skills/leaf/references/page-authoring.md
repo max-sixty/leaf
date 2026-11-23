@@ -209,8 +209,9 @@ too wherever the theme's would show through. Wrapping elements the theme already
 styles in a card adds visual weight without meaning; give a card a grouping or
 interaction to express.
 
-Wrap content with its own design in a themed page in a box that sets
-`--lf-reading-face: initial`, which keeps the reading face out of it
+On a themed page, wrap content that has its own design in a box that sets
+`--lf-reading-face: initial`. The reading face then stays out of the box, and the
+controls in it keep the browser's look, as on a page that takes no theme
 (`package-themes.md`, "Personal themes").
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
@@ -228,8 +229,8 @@ steps `--lf-sp-1` to `--lf-sp-5` tighten under `density-working`.
 The page is `body`. One `main` directly inside it holds the page's content, its title
 included, and carries its Layout. Site furniture around that content, such as a
 site-wide header, navigation or footer, can stand beside `main`, where comments,
-revisions and checks cover it as they cover `main`. Only `main` takes the Layout, so
-the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
+revisions and checks cover it as they cover `main`. `page-layout.md`, "Layouts", says
+how to lay out what stands beside it.
 
 Leaf pads `body`'s head by `--lf-head-room`, the phone's status bar. Leaf's panel
 stands over the page's foot and takes no room, so lay the page out in the whole

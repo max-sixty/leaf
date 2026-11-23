@@ -313,14 +313,16 @@ function landed(node, travel, box = placeBox(node), rest = false) {
     travel ? seenGlided(node, box, travel, rest) : seenRect(node, new Map(), box, rest),
   );
 }
-// Whether `node` is seen where the glides under way leave it (`seenLanded`), or they
-// carry it toward the window (`glideGap`). Toward as well: the box of a card the walk is
-// gliding in trails its placement, and read where the glide would carry it, it could
-// stand a pixel past the window the walk is bringing it into.
+// Whether `node` is seen where the motion under way leaves it, or the glides carry it
+// toward the window (`glideGap`). Seen means seen where the glides land
+// (`seenLanded`), with the chrome's covers where their own motion ends, since a key
+// pressed during either acts as though it had ended. Toward as well: the box of a card
+// the walk is gliding in trails its placement, and read where the glide would carry
+// it, it could stand a pixel past the window the walk is bringing it into.
 /** @param {Element} node */
 export const seenAhead = (node) => {
   const travel = glideTravel(node);
-  if (landed(node, travel)) return true;
+  if (landed(node, travel, placeBox(node), true)) return true;
   if (!travel) return false;
   const gap = glideGap(node);
   return Boolean(gap && gap.after < gap.now);

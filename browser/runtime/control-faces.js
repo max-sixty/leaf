@@ -69,7 +69,8 @@
    - `response`: a choice of the response bar, Comment, Suggest or a reaction, which
      floats over the page and so wears the field's frame, height and lift
      (widget-elements.js, `responseAction`); a reaction among them is a toggle
-     (`aria-pressed`) and wears a reaction's states.
+     (`aria-pressed`) and wears a reaction's states. The comment box's face while the
+     box rests (`data-lf-rest` on its bar) wears the corner of the card it becomes.
    - `gutter`: a line's number in a code view's gutter, which takes a comment on its
      line, as a diff's do: the number in the code's muted ink, a + before it under
      the keys. The keys reach its line through the target picker, so Go-to gives it

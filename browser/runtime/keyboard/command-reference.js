@@ -92,6 +92,7 @@ import { closeControl, offeredAction, searchField } from "../widget-elements.js"
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow-tree.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
+import { doorSteps } from "./control-keys.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { EVERYTHING } from "./text-entry.js";
 import { pruneScopedElements, scopeRefs, scopesAt, scopesFor } from "./scopes.js";
@@ -206,13 +207,15 @@ function declaredStack(origin) {
     return id;
   };
   /** @param {Scope} scope @returns {[string | symbol, ReferenceRow][]} */
-  const referenceRows = (scope) =>
-    scope.rows.map((row) => [
+  const referenceRows = (scope) => {
+    const sequence = doorSteps(scope) ?? scope.sequence;
+    return scope.rows.map((row) => [
       referenceIdentity(scope, row),
       // Presentation metadata belongs beside the registered row. Cloning a sequence
       // row loses the identity used by the dispatcher's route-availability snapshot.
-      { row, sequence: scope.sequencePrefix ?? scope.sequence },
+      { row, sequence },
     ]);
+  };
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
       merge(sections, { ...scope, rows: referenceRows(scope) });

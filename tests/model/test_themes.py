@@ -123,6 +123,19 @@ def test_a_theme_stands_alone_or_builds_on_the_base_it_names(tmp_path):
     assert ".lf-callout" in layer.vocabulary.registry
 
 
+def test_the_catalogue_may_name_leaf_s_own_theme_as_its_default(tmp_path):
+    """Every page may take `reading` without the catalogue listing it, so a catalogue
+    of personal themes may still make it the default; a default it neither lists nor
+    bundles is refused."""
+    config = catalogue(tmp_path, default="reading")
+    page = tmp_path / "page"
+    cmd_init(page)
+    assert layer_metadata(page)["theme"] == {"name": "reading", "source": "default"}
+    config.write_text('themes = ["dense"]\ndefault = "editorial"\n')
+    with pytest.raises(Refused, match="default 'editorial' must be in themes"):
+        cmd_init(tmp_path / "other")
+
+
 def test_package_check_composes_a_theme_as_a_page_taking_it_does(tmp_path):
     """`leaf package check` composes a package as a new page selecting it would: a theme
     the catalogue lists over its bases alone, so one that stands alone is checked

@@ -60,8 +60,8 @@ link preview counts a thread about any of them.
 ### Reading declarations
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
-widget's entry, each fact under its own name, as `declarationFor(card)?.shows` reads a
-view's `shows`. `matchesWhen(element, when)` says whether the element's attributes
+widget's entry, each fact under its own name, as `declarationFor(element)?.awaits`
+reads a widget's `awaits`. `matchesWhen(element, when)` says whether the element's attributes
 satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
@@ -129,7 +129,11 @@ reads one off the `language-…` class a block of code names it by, on a `<code>
 `<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
 language Leaf doesn't colour, and undefined where no class names one, so only the
 latter takes a default; `langForPath(path)` derives one from a file name, and
-`ensureSyntaxLanguage(lang)` loads one ahead of time. `dressCode(root)` colours
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `syntaxNow(lang)` resolves, once
+the language has loaded, to `{tokenize, declarations}`: `tokenize(source, state)` is
+`syntax` as a synchronous call, for a module that colours text as it lays it out, such
+as an editor's highlighter, and `declarations` lists each `[property, value]` a token's
+`style` can hold, once, for a module that styles tokens by name. `dressCode(root)` colours
 each `pre > code` in `root` whose `language-…` class names a language and that wears
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
@@ -173,13 +177,16 @@ the drawing needs them.
 
 `iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
-symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
-`runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
+symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls"). For a symbol whose action follows its
-state, such as Expand all turning to Collapse all, `nameAction(control, action,
-{label, title, className})` swaps in the new action's symbol and says its name as the
-tooltip and accessible name, unless `label` or `title` says more.
+(`module-authoring.md`, "Generated controls").
+[`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
+The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
+names, each with its symbol and the words its press says. For a symbol whose action
+follows its state, such as Expand all turning to Collapse all,
+`nameAction(control, action, {label, title, className})` swaps in the new action's
+symbol and says its name as the tooltip and accessible name, unless `label` or `title`
+says more.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
 
@@ -295,17 +302,6 @@ waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does
 Me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
-
-An element declaring `shows`, such as a board card, is a view of another widget's
-answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
-`shownAnswer(element)` reads it in `render()`, which then redraws with every change to
-that widget's state, and returns `null` where the element shows no answer. Otherwise
-it returns `{owner, value, available, takes, answer}`: the widget, the value its
-answer names now (`null` for none), whether the user can change it, `takes(value)`,
-whether the widget can answer `value` (`null` clears it), and `answer(value, says)`,
-which sends the widget's own command and returns what `dispatch` returns, or `null`
-where the widget can't take `value`. Place the view by `value`, and change it only
-through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has a `kind`, which is its obligation's

@@ -72,19 +72,35 @@ export function ensureSyntaxLanguage(lang) {
 // text would be. Begun afresh, a part starting inside a docstring read its rest as code.
 /** @param {string} source @param {string} lang @param {SyntaxState} [state] */
 export async function syntax(source, lang, state) {
+  return (await syntaxNow(lang)).tokenize(source, state);
+}
+
+// `syntax` for `lang` as a synchronous call, once its grammar has loaded, beside each
+// declaration a token's style can hold (`declarations`, `[property, value]` pairs), for
+// a caller that colours text as it lays it out and names each declaration once, as the
+// file editor's highlighter does a line at a time.
+/** @param {string} lang */
+export async function syntaxNow(lang) {
   const shared = await ensureSyntaxLanguage(lang);
-  const tokenized = await shared.tokenize(source, lang, state);
-  // The vendored tokenizer's output is data entering, so it is checked once, here, and
-  // indexed everywhere after: that the tokens partition the source exactly. Three things
-  // rest on it — lf-code numbers its lines by counting newlines in them, `hi` and each
-  // note's `at` address those numbers, and the anchor pass reads the spans as the text
-  // the file holds — and a dropped character slides all three with nothing on screen
-  // saying so. Failing here fails the block soft to its plain source, and the console
-  // error fails the render gate, which is what puts it in front of whoever can drop the
-  // language declaration.
-  if (tokenized.tokens.map((t) => t.text).join("") !== source)
-    throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-  return tokenized;
+  const tokenize = await shared.tokenizer(lang);
+  return {
+    declarations: shared.tokenDeclarations(),
+    /** @param {string} source @param {SyntaxState} [state] @returns {Tokenized} */
+    tokenize(source, state) {
+      const tokenized = tokenize(source, state);
+      // The vendored tokenizer's output is data entering, so it is checked once, here,
+      // and indexed everywhere after: that the tokens partition the source exactly.
+      // Three things rest on it — lf-code numbers its lines by counting newlines in
+      // them, `hi` and each note's `at` address those numbers, and the anchor pass reads
+      // the spans as the text the file holds — and a dropped character slides all three
+      // with nothing on screen saying so. Failing here fails the block soft to its plain
+      // source, and the console error fails the render gate, which is what puts it in
+      // front of whoever can drop the language declaration.
+      if (tokenized.tokens.map((t) => t.text).join("") !== source)
+        throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
+      return tokenized;
+    },
+  };
 }
 
 /** @typedef {Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>} Tokenized */

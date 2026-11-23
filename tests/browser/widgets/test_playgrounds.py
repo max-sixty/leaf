@@ -737,14 +737,14 @@ SHORT_WORKSPACE_PLAYGROUND = leaf_page(
 
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
-    half the window for the stage. Presets stay visible and, with the floating panel
-    folded off the actions at the window's foot, Tab brings them into the window; a long
-    instruction scrolls inside its popover."""
+    half the window for the stage. Presets stay visible and Tab brings its actions into
+    the window: where the floating panel's row would stand over all of one at the
+    window's foot, the panel folds to the leaf, so the next Tab moves on from it rather
+    than letting go of a control out of sight. A long instruction scrolls inside its
+    popover."""
     page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
     resized(page, 900, 500)
-    page.locator("body").focus()
-    page.keyboard.press(".")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
+    panel = page.locator(".lf-floating-panel")
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
     expect(
@@ -757,11 +757,13 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     submit = playground.get_by_role("button", name="Use these settings")
     slider = playground.get_by_role("slider", name="Latency window")
     slider.press("ArrowRight")
+    expect(panel).to_have_attribute("data-lf-rest", "row")
     reset = playground.get_by_role("button", name="Reset", exact=True)
     reveal = playground.get_by_role("button", name="Show instruction")
     for key, target in [("Tab", reset), ("Tab", reveal), ("Shift+Tab", reset)]:
         page.keyboard.press(key)
         expect(target).to_be_focused()
+        expect(panel).to_have_attribute("data-lf-rest", "mark")
         scroll_settled(page, "#tune")
         assert target.evaluate(UNCOVERED), (
             f"{key} left {target.get_attribute('aria-label')} covered"
@@ -795,8 +797,7 @@ def test_a_playground_in_a_short_page_tab_keeps_its_actions_in_reach(browser, se
     """A page tab that is one block, a playground's question group, passes the window's
     height to the playground, and where the window is shorter than the playground's
     stage and bar the tab keeps the playground's height, so the tab set scrolls to the
-    bar, and Tab brings each action into the window, where the floating panel's row
-    may stand over it until the user folds the panel. Were the tab to shrink to the
+    bar, and Tab brings each action into the window. Were the tab to shrink to the
     window, the group would run past it and the set would never bring Reset in."""
     source = leaf_page(
         "Alert tabs",

@@ -113,7 +113,8 @@ rule draws at once is drawn.
   CSS geometry for annotations and never reallocates document space. The floating
   panel stands over the page too, with no room kept for it: the page lays out in the
   whole window, and the user folds the panel to its leaf where it covers what they
-  read. Leaf's landings and readings of what the user sees count the panel's box
+  read; it folds itself where focus lands on a place it alone would hide
+  (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
   (`geometry.js`, `declareCover`). Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
@@ -146,7 +147,10 @@ rule draws at once is drawn.
   share the floating panel's field, the container sets its dimensions from a theme token
   and each mode's controls fill it. It grows only for content, such as typed words, or
   an explicit action, such as More room. A one-line control's visible height is
-  `--lf-line` (`styles/tokens.css`), and its touch target meets the minimum
+  `--lf-line` (`styles/tokens.css`). A field that runs to its frame's edges adds the
+  frame's padding to that height, as a thread card's reply box does, a comment box
+  does in the frame of the card it becomes, and the floating panel's field does while
+  it holds the caret. A control's touch target meets the minimum
   `surfaces.css` sets; a control that derives its height from its font or the touch
   minimum instead changes the height of every container that holds it. Checks:
   `test_whatever_the_field_holds_the_row_keeps_its_line` compares the row's height with
@@ -720,6 +724,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The room the marks round a target take beside it, a named box's round it included                     | `mark-room.js` `markRoom`                                                          |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
+| How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`              |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
 | What the page shows where the glides under way land, each box put back within the task                | `scrolling.js` `whereGlidesLand`                                                   |
 | How far a scroll of a box carries a node, which a sticky box around it rides only to its line         | `geometry.js` `carried`                                                            |
@@ -844,6 +849,15 @@ them itself.
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
+
+Add a fact only where some part of Leaf, such as the server, `page check` or the first
+paint, must act on it without running the widget's module, and the module can't keep
+the same rule itself. A rule about one widget's markup that its module can check as it
+draws stays in the module, which reports a breach with `reportFailure`, even where
+static validation could observe the same breach. The author then hears of the breach
+from `page check --render`, and in a thread message only after the user opens the
+thread. Keep a rule static where a breach would otherwise reach the log or a stored
+decision (root `AGENTS.md`, "Leaf's role").
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and words a module generates are a passage

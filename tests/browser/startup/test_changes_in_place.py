@@ -167,6 +167,97 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
 
 
+def test_versions_counts_the_changes_since_each_older_version(browser, serve):
+    """Each version older than the one shown says before its Compare's word how many
+    changes a comparison with it would mark, in the press's name too. Reopening
+    Versions shows the counts it holds without asking the server again, and a pick
+    that adds a change counts again. The version shown has no Compare."""
+    options = PAGE.replace(
+        '<p id="a">',
+        '<lf-group id="g-q" label="When to ship?">'
+        '<lf-options id="g"><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-option id="g-b">Ship later</lf-option></lf-options></lf-group>\n<p id="a">',
+    )
+    url = live_url(serve(options))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    stamp_page(d, revised(options, BETA), "rewrote Beta")
+    stamp_page(d, revised(options, BETA, DELTA), "rewrote Delta")
+    wait_for_revision(page, 3)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    compare = {n: page.get_by_role("button", name=f"Compare with v{n}") for n in (1, 2)}
+    for n, said in ((2, "1 change"), (1, "2 changes")):
+        expect(compare[n]).to_have_text(f"{said} Compare")
+        expect(compare[n]).to_have_accessible_name(f"{said}, Compare with v{n}")
+    expect(
+        page.locator(".lf-fp-version").first.locator(".lf-fp-compare")
+    ).to_have_count(0)
+    views = []
+    page.on("request", lambda request: "/api/view?" in request.url and views.append(1))
+    page.keyboard.press("Escape")
+    expect(compare[1]).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(compare[1]).to_have_text("2 changes Compare")
+    assert not views, "reopening Versions counted again with nothing changed"
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 3,
+            "widget": "g",
+            "action": "choose",
+            "detail": {"value": ["g-a"]},
+        },
+    )
+    expect(compare[1]).to_have_text("3 changes Compare")
+    compare[1].click()
+    expect(page.locator(".lf-live")).to_contain_text("3 changes since v1")
+
+
+def test_versions_counts_only_the_versions_in_view(browser, serve):
+    """A count fetches its version and compares the whole page, so Versions counts
+    the versions whose Compare shows in the window, and a version scrolled into view
+    gets its count then. The work opening Versions sets off follows the rows on
+    screen, not how many versions the session has stamped."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    for n in range(2, 16):
+        stamp_page(d, revised(PAGE, (BETA[0], f"Beta reads way {n}.")), f"draft {n}")
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 900, "height": 420})
+    views = []
+    page.on("request", lambda request: "/api/view?" in request.url and views.append(1))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    rows = """() => {
+        const presses = [...document.querySelectorAll('.lf-fp-compare')];
+        const view = presses[0]?.closest('.lf-fp-view').getBoundingClientRect();
+        return presses.map((press) => {
+            const box = press.getBoundingClientRect();
+            return {
+                shown: box.bottom > view.top && box.top < view.bottom,
+                said: press.querySelector('.lf-fp-changes').textContent.trim(),
+            };
+        });
+    }"""
+    page.wait_for_function(
+        f"() => {{ const rows = ({rows})(); "
+        "return rows.length && rows.every((row) => !row.shown || row.said); }"
+    )
+    in_view = page.evaluate(rows)
+    shown = [row for row in in_view if row["shown"]]
+    assert len(shown) < len(in_view), "every version's Compare shows; nothing to test"
+    assert all(row["said"] == "1 change" for row in shown), in_view
+    assert not any(row["said"] for row in in_view if not row["shown"]), in_view
+    assert len(views) == len(shown), "Versions asked for counts it doesn't show"
+    oldest = page.get_by_role("button", name=re.compile(r"\bCompare with v1$"))
+    oldest.scroll_into_view_if_needed()
+    expect(oldest).to_have_text("1 change Compare")
+
+
 def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser, serve):
     """The page's field says "2 changes since v1" while a comparison stands, so a
     change's place there is its place alone. A thread open in the panel says no such
@@ -203,8 +294,8 @@ def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     says how much changed since the version they last saw and marks nothing, offering
     Show changes with `g V v` at the field's end. Versions names that version last seen
     and opens on it, so `g V v` marks those changes, though a newer version
-    stands between. While Versions stands, the news offers no press, since `g V` would
-    put Versions away."""
+    stands between. While Versions stands, the news offers no press, since there `v`
+    compares whichever version the user is on."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -223,7 +314,8 @@ def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_accessible_name(
         re.compile(r"^v1 \(last seen\)")
     )
-    # While Versions stands, `g V` would put it away, so the news offers no keys there.
+    # While Versions stands, its `v` compares the version the user is on, so the news
+    # offers no keys there.
     expect_panel_says(page, "2 changes since v1")
     expect_panel_says(page, "Show changes", says=False)
     page.keyboard.press("v")
@@ -233,6 +325,21 @@ def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     # read once the press has drawn, well before its moment would end.
     rendered(page)
     assert "Show changes" not in (panel_field(page).get_attribute("placeholder") or "")
+
+
+def test_open_latest_says_the_keys_that_reach_it_from_where_the_user_is(browser, serve):
+    """A page pinned to an older version offers Open latest at the field's end with the
+    keys of Versions' own `l`: `g V l` from the page, since `g V` opens Versions, and `l`
+    alone once Versions has focus."""
+    url = serve(PAGE)
+    d = serve.page_dir
+    page = open_page(browser, url, pin=True)
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    expect_panel_says(page, "Open latest g V l")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_count(1)
+    expect_panel_says(page, "Open latest l")
 
 
 def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):

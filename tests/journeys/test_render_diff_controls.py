@@ -169,10 +169,27 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     def face(field):
         return field.evaluate("""node => {
           const style = getComputedStyle(node);
-          const properties = ['font-family', 'font-size', 'line-height', 'color',
-            'padding-top', 'padding-right', 'padding-bottom', 'padding-left'];
+          const properties = ['font-family', 'font-size', 'line-height', 'color'];
           return Object.fromEntries(properties.map(name => [name, style.getPropertyValue(name)]));
         }""")
+
+    def insets(field, card):
+        """Where the field's words start and end, from the outer edge of its card."""
+        return field.evaluate(
+            """(field, card) => {
+              const edge = field.closest(card).getBoundingClientRect();
+              const box = field.getBoundingClientRect();
+              const style = getComputedStyle(field);
+              const side = name =>
+                parseFloat(style[`border${name}Width`]) + parseFloat(style[`padding${name}`]);
+              return {
+                start: box.left + side('Left') - edge.left,
+                end: edge.right - (box.right - side('Right')),
+                top: box.top + side('Top') - edge.top,
+              };
+            }""",
+            card,
+        )
 
     def forced_ring(field):
         return field.evaluate("""field => {
@@ -211,35 +228,29 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     page.locator("#subject").click(modifiers=["Alt"])
     floating = page.locator(".lf-fab-input:visible").first
     expect(floating).to_be_focused()
-    # The floating box is the frame of the card it becomes, so it takes the frame's
-    # padding and one-pixel edge back inside its field's padding. Its words then stand
-    # where the seated box's do, which sits at its card's padding.
+    # The floating box is the frame of the card it becomes, and a seated box stands
+    # where its card will, so across the card each box's words stand where its card's
+    # will. Above its field the floating frame also runs over the card's edge and
+    # padding, where the card's first message will stand, so its words stand that
+    # frame lower than a seated box's.
     frame = 1 + float(
         floating.evaluate(
             "node => getComputedStyle(node).getPropertyValue('--lf-thread-pad')"
         ).removesuffix("px")
     )
-
-    def framed(style):
-        sides = ("top", "right", "bottom", "left")
-        return style | {
-            f"padding-{side}": f"{float(style[f'padding-{side}'].removesuffix('px')) - frame:g}px"
-            for side in sides
-        }
-
-    physical_face = framed(face(floating))
-    assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
+    physical_face = face(floating)
+    physical_insets = insets(floating, ".lf-compose-field")
+    assert physical_insets["top"] == frame + 12
     page.emulate_media(forced_colors="active")
     forced = forced_ring(floating)
     assert forced, "the floating response paints no focus ring in forced colors"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
-    draft_face = framed(face(floating))
+    draft_face = face(floating)
+    draft_insets = insets(floating, ".lf-compose-field")
     # Touch reserves Send's column; a mouse lets words use its free corner.
     text_end = f"{44 + 2 * 16 + 1}px" if touch else "8px"
-    assert (
-        f"{float(draft_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
-    )
+    assert f"{draft_insets['end'] - frame:g}px" == text_end
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
@@ -261,11 +272,14 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(inline).to_be_focused()
     assert inline.evaluate("node => node.getRootNode() instanceof ShadowRoot")
     assert face(inline) == physical_face
+    seated_insets = insets(inline, ".lf-fab-bar")
+    assert seated_insets == physical_insets | {"top": 12}
     page.emulate_media(forced_colors="active")
     assert forced_ring(inline) == forced
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
     assert face(inline) == draft_face
+    assert insets(inline, ".lf-fab-bar") == draft_insets | {"top": 12}
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
 

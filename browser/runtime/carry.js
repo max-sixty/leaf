@@ -140,7 +140,11 @@ function focusedBy(key, drawing) {
     if (reply) return reply;
     if (key.on === "thread")
       return (
-        (key.part !== undefined && threadControl(whole, key.thread, key.part)) || whole
+        (key.part !== undefined &&
+          threadPart(whole, "controls")?.querySelector(
+            `[data-lf-carry="${CSS.escape(key.part)}"]`,
+          )) ||
+        whole
       );
     const turn = key.message
       ? whole.querySelector(`[data-lf-message="${CSS.escape(key.message)}"]`)
@@ -156,23 +160,6 @@ function focusedBy(key, drawing) {
   const target =
     (placed && key.at && owner.querySelectorAll(key.at[0])[key.at[1]]) || owner;
   return target === page ? null : target;
-}
-
-// The control a view of the thread `id` draws as its own under the key `part`
-// (`data-lf-carry`): in the thread's drawing `whole`, as a card's Close on its head
-// line, else in a view of the thread the chrome declares beside it
-// (`data-lf-thread-view`), as the floating panel's head line.
-/** @param {Element} whole @param {string} id @param {string} part */
-function threadControl(whole, id, part) {
-  const control = `[data-lf-carry="${CSS.escape(part)}"]`;
-  const views = whole
-    .getRootNode()
-    .querySelectorAll(`[data-lf-thread-view][data-lf-thread="${CSS.escape(id)}"]`);
-  for (const view of [whole, ...views]) {
-    const found = view.querySelector(control);
-    if (found) return found;
-  }
-  return null;
 }
 
 // The element `key` names inside `holder` (`nameIn`), as a message or a draft's box:

@@ -461,6 +461,7 @@ export function createPrimaryReader(
               reply: () => replyOf(item.key),
               settlement: () => null,
               whole: (part) => part,
+              controls: () => null,
             });
             /** @type {MessagePart} */
             const part = {

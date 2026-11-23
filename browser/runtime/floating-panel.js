@@ -3671,6 +3671,7 @@ export function createFloatingPanel({
         ? head.querySelector(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
         : null,
     whole: (view) => (openIn(view) ? openView() : null),
+    controls: (view) => (openIn(view) ? head : null),
   });
   /** @param {Element | undefined} view */
   const declareView = (view) => view && declareThreadParts(view, viewParts);

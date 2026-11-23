@@ -33,19 +33,23 @@ export const SAY_BOX = `:scope > ${SAY_ROW} ${TEXT_FIELD}`;
 //
 // Such a presentation also declares `whole`, the element standing for the thread as a
 // whole where its pieces stand apart, as the panel's view does for its head and its
-// field (`wholeThread`).
+// field (`wholeThread`), and `controls`, the element holding the controls it draws for
+// the thread as its own, as the panel's head holds Close, which focus's identity finds
+// by their keys (carry.js, `focusedBy`).
 /** @typedef {{
  * reply: (thread: Element) => Element | null,
  * settlement: (thread: Element) => HTMLElement | null,
  * whole: (thread: Element) => Element | null,
+ * controls: (thread: Element) => Element | null,
  * }} ThreadParts */
 /** @type {WeakMap<Element, ThreadParts>} */
 const declaredParts = new WeakMap();
 /** @param {Element} thread @param {ThreadParts} parts */
 export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
-/** @type {Pick<ThreadParts, "reply" | "settlement">} */
+/** @type {Pick<ThreadParts, "reply" | "settlement" | "controls">} */
 const ownParts = {
   reply: (thread) => thread.querySelector(SAY_BOX),
+  controls: (thread) => thread,
   settlement: (thread) => {
     /** @type {NodeListOf<HTMLElement>} */
     const controls = thread.querySelectorAll(".lf-resolve, .lf-reopen");
@@ -76,8 +80,8 @@ export function wholeThread(thread) {
   return declaredParts.get(outer)?.whole(outer) ?? outer;
 }
 /** @overload @param {Element} thread @param {"settlement"} name @returns {HTMLElement | null} */
-/** @overload @param {Element} thread @param {"reply"} name @returns {Element | null} */
-/** @param {Element} thread @param {"reply" | "settlement"} name */
+/** @overload @param {Element} thread @param {"reply" | "controls"} name @returns {Element | null} */
+/** @param {Element} thread @param {"reply" | "settlement" | "controls"} name */
 export function threadPart(thread, name) {
   for (const at of drawingsOf(thread)) {
     const part = (declaredParts.get(at) ?? ownParts)[name](at);

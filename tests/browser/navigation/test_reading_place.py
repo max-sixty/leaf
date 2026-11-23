@@ -2797,3 +2797,60 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
     )
     assert after["page"] == pytest.approx(page_top, abs=2), after
     assert after["log"] < started + 200 < after["limit"], (started, after)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_across_lines_of_a_diff(request, serve, engine):
+    """Words selected across two lines of a diff, one passage its widget drew from one
+    value, come back as they were when Back returns to the entry."""
+    url = serve(
+        leaf_page(
+            "Selection across lines",
+            '<h1 id="title">Wording</h1><lf-diff id="patch" source="patch-data"></lf-diff>'
+            '<div style="height:1600px"></div>'
+            '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+            '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+            '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"
+        "@@ -10,2 +10,3 @@\n Text in the tree says what holds now.\n"
+        "-Old wording.\n+Instructions must reach a reader who has only\n"
+        "+that text and the files it points to.\n",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    first, last = '["AGENTS.md","new",11]', '["AGENTS.md","new",12]'
+    page.locator("#patch").evaluate(
+        """(diff, [first, last]) => {
+          const at = (key, word, after) => {
+            const line = diff.shadowRoot.querySelector(`[data-lf-datum='${key}']`);
+            const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+            for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+              const i = node.data.indexOf(word);
+              if (i >= 0) return [node, i + after * word.length];
+            }
+          };
+          const [from, to] = [at(first, "reach", 0), at(last, "files", 1)];
+          getSelection().setBaseAndExtent(from[0], from[1], to[0], to[1]);
+        }""",
+        [first, last],
+    )
+    page.evaluate(
+        "async () => { window.__lfPageRange = (await window.__lfCheckApi()).pageRange; }"
+    )
+    # The words selected, as the page's own reading of the selection finds them.
+    selected = (
+        "() => getSelection().rangeCount"
+        " ? window.__lfPageRange(getSelection())?.toString() : null"
+    )
+    words = page.evaluate(selected)
+    assert words and words.startswith("reach") and words.endswith("files")
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(f"() => ({selected})() === {words!r}")

@@ -1281,7 +1281,8 @@ function moveToPage(ctx) {
 // it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
-/** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret, control?: import("./carry.js").FocusKey}} DraftRoute */
+/** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret, control?: import("./carry.js").FocusKey,
+ * intent?: ReturnType<typeof retainUserIntent>}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
  * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
@@ -1308,7 +1309,8 @@ export function createWritingResume({
   };
   /** @param {WritingPlace} place @param {DraftRoute} [route] @returns {Promise<void>} */
   const resumeAt = async (place, route = {}) => {
-    const intent = retainUserIntent();
+    // A route a restoration starts runs under its intent (history.js).
+    const intent = route.intent ?? retainUserIntent();
     let input;
     // A thread view holds its own drafts, which the thread's destination reveals.
     if (threadDraft(place.context))
@@ -1368,10 +1370,10 @@ export function createWritingResume({
   // content edit, so it leaves the writing place where it was. Back to such a stop opens
   // the box where the user stands (`travel: false`, history.js).
   /** @param {string} ctx @param {DraftRoute} [options] */
-  const showDraft = async (ctx, { travel = true, control } = {}) => {
+  const showDraft = async (ctx, { travel = true, control, intent: asked } = {}) => {
     const route = writingRoute(ctx);
     if (!route) return false;
-    const intent = retainUserIntent();
+    const intent = asked ?? retainUserIntent();
     const frame = await arriveEditor(() => route(ctx), {
       intent,
       caret: null,

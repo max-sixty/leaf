@@ -153,6 +153,7 @@ import {
   CLOSING,
   COLLAPSE,
   COLLAPSE_CHARS,
+  CONTEXT,
   OPENING,
   PHRASING,
   TEXT_BLOCK,
@@ -2342,6 +2343,35 @@ export function runReading(first, last) {
     segments,
     segments.map(() => null),
   );
+}
+// The words of a message's body (`authoredScope`), a document of its own, read by the
+// page's rules for words (`textNodesUnder`) as one passage cell: the reading a passage
+// in the message is told apart from its other copies in (`passageIn`, `findQuote`). It
+// is read afresh each time it is asked.
+/** @param {Element} body @returns {PageReading} */
+export function messageReading(body) {
+  const segments = textNodesUnder(body);
+  return indexed(
+    segments,
+    segments.map(() => null),
+  );
+}
+// The words from `from` to `to` in `reading` as a passage no anchor names, as words
+// selected in a message: their quote, with the words on each side of it, and where the
+// quote starts there (`at`); null where those don't tell that copy from every other in
+// the reading, so the passage is found again by the quote rules alone (`findQuote`),
+// never by an offset among copies.
+/** @param {PageReading} reading @param {number} from @param {number} to */
+export function passageIn(reading, from, to) {
+  const segments = spanOf(reading, from, to);
+  const quote = quoteFrom(segments);
+  if (!quote) return null;
+  const [start, stop] = spanIn(reading, segments);
+  const prefix = cut(neighbourhood(reading, start, CONTEXT, true), -CONTEXT, Infinity);
+  const suffix = cut(neighbourhood(reading, stop, CONTEXT, false), 0, CONTEXT);
+  const found = findQuote(reading, quote, { prefix, suffix });
+  const [at, end] = found[0] ? spanIn(reading, found) : [-1, -1];
+  return at >= from && end <= to ? { quote, prefix, suffix, at } : null;
 }
 // The roots of the page's parts, in reading order.
 export function readingParts() {

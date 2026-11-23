@@ -45,7 +45,7 @@ import { effect, untracked } from "/runtime/framework.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../errors.js";
 import { fragmentTarget } from "../anchor-resolution.js";
-import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
+import { restrictUserIntent } from "../user-intent.js";
 import { threadNamed } from "./state.js";
 
 /** @typedef {{id: string, reader: "primary" | null}} OpenThread */
@@ -85,7 +85,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   }
 
   /** @type {import("../history.js").ThreadClaim} */
-  function claim(url, record) {
+  function claim(url, record, intent) {
     const id = named(url);
     const open = shown();
     const kept = record?.thread ?? null;
@@ -98,10 +98,8 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
           }
         : null;
     if (open?.id === id && (!kept || open.reader === kept.reader)) return null;
-    // Navigation though it takes no focus, not an editing continuation allowed to
-    // open the thread after the user has gone elsewhere.
-    const retained = retainUserIntent();
-    const intent = restrictUserIntent(retained, retained);
+    // Under the intent of the restoration that asks (history.js), which a newer
+    // navigation or the user's own move ends.
     return async () => {
       if (!intent()) return false;
       if (!threadNamed(id)) {

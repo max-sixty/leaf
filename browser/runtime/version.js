@@ -207,7 +207,7 @@ import {
 } from "./widget-loader.js";
 import { byRenderedOrder, under } from "./shadow-tree.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { pendingArrival, reloadAt } from "./history.js";
+import { pendingRestoration, reloadAt } from "./history.js";
 import {
   blocksOnScreen,
   capturePlace,
@@ -2289,53 +2289,40 @@ export function createVersionController({
       const source = authoredSource;
       if (!live || !source)
         throw new Error("A revision handoff requires its authored document");
-      // A revision arriving while another's reload still arrives carries what that one
-      // owes the user rather than a reading of the page it is still putting back, as
-      // the record does (history.js, `beginArrival`).
-      const pending = pendingArrival();
-      const owed = pending?.intent() ? pending.extras : null;
-      if (owed) {
-        tabStore.set(
-          HANDOFF_KEY,
-          JSON.stringify({ ...owed, revision: target.revision, url: location.href }),
-        );
-        reloadAt(markedAt(target));
-        return new Promise(() => {});
-      }
-      const view = captureView();
-      const editingContinuity = captureEditingContinuity();
-      tabStore.set(VIEW_KEY, JSON.stringify(view));
       // The reload returns the user to the entry's record, as every reload does
       // (history.js): the page's place, the thread view and where they were in it,
       // focus and the selection. The handoff holds only what the record doesn't, and
       // the focus and caret of an authored control with the values typed into it, which
       // come back in the replacement turn, so typing goes on while the page is still
-      // held back from presenting, before the record's return, which follows it.
+      // held back from presenting, before the record's return, which follows it. A
+      // revision arriving while another's reload still arrives carries what that one
+      // owes the user, as the record does (history.js, `beginRestoration`).
+      const pending = pendingRestoration();
+      const owed = pending?.owes() ? pending.extras : null;
+      const view = owed ? null : captureView();
+      if (view) tabStore.set(VIEW_KEY, JSON.stringify(view));
       tabStore.set(
         HANDOFF_KEY,
         JSON.stringify({
+          ...(owed ?? {
+            view: { ...view, page: null },
+            ...captureEditingContinuity(),
+            obligationCurrentLocation: null,
+            carry: captureCarry(live, source).records,
+            comparison: selectedBase(),
+            pointer: pointerAt(),
+          }),
           revision: target.revision,
           url: location.href,
-          view: { ...view, page: null },
-          ...editingContinuity,
-          obligationCurrentLocation: null,
-          carry: captureCarry(live, source).records,
-          comparison: selectedBase(),
-          pointer: pointerAt(),
         }),
       );
-      reloadAt(markedAt(target));
+      const marked = new URL(location.href);
+      marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
+      reloadAt(marked);
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.
       return new Promise(() => {});
     };
-  // This address marked with the revision a reload goes to, which bootstrap.js takes off.
-  /** @param {import("../types/contract.js").ServedRevision} target */
-  const markedAt = (target) => {
-    const marked = new URL(location.href);
-    marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
-    return marked;
-  };
 
   // ---------- reading continuity across a replacement ----------
   // Capture passage and decision landmarks plus each reading region's position. Resolve
@@ -3064,7 +3051,7 @@ export function createVersionController({
     );
   }
 
-  /** @param {import("./history.js").Arrival | null} arrival */
+  /** @param {import("./history.js").Restoration | null} arrival */
   function installArrival(arrival) {
     installReadingContinuity();
     // A reload, a revision's included, and Back or Forward from another document return
@@ -3106,7 +3093,7 @@ export function createVersionController({
       }
     })();
     addEventListener("pagehide", () => {
-      if (!anchoringIsReady() || pendingArrival()) return;
+      if (!anchoringIsReady() || pendingRestoration()?.owes()) return;
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     // The handoff is part of the document's arrival (history.js, `beginArrival`), which
@@ -3114,44 +3101,41 @@ export function createVersionController({
     // early focus of an authored control among them, so that focus doesn't end the
     // record's return.
     if (arrival && handoff) arrival.extras = handoff;
-    else arrival?.prepared();
     const currentIntent =
       arrival?.intent ?? retainUserIntent({ fallback: compositionInput, since: 0 });
     const restoreCarryScroll =
       handoff && restoreCarry(handoff.carry, new Map(), currentIntent.handoff);
-    const landArrival = () =>
+    // The arrival in order, returning to the entry's record where it calls for it
+    // (`returnToRecord`, history.js `arrive`).
+    /** @param {() => Promise<void>} returnToRecord */
+    const landArrival = (returnToRecord) =>
       landContinuity(async () => {
-        try {
-          if (!currentIntent()) return;
-          if (handoff) {
-            restorePointer(handoff.pointer);
-            restoreView(handoff.view, currentIntent);
-            restoreCarryScroll();
-            // A reply being written keeps its session open across the record's return,
-            // so the record's claim opens its thread where the session stands, a
-            // resolved thread's card included; the words being written go back after
-            // that return, into the box it put the user in, as the reply of whichever
-            // view of the thread the claim opened.
-            await keepReplySession(handoff, async () => {
-              arrival?.prepared();
-              await arrival?.whenReturned;
-              await restoreEditingContinuity(handoff, currentIntent);
-            });
-            if (handoff.comparison) showComparison(handoff.comparison);
-            return;
-          }
-          // A URL aimed somewhere has already landed there (`aimArrival`).
-          if (
-            navigationType === "navigate" &&
-            !aimedAt &&
-            savedView &&
-            savedView.revision !== runtime.currentRevision
-          )
-            restoreView(savedView, currentIntent);
-        } finally {
-          arrival?.prepared();
-          arrival?.landed();
+        if (!currentIntent()) return;
+        if (handoff) {
+          restorePointer(handoff.pointer);
+          restoreView(handoff.view, currentIntent);
+          restoreCarryScroll();
+          // A reply being written keeps its session open across the record's return, so
+          // the record's claim opens its thread where the session stands, a resolved
+          // thread's card included; the words being written go back after that return,
+          // into the box it put the user in, as the reply of whichever view of the
+          // thread the claim opened.
+          await keepReplySession(handoff, async () => {
+            await returnToRecord();
+            await restoreEditingContinuity(handoff, currentIntent);
+          });
+          if (handoff.comparison && currentIntent()) showComparison(handoff.comparison);
+          return;
         }
+        await returnToRecord();
+        // A URL aimed somewhere has already landed there (`aimArrival`).
+        if (
+          navigationType === "navigate" &&
+          !aimedAt &&
+          savedView &&
+          savedView.revision !== runtime.currentRevision
+        )
+          restoreView(savedView, currentIntent);
       });
     return {
       landArrival,
@@ -3183,13 +3167,13 @@ export function createVersionController({
   // same way.
   /** @type {Element | false | null} */
   let aimedAt = null;
-  function aimArrival() {
+  /** @param {ReturnType<typeof retainUserIntent>} currentIntent */
+  function aimArrival(currentIntent) {
     const fresh =
       /** @type {PerformanceNavigationTiming | undefined} */ (
         performance.getEntriesByType("navigation")[0]
       )?.type === "navigate";
     const arrivedAt = location.hash;
-    const currentIntent = retainUserIntent({ since: 0 });
     /** @type {PromiseLike<unknown> | null} */
     let drawing = null;
     const land = () => {

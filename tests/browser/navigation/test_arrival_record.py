@@ -511,3 +511,84 @@ def test_a_revision_during_a_revisions_arrival_keeps_what_it_owes(
         page.wait_for_function("t => getSelection().toString() === t", arg=selected)
     finally:
         release(page, held)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_two_backs_while_the_page_starts_leave_each_entry_its_record(
+    request, serve, engine
+):
+    """Back twice while a reload's first reading of the page is held: the entry the
+    first Back reached keeps the record it had, rather than a reading of the page that
+    hadn't been put back yet."""
+    url = serve(LONG_PAGE)
+    ids = [
+        panel_comment(
+            serve.page_dir,
+            f"Question {n}?",
+            {"section": f"p{n}", "quote": f"Paragraph {n}."},
+        )
+        for n in (10, 30, 50)
+    ]
+    page = open_page(request.getfixturevalue(engine), url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    for root in ids:
+        page.keyboard.press("t")
+        expect(card).to_have_attribute("data-lf-thread", root)
+    page.wait_for_function("navigation.transition === null")
+    states = (
+        "navigation.entries().map((entry) => JSON.stringify(entry.getState() ?? null))"
+    )
+    before = page.evaluate(states)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.reload(wait_until="commit")
+        holding(page, held, 1, "the reload's first reading")
+        for root in (ids[1], ids[0]):
+            page.evaluate("history.back()")
+            page.wait_for_function(
+                f"new URL(location.href).searchParams.get('thread') === '{root}'"
+            )
+        release(page, held)
+        wait_until_ready(page)
+        after = page.evaluate(states)
+        assert before[-2] != "null"
+        assert after[-2] == before[-2]
+    finally:
+        release(page, held)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("how", ["push", "replace"])
+def test_a_visit_whose_address_moves_while_it_starts_opens_no_stale_thread(
+    request, serve, engine, how
+):
+    """A visit to a thread's address whose page moves to another address before it
+    presents doesn't then open the first thread, or name it in the address again."""
+    url = serve(LONG_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    second = panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = request.getfixturevalue(engine).new_page()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        joined = "&" if "?" in url else "?"
+        page.goto(f"{url}{joined}thread={first}", wait_until="commit")
+        holding(page, held, 1, "the visit's first reading")
+        page.evaluate(f"history.{how}State(null, '', '?thread={second}')")
+        release(page, held)
+        wait_until_ready(page)
+        scroll_settled(page)
+        assert new_url_thread(page) == second
+        expect(
+            page.locator(f'.lf-page-thread[data-lf-thread="{first}"]')
+        ).to_have_count(0)
+        expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{first}"]')).to_have_count(
+            0
+        )
+    finally:
+        release(page, held)

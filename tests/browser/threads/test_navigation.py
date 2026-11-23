@@ -376,13 +376,13 @@ def test_forward_to_a_decision_in_a_message_returns_to_the_decision(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize("change", ["age", "edit", "gone"])
+@pytest.mark.parametrize("change", ["age", "edit", "copy", "gone"])
 def test_back_returns_words_selected_in_a_message(request, serve, engine, change):
     """Words the user selected in a card's message are selected again when Back from
     the next thread reopens the card, though the message's age in its head reads
     differently by then, as it does once a minute passes, or the agent has rewritten
-    the words before them; where the rewrite took the words out, nothing is
-    selected."""
+    the words before them, a copy of them among those words included; where the
+    rewrite took the words out, nothing is selected."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
@@ -423,9 +423,13 @@ def test_back_returns_words_selected_in_a_message(request, serve, engine, change
                 "agent": "Codex",
                 "session": "pytest-summary",
                 "message": reply["id"],
-                "text": "Extra prefix. The importer reads the cache before the scan begins."
-                if change == "edit"
-                else "The importer reads its files before the scan begins.",
+                "text": {
+                    "edit": "Extra prefix. The importer reads the cache before the scan begins.",
+                    # A copy of the words where they stood before the rewrite.
+                    "copy": "Elsewhere it reads the cache too. The importer reads the cache"
+                    " before the scan begins.",
+                    "gone": "The importer reads its files before the scan begins.",
+                }[change],
             },
         )
         told(page)
@@ -437,6 +441,14 @@ def test_back_returns_words_selected_in_a_message(request, serve, engine, change
         assert page.evaluate("getSelection().toString()") == ""
     else:
         page.wait_for_function("() => getSelection().toString() === 'the cache '")
+        # The words the user selected, not a copy of them standing where they stood.
+        assert page.evaluate("""() => {
+          const range = getSelection().getRangeAt(0);
+          const before = document.createRange();
+          before.setStart(range.startContainer.parentElement.closest('.lf-msg-body'), 0);
+          before.setEnd(range.startContainer, range.startOffset);
+          return before.toString();
+        }""").endswith("importer reads ")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

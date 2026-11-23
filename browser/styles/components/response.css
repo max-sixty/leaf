@@ -986,6 +986,12 @@ leaf-text.lf-fab-input {
   max-height: 50vh;
   margin: 0;
 }
+/* The floating box's surface (box-motion.js) stays in the bar when it seats, and the
+   rule hiding it (annotation-chrome.css) doesn't reach a widget's tree. In flow, it
+   would take a gap before the field and stand the words off the card's. */
+.lf-fab-bar[data-lf-presentation="inline"] > .lf-fab-ground {
+  display: none;
+}
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;

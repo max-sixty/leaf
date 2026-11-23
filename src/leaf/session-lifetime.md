@@ -227,9 +227,7 @@ were.
 Before it opens its turn or reads a page, the prompt hook serves again, as
 `leaf server start` would, each page the session still means to serve whose ownership
 or server is down, such as a resumed session's (`reconnect.py`, which lists the
-exclusions). Then it restarts at the same address, as `leaf server start` would, each
-held page's server that another installed Leaf started (`reconnect.py` says when).
-The turn hears only of a page that did not start.
+exclusions). The turn hears only of a page that did not start.
 
 ### Nudging a session with no watcher
 
@@ -286,28 +284,34 @@ each keep one copy and update it in place, so the session's next hook runs the u
 A path names no version there, so Leaf identifies a copy by its path and commit
 (`state.installed_copy`, `layer.payload_provenance`).
 
-At the session's next hook, Leaf brings what outlives a process to the Leaf that hook
-runs. A page at an older protocol is renewed (`layer-registry.md`, "Page protocol"). A
-page server keeps the Leaf that started it unless that copy is updated in place
-(below), and `server start` from another Leaf restarts it under that one at the same
-address (`hosting.start_page`), as the session's next prompt does for a page it holds
-where both are installed copies ("Serving again at the next prompt"). Where the hook runs another Leaf than the
-session's previous hook, and that Leaf ships another skill, the agent is told to read
-it again (`hooks.skill_changed` says when an edit counts).
+Each hook records the root of the Leaf it runs (`leases.mark_skill`). At the
+session's next hook, a page at an older protocol is renewed (`layer-registry.md`,
+"Page protocol"), and where the hook runs another Leaf than the session's previous
+hook, and that Leaf ships another skill, the agent is told to read it again
+(`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
+restarts a page's server under that one at the same address (`hosting.start_page`).
 
-A page server, Codex's adapter and Pi's watch between turns from a copy that Codex
-or Pi updates in place follow that copy without waiting for a hook, within a pass of
-the update (`state.LoadedCopy`). An update that moves the page protocol leaves the
-session's pages at the old one. The restart of each page's server renews the page
-first, as the session's next hook would (`hosting.follow_copy`), and the renewal
-restarts the server itself; the successor adapter or watch delivers the page's
-input once the renewal lands. What holds a renewal back is queued for the session's
-next step, and wakes an idle session where a watch runs between turns.
+A page server or Codex's adapter from an installed copy outlives the hooks that start
+it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):
+the installed copy that the hooks of the session it serves last ran, where that is
+another, as after Claude Code moves the session onto an update, or else the copy
+Codex or Pi puts in place of its own. It then has that copy take over from it. A
+watch between turns asks only whether another copy was put in place of its own,
+since under Claude Code each turn's hooks start a new watch from the session's copy,
+and the newest watch supersedes an older one (`session.watch_between_turns`). A
+process from a checkout follows no copy.
 
-A server whose service is persistent, or whose page a live session holds, has the copy now at its
-path restart it at the same address, for the session holding the page where one
+An update that moves the page protocol leaves the session's pages at the old one.
+The restart of each page's server renews the page first, as the session's next hook
+would (`hosting.follow_copy`), and the renewal restarts the server itself; the
+successor adapter or watch delivers the page's input once the renewal lands. What
+holds a renewal back is queued for the session's next step, and wakes an idle session
+where a watch runs between turns.
+
+A server whose service is persistent, or whose page a live session holds, has the copy
+it follows restart it at the same address, for the session holding the page where one
 does, and serves meanwhile (`server.stop_when_service_ends`). The adapter releases
-its leases and starts a successor from the new copy. It holds the task's start lock
+its leases and starts a successor from the copy it follows. It holds the task's start lock
 until the successor holds its leases and its transport answers, so a claim meanwhile
 waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
 reads the adapter lease without the start lock finds no adapter. Pi's watch lets its

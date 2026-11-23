@@ -196,13 +196,16 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
 @cache
 def model_layer(*packages: str) -> dict:
-    """The vocabulary `page init` vendors for one package selection.
+    """The vocabulary `page init` vendors for one package selection, a path in it
+    naming a package from the checkout's root, as `./tests/fixtures/packages/records`.
 
-    Composed from the bundled packages rather than read back out of a page, and
+    Composed from the packages rather than read back out of a page, and
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(
+        layer_model.layer_inputs(packages, base=ROOT)
+    )
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -759,7 +762,6 @@ def declare_data_input(
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
@@ -1432,10 +1434,6 @@ def _report_authored_detail(registry):
     }
 
 
-def _report_without_overruled(registry):
-    del registry["lf-test-task"]["attributes"]["properties"]["overruled"]
-
-
 def _report_without_module(registry):
     registry["lf-test-bare"] = {
         **deepcopy(registry["lf-test-task"]),
@@ -1449,9 +1447,6 @@ def _user_verb_text(registry):
 
 def _agent_verb_answers(registry):
     registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
-    registry["lf-options"]["attributes"]["properties"]["overruled"] = {
-        "type": "boolean"
-    }
 
 
 def _body_record_with_prose(registry):
@@ -1529,7 +1524,6 @@ def trial_family(root: Path) -> None:
             "verbs": {"decide": deciding_verb(outcomes)},
             "example": example,
         }
-        declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
@@ -1677,13 +1671,16 @@ HELD_LEASES = []
 
 
 def fixture_service(directory, port: int, lifetime: str = "persistent") -> dict:
-    """Record the desired service of a `server run` on `port`, as it records its own."""
+    """Record the desired service of a `server run` on `port`, as it records its own,
+    naming this Leaf as the one serving it."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "runtime": {"path": str(cleanup_model.PLUGIN_ROOT)}
+        | layer_model.running_leaf(),
         "server_id": "fixture-server",
     }
     write_record(directory / "service.json", service)

@@ -4,6 +4,7 @@
    check-api.js so core checks never load that renderer. */
 export { exceptionText } from "./exception.js";
 export { startNearWork } from "./presentation.js";
+export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -100,7 +101,8 @@ export { selectionAnchor } from "./composing/capture.js";
 // A range's owner's word of where the pointer rests, as a passage mark's is.
 export { PREVIEW_TIMERS, pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
-export { renderingState } from "./rendering.js";
+export { afterScript, renderingState } from "./rendering.js";
+export { pageScroller } from "./scrolling.js";
 export {
   readingBlock,
   blocksOnScreen,
@@ -144,7 +146,6 @@ export { bringBackSurfaceOf } from "./off-flow.js";
 export { TEXT_BOX, WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
-export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
 export { versionPicker } from "./version-picker.js";
 export { colourableAs, colouredAs } from "./syntax.js";

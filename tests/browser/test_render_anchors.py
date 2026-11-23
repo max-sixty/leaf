@@ -3697,7 +3697,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },
@@ -4614,7 +4614,7 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
             '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
             "</lf-tabs>"
             '<lf-diff id="patch" source="patch" collapsed></lf-diff>',
-            # A package may lay a closed box out unseen, as visual-review does.
+            # A package may lay a closed box out unseen.
             head='<style>#laid[hidden="until-found"] '
             "{ content-visibility: visible; visibility: hidden; }</style>",
         )
@@ -5212,7 +5212,7 @@ LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
         "additionalProperties": False,
     },

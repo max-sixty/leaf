@@ -1065,7 +1065,6 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-visual-review id="ab-visual" source="ab-run"></lf-visual-review>
 """,
 )
 
@@ -1089,11 +1088,6 @@ ACTIONS_IN_FORCE = [
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),
     ("ab-triage", "answer", {}),
-    (
-        "ab-visual",
-        "review",
-        {"case": "status-column", "approved": True},
-    ),
     ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
@@ -1307,9 +1301,7 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "attributes": {
         "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "asks": {"type": "boolean"},
-            "restated": {"type": "boolean"},
         },
         "required": ["id"],
         "additionalProperties": False,

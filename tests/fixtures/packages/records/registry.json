@@ -1,0 +1,92 @@
+{
+  "$data": {
+    "description": "A run of cases keyed by a stable id, for the tests of obligations owed per record of a bound source.",
+    "contracts": {
+      "lf-test-run": {
+        "description": "An ordered list of cases, each keyed by its id.",
+        "records": {
+          "items": "cases",
+          "key": "id"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["id", "title"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["cases"],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-test-review": {
+    "description": "Asks the user to check each case of a bound run, showing one case at a time.",
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
+    },
+    "content": "empty",
+    "inputs": {
+      "run": {
+        "contract": "lf-test-run",
+        "source": "source",
+        "property": "value"
+      }
+    },
+    "awaits": {
+      "records": {
+        "input": "run",
+        "label": "title"
+      },
+      "value": "review",
+      "answered": {
+        "review": {
+          "detail": {
+            "approved": true
+          }
+        }
+      }
+    },
+    "verbs": {
+      "review": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "case": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "approved": {
+              "type": "boolean"
+            }
+          },
+          "required": ["case", "approved"],
+          "additionalProperties": false
+        },
+        "unit": "case"
+      }
+    },
+    "example": "<lf-test-review id=\"review\" source=\"run\"></lf-test-review>"
+  }
+}

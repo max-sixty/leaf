@@ -50,9 +50,20 @@
  * selections and module state cannot cross documents. Drafts and chrome preferences
  * use their own stores.
  *
- * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin and panel location, mechanical carry, and obligation location. A newer
- * revision may consume it, but ordinary reloads and history travel cannot replay it.
+ * A reload Leaf asks for (layer-client.js, `reloadDocument`) stores a page-scoped,
+ * one-use handoff as the document goes (`handOff`): reading position, comparison,
+ * pointer, margin and panel location, editing continuity, mechanical carry, and
+ * obligation location. A fresh-document install asks for one, and so does a delivery
+ * that moved on, such as a server restarted under another Leaf, whose reload lands this
+ * revision (`reloadNow`). The document that reload loads consumes the handoff, at that
+ * revision or a newer one. Since it describes the moment the document went, a reload
+ * that ends the document later, as after the user stays at a page's own leave prompt,
+ * hands over the place they then left; any other reload or history travel finds none.
+ * While the arriving document restores the handoff, printed keys wait
+ * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back, as
+ * text in the reply box they were writing in. Waiting keys are no input
+ * (document-inputs.js, `holdKeys`), so they don't cancel the restore; any other input
+ * does, and drops them.
  * Explicit historical travel carries reading position and the decision landmark, without
  * mechanical carry or obligation location. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
@@ -60,7 +71,7 @@
  * `captureView` records a place (reading-place.js) for the page and each reading
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
  * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
- * `landArrival` runs after presentation: a valid revision handoff restores continuity;
+ * `landArrival` runs after presentation: a valid handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
  * different revision. Ordinary reloads and full-document history travel keep the browser's
@@ -98,7 +109,8 @@ import {
   draftEditingStands,
   restoreDraftEditing,
 } from "./drafts.js";
-import { heldThreadId, replyDestination } from "./thread/focus.js";
+import { heldThread, replyDestination } from "./thread/focus.js";
+import { drawnThreadId } from "./thread/selectors.js";
 import { restoreReplyEditing } from "./thread/replies.js";
 import {
   focusDestination,
@@ -106,17 +118,19 @@ import {
   onUserInput,
   focused,
   inputCount,
+  typesText,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
-import { savedReadingSettled } from "./keyboard/bindings.js";
+import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
-import { pruneScopedElements } from "./keyboard/scopes.js";
+import { letHeldKeysGo } from "./keyboard/controller.js";
+import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
-import { backgroundFlash, flashDuration } from "./motion.js";
+import { backgroundFlash } from "./motion.js";
 import {
   authored,
   elementById,
@@ -169,7 +183,13 @@ import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
+import {
+  LayerRefused,
+  admitReading,
+  leafReloads,
+  reloadDocument,
+  reportPageError,
+} from "./layer-client.js";
 import { projectDocument, readApplication, readPart } from "./semantic-state.js";
 import {
   AsyncDirective,
@@ -1778,6 +1798,7 @@ function revisionDocument(revision) {
  *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: Element | null,
  *   openThread: Parameters<typeof replyDestination>[1],
+ *   threadReader: (node: Node) => "primary" | null,
  *   refreshThread: () => unknown,
  *   midComposition: ReturnType<typeof import("./composing/engagement.js").createEngagement>["midComposition"],
  *   hasPending: () => boolean,
@@ -1793,6 +1814,7 @@ export function createVersionController({
   initialDocument,
   compositionInput,
   openThread,
+  threadReader,
   refreshThread,
   midComposition,
   hasPending,
@@ -1818,7 +1840,6 @@ export function createVersionController({
   let authoredRoot = layerRoot(document);
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
-  const HANDOFF_KEY = "lf-revision-handoff";
 
   // g V names the versions, and what each one changed: the chrome's Versions, which the
   // press opens or puts away, as its menu row does.
@@ -2096,9 +2117,14 @@ export function createVersionController({
   // replacement nodes recover eligible state through carry and obligation restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
+    const thread = draftEditing?.mirrored ? heldThread() : null;
     return {
       draftEditing,
-      replyThread: draftEditing?.mirrored ? heldThreadId() : null,
+      replyThread: drawnThreadId(thread),
+      // The reader the reply was written in: the primary, as the floating panel's view
+      // is, or null for the page's own. Its continuation opens the thread there again,
+      // since a route left to choose opens a thread about a passage beside the passage.
+      replyReader: thread && threadReader(thread),
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it was where the user is (user-place.js, `focusPlace`).
       replyInView: focusPlace() !== null,
@@ -2125,8 +2151,13 @@ export function createVersionController({
   /** @param {ReturnType<typeof captureEditingContinuity>} continuity @param {ReturnType<typeof retainUserIntent>} currentIntent */
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, obligationCurrentLocation } =
-      continuity;
+    const {
+      draftEditing,
+      replyThread,
+      replyReader,
+      replyInView,
+      obligationCurrentLocation,
+    } = continuity;
     restoreObligationCurrentLocation(obligationCurrentLocation);
     if (!draftEditing) return;
     const mayRestore = restrictUserIntent(currentIntent, () =>
@@ -2140,9 +2171,12 @@ export function createVersionController({
           // Present that session before its route reads the annotation directory.
           await refreshThread();
           return mayRestore()
-            ? replyDestination(replyThread, openThread, mayRestore, {
-                scroll: replyInView,
-              })
+            ? replyDestination(
+                replyThread,
+                (id, options) => openThread(id, { ...options, reader: replyReader }),
+                mayRestore,
+                { scroll: replyInView },
+              )
             : null;
         })
       : draftEditingDestination(draftEditing, mayRestore.handoff);
@@ -2330,7 +2364,7 @@ export function createVersionController({
             readApplication().effective.widgets,
           );
           for (const block of changedSince(outgoingSource).changed)
-            backgroundFlash(block, flashDuration());
+            backgroundFlash(block);
           notice(`Updated to ${target.label}`, { background: true });
           gesture("version");
         }),
@@ -2413,35 +2447,48 @@ export function createVersionController({
     };
   }
 
-  // Changed executable identity requires a fresh document. Serialize the continuity
-  // handoff before reload; installArrival consumes it once after upgrade.
+  // The continuity handoff to the fresh document a reload Leaf asked for loads, written
+  // as this document goes (`installArrival`), so it holds the place the user left, keys
+  // typed while the reload loaded included. The reload lands at `revision` or a newer
+  // one, at `url`; installArrival consumes the handoff once after upgrade.
+  /** @param {{revision: number, url: string}} landing */
+  function handOff({ revision, url }) {
+    const live = pageDocument();
+    const source = authoredSource;
+    if (!live || !source)
+      throw new Error("A revision handoff requires its authored document");
+    const view = captureView();
+    const editingContinuity = captureEditingContinuity();
+    tabStore.set(VIEW_KEY, JSON.stringify(view));
+    window.lfStorage.handOff({
+      revision,
+      url,
+      view,
+      retainedCurrentLocation: captureRetainedCurrentLocation(),
+      ...editingContinuity,
+      carry: captureCarry(live, source).records,
+      comparison: selectedBase(),
+      pointer: pointerAt(),
+      // Whether the user was writing in a box, which comes back: the arriving
+      // document's key hold then takes even a Space as text for it (bootstrap.js,
+      // `typingBack`).
+      typing: typesText(focused()),
+    });
+  }
+  // Where a revision's reload lands, at the address the user sees once the arriving
+  // document takes its mark off; a reload into another runtime lands this one's.
+  /** @type {{revision: number, url: string} | null} */
+  let reloadLanding = null;
+
+  // Changed executable identity requires a fresh document.
   const reloadInto =
     (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
       forceActivation = false;
-      const live = pageDocument();
-      const source = authoredSource;
-      if (!live || !source)
-        throw new Error("A revision handoff requires its authored document");
-      const view = captureView();
-      const editingContinuity = captureEditingContinuity();
-      tabStore.set(VIEW_KEY, JSON.stringify(view));
-      tabStore.set(
-        HANDOFF_KEY,
-        JSON.stringify({
-          revision: target.revision,
-          url: location.href,
-          view,
-          retainedCurrentLocation: captureRetainedCurrentLocation(),
-          ...editingContinuity,
-          carry: captureCarry(live, source).records,
-          comparison: selectedBase(),
-          pointer: pointerAt(),
-        }),
-      );
+      reloadLanding = { revision: target.revision, url: location.href };
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
       replaceEntry(marked);
-      location.reload();
+      reloadDocument();
       // The new document owns the continuation. Keeping this activation pending
       // prevents the old realm from applying state while navigation commits.
       return new Promise(() => {});
@@ -2516,8 +2563,8 @@ export function createVersionController({
       restorePlace(view.page, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a visual review's
-    // capture does in a document page: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a shot's capture
+    // stage does in a document page: the page keeps its own place beside the region's.
     if (
       view.page &&
       !restored.has(pageScroller) &&
@@ -3181,32 +3228,28 @@ export function createVersionController({
     // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
-    // target a widget generates, hides, or moves (`aimArrival`), and travel to a
-    // different authored revision, where a passage is a better landmark than the old
+    // target a widget generates, hides, or moves (`aimArrival`), and a reload Leaf asked
+    // for and the user didn't, which hands over their whole place (`handOff`). Into a
+    // different authored revision, a passage is also a better landmark than the old
     // document's pixels.
     const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
+    // The handoff prepaint read for a reload of its address, dropped from the tab as the
+    // document arrives, however it arrived.
     const handoff = (() => {
-      const serialized = tabStore.get(HANDOFF_KEY);
-      tabStore.set(HANDOFF_KEY, null);
-      try {
-        const value = JSON.parse(serialized || "null");
-        return LIVE_ROOT &&
-          currentRevision !== null &&
-          navigationType === "reload" &&
-          value?.url === location.href &&
-          Number.isInteger(value.revision) &&
-          value.revision <= currentRevision &&
-          Number.isInteger(value.view?.revision) &&
-          value.view.revision < currentRevision
-          ? value
-          : null;
-      } catch {
-        return null;
-      }
+      const value = /** @type {any} */ (window.lfStorage.handoff);
+      window.lfStorage.handOff(null);
+      return currentRevision !== null &&
+        Number.isInteger(value?.revision) &&
+        value.revision <= currentRevision &&
+        Number.isInteger(value.view?.revision)
+        ? value
+        : null;
     })();
+    // Printed keys typed while the handoff is restored wait for it (`landArrival`).
+    if (handoff) handingBackPlace(true);
     // Unreadable saved JSON means no saved view; it must not prevent page startup.
     const savedView = (() => {
       try {
@@ -3217,7 +3260,10 @@ export function createVersionController({
     })();
     addEventListener("pagehide", () => {
       if (!anchoringIsReady()) return;
-      tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
+      const revision = runtime.currentRevision;
+      if (leafReloads() && revision !== null)
+        handOff(reloadLanding ?? { revision, url: location.href });
+      else tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     const currentIntent = retainUserIntent({ fallback: compositionInput, since: 0 });
     const restoreCarryScroll =
@@ -3242,6 +3288,14 @@ export function createVersionController({
           savedView.revision !== runtime.currentRevision
         )
           restoreView(savedView, currentIntent);
+      }).finally(() => {
+        if (!handoff) return;
+        handingBackPlace(false);
+        // The held keys run where the restore put the user, as text in the box they
+        // were writing in. An input of theirs meanwhile stopped the restore, and their
+        // keys, meant for a place they never got back to, go with it.
+        if (inputCount() === 0) paintKeys();
+        else letHeldKeysGo();
       });
     return { landArrival, savedView };
   }

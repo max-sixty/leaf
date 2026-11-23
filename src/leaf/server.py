@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .files import read_json
-from .findings import Finding
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
 from .schema import (
@@ -23,6 +22,7 @@ from .schema import (
 )
 from .service import PageTransaction, claim_is_active, page_claim
 from .state import (
+    PLUGIN_ROOT,
     STRING,
     Record,
     described,
@@ -140,27 +140,29 @@ def running_server(page_dir: Path) -> RunningService | None:
     }
 
 
-def another_leaf_serving(page_dir: Path) -> list[Finding]:
-    """A note that the page's live server runs another commit of Leaf than this
-    process (`layer.running_leaf`). A server keeps the runtime and layer it started
-    with, so what this process checks may not be what the user's tab draws until
-    the server restarts. It compares commits alone: two checkouts at one commit
-    draw no note, even with uncommitted edits, and neither does a server or process
-    whose commit is unknown."""
+def other_serving_leaf(page_dir: Path) -> dict | None:
+    """The Leaf the page's running server records (`layer.payload_provenance`), where
+    it is another Leaf than the one this process runs (`layer.running_leaf`), or None
+    where no server runs or this Leaf started it.
+
+    A server keeps the runtime and layer it started with, so what this process checks
+    may not be what the user's tab draws until the server restarts. Another Leaf is
+    another install or checkout, or this one at another commit, as Codex's copy is
+    once Codex replaces it in place. Uncommitted edits don't count, since the record
+    can't say whether they changed after the server started. `leaf server start`
+    restarts such a server under this Leaf (`hosting.start_page`), as the prompt hook
+    does where both are installed copies (`reconnect`), and `page check` notes it
+    (`validation.source.source_advice`)."""
     from .layer import running_leaf
 
     server = running_server(page_dir)
     if server is None:
-        return []
-    served, own = server["runtime"].get("commit"), running_leaf().get("commit")
-    if not served or not own or served == own:
-        return []
-    return [
-        Finding(
-            "another-leaf-serving",
-            values={"page": str(page_dir), "server": served, "checked": own},
-        )
-    ]
+        return None
+    served = server["runtime"]
+    here = {"path": str(PLUGIN_ROOT), "commit": running_leaf().get("commit")}
+    if all(served.get(key) == value for key, value in here.items()):
+        return None
+    return served
 
 
 def preview_metadata(page_dir: Path) -> dict | None:

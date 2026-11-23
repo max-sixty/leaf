@@ -15,6 +15,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
+from leaf.registry.layer import stamp_composition
 from leaf.registry.schema import check_schema
 from leaf.registry.storage import load_registry
 from leaf.schema import DEFAULT_PACKAGE
@@ -127,10 +128,12 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     select_one_result = tree.select_one("#callout-registry")
     assert select_one_result is not None
     entry = json.loads(select_one_result.text)
-    # As composing the tutorial's package writes each declaration's defaults in.
+    # As composing the tutorial's package completes each declaration.
     registry = complete_declarations(load_registry(page_dir) | entry)
 
-    registry_validation.validate_registry(registry, "package tutorial")
+    stamp_composition(
+        registry_validation.validate_registry(registry, "package tutorial")
+    )
     assert (
         validation_model.declaration_advice(entry, registry, "package tutorial") == []
     )

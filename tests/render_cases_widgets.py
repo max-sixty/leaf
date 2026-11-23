@@ -71,9 +71,7 @@ PAGE_DECLARATION = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
             "additionalProperties": False,
@@ -180,7 +178,6 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
@@ -232,7 +229,7 @@ def prefixed_visual_layer(*prefixes):
             **entry,
             "attributes": {
                 **entry["attributes"],
-                "properties": {"id": entry["attributes"]["properties"]["id"]},
+                "properties": {},
                 "required": ["id"],
             },
             "visual": {"prefixes": list(prefixes)},
@@ -254,7 +251,6 @@ SHADOW_VISUAL_LAYER = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],

@@ -15,7 +15,6 @@ from pathlib import Path
 from leaf.data_contracts import declared_data_bindings
 from leaf.findings import Finding
 from leaf.registry.contract import (
-    element_declarations,
     is_element_name,
     read_registry_declarations,
     registry_finding,
@@ -53,10 +52,9 @@ def declaration_advice(declarations: dict, registry: dict, path) -> list[Finding
         *kernel_fact_advice(declarations, path),
         *event_clause_advice(declarations, registry, path),
     ]
-    elements = element_declarations(registry)
     for tag in declarations:
         if is_element_name(tag) and tag in registry:
-            found += widget_advice(tag, registry, elements, path)
+            found += widget_advice(tag, registry, path)
             found += _example_advice(tag, registry, path)
     return found
 

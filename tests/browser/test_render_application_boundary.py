@@ -69,7 +69,7 @@ THREAD_READER_DECLARATION = {
     "description": "A read-only package thread view.",
     "attributes": {
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
         "additionalProperties": False,
     },
@@ -103,7 +103,6 @@ THREAD_FILTER_DECLARATION = {
     "attributes": {
         "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "filter": {"type": "string"},
         },
         "required": ["id"],
@@ -836,7 +835,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                 "description": "A declared shadow stage for the controller lifetime.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },
@@ -1245,7 +1244,7 @@ THREAD_ACTIONS_DECLARATION = {
     "description": "A package's own Thread action controls.",
     "attributes": {
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
         "additionalProperties": False,
     },
@@ -1572,7 +1571,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 "description": "A keyed shadow row with a native slotted editor.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },

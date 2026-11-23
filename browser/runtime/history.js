@@ -8,8 +8,8 @@
  * it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
  * A working-place checkpoint owns the viewport offset, focus and selection together,
- * and the thread views open in the chrome, which a return opens again where they have
- * closed (`returnPlace`).
+ * and the views open in the chrome, a thread's or a panel's list, which a return opens
+ * again where they have closed (`returnPlace`).
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
  * A traversal cancels the outgoing placement, waits for that cancellation's rendering
@@ -132,9 +132,10 @@ export function readPlace(focus = deepFocus()) {
 // selection end past its node's current length returns to what is left of that node,
 // its end. The view that drew the focused node may have closed since: travel puts the
 // panel's view away where it would stand over the place it lands on, and a card closes
-// as the user leaves its passage. The chrome then opens its thread views again as a
-// revision does, at the reply the user had read to and with the user in the one they
-// were in; a margin card whose passage the page no longer shows opens in the panel.
+// as the user leaves its passage. The chrome then opens its views again as a revision
+// does, a thread at the reply the user had read to and a list where it was read to,
+// with the user in the one they were in; a margin card whose passage the page no
+// longer shows opens in the panel.
 // Where nothing reopens, the user returns to the node's page target, the same working
 // place seen from the page. The return settles once they are there, so a command acting
 // on the returned place awaits it.
@@ -247,9 +248,9 @@ export function claimTraversals(claim, { signal } = {}) {
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
 }
 
-// Where the user is in the chrome's thread views, the panel's and a margin card, which
-// each view reads and restores itself, as a revision carries them (version.js,
-// `captureRetainedCurrentLocation`).
+// Where the user is in the chrome's views, the panel's thread or list and a margin
+// card, which each view reads and restores itself, as a revision carries them
+// (version.js, `captureRetainedCurrentLocation`).
 /** @type {ChromeLocation | null} */
 let chrome = null;
 let mounted = false;

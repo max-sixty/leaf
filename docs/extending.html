@@ -2082,9 +2082,6 @@ packages/callout/
     "description": "A short warning or constraint that belongs in the reading flow.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },
@@ -2094,8 +2091,9 @@ packages/callout/
             <p>
               <code>attributes</code> is a JSON Schema of the element's attributes, and
               the entry needs no other Leaf declaration: the body is the author's markup
-              unless <code>content</code> says otherwise. Leaf adds the grammar an
-              <code>id</code> follows; <code>description</code> and
+              unless <code>content</code> says otherwise. Every element takes an
+              <code>id</code>, which Leaf adds with its grammar, so the entry says only
+              that this one requires it; <code>description</code> and
               <code>example</code> make the merged registry useful to an author.
             </p>
             <p>
@@ -2461,18 +2459,6 @@ flowchart TD
                 <span
                   >Keep current release state, named checks, and the changing run log in
                   view together.</span
-                >
-                <em>Open page ↗</em>
-              </a>
-              <a
-                class="package-card"
-                data-package="visual-review"
-                href="/examples/visual-review-gallery/"
-              >
-                <strong>Visual review</strong>
-                <span
-                  >Compare screenshots from a website journey, with capture conditions
-                  and results for each step.</span
                 >
                 <em>Open page ↗</em>
               </a>

@@ -14,6 +14,7 @@ code of its own. Choose by what the state is:
 | Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                    | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
 | How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                       | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
 | Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
+| What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                                | the widgets on this page that name it, in this tab                                                                  | the widget sets it; a reader's bound property is set, and its `render()` runs                              |
 | A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                         | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
@@ -129,12 +130,12 @@ shape of its `unit`:
   `ranks` gives each member's rank. Leaf moves no member: `render()` places each
   container's members in that order (`module-authoring.md`, "Retained nodes").
 
-`detail` follows the payload [package-data.md, "User state"](package-data.md#user-state)
-gives each record kind. A recorded body, attribute or value sends `detail: {value}`. A
-move sends `detail: {unit, value, rank}`: the moved element's id, the destination
-container's id, and `rankAt(state.<verb>, container, index, unit)`, which places the
-unit at `index` among the container's others and keeps it there however other units
-move. A verb with no record sends what its `detail` schema declares.
+For a verb with a record, `detail` is the payload
+[package-data.md, "User state"](package-data.md#user-state) gives for its record kind. A
+move's `rank` is `rankAt(state.<verb>, container, index, unit)`, which takes the
+container's and the unit's ids, places the unit at `index` among the container's others
+and keeps it there however other units move. A verb with no record sends what its
+`detail` schema declares.
 
 A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On
@@ -173,11 +174,12 @@ inline patch, Leaf sets the input's property once, at setup, to the text of its
 `<pre>`. Any other unbound input is left to the widget (`package-data.md`, "External
 or derived data").
 
-A widget output reads through the same property, as the value its producer published
-with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). The
-producer publishes in the turn that commits the matching rendering, and publishes
-`null` rather than keep stale records after a failed replacement. Leaf doesn't check a
-published value against its contract, so publish only values that fit it.
+An input bound to another widget's output reads through the same property, as the
+value that widget holds (package-data.md, "Widget outputs"). The producer sets its
+output property and says `change` in the turn that commits the matching rendering,
+and holds `null` rather than keep stale records after a failed replacement. The
+running page doesn't check a held value against its contract, so hold only values
+that fit it.
 
 ### Marking drawn data
 

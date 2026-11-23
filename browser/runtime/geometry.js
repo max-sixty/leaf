@@ -185,8 +185,12 @@ export function shownWindow({
 // past the edge — read against the container's own bounding rect through its frame
 // (element-axes.js, `innerBox`, on `matrix`, the container's map, where the caller
 // holds it), so a turned container's band is the box its turned padding box covers.
-// Inside an SVG drawing a box clips only where it sets a viewport of its own
-// (`drawnViewport`).
+// A box that clips both axes with `overflow: clip` paints what it holds past its
+// padding box by its `overflow-clip-margin`, in its own pixels, and its band reaches as
+// far; Chromium paints no margin where either axis clips another way. A margin measured
+// from the content or border box, which no sheet here writes, reads as none, and so
+// does WebKit's, which has no such property. Inside an SVG drawing a box clips only
+// where it sets a viewport of its own (`drawnViewport`).
 //
 // `page check --render` imports this to ask which container cut a box away, so the
 // band a handover is refused against and the band the page paints to are one reading.
@@ -206,11 +210,15 @@ export function shownBand(el, matrix) {
   const axes = clippingAxes(s);
   if (!axes.x && !axes.y) return null;
   if (isSVG(el) && el.ownerSVGElement) return drawnViewport(el);
+  const reach =
+    s.overflowX === "clip" && s.overflowY === "clip"
+      ? parseFloat(s.overflowClipMargin) || 0
+      : 0;
   const inner = {
-    left: el.clientLeft,
-    top: el.clientTop,
-    right: el.clientLeft + el.clientWidth,
-    bottom: el.clientTop + el.clientHeight,
+    left: el.clientLeft - reach,
+    top: el.clientTop - reach,
+    right: el.clientLeft + el.clientWidth + reach,
+    bottom: el.clientTop + el.clientHeight + reach,
   };
   return innerBox(el, inner, matrix);
 }

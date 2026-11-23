@@ -162,8 +162,6 @@ Options:
                      do on the thread, ended by `leaf task end` with the reply's
                      id
   --ephemeral        one-line progress, without answering
-  --reopen           bring a thread the user resolved back to their lists with
-                     this reply
   --title TEXT       name the thread for the panel unless it has a name: a few
                      words; one past 80 characters is cut at a word
   --obligation [ID]  put this message on On Me until the user replies or settles

@@ -343,7 +343,7 @@ def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
     """The user's resolve takes a thread off their list and leaves the request in it
     owed: its record stays the agent's, on the agent's list, and the answer goes into
     the thread, which stays closed. The agent's own resolve answers for the thread,
-    whatever the user closes after it, until the user reopens it."""
+    whatever the user closes after it, until the thread reopens."""
     publish(page_dir)
     asked = append_carried_log_record(
         page_dir,

@@ -131,8 +131,11 @@
 #              holding an `<lf-option id="…">` for each answer, so the user answers
 #              with a press (`references/threads.md`, "Ask for a pick"). Reply
 #              explicitly too for work promised beyond this turn (`--todo`), a title
-#              or moving the thread (`references/threads.md`); an explicit reply posts
-#              at once, and your final message is then not posted.
+#              or moving the thread (`references/threads.md`), and for news the user
+#              would want to stop and read, such as that you could not do what they
+#              asked: they may have resolved the thread by then, and only that
+#              command's record says so. An explicit reply posts at once, and your
+#              final message is then not posted.
 #      clause 10, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow card or panel. The thread
@@ -382,8 +385,10 @@ comment over App Server:
         id="…">` holding an `<lf-option id="…">` for each answer, so the user answers
         with a press (`references/threads.md`, "Ask for a pick"). Reply explicitly
         too for work promised beyond this turn (`--todo`), a title or moving the
-        thread (`references/threads.md`); an explicit reply posts at once, and your
-        final message is then not posted.
+        thread (`references/threads.md`), and for news the user would want to stop
+        and read, such as that you could not do what they asked: they may have resolved
+        the thread by then, and only that command's record says so. An explicit
+        reply posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1394,8 +1399,10 @@ pick inside a thread over App Server:
         id="…">` holding an `<lf-option id="…">` for each answer, so the user answers
         with a press (`references/threads.md`, "Ask for a pick"). Reply explicitly
         too for work promised beyond this turn (`--todo`), a title or moving the
-        thread (`references/threads.md`); an explicit reply posts at once, and your
-        final message is then not posted.
+        thread (`references/threads.md`), and for news the user would want to stop
+        and read, such as that you could not do what they asked: they may have resolved
+        the thread by then, and only that command's record says so. An explicit
+        reply posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1418,9 +1425,10 @@ resolve:
         The user resolved the thread, which takes it off their list and retires
         any question you asked in it. A message or a pick of theirs there you have
         not answered stays owed: answer it as usual. What you say in the thread
-        goes into it without reopening it. Add `--reopen` to a reply they would
-        want to stop and read, such as a request you could not carry out as they
-        asked; a question to them there reopens it by itself.
+        goes into it without reopening it, unless it asks them something. `leaf
+        thread reopen <page> <message>` brings the thread back to their list, for
+        news they would want to stop and read, such as that you could not do what
+        they asked (`references/threads.md`).
 
 unresolve:
   event:

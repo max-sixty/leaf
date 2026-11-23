@@ -448,6 +448,9 @@ lf-tabs > lf-tab {
       justify-items: start;
       text-align: start;
       --lf-ring-at: var(--lf-focus-ring-inset);
+      /* A row the walk brings into the window (lf-tabs.js, `#showTab`) stops above
+       * the room the floating panel's row takes at the window's foot. */
+      scroll-margin-block-end: var(--lf-foot-room);
       &[data-lf-focus-visible] {
         outline: var(--lf-focus-ring);
         & > .lf-tab-name {

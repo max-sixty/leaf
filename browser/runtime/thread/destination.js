@@ -51,8 +51,10 @@
    reply part without focus.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
    surface covering the native reader before disclosure, focus and placement. A
-   travelling arrival captures its return place before releasing held content or
-   changing layout and commits it only after the destination is reached.
+   travelling arrival captures its return place before it releases held content,
+   changes layout or asks any reader, since the panel puts its view away as it
+   declines a thread the page draws. It commits that place only after the destination
+   is reached.
 
    Held identity is the focused Thread across shadow roots. An unheld conversation
    drawn with its page target, by the preview accompanying the target or by a widget's
@@ -79,6 +81,7 @@ import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
+import { awaitsDrawing } from "../anchor-resolution.js";
 
 /** @typedef {NonNullable<ReturnType<typeof threadNamed>>} ThreadRecord */
 /** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
@@ -90,6 +93,7 @@ import { threadPlace as placementOf } from "./placement.js";
 /** @param {{placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * threadIdsAt: (node: Element) => readonly string[],
  * scrollToThread: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToThread"],
+ * revealThread: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["revealThread"],
  * arrive: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["arrive"],
  * prepareNavigationStep: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
  * preview?: ReturnType<typeof import("../annotation-overlay/margin-projection.js").createMarginProjection>["threadPreview"] | null}} dependencies */
@@ -97,6 +101,7 @@ export function createThreadDestinations({
   placedAt,
   threadIdsAt,
   scrollToThread,
+  revealThread,
   arrive,
   prepareNavigationStep,
   preview = null,
@@ -232,6 +237,8 @@ export function createThreadDestinations({
     const page = reader === "page";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
+    // The return place, read before any reader is asked (the header).
+    const departure = navigationStep && history ? prepareNavigationStep() : null;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     const primary =
@@ -269,8 +276,6 @@ export function createThreadDestinations({
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
-      const departure =
-        focus !== false && navigationStep && history ? prepareNavigationStep() : null;
       if (resort) lastResort.add(thread.key);
       else lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
@@ -330,6 +335,21 @@ export function createThreadDestinations({
     // arrival lands there, never on the primary's view (`threadFocusTarget`'s `page`).
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
+      // A thread on a part its widget hasn't drawn, or has drawn where the page doesn't
+      // show it, as in a file the user closed, moves there or gains a seat beside it
+      // once the widget shows the part, so travel has the widget show it before choosing
+      // which of the page's drawings shows the thread (anchor-resolution.js,
+      // `awaitsDrawing`).
+      const anchor = threadNamed(id)?.anchor;
+      const placement = placedAt(id);
+      if (
+        navigationStep &&
+        placement &&
+        (anchor?.datum || anchor?.visual) &&
+        (awaitsDrawing(anchor, placement) || !placeDrawn(id)) &&
+        !(await revealThread(id, intent))
+      )
+        return null;
       // A route to a message is an arrival at it, so a seat holding it back shows it.
       if (part === "message") showHeld(id);
       const openSurface = async () => {
@@ -344,7 +364,7 @@ export function createThreadDestinations({
           // opens first.
           if (surface) await reveal(surface, intent).ready;
           if (!mayPresent()) return null;
-          if (!(await scrollToThread(id, { part, focus, intent, history })))
+          if (!(await scrollToThread(id, { part, focus, intent, departure })))
             return null;
         } else if (focus === false) {
           if (scroll) await reveal(surfaceFocusTarget(id, { part }), intent).ready;
@@ -396,7 +416,7 @@ export function createThreadDestinations({
               focus,
               presented: opened.presented,
               intent,
-              history,
+              departure,
             }))
           )
             return null;
@@ -457,7 +477,7 @@ export function createThreadDestinations({
         part: null,
         focus: focus && !control,
         intent,
-        history,
+        departure,
       });
       if (!arrived) return null;
       if (focus && surfaceFocusTarget(id, { part })) {

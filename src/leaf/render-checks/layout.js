@@ -1,5 +1,7 @@
 import { pageScroller } from "/runtime/widget-api.js";
 import {
+  elementBorderFrame,
+  innerBox,
   layoutBox,
   pageDocument,
   inPage,
@@ -255,7 +257,7 @@ export function overflowingRegions() {
 // clear of the column. Where the box sits is what separates margin content from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
 // and run out. So a float that merely overflows is still reported, and a widget's
-// own float inside the column (an option's .facts rail) is never in question.
+// own float inside the column (an option's .lf-facts rail) is never in question.
 //
 // Margin content answers for what it holds, which is why both readings are made up the
 // ancestors and not of the element alone. Margin prose carries <code>, links and
@@ -360,16 +362,14 @@ export function misplacedBoxes() {
   // The shell the Layout's box stands in: `body`, or a `main` holding it.
   const shell = main.parentElement ?? document.body;
   const shellStyle = getComputedStyle(shell);
-  const shellBox = shell.getBoundingClientRect();
   // Inside the shell's border, scrollbar gutters and padding, which are in the shell's
-  // own pixels, scaled to the window's by any transform on the shell or around it.
-  const scale = shellBox.width / shell.offsetWidth || 1;
-  const roomLeft =
-    shellBox.left + (shell.clientLeft + parseFloat(shellStyle.paddingLeft)) * scale;
-  const roomRight =
-    shellBox.left +
-    (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) *
-      scale;
+  // own pixels, carried to the window's through any transform on the shell or around it.
+  const { left: roomLeft, right: roomRight } = innerBox(shell, {
+    left: shell.clientLeft + parseFloat(shellStyle.paddingLeft),
+    top: shell.clientTop,
+    right: shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight),
+    bottom: shell.clientTop + shell.clientHeight,
+  });
   const { isMarginContent, left, marginElements, right } = marginReading(
     main,
     roomLeft,
@@ -457,9 +457,19 @@ export function misplacedBoxes() {
     const s = getComputedStyle(el);
     if (draws(el) || s.boxShadow !== "none") return box;
     if (!parseFloat(s.paddingLeft) && !parseFloat(s.paddingRight)) return box;
-    const scale = box.width / /** @type {HTMLElement} */ (el).offsetWidth || 1;
-    let left = box.left + parseFloat(s.paddingLeft) * scale;
-    let right = box.right - parseFloat(s.paddingRight) * scale;
+    // In from the border box's edges, which an inline box has where it has no client box.
+    const frame = elementBorderFrame(el, box);
+    const content =
+      frame &&
+      innerBox(el, {
+        left: parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft),
+        top: 0,
+        right:
+          frame.width - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight),
+        bottom: frame.height,
+      });
+    if (!content) return box;
+    let { left, right } = content;
     const range = document.createRange();
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) continue;

@@ -81,7 +81,9 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 
 /* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).
    The two lines fit a one-line control's height, so the dial stands no taller than a
-   row of words and its first paint holds its room; larger type grows the control. */
+   row of words and its first paint holds its room; larger type grows the control.
+   The time is quieter by its smaller face alone: it wears its word's colour, since an
+   unchosen depth's word is already --lf-muted, the dimmest text that holds 4.5:1. */
 .lf-dial-depth {
   min-block-size: var(--lf-line);
   padding-block: 0;
@@ -95,7 +97,7 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 .lf-dial-time {
   display: block;
   font: var(--lf-font-fine);
-  color: color-mix(in srgb, currentColor 72%, transparent);
+  color: inherit;
   font-variant-numeric: tabular-nums;
 }
 

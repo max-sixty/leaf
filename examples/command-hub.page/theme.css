@@ -11,7 +11,7 @@ lf-atlas-task {
   padding-inline-start: 1rem;
   border-inline-start: 1px solid var(--lf-rule);
 }
-section.panel > lf-atlas-plan > lf-atlas-task:last-child {
+section.lf-panel > lf-atlas-plan > lf-atlas-task:last-child {
   margin-block-end: 0;
 }
 lf-atlas-task > strong {
@@ -28,18 +28,6 @@ lf-atlas-task > strong {
 .atlas-task-threads:not(:empty) {
   margin-block-start: var(--lf-sp-2);
   overflow-wrap: anywhere;
-}
-/* A conversation and the comment box that starts another share one measure, the
-   width Leaf gives a comment box in an outlet, so a conversation's own reply box and
-   the comment box under it meet at both edges. */
-.atlas-task-threads > :is(.lf-page-thread, .lf-resolved-threads) {
-  max-inline-size: 760px;
-  padding-inline: 0;
-}
-/* The comment box stands a gap under the conversations: flush, a reply box and the
-   comment box under it read as two fields of one conversation. */
-.atlas-task-threads > :is(.lf-page-thread, .lf-resolved-threads) ~ .lf-fab-bar {
-  margin-block-start: var(--lf-sp-3);
 }
 lf-atlas-task:not(:defined)::before {
   content: attr(status);

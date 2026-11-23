@@ -29,6 +29,29 @@ so check the harness's available skills before invoking one.
   guides to `.lf-chrome` or the open dialog, since guides on the body paint under
   both. Most of what it lists on Leaf is ragged text or a centred column, so confirm
   each miss in a crop before fixing it.
+- [renderlint](https://github.com/ngocanhnckh/renderlint) for rendered defects at 13
+  widths: clipped and overlapping text, controls of unequal height side by side,
+  covered content and focus, small targets, and contrast read from pixels. Run it on the
+  URL `uv run leaf-dev preview <example>` prints rather than on an export, which has no
+  chrome and draws its widgets at one width:
+
+  ```bash
+  npx @yitec/renderlint "$URL" --no-crawl --no-scan --no-routes --dark
+  ```
+
+  `--dark` is needed because it doesn't detect a scheme set with `light-dark()`. A
+  `states` config of Playwright steps reaches the panel, Threads or a dialog, without
+  the width sweep. Most of what it lists on Leaf follows Leaf's own rules (text on the type
+  scale's 10px to 11.5px steps, the floating panel standing over the page, a diff's
+  line numbers as targets), so confirm each miss in a crop.
+
+- [OpenDesigner's review probe](https://github.com/ckryptickunal/OpenDesigner/blob/main/skills/opendesigner-review/scripts/probe.js),
+  for its inventories rather than its flags. Load its `probe.js` into a state through
+  `uv run leaf-dev probe --state NAME --js` with its walk (`all()`) scoped to one chrome
+  surface and its cap of 15 items a list raised, and read the text colours, font sizes,
+  radii and spacings `probe()` lists, in both schemes, against
+  `browser/styles/tokens.css`. A value no token gives, such as pure black or white
+  text, is a miss to confirm in a crop.
 - [UI SDK](https://github.com/vercel-labs/ui)'s `checkPattern`, for keyboard and ARIA
   structure. This journey checks each composite the page shows, such as tabs, trees,
   toolbars and radio groups, against its WAI-ARIA Authoring Practices pattern;

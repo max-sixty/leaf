@@ -86,7 +86,7 @@ import { sameAnchor } from "../anchor-coordinate.js";
 import { threadNamed } from "../thread/state.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
-import { covered, placeBox, seenRect } from "../geometry.js";
+import { covered, outOfWindow, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { landGlides, stopGlide } from "../scrolling.js";
 import { carriersOf } from "../scroll-containers.js";
@@ -105,7 +105,7 @@ import {
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
 import { advertisesKeys } from "../keyboard/bindings.js";
-import { activeCommandLabel } from "../keyboard/dispatch.js";
+import { commandKeysNow } from "../keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
 import {
@@ -308,27 +308,46 @@ export function createResponseSurface({
     fabHold.value = fabInlineOutlet?.lfHold ?? null;
   };
 
+  // An outlet's geometry is judged only as the editor moves into it, as a floating
+  // bar's room is judged only as it opens (`showFab`). A seat the chrome covers, as
+  // under the room a panel takes, cannot take the user even where it paints, so the
+  // editor stays at its home instead. The seat is judged, not the editor moved into it,
+  // which measures no width until the outlet renders it; a boxless outlet is judged by
+  // the box that lays out what it holds, by the same rule. So an outlet that shows only
+  // while it holds something still lays out where its editor will stand, as a visual
+  // case's discussion does (packages/visual-review/defaults.css).
+  //
+  // A seat merely scrolled out of the window can take an editor as it opens, as a
+  // file's comment below a long hunk: the opening's landing brings it in
+  // (`landFabFocus`), and it stays beside its subject. An editor the user already sees
+  // stays where it is rather than move to such a seat. The move itself scrolls the page
+  // to the editor, and a resize's restore of the reader's place (version.js,
+  // `restoreShifted`) can then scroll back to the place read while the editor stood
+  // outside the page, which leaves the editor and the draft in it below the window, as
+  // when a window widened from a phone's width offers a visual case's discussion as the
+  // seat of the box floating beside the case.
+  //
+  // The outlet the editor stands in keeps it wherever news, a scroll or a resize
+  // carries the outlet, partly under the panel's row included. Sending the editor
+  // home would move the field the user is typing in (browser/AGENTS.md, "The page
+  // holds still under the user's aim"), and their next keystroke lands the field
+  // clear of the row (editor-view.js). Judging that outlet again could also loop: the
+  // outlet grows as it takes the editor, so a cover that crossed none of the empty
+  // outlet can cross the outlet holding it. The editor would go home, and the emptied
+  // outlet would take it back, at every commit. Only admission, below, refuses the
+  // outlet the editor stands in, once that outlet no longer draws it.
   /** @param {Element} outlet */
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor.value || !composerOpen) return false;
-    // A seat the chrome covers, as under the room a panel takes, cannot take the user
-    // even where it paints, so the editor stays at its home instead. A seat merely
-    // scrolled out of the window can, as a file's comment below a long hunk: the
-    // editor's focus brings it in, and it stays beside its subject. The seat is
-    // judged, not the editor moved into it, which measures no width until the outlet
-    // renders it; a boxless outlet is judged by the box that lays out what it holds.
-    // That box only says the editor lands somewhere in it, so a cover crossing it, as
-    // a phone's bottom bar crosses a tall card whose empty outlet lays out nothing,
-    // refuses it only where the user sees none of it.
-    /** @type {Element | null} */
-    let seat = outlet;
-    while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
-    if (
-      seat &&
-      covered(placeBox(seat), seat) &&
-      (seat === outlet || !seenRect(seat, new Map()))
-    )
-      return false;
+    if (fabBar.parentNode !== outlet) {
+      /** @type {Element | null} */
+      let seat = outlet;
+      while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
+      const box = seat && placeBox(seat);
+      if (seat && box && covered(box, seat)) return false;
+      if (box && !fabFocusHandoff && outOfWindow(box) && seenRect(fabInput, new Map()))
+        return false;
+    }
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.
@@ -1495,7 +1514,7 @@ export function createResponseSurface({
   let commentKey = "";
   const commentHint = () => {
     const { box } = commentDestination();
-    commentKey = activeCommandLabel(["comment.create"]);
+    commentKey = commandKeysNow("comment.create").join(" ");
     return { box, label: commentKey };
   };
 

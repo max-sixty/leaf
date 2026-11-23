@@ -131,7 +131,10 @@ changes, and the verb. For each key the latest action not taken back sets the st
 moving a card again replaces that card's position while other cards keep theirs.
 `record` says how the state shows in markup, here as the card's place in a column. A
 new version may change the authored markup freely; the user's decisions still apply
-over it until a `restated` event takes one back. The `$keys` entries in
+over it until a `restated` event takes one back. A version takes a decision back by
+setting the boolean `restated` attribute on the element it rests on, and stamping that
+version records the retraction (the registry's `$restated`). A widget with a user verb
+whose `unit` is `"widget"` declares that attribute. The `$keys` entries in
 `browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
@@ -140,15 +143,29 @@ The record kind fixes the event's payload, a closed object with every field requ
 - `attribute` sends `{value}`, an array of distinct member ids, marked by the boolean
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
-  the widget's `attributes`.
-- `position` sends `{unit, value, rank}`: the moved element, the destination container
-  (of the tag `record.within` names), and its rank.
+  the widget's `attributes`. That schema is a string or a string enum, since an
+  attribute holds no other JSON type, so a number is recorded as its digits.
+- `position` sends `{unit, value, rank}`: the moved element, the destination container,
+  and its rank. A container is an element of the tag `record.within` names, a declared
+  one, inside the widget and with an id of its own, and its members are its children
+  that have ids. The widget is never its own container, so a widget with one list of
+  members still holds them in a container element.
+
+`leaf page state` lists each move in force with its container and rank, not the order
+that results. Authored members rank `1`, `2`, `3` and on in authored order, in base
+36, a move gives its member the rank it names, and each container lists its members by
+rank, compared as strings (the registry's `$verbs.record`). Once a version changes
+which members a container holds, or their order, the moves made before it stay in the
+log but no longer place their members: that version's author writes each moved member
+where the user left it, and those moves can no longer be undone.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
 detail field holding the moved element. A verb with no record declares its own closed
 `detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
 naming what the verb's state is about, by element id or by data key, as a playground's
-submitted settings do.
+submitted settings do. That schema itself holds only `type: "object"`, `properties`,
+`required` and `additionalProperties: false`, so a rule across fields, such as
+`if`/`then`, is refused; each property takes any schema.
 
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$verbs.attention` in the registry). Changes to
@@ -232,41 +249,6 @@ state"](module-state.md#declared-widget-state)), and reads obligations with `rea
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 
-### Views of an answer
-
-An answer has one owner, the widget whose `awaits.value` verb records it, but the
-user may want to see and change it from another view, as a board gathers the picks of
-proposals answered in their own questions. The view's element declares `shows`, as
-`lf-card` does:
-
-```json
-{
-  "refers": { "shows": {} },
-  "shows": { "reference": "shows", "value": "value" }
-}
-```
-
-`attr` names the attribute holding the widget's id, which must be in the view's own page
-or message, and `value` the attribute on the view's compound owner (its `owners`
-tag, here `lf-column`) naming the answer that owner holds. The view stands in the owner
-holding the value the answer names, or in one without `value` while the answer names
-none, or one no owner holds. A `value` record's answer names its attribute's value. An
-`attribute` record's answer names a value when every member it picks carries the same
-value in the attribute `awaits.key` names, as `lf-options` declares `"key":
-"value"` and each `lf-option` a `value` unique within its `lf-options`
-(`unique`); an empty pick, an option the user added, or picks of different
-values name none.
-
-The view keeps no state of its own about the answer. It reads and changes the answer
-through `shownAnswer` ([module-reading.md, "Reading obligations and the On
-lists"](module-reading.md#reading-obligations-and-the-on-lists)), which sends the
-widget's own command, so the log holds one answer whichever view the user changed it
-in. The append door refuses a position move of a view. `page check` advises on
-three things in a view's markup: a view standing apart from its widget's authored
-answer, which the page moves to that answer when it draws; owners that all hold a
-value, which leave nowhere for an answer that names none; and an owner value the
-widget can't answer, which takes no drop.
-
 ## Instance input contracts
 
 A custom-detail verb can declare `contract: {"field": "values", "attribute": "contract"}`.
@@ -293,14 +275,6 @@ and its schema.
 When an attribute names another element, declare it in `refers`, mapping the
 attribute to `{}`, which accepts any element id. `page check` refuses an id that names
 no element.
-
-An attribute whose value must differ among the members of one owner, such as an
-option's `value`, maps to that owner's tag in `unique`, and `page check` refuses a
-repeat inside the same owner:
-
-```json
-{ "lf-option": { "unique": { "value": "lf-options" } } }
-```
 
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
@@ -452,7 +426,7 @@ of input, declaring `source`, `reference` or both:
 ```
 
 The input's `reference` names its ordinary element relation, and the consumer
-declares both attributes in `attributes`. A page binds either
+declares each attribute the input names in `attributes`. A page binds either
 `source="project-files"` or `for="review"`, where `review` is a widget holding a
 `file-list`. The input binds by contract: it reads the one output of its contract the
 named widget declares, whatever that widget calls it, so a consumer never names a

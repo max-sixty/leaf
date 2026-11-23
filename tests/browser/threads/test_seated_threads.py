@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
+    FAKE_RECOGNITION,
     PANEL,
     RELEASE_FOCUS,
     consume_browser_errors,
@@ -165,7 +166,9 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     notice.click()
     expect(thread).to_have_attribute("data-lf-resolved", "true")
     expect(thread).to_be_hidden()
-    expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
+    expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text(
+        "Resolved · Keep this check beside the changed line"
+    )
 
 
 @pytest.mark.parametrize("foot", ["above the window", "under the file header"])
@@ -497,7 +500,12 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     holds that paragraph, the growth inside it, and the seat holds nothing, its focus
     out of view; the reading's hold keeps what stands at the reading line."""
     url, host = seated_page(serve, "task")
-    second = "The second paragraph, being read. " + SEAT_WORDS * 3
+    # Words that repeat nowhere else, so the line at the reading edge names one place
+    # whatever width wraps it.
+    second = "The second paragraph, being read. " + " ".join(
+        f"Sentence {n} of the paragraph being read wraps with the rest."
+        for n in range(9)
+    )
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -801,20 +809,6 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(box).to_have_js_property("value", "Half a thought")
 
 
-# The browser's speech recognizer, replaced at its boundary as tests/runtime's
-# dictation tests replace it: each instance records whether it was aborted, and a
-# test hears words through its `onresult`.
-FAKE_RECOGNITION = """
-window.lfRecognizers = [];
-window.SpeechRecognition = class {
-  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
-  start() { setTimeout(() => this.onstart?.()); }
-  stop() { setTimeout(() => this.onend?.()); }
-  abort() { this.aborted = true; }
-};
-"""
-
-
 def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
     browser, serve
 ):
@@ -1040,7 +1034,9 @@ def test_an_agent_resolving_the_thread_the_user_is_on_waits_behind_its_notice(
     expect(thread).to_be_focused()
 
     notice.click()
-    expect(page.locator(".lf-resolved-summary")).to_have_text("Resolved · 1")
+    expect(page.locator(".lf-resolved-summary")).to_contain_text(
+        "Resolved · Opening remark."
+    )
     expect(thread).to_have_attribute("data-lf-resolved", "true")
     expect(thread).to_be_hidden()
 

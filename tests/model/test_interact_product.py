@@ -559,13 +559,13 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     assert refused("hidden") == [("attribute-schema", "additionalProperties", [])]
 
 
-def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
-    """An attribute a member declares unique within its owner (`unique`), such as a
-    playground preset's `for`, refuses a repeat in the same owner, and a preset carries
-    the id a comment on it records, since without one the comment lands on the whole
-    playground. Both doors refuse a break before any browser draws it: message markup,
-    where a reply's playground otherwise reaches the user with only a static check, and
-    the page's own source."""
+def test_a_message_refuses_a_playground_preset_without_an_id(
+    tmp_path, initialized_page
+):
+    """A preset carries the id a comment on it records, since without one the comment
+    lands on the whole playground. Message markup refuses a preset without one before
+    any browser draws it, where a reply's playground otherwise reaches the user with
+    only a static check."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(preset):
@@ -577,14 +577,11 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
             "</lf-playground></lf-group>"
         )
 
-    def preset(*names, ident=' id="preset-loud"'):
+    def preset(ident):
         return (
             f'<lf-playground-preset{ident} label="Loud">'
-            + "".join(
-                f'<lf-playground-setting for="{name}" value="4"></lf-playground-setting>'
-                for name in names
-            )
-            + "</lf-playground-preset>"
+            '<lf-playground-setting for="size" value="4"></lf-playground-setting>'
+            "</lf-playground-preset>"
         )
 
     def reply(markup):
@@ -602,32 +599,12 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
             return refused.findings
         return []
 
-    assert reply(playground(preset("size"))) == []
+    assert reply(playground(preset(' id="preset-loud"'))) == []
     assert found(
-        reply(playground(preset("size", "size"))),
-        "repeated-key",
-        "<lf-playground-setting>",
-        key="for",
-        value="size",
-    )
-    assert found(
-        reply(playground(preset("size", ident=""))),
+        reply(playground(preset(""))),
         "attribute-schema",
         "<lf-playground-preset>",
         keyword="required",
-    )
-    (page_dir / "index.html").write_text(
-        re.sub(
-            r"<main>.*?</main>",
-            f"<main>{playground(preset('size', 'size'))}</main>",
-            PAGE,
-            flags=re.DOTALL,
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "repeated-key", "<lf-playground-setting>", key="for", value="size"
     )
 
 

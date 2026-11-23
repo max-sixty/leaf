@@ -201,8 +201,11 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `announce`). */
-  "lf-announce": CustomEvent<string>;
+   * (`widget-upgrade.js`, `announce`): the words, or a function returning words read off
+   * the page, such as keys (`saying`), which a listener calls as it says them. */
+  "lf-announce": CustomEvent<
+    import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
+  >;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;

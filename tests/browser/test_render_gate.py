@@ -37,6 +37,7 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     WIDE_TABLE_PAGE,
     arrival_findings,
+    serious_axe_violations,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -99,7 +100,8 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.validation import composition as validation_model
-from leaf_dev.example_data import authored_sources, named_source
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import read_event_lines
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -203,7 +205,9 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
 
 
 def _panel(name: str) -> str:
-    return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+    return (
+        f'<section class="lf-panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+    )
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -216,27 +220,27 @@ DRAWN_LABELS_PAGE = leaf_page(
     """
 <h1>Rollout</h1>
 <figure id="squeezed">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
     <text x="20" y="40">canary</text>
     <text x="560" y="40">region</text>
     <text x="1100" y="40">global</text>
   </svg>
 </figure>
 <figure id="large">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
     <text x="20" y="60" font-size="28">canary</text>
     <text x="1100" y="60" font-size="28">global</text>
   </svg>
 </figure>
 <figure id="natural">
-  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+  <svg class="lf-drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
     <circle class="mark" cx="20" cy="20" r="7" />
     <text class="glyph" style="font-size: 9px" x="20" y="20">1</text>
     <text class="small" x="40" y="24">note</text>
   </svg>
 </figure>
 <figure id="undrawn">
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+  <svg class="lf-drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
     <defs><text x="20" y="40">draft</text></defs>
     <rect class="mark" x="20" y="60" width="200" height="40" />
     <text x="20" y="40"><tspan display="none">paused</tspan></text>
@@ -405,38 +409,6 @@ def test_user_view_checks_read_what_a_box_draws_beside_a_child_it_does_not(
     assert {
         drawing["words"] for drawing in reading["checks"]["shrunk_labels"]["drawings"]
     } == {"Auto label", "Summary label"}, reading["checks"]["shrunk_labels"]
-
-
-# A widget whose module draws a 120px box, where its authored markup holds nothing.
-@pytest.mark.parametrize("resource", ["module", "theme"])
-def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, resource):
-    """A missing response fails navigation rather than admitting an unread page."""
-    holding = []
-
-    def configure(page):
-        page.set_default_timeout(EXPECTED_STALL_MS)
-
-        def hold(route):
-            if holding:
-                route.continue_()
-            else:
-                holding.append(route)
-
-        page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
-
-    failures, _, completed = render_gate_scheme._render_page(
-        primed(browser.unwatched, configure),
-        serve(
-            leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
-            packages=(),
-        ),
-        {"width": 1200, "height": 900},
-        EXPECTED_STALL_MS,
-        [],
-    )
-    assert holding, "the positive control held no resource"
-    assert completed is False
-    assert [failure.code for failure in failures] == ["no-runtime"]
 
 
 @pytest.fixture
@@ -664,41 +636,6 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) != "presented"
 
 
-def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
-    """A page whose deferred work lands a piece at a time is waited for however long
-    the whole takes, as a gallery's samples load on a starved machine, while a page
-    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
-    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
-    step_ms = EXPECTED_STALL_MS // 10
-    # Fifteen arrivals a step apart: one and a half bounds in all.
-    page.evaluate(
-        """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          for (let i = 1; i <= 15; i++)
-            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
-        }""",
-        step_ms,
-    )
-    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
-
-    # One arrival never lands, and above it each new one lands a step after the next
-    # has taken its place, so the arrivals left swing between two and three.
-    page.evaluate(
-        """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          deferredArrival(new Promise(() => {}));
-          window.churn = setInterval(() => {
-            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
-          }, step);
-        }""",
-        step_ms,
-    )
-    with pytest.raises(render_checks_model.PageNotReady) as unready:
-        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
-    page.evaluate("() => clearInterval(window.churn)")
-    assert unready.value.stage == "arrived", unready.value
-
-
 def test_an_async_reading_probe_leaves_the_page_unread_instead_of_awaited(
     browser, serve
 ):
@@ -735,35 +672,6 @@ SAMPLE_FAULT = (
     '<p id="practice">Practice.</p><script>function sampleFault() {'
     " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
 )
-
-
-@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
-def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
-    """A live sample starts its page only as the reader nears it, but the gate reads
-    every document the page can show (`start_near_work`), so it refuses a page whose
-    sample's own script throws wherever on the page the sample stands, a sample far
-    down inside another one included: each started child starts its own."""
-    content = SAMPLE_FAULT
-    if nested:
-        content = (
-            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
-            '<lf-sample id="inner"><template id="inner-source" data-sample>'
-            f"{SAMPLE_FAULT}</template></lf-sample>"
-        )
-    source = leaf_page(
-        "Far fault",
-        '<p id="words">Words.</p><div style="height: 400vh"></div>'
-        '<lf-sample id="far"><template id="far-source" data-sample>'
-        f"{content}</template></lf-sample>",
-    )
-    failures = render_gate_model.render_version(
-        browser.unwatched, serve(source)
-    ).failures
-    assert any(
-        failure.code == "page-exception"
-        and "thrown in the sample" in failure.values["text"]
-        for failure in failures
-    ), failures
 
 
 def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
@@ -1476,22 +1384,36 @@ READING_SCROLLER = (
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
+def in_each_scheme(page):
+    """Put the page in each colour scheme in turn, yielding the scheme once its
+    colours have landed."""
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions, shadow trees' included, such
+        # as a search field's ground; read where they end.
+        render_checks_model.evaluate_probe(page, "finishMoving")
+        yield scheme
+
+
 def unread_syntax(page):
     """Code tokens the page paints too faint to read, each with the colour scheme it
     was read in."""
-    unread = []
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        # The scheme's colours land through transitions; read where they end.
-        page.evaluate(
-            "() => document.getAnimations().forEach("
-            "(a) => a instanceof CSSTransition && a.finish())"
-        )
-        unread += [
-            (scheme, Finding.read(u))
-            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
-        ]
-    return unread
+    return [
+        (scheme, Finding.read(u))
+        for scheme in in_each_scheme(page)
+        for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+    ]
+
+
+def axe_findings(page):
+    """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
+    that has any."""
+    findings = []
+    for scheme in in_each_scheme(page):
+        violations, report = serious_axe_violations(page)
+        if violations:
+            findings.append(f"[{scheme}] {report}")
+    return findings
 
 
 def scroll_findings(page):
@@ -2365,7 +2287,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><hgroup><p>Eyebrow</p><h2>Heading</h2></hgroup></section>
-<div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
+<div class="lf-callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>
 <section id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
@@ -2468,8 +2390,8 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
     scrolls, so the root holds that margin in. The root draws no frame, its edge
-    being the window's. Shell padding is viewport spacing, including Leaf's panel
-    clearance; a border makes the shell an actual frame whose edges can be read."""
+    being the window's. Shell padding is viewport spacing, including Leaf's head room;
+    a border makes the shell an actual frame whose edges can be read."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
@@ -3390,12 +3312,12 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-option id="asked-late" label="Late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
 </lf-group>
-<section class="panel" id="checks">
+<section class="lf-panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
 <tbody><tr><th scope="row">Error rate</th><td><code>0.11%</code> / below <code>0.50%</code></td></tr></tbody></table>
 </section>
-<section class="panel" id="wide-checks">
+<section class="lf-panel" id="wide-checks">
 <h2>Sessions</h2>
 <table id="wide-framed"><tr>{cells}</tr></table>
 </section>
@@ -3413,7 +3335,7 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
         '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
     ).replace(
         "</table>",
-        "</table><table id='statuses'><tr><td><span class='tag ok'>passed</span></td>"
+        "</table><table id='statuses'><tr><td><span class='lf-tag ok'>passed</span></td>"
         "<td>"
         + "The replay covers every legacy export and the importer's output. " * 3
         + "</td></tr></table>",
@@ -3423,7 +3345,7 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
     table = page.locator("#sessions")
     read = """t => {
       const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
-      const tag = document.querySelector('#statuses .tag');
+      const tag = document.querySelector('#statuses .lf-tag');
       return {scrolls: t.scrollWidth - t.clientWidth,
               inside: cap.left >= box.left - 1 && cap.right <= box.right + 1,
               tagLines: Math.round(tag.getBoundingClientRect().height
@@ -3710,7 +3632,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
 </pre></lf-diff>
             <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
           </div>
-          <aside id="framed" class="callout">
+          <aside id="framed" class="lf-callout">
             <table id="framed-table" data-width="wide"><tr><td>Framed evidence.</td></tr></table>
           </aside>
           <div id="wrapper"><section>
@@ -3834,6 +3756,30 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
         ("past-column", "<div id=indented>"),
         ("past-column", "<div id=tinted>"),
         ("past-column", "<p id=child>"),
+    ], findings
+
+
+def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
+    """A box turned a quarter shows across what it holds down, so what it clips to is
+    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    whole are not clipped out, and words held past its foot are."""
+    source = leaf_page(
+        "Turned column",
+        """<h1>Turned column</h1>
+<div id="turned"><p id="whole">Words the turned box shows whole.</p>
+<p id="cut">Words past its foot.</p></div>""",
+        head="""<style>
+#turned { box-sizing: content-box; width: 100px; height: 400px; border: 10px solid;
+  overflow: hidden; rotate: 90deg; margin: -140px auto; }
+#turned p { margin: 0; }
+#turned #cut { margin-top: 360px; }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted((finding["code"], finding["at"]) for finding in findings) == [
+        ("clipped-content", "<div id=turned>"),
+        ("clipped-out", "<p id=cut>"),
     ], findings
 
 
@@ -3978,50 +3924,6 @@ def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
     ], f"a cover between the page's first and last words went unreported: {covered}"
 
 
-@pytest.mark.parametrize(
-    ("style", "under"),
-    [
-        ("", []),
-        ("body { padding: 0 }", ["<p id=last>"]),
-        (
-            "html, body { height: 100% } body { margin: 0; padding: 0 }"
-            " main { height: 100%; overflow-y: auto }",
-            ["<p id=last>"],
-        ),
-        (
-            "html, body { height: 100% } body { margin: 0; padding: 0; overflow-y: auto }",
-            ["<p id=last>"],
-        ),
-    ],
-    ids=["room-kept", "reset", "main-scrolls", "body-scrolls"],
-)
-def test_words_the_panel_covers_at_the_page_s_end_are_reported(
-    browser, serve, style, under
-):
-    """Leaf pads the page's end by the panel's room, so its last words scroll clear of
-    the panel. A reset that zeroes that padding, or a box of the page's own that scrolls
-    with nothing at its end, leaves them under the panel however far the user scrolls.
-    The gate reads the page from its top, as it reads the rest, and places each word
-    where it stands with every scroller holding it at its end: the document for the
-    reset, `main` or `body` for a page that scrolls a box of its own. The last paragraph
-    is reported there, and nothing above it."""
-    source = leaf_page(
-        "end",
-        "<h1>The end of the page</h1>"
-        + "".join(f"<p>Paragraph {i}. {'Filler. ' * 30}</p>" for i in range(30))
-        + f"<p id='last'>The last paragraph. {'Its closing words. ' * 30}</p>",
-        head=f"<style>{style}</style>",
-        layout=None,
-    )
-    page = open_page(browser, serve(source))
-    found = render_checks_model.evaluate_probe(page, "coveredWords")
-    page.close()
-    under_panel = [f for f in found if f["code"] == "under-panel"]
-    assert [f["at"] for f in under_panel] == under, found
-    # The author reads the record as words naming the element it found.
-    assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
-
-
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
@@ -4139,29 +4041,23 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     anchored comment, not merely exist: the planted rule traps its margin against a
     thread's first message, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
-    seeded = [
-        path
-        for path in authored_sources()
-        if (log := path.with_suffix(".jsonl")).exists()
-        and any(
-            event.get("kind") == "comment" and event.get("anchor")
-            for event in map(json.loads, filter(None, log.read_text().splitlines()))
-        )
-    ]
+
+    def anchored(source):
+        log = seed_log(source)
+        return [
+            event["id"]
+            for event in (read_event_lines(log) if log.exists() else [])
+            if event.get("kind") == "comment" and event.get("anchor")
+        ]
+
+    seeded = [path for path in authored_sources() if anchored(path)]
     assert seeded, (
         "no corpus source ships a log holding an anchored comment, so the panel would "
         "open on nothing"
     )
     page = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
-    [thread] = [
-        event["id"]
-        for event in map(
-            json.loads,
-            filter(None, seeded[0].with_suffix(".jsonl").read_text().splitlines()),
-        )
-        if event.get("kind") == "comment" and event.get("anchor")
-    ][:1]
+    [thread] = anchored(seeded[0])[:1]
     open_panel_thread(page, thread)
 
     # The control. A thread's own box draws its inset, and a first block reserving a

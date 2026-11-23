@@ -181,10 +181,20 @@ export function createFloatingResponsePlacement({
   // posture.
   /** @type {{anchor: Anchor, range: Range, start: Node, end: Node} | null} */
   let selectedPassage = null;
-  const fabFrameAt = () => {
+  // The box's frame as its rectangles read, shifted back by `lag`.
+  /** @param {{x: number, y: number}} lag */
+  const frameShifted = (lag) => {
     if (!response.open || !response.floating) return null;
-    const bar = fabBar.getBoundingClientRect();
-    const field = fabField().getBoundingClientRect();
+    /** @param {import("../../rect.js").Box} rect */
+    const shown = (rect) =>
+      new DOMRect(
+        rect.left - lag.x,
+        rect.top - lag.y,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+      );
+    const bar = shown(fabBar.getBoundingClientRect());
+    const field = shown(fabField().getBoundingClientRect());
     const style = getComputedStyle(fabBar);
     const scaleX = bar.width / parseFloat(style.width);
     const scaleY = bar.height / parseFloat(style.height);
@@ -203,12 +213,15 @@ export function createFloatingResponsePlacement({
       ),
       placement: fabPlacement.capture(),
       // The field the card grows out of (box-motion.js, `drawnAt`).
-      field: following?.outline() ?? field,
+      field: following ? shown(following.outline()) : field,
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
       fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
     };
   };
+  // Where the box paints, which a scroll in this task leaves its rectangles behind
+  // (floating.js, `lag`). Send opens its card from this frame.
+  const fabFrameAt = () => frameShifted(fabPosition.lag());
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
   // transparent footer reserved for the future card when space is short.
@@ -221,6 +234,40 @@ export function createFloatingResponsePlacement({
         parseFloat(style.paddingTop),
     );
   };
+  // Which side of its field a draft's pictures hang on (annotation-chrome.css). The
+  // marks on the pictures' top corners, such as Remove, are what the user presses next.
+  // Under the field, those corners face the field and stand inside the reply row the
+  // box's frame keeps, and the placement keeps the whole box inside its boundary, so
+  // the marks stay in the window even where a picture runs past its foot. Over the
+  // field, those corners are the shelf's far edge. So a box over its passage hangs its
+  // pictures over the field only where the room there holds the whole shelf, and under
+  // the field otherwise, as when the window's top edge holds the box on its passage.
+  // Over the field, the shelf reaches its own height past it, or a few pixels less
+  // where its offset takes back more of its padding. `mediaSide` reads the shelf
+  // before the placement writes, and the function it returns chooses the side for the
+  // box where the placement stands it.
+  /** @param {import("@floating-ui/dom").Placement} placement
+   * @param {ReturnType<typeof floatBoundary>} boundary */
+  function mediaSide(placement, boundary) {
+    if (!placement.startsWith("top")) return () => "bottom";
+    const shelf = response
+      .composition()
+      .frame.querySelector(":scope > .lf-composer-media");
+    const height = shelf instanceof HTMLElement ? shelf.offsetHeight : 0;
+    const frame = {
+      height: fabBar.offsetHeight,
+      top: parseFloat(getComputedStyle(fabBar).paddingTop),
+    };
+    /** @param {DOMRectReadOnly} box */
+    return (box) => {
+      if (!height || !frame.height) return "top";
+      const scale = box.height / frame.height;
+      const room = boundary.across({ left: box.left, right: box.right });
+      return box.top + frame.top * scale - room.top >= height * scale
+        ? "top"
+        : "bottom";
+    };
+  }
   const fabFits = () => {
     const boundary = floatBoundary();
     return (
@@ -247,6 +294,7 @@ export function createFloatingResponsePlacement({
     windowPosture = false;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
+    fabBar.removeAttribute("data-lf-media-side");
     fabBar.removeAttribute("data-lf-card-width");
     for (const property of ["--lf-float-w", "--lf-float-h"])
       fabBar.style.removeProperty(property);
@@ -467,7 +515,9 @@ export function createFloatingResponsePlacement({
       // Resolution may move from quoted words to their subject after saved state
       // arrives, including for a resumed draft with no retained native Range. Carry
       // the seated editor's frame through that handoff, before choosing its new seat.
-      const frame = fabFrameAt();
+      // Its rectangles as read: `lag` measures from the anchor's box read now, which
+      // the saved state has just moved, so it would count that move as a scroll.
+      const frame = frameShifted({ x: 0, y: 0 });
       if (frame) {
         fabPlacement.adopt(frame);
         nativeAttachment = false;
@@ -507,11 +557,13 @@ export function createFloatingResponsePlacement({
     };
     const seat = fabPlacement.choose({
       clear: place.clear,
+      room: place.room,
       row: place.row,
       column: place.column,
       extent: place.extent,
       boundary,
       scroller: boundary.scroller,
+      element: place.element,
       coarse: coarsePointer.matches,
     });
     if (
@@ -538,6 +590,7 @@ export function createFloatingResponsePlacement({
         );
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
+          room: place.room,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
@@ -578,9 +631,11 @@ export function createFloatingResponsePlacement({
         // moves travels when it follows a change of the box's size (box-motion.js,
         // `placed`). The open box's first spot is the first reading its motion follows
         // from. A drag the grip carried ends where the placement stands the box.
+        const hang = mediaSide(position.placement, boundary);
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
           const moved = fabPosition.stand(position);
+          keeps(fabBar, "data-lf-media-side", hang(fabPosition.clientBox(position)));
           carry.placed();
           return moved;
         };
@@ -640,6 +695,7 @@ export function createFloatingResponsePlacement({
     declareOffFlowSurface(fabBar, {
       floats: () => Boolean(response.anchor && response.floating),
       away: () => fabWithheld,
+      box: fabField,
       bringBack: /** @param {ScrollBehavior} behavior */ (behavior) => {
         const found = response.resolved;
         const anchor = response.anchor;

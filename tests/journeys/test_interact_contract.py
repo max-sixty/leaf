@@ -182,21 +182,15 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     assert found(findings, "withdraws-outcome", "<lf-trial>", outcome="missing")
 
 
-@pytest.mark.parametrize(
-    ("arrangement", "refusal"),
-    [
-        ("own-verb", None),
-        ("recording-column-value", None),
-        ("recording-column-position", "'card' is not owned by action widget 'board'"),
-    ],
-)
+@pytest.mark.parametrize("arrangement", ["own-verb", "recording-column-value"])
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
-    server, page_dir, arrangement, refusal
+    server, page_dir, arrangement
 ):
     """A card's place belongs to the nearest ancestor recording that position slot.
 
     Scalar records on the card or its column coexist with the board's position
-    record. A column recording positions takes that slot from the board."""
+    record. A nearer widget recording the same slot takes it from the board
+    (`test_nested_member_records_refuse_foreign_selection_and_position`)."""
     card_verbs = {"flag": _value_verb("flag")}
     recorders = {"lf-card": ("flag", card_verbs)}
     if arrangement.startswith("recording-column"):
@@ -214,11 +208,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             }
             entry["verbs"] = verbs
             (widgets / f"{tag}.js").write_text("export default class {}\n")
-        if arrangement == "recording-column-position":
-            registry["lf-column"]["verbs"]["move"] = {
-                "unit": "unit",
-                "record": {"kind": "position", "within": "lf-column"},
-            }
 
     declare_on_page(page_dir, record)
     result = check(page_dir)
@@ -246,11 +235,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             }
         ).encode(),
     )
-    if refusal is None:
-        assert status == 200, body
-    else:
-        assert status == 400, body
-        assert refusal in json.loads(body)["error"]
+    assert status == 200, body
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):

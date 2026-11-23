@@ -57,6 +57,7 @@ from render_harness import (
     regions_side_by_side,
     resized,
     scroll_settled,
+    scroll_writes,
     select,
     selection_field,
     sending,
@@ -1302,7 +1303,9 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     )
 
 
-@pytest.mark.parametrize("subject", ["shot-fit", "shot-actual", "pane"])
+@pytest.mark.parametrize(
+    "subject", ["shot-fit", "shot-fit-at-foot", "shot-actual", "pane"]
+)
 def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     browser, serve, subject
 ):
@@ -1313,13 +1316,31 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     and one on words in the pane takes the window's room: the answer that arrives grows
     the card, rather than scrolling inside a card the shot or the pane cuts short. The
     answer grows a card beside the shot past the window's foot, which lifts it
-    (thread-preview.js, `rises`)."""
+    (thread-preview.js, `rises`). The window's foot then holds the card in, also where
+    the shot's own foot stands on that line, so the card stands in the window's plane:
+    a scroll of the page leaves it where it stands and writes nothing to it
+    (comment-placement.js, `plane`)."""
     shot = None
     if subject.startswith("shot"):
         page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
-        shot.scroll_into_view_if_needed()
+        # The shot stands whole above the floating panel's band, where Leaf's own
+        # landing brings it, so the answer grows the card beside it past the window's
+        # foot.
+        shot.evaluate(
+            """async shot => {
+              const band = (await window.__lfWidgetApi()).landingInsets(
+                document.scrollingElement).bottom;
+              scrollBy({top: shot.getBoundingClientRect().bottom - (innerHeight - band),
+                behavior: 'instant'});
+            }"""
+        )
+        if subject == "shot-fit-at-foot":
+            shot.evaluate(
+                "shot => scrollBy(0, shot.getBoundingClientRect().bottom - innerHeight)"
+            )
+            rendered(page)
         if subject == "shot-actual":
             shot.get_by_role("button", name="Image options").click()
             shot.get_by_role("button", name="100%", exact=True).click()
@@ -1368,6 +1389,14 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     if shot:
         right = shot.bounding_box()["x"] + shot.bounding_box()["width"]
         assert card.bounding_box()["x"] >= right - 0.5, (card.bounding_box(), right)
+        top = card.bounding_box()["y"]
+        writes = scroll_writes(page, (5, 5, -5, 5))
+        assert not [
+            w
+            for w in writes
+            if any("lf-margin-preview" in step for step in w["target"])
+        ], writes
+        assert card.bounding_box()["y"] == pytest.approx(top, abs=0.5)
 
 
 def test_a_row_pointed_in_a_scrolling_pane_keeps_its_card_in_the_pane(browser, serve):
@@ -1978,13 +2007,18 @@ def test_send_grows_thread_around_the_words(
             rendered(page)
             page.keyboard.press("Enter")
             rendered(page)
-            opening = card.evaluate("""async card => {
-              const {commentBoundary, subjectGap} =
+            opening = card.evaluate(
+                """async (card, selector) => {
+              const {commentBoundary, COMMENT_GAP, markRoom, subjectGap} =
                 await window.__lfOverlayApi();
+              const block = document.querySelector(selector);
+              const room = markRoom(block, block.getBoundingClientRect(), COMMENT_GAP);
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
-                boundary:commentBoundary().top, gap:subjectGap()};
-            }""")
+                boundary:commentBoundary().top, gap:subjectGap(room, 'top')};
+            }""",
+                on.block,
+            )
             assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
             assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
                 opening["gap"], abs=1
@@ -2012,9 +2046,11 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
           const boundary = scroller.getBoundingClientRect();
           const before = target.getBoundingClientRect();
           const height = boundary.height * .6;
-          const gap = subjectGap();
+          const room = {left: 8, top: 8, right: 8, bottom: 8};
+          const gap = subjectGap(room, 'bottom');
           const overflow = before.bottom + gap + height - boundary.bottom;
-          const moved = makeRoom('bottom', before, before, height, boundary, scroller);
+          const moved = makeRoom(
+            'bottom', before, before, room, height, boundary, scroller, target);
           const after = target.getBoundingClientRect();
           return {moved, overflow, remaining:after.bottom + gap + height - boundary.bottom,
                   visible:after.top >= boundary.top && after.bottom <= boundary.bottom};
@@ -2369,3 +2405,54 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     scroll_settled(page)
     expect(bar).to_have_attribute("data-lf-plane", "page")
     assert abs(bar.bounding_box()["width"] - width) <= 1
+
+
+def test_a_send_in_the_task_that_scrolls_the_page_opens_the_card_where_the_box_stood(
+    browser, serve
+):
+    """A comment sent in the task that scrolled the page opens its card where the box
+    stood once the page scrolled, not where the box stood before. Chrome reports an
+    anchored box's old client rectangle for a frame or two after a scroll, so a frame
+    read then is off by the scroll."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Send in the task that scrolls",
+                '<div style="height:900px"></div>'
+                '<p id="subject">Keep this comment by the passage it is about.</p>'
+                '<div style="height:1800px"></div>',
+            )
+        ),
+    )
+    resized(page, 1280, 800)
+    target = page.locator("#subject")
+    target.evaluate(
+        "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 200)"
+    )
+    rendered(page)
+    page.keyboard.press("/")
+    page.keyboard.insert_text("the passage it is about")
+    page.keyboard.press("Enter")
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Why this passage?")
+    rendered(page)
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    before = page.evaluate(RECT, ".lf-fab-bar")
+    words = page.evaluate(RECT, "#subject")
+    # Enter scrolls the page, and the composer's own handler sends in that same task,
+    # with no frame drawn between them.
+    page.evaluate("""() => addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') scrollBy({top: 120, behavior: 'instant'});
+    }, {capture: true, once: true})""")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    rendered(page)
+    after = page.evaluate(RECT, ".lf-margin-preview")
+    moved = page.evaluate(RECT, "#subject")
+    assert moved["top"] == pytest.approx(words["top"] - 120, abs=1)
+    # The card keeps the box's offset from the words it is about.
+    assert after["top"] - moved["top"] == pytest.approx(
+        before["top"] - words["top"], abs=2
+    ), (before, words, after, moved)

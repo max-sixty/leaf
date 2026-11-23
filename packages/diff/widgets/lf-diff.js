@@ -1694,8 +1694,10 @@ customElements.define(
       const coordinate = readDiffCoordinate(key);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      if (this.singleFile) this.selectFile(entry);
-      else if (entry.filtered) this.clearFilter();
+      // Leaf can ask again for a part it has shown, so each step does nothing once done.
+      if (this.singleFile && this.activePath !== entry.record.path)
+        this.selectFile(entry);
+      else if (!this.singleFile && entry.filtered) this.clearFilter();
       if (!entry.details) return null;
       if (!entry.details.open) entry.details.open = true;
       if (entry.loaded || entry.refused) return null;

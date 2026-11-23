@@ -39,7 +39,6 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
-  coverBoxes,
 } from "./geometry.js";
 export {
   drawnElements,
@@ -63,6 +62,7 @@ export {
   regionScrollBehavior,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
+export { carriersOf } from "./scroll-containers.js";
 export {
   layoutBox,
   pageDocument,
@@ -113,6 +113,7 @@ export { walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
+export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
 export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";

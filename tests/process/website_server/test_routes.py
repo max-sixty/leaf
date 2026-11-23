@@ -1,5 +1,6 @@
 """The website's HTTP routes over the real page server: example, product and sample
-pages, crawler metadata, layer and protocol refusals, and what the container logs."""
+pages, the state a first visit reads, crawler metadata, layer and protocol refusals,
+and what the container logs."""
 
 import json
 import re
@@ -15,10 +16,12 @@ from interact_support import (
     publish,
     revision_root,
     running_http_server,
+    served_state_error,
 )
 
 import leaf_website as website_server
 from leaf.event_log import read_events
+from leaf.file_bindings import bind_file
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
@@ -111,6 +114,22 @@ def test_a_published_document_names_its_page_to_a_crawler(
     runtime = f'src="{page_root}/leaf.js"' if page_root else 'src="/leaf.js"'
     assert head.index("theme.css") < head.index('property="og:type"')
     assert head.index('property="og:type"') < head.index(runtime)
+
+
+def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
+    """A first visit reads the state the site publishes until the visitor's container
+    answers, so a file navigator lists the page's files from it as from a live page's
+    state, where a capture would list none."""
+    notes = page_dir / "files" / "notes.md"
+    notes.parent.mkdir()
+    notes.write_text("Notes.\n")
+    bind_file(page_dir, "notes", notes)
+    assert website_server.activate_source(page_dir).error is None
+    public = website_server.initial_state(page_dir, "/example", "example", "release")
+    live = website_server.PageStateService(page_dir).page_state()
+    assert list(public["files"]) == ["notes"]
+    assert public["files"] == live["files"]
+    assert served_state_error(public, "answer") is None
 
 
 def test_agent_logs_are_structured_and_content_free(capsys):

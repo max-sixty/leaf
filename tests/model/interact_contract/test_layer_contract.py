@@ -68,9 +68,9 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
     registry = shipped_core_registry()
     entry = {
         "description": "An opening.",
-        "example": '<p class="lede">Opening</p>',
+        "example": '<p class="lf-lede">Opening</p>',
     }
-    registry[".lede"] = entry
+    registry[".lf-lede"] = entry
     registry_validation.validate_layer_declarations(registry, "registry.json")
     entry["instructions"] = "Use above a heading."
     registry_validation.validate_layer_declarations(registry, "registry.json")
@@ -85,7 +85,7 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
         )
     )
     assert found(
-        [refused], "idiom-schema", selector=".lede", keyword=keyword, path=path
+        [refused], "idiom-schema", selector=".lf-lede", keyword=keyword, path=path
     )
 
 

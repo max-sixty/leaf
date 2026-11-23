@@ -17,8 +17,8 @@ import { inChrome, leafSurface } from "./passages.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
-import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
-import { coarsePointer } from "./pointer.js";
+import { BACK_OUT, pageCommand, pageRung, pageScope } from "./keyboard/register.js";
+import { saying } from "./keyboard/control-keys.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -55,7 +55,7 @@ legendRoot.setAttribute("aria-hidden", "true");
  * composer: Pick<ReturnType<typeof import("./composing/surface.js").createResponseSurface>, "showFab" | "openComposer">,
  * closePreview: () => unknown, marginTargetAt: NonNullable<import("./anchor-resolution.js").AimOptions["marginTargetAt"]>,
  * closeDrawMode: () => unknown, closeTargetPicker: () => unknown, closeReactionMode: () => unknown,
- * announce: (message: string) => unknown, repaint: () => unknown}} options */
+ * announce: typeof import("./notifications.js").announce, repaint: () => unknown}} options */
 export function createDesignMode({
   pageGeometry,
   syncGeneral,
@@ -88,13 +88,13 @@ export function createDesignMode({
     tabStore.set(DESIGN_MODE_KEY, on ? "1" : null);
     // The renderings above are the eye's copy; the mode change is spoken, or it is silent
     // to exactly the user who can't see them. Restoring after a reload changes nothing
-    // the user did, so it says nothing.
+    // the user did, so it says nothing. The words say what the mode does, and the register
+    // the keys that leave it (`saying`).
     if (spoken)
       announce(
         on
-          ? `Design mode: a click comments on what it lands on — a widget, a control, a picture. ${
-              coarsePointer.matches ? "Exit Design mode leaves." : "Escape leaves."
-            }`
+          ? () =>
+              `Design mode: a click comments on what it lands on — a widget, a control, a picture. ${saying([...DESIGN_MODE.rows, BACK_OUT])}`
           : "Design mode off",
       );
     syncGeneral(); // the general box's hint says which of the two it posts
@@ -391,7 +391,8 @@ export function createDesignMode({
   // A page mode the user is in for a batch of design remarks. The press the mode
   // is made of is not a key at all, so that row binds nothing and says nothing on the
   // line, the way the ⌥ aim's row does.
-  pageScope("design mode", {
+  /** @type {import("./keyboard/bindings.js").Scope} */
+  const DESIGN_MODE = {
     title: "In Design mode",
     says: "Design",
     at: () => designModeOn,
@@ -411,7 +412,8 @@ export function createDesignMode({
         run: () => setDesignMode(false),
       },
     ],
-  });
+  };
+  pageScope("design mode", DESIGN_MODE);
   // A mode is the stance the whole page is in rather than something standing on part of
   // it, so everything the user puts up while it holds is put up inside it and Escape
   // takes it off from the ladder last, before the page itself: a composer opened in the

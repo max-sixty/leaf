@@ -284,11 +284,11 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
 
 
 def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
-    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    """`g H` hides the annotation layer (annotation-layer.js). A custom property it set on
     `html` to hide the margin's change bars was inherited by every element and restyled
     the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
     and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
-    `o` restyles against such a property changed on `html`, so a property `o` sets
+    `g H` restyles against such a property changed on `html`, so a property `g H` sets
     there again fails it. Firefox visiting the page for a rule read through a
     descendant combinator from `html` restyles nothing, and no count here sees it."""
     paragraphs = "".join(
@@ -308,9 +308,12 @@ def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve)
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
-    hiding = restyled(lambda: page.keyboard.press("o"))
+    # `g` arms Go-to before the count, so it counts only the X that toggles the layer.
+    page.keyboard.press("g")
+    hiding = restyled(lambda: page.keyboard.press("Shift+H"))
     expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
-    showing = restyled(lambda: page.keyboard.press("o"))
+    page.keyboard.press("g")
+    showing = restyled(lambda: page.keyboard.press("Shift+H"))
     expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
     moves = {"hiding": hiding, "showing": showing, "whole page": whole}
     assert max(hiding, showing) < whole / 4, moves
@@ -375,13 +378,61 @@ def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     capture = panel_menu(page, "annotate").locator(
         '.lf-fp-item[data-lf-row="command:capture.region.open"]'
     )
-    moves["Capture area in"] = restyled(capture.click)
-    expect(root).to_have_attribute("data-lf-region-capture", "")
+    # Entered from the row by key, with the pointer resting on the words as for each
+    # mode above: a click would leave the pointer wherever the row stood, and over the
+    # section between paragraphs Chromium restyles all it holds (integration.css).
     page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+    capture.focus()
+    moves["Capture area in"] = restyled(lambda: page.keyboard.press("Enter"))
+    expect(root).to_have_attribute("data-lf-region-capture", "")
     expect(words).to_have_css("cursor", "crosshair")
     moves["Capture area out"] = restyled(lambda: page.keyboard.press("Escape"))
     expect(root).not_to_have_attribute("data-lf-region-capture", "")
     assert max(moves.values()) < whole / 4, {**moves, "whole page": whole}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_holding_alt_over_an_article_restyles_none_of_the_sections_in_it(
+    browser, serve
+):
+    """Holding ⌥ over words standing directly in an article marks the article as the
+    item a press takes (`data-lf-aimed`). If each section wrote `inherit` for the prose
+    measure (layouts.css, `--lf-prose-measure`), a property that doesn't inherit,
+    Chromium would restyle every section in the article each time the mark comes or
+    goes (browser/AGENTS.md, "What a style rule costs"). Counted in the browser's own
+    restyled elements, an article of six times the sections restyles no more."""
+
+    def restyled(sections):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Sections",
+                    '<article id="doc"><h1>Sections</h1>'
+                    "<p>Words standing in the article itself.</p>"
+                    + "".join(
+                        f'<section id="s{g}"><h2>Section {g}</h2>'
+                        f"<p>Some words about section {g}.</p></section>"
+                        for g in range(1, sections + 1)
+                    )
+                    + "</article>",
+                )
+            ),
+        )
+        aimed = page.locator("[data-lf-aimed]")
+        box = page.locator("#doc > p").bounding_box()
+        page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+        rendered(page)
+        down = restyle_counts(page, lambda: (page.keyboard.down("Alt"), rendered(page)))
+        expect(aimed).to_have_id("doc")
+        up = restyle_counts(page, lambda: (page.keyboard.up("Alt"), rendered(page)))
+        expect(aimed).to_have_count(0)
+        page.close()
+        return {"⌥ down": sum(down), "⌥ up": sum(up)}
+
+    short, long = restyled(8), restyled(48)
+    for move in short:
+        assert long[move] - short[move] < 10, {"8 sections": short, "48 sections": long}
 
 
 def questions_page(sections: int) -> str:
@@ -605,10 +656,10 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     rendered(page)
     assert page.evaluate("scrollY") == scrolled
     # The band the panel states on the root, which the rule hides from the browser.
-    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+    caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);
-      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      const band = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
       return [caret.getBoundingClientRect().bottom, innerHeight - band];
     }}""")
     assert caret > band_top, (
@@ -1331,7 +1382,7 @@ WIDE_PAGE = leaf_page(
 <header><h1 id="t">Wide page</h1></header>
 <div id="body">{paras}</div>
 <aside id="side">
-  <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+  <section class="lf-panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
 </aside>
 """,
     layout="sidebar",

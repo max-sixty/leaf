@@ -34,7 +34,8 @@ import re
 from pathlib import Path
 
 from leaf.media import media_name
-from leaf.schema import MEDIA_DIR
+from leaf.registry.contract import is_element_name
+from leaf.schema import ASSETS, BUNDLED_PACKAGES, MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument, splice
 from leaf_dev import ROOT, declared_records, prompts
@@ -43,8 +44,6 @@ from leaf_dev.leaf_assets import pinned_assets
 
 DOCS = ROOT / PRODUCT_DOCS
 EXAMPLES = ROOT / WORKED_EXAMPLES
-ASSETS = ROOT / "browser"
-PACKAGES = ROOT / "packages"
 SCRIPTS = ROOT / "src" / "leaf"
 SERVED_SCHEMA = SCRIPTS / "served_state" / "state.schema.json"
 INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
@@ -121,14 +120,14 @@ def markup_record(verb_state: dict) -> str:
 
 def registries() -> list[Path]:
     """The core layer's registry, then each bundled package's."""
-    return [ASSETS / "registry.json", *sorted(PACKAGES.glob("*/registry.json"))]
+    return [ASSETS / "registry.json", *sorted(BUNDLED_PACKAGES.glob("*/registry.json"))]
 
 
 def verb_rows() -> list[str]:
     rows = []
     for path in registries():
         for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
-            if not tag.startswith("lf-"):
+            if not is_element_name(tag):
                 continue
             for verb, verb_state in element.get("verbs", {}).items():
                 cells = (
@@ -147,11 +146,11 @@ def example_packages(source: Path) -> str:
     """The bundled packages whose elements an example's markup uses."""
     tree = SourceDocument(source.read_text(encoding="utf-8")).tree
     used = []
-    for path in sorted(PACKAGES.glob("*/registry.json")):
+    for path in registries()[1:]:
         tags = [
             key
             for key in json.loads(path.read_text(encoding="utf-8"))
-            if key.startswith("lf-")
+            if is_element_name(key)
         ]
         if any(tree.select(tag) for tag in tags):
             used.append(path.parent.name)

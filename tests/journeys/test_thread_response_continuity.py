@@ -146,8 +146,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     owner = page.locator(selector)
     editor = owner.locator("leaf-text")
     rendered(page)
+    # A seated card's reply box stands at most the margin card's width, so widening the
+    # window sheds only a sixth of the narrow box's lines: the draft is long enough that
+    # this is two lines or more in any platform's fonts.
     draft = (
-        "A stable native draft that wraps at the narrow width. " * 8
+        "A stable native draft that wraps at the narrow width. " * 16
         if edit.startswith("resize")
         else "First line\n\n\n\n"
     )
@@ -531,10 +534,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             const {left, top, bottom} = subject.getBoundingClientRect();
             return {left, top, bottom, centerY: (top + bottom) / 2};
           };
-          // An empty diff reply rests as the Reply field, without a visible button.
-          const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
-            .find(button => button.checkVisibility()) ?? node.querySelector('leaf-text');
-          const pose = {action: rect(action),
+          // An empty diff reply rests as the Reply field, without a visible button, and
+          // so does the panel's once its send has landed the user on the thread's view.
+          const press = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
+            .find(button => button.checkVisibility());
+          const action = press ?? node.querySelector('leaf-text');
+          const pose = {action: {...rect(action), press: Boolean(press)},
             tail: rect(document.querySelector('#continuity-tail'))};
           const close = document.querySelector('.lf-margin-preview-close');
           if (close?.checkVisibility()) pose.close = rect(close);
@@ -580,6 +585,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
         restored = pose()
         for node in pending:
+            if node == "action" and not pending[node]["press"]:
+                # The send landed the user on the view, so nothing stood in the
+                # reply's corner, and the words handed back bring no Send until the
+                # user is back in the reply.
+                continue
             # Dictate and Send share an aim, but Send is shorter under a mouse.
             edges = ("left", "centerY") if node == "action" else pending[node]
             for edge in edges:

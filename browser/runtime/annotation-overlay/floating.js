@@ -17,22 +17,22 @@
 
    A fixed box stands in the plane of whatever holds it, so the scroll that moves that
    holder carries the box and a placement after it finds the same insets: the `page`'s
-   where it stands beside what it is about, a `region`'s where the edge of a reading
-   region it stands in holds it in, and the `window`'s where the window's edge does. The
-   surface names the plane from the constraint that bound its answer (`planeOf`), not
-   from where the box landed. In the page's plane the box is
-   anchored (CSS anchor positioning) to the element it stands beside, with its spot
-   written as insets from that anchor, so the browser carries it through every scroll
-   that moves the anchor, in step with the words, as every box that follows scrolled
-   content is carried (css-anchors.js). Words standing directly in a box that scrolls
+   where it stands beside what it is about, a `region`'s where the edge of a box around
+   it, such as a reading region it stands in, holds it in, and the `window`'s where the
+   window's edge does. The surface names the plane from the constraint that bound its
+   answer (`planeOf`), the holding box included, not from where the box landed. In the
+   page's plane the box is anchored (CSS anchor positioning) to the element it stands
+   beside, with its spot written as insets from that anchor, so the browser carries it
+   through every scroll that moves the anchor, in step with the words, as every box that
+   follows scrolled content is carried (css-anchors.js). Words standing directly in a box that scrolls
    them anchor to the nearest element beside them in that box, or to the start of what
    it holds, which the same scroll carries (`anchorFor`), and words in a widget's shadow
    tree to their own element, which the document names through a part. The surface is
    not cut at a scroller's edge, since it reaches past the words it is about, so it
-   stands in no frame. In a region's plane the box is anchored to the region's body, the
-   box whose edges bound it, which the outer scrolls carry and the region's own scroll
-   does not. In the region's and the window's planes the answer depends on where the
-   words stand inside what holds the box in, so each scroll around them solves it again.
+   stands in no frame. In a region's plane the box is anchored to the box whose edge
+   holds it, which the outer scrolls carry and that box's own scroll does not. In the
+   region's and the window's planes the answer depends on where the words stand inside
+   what holds the box in, so each scroll around them solves it again.
    The box stays fixed, so native focus never scrolls the page under it.
    Unlike the margin's rows and Copy, the surface stays over the sticky headers a page
    declares rather than passing under them (css-anchors.js, `headerLevels`): it is where
@@ -69,15 +69,12 @@ import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { focused, onCurrentLocation } from "../focus.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
-import { shownBand } from "../geometry.js";
-import { containingReadingRegionFor } from "../reading-regions.js";
-import { upFrom, renderedParent } from "../shadow-tree.js";
+import { renderedParent } from "../shadow-tree.js";
 
 /** @typedef {import("@floating-ui/dom").MiddlewareState} MiddlewareState */
 /** @typedef {import("@floating-ui/dom").ComputePositionReturn} Position */
 /** @typedef {import("@floating-ui/dom").Side} Side */
 /** @typedef {{x: number, y: number}} Point */
-/** @typedef {{edge: Side, at: number}} HoldingEdge */
 /** @typedef {"page" | "window" | "region"} Plane */
 /** @typedef {import("@floating-ui/dom").VirtualElement & {
  * contextNode?: Node | null, geometry?: ReturnType<typeof floatingGeometry>
@@ -135,31 +132,6 @@ const anchorAt = (reference) => ({
     };
   },
 });
-
-// The box whose edge holds a surface in: of the scrollers and reading regions around what
-// it stands by, innermost first, the one whose box or visible band has that edge on the
-// client line `at`. The window's edges and its head room are none of theirs, which
-// leaves the surface in the window's plane.
-/** @param {HoldingEdge} holding @param {Element} context @param {ReturnType<typeof import("@floating-ui/dom").getOverflowAncestors>} overflowAncestors */
-function holderOf({ edge, at }, context, overflowAncestors) {
-  const candidates = overflowAncestors.filter(
-    /** @returns {source is Element} */
-    (source) => source instanceof Element && source !== document.scrollingElement,
-  );
-  /** @type {ReturnType<typeof containingReadingRegionFor> | null} */
-  let region = containingReadingRegionFor(context);
-  while (region) {
-    if (!candidates.includes(region.body)) candidates.push(region.body);
-    region = upFrom(region.host) && containingReadingRegionFor(upFrom(region.host));
-  }
-  return (
-    candidates.find((box) =>
-      [box.getBoundingClientRect(), shownBand(box)].some(
-        (rect) => rect && Math.abs(rect[edge] - at) < 1,
-      ),
-    ) ?? null
-  );
-}
 
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
@@ -229,10 +201,6 @@ function readFloatingEditor() {
   );
 }
 onCurrentLocation(readFloatingEditor);
-
-/** @param {Node | null | undefined} context */
-const physicalContext = (context) =>
-  context instanceof Element ? context : context?.parentElement;
 
 // A surface anchors to `context` (css-anchors.js, `anchorFor`). A presenter can retain
 // this reading beside its reference rectangle before a module load: the anchor boxes
@@ -413,8 +381,8 @@ export function floatingPlacement({ floating, update }) {
     /** @param {number} placement */
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the constraint
-    // `planeOf` reads as binding it: `"page"`, `"window"`, or the edge that holds it in
-    // (`{edge, at}`), whose holder names the plane; or `"page"` itself, for a box its
+    // `planeOf` reads as binding it: `"page"`, `"window"`, or the box whose edge holds it
+    // in, which names the region's plane; or `"page"` itself, for a box its
     // owner keeps in the page's plane whatever the answer. `beside` is the element the
     // box stands beside in the page's plane. `stand` then writes that answer's spot in
     // its plane. An answer a later placement superseded while it was computed is null,
@@ -422,12 +390,11 @@ export function floatingPlacement({ floating, update }) {
     /** @param {typeof import("@floating-ui/dom").computePosition} computePosition
      * @param {FloatingReference} reference
      * @param {Partial<import("@floating-ui/dom").ComputePositionConfig> & {middleware: import("@floating-ui/dom").Middleware[]}} options
-     * @param {((answer: Position) => "page" | "window" | HoldingEdge) | "page"} planeOf
+     * @param {((answer: Position) => "page" | "window" | Element) | "page"} planeOf
      * @param {Element} beside */
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
-      const physical = physicalContext(context);
       const anchor = anchorFor(context ?? null);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
@@ -450,10 +417,7 @@ export function floatingPlacement({ floating, update }) {
       if (placement !== epoch) return null;
       const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf === "page" ? planeOf : planeOf(answer);
-      const holder =
-        offset && physical && typeof wanted === "object"
-          ? holderOf(wanted, physical, getOverflowAncestors(physical))
-          : null;
+      const holder = offset && wanted instanceof Element ? wanted : null;
       const plane =
         wanted === "page" && anchorStood && offset
           ? "page"
@@ -600,6 +564,23 @@ export function floatingPlacement({ floating, update }) {
       return moved;
     },
     clientBox,
+    // How far the box's client rectangle stands from where its last placement stands it
+    // now, measured at the edges that hold it from its anchor's box read now. Chrome
+    // reports an anchored box's rectangle from before a scroll for up to two frames
+    // after it, while it paints where the scroll carried it, so a rectangle read in the
+    // task that scrolled lags by the scroll; subtracting this places it where it paints.
+    // Nothing for a box no anchor holds.
+    lag() {
+      const selection = stood.get(floating);
+      if (!selection?.frame) return { x: 0, y: 0 };
+      const frame = anchorBox(selection.frame);
+      const box = floating.getBoundingClientRect();
+      const { edges, point } = selection;
+      return {
+        x: box[edges.left] - (frame.left + point.left),
+        y: box[edges.top] - (frame.top + point.top),
+      };
+    },
     // What holds the box where its last placement stood it, as box-motion.js reads it:
     // the edges its spot is written from; null while no placement stands it.
     held: () => holding,

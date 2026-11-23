@@ -277,7 +277,6 @@ function present() {
       ${navigationError ? html`<p role="status">${navigationError}</p>` : nothing}
       <section aria-label="Authored CSS">
         <h2 class="lf-label">Authored CSS</h2>
-        ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${
           sourceError
             ? html`<p role="status">${sourceError}</p>

@@ -500,28 +500,19 @@ def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
     assert key in refused.values["keys"]
 
 
-@pytest.mark.parametrize(
-    ("tag", "fact", "needs"),
-    [
-        ("lf-old", "retired-when", "owners"),
-        ("lf-card", "shows", "owners"),
-        ("lf-card", "shows", "refers"),
-    ],
-)
-def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir, tag, fact, needs):
-    """A retiring member is read through its owners, and a view of another widget's
-    answer through its owners and its reference, so a declaration without one is
-    refused naming both facts."""
+def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir):
+    """A retiring member is read through its owners, so a declaration without them
+    is refused naming both facts."""
     registry = vocabulary(page_dir)
-    del registry[tag][needs]
+    del registry["lf-old"]["owners"]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
     [refused] = found(
-        findings, "invalid-declaration", f"<{tag}>", keyword="dependentRequired"
+        findings, "invalid-declaration", "<lf-old>", keyword="dependentRequired"
     )
-    assert refused.values["reason"] == f"{needs!r} is a dependency of {fact!r}"
+    assert refused.values["reason"] == "'owners' is a dependency of 'retired-when'"
 
 
 def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir):
@@ -744,21 +735,21 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     ("tag", "key", "value", "missing"),
     [
         ("lf-option", "refers", {"for": {}, "about": {}}, "about"),
-        ("lf-option", "unique", {"tone": "lf-options"}, "tone"),
+        ("lf-option", "prepaint", "tone", "tone"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
     """These keys point at attributes rather than declaring them — the ones that name
-    another element, and the ones no two members of an owner share — and each is read
-    by a pass that finds the attribute absent and does nothing. That is the
+    another element, and the one that names the notation the first paint draws — and
+    each is read by a pass that finds the attribute absent and does nothing. That is the
     never-closed vocabulary's own failure mode: no error anywhere, the widget simply
     missing from the pass, and a page that looks authored correctly because it was. The
     door is the only place the mistake is visible, so it refuses here.
 
     Parametrized rather than written one by one, because it is one rule
-    (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
+    (ATTRIBUTE_FACTS) and the case that would go wrong is a key left off the tuple —
     which tests written by hand could never see. The shapes differ and the rule does
     not: a mapping keyed by the names, or one name."""
     registry = vocabulary(page_dir)
@@ -879,33 +870,3 @@ def test_server_awaits_names_the_verbs_that_answer_it(page_dir):
 
     assert status == 1
     assert found(findings, "awaits-verbs", "<lf-suggestion>", verbs=["missing"])
-
-
-@pytest.mark.parametrize(
-    ("tag", "mutate", "code"),
-    [
-        # The view names its widget by id, in an attribute `refers` declares.
-        (
-            "lf-card",
-            lambda r: r["lf-card"]["shows"].update(reference="owner"),
-            "shows-reference",
-        ),
-        # Its owners name the answer they hold, or no view stands anywhere.
-        (
-            "lf-card",
-            lambda r: r["lf-column"]["attributes"]["properties"].pop("value"),
-            "shows-value",
-        ),
-        # Members unique by the key, or a value names no one member.
-        ("lf-options", lambda r: r["lf-option"].pop("unique"), "awaits-key"),
-    ],
-)
-def test_a_view_relation_names_attributes_both_sides_have(page_dir, tag, mutate, code):
-    registry = vocabulary(page_dir)
-    mutate(registry)
-    declare_vocabulary(page_dir, registry)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, code, f"<{tag}>"), findings

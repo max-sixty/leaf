@@ -190,7 +190,8 @@ summary from before a compaction, doesn't carry its rules.
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no widget answers.
+  work long enough to delegate, asking the user to do something no widget answers, or
+  reading what the user has seen and the windows they have the page open in.
 - The contract "Harness selection" picks: before the first handoff and when a
   delivery arrives.
 

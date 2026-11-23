@@ -20,16 +20,16 @@ that a revision fits the window the user has. `visible` says whether the load sh
 the page at its last report, `freshness` turns `stale` after 45 seconds without one,
 and `matches_active_revision` says whether it shows your latest revision. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
-overflow. They are context, not a substitute for `leaf page check --render`, which
-reads the desktop at the latest entry's viewport. An empty list means no browser has
+overflow. They are context, not a substitute for `leaf page check --render`
+(`page-checkpoints.md`, "Pre-handover review"). An empty list means no browser has
 reported, and a region on screen does not mean the user read it.
 
 ## When to write
 
 When a comment asks for work, post one line in its thread saying what you are about
 to do, before you read or edit anything. If the event's `answer.writer` is `"turn"`,
-your turn's opening message is that line (your harness's "Replies"). Otherwise run
-first:
+which only a Codex turn receives, your turn's opening message is that line
+(`harness-codex.md`, "Replies"). Otherwise run first:
 
 ```bash
 leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
@@ -111,9 +111,8 @@ contract says. From the first handoff on, every turn's final response includes t
 exact page URL; progress messages don't repeat it. An export hands over its file URL,
 and a harness that already shows the page uses its own handoff surface.
 
-When the page's work and conversation are finished, `leaf page close <page>` stops
-watching it. It refuses while updates are unread, answers are owed or agent to-dos
-remain open; closing settles no obligation.
+When the page's work and conversation are finished, end your side of the page with
+`leaf page close <page>` (`page-checkpoints.md`, "Ending").
 
 A to-do's start ends with the to-do, through `leaf task end` or a
 stamped version that completes its widget:
@@ -199,22 +198,6 @@ decides or you withdraw it. A question written in prose, a heading, a status lin
 chat isn't on On Me; only the routes in the table put it there. Information they may
 comment on but need not decide is not an obligation.
 
-In Claude Code, as each turn ends, an experimental check of Leaf's reads the
-conversation for decisions, answers or steps you left to the user that On Me doesn't
-hold. It asks each as your message, usually as a choice where its answers can be
-listed and otherwise with `--obligation`, in a new thread on the passage it concerns or the
-page, or, for a question asked before, in that question's thread under its id, which
-reopens the thread if the user closed it. It tells you at
-your next step what it wrote. Where a few of a page's words have gone stale, it swaps
-in new ones and tells you the old and new words; change them back or rewrite them if
-they're wrong, and carry the change into any file you build the page from. It also tells you what else it found, such as a
-page holding what no longer fits the work, an On Me item the user settled
-elsewhere, or work you set running that no page shows, for you to act on where it
-still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't
-ask for you, so keep asking by the routes below. What it writes is yours like
-anything you write: the user's reply reaches you as any reply does, and you resolve
-the thread of one that isn't theirs (below).
-
 On Me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On Me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
@@ -245,9 +228,8 @@ or an issue filed.
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On Me. A message that asks a
 new question whose answers you can list usually asks with a widget in it instead
-(`threads.md`, "Ask for a pick"); with both, the message asks twice, as the
-command notes. Progress and
-information that need no response create no obligation.
+(`threads.md`, "Ask for a pick"). Progress and information that need no response
+create no obligation.
 
 Obligation ids are `message:<message>` for an explicit message request,
 `widget:<widget-id>` for a widget that asks,
@@ -291,10 +273,11 @@ needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
 When the user answers a question your message asked by another route than the one it
-offered, such as in chat, or in words where it offered a choice, use the answer and
-resolve the question's thread, which takes the question off On Me. Resolve it the same
-way once you see the effect of a step you asked for, checking the effect of each step
-you can whenever you read the lists, and when a question no longer applies. Where the
+offered, such as in chat, or in words where it offered a choice, use the answer. If
+nothing else in the question's thread waits on them, resolve the thread, which takes
+the question off On Me. Resolve a thread the same way once you see the effect of a
+step you asked for, checking the effect of each step you can whenever you read the
+lists, and when a question no longer applies. Where the
 thread should say how it ended, such as the answer they gave in chat or what you saw,
 reply there first:
 

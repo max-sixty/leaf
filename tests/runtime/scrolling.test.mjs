@@ -9,7 +9,9 @@
    glide already headed there (`scrollToEnd`): the owners that keep a box at its end
    move it there at every fit, and a jump there cut the glide following an answer into
    sight. And that a glide lands on its goal in a box that stands only at whole pixels,
-   so `u` pressed after `d` has landed takes the box back to its top. */
+   so `u` pressed after `d` has landed takes the box back to its top. And that a glide
+   goes on where layout moves its box, by scroll anchoring or a clamp, and gives the box
+   up to any other move, which is a hand's. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -214,6 +216,70 @@ test("a glide lands on its goal in a box that stands at whole pixels", async () 
   await frameAt(start + 0.85 * 140);
   await frameAt(start + 1000);
   assert.equal(box.scrollTop, 0, "u left the box short of its top");
+  stopGlide(box);
+  box.remove();
+});
+
+test("a glide goes on where layout moves its box, and stops where a hand moves it", async () => {
+  // A box 400px tall over content 2000px tall.
+  const box = document.createElement("div");
+  document.body.append(box);
+  let top = 1000;
+  let height = 2000;
+  Object.defineProperties(box, {
+    scrollTop: { get: () => top },
+    scrollHeight: { get: () => height },
+    clientHeight: { get: () => 400 },
+  });
+  const clamp = () => {
+    top = Math.round(Math.min(Math.max(top, 0), height - 400));
+  };
+  box.scrollTo = ({ top: to = top }) => {
+    top = to;
+    clamp();
+  };
+  // A glide to `goal`, with `between` run after each of its first frames.
+  /** @param {number} goal @param {(() => void)[]} between */
+  const glide = async (goal, ...between) => {
+    await frameAt(performance.now());
+    const start = performance.now();
+    glideTo(box, goal);
+    for (const [frame, change] of between.entries()) {
+      await frameAt(start + 20 * (frame + 1));
+      change();
+    }
+    await frameAt(start + 1000);
+  };
+  // Scroll anchoring moves the box with content that grows above what it shows.
+  await glide(100, () => {
+    height += 22;
+    top += 22;
+  });
+  assert.equal(box.scrollTop, 100, "the glide stopped where anchoring moved the box");
+  // Content lost at the end clamps the box, and comes back before the glide lands.
+  await glide(
+    1500,
+    () => {
+      height = 1000;
+      clamp();
+    },
+    () => {
+      height = 2022;
+    },
+  );
+  assert.equal(box.scrollTop, 1500, "the glide stopped where a clamp moved the box");
+  // A hand moves the box by more than layout does in that frame, or with no layout.
+  for (const grows of [0, 22]) {
+    await glide(100, () => {
+      height += grows;
+      top = 1300;
+    });
+    assert.equal(
+      box.scrollTop,
+      1300,
+      `the glide took the box back from a hand (${grows})`,
+    );
+  }
   stopGlide(box);
   box.remove();
 });

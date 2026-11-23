@@ -5,6 +5,8 @@ import pytest
 from playwright.sync_api import expect
 from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
+from browser.margin import _comment_on
+
 DOCUMENT = """
 <aside id="route"><div class="layout-track">
   <p>Read the evidence before deciding.</p><nav><a href="#evidence">Evidence</a></nav>
@@ -51,7 +53,8 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     """A question's section draws no box of its own around its blocks, so they stand
     in the page's flow: its words and its options keep the prose's edge, and a block
     declaring more room takes it. A div keeps what it holds in the column, inside a
-    question or round it."""
+    question or round it. A section in an open disclosure stands in the page's flow
+    as well, so a comment on its heading stands by its words."""
     options = (
         '<lf-options id="{id}-options">'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
@@ -73,9 +76,13 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         )
         + "</section><div>"
         + question.format(id="kept", held=evidence.format(id="kept"))
-        + "</div>",
+        + "</div>"
+        + '<details open><summary>More</summary><section id="disclosed">'
+        + '<h2 id="disclosed-head">Held in a disclosure</h2>'
+        + evidence.format(id="disclosed")
+        + "</section></details>",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source, events=[_comment_on("disclosed-head")]))
     resized(page, 1728, 900)
     boxes = page.evaluate("""() => Object.fromEntries(
       [...document.querySelectorAll('[id]')].filter(el => el.closest('main'))
@@ -100,6 +107,10 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     marker = page.locator("[data-lf-margin-for='holds']")
     expect(marker).to_have_attribute("data-lf-place", "rail")
     assert marker.bounding_box()["x"] < column[1] + 100
+    assert boxes["disclosed-evidence"][1] > 1628, boxes
+    expect(page.locator("[data-lf-margin-for='disclosed-head']")).to_have_attribute(
+        "data-lf-place", "rail"
+    )
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

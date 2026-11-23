@@ -493,6 +493,13 @@ box and its readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
+An explicit `inherit` of a property that doesn't inherit costs even when the property
+stays the same. Once a child of a box writes one, Chromium restyles every child of the
+box whenever the box's own style changes, as it does when a mark or ring is drawn on
+the box (`test_holding_alt_over_an_article_restyles_none_of_the_sections_in_it`).
+Register a property that boxes pass down as inheriting, and set it back on the boxes
+it must not reach (layouts.css, `--lf-prose-measure`).
+
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
 elements whose text the ranges paint. The comment marks can land on any text, so the

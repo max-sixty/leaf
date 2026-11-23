@@ -273,8 +273,6 @@ is that group's `label`, else the widget's own name, and `null` for an update. `
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 
-- A bound-data record's obligation names the owning widget in `source.id` and the
-  record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
   settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its

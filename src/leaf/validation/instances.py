@@ -219,11 +219,9 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     as where neither the widget nor a group round it has a label that isn't blank, is
     refused (`unnamed-question`). Where the widget's own label alone names it, On Me
     selects and rings only the widget, so a premise written outside the widget is out
-    of view (`ungrouped-question`, advice). A widget with words of its own needs no group: one
-    set among words (`inline`) is named by them, and one asking about each record of
-    its data (`awaits.records`) by each record's label. A message's widget needs none
-    either, since the message names what it asks, so only a page's documents are
-    checked."""
+    of view (`ungrouped-question`, advice). A widget set among words (`inline`) is
+    named by them, so it needs no group. A message's widget needs none either, since
+    the message names what it asks, so only a page's documents are checked."""
     # A widget inside SVG keeps its exact source rather than a node, and so is no
     # widget the walk reads.
     groups = {
@@ -237,7 +235,6 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         if (
             awaits is None
             or entry.get("inline")
-            or "records" in awaits
             or not matches_when(rec["attrs"], awaits.get("when"))
             or shown_in(rec, registry)
             or (walked := groups.get(id(document.authoring.node_of(rec)))) is None

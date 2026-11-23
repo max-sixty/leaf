@@ -3,10 +3,8 @@
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate thread sources without depending on a live renderer.
 A widget source owns identity; the group the author declares round it contributes
-only prompt words and arrival (`widget_groups`). A `records` declaration expands a
-widget's bound external input using its data contract's record list and key. Each record owns the stable
-widget-and-unit identity and reads its own action coordinate; replacing that input
-changes membership without changing the answers of retained records.
+only prompt words and arrival (`widget_groups`). A widget that asks owes one
+obligation, identified by the widget's id.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
@@ -62,7 +60,6 @@ from collections.abc import Callable
 from functools import partial
 from math import inf
 from typing import TYPE_CHECKING, NamedTuple
-from urllib.parse import quote
 
 from leaf import standing
 from leaf.events import (
@@ -366,7 +363,6 @@ def verb_answers(
     marks: dict,
     registry: dict,
     holders: dict[str, dict],
-    unit: str | None = None,
 ) -> bool:
     """Whether one answering verb's declared condition holds for this widget now.
 
@@ -382,11 +378,8 @@ def verb_answers(
         return False
     if empty := condition.get("empty"):
         return container_empty(rec, empty, byid, registry, holders)
-    # A record obligation supplies its datum unit; ordinary obligations read the
-    # widget coordinate. Both use the same action fold.
     owner = rec["attrs"].get("id")
-    unit = unit if unit is not None else owner
-    held = projection.actions.get((owner, unit, verb))
+    held = projection.actions.get((owner, owner, verb))
     if "detail" in condition:
         return held is not None and all(
             key in held[0]["detail"] and held[0]["detail"][key] == value
@@ -395,7 +388,7 @@ def verb_answers(
     spec = entry["verbs"][verb]
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
-        value = folded_value(*held) if held else markup_value(unit, spec, byid, marks)
+        value = folded_value(*held) if held else markup_value(owner, spec, byid, marks)
         return value not in (None, "", [])
     return held is not None
 
@@ -466,9 +459,7 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
     heading, or on a section holding the group, is about them all. A note on a name
     that stands outside its group, as a workspace header's heading can, is about none
     of the group's obligations. `within` is the document's containment
-    (`Passages.enclosing`). A datum identity narrows an owning widget's record
-    obligations to the exact case being discussed, and a passage across data to the
-    cases it starts and ends in (`from` and `datum`).
+    (`Passages.enclosing`).
 
     The records are indexed once by source, prompt target and each id enclosing
     their source, so a caller asking for every thread on the page reads each
@@ -487,22 +478,12 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
         section = anchor["section"]
         chain = within.get(section, ())
         item = next((items[i] for i in reversed(chain) if i in items), None)
-        held = (
+        return list(
             item
             if item is not None
             else enclosed.get(section)
             or next((grouped[i] for i in reversed(chain) if i in grouped), [])
         )
-        datum = anchor.get("identity", anchor.get("datum"))
-        units = {datum, anchor.get("from", datum)}
-        return [
-            record
-            for record in held
-            if datum is None
-            or record["source"]["id"] != section
-            or "unit" not in record["source"]
-            or record["source"]["unit"] in units
-        ]
 
     return about
 
@@ -654,7 +635,6 @@ def answering_action(
     registry: dict,
     *,
     registered: bool = False,
-    unit: str | None = None,
 ) -> bool:
     """Whether an action of `verb`, in force in `projection`, answers its widget's
     obligation: the instance asks or retains an earlier registration, and the verb's
@@ -677,7 +657,6 @@ def answering_action(
             attribute_marks(byid, spk, registry),
             registry,
             projected_action_holders(projection, byid, registry),
-            unit,
         )
     )
 
@@ -742,7 +721,6 @@ class _ObligationReducer:
         dropped: set,
         revision: int | None = None,
         events: list | None = None,
-        data: dict | None = None,
     ):
         self.projection = projection
         self.byid = byid
@@ -752,7 +730,6 @@ class _ObligationReducer:
         self.registry = registry
         self.revision = revision
         self.events = [] if events is None else events
-        self.data = data or {"sources": {}}
         self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
@@ -786,92 +763,6 @@ class _ObligationReducer:
             self.registry,
             self.positioned_holders,
         )
-
-    def _record_inventory(self, record: dict) -> list[dict]:
-        """One obligation per current bound record, identified independently of order.
-
-        A source's records declaration owns its item list and key; the obligation
-        adds only prompt words and the answer condition. Replaced or removed data
-        therefore cannot leave phantom obligations behind.
-        """
-        owner = record["attrs"]["id"]
-        entry = self._entry(record)
-        declaration = entry["awaits"]
-        records = declaration["records"]
-        binding = entry["inputs"][records["input"]]
-        source = self.data["sources"].get(record["attrs"].get(binding["source"]))
-        if (
-            not source
-            or "value" not in source
-            or source["contract"] != binding["contract"]
-        ):
-            return []
-        contract = self.registry["$data"]["contracts"][binding["contract"]]["records"]
-        value = source["value"]
-        items = value.get(contract["items"]) if isinstance(value, dict) else None
-        result = []
-        for datum in items or []:
-            unit = datum[contract["key"]]
-            answered = any(
-                verb_answers(
-                    record,
-                    entry,
-                    verb,
-                    self.projection,
-                    self.byid,
-                    self.marks,
-                    self.registry,
-                    self.positioned_holders,
-                    unit,
-                )
-                for verb in answer_verbs(entry)
-            )
-            verb = declaration["value"]
-            value, present = obligation_value(
-                owner,
-                verb,
-                entry["verbs"][verb],
-                self.byid,
-                self.marks,
-                self.orders,
-                self.projection,
-                answered=answered,
-                unit=unit,
-            )
-            held = self.projection.actions.get((owner, unit, verb))
-            stands = (
-                ended("done")
-                if answered
-                else on("user")
-                if self.local[id(record)]
-                else ended("dropped")
-            )
-            result.append(
-                {
-                    "id": f"widget:{quote(owner, safe='')}:{quote(unit, safe='')}",
-                    "source": {
-                        "kind": "widget",
-                        "id": owner,
-                        "tag": record["tag"],
-                        "unit": unit,
-                    },
-                    "thread": None,
-                    "message": None,
-                    "prompt": {
-                        "text": datum[records["label"]],
-                        "target": self.prompts[owner]["target"],
-                    },
-                    "answer": {
-                        "value": value,
-                        "event": event_reference(held[0]) if held else None,
-                    }
-                    if present
-                    else None,
-                    "end": None,
-                    **stands,
-                }
-            )
-        return result
 
     def inventory(self, settled_away: set[str], prior=None) -> list:
         """Every present source remains identifiable after completion or withdrawal."""
@@ -933,8 +824,7 @@ class _ObligationReducer:
         for record in self.records:
             unit = record["attrs"].get("id")
             owned = self.projection.actions_by_owner.get(unit, {})
-            record_units = self._declaration(record).get("records")
-            answered = False if record_units else self._answered(record)
+            answered = self._answered(record)
             if not self.exists[id(record)] and not (unit in settled_away and answered):
                 continue
             registered = (
@@ -988,9 +878,6 @@ class _ObligationReducer:
                     if registration.restated:
                         break
             if not registered:
-                continue
-            if record_units:
-                records.extend(self._record_inventory(record))
                 continue
             entry = self._entry(record)
             stands = (
@@ -1061,14 +948,13 @@ def page_obligation_readings(
     prior=None,
     revision: int | None = None,
     events: list | None = None,
-    data: dict | None = None,
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:
     an obligation a thread with the agent is about is the agent's (`anchors_with_agent`).
     `log` is the page's `todos.TodoReading`: its `owed` holds the work the agent's
     replies promised."""
     reducer = _ObligationReducer(
-        sources, projection, byid, spk, registry, dropped, revision, events, data
+        sources, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
     discussed(records, anchors_with_agent(threads, log.owed), within)
@@ -1082,7 +968,6 @@ def thread_obligation_readings(
     log: "TodoReading",
     *,
     reading: ThreadMarkupReading,
-    data: dict | None = None,
 ) -> dict:
     """Message and thread widget obligations retain inventory when their thread closes,
     with no next actor. While the thread is open, a user turn after the message
@@ -1099,7 +984,6 @@ def thread_obligation_readings(
         registry,
         set(),
         events=events,
-        data=data,
     )
     records = reducer.inventory(set())
     message_by_widget = widget_messages(reading.structure)

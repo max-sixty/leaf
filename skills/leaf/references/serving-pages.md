@@ -75,10 +75,12 @@ version as a file.
 
 A page records the packages it selects, and the Leaf serving, checking or exporting it
 composes their widgets, theme and vocabulary, as it supplies its runtime. A server
-keeps the Leaf it started under. `leaf server start` from another Leaf, such as an
-update, restarts it under that one at the same URL, and once the session runs an
-installed update, its next prompt does the same for each page the session holds; open
-tabs reconnect, reloading where the runtime changed. Open pages keep working across
+keeps the Leaf it started under, unless the harness updates that copy in place, as
+Codex and Pi do; such a server restarts under the update at the same URL on its own.
+`leaf server start` from another Leaf, such as an update, restarts it under that one
+at the same URL, and once the session runs an installed update, its next prompt does
+the same for each page the session holds; open tabs reconnect, reloading where the
+runtime changed. Open pages keep working across
 updates except one that changes the page protocol.
 
 After a protocol change, Leaf takes the page to the new protocol for the session

@@ -563,7 +563,7 @@ def handed_over(
         widget_messages(thread_reading.structure) if thread_reading is not None else {}
     )
     obligation_by_source = {
-        (item["source"]["id"], item["source"].get("unit")): item
+        item["source"]["id"]: item
         for item in items["all"]
         if item["source"]["kind"] == "widget"
     }
@@ -583,9 +583,7 @@ def handed_over(
             # Work the user hasn't sent is no update (`$verbs.unsent`).
             if source["author"] != "user" or spec.get("unsent"):
                 continue
-            item = obligation_by_source.get(
-                (source["widget"], coordinate[1])
-            ) or obligation_by_source.get((source["widget"], None))
+            item = obligation_by_source.get(source["widget"])
             if item is not None and standing.is_open(item):
                 continue
             owed = item is not None and standing.answered(item)

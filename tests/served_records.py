@@ -483,7 +483,6 @@ def obligation_value_cases():
         initial=None,
         actions=(),
         answered=False,
-        selected_unit=None,
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
@@ -525,7 +524,6 @@ def obligation_value_cases():
             AuthoredOrders(source.document.by_id, registry),
             projection,
             answered=answered,
-            unit=selected_unit,
         )
         state = {"value": initial}
         if unit != "widget":
@@ -543,7 +541,6 @@ def obligation_value_cases():
                 "authored": state,
                 "entries": entries,
                 "answered": answered,
-                **({"unit": selected_unit} if selected_unit is not None else {}),
                 "expected": {"value": value, "present": present},
             }
         )
@@ -614,14 +611,6 @@ def obligation_value_cases():
         body='<lf-container id="left"><lf-part id="a">A</lf-part></lf-container><lf-container id="right"></lf-container>',
         actions=[("a", {"value": "right", "rank": "1"})],
     )
-    for selected_unit in ("a", "b", "missing"):
-        add(
-            f"selected custom unit {selected_unit}",
-            unit="part",
-            initial={},
-            selected_unit=selected_unit,
-            actions=[("a", {"approved": True}), ("b", {"approved": False})],
-        )
     return cases
 
 

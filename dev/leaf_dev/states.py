@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
@@ -2079,6 +2079,56 @@ def page_comment_long(page: Page) -> None:
     page.keyboard.insert_text(LONG_DRAFT)
 
 
+def page_comment_send_shown(page: Page) -> None:
+    """The floating panel's field with a page comment whose last line runs under Send's
+    corner, and the pointer resting on Send, which stands over the words."""
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    for word in LONG_DRAFT.split():
+        page.keyboard.insert_text(f"{word} ")
+        rendered(page)
+        if field.evaluate("(node) => node.matches(':state(corner-taken)')"):
+            break
+    else:
+        raise AssertionError("the draft never reached Send's corner")
+    box = page.locator(".lf-fp-field .lf-compose-submit").bounding_box()
+    assert box is not None
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page.mouse.move(x, y)
+    expect(page.locator(".lf-fp-field .lf-compose-field")).to_have_attribute(
+        "data-lf-send-armed", ""
+    )
+    # Armed, Send takes the pointer, which the hover reaches at the hand's next move,
+    # and the pointer resting there reads Send's preview.
+    page.mouse.move(x + 1, y)
+    expect(page.locator("#lf-preview")).to_be_visible()
+
+
+def error_about(page: Page, box: str) -> None:
+    """An error about the composer `box` names, standing over its words."""
+    page.locator(f"{box} leaf-text").evaluate("""async (subject) => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        raiseError('That writing place is unavailable', {subject});
+    }""")
+    expect(page.locator(f"{box} .lf-compose-error")).to_be_visible()
+
+
+def page_comment_error(page: Page) -> None:
+    """The floating panel's field holding the caret, with an error about it standing
+    over its words."""
+    page_comment_long(page)
+    error_about(page, ".lf-fp-field")
+
+
+def card_reply_error(page: Page) -> None:
+    """The first margin card's reply box holding the caret, with an error about it
+    standing over its words."""
+    card_reply_long(page)
+    error_about(page, ".lf-margin-preview .lf-thread-reply")
+
+
 def option_long(page: Page) -> None:
     """An option list's added option, typed long enough to wrap beside its Add press."""
     field = page.locator(".lf-another leaf-text").first
@@ -3789,8 +3839,21 @@ STATES = (
     ),
     State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State("plan-card-reply-error", "review-a-plan", card_reply_error),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-send-shown",
+        "review-a-plan",
+        page_comment_send_shown,
+        region=".lf-fp-row",
+    ),
+    State(
+        "plan-page-comment-error",
+        "review-a-plan",
+        page_comment_error,
+        region=".lf-fp-row",
+    ),
     State(
         "plan-page-comment-empty",
         "review-a-plan",

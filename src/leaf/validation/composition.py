@@ -1,13 +1,15 @@
 """Registry composition and current declaration validation, and what an author's
 own declarations advise.
 
-Composition refuses only what breaks the vocabulary (`registry.validation`). What a
-layer's own declarations do that works but may not be what their author meant, such
-as a restated kernel fact or an example a page could not hold, is advice only that
-author can act on: `declaration_advice` reads it, and the commands that check what
-an author wrote report it, `package check` for a package, `page init` for the
-packages it selects, and `page check` for a page's own declarations. Composition
-itself, which every reader of a page runs, reports nothing.
+Composition refuses only what breaks the vocabulary (`registry.validation`), and two
+packages whose copies of one data contract differ
+(`registry.layer.differing_contracts`). What a layer's own declarations do that works
+but may not be what their author meant, such as a restated kernel fact or an example
+a page could not hold, is advice only that author can act on: `declaration_advice`
+reads it, and the commands that check what an author wrote report it, `package
+check` for a package, `page init` for the packages it selects, and `page check` for
+a page's own declarations. Composition itself, which every reader of a page runs,
+reports nothing.
 """
 
 from pathlib import Path
@@ -15,11 +17,17 @@ from pathlib import Path
 from leaf.data_contracts import declared_data_bindings
 from leaf.findings import Finding
 from leaf.registry.contract import (
+    RegistryError,
     is_element_name,
     read_registry_declarations,
     registry_finding,
 )
-from leaf.registry.layer import kernel_fact_advice, merged_registry, stamp_composition
+from leaf.registry.layer import (
+    differing_contracts,
+    kernel_fact_advice,
+    merged_registry,
+    stamp_composition,
+)
 from leaf.registry.validation import event_clause_advice, validate_registry
 from leaf.registry.widgets import widget_advice
 from leaf.structure import SourceDocument
@@ -83,6 +91,10 @@ def _example_advice(tag: str, registry: dict, path) -> list[Finding]:
 
 def incoming_registry(packages: list) -> dict:
     """The merged registry (`registry.layer.merged_registry`) `page init` will vendor,
-    validated and stamped."""
+    validated and stamped. Two packages' differing copies of one data contract are
+    refused first (`registry.layer.differing_contracts`): validation reads the merge,
+    which keeps one copy, and would name a widget written against the other."""
     merged, source = merged_registry(packages)
+    if differing := differing_contracts(packages):
+        raise RegistryError(differing)
     return stamp_composition(validate_registry(merged, source))

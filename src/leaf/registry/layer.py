@@ -3,9 +3,10 @@ merged into one vocabulary, and the facts stamped into it that its readers read.
 
 Composing validates nothing; `registry.validation` does. A reader of a page reads its
 layer's vocabulary merged and stamped, and Leaf validates the vocabulary wherever it
-composes the layer's files (`layer._composition`). A layer's restatement of a kernel
-fact is ignored (`merge_layer_declarations`), and `kernel_fact_advice` names it to
-the layer's author."""
+composes the layer's files (`layer._composition`), where it also refuses two packages
+that declare one data contract differently (`differing_contracts`). A layer's
+restatement of a kernel fact is ignored (`merge_layer_declarations`), and
+`kernel_fact_advice` names it to the layer's author."""
 
 import json
 from pathlib import Path
@@ -31,6 +32,10 @@ LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # layer (`registry.kernel`): Python and the browser (`runtime/kernel-facts.js`) both
 # read the running Leaf's own copy, so a layer's change would reach neither.
 KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
+# The members of a data contract's declaration that are words for a reader. Every
+# other member, such as `schema`, `records` and `resources`, says what a value of the
+# contract holds, and Leaf checks or reads each value by it.
+CONTRACT_WORDS = frozenset({"description", "instructions"})
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -91,6 +96,52 @@ def kernel_fact_advice(declarations: dict, path) -> list[Finding]:
         for key in sorted(events.keys() - LAYER_OWNED_EVENTS)
         if _canonical(events[key]) != _canonical(kernel["$events"].get(key))
     )
+    return found
+
+
+def differing_contracts(packages: list[Path]) -> list[Finding]:
+    """Each data contract one of `packages` declares differently from the first of
+    them to declare it: a finding in the later package's registry, naming the
+    earlier one's.
+
+    Neither of two packages depends on the other, so they share a contract by each
+    declaring a copy of it, and the merge keeps the later copy whole
+    (`merge_layer_declarations`). Leaf holds every widget naming the contract to that
+    copy. Where the copies differ, it checks one package's widgets against a
+    declaration their author never read. The user chose to refuse such a selection
+    wherever Leaf composes a layer's files
+    (`validation.composition.incoming_registry`). A reader of a page validates
+    nothing, and reads the later copy.
+
+    Two copies differ when any member but their words for a reader (`CONTRACT_WORDS`)
+    does, compared as JSON (`_canonical`). Comparing whole declarations would refuse
+    two authors who agree on the data and word it differently, and comparing `schema`
+    alone would let `records` or `resources` change under a widget as silently as a
+    schema could. The layer shows the later copy's words. A `null`, which takes a
+    contract out of the merge, is no copy.
+
+    A page's own declarations are not compared. They are one author's statement over
+    the layer that author selected, they reach that page alone, and a finding names
+    the page as the contract's owner (`data_contracts.output_findings`)."""
+    found = []
+    first: dict[str, tuple[Path, str]] = {}
+    for package in packages:
+        path = package / "registry.json"
+        declarations = read_registry_declarations(path) or {}
+        contracts = declarations.get("$data", {}).get("contracts")
+        for name, copy in contracts.items() if isinstance(contracts, dict) else ():
+            if not isinstance(copy, dict):
+                continue
+            says = _canonical(
+                {key: value for key, value in copy.items() if key not in CONTRACT_WORDS}
+            )
+            earlier, said = first.setdefault(name, (path, says))
+            if says != said:
+                found.append(
+                    registry_finding(
+                        "contract-differs", path, contract=name, other=str(earlier)
+                    )
+                )
     return found
 
 

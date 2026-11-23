@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    ROOT,
     append_carried_log_record,
     check_findings,
     declare_data_input,
@@ -22,6 +23,7 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
 from leaf.findings import Rejected
@@ -106,6 +108,94 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
 
     assert status != 0
     assert found(findings, code, **values), findings
+
+
+def _reading_package(root, **contract):
+    """A package at `root` whose registry declares the data contract `reading`."""
+    root.mkdir()
+    (root / "registry.json").write_text(
+        json.dumps({"$data": {"contracts": {"reading": contract}}})
+    )
+    return root
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"schema": {"type": "array"}}, {"records": {"items": "rows", "key": "sensor"}}],
+    ids=["schema", "records"],
+)
+def test_composition_refuses_packages_whose_copies_of_a_contract_differ(
+    tmp_path, change
+):
+    """A layer keeps one copy of a contract and holds every widget naming it to that
+    copy. So composing refuses two packages whose copies would check a value
+    differently, by its `schema` or by another member Leaf reads a value with, and
+    names the contract and both packages."""
+    shared = {"description": "Readings by sensor.", "schema": {"type": "object"}}
+    gauge = _reading_package(tmp_path / "gauge", **shared)
+    journal = _reading_package(tmp_path / "journal", **{**shared, **change})
+
+    finding = registry_refusal(
+        lambda: composition_model.incoming_registry(
+            [*layer_model.layer_inputs(()), gauge, journal]
+        )
+    )
+
+    assert (finding.code, finding.values) == (
+        "contract-differs",
+        {
+            "contract": "reading",
+            "registry": str(journal / "registry.json"),
+            "other": str(gauge / "registry.json"),
+        },
+    )
+    assert str(gauge) in str(finding) and str(journal) in str(finding)
+
+
+def test_packages_share_a_contract_by_declaring_equal_copies(tmp_path):
+    """Packages declare no dependency on each other, so a consumer ships its own copy
+    of the contract it reads, as the fixture pair does. Copies that agree on the data
+    compose however each words it, and the layer shows the later package's words."""
+    core = layer_model.layer_inputs(())
+    fixtures = ROOT / "tests" / "fixtures" / "packages"
+    composition_model.incoming_registry(
+        [*core, fixtures / "shortlist", fixtures / "finalists"]
+    )
+
+    gauge = _reading_package(
+        tmp_path / "gauge", description="One measurement.", schema={"type": "number"}
+    )
+    thermometer = _reading_package(
+        tmp_path / "thermometer",
+        description="A temperature in degrees.",
+        instructions={"producer": "Set the latest reading whole."},
+        schema={"type": "number"},
+    )
+    registry = composition_model.incoming_registry([*core, gauge, thermometer])
+
+    assert registry["$data"]["contracts"]["reading"]["description"] == (
+        "A temperature in degrees."
+    )
+
+
+def test_a_page_s_own_declaration_replaces_a_package_s_contract(page_dir):
+    """Only packages share a contract by equal copies. A page's own declaration is
+    its author's statement over the layer they selected, so it replaces the layer's
+    copy whatever its schema, and the page's vocabulary names the page as the
+    contract's owner."""
+    layered = registry_storage.load_registry(page_dir)["$data"]["contracts"]
+    own = {"description": "Any worktree evidence.", "schema": {"type": "object"}}
+    assert own["schema"] != layered["lf-test-tree"]["schema"]
+    authored = page_dir / "page" / "registry.json"
+    authored.parent.mkdir(exist_ok=True)
+    authored.write_text(json.dumps({"$data": {"contracts": {"lf-test-tree": own}}}))
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 0, findings
+    page = registry_storage.read_page_registry(page_dir)
+    assert page.registry["$data"]["contracts"]["lf-test-tree"] == own
+    assert page.declaration_sources["$data.contracts.lf-test-tree"] == "page"
 
 
 @pytest.mark.parametrize(

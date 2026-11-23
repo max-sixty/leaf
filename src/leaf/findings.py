@@ -1499,6 +1499,16 @@ _TEXT = {
             " must be self-contained"
         )
     ),
+    "contract-differs": _declared(
+        lambda v: (
+            f"$data contract {v['contract']!r} differs from the copy in {v['other']}"
+            " in more than its `description` and `instructions`, and a layer holds"
+            " both packages' widgets to one copy; make the two copies equal, or"
+            " give one a name that carries its package, as"
+            f" `<package>/{v['contract']}`"
+        ),
+        keeps=_DATA,
+    ),
     # Its work role, which `$work.widgets` maps the declaration onto.
     "work-reference": _declared(
         lambda v: (

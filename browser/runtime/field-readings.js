@@ -36,7 +36,7 @@
  *
  * The field's end offers one press, the one that matters most at that moment (`end`).
  * Where a reading's words come with a press of their own (`press`), the end offers
- * that one: a notice's, such as a Resolve's Next thread and t, or Show changes and v
+ * that one: a notice's, such as a Resolve's Next thread and t, or Show changes and g V v
  * with news of changes (notifications.js, `press`), or an error's, such as Resume
  * writing and g i after a refused send (errors.js). Otherwise it offers, by the
  * reading's `end`:

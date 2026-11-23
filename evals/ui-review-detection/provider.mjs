@@ -73,6 +73,14 @@ function sanitized(value, secrets = []) {
 /** An https origin is a secure context, as a page served on loopback is. */
 export const ORIGIN = "https://candidate.test";
 
+// The bound on each Playwright wait that names none, as Leaf's Python tools take it
+// (`leaf.render_checks.SERVED_TIMEOUT_MS`): a hang bound, so a reviewer's step on a
+// host busy with other sessions' suites fails only where the page has stopped.
+const SERVED_TIMEOUT_MS = python(
+  "-c",
+  "from leaf.render_checks import SERVED_TIMEOUT_MS; print(SERVED_TIMEOUT_MS)",
+);
+
 /**
  * A browser context that answers the candidate's requests from its site's files, so a
  * run needs no server and a reviewer can reach nothing else.
@@ -83,6 +91,7 @@ export async function candidateContext(browser, { site, url }) {
     viewport: { width: 1200, height: 900 },
     reducedMotion: "reduce",
   });
+  context.setDefaultTimeout(SERVED_TIMEOUT_MS);
   await context.route("**/*", async (route) => {
     const request = route.request();
     const target = new URL(request.url());
@@ -118,7 +127,6 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
   try {
     const context = await candidateContext(browser, manifest);
     const page = await context.newPage();
-    page.setDefaultTimeout(5000);
     await page.goto(manifest.url, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     let calls = 0;

@@ -98,7 +98,12 @@ JOURNEYS = (
     ("page.search.open", ("/", "type:the", "Enter", "n", "n", "Shift+n")),
     ("command.reference.open", ("?", "ArrowDown", "ArrowDown", "End")),
     ("target.picker.open", ("s", "ArrowDown", "ArrowDown")),
-    ("changes.toggle", ("v", "h", "h", "Shift+h", "v")),
+    # Versions' Compare of the version the user last saw, by its key, its changes
+    # walked, and the same keys taking the marks off.
+    (
+        "navigation.go-to.open",
+        ("g", "Shift+v", "v", "h", "h", "Shift+h", "g", "Shift+v", "v"),
+    ),
     ("queue.next", ("m", "ArrowDown", "ArrowDown")),
     ("thread.next", ("t", "Escape", "t")),
 )
@@ -215,7 +220,9 @@ class Survey:
         if key.startswith("type:"):
             self.page.keyboard.type(key.removeprefix("type:"))
         else:
-            self.page.keyboard.press(key)
+            # A binding's `Mod` is the platform's own modifier (bindings.js), which
+            # Playwright spells ControlOrMeta.
+            self.page.keyboard.press(key.replace("Mod+", "ControlOrMeta+"))
 
     def observe(self, step: str) -> dict:
         """Read the seat after `step`, then again once a notice's moment has passed."""

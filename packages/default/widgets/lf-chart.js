@@ -64,35 +64,26 @@
  * draw a datum at one width and not another.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
- * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
+ * in a shut panel has no box, so its draw waits for one, and the 384KB bundle waits with
  * it instead of loading in front of a user who never opens that panel.
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too, into the box that page gives it. A
- * Leaf page hears its drawing and its refusals from outside it: the drawing under way
- * as a `pending-task` event, which holds the page's presentation until it is in, and a
- * refusal as the `error` event `failSoft` dispatches, which the page reports to the
- * author. */
+ * Leaf page hears its drawing and its refusals from outside it: each drawing under way
+ * is a `pending-task` event, whose rejection is that drawing's refusal, which the page
+ * shows in the chart's place and reports to the author.
+ *
+ * What it does with the page it writes in the browser's own terms: its own
+ * ResizeObserver and frames, its own live region for a key's step, and its room before
+ * it draws held by its own stylesheet (chart.css). */
 import {
   PREVIEW_ENDED,
   PendingTaskEvent,
-  announce,
   beginWalk,
-  bodyText,
   commandsChanged,
-  keeps,
-  layoutPx,
-  listWalkPosition,
-  whileConnected,
-  failSoft,
   frameFor,
-  inBaseLayer,
-  measure,
-  nextRender,
-  once,
   previewChanged,
   registerVisualParts,
-  sizeObserver,
 } from "/runtime/portable-api.js";
 import {
   cross,
@@ -120,8 +111,8 @@ const POINT = "point:";
 // marks the point for its aim and a comment on it.
 /** @param {SVGCircleElement} mark @param {Point} point */
 function ringRound(mark, point) {
-  keeps(mark, "cx", String(point.x));
-  keeps(mark, "cy", String(point.y));
+  mark.setAttribute("cx", String(point.x));
+  mark.setAttribute("cy", String(point.y));
 }
 
 // What a point says, on one line, as a comment on it is named.
@@ -189,17 +180,38 @@ function offsetsAreNumbers(marks, place = "marks") {
 customElements.define(
   "lf-chart",
   class extends HTMLElement {
-    // What each drawing is drawn from and where a failed one goes (`draw`), the height
-    // every drawing takes, read at the first, and the height a legend beside it took
-    // when last laid out, with the watch on the drawing that holds it (`paint`).
-    /** @type {{bundle: PlotBundle, body: Function, failed: (err: unknown) => Promise<void>} | null} */
+    // What each drawing is drawn from (`draw`), the height every drawing takes, read at
+    // the first, and the height a legend beside it took when last laid out, with the
+    // watch on the drawing that holds it (`paint`).
+    /** @type {{bundle: PlotBundle, body: Function} | null} */
     #source = null;
     /** @type {number | undefined} */
     #height;
     #legend = 0;
     /** @type {ResizeObserver | null} */
     #legendWatch = null;
+    // The room the chart has, as the browser last laid it out, and what a delivery of
+    // it does: the first one with a width starts the first drawing, which a chart in a
+    // shut panel waits for with its bundle, and later ones draw again (`draw`). The
+    // watch runs while the chart stands in the page, and a failed chart watches nothing.
+    /** @type {DOMRectReadOnly | undefined} */
+    #room;
+    #heard = () => {
+      // Paper prints a shut panel open, and a box laid out for a sheet is not the room
+      // the user will see, so the first drawing waits for the screen's.
+      if (matchMedia("print").matches) return;
+      this.dispatchEvent(new PendingTaskEvent(this.draw()));
+    };
+    #watch = new ResizeObserver((entries) => {
+      const rect = entries.at(-1)?.contentRect;
+      if (!rect?.width) return;
+      this.#room = rect;
+      this.#heard();
+    });
+    #failed = false;
     drawing = document.createElement("div");
+    // Where a key's step says its point to a listener: the chart's own live region.
+    #says = document.createElement("div");
     /** @type {number | undefined} */
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
@@ -251,148 +263,122 @@ customElements.define(
       return declared;
     };
 
+    // The chart hears its own events for as long as it lives, so the listeners go with it.
+    constructor() {
+      super();
+      // The pointer and a finger read the point nearest them on the drawing, by
+      // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
+      // for each move, each point reached a new aim. A mouse carrying a press is
+      // dragging. A pointer that picks nothing keeps the reading it had, and one
+      // still on the point whose reading the page put away reads nothing.
+      const aim = (/** @type {PointerEvent} */ event) => {
+        const reading = this.#reading;
+        if (event.pointerType === "mouse" && event.buttons) return;
+        if (!reading || !(event.target instanceof Node)) return this.#leave();
+        if (!reading.svg.contains(event.target)) return this.#leave();
+        if (!reading.svg.getScreenCTM()) return;
+        this.#over = true;
+        const point = this.#pointAt(event.clientX, event.clientY);
+        if (!point || point === this.#away) return;
+        this.#away = null;
+        this.#choose(point, "pointer", true);
+      };
+      // A mouse reads where it moves to, so a drawing that arrives under a still one
+      // says nothing; a finger, which lands before it moves, reads where it lands. A
+      // finger's press is a new aim even on the point it held last, heard after the
+      // page has put the last hold's preview away (preview.js listens first).
+      this.addEventListener("pointermove", aim, { passive: true });
+      this.addEventListener(
+        "pointerover",
+        (event) => {
+          if (event.pointerType !== "mouse") aim(event);
+        },
+        { passive: true },
+      );
+      this.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (event.pointerType === "touch") this.#presses += 1;
+        },
+        { passive: true },
+      );
+      this.addEventListener("pointerleave", () => this.#leave());
+      // Focus the browser shows lands the reader on a point, the one they are on, the
+      // one the keys left them on, or the first, which the arrows then step from: the
+      // keyboard's from then on. Focus Leaf puts on a point has put them on it already
+      // (`#focusOn`).
+      this.addEventListener("focus", () => {
+        if (this.#reading && this.matches(":focus-visible"))
+          this.#choose(
+            this.#at ?? this.#place ?? step(this.#reading, null, "first"),
+            "focus",
+          );
+      });
+      // Leaving the chart takes the ring off a point the keys hold, which stays the
+      // point they step on from.
+      this.addEventListener("blur", () => {
+        if (this.#at && this.#by !== "pointer") this.#place = this.#at;
+        this.#choose(this.#over ? this.#at : null, "pointer");
+      });
+      // The ring marks the point the page's preview says, so it comes off when the
+      // page puts the preview away, whatever puts it away: the pointer leaving the
+      // window from it, the next touch after a held finger lifts, Escape. A redraw
+      // then has no point to read again, and the next aim reads from where it lands,
+      // the keys stepping on from the point put away while the chart has focus, and a
+      // pointer still over the drawing reading nothing until it reaches another point.
+      // The reading that ended no longer stands, at once. Its ring comes off in the
+      // next frame, once the task that put the preview away is done, and only if no
+      // reading stands again by then, its point is still the reader's and no finger has
+      // pressed since: a Tab that puts a resting pointer's preview away lands focus here
+      // in the same task, whose preview reads the point again, and the keyboard takes it
+      // on; the press that starts a second hold on a point puts the first hold's preview
+      // away as the finger presses that point again. A press is an aim, not a reading:
+      // a tap that ends without a hold leaves the ring to go with the finger (`#leave`).
+      this.addEventListener(PREVIEW_ENDED, (event) => {
+        const { declared } = /** @type {CustomEvent} */ (event).detail;
+        if (!declared || declared !== this.#declared) return;
+        this.#declared = null;
+        const [read, presses] = [this.#at, this.#presses];
+        requestAnimationFrame(() => {
+          if (this.#declared || this.#at !== read || this.#presses !== presses) return;
+          if (this.matches(":focus")) this.#place = read;
+          if (this.#over) this.#away = read;
+          this.#choose(null, "pointer");
+          this.#placeAim();
+        });
+      });
+    }
+
+    // A chart is drawn to the room it has, so it watches its box while it stands in the
+    // page, and the first box with a width starts the first drawing (`#heard`). In a
+    // shut panel there is no box, and the drawing waits for one.
     connectedCallback() {
-      if (!once(this)) return;
       // The chart lists no point for a reader to pick from a list: its own aim and keys
       // reach each point, and Leaf finds a comment's point by its id.
-      this.#parts = registerVisualParts(this, () => [], {
+      this.#parts ??= registerVisualParts(this, () => [], {
         find: (id) => this.#find(id),
         at: (node) => this.#partAt(node),
         focus: (id) => this.#focusOn(id),
         label: (id) =>
           id.startsWith(POINT) ? datumWords(id.slice(POINT.length)) : null,
       });
-      whileConnected(this, (signal) => {
-        // The pointer and a finger read the point nearest them on the drawing, by
-        // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
-        // for each move, each point reached a new aim. A mouse carrying a press is
-        // dragging. A pointer that picks nothing keeps the reading it had, and one
-        // still on the point whose reading the page put away reads nothing.
-        const aim = (/** @type {PointerEvent} */ event) => {
-          const reading = this.#reading;
-          if (event.pointerType === "mouse" && event.buttons) return;
-          if (!reading || !(event.target instanceof Node)) return this.#leave();
-          if (!reading.svg.contains(event.target)) return this.#leave();
-          if (!reading.svg.getScreenCTM()) return;
-          this.#over = true;
-          const point = this.#pointAt(event.clientX, event.clientY);
-          if (!point || point === this.#away) return;
-          this.#away = null;
-          this.#choose(point, "pointer", true);
-        };
-        // A mouse reads where it moves to, so a drawing that arrives under a still one
-        // says nothing; a finger, which lands before it moves, reads where it lands. A
-        // finger's press is a new aim even on the point it held last, heard after the
-        // page has put the last hold's preview away (preview.js listens first).
-        this.addEventListener("pointermove", aim, { signal, passive: true });
-        this.addEventListener(
-          "pointerover",
-          (event) => {
-            if (event.pointerType !== "mouse") aim(event);
-          },
-          { signal, passive: true },
-        );
-        this.addEventListener(
-          "pointerdown",
-          (event) => {
-            if (event.pointerType === "touch") this.#presses += 1;
-          },
-          { signal, passive: true },
-        );
-        this.addEventListener("pointerleave", () => this.#leave(), { signal });
-        // Focus the browser shows lands the reader on a point, the one they are on, the
-        // one the keys left them on, or the first, which the arrows then step from: the
-        // keyboard's from then on. Focus Leaf puts on a point has put them on it already
-        // (`#focusOn`).
-        this.addEventListener(
-          "focus",
-          () => {
-            if (this.#reading && this.matches(":focus-visible"))
-              this.#choose(
-                this.#at ?? this.#place ?? step(this.#reading, null, "first"),
-                "focus",
-              );
-          },
-          { signal },
-        );
-        // Leaving the chart takes the ring off a point the keys hold, which stays the
-        // point they step on from.
-        this.addEventListener(
-          "blur",
-          () => {
-            if (this.#at && this.#by !== "pointer") this.#place = this.#at;
-            this.#choose(this.#over ? this.#at : null, "pointer");
-          },
-          { signal },
-        );
-        // The ring marks the point the page's preview says, so it comes off when the
-        // page puts the preview away, whatever puts it away: the pointer leaving the
-        // window from it, the next touch after a held finger lifts, Escape. A redraw
-        // then has no point to read again, and the next aim reads from where it lands,
-        // the keys stepping on from the point put away while the chart has focus, and a
-        // pointer still over the drawing reading nothing until it reaches another point.
-        // The reading that ended no longer stands, at once. Its ring comes off once the
-        // task that put the preview away is done, and only if no reading stands again by
-        // then, its point is still the reader's and no finger has pressed since: a Tab
-        // that puts a resting pointer's preview away lands focus here in the same task,
-        // whose preview reads the point again, and the keyboard takes it on; the press
-        // that starts a second hold on a point puts the first hold's preview away as the
-        // finger presses that point again. A press is an aim, not a reading: a tap that
-        // ends without a hold leaves the ring to go with the finger (`#leave`).
-        this.addEventListener(
-          PREVIEW_ENDED,
-          (event) => {
-            const { declared } = /** @type {CustomEvent} */ (event).detail;
-            if (!declared || declared !== this.#declared) return;
-            this.#declared = null;
-            const [read, presses] = [this.#at, this.#presses];
-            nextRender(() => {
-              if (this.#declared || this.#at !== read || this.#presses !== presses)
-                return;
-              if (this.matches(":focus")) this.#place = read;
-              if (this.#over) this.#away = read;
-              this.#choose(null, "pointer");
-              this.#placeAim();
-            });
-          },
-          { signal },
-        );
-      });
-      // A chart is drawn to the room it has, so the first draw waits for a box. On the
-      // page that box is there already and this settles inside the upgrade, holding the
-      // view restore and the first anchor pass until the drawing is in and the page's
-      // geometry is final. In a shut panel there is no box at all and measure holds the
-      // draw instead of the page.
-      measure(this, () => this.dispatchEvent(new PendingTaskEvent(this.draw())));
+      if (!this.#failed) this.#watch.observe(this);
     }
 
+    disconnectedCallback() {
+      this.#watch.disconnect();
+    }
+
+    // A move within the page is no departure, so the watch stays.
+    connectedMoveCallback() {}
+
     async draw() {
-      // Inside the try with everything else: bodyText reaches for a <pre> both markup
-      // doors require, and an authored document hand-edited past them threw out of here
-      // instead of failing soft, leaving the user the body's raw text and no error at all.
-      let source = "";
-      let stop = () => {};
-      // A failed drawing ends the watch: the failure replaced the drawing, and a chart
-      // that returns to the page keeps showing it rather than drawing again. The
-      // refusal's box, its words over the source, is taller than the box the theme
-      // held, and a drawing can fail inside a size delivery, a redraw in the one that
-      // measured its room, so the refusal is written in Leaf's next rendering pass
-      // (below).
-      /** @param {unknown} err @returns {Promise<void>} */
-      const failed = (err) => {
-        stop();
-        this.#legendWatch?.disconnect();
-        this.#read(null);
-        return new Promise((shown) =>
-          nextRender(() => {
-            failSoft(this, err, source);
-            shown();
-          }),
-        );
-      };
       try {
-        source = bodyText(this);
-        const body = compile(source);
+        // The body is the <pre> the content model requires, less the blank lines and
+        // trailing space that are the <pre>'s own layout.
+        const pre = this.querySelector(":scope > pre");
+        if (!pre) throw new Error("<lf-chart> has no <pre> holding its options");
+        const body = compile(pre.textContent.replace(/^\n+/, "").trimEnd());
         // The room it is drawn for, as the browser lays it out: the width the observer
         // last delivered, and the height it delivered before the first drawing, read
         // off its entries rather than off the box, so a page of charts resized together
@@ -401,34 +387,18 @@ customElements.define(
         // pixel; the height is the first drawing's and stays. A redraw is drawn during
         // the delivery, so labels fit the new width in the same paint: it writes only
         // inside the drawing, whose height is fixed, so it moves no box the browser
-        // watches. Everything else the chart writes waits for Leaf's next rendering
-        // pass, since a box that moves above one the browser just delivered is a
-        // ResizeObserver loop error. The first drawing lets go of the box the theme
-        // held (`height`), which a row may stretch, and the page presents itself as
-        // the drawing settles, so the room's first delivery is heard in that pass, as
-        // the legend's measurement is (`paint`) and a refusal is written there. The
-        // drawing follows there, or once Plot has loaded if that comes later. A width
-        // delivered while it was under way is drawn once it is in.
-        /** @type {DOMRectReadOnly | undefined} */
-        let room;
-        /** @type {() => void} */
-        let heard = () => {};
-        const delivered = new Promise(
-          (resolve) => (heard = frameFor(this, () => resolve(undefined))),
-        );
-        stop = whileConnected(this, () => {
-          const watching = sizeObserver((entries) => {
-            const rect = entries.at(-1)?.contentRect;
-            if (!rect?.width) return;
-            room = rect;
-            heard();
-          });
-          watching.observe(this);
-          return () => watching.disconnect();
+        // watches. The first drawing lets go of the box the stylesheet held
+        // (chart.css), which a row may stretch, and a box that moves above one the
+        // browser just delivered is a ResizeObserver loop error, so the first drawing
+        // waits for the frame after the delivery that started it, or for Plot if that
+        // comes later. A width delivered while it was under way is drawn once it is in.
+        const framed = new Promise((resolve) => {
+          this.#heard = frameFor(this, () => resolve(undefined));
         });
-        this.#source = { bundle: await loadPlot(), body, failed };
-        await delivered;
-        const { width, height } = /** @type {DOMRectReadOnly} */ (room);
+        this.#heard();
+        this.#source = { bundle: await loadPlot(), body };
+        await framed;
+        const { width, height } = /** @type {DOMRectReadOnly} */ (this.#room);
         // The box each drawing goes in. A redraw replaces what is in it and nothing else,
         // because by then the runtime may have hung its own words on the widget — the
         // line saying a comment stands on this chart is a child of the element. It holds
@@ -436,18 +406,43 @@ customElements.define(
         // drawing measures, and only its width moves the observer.
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";
-        this.drawing.style.blockSize = layoutPx(height);
-        this.replaceChildren(this.drawing);
+        this.drawing.style.blockSize = `${height}px`;
+        this.#says.setAttribute("role", "status");
+        this.replaceChildren(this.drawing, this.#says);
         await this.paint(Math.round(width));
         this.classList.add("lf-rendered");
-        heard = () => {
-          const next = Math.round(room?.width ?? 0);
-          if (next !== this.drawn) this.paint(next).catch(failed);
+        this.#heard = () => {
+          const next = Math.round(this.#room?.width ?? 0);
+          if (next !== this.drawn) this.#redraw(next);
         };
-        heard();
+        this.#heard();
       } catch (err) {
-        await failed(err);
+        // The first drawing's failure is its pending task's: the page that heard the
+        // task hears why it ended.
+        this.#fail();
+        throw err;
       }
+    }
+
+    // A failed drawing ends the watches, and the chart stays failed: one that leaves
+    // the page and returns does not watch its room or draw again.
+    #fail() {
+      this.#failed = true;
+      this.#watch.disconnect();
+      this.#legendWatch?.disconnect();
+      this.#read(null);
+    }
+
+    // A drawing after the first, for a new width or a legend's new height, made inside
+    // the size delivery that asked for it. It is a pending task as the first is, so the
+    // page that hears it hears why one that fails ended.
+    /** @param {number} width */
+    #redraw(width) {
+      const painted = this.paint(width, true).catch((err) => {
+        this.#fail();
+        throw err;
+      });
+      this.dispatchEvent(new PendingTaskEvent(painted));
     }
 
     // Drawn to the box's height as well as its width. The height is the first
@@ -459,12 +454,13 @@ customElements.define(
     // legend's height changes, with a new width or a font that arrives late, the chart
     // draws again into the room the legend leaves, in the delivery that measured it, so
     // the frame that shows the new legend shows the drawing fitted to it; a chart with
-    // none reads nothing. The drawing settles once its legend has the room it
-    // measures, in Leaf's next rendering pass rather than the delivery that measured it
-    // (`draw` says why). A failed redraw fails as the drawing does. A hidden drawing
-    // measures nothing.
-    /** @param {number} width @returns {Promise<void>} */
-    async paint(width) {
+    // none reads nothing. The drawing settles in the frame after its legend has the
+    // room it measures. A failed redraw fails as the drawing does. A hidden drawing
+    // measures nothing. A drawing made inside a size delivery (`later`) is watched from
+    // the next frame: the browser delivers no observation begun at the depth it is
+    // delivering, and reports the one left over as a ResizeObserver loop.
+    /** @param {number} width @param {boolean} [later] @returns {Promise<void>} */
+    async paint(width, later = false) {
       const source = this.#source;
       if (!source) return;
       this.#legendWatch?.disconnect();
@@ -477,16 +473,19 @@ customElements.define(
       if (!drawn.legend) return;
       /** @type {Promise<void>} */
       const measured = new Promise((settled) => {
-        const watch = (this.#legendWatch = sizeObserver(([entry]) => {
+        const watch = (this.#legendWatch = new ResizeObserver(([entry]) => {
           const height = entry?.contentRect.height;
           const legend = height ? Math.max(0, Math.round(height - room)) : this.#legend;
           if (legend !== this.#legend) {
             this.#legend = legend;
-            this.paint(width).catch(source.failed);
+            this.#redraw(width);
           }
-          nextRender(() => settled());
+          requestAnimationFrame(() => settled());
         }));
-        watch.observe(drawn.built);
+        if (!later) return watch.observe(drawn.built);
+        requestAnimationFrame(() => {
+          if (this.#legendWatch === watch) watch.observe(drawn.built);
+        });
       });
       return measured;
     }
@@ -507,7 +506,8 @@ customElements.define(
       this.#marks = new Map();
       if (this.#asked) this.#tell();
       const points = reading?.points.length ?? 0;
-      keeps(this, "tabindex", points ? "0" : null);
+      if (points) this.tabIndex = 0;
+      else this.removeAttribute("tabindex");
       this.lfCommands = reading && points ? this.#keys(reading) : null;
       commandsChanged(this);
       if (reading && at) this.#choose(again(at), this.#by);
@@ -604,12 +604,12 @@ customElements.define(
       };
     }
 
-    // Tells Leaf, in its next rendering pass, that a new drawing holds none of the marks
-    // it found, so it finds them again.
+    // Tells Leaf, in the next frame, that a new drawing holds none of the marks it
+    // found, so it finds them again.
     #tell() {
       if (this.#telling) return;
       this.#telling = true;
-      nextRender(() => {
+      requestAnimationFrame(() => {
         this.#telling = false;
         this.#parts?.update();
       });
@@ -667,14 +667,14 @@ customElements.define(
       const reading = this.#reading;
       if (reading) {
         const { ring } = reading;
-        keeps(ring, "display", point ? null : "none");
         if (point) {
-          keeps(ring, "transform", `translate(${point.x} ${point.y})`);
+          ring.removeAttribute("display");
+          ring.setAttribute("transform", `translate(${point.x} ${point.y})`);
           const rule = /** @type {SVGLineElement} */ (ring.firstElementChild);
           const across = reading.axis === "y";
-          keeps(rule, "x2", String(across ? point.drawn.left - point.x : 0));
-          keeps(rule, "y2", String(across ? 0 : point.drawn.bottom - point.y));
-        }
+          rule.setAttribute("x2", String(across ? point.drawn.left - point.x : 0));
+          rule.setAttribute("y2", String(across ? 0 : point.drawn.bottom - point.y));
+        } else ring.setAttribute("display", "none");
       }
       this.#placeAim();
       previewChanged(this, { aim: aim && point !== null });
@@ -688,8 +688,11 @@ customElements.define(
       if (!reading) return;
       const point = this.#at ?? this.#away;
       const ringed = point && !shapeOf(reading, point) ? point : null;
-      keeps(reading.aim, "display", ringed ? null : "none");
-      if (ringed) ringRound(reading.aim, ringed);
+      const { aim } = reading;
+      if (ringed) {
+        aim.removeAttribute("display");
+        ringRound(aim, ringed);
+      } else if (!aim.hasAttribute("display")) aim.setAttribute("display", "none");
     }
 
     // The point nearest a place in the window, by Plot's pointer's rule, or none.
@@ -718,13 +721,23 @@ customElements.define(
       const place = beginWalk(
         "chart-point",
         "Point",
-        () => listWalkPosition(series, this.#at),
+        () => {
+          const index = this.#at ? series.indexOf(this.#at) : -1;
+          return index < 0
+            ? null
+            : {
+                target: this.#at,
+                position: index + 1,
+                total: series.length,
+                qualifier: "",
+              };
+        },
         {
           list: () => ends.map((end) => (end && shapeOf(reading, end)) ?? reading.svg),
         },
       );
       const { name, detail } = sayPoint(point);
-      announce([name, ...detail, place].filter(Boolean).join(", "));
+      this.#says.textContent = [name, ...detail, place].filter(Boolean).join(", ");
     }
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
@@ -792,7 +805,7 @@ customElements.define(
       // face and paper remain stylesheet-owned; authored Plot style options keep
       // their inline priority, including legend styles.
       for (const style of built.querySelectorAll("style"))
-        style.textContent = inBaseLayer(style.textContent);
+        style.textContent = `@layer lf-base {\n${style.textContent}\n}`;
       // Plot writes a mark's `title` channel as each shape's <title>, the platform's
       // tooltip, which would stand beside the preview that says it.
       for (const title of drawing.querySelectorAll("title")) title.remove();

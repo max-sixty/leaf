@@ -10,12 +10,34 @@ lf-chart .lf-chart-drawing {
   font: var(--lf-font-fine);
   color: var(--lf-muted);
 }
-/* Where the runtime runs, the chart's box is laid out before it draws (`height`), and the source
- * waiting in it is code for the drawing rather than words for the reader. */
+/* Where the runtime runs, the chart holds its room before it draws, so the drawing moves
+ * nothing below it: the height its `data-height` states in CSS pixels, or 400px. The
+ * source waiting in that box is code for the drawing rather than words for the reader.
+ * The box is the drawing's once it is in, and a failure's words take the room they
+ * need. On paper an undrawn chart is its source. */
 @scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {
     visibility: hidden;
   }
+  @media screen {
+    :scope:is(lf-chart):not(.lf-rendered, :has(> .lf-error)) {
+      box-sizing: border-box;
+      block-size: attr(data-height px, 400px);
+      overflow: clip;
+    }
+  }
+}
+/* The chart's own live region, where a key's step says its point: heard, not seen, and
+ * no part of what a selection across the chart copies. */
+lf-chart > [role="status"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
 }
 /* Plot's own style sheets are defaults in lf-base. These adapter rules supply
  * the page face and paper; an author's Plot style options remain inline. The drawing

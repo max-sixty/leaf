@@ -1656,8 +1656,14 @@ export default [
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
-    // Prepaint runs before the module graph, so it cannot call the scheduler.
-    ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
+    // Prepaint runs before the module graph, so it cannot call the scheduler. The chart
+    // is the trial of the target package interface, under which a package writes the
+    // browser's own ResizeObserver and requestAnimationFrame.
+    ignores: [
+      "browser/runtime/rendering.js",
+      "browser/runtime/prepaint.js",
+      "packages/default/widgets/lf-chart.js",
+    ],
     rules: {
       "no-restricted-globals": [
         "error",

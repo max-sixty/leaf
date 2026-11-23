@@ -1,14 +1,12 @@
-import { canvas2D, pageScroller, scrollLimit } from "/runtime/widget-api.js";
+import { canvas2D } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
   colourableAs,
   colouredAs,
-  coverBoxes,
   inPage,
   quoteFrom,
   textNodesUnder,
   upFrom,
-  userScrollport,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "/runtime/check-api.js";
@@ -117,18 +115,6 @@ export const shownVerbatim = (declarations, modules) =>
 // held out here the way the size check holds it out. The coin comes down the same side
 // every time on a group that has been opened and closed, which is where the test pins
 // it.
-//
-// Leaf's own interface can cover words too. The floating panel's row stands over the
-// window's foot, and the theme pads the end of the page by the row's room
-// (`--lf-foot-room`, base.css), so the page's last words scroll clear of it. A page can
-// lose that room without any rule saying so: a reset that zeroes body's padding, a body
-// held to the window's height that its content runs past, or a scroller of its own
-// with nothing at its end. No rule of Leaf's keeps the room against every page, since
-// the page's CSS can end its content past any box Leaf pads. So this reading places
-// each word where it stands once every scroller holding it is at its end, as far up
-// the window as the user can bring it, and compares it with the boxes Leaf's chrome
-// covers (`coverBoxes`, geometry.js), which the gate reads at rest, before it opens a
-// thread. A word still under one of them is out of the user's reach (`under-panel`).
 // Words the page hides from assistive technology and draws at under half opacity.
 /** @param {Element} el */
 const decoration = (el) => {
@@ -148,13 +134,7 @@ export function coveredWords({
   const runs = paintedRuns(document.body, { holdFloating, holdHidden });
   /** @type {Record<string, unknown>[]} */
   const found = [];
-  const chrome = coverBoxes();
-  for (const { el, end, text } of runs)
-    if (end && !decoration(el) && chrome.some((box) => overlaps(end, box)))
-      found.push({ code: "under-panel", at: at(el), place: place(el), words: text });
-  const shown = runs
-    .flatMap(({ box, ...run }) => (box ? [{ ...run, box }] : []))
-    .map((run, order) => ({ ...run, order }));
+  const shown = runs.map((run, order) => ({ ...run, order }));
   // Two runs can cover each other only if their boxes overlap by more than the 2px of
   // slack in height. So the runs are taken from the top of the page down, and each is
   // compared only with the earlier ones whose boxes reach more than 2px below its top:
@@ -223,19 +203,18 @@ const overlaps = (a, b) =>
 // whose text still lays out a line box past the pixel clipping it, hides nothing.
 /** @param {string} selector */
 export const paintedWords = (selector) =>
-  paintedRuns(document.querySelector(selector)).flatMap(({ box, text }) =>
-    box
-      ? [{ left: box.left, top: box.top, right: box.right, bottom: box.bottom, text }]
-      : [],
-  );
+  paintedRuns(document.querySelector(selector)).map(({ box, text }) => ({
+    left: box.left,
+    top: box.top,
+    right: box.right,
+    bottom: box.bottom,
+    text,
+  }));
 
-// Each run of words under `root`, with the box it paints (`box`) and the box it would
-// paint with every scroller holding it at its end (`end`), read as `coveredWords`'s
-// header says. Either is null where nothing of the run shows; a run is kept where one
-// shows.
+// Each run of words under `root` that shows, with the box it paints (`box`).
 /** @param {Element | null} root */
 function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
-  /** @type {{el: Element, label: Element | null, text: string, box: DOMRect | null, end: DOMRect | null}[]} */
+  /** @type {{el: Element, label: Element | null, text: string, box: DOMRect}[]} */
   const runs = [];
   const outOfFlow = (/** @type {CSSStyleDeclaration} */ style) =>
     style.position === "absolute" || style.position === "fixed";
@@ -256,23 +235,8 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   // else. Every content ancestor is intersected in, so the reading is the one the
   // user is given. The document scrollport is the page's route to the rest of those
   // words, not a content clip; stop before body just as the control reachability probe
-  // does. The walk below stays in the light DOM, so the climb does too.
-  //
-  // A scroll moves the contents of its box by the distance scrolled and changes nothing
-  // else. So with every scroller at its end, a run stands higher by the scroll each
-  // scroller on the climb has left (`toGo`), plus the page's own unless a fixed box
-  // ends the climb, and each box that clips the run stands higher by what the
-  // scrollers above that box have left. The page scrolls as the document, and as
-  // `body` where the page gives `body` an overflow that scrolls, which the root's own
-  // `overflow-y` (base.css) keeps on `body` rather than passing to the window. A box
-  // the user can't scroll (`overflow: hidden`) stays where it is. A box the page sticks
-  // is lifted with the flow around it, which is where it stands at the end, except one
-  // stuck to the window's foot before the page scrolls: it is lifted from where it
-  // sticks rather than from its place in the flow, so words in it go unreported. The
-  // climb is read once for each element, however many lines it lays out.
-  /** @param {DOMRect} rect @param {number} rise */
-  const lift = (rect, rise) =>
-    rise ? new DOMRect(rect.x, rect.y - rise, rect.width, rect.height) : rect;
+  // does. The walk below stays in the light DOM, so the climb does too. The climb is
+  // read once for each element, however many lines it lays out.
   /** @param {DOMRect | null} box @param {DOMRect} bounds */
   const within = (box, bounds) => {
     if (!box) return null;
@@ -284,20 +248,12 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
       ? new DOMRect(left, top, right - left, bottom - top)
       : null;
   };
-  /** @param {Element} box @param {CSSStyleDeclaration} style */
-  const toGo = (box, style) =>
-    userScrollport(style.overflowY) ? Math.max(0, scrollLimit(box) - box.scrollTop) : 0;
-  const pageToGo = [...new Set([pageScroller, document.body])].reduce(
-    (sum, box) => sum + toGo(box, getComputedStyle(box)),
-    0,
-  );
-  /** @typedef {{bounds: DOMRect | null, toGo: number}} Step */
-  /** @type {Map<Element, {steps: Step[], fixed: boolean} | null>} */
+  /** @type {Map<Element, DOMRect[] | null>} */
   const climbs = new Map();
   /** @param {Element} el */
   const climb = (el) => {
-    /** @type {Step[]} */
-    const steps = [];
+    /** @type {DOMRect[]} */
+    const clips = [];
     /** @type {Element | null} */
     let ancestor = el;
     for (; ancestor && ancestor !== document.body;) {
@@ -305,13 +261,8 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
       // SVG text ranges retain geometry below display:none groups, and Chromium's
       // checkVisibility still returns true for them. Their ancestry paints no words.
       if (style.display === "none") return null;
-      steps.push({
-        bounds:
-          style.overflowX !== "visible" || style.overflowY !== "visible"
-            ? ancestor.getBoundingClientRect()
-            : null,
-        toGo: toGo(ancestor, style),
-      });
+      if (style.overflowX !== "visible" || style.overflowY !== "visible")
+        clips.push(ancestor.getBoundingClientRect());
       // An out-of-flow box is laid out against its containing block rather than against
       // the ancestry: an overflow between the two does not clip it, and one at or above
       // the containing block does, so the climb goes on from there. A board column's
@@ -321,7 +272,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
       // the real one, so there the climb stops and keeps the rect whole, over-reporting
       // a cover being this reading's safe direction. A fixed box answers to the
       // viewport alone.
-      if (style.position === "fixed") return { steps, fixed: true };
+      if (style.position === "fixed") return clips;
       if (style.position === "absolute") {
         /** @type {Element | null} */
         const holder = ancestor instanceof HTMLElement ? ancestor.offsetParent : null;
@@ -331,29 +282,17 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
       }
       ancestor = ancestor.parentElement;
     }
-    return { steps, fixed: false };
+    return clips;
   };
   /** @param {Element} el @param {DOMRect} drawn */
   const painted = (el, drawn) => {
     if (!climbs.has(el)) climbs.set(el, climb(el));
-    const path = climbs.get(el);
-    if (!path) return { box: null, end: null };
-    let rise = path.steps.reduce(
-      (sum, step) => sum + step.toGo,
-      path.fixed ? 0 : pageToGo,
-    );
+    const clips = climbs.get(el);
+    if (!clips) return null;
     /** @type {DOMRect | null} */
     let box = drawn;
-    /** @type {DOMRect | null} */
-    let end = lift(drawn, rise);
-    for (const step of path.steps) {
-      rise -= step.toGo;
-      if (!step.bounds) continue;
-      box = within(box, step.bounds);
-      end = within(end, lift(step.bounds, rise));
-      if (!box && !end) break;
-    }
-    return { box, end };
+    for (const bounds of clips) box = within(box, bounds);
+    return box;
   };
   // The part of a run's rect its letters can reach. A text range's rect spans its font's
   // ascent to descent, taller than any letter, so display type set solid overlaps the
@@ -414,9 +353,8 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     /** @param {DOMRect | null} box */
     const shows = (box) => (box && box.width > 1 && box.height > 1 ? box : null);
     for (const drawn of range.getClientRects()) {
-      const { box, end } = painted(el, ink(el, node.data, drawn));
-      const run = { el, label, text, box: shows(box), end: shows(end) };
-      if (run.box || run.end) runs.push(run);
+      const box = shows(painted(el, ink(el, node.data, drawn)));
+      if (box) runs.push({ el, label, text, box });
     }
   }
   return runs;

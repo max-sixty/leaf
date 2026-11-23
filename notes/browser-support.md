@@ -621,9 +621,15 @@ on screen ran 300 animation frames, one 300 px below the window 1, one in a clos
 `<details>` 1, and a same-origin frame off screen 300; a ResizeObserver attached after
 the first second delivered nothing in either hidden opaque frame. No Chromium switch
 tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among them.
-Leaf counts what a sample's page does after loading only while its frame shows
-(`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
-waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
+Firefox renders such a frame anyway: on 2026-11-22, in Playwright's Firefox 159.0, an
+opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chromium
+159.0.8154.6 ran none. Leaf counts what a sample's page does after loading only while
+its frame shows, except that a block's page counts until it arrives or a deadline
+passes, since its arrival sets the frame's height (`browser/runtime/sample.js`), and
+`page check --render` scrolls each frame still waiting into view
+(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+holds the page's presentation, or the jump that showed it, only while they still see
+its frame (`packages/default/widgets/lf-sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
@@ -1003,6 +1009,29 @@ scene, as a hint map's, waits until the rendering update after a script's scroll
 (arrivals.js, `scrollDrawn`). Recheck the three calls in
 Chromium; a 90px scroll means the gap has closed, and the matrix's known case
 then passes.
+
+### A fixed box's new default anchor before the next frame in Chromium
+
+A `position: fixed` box whose `position-anchor` changes from one anchor to
+another, under a scrolled page, reads off by that scroll until the next
+rendering update, though Chromium paints it where the new anchor puts it.
+Give a 4000px body two absolutely positioned anchors at `top: 1000px` and
+`top: 1100px`, a fixed box at `top: anchor(top)` naming the first, scroll the
+page 231px, and name the second in an animation frame callback: the box reads
+at 638 in that callback and at 869 in the next frame's, and Chromium's
+layout-shift entry records it moving from 769 straight to 869. That was
+Playwright Chromium 159.0.8154.6 (build 1255) on 2026-11-21. Playwright Firefox
+159.0 (build 1572) reads 869 at once, and both read right at once where the box
+takes an anchor from none, drops one, or changes only its insets.
+
+In Leaf it reaches a floating surface whose placement moves it from one
+anchor's plane to another's (floating.js), such as a thread card that an answer
+grows against a pane's foot. floating.js reads where an answer stands the box
+from the answer (`clientBox`), not off the box. `tests/shift_watch.js` reads the
+box in an animation frame callback, where the offset shows. A CDP screencast of
+such a card showed no frame at the offset spot, so with no user-visible effect
+Leaf leaves the gap. Recheck with the reproduction above; 869 in the switching
+callback means the gap has closed.
 
 ### `calc()` in `overflow-clip-margin` in Chromium
 

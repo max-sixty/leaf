@@ -842,20 +842,31 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * changing moves nothing beside it. Leaf and its packages write `data-lf-room`, which
  * lists representative strings that set its width, one per line, on an element whose
  * one child holds the words. Its ::before lays the room out as an invisible block of no
- * height, so the element is as wide as the widest line in its own face, with no
- * script. The words take no part in that width: they fill the room and are cut past it
- * with an ellipsis, so the control never widens when its words change. Rejected: the
+ * height in the one grid cell it shares with the words, so the element is as wide as
+ * the widest line in its own face, with no script. The words take no part in that
+ * width: they fill the room and are cut past it with an ellipsis, so the control never
+ * widens when its words change. Rejected: the
  * room as a least width, which let a long label widen its control and shift the
  * controls beside it, too often and in too many places to oversee (the user's
  * decision). Rejected too: a page-facing `data-room` twin, which no page
  * used; a page holds room for changing text with a grid stack (`page-layout.md`,
  * "Space for changing text"). Cut words stay whole in the element's text and
  * accessible name; generated content is in neither. The room wraps at its spaces, so
- * it never holds the element wider than its container. The words' line is the
- * element's baseline. The element's own rules outrank this one. */
+ * it never holds the element wider than its container. The words, aligned on their
+ * baseline in that cell, give the element its baseline, in a line of text and as a
+ * grid or flex item alike, and stand at its middle where it is taller than they are,
+ * as a button's words do. The element's own rules outrank this one; where they give
+ * it another display, the room and the words, each a block, still stand one over the
+ * other, and the words' line is its baseline in a line of text but not as a grid or
+ * flex item. */
 :where([data-lf-room]) {
-  display: inline-block;
+  display: inline-grid;
+  align-content: center;
   max-inline-size: 100%;
+}
+[data-lf-room]::before,
+[data-lf-room] > * {
+  grid-area: 1 / 1;
 }
 [data-lf-room]::before {
   content: attr(data-lf-room);
@@ -867,6 +878,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 }
 [data-lf-room] > * {
   display: block;
+  align-self: baseline;
   inline-size: 0;
   min-inline-size: 100%;
   overflow: clip;
@@ -1581,6 +1593,12 @@ wa-copy-button.lf-icon-action {
 }
 .lf-response-face[aria-pressed]:where(:not([aria-pressed="true"])) {
   background: var(--lf-card);
+}
+/* The comment box's face while the box rests (`data-lf-rest`; composing/surface.js,
+   `restFab`) wears the corner of the card the box becomes, as the open box's field
+   does (annotation-chrome.css). */
+[data-lf-rest] > .lf-response-face {
+  border-radius: var(--lf-r-l);
 }
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`data-lf-corner`, below), as the floating panel's fold, an attachment's

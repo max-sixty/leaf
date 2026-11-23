@@ -31,7 +31,8 @@ lf-shot {
    gutter around the frame Slider fits (`fitShotGeometry`, shot-view.js). Delivery
    paints the captures' size on the element (`data-lf-media-width`,
    `data-lf-media-height`), and a frame takes the stage's width at the captures'
-   ratio, but never enlarges them nor stands taller than the screen below the toolbar.
+   ratio, but never enlarges them past their CSS size (their bitmap's, divided by
+   `density`) nor stands taller than the screen below the toolbar.
    A page whose runtime won't run draws no shot, nor does paper, so neither holds room,
    and a browser without typed `attr()` holds only the toolbar and padding. The frame
    stands in a row beside an empty box holding only the stage's scrollbar gutter, so it
@@ -69,7 +70,20 @@ lf-shot {
       aspect-ratio: attr(data-lf-media-width type(<number>)) /
         attr(data-lf-media-height type(<number>));
       max-block-size: min(
-        attr(data-lf-media-height px),
+        attr(data-lf-media-height type(<number>)) / attr(density type(<number>), 1) *
+          1px,
+        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
+          2px
+      );
+    }
+    /* A pair that opens on its focus holds the focus's frame, which `focus-width` and
+       `focus-height` give in CSS pixels. */
+    lf-shot[data-lf-media-width][data-lf-media-height][focus-width][focus-height]:not(
+        :defined
+      )::before {
+      aspect-ratio: attr(focus-width type(<number>)) / attr(focus-height type(<number>));
+      max-block-size: min(
+        attr(focus-height px),
         var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
           2px
       );
@@ -164,10 +178,10 @@ lf-shot {
 .lf-shot-open[data-lf-focus-visible] {
   outline: none;
 }
-.lf-shotframe .lf-shot-open {
-  --lf-focus-box: .lf-shotframe;
+.lf-shotviewport .lf-shot-open {
+  --lf-focus-box: .lf-shotviewport;
 }
-.lf-shotframe[data-lf-control-focus-visible] {
+.lf-shotviewport[data-lf-control-focus-visible] {
   /* The source can scroll beyond its frame; focus stays on the visible image, at a
      region's gap (base.css). */
   --lf-wears-ring: 1;
@@ -200,7 +214,7 @@ lf-shot {
     inline-size: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
-    /* A stacked pair moves the words into its frames, without collapsing their
+    /* A stacked pair moves the words above its frames, without collapsing their
        toolbar row or moving the image viewport beneath the reader's pointer. */
     grid-template-rows: auto var(--lf-shot-label-height);
   }
@@ -273,11 +287,12 @@ lf-shot {
   margin-inline: auto;
   gap: var(--lf-shot-gap);
 }
+/* A frame holds its capture's window and, in a stacked Pair, the name above it. The
+   window wears the media frame's face (shot-view.js), so a name stands on the page
+   rather than inside the capture's edge. */
 .lf-shotframe {
   inline-size: calc(var(--lf-shot-frame-width) + 2px);
   border: 1px solid transparent;
-  background: var(--lf-card);
-  overflow: clip;
 }
 @media screen {
   lf-shot[data-lf-shot-mode="pair"] .lf-shotframe {
@@ -287,6 +302,8 @@ lf-shot {
 .lf-shotviewport {
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
+  background: var(--lf-card);
+  overflow: clip;
 }
 /* Each capture's window keeps the height the fit gave it, and at actual size the reader
    scrolls the capture inside it, so both frames keep one size. */
@@ -302,12 +319,20 @@ lf-shot {
     overflow: auto;
   }
 }
+/* A stacked frame's name stands above its capture's window, in the toolbar's own
+   face, as a word about the capture rather than a row of it (browser/AGENTS.md, "A
+   word about shown material stands outside it"). The maintainer chose this placement and
+   kept the tinted face. A tinted band inside the frame read as the captured
+   interface's own header, most of all on a capture of Leaf, whose cards wear the same
+   tints. A name on the capture's corner covers what is under review, and an untinted
+   word was the quieter face he passed over. The row holds a gap above the name, so
+   each name stands nearer the window it names than the window before it. */
 .lf-shot-frame-label {
   box-sizing: border-box;
   display: none;
-  align-items: center;
-  block-size: var(--lf-shot-label-height);
-  border-block-end: 1px solid var(--lf-rule);
+  align-items: flex-end;
+  block-size: calc(var(--lf-shot-label-height) + var(--lf-shot-gap));
+  padding-block-end: var(--lf-sp-1);
 }
 lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
@@ -332,13 +357,11 @@ lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   text-overflow: ellipsis;
   user-select: text;
 }
-.lf-shotcap[data-lf-state="before"],
-.lf-shot-frame-label[data-lf-state="before"] {
+.lf-shotcap[data-lf-state="before"] {
   background: var(--lf-del-tint);
   color: var(--lf-danger-ink);
 }
-.lf-shotcap[data-lf-state="after"],
-.lf-shot-frame-label[data-lf-state="after"] {
+.lf-shotcap[data-lf-state="after"] {
   background: var(--lf-add-tint);
   color: var(--lf-ok-ink);
 }
@@ -404,7 +427,7 @@ lf-shot:not([data-lf-shot-mode="pair"]) .lf-shotcanvas {
 .lf-shotcomparison::part(divider) {
   background: var(--lf-ink-2);
 }
-.lf-shotcomparison .lf-shotframe {
+.lf-shotcomparison .lf-shotviewport {
   box-shadow: none;
 }
 .lf-shotcomparison::part(handle) {

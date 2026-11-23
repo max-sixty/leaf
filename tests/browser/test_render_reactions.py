@@ -888,8 +888,8 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
     narrow screen the same room caps the bar and the field spans it, since words take
-    the picker trigger out of its corner. The sent message spans the card as its reply
-    does."""
+    the picker trigger out of its corner. The sent message spans the card's padding,
+    which its reply box runs over to the card's sides."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -966,9 +966,12 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     expect(card).to_have_css("opacity", "1")
     message = card.locator(".lf-msg-body").first.bounding_box()
     reply = card.locator(".lf-compose-field").bounding_box()
-    assert message["x"] + message["width"] == pytest.approx(
+    padding = card.evaluate(
+        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-thread-pad'))"
+    )
+    assert message["x"] + message["width"] + padding == pytest.approx(
         reply["x"] + reply["width"], abs=1
-    ), (message, reply)
+    ), (message, reply, padding)
 
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):

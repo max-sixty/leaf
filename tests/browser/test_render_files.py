@@ -1,22 +1,21 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import io
-import re
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     one_frame,
     open_page,
     primed,
-    regions_side_by_side,
     rendered,
-    resized,
     rgb_pixels,
     scroll_settled,
     wait_until_ready,
@@ -125,8 +124,18 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
+    # A heading wears the token theme's colour for one, so the file reads as Markdown.
     heading = editor.locator(".cm-line", has_text="A real file").locator("span").first
-    expect(heading).to_have_css("font-weight", "650")
+    expect(heading).to_have_css(
+        "color",
+        page.evaluate("""() => {
+          const probe = document.body.appendChild(document.createElement("span"));
+          probe.style.color = "var(--lf-syn-name)";
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""),
+    )
     size = editor.evaluate("node => getComputedStyle(node).fontSize")
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"
@@ -139,7 +148,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
-    expect(editor.get_by_text("literal", exact=True)).to_have_css(
+    expect(editor.get_by_text("`literal`", exact=True)).to_have_css(
         "color", "rgb(0, 85, 102)"
     )
     page.keyboard.press("Tab")
@@ -264,18 +273,6 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     name = widget.locator(".lf-file-editor-name")
     expect(editor).to_contain_text("replicas: 3")
-    # A YAML key wears the theme's colour for a key, as a code block's does.
-    key = editor.locator("span", has_text="replicas").first
-    expect(key).to_have_css(
-        "color",
-        page.evaluate("""() => {
-          const probe = document.body.appendChild(document.createElement("span"));
-          probe.style.color = "var(--lf-syn-type)";
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""),
-    )
     expect(name).to_have_text("deploy/values.yaml")
     expect(tree.get_by_role("treeitem", name="values.yaml")).to_have_attribute(
         "aria-selected", "true"
@@ -338,44 +335,74 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     consume_browser_errors(page, http_error_console(409))
 
 
-def test_picking_a_file_leaves_a_workspace_where_it_stands(browser, serve, tmp_path):
-    """The editor fills its pane to the window's foot, so opening another file in it
-    from the tree moves nothing on the page, though the page has room to scroll."""
-    for name in ("values", "alerts"):
-        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
+def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_path):
+    """The editor colours a file by the tokenizer and theme a code block of the same
+    file is coloured by, so a YAML number, boolean, null, key, string and comment, and a
+    Markdown heading, strong and emphasised words and a link's address, each wear in
+    the editor the colour and face they wear in the block."""
+    yaml = "# Worker\nreplicas: 3\nenabled: true\nceiling: null\nowner: 'oncall'\n"
+    markdown = (
+        "# Runbook\n\nWhen **every** slot is busy, *only* then, [see](notes.md).\n"
+    )
+    (tmp_path / "values.yaml").write_text(yaml)
+    (tmp_path / "runbook.md").write_text(markdown)
     url = serve(
         leaf_page(
-            "Deploy files",
-            """<header><h1>Deploy files</h1></header>
-            <div id="regions">
-              <lf-pane id="files-pane" label="Files">
-                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
-              <lf-pane id="editor-pane" label="File">
-                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
-              </lf-pane>
-            </div>""",
-            head=regions_side_by_side("regions", "16rem 1fr"),
-            layout="workspace",
+            "Colours",
+            '<h1>Colours</h1><p><a id="to-runbook" href="#config:runbook">runbook</a></p>'
+            '<lf-file-editor id="config" binding="values runbook"></lf-file-editor>'
+            f'<pre><code class="language-yaml">{yaml}</code></pre>'
+            f'<pre><code class="language-markdown">{markdown}</code></pre>',
         ),
-        packages=["file-editor", "file-tree"],
+        packages=["file-editor"],
     )
-    for name in ("values", "alerts"):
-        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
+    bind_file(serve.page_dir, "values", tmp_path / "values.yaml")
+    bind_file(serve.page_dir, "runbook", tmp_path / "runbook.md")
     page = open_page(browser, live_url(url))
-    resized(page, 1200, 900)
-    editor = page.locator("lf-file-editor")
-    expect(
-        editor.get_by_role("textbox", name="File contents", exact=True)
-    ).to_contain_text("values.yaml")
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 300px"}))"""
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
     )
-    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
-    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
-    expect(page).to_have_url(re.compile("#config:alerts$"))
-    scroll_settled(page)
-    assert page.evaluate("scrollY") == 0
+    # The face each word wears, in the editor and in the code block of its language: a
+    # word the theme leaves uncoloured is in each one's own ink.
+    faces = """([words, lang]) => {
+      const face = (root) => Object.fromEntries(words.map((word) => {
+        const ink = getComputedStyle(root).color;
+        const texts = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let text = texts.nextNode(); text; text = texts.nextNode())
+          if (text.data.trim() === word) {
+            const style = getComputedStyle(text.parentElement);
+            return [word, [style.color === ink ? "ink" : style.color, style.fontStyle,
+              style.fontWeight, style.textDecorationLine]];
+          }
+        return [word, null];
+      }));
+      return [
+        face(document.querySelector("lf-file-editor").shadowRoot.querySelector(".cm-content")),
+        face(document.querySelector(`pre code.language-${lang}`)),
+      ];
+    }"""
+    for words, lang, shown in (
+        (["# Worker", "replicas", "3", "true", "null", "'oncall'"], "yaml", "ceiling"),
+        (["# Runbook", "**every**", "*only*", "notes.md"], "markdown", "Runbook"),
+    ):
+        if lang == "markdown":
+            page.locator("#to-runbook").click()
+        expect(editor).to_contain_text(shown)
+        page.wait_for_function(
+            """() => document.querySelector("lf-file-editor").shadowRoot
+                .querySelector(".cm-content span[class]")"""
+        )
+        in_editor, in_block = page.evaluate(faces, [words, lang])
+        assert all(in_block.values()), in_block
+        assert in_editor == in_block, (in_editor, in_block)
+    # The theme gives Markdown its faces: a heading and strong words bold, emphasis
+    # italic and a link's address underlined.
+    assert {word: face[1:] for word, face in in_block.items()} == {
+        "# Runbook": ["normal", "700", "none"],
+        "**every**": ["normal", "700", "none"],
+        "*only*": ["italic", "400", "none"],
+        "notes.md": ["normal", "400", "underline"],
+    }
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):
@@ -448,6 +475,152 @@ def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tm
             "code": "words-left-screen",
             "words": "replicas: 4autoscaling:  minReplicas: 3",
         },
+    )
+
+
+def test_a_reload_that_loses_a_saves_answer_keeps_the_typing_after_it(
+    browser, serve, tmp_path
+):
+    """The reader types the file back to what it was while a save of their edit is in
+    flight, and the tab reloads after the file took that save but before its answer
+    came back. Leaving asks first, the reloaded editor holds the words the reader last
+    typed rather than the save's, and writes them to the file."""
+    file = tmp_path / "notes.md"
+    file.write_text("Original.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    held = []
+
+    def hold(route):
+        if route.request.method == "POST":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/files/notes", hold)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    holding(page, held, 1, "the save of the draft")
+    # The file takes the save; its answer never reaches the tab.
+    held[0].fetch()
+    assert file.read_text() == "Original.\nDraft."
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    expect(editor).to_have_text("Original.")
+    page.unroute("**/api/files/notes", hold)
+    left = []
+
+    def leaving(dialog):
+        left.append(dialog.type)
+        dialog.accept()
+
+    page.on("dialog", leaving)
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
+            and response.status == 200
+            and response.request.post_data_json["text"] == "Original.\n"
+        )
+    ):
+        page.reload()
+        wait_until_ready(page)
+        expect(editor).to_have_text("Original.")
+    assert file.read_text() == "Original.\n"
+    assert left == ["beforeunload"]
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+
+
+@pytest.mark.parametrize("typed", ["back", "on"])
+def test_a_retry_after_a_save_with_no_answer_keeps_the_typing_after_it(
+    browser, serve, tmp_path, typed
+):
+    """A save gets no answer, and the reader types it away: back to the file as read,
+    while the save never reached the file, or on past it, after the file took it.
+    Retry settles that lost save against the file before anything is written, so the
+    editor and then the file hold what the reader last typed, the status clears, and
+    leaving no longer asks."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n\nEnd.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def lose(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        if typed == "on":
+            route.fetch()
+        route.abort()
+
+    page.route("**/api/files/notes", lose)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    last = "Notes.\n\nEnd.\n"
+    if typed == "on":
+        assert file.read_text() == "Notes.\n\nEnd.\nDraft."
+        # A line far enough from the lost save's that a line merge would take it in.
+        page.keyboard.press("ControlOrMeta+Home")
+        page.keyboard.insert_text("Added.")
+        page.keyboard.press("Enter")
+        last = "Added.\n" + last
+    shown = last.replace("\n", "")
+    expect(editor).to_have_text(shown)
+    page.unroute("**/api/files/notes", lose)
+    if typed == "on":
+        with page.expect_response(
+            lambda response: (
+                response.request.method == "POST"
+                and response.url.endswith("/api/files/notes")
+                and response.status == 200
+            )
+        ) as saved:
+            retry.click()
+        assert saved.value.request.post_data_json["text"] == last
+    else:
+        retry.click()
+    expect(retry).to_be_hidden()
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+    expect(editor).to_be_focused()
+    left = []
+    page.on("dialog", lambda dialog: (left.append(dialog.type), dialog.accept()))
+    page.reload()
+    wait_until_ready(page)
+    assert left == []
+    expect(editor).to_have_text(shown)
+    assert file.read_text() == last
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        *([http_error_console(409)] if typed == "on" else []),
     )
 
 

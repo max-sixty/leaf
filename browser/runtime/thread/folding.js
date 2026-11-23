@@ -36,7 +36,6 @@
    (glossary.md, "Reader-facing words"). */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
-import { pressCommand } from "../keyboard/dispatch.js";
 import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -59,7 +58,6 @@ const nextStep = (resolving, undo) =>
     ? {
         action: "next-thread",
         command: "thread.next",
-        run: () => pressCommand("thread.next"),
         stands: () => undo.stands() && anyOpenThread(),
       }
     : undo;

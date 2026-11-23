@@ -2525,9 +2525,11 @@
   // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
   // through the rendering, on the boxes the call scrolls: the one it names, or for a
   // reveal or focus every box holding its target.
+  // A reading that scrolls a box and puts it back before the task ends scrolls nothing
+  // the user sees (arrivals.js, `readScrolled`).
   const scrollCalled = (target, holders = false) => {
     const aim = open?.aim;
-    if (!aim) return;
+    if (!aim || /\breadScrolled\b.*arrivals\.js/.test(new Error().stack)) return;
     const source = window.lfInputWork.current();
     const owner = source && inputRenderings.get(source.event);
     if (!owner || (owner !== open && owner.own !== open.own)) {
@@ -3270,6 +3272,36 @@
     (selection.edges[axis] === axis
       ? 0
       : selection.size[axis === "left" ? "width" : "height"]);
+  // How far `anchor` travelled by scrolling alone while `node`, a box it carries, kept
+  // its offset from it between `from` and `to`. Chrome applies an anchor's scroll to
+  // what it carries after the frame's callbacks, where the watch reads, so a reading
+  // that finds the anchor scrolled can find the box where the anchor stood at the
+  // reading before, whatever a script wrote to the box meanwhile. So the node at each
+  // end may stand by the anchor as it stood then, or as it stood before that reading
+  // moved it. The first pairing that keeps the node's offset, the anchor keeping its
+  // layout place, answers; null where the node or the anchor moved otherwise.
+  const laggedTravel = (node, anchor, from, to, axis) => {
+    const ends = (at) => {
+      const samples = placed.get(anchor) ?? [];
+      const i = samples.findLastIndex((item) => item.at <= at);
+      const before = Math.max(samples[i - 1]?.at, retainedFrom);
+      return samples[i]?.at === at && before < at ? [at, before] : [at];
+    };
+    const offset = (at, by) => boxAt(node, at)?.[axis] - boxAt(anchor, by)?.[axis];
+    const place = (at) => layoutAt(anchor, at)?.[axis];
+    for (const end of ends(to))
+      for (const start of ends(from))
+        if (
+          Math.abs(offset(to, end) - offset(from, start)) < 1 &&
+          Math.abs(place(end) - place(start)) < 1
+        )
+          return {
+            start,
+            end,
+            amount: boxAt(anchor, end)[axis] - boxAt(anchor, start)[axis],
+          };
+    return null;
+  };
   const scrollMotion = (node, from, to, animations = []) => {
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -3372,7 +3404,8 @@
         next = paintAt(owner, to);
       const anchor = prior?.anchor;
       if (!anchor || anchor !== next?.anchor) continue;
-      // Native anchor layout can follow its scroller in the next frame. Credit
+      // Native anchor layout can follow its scroller in the next frame. Credit the
+      // anchor's travel the node kept its place by (`laggedTravel`), and failing that,
       // source scrolling since this retained portal pose was first observed.
       const start = poseAt(owner, from);
       const before = boxAt(anchor, start),
@@ -3397,6 +3430,11 @@
       ]) {
         if (!prior[held] || !next[held] || anchored[axis]) continue;
         anchored[axis] = true;
+        const lag = laggedTravel(node, anchor, from, to, axis);
+        if (lag) {
+          credit(motion, "native_anchor", owner, axis, lag.amount, { anchor, ...lag });
+          continue;
+        }
         const layoutStable =
           Math.abs(afterLayout[axis] - beforeLayout[axis] - translated[axis]) < 1;
         credit(

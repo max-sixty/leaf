@@ -964,7 +964,7 @@ def long_press(page, point):
 # (design.js): the mode as the page shows it.
 DESIGN_LEGEND = ".lf-legend-box"
 # The chrome's root, after `body` (chrome.js), which holds what the runtime states for
-# its own stylesheets, such as the annotation layer hidden (`o`, annotation-layer.js).
+# its own stylesheets, such as the annotation layer hidden (`g H`, annotation-layer.js).
 CHROME_ROOT = "html > .lf-chrome"
 
 
@@ -1002,6 +1002,12 @@ def cursor_over(page, locator):
     locator.hover()
     box = locator.bounding_box()
     return cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+
+def comparison_view(url):
+    """Whether `url` is a comparison's own `/api/view` request, which names the revision
+    it is shown on (`shown=`); Versions' counts of changes ask without it."""
+    return "/api/view?" in url and "shown=" in url
 
 
 def holding(page, held, count, what):
@@ -2084,7 +2090,7 @@ def stance_exit(page):
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
-    than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
+    than the latest and no other press stands there (floating-panel.js, `OPEN_LATEST`)."""
     return field_press(page).filter(has_text="Open latest")
 
 
@@ -2739,11 +2745,10 @@ Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
 # "Results do not depend on execution speed"). One that names no deadline
-# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
-# whose own default is five seconds, and every page action, wait and expectation on a
-# page `readable` prepares. A wait that spans a page handover names
-# `HANDOVER_DEADLINE_MS`.
-expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
+# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion
+# on any page, and every page action, wait and request in a context that `readable`
+# prepares a page of. A wait that spans a page handover names `HANDOVER_DEADLINE_MS`.
+render_checks_model.bound_expectations()
 
 
 def readable(page, *, java_script_enabled=True):
@@ -2771,7 +2776,9 @@ def readable(page, *, java_script_enabled=True):
         return page
     if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
         slow_cpu(page, _CPU_THROTTLE)
-    page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
+    # On the context, since `page.request` takes the context's default and not the
+    # page's; the page inherits it.
+    page.context.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     page.lf_armed = False
     if getattr(page.context, "lf_routed", False):
         _arm(page)
@@ -3196,8 +3203,20 @@ def tab_onto(target):
     """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
     back. Focus moved by Tab shows the target's preview (preview.js) whatever input came
     before; a script's focus shows it only where the browser shows that focus
-    (`:focus-visible`)."""
+    (`:focus-visible`).
+
+    Shift+Tab steps off the target only where the user can see it: a key pressed while
+    focus stands where the user can't see it lets go of that focus first
+    (keyboard/controller.js). A script's focus doesn't scroll a target the window
+    already holds, which may stand under the floating panel's row at the window's foot,
+    so the helper then brings the target clear of the panel with Leaf's own landing
+    (landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves
+    nothing where the user already sees the target."""
     target.focus()
+    target.evaluate(
+        "async node => (await window.__lfWidgetApi())"
+        ".scrollIntoView(node, {block: 'nearest', behavior: 'instant'})"
+    )
     target.page.keyboard.press("Shift+Tab")
     target.page.keyboard.press("Tab")
     expect(target).to_be_focused()
@@ -3496,6 +3515,20 @@ def select_words(page, passage):
     locator.click(click_count=3, position={"x": x, "y": y})
 
 
+# The browser's speech recognizer, replaced at its boundary as tests/runtime's
+# dictation tests replace it: each instance records whether it was aborted, and a
+# test hears words through its `onresult`.
+FAKE_RECOGNITION = """
+window.lfRecognizers = [];
+window.SpeechRecognition = class {
+  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
+  start() { setTimeout(() => this.onstart?.()); }
+  stop() { setTimeout(() => this.onend?.()); }
+  abort() { this.aborted = true; }
+};
+"""
+
+
 def write(box, text):
     """Replace a text box's words the way typing them would, as `fill` does.
 
@@ -3525,10 +3558,18 @@ def compare_with(page, version=None):
         versions.locator(".lf-fp-compare").first
         if version is None
         else versions.get_by_role(
-            "button", name=re.compile(rf"^Compare with v{version}( |$)")
+            "button", name=re.compile(rf"\bCompare with v{version}( |,|$)")
         )
     )
     press.click()
+
+
+def show_changes(page):
+    """Press `g V v`: Versions opens on the version it offers, the one the user last
+    saw or else the newest one older than the version being read, or the one compared
+    with while a comparison stands, and `v` presses its Compare."""
+    for key in ("g", "Shift+V", "v"):
+        page.keyboard.press(key)
 
 
 def scroll_writes(page, steps, scroller="document.scrollingElement"):

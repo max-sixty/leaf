@@ -30,14 +30,19 @@ Telling the agent to run `leaf server start` instead leaves the user's tab witho
 a server until the agent acts, which an agent can put off or never do.
 
 A session whose hooks run an installed update (`session-lifetime.md`, "Which Leaf
-runs a session") reads `page check` from it, while each page's server goes on running
-the Leaf that started it, so what the user's tab draws may differ from what the agent
-checked. So once the prompt has served pages again, it restarts the server of each
-page the session holds that another installed Leaf started, where the hook runs an
-installed copy too (`state.installed_copy`): another copy, or the same copy at
-another commit, as Codex's and Pi's are once their harness updates them in place. It finds another Leaf
-by the test `leaf server start` makes (`server.other_serving_leaf`), and restarts the
-server as that command does, at the same address (`hosting.restarting_server`).
+runs a session") reads `page check` from it, while a page's server another copy
+started goes on running that copy, so what the user's tab draws may differ from what
+the agent checked. Claude Code installs each update as a copy at a new path, so a
+session it moves onto the update leaves its servers on the old copy. So once the
+prompt has served pages again, it restarts the server of each page the session holds
+that another installed Leaf started, where the hook runs an installed copy too
+(`state.installed_copy`). It finds another Leaf by the test `leaf server start` makes
+(`server.other_serving_leaf`), and restarts the server as that command does, at the
+same address (`hosting.restarting_server`). A server from a copy Codex or Pi updates
+in place has the update restart it within seconds (`server.stop_when_service_ends`).
+A server that did not follow, because its copy changed while it was starting or the
+update refused to restart it, reads to the same test as the same copy at another
+commit, so the prompt restarts it.
 
 As that command does, the hook first asks whether this Leaf can serve the page, as a
 fresh bind decides it (`http.page_endpoint`), and leaves a page it can't serve to the
@@ -56,7 +61,11 @@ server someone started from a checkout, such as a preview or a trial of a change
 with the installed copy; restarting from a checkout's hook would move the session's
 pages onto that checkout. Whether a checkout should move a session's pages at all
 (`session_runtime.select_checkout`) is a question the maintainer has left open, and
-this rule holds whichever way it is settled.
+this rule holds whichever way it is settled. The rule governs the restarts a hook
+makes. A server that follows an update of its own installed copy is restarted by
+the copy at that same path, and only that server is (`hosting.follow_copy`), so the
+follow keeps the rule's purpose: it replaces no checkout's server and moves no page
+onto a checkout.
 """
 
 import time
@@ -119,18 +128,14 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
                     )
                 )
     if pages := to_restart(harness):
-        from .hosting import restarting_server
-        from .http import page_endpoint
-        from .leases import page_locked
-        from .server import host_key
+        from .hosting import check_servable, restarting_server
 
         deadline = _deadline(started)
         for page_dir in pages:
             if deadline - time.monotonic() < RESTART_NEEDS:
                 break
             try:
-                with page_locked(page_dir):
-                    page_endpoint(page_dir, host_key())
+                check_servable(page_dir)
             except Refused:
                 # This Leaf can't serve the page, so the copy serving it goes on.
                 continue

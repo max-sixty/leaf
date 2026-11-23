@@ -2,6 +2,7 @@
 turn on every page it holds, handing pending input over inline or as a pointer, and
 confirming what they hand over within their deadline."""
 
+import contextlib
 import fcntl
 import json
 import os
@@ -2087,14 +2088,14 @@ def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
 
 
 def test_a_watch_delivers_nothing_from_a_page_its_leaf_cannot_write(claimed):
-    """Input on a page vendored at another protocol waits for a Leaf that can write
-    the page: no receipt could be recorded for it here, so a watch that delivered it
+    """Input on a page a newer Leaf vendored waits for a Leaf that can write the
+    page: no receipt could be recorded for it here, so a watch that delivered it
     woke the session again on every pass, and a Codex watch offered it as a new turn
-    each time. The prompt still names the page and the re-vendor that frees it."""
+    each time. The prompt still names the page and the Leaf that frees it."""
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed, newer=True)
 
     def delivered(reading):
         pytest.fail(f"{reading.page_dir} delivered input its Leaf cannot receipt")
@@ -2296,6 +2297,49 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     layer = layer_record(claimed)
     assert layer is not None
     assert layer["protocol"] == vendored
+
+
+def test_two_renewals_of_a_page_take_turns(claimed, monkeypatch):
+    """Two readers acting for the session can set out to renew one page at once, as
+    a hook reading the session's pages and the restart of a page's server whose copy
+    was replaced can. The second waits for the first through its restart, then finds the
+    page renewed and changes nothing: it neither restarts the server the first just
+    started nor reports a refusal, as it would were it to pass its first reading
+    while the first is still stopping the server."""
+    vendored_at_another_protocol(claimed)
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    outcomes, restarts = [], []
+    second = threading.Thread(
+        target=lambda: outcomes.append(vendoring_model.renew_held(claimed, "s1"))
+    )
+    # The second renewal has reached the wait for its turn, or else the restart.
+    turned = threading.Event()
+    acquire = cleanup_model.acquire
+    restart = vendoring_model.restarting_server
+
+    def taking_turns(held, path, deadline):
+        if path.name == schema_model.INIT_LOCK and threading.current_thread() is second:
+            turned.set()
+        return acquire(held, path, deadline)
+
+    @contextlib.contextmanager
+    def restarting(page_dir, harness):
+        restarts.append(threading.current_thread() is second)
+        if threading.current_thread() is second:
+            turned.set()
+        else:
+            # The second sets out while the first is stopping the server.
+            second.start()
+            assert turned.wait(STATED_TIMEOUT)
+        with restart(page_dir, harness):
+            yield
+
+    monkeypatch.setattr(cleanup_model, "acquire", taking_turns)
+    monkeypatch.setattr(vendoring_model, "restarting_server", restarting)
+    first = vendoring_model.renew_held(claimed, "s1")
+    second.join(STATED_TIMEOUT)
+    assert (first, outcomes, restarts) == (None, [None], [False])
+    assert event_contracts_model.write_refusal(claimed) is None
 
 
 def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypatch):

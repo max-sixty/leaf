@@ -159,7 +159,6 @@ from .schema import (
 from .service import (
     PageTransaction,
     owned_pages,
-    page_claim,
 )
 from .state import (
     STATUS_CHECKED_SUFFIX,
@@ -286,18 +285,11 @@ def read_plans(session_id: str) -> list[PagePlan]:
     from .activity import acknowledged_obligations, turn_obligations
     from .event_contracts import write_refusal
     from .served_state.context import read_page
-    from .vendoring import renew_layer
+    from .vendoring import renew_held
 
     plans = []
     for page_dir in owned_pages(session_id):
-        # The claim's harness, since a hook's environment does not name its
-        # session, and only while the claim is still this session's.
-        held = page_claim(page_dir)
-        unready = (
-            renew_layer(page_dir, claim_harness(held), command=False)
-            if held and held["id"] == session_id
-            else None
-        )
+        unready = renew_held(page_dir, session_id)
         try:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim

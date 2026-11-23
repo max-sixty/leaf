@@ -380,21 +380,13 @@ const widgetObligation = keptEach(
    * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
    * @param {boolean} answerWithdrawn @returns {ObligationRecord} */
   (item, widget, verb, withdrawals, answerWithdrawn) => {
-    const sourceUnit = item.source.unit;
     const completed = item.status === "answered" && !answerWithdrawn;
-    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
+    const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue =
-      /** @type {{ e: Event; unit: string }[]} */ (widget.entries).some(
-        ({ e, unit }) =>
-          e.action === verb &&
-          (sourceUnit === undefined || unit === sourceUnit) &&
-          !Number.isInteger(e.seq),
+      /** @type {{ e: Event }[]} */ (widget.entries).some(
+        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
       ) ||
-      withdrawals.some(
-        ({ e, unit }) =>
-          (sourceUnit === undefined || unit === sourceUnit) &&
-          (e.action === verb || e.id === item.answer?.event?.id),
-      );
+      withdrawals.some(({ e }) => e.action === verb || e.id === item.answer?.event?.id);
     const answer = present
       ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
       : null;

@@ -248,15 +248,6 @@ AWAITS_SCHEMA = {
         "when": AWAITING_CONDITION,
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
-        "records": {
-            "type": "object",
-            "properties": {
-                "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "label": {"type": "string", "minLength": 1},
-            },
-            "required": ["input", "label"],
-            "additionalProperties": False,
-        },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
@@ -728,6 +719,8 @@ STREAM_FILE = "stream.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
 WAITER_LOCK = "waiter.lock"
+# The lock serializing re-initializations of an initialized page (`vendoring._reinit`).
+INIT_LOCK = "init.lock"
 # What a page records about who is working on it and how it is served, as against what
 # its author wrote (the source) and what it has accumulated (the log and its revisions).
 # Neither validation nor a revision's capture reads these, so a write to one is news to
@@ -735,6 +728,7 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STREAM_FILE,
     WAITER_LOCK,
+    INIT_LOCK,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
     DRAFTS_LOCK,

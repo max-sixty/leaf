@@ -864,16 +864,17 @@ def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
         "session_id": "pi-s1",
         "ended_at": time.time(),
     }
-    watch = spawn(
-        [sys.executable, "-c", _RUNNING_FROM, str(root), "hook", "--harness", "pi"]
-        + ["--watch"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    watch.stdin.write(json.dumps(interrupt))
-    watch.stdin.close()
+    payload = tmp_path / "interrupt.json"
+    payload.write_text(json.dumps(interrupt))
+    with payload.open() as stdin:
+        watch = spawn(
+            [sys.executable, "-c", _RUNNING_FROM, str(root), "hook", "--harness", "pi"]
+            + ["--watch"],
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
     wait_for(
         lambda: leases_model.wait_is_live(None, "pi-s1"),
         lambda live: live,

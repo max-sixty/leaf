@@ -576,11 +576,10 @@ def test_a_generated_hint_is_never_drawn_on_the_panel(browser, serve):
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
 
-    # Swept rather than asked once. The panel's room is reserved at the document's foot,
-    # so the end of the page is exactly where this cannot happen; what puts a member under
-    # it is an ordinary scroll position with a link resting on the bottom edge. Each
-    # step waits for the runtime's own paint frame, since the chips follow a scroll on a
-    # frame of their own and boxes read in the same turn are the positions it just left.
+    # Swept rather than asked once: what puts a member under the panel is a scroll
+    # position with a link resting on the bottom edge. Each step waits for the runtime's
+    # own paint frame, since the chips follow a scroll on a frame of their own and boxes
+    # read in the same turn are the positions it just left.
     room = page.evaluate(
         "() => document.scrollingElement.scrollHeight"
         " - document.scrollingElement.clientHeight"

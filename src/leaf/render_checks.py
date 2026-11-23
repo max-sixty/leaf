@@ -540,10 +540,10 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     `wait_until_ready` waits with `state` and `ready`. A check reads every document the
     page can show, not only those near the window it opened at.
 
-    A sample's page gets no rendering while its frame is off screen, so its host counts
-    what that page draws only while the frame shows, and marks the frame
-    `data-lf-unseen` meanwhile (sample.js). The page holding a hidden frame counts none
-    of the work that frame's page starts after loading, its own samples included, so
+    A sample's page may get no rendering while its frame is off screen, so its host
+    stops counting what that page draws there, at once or after a deadline (sample.js),
+    and marks the frame `data-lf-unseen`. The page holding a marked frame counts none
+    of the work that frame's page does after loading, its own samples included, so
     each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`
     frame is then scrolled into view and its holder waited for, and every box the
     scroll moved goes back. One no scroll can show, in a closed disclosure, a shut tab

@@ -19,6 +19,7 @@ from render_harness import (
     put_preview_away,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     undo,
@@ -74,6 +75,22 @@ document.addEventListener(PAGE_INTERFACE, event => {
 </script>
 """,
 )
+
+
+# Whether a node stands whole in the window.
+IN_WINDOW = """node => {
+  const box = node.getBoundingClientRect();
+  return box.top >= 0 && box.left >= 0 && box.bottom <= innerHeight
+    && box.right <= innerWidth;
+}"""
+# Whether nothing stands over a node, the floating panel included, at four points
+# inside its box.
+UNCOVERED = """node => {
+  const box = node.getBoundingClientRect();
+  return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
+    [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
+      node.contains(document.elementFromPoint(x, y))));
+}"""
 
 
 def test_playground_contributor_needs_no_field(browser, serve):
@@ -720,10 +737,14 @@ SHORT_WORKSPACE_PLAYGROUND = leaf_page(
 
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
-    half the window for the stage. Presets stay visible and Tab brings its actions
-    above the floating panel; a long instruction scrolls inside its popover."""
+    half the window for the stage. Presets stay visible and, with the floating panel
+    folded off the actions at the window's foot, Tab brings them into the window; a long
+    instruction scrolls inside its popover."""
     page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
     resized(page, 900, 500)
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
     expect(
@@ -741,12 +762,10 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     for key, target in [("Tab", reset), ("Tab", reveal), ("Shift+Tab", reset)]:
         page.keyboard.press(key)
         expect(target).to_be_focused()
-        assert target.evaluate("""node => {
-          const box = node.getBoundingClientRect();
-          return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
-            [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
-              node.contains(document.elementFromPoint(x, y))));
-        }"""), f"{key} left {target.get_attribute('aria-label')} covered"
+        scroll_settled(page, "#tune")
+        assert target.evaluate(UNCOVERED), (
+            f"{key} left {target.get_attribute('aria-label')} covered"
+        )
     page.keyboard.press("Enter")
     expect(slider).to_have_value("5")
     page.keyboard.press("Tab")
@@ -772,15 +791,13 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     }
 
 
-def test_a_playground_in_a_short_page_tab_keeps_its_actions_clear_of_the_panel(
-    browser, serve
-):
+def test_a_playground_in_a_short_page_tab_keeps_its_actions_in_reach(browser, serve):
     """A page tab that is one block, a playground's question group, passes the window's
     height to the playground, and where the window is shorter than the playground's
     stage and bar the tab keeps the playground's height, so the tab set scrolls to the
-    panel's room after the bar. Tab reaches each action clear of the floating panel.
-    Were the tab to shrink to the window, the group would run past it, the set would
-    scroll only to the window's foot, and the panel would stand over Reset."""
+    bar, and Tab brings each action into the window, where the floating panel's row
+    may stand over it until the user folds the panel. Were the tab to shrink to the
+    window, the group would run past it and the set would never bring Reset in."""
     source = leaf_page(
         "Alert tabs",
         '<header><h1 id="tabs-h">Tune alert policies</h1></header>'
@@ -811,12 +828,9 @@ def test_a_playground_in_a_short_page_tab_keeps_its_actions_clear_of_the_panel(
     ]:
         page.keyboard.press("Tab")
         expect(target).to_be_focused()
-        assert target.evaluate("""node => {
-          const box = node.getBoundingClientRect();
-          return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
-            [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
-              node.contains(document.elementFromPoint(x, y))));
-        }"""), f"{target.get_attribute('aria-label')} stands under the panel"
+        assert target.evaluate(IN_WINDOW), (
+            f"{target.get_attribute('aria-label')} is out of the window"
+        )
 
 
 @pytest.mark.parametrize("over", ["stage", "presets"])
@@ -986,8 +1000,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     }"""
 
     # Without a Controls label or a Starting points label over them, the list fits
-    # at 700px tall; 600 still runs it past the rail's foot, so it scrolls.
-    resized(page, 1100, 600)
+    # at 600px tall; 530 still runs it past the rail's foot, so it scrolls.
+    resized(page, 1100, 530)
     expect(actions).to_be_visible()
     bounded = page.evaluate(reading)
     assert bounded == {
@@ -1085,12 +1099,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
-    panel_box = page.locator(".lf-fp-row").bounding_box()
     assert (
         action_box["y"] + action_box["height"]
         <= playground_box["y"] + playground_box["height"] + 1
     )
-    assert action_box["y"] + action_box["height"] <= panel_box["y"] + 1
 
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
         resized(page, width, height)

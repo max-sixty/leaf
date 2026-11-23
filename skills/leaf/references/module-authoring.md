@@ -121,6 +121,8 @@ callback calls the `super` method.
 applies (including its optional `when` condition), such as `lf-sample`. A quoted widget
 never takes the user's edits, so check `quoted` before wiring a choice, a drag grip or
 anything else that sends input back. Its presentation and view state still work.
+`quoted` is a portable helper. A page without Leaf has no registry to declare an
+exhibit, so `quoted` is false for every element there.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and

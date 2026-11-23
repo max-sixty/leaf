@@ -19,7 +19,6 @@ export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
-export { quoted } from "./widget-descriptors.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";

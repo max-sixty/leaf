@@ -82,6 +82,13 @@ export function installElementIntegration(host) {
   integration = host;
 }
 
+// Whether an element stands inside an exhibit, and so takes none of the user's input:
+// Leaf's answer (widget-descriptors.js, `quoted`), which a widget asks before it wires
+// anything that sends input back. Only a registry declares an exhibit, so in a document
+// Leaf did not compose nothing is quoted.
+/** @param {Element} element */
+export const quoted = (element) => integration?.quoted(element) ?? false;
+
 let regions = 0;
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.

@@ -12,6 +12,10 @@
    code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, shows no
    preview, says nothing aloud, offers no Comment target and shows no Leaf control.
+   A widget also asks Leaf, through leaf-element.js, for its reading and controller and
+   whether it stands in an exhibit (`quoted`). Leaf answers once element-integration.js
+   has installed its capabilities there. A page without Leaf installs none, so no widget
+   there has a reading or a controller, and none is quoted.
 
    widget-api.js re-exports all of it, so these are the same helpers by either path.
    Each home re-exported here must load, and work, in a document Leaf did not compose:
@@ -84,7 +88,7 @@ export {
 export { describeFailure } from "./exception.js";
 
 export { shadowStage } from "./shadow-stage.js";
-export { LeafElement } from "./leaf-element.js";
+export { LeafElement, quoted } from "./leaf-element.js";
 
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";

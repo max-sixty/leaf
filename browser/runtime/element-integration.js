@@ -9,7 +9,7 @@ import {
   queueWidgetUpdate,
   watchPresentation,
 } from "./semantic-state.js";
-import { widgetDescriptor } from "./widget-descriptors.js";
+import { quoted, widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { ElementData } from "./element-data.js";
@@ -21,6 +21,7 @@ export const elementIntegration = {
   queueWidgetUpdate,
   watchPresentation,
   widgetDescriptor,
+  quoted,
   drawsItself,
   widgetController,
   widgetMounted,

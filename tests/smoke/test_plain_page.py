@@ -544,7 +544,8 @@ try {{
 
 
 def test_a_host_builds_named_controls_without_leaf(browser):
-    """Control construction and generated labels need no page services."""
+    """Control construction and generated labels need no page services, and a control
+    asking whether it is quoted hears that it is not: nothing here declares an exhibit."""
     markup = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Host controls</title>
 <style>svg {{ width: 1em; height: 1em; }}</style>
@@ -552,10 +553,11 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{offer, nameAction, generatedElement, keepsText, searchField}} =
+  const {{offer, nameAction, generatedElement, keepsText, searchField, quoted}} =
     await import("/runtime/portable-api.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
+  button.disabled = quoted(button);
   nameAction(button, "close", {{label: "Close evidence"}});
   const label = offer("span");
   generatedElement(label, {{says: "echo"}});
@@ -571,6 +573,7 @@ finally {{ window.hostReady = true; }}
         page.wait_for_function("window.hostReady")
         assert page.locator("#failure").inner_text() == ""
         button = page.get_by_role("button", name="Close evidence")
+        expect(button).to_be_enabled()
         expect(button.locator("svg")).to_be_visible()
         expect(button).to_have_attribute("title", "Close evidence")
         expect(page.locator("span[data-lf-echo]")).to_have_text("Evidence")

@@ -208,9 +208,12 @@
      the row's padding from the field's edge as from the panel's, its margin making up
      the row's gap. So its dots, which hang past its top-left corner (below), stay
      clear of the field's ring, which stands inside the field's edge while the user
-     writes. */
+     writes. Its focus ring stands on its edge rather than inside it, where its badges
+     would cover the ring's corners, and so stands clear of the panel's edge by the
+     row's padding less the ring. */
   .lf-fp-leaf {
     --lf-icon-action-face: var(--lf-line);
+    --lf-ring-at: 0px;
     flex: none;
     margin-inline-start: calc(var(--lf-fp-row-pad) - 2px);
   }

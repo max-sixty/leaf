@@ -1289,9 +1289,9 @@ _TEXT = {
     ),
     "ungrouped-question": lambda at, v: (
         f"{_line(at, v)}: asks the user, but no group holds its question, so On Me"
-        " names it by the widget's label alone and selects the widget without its"
-        f" premise; write its premise and this widget in {_question_group(v)}, its"
-        " label asking the question"
+        " names it by the widget's label alone and selects only the widget; where"
+        " its premise stands outside it, write that premise and this widget in"
+        f" {_question_group(v)}, its label asking the question"
     ),
     "unnamed-question": _refuses(
         _ASKS,

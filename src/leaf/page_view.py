@@ -11,14 +11,14 @@ which is what lets a test of one rule state the markup and the log the rule is
 about and stop there.
 
 The readings: which revisions exist, what each one's markup and captured
-vocabulary say, where the live page's ids sit, what the typed data store holds,
-and what the log still owes. The last is there so that a refusal can tell an
+vocabulary say, where the live page's ids sit, which contract each typed data
+source holds, and what the log still owes. The last is there so that a refusal can tell an
 agent that reached for the wrong id where the right one goes.
 """
 
 from pathlib import Path
 
-from .data import read_contracts, read_data
+from .data import read_contracts
 from .files import list_revisions
 from .passages import SourceReading, enclosing_ids
 from .registry.storage import page_vocabulary
@@ -66,10 +66,6 @@ class PageView:
     def contracts(self) -> dict[str, str]:
         """Each recorded data source's contract, without reading its value."""
         return read_contracts(self._page_dir)
-
-    def data(self, registry: dict) -> dict:
-        """The validated current data publications under this admission vocabulary."""
-        return read_data(self._page_dir, registry)
 
     def responses(self, events: list) -> dict[str, dict]:
         """Where each event the log still owes work for is answered."""
@@ -152,9 +148,6 @@ class InitialPageView:
     @property
     def contracts(self) -> dict:
         return self._contracts
-
-    def data(self, registry: dict) -> dict:
-        return {"sources": {}}
 
     def responses(self, events: list) -> dict:
         return {}

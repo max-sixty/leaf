@@ -15,7 +15,6 @@ from interact_support import (
     _report_position_record,
     _report_undeclared_attr,
     _report_without_module,
-    _report_without_overruled,
     _user_verb_text,
     check_findings,
     element_declaration,
@@ -150,15 +149,43 @@ def test_a_custom_detail_can_be_an_empty_closed_object(page_dir):
     registry_validation.validate_registry(registry, "test registry")
 
 
-def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
-    """A widget that folds user decisions needs an explicit withdrawal route;
-    its closed schema must admit the marker that retracts a decision."""
+def test_composition_gives_a_whole_widget_verb_the_attribute_that_takes_it_back(
+    page_dir,
+):
+    """A version takes back a user's decision on a whole widget with `restated`, and
+    an agent's report with `overruled`. The composed vocabulary carries each on a
+    widget with such a verb (`registry.contract.stamp_retractions`), so its declaration
+    lists neither, and a schema it lists for one is replaced: one that admitted no
+    marker would leave a decision no version could take back. A widget whose verb folds
+    on its members takes none: the member the verb names carries it."""
     registry = vocabulary(page_dir)
-    del registry["lf-suggestion"]["attributes"]["properties"]["restated"]
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True, exist_ok=True)
+    for tag in ("lf-local", "lf-listed"):
+        (widgets / f"{tag}.js").write_text("export function upgrade() {}\n")
+        registry[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["attributes"]["properties"]["reading"] = {"type": "string"}
+        registry[tag]["verbs"] = {
+            "set": {
+                "unit": "widget",
+                "detail": {"type": "object", "additionalProperties": False},
+            },
+            "measure": {
+                "unit": "widget",
+                "writer": "agent",
+                "record": {"kind": "value", "attr": "reading"},
+            },
+        }
+    registry["lf-listed"]["attributes"]["properties"]["restated"] = False
     declare_vocabulary(page_dir, registry)
-    status, findings = check_findings(page_dir)
-    assert status != 0
-    assert found(findings, "unrestated", "<lf-suggestion>")
+
+    composed = read_page_registry(page_dir).registry
+    for tag in ("lf-local", "lf-listed"):
+        properties = composed[tag]["attributes"]["properties"]
+        assert properties["restated"] == properties["overruled"] == {"type": "boolean"}
+    board = composed["lf-board"]
+    assert {spec["unit"] for spec in board["verbs"].values()} == {"unit"}
+    assert not {"restated", "overruled"} & set(board["attributes"]["properties"])
 
 
 @pytest.mark.parametrize(
@@ -203,9 +230,6 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         (_report_undeclared_attr, "record-undeclared", {"attr": "phase"}),
         # The destination owns the payload schema; a report cannot author another.
         (_report_authored_detail, "invalid-declaration", {}),
-        # `overruled` is how a version keeps its state over a report; without it
-        # every contradiction is unpublishable.
-        (_report_without_overruled, "unoverruled", {}),
         # Reports replay through the widget's render(), so the widget needs a module.
         (_report_without_module, "needs-module", {}),
         # Only an agent verb declares `text`.
@@ -238,8 +262,9 @@ def _markdown_body_input(registry):
     [(_second_document_input, "inputs"), (_markdown_body_input, "words")],
 )
 def test_a_data_widget_s_pre_feeds_at_most_one_input(page_dir, mutate, reason):
-    """An unbound data widget's <pre> is its one input's text, so two inputs would
-    share it, and an element whose <pre> is already its words takes none."""
+    """An unbound data widget's <pre> is its `value` input's text, so two `value`
+    inputs would share it, and an element whose <pre> is already its words takes
+    none."""
     status, findings = _mutated_registry_check(page_dir, mutate)
     assert status != 0
     assert found(findings, "data-input", reason=reason), findings
@@ -262,15 +287,15 @@ def test_check_refuses_a_format_no_boundary_checks(page_dir):
     """jsonschema skips a format it has no checker for, so a declared one Leaf does
     not check would state a rule nothing enforces."""
     registry = vocabulary(page_dir)
-    registry["lf-options"]["attributes"]["properties"]["id"]["format"] = "hostname"
+    registry["lf-option"]["attributes"]["properties"]["label"]["format"] = "hostname"
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    [refused] = found(findings, "attributes-schema", "<lf-options>", keyword="format")
+    [refused] = found(findings, "attributes-schema", "<lf-option>", keyword="format")
     assert refused.values["reason"].startswith("format 'hostname'")
 
-    registry["lf-options"]["attributes"]["properties"]["id"].pop("format")
+    registry["lf-option"]["attributes"]["properties"]["label"].pop("format")
     registry["lf-options"]["verbs"]["add"]["detail"]["properties"]["option"][
         "format"
     ] = "hostname"
@@ -309,13 +334,13 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
     assert registry_schema.schema_error(regex, "(?P<id>a)") is not None
 
     registry = vocabulary(page_dir)
-    registry["lf-options"]["attributes"]["properties"]["id"]["pattern"] = (
+    registry["lf-option"]["attributes"]["properties"]["label"]["pattern"] = (
         "^(?P<id>[a-z]+)$"
     )
     declare_vocabulary(page_dir, registry)
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(findings, "attributes-schema", "<lf-options>", keyword="format")
+    assert found(findings, "attributes-schema", "<lf-option>", keyword="format")
 
 
 @pytest.mark.parametrize(
@@ -329,7 +354,6 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
         ("wrong-owner", "creates-owner"),
         ("non-markup", "creates-content"),
         ("extra-required", "creates-required"),
-        ("wrong-id", "creates-id"),
         ("report-creates", "invalid-declaration"),
     ],
 )
@@ -353,8 +377,6 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
         option["content"] = "members"
     elif mutation == "extra-required":
         option["attributes"]["required"].append("for")
-    elif mutation == "wrong-id":
-        option["attributes"]["properties"]["id"] = {"type": "integer"}
     elif mutation == "report-creates":
         registry["lf-test-worker"]["verbs"]["state"]["creates"] = {
             "child": "lf-option",
@@ -369,22 +391,22 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
 
 
 def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
-    """A widget declares only that its id, its data source and its contract attribute
-    are strings. The composed vocabulary carries Leaf's grammar for each
-    (`registry.contract.stamp_grammars`), replacing one the declaration gave, so
-    validation and an author reading the entry read Leaf's. A reference to another
-    element keeps what it declares, since `page check` resolves it to its target."""
+    """A widget declares only that its data source and its contract attribute are
+    strings, and lists no `id`. The composed vocabulary carries Leaf's grammar for each
+    (`registry.contract.stamp_grammars`), replacing one the declaration gave, and an
+    `id` on every element, first among its attributes and a string whatever the
+    declaration lists for it, so validation and an author reading the entry read
+    Leaf's. A reference to another element keeps what it declares, since `page check`
+    resolves it to its target."""
     registry = vocabulary(page_dir)
     widgets = page_dir / "page" / "widgets"
     widgets.mkdir(parents=True, exist_ok=True)
     (widgets / "lf-named.js").write_text("export function upgrade() {}\n")
     named = element_declaration("lf-named", upgrade=True)
     named["attributes"]["properties"].update(
-        id={"type": "string", "pattern": "^anything$"},
         about={"type": "string"},
         source={"type": "string"},
         shape={"type": "string"},
-        restated={"type": "boolean"},
     )
     named["refers"] = {"about": {}}
     named["inputs"] = {"feed": {"contract": "measured-scalar", "source": "source"}}
@@ -401,11 +423,21 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
         }
     }
     registry["lf-named"] = named
+    (widgets / "lf-listed.js").write_text("export function upgrade() {}\n")
+    registry["lf-listed"] = element_declaration("lf-listed", upgrade=True)
+    registry["lf-listed"]["attributes"]["properties"].update(
+        label={"type": "string"}, id={"type": "integer", "pattern": "^anything$"}
+    )
     declare_vocabulary(page_dir, registry)
 
-    properties = read_page_registry(page_dir).registry["lf-named"]["attributes"][
-        "properties"
-    ]
+    composed = read_page_registry(page_dir).registry
+    takes_id = {"type": "string", "pattern": f"^{ELEMENT_ID}$"}
+    for tag in ("lf-named", "lf-listed"):
+        assert next(iter(composed[tag]["attributes"]["properties"].items())) == (
+            "id",
+            takes_id,
+        )
+    properties = composed["lf-named"]["attributes"]["properties"]
     expected = {
         "id": f"^{ELEMENT_ID}$",
         "about": None,
@@ -554,7 +586,6 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
             "properties"
         ]["outcome"]
         decide["record"] = {"kind": "value", "attr": "outcome"}
-        suggestion["attributes"]["properties"]["overruled"] = {"type": "boolean"}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
@@ -568,10 +599,10 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
 @pytest.mark.parametrize("schema", [False, True])
 def test_a_boolean_attribute_schema_is_refused_beside_a_layer_fault(page_dir, schema):
     """JSON Schema admits `true` or `false` as an attribute's schema, neither naming a
-    type, so a pane whose `id` is one is refused for it, in the same run as a layer
+    type, so a pane whose `label` is one is refused for it, in the same run as a layer
     fact's problem."""
     registry = deepcopy(read_page_registry(page_dir).registry)
-    registry["lf-pane"]["attributes"]["properties"]["id"] = schema
+    registry["lf-pane"]["attributes"]["properties"]["label"] = schema
     registry["$languages"]["paths"][".zz"] = "unnamed"
 
     with pytest.raises(registry_contract.RegistryError) as refused:
@@ -764,41 +795,32 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
 
 @pytest.mark.parametrize(
-    ("reference", "code", "values"),
+    "reference",
     [
-        (
-            {"via": "$missing.widgets", "where": {"role": "goal"}},
-            "refers-unknown-map",
-            {"via": "$missing.widgets"},
-        ),
-        (
-            {"via": "$work.widgets", "where": {"role": "imaginary"}},
-            "refers-unmatched",
-            {"via": "$work.widgets", "where": {"role": "imaginary"}},
-        ),
+        {"via": "$work.widgets", "where": {"role": "goal"}},
+        {"owns": True},
+        {"tag": "lf-option", "key": "id"},
     ],
 )
-def test_a_typed_reference_no_declared_widget_meets_is_advised(
-    page_dir, reference, code, values
-):
-    """A relation no declared widget meets breaks no vocabulary: each reference an
-    instance makes through it is refused where it stands (`reference-contract`), so
-    the registry door admits it and `page check` tells the declaration's author."""
+def test_a_reference_names_an_element_and_nothing_more(page_dir, reference):
+    """A reference maps its attribute to an empty object, which accepts any element
+    id: a role table, an owned target or a keyed member is refused at the registry
+    door."""
     registry = vocabulary(page_dir)
     registry["lf-option"]["refers"]["for"] = reference
-    registry_validation.validate_registry(registry, "test registry")
-    declare_vocabulary(page_dir, registry)
 
-    _, findings = check_findings(page_dir)
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert found(
+        [finding], "invalid-declaration", "<lf-option>", keyword="additionalProperties"
+    ), finding
 
-    [advice] = found(findings, code, "<lf-option>", attr="for", **values)
-    assert advice.severity == "advice"
 
-
-def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):
-    """An instance of a widget that asks must carry an id, which each instance's own
-    check refuses where it stands, so a declaration that leaves `id` undeclared works
-    and `page check` advises declaring it."""
+def test_an_asking_instance_needs_the_id_its_declaration_leaves_optional(page_dir):
+    """A widget that asks only where an attribute says so may leave `id` out of
+    `required`, since an instance that doesn't ask needs none. `page check` refuses an
+    instance that asks without one, where it stands."""
     registry = vocabulary(page_dir)
     widgets = page_dir / "page" / "widgets"
     widgets.mkdir(parents=True, exist_ok=True)
@@ -807,10 +829,7 @@ def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):
         "description": "A decision without an address.",
         "attributes": {
             "type": "object",
-            "properties": {
-                "open": {"type": "boolean"},
-                "restated": {"type": "boolean"},
-            },
+            "properties": {"open": {"type": "boolean"}},
             "additionalProperties": False,
         },
         "content": "markup",
@@ -827,12 +846,18 @@ def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):
         },
     }
     declare_vocabulary(page_dir, registry)
+    source = page_dir / "index.html"
+    authored = source.read_text()
 
-    status, findings = check_findings(page_dir)
+    def check_with(decision: str) -> tuple[int, list]:
+        source.write_text(authored.replace("</main>", f"{decision}</main>"))
+        return check_findings(page_dir)
 
-    assert status == 0
-    [advice] = found(findings, "addressable-id", "<lf-idless-decision>", key="awaits")
-    assert advice.severity == "advice"
+    status, findings = check_with("<lf-idless-decision>Shipped.</lf-idless-decision>")
+    assert status == 0, findings
+    status, findings = check_with("<lf-idless-decision open>Ship?</lf-idless-decision>")
+    assert status != 0
+    assert found(findings, "needs-id", "<lf-idless-decision>", role="awaits")
 
 
 @pytest.mark.parametrize(

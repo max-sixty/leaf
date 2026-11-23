@@ -380,21 +380,13 @@ const widgetObligation = keptEach(
    * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
    * @param {boolean} answerWithdrawn @returns {ObligationRecord} */
   (item, widget, verb, withdrawals, answerWithdrawn) => {
-    const sourceUnit = item.source.unit;
     const completed = item.status === "answered" && !answerWithdrawn;
-    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
+    const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue =
-      /** @type {{ e: Event; unit: string }[]} */ (widget.entries).some(
-        ({ e, unit }) =>
-          e.action === verb &&
-          (sourceUnit === undefined || unit === sourceUnit) &&
-          !Number.isInteger(e.seq),
+      /** @type {{ e: Event }[]} */ (widget.entries).some(
+        ({ e }) => e.action === verb && !Number.isInteger(e.seq),
       ) ||
-      withdrawals.some(
-        ({ e, unit }) =>
-          (sourceUnit === undefined || unit === sourceUnit) &&
-          (e.action === verb || e.id === item.answer?.event?.id),
-      );
+      withdrawals.some(({ e }) => e.action === verb || e.id === item.answer?.event?.id);
     const answer = present
       ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
       : null;
@@ -1003,9 +995,6 @@ export function createSemanticApplication({ presentation } = {}) {
       /** @type {Record<string, import("../data.js").SourceReading>} */
       sources: {},
     },
-    // Ephemeral typed values derived by mounted widgets; no server run or revision.
-    outputs:
-      /** @type {Record<string, Record<string, { contract: string; value: unknown }>>} */ ({}),
     effective: derive(
       {
         revision: null,
@@ -1394,13 +1383,11 @@ export function createSemanticApplication({ presentation } = {}) {
       ),
     );
     next.data = share(prior.data, next.data);
-    next.outputs = share(prior.outputs, next.outputs);
     next.semanticEpoch =
       prior.semanticEpoch +
       Number(
         next.effective !== prior.effective ||
           next.data !== prior.data ||
-          next.outputs !== prior.outputs ||
           next.phase !== prior.phase ||
           next.document.revision !== prior.document.revision,
       );
@@ -1581,22 +1568,6 @@ export function createSemanticApplication({ presentation } = {}) {
       if (now.reach.reach === reach.reach && now.reach.fault === reach.fault)
         return now;
       return publish({ reach });
-    },
-    /**
-     * @param {string} widget
-     * @param {string} output
-     * @param {{ contract: string; value: unknown } | null} reading
-     */
-    publishOutput(widget, output, reading) {
-      const prior = publisher.peek();
-      const values = { ...prior.outputs[widget] };
-      if (reading === null) delete values[output];
-      else values[output] = reading;
-      const outputs = { ...prior.outputs };
-      if (Object.keys(values).length) outputs[widget] = values;
-      else delete outputs[widget];
-      if (share(prior.outputs, outputs) === prior.outputs) return prior;
-      return publish({ outputs });
     },
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted

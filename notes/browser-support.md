@@ -148,21 +148,6 @@ load, until a resize; `lf-options.js` reads computed style only when a surface
 shows an option's consequence for that reason. The test's `firefox_browser` case
 catches a render that splits the row's first layout again.
 
-### A restyle skipped under a nested container in Chromium
-
-Playwright Chromium 153.0.8010.12 left the visual review's case buttons in the
-wide layout's padding (`14px 4px`, not `10px 8px`) when the window crossed the
-review's 58rem container query, while the case list between them was an
-inline-size container, as the theme makes a pane's body. On 2026-10-25,
-narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
-crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/defaults.css` declares `container-type: normal`,
-since nothing in the list queries it. Recheck by deleting that declaration,
-narrowing the page with `leaf-dev probe` and reading a case button's computed
-padding; `test_page_fixture_renders[visual-review-gallery]` in
-`tests/journeys/test_render_gate.py` reads the same difference in its resize
-journey.
-
 ### A recomputed length less a percentage counts as a change in Chromium
 
 Playwright Chromium 158.0.8127.18 (build 1254) counted an inheriting registered

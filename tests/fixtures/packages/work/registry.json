@@ -83,9 +83,6 @@
     "description": "A view of multiple workers, their durable remits, and their current activity.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "additionalProperties": false
     },
     "content": "members",
@@ -96,26 +93,17 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "state": {
           "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
         },
-        "on": { "type": "string" },
-        "overruled": {
-          "type": "boolean"
-        }
+        "on": { "type": "string" }
       },
       "required": ["id", "state"],
       "additionalProperties": false
     },
     "owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
     "refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "verbs": {
       "state": {
@@ -133,9 +121,6 @@
     "description": "A hierarchy of work with ownership, status, and progress derived from its tasks.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "additionalProperties": false
     },
     "content": "members"
@@ -145,37 +130,23 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
         "phase": {
-          "type": "string"
-        },
-        "readings": {
           "type": "string"
         }
       },
       "required": ["id"],
       "additionalProperties": false
     },
-    "content": "members",
-    "refers": {
-      "readings": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "readings"
-        },
-        "owns": true
-      }
-    }
+    "content": "members"
   },
   "lf-test-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -202,9 +173,6 @@
         },
         "talk": {
           "type": "boolean"
-        },
-        "overruled": {
-          "type": "boolean"
         }
       },
       "required": ["id", "status"],
@@ -227,7 +195,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
       "required": ["id", "source"],
@@ -272,24 +239,7 @@
       },
       "lf-test-roster": {
         "role": "scope"
-      },
-      "lf-test-summary": {
-        "role": "readings"
       }
     }
-  },
-  "lf-test-summary": {
-    "description": "A local exclusive-reference target.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
-    "content": "empty"
   }
 }

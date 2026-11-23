@@ -23,10 +23,8 @@ builds keeps its own. The face's rules rank below every other rule of `lf-base`,
 theme's or package's rule for one of those elements outranks them whatever its weight,
 and a personal theme restyles the page's controls through the tokens they read or with
 rules of its own. A new page takes it unless the user names another default. A page that
-takes none (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing
-of the look reaches it, its tables, code blocks and controls included, while Leaf's
-widgets, idioms, threads and panel keep their own faces, in the browser's own canvas
-and text colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
+takes none (`--no-theme`) starts from the browser's defaults, as `page-authoring.md`,
+"Style the page", describes. A page or a theme may still set
 `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there. Each of
@@ -256,7 +254,7 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` does, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles

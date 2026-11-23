@@ -383,7 +383,8 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
 def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
     """The stable vertical choice reads both the visible band and scroll travel. Growing
     past the room shown above, the box slides over its passage rather than scrolling the
-    page, and a scroll then carries it with the passage."""
+    page, and a scroll then holds it inside the window, as it holds the card, until the
+    paragraph it stands over leaves (comment-placement.js)."""
     passage = (
         "A passage near the end of its page has more reachable room above it. "
         + "Its full block must keep the same room while the viewport clips it. " * 5
@@ -432,9 +433,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-start")
     assert page.evaluate("scrollY") == before_scroll
-    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top
-      - document.getElementById('passage').getBoundingClientRect().top"""
-    grown = page.evaluate(offset)
+    grown = bar.bounding_box()["y"]
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -449,9 +448,12 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         assert moved > last_scroll
         expect(bar).to_be_visible()
         last_scroll = moved
-    assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-plane", "page")
-    assert page.evaluate(offset) == pytest.approx(grown, abs=1)
+    assert paragraph.evaluate(
+        "node => node.getBoundingClientRect().top < 48"
+        " && node.getBoundingClientRect().bottom > 0"
+    )
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    assert bar.bounding_box()["y"] == pytest.approx(grown, abs=1)
     expect(field).to_be_focused()
 
 

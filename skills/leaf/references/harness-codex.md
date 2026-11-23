@@ -1,7 +1,6 @@
 # Codex handoff and delivery
 
 Use this reference for Codex in the desktop app, an IDE, a terminal or leaf.page.
-Follow each event's `handling` and, for a thread reply, its `answer.writer`.
 
 ## Full Leaf handoff
 
@@ -19,7 +18,8 @@ that starts the task, such as leaf.page, has already handed the page over.
 `leaf server start` and `leaf server run` start, or join, a background adapter that
 watches every page this task owns, and keeps running when a turn ends. Serving a page
 again restarts an adapter that stopped. To connect delivery for a page you claim
-without serving it, run `leaf page claim <page>`.
+without serving it, run `leaf page claim <page>`, which prepares the adapter before
+it takes ownership.
 
 While your turn runs, Leaf's hooks offer new input between steps. The hook carries
 the complete delivery as a block of JSON, or a pointer when it exceeds Codex's

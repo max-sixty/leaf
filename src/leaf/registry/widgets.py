@@ -10,7 +10,6 @@ from .contract import (
     deciding_verb,
     fact_condition,
     gathering,
-    reference_relation_problem,
     registry_error,
     registry_finding,
     require_module,
@@ -51,10 +50,14 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         ) from error
     if entry.get("text-format") == "markdown" and entry.get("content") != "data":
         raise registry_error("markdown-needs-data", path, tag)
-    # An unbound data widget's <pre> is its one input's text (element-data.js,
+    # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
-    # the element's words or its recorded state.
-    inputs = entry.get("inputs", {})
+    # the element's words or its recorded state. Its other inputs leave the <pre> alone.
+    inputs = [
+        spec
+        for spec in entry.get("inputs", {}).values()
+        if spec.get("property") == "value"
+    ]
     if entry.get("content") == "data" and inputs:
         if len(inputs) > 1:
             raise registry_error("data-input", path, tag, reason="inputs")
@@ -98,14 +101,14 @@ def _validate_widget_relations(
         tag, entry, registry, declarations, data, path
     )
     awaits = _validate_widget_predicates(tag, entry, properties, path)
-    _validate_widget_interactions(tag, entry, registry, properties, awaits, path)
+    _validate_widget_interactions(tag, entry, registry, awaits, path)
     validate_widget_state_relations(tag, entry, declarations, path)
     validate_widget_record_contracts(
         tag, entry, properties, registry, declarations, path
     )
     validate_deciding_verb(tag, entry, path)
     validate_widget_retirement(tag, entry, declarations, path)
-    validate_answered_conditions(tag, entry, data, declarations, path)
+    validate_answered_conditions(tag, entry, declarations, path)
 
 
 def _typed(properties: dict, attr: str, kind: str) -> bool:
@@ -116,16 +119,12 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
     return isinstance(schema, dict) and schema.get("type") == kind
 
 
-def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Finding]:
+def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     """What the element declaration of `tag` in `registry`, read with its defaults
     written in, advises its author, each finding naming the file `path`: a data
     input's source attribute not declared a string, which `leaf data`'s own grammar
-    still checks; a measured input whose source or run receipt an instance may leave
-    out, so that instance is never compared with its source's latest run; a widget
-    that asks with no string `id` declared, which each instance's own check still
-    requires; and a `refers` relation no element in `declarations` can meet, which
-    each reference an instance makes still meets or is refused
-    (`reference-contract`)."""
+    still checks; and a measured input whose source or run receipt an instance may
+    leave out, so that instance is never compared with its source's latest run."""
     entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
@@ -158,12 +157,6 @@ def widget_advice(tag: str, registry: dict, declarations: dict, path) -> list[Fi
                     "measured-run", path, tag, input=input_name, attr=run_attr
                 )
             )
-    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
-        found.append(registry_finding("addressable-id", path, tag, key="awaits"))
-    for attribute, reference in entry.get("refers", {}).items():
-        if problem := reference_relation_problem(reference, registry, declarations):
-            code, values = problem
-            found.append(registry_finding(code, path, tag, attr=attribute, **values))
     return found
 
 
@@ -188,7 +181,7 @@ def _validate_widget_structure(
                 needs="content",
                 value="markup",
             )
-        if "id" not in required or not _typed(properties, "id", "string"):
+        if "id" not in required:
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if "label" not in required or not _typed(properties, "label", "string"):
             raise registry_error(
@@ -224,7 +217,7 @@ def _validate_widget_structure(
                 "undeclared-attributes", path, tag, key=key, names=unknown
             )
     if isinstance(entry.get("visual"), dict):
-        if not ("id" in required and _typed(properties, "id", "string")):
+        if "id" not in required:
             raise registry_error("visual-id", path, tag)
         part_attribute = entry["visual"].get("parts")
         if part_attribute and part_attribute not in properties:
@@ -295,12 +288,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
 
 
 def _validate_widget_interactions(
-    tag: str,
-    entry: dict,
-    registry: dict,
-    properties: dict,
-    awaits: dict,
-    path,
+    tag: str, entry: dict, registry: dict, awaits: dict, path
 ) -> None:
     answered = awaits.get("answered", {})
     # The user answers their own obligation, so only a verb the user writes can answer it.
@@ -321,17 +309,3 @@ def _validate_widget_interactions(
     ):
         raise registry_error("awaits-blanket", path, tag, outcome=blanket)
     require_module(tag, entry, registry, path)
-    # A version overrules a report in force with `overruled` on the element,
-    # so a widget with an agent-written verb that doesn't declare the attribute
-    # is one whose every report contradiction is unpublishable.
-    agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
-    if agent_verbs and not _typed(properties, "overruled", "boolean"):
-        raise registry_error("unoverruled", path, tag, verbs=agent_verbs)
-    # A user decision folded on the widget needs an explicit withdrawal route:
-    # `restated` names that intent; ordinary source edits leave the decision in
-    # force. Child-folding verbs place it on elements this declaration does not name.
-    folds_whole = any(
-        spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
-    )
-    if folds_whole and not _typed(properties, "restated", "boolean"):
-        raise registry_error("unrestated", path, tag)

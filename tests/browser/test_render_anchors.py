@@ -3697,7 +3697,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },
@@ -4582,6 +4582,117 @@ def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
         expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_have_text(
             "Earlier data"
         )
+        # Its thread still stands on the place the widget gives it, and a second
+        # press puts the card away as on any marker.
+        page.locator(marker.format("earlier")).click()
+        expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_be_hidden()
+
+
+def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
+    browser, serve, subtests
+):
+    """A thread whose passage a closed box hides, a closed disclosure, a tab not
+    chosen or a diff file opened and closed again, stands its marker level with what
+    the page shows for the box, so the page shows that the box holds a thread. A press
+    on the marker opens the box and lands the user on the thread, on a phone too and
+    after the box closed round the thread's open card. A suggestion the box hides
+    offers no Accept until the box opens, even where a stylesheet lays the box out."""
+    url = serve(
+        leaf_page(
+            "closed boxes",
+            '<h1 id="title">Review</h1>'
+            '<details id="fold"><summary>Notes</summary>'
+            '<p id="folded">The retry waits grow without bound.</p></details>'
+            '<details id="offers"><summary>Offers</summary><p>Plain words '
+            '<lf-suggestion id="offer"><lf-old>two</lf-old><lf-new>three</lf-new>'
+            "</lf-suggestion> follow.</p></details>"
+            '<div id="laid" hidden="until-found"><p>Also '
+            '<lf-suggestion id="laid-offer"><lf-old>red</lf-old><lf-new>blue</lf-new>'
+            "</lf-suggestion>.</p></div>"
+            '<lf-tabs id="tabs">'
+            '<lf-tab id="tab-one" label="One"><p id="shown">First tab.</p></lf-tab>'
+            '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
+            "</lf-tabs>"
+            '<lf-diff id="patch" source="patch" collapsed></lf-diff>',
+            # A package may lay a closed box out unseen.
+            head='<style>#laid[hidden="until-found"] '
+            "{ content-visibility: visible; visibility: hidden; }</style>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
+    for anchor in (
+        {"section": "folded"},
+        {"section": "unchosen"},
+        {"section": "patch", "datum": '["first.py","new",1]'},
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {anchor['section']}.",
+                "anchor": anchor,
+            },
+        )
+    page = open_page(browser, url)
+    file = page.locator("#patch .lf-diff-file > details").first
+    line = page.locator('#patch [data-lf-datum=\'["first.py","new",1]\']')
+    file.evaluate("details => { details.open = true; }")
+    expect(line).to_be_attached()
+    file.evaluate("details => { details.open = false; }")
+    suggestion = page.locator('.lf-margin-cluster[data-lf-margin-for="offer"]')
+    laid = page.locator('.lf-margin-cluster[data-lf-margin-for="laid-offer"]')
+
+    def marker(key):
+        return page.locator(f'[data-lf-margin-for^="{key}"] .lf-margin-marker')
+
+    with subtests.test(case="suggestion"):
+        expect(suggestion).to_be_hidden()
+        expect(laid).to_be_hidden()
+        page.locator("#offers > summary").click()
+        expect(suggestion).to_be_visible()
+        page.locator("#laid").evaluate("box => box.removeAttribute('hidden')")
+        expect(laid).to_be_visible()
+
+    for case, face, opened, key in (
+        ("tab not chosen", page.locator("#tabs"), "#unchosen", "unchosen"),
+        (
+            "file opened and closed again",
+            file.locator(":scope > summary"),
+            line,
+            "id:patch/",
+        ),
+        ("closed disclosure", page.locator("#fold > summary"), "#folded", "folded"),
+    ):
+        with subtests.test(case=case):
+            entry = marker(key)
+            entry.scroll_into_view_if_needed()
+            expect(entry).to_be_visible()
+            assert abs(entry.bounding_box()["y"] - face.bounding_box()["y"]) <= 2, (
+                "the marker stands apart from what the page shows for its closed box"
+            )
+            entry.click()
+            target = page.locator(opened) if isinstance(opened, str) else opened
+            expect(target).to_be_in_viewport()
+            expect(target).to_have_class(re.compile(r"\blf-mark-here\b"))
+
+    with subtests.test(case="closed round its card"):
+        expect(marker("folded")).to_have_attribute("aria-expanded", "true")
+        page.locator("#fold").evaluate("details => { details.open = false; }")
+        expect(marker("folded")).to_be_visible()
+        marker("folded").click()
+        expect(page.locator("#fold")).to_have_attribute("open", "")
+        expect(page.locator("#folded")).to_be_in_viewport()
+
+    with subtests.test(case="phone"):
+        page.get_by_role("tab", name="One").click()
+        resized(page, 400, 900)
+        entry = marker("unchosen")
+        entry.scroll_into_view_if_needed()
+        entry.click()
+        expect(page.locator("#unchosen")).to_be_visible()
+        expect(page.locator(PANEL_THREAD)).to_contain_text("About unchosen.")
 
 
 def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
@@ -5101,7 +5212,7 @@ LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
         "additionalProperties": False,
     },

@@ -25,7 +25,7 @@ from typing import NamedTuple
 
 from .event_log import initialized, start_log
 from .findings import Finding, note
-from .harness import Harness, session_harness
+from .harness import Harness, claim_harness, session_harness
 from .hosting import restarting_server
 from .layer import (
     checked_layer_inputs,
@@ -42,6 +42,7 @@ from .registry.kernel import kernel_protocol
 from .registry.storage import LAYER, layer_record
 from .schema import (
     HTML_NAME,
+    INIT_LOCK,
     LAYER_FILE,
     PACKAGES_DIR,
     PAGE_OWNED_DIRS,
@@ -58,6 +59,7 @@ from .service import (
 from .session_runtime import select_checkout
 from .state import (
     SESSION_SUFFIX,
+    flocked,
     remove_claim,
     session_file,
     session_record,
@@ -157,15 +159,18 @@ def renew_layer(
     (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
     names, and say what still holds the page back, for its agent to act on.
 
-    A plugin update that bumps the page protocol reaches a session once it loads the
-    update (`session_runtime.py` says when), and its
+    A plugin update that bumps the page protocol reaches a session once its hooks
+    run the update (`session-lifetime.md`, "Which Leaf runs a session"), and its
     Leaf then refuses every page the session holds until the agent runs the
     `leaf page init` the refusal names. That init keeps the page's log, and so
     its threads and decisions, its source and its selection, so it asks nothing of
     the agent's judgment, and the first Leaf to act for the page's session makes it
-    instead: a write command naming the page (`cli.page_argument`) or a prompt or
-    Stop hook (`hook_transport.read_plans`). Only the session holding the page renews
-    it, or any caller while no live session does: another session may still run the
+    instead: a write command naming the page (`cli.resolve_dir`), the prompt hook
+    serving the page again (`reconnect`), a hook that reads the session's pages
+    (`renew_held`), or the restart of a page server whose copy its harness replaced
+    (`hosting.follow_copy`). A command that only reads the page leaves it as it is.
+    Only the session holding the page renews it, or any caller while no live
+    session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
     initialized, which `_plan_page` refuses.
@@ -215,6 +220,28 @@ def renew_layer(
     return _unready(page_dir, errors)
 
 
+def renew_held(page_dir: Path, session_id: str) -> Finding | None:
+    """`renew_layer` for a reader acting for `session_id`, the session holding the
+    page: a hook that reads the session's pages (`hook_transport.read_plans`), as the
+    prompt and Stop hooks do and a tool boundary does with something to carry or a
+    status check due, and the restart of a page server whose copy its harness
+    replaced (`hosting.follow_copy`). The restart's renewal is the one an update
+    that moves the page protocol makes before the session's next hook, so the
+    successors of the session's watch and of Codex's adapter, which only read the
+    page, deliver its input once the renewal lands.
+
+    A page another session holds is left alone, and so is one whose session's hooks
+    run another Leaf (`hooks.hooks_run_here`), as a server another harness's copy
+    started can serve a page a session of another harness took since: renewed, the
+    page would be one its session's hooks can no longer read."""
+    from .hooks import hooks_run_here
+
+    held = page_claim(page_dir)
+    if held is None or held["id"] != session_id or not hooks_run_here(session_id):
+        return None
+    return renew_layer(page_dir, claim_harness(held), command=False)
+
+
 def _reinit(
     page_dir: Path,
     selected: tuple[str, ...] | None,
@@ -228,15 +255,29 @@ def _reinit(
     layer, and what its packages advise (`_PagePlan`). Everything that can refuse is
     decided first, with the page still served, and an unchanged record restarts
     nothing (`cmd_init`). `still` says, under each lock, whether the rewrite is still
-    wanted."""
+    wanted.
+
+    A rewrite holds the page's init lock from `still`'s second reading through the
+    restart, so re-initializations of one page take turns: two renewals at once, as
+    a hook reading the session's pages and the restart of a server whose copy was
+    replaced can make, would each pass their first reading, since the page lock can't span
+    the restart whose stop takes it, and the second would then find the old server
+    still exiting from the first's stop, and be refused, or stop the server the first
+    had just started. In turn, the second finds the page renewed and changes nothing.
+    A re-initialization that changes nothing takes no lock and so writes nothing; the
+    plan is taken again only under the transaction (`_init_page`)."""
     with page_locked(page_dir):
         if not still():
             return [], ()
         plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
     if not plan.changed:
         return [], plan.advice
-    with restarting_server(page_dir, harness), page_locked(page_dir):
-        return _init_page(page_dir, selected, still, theme=theme)
+    with flocked(page_dir / INIT_LOCK):
+        with page_locked(page_dir):
+            if not still():
+                return [], ()
+        with restarting_server(page_dir, harness), page_locked(page_dir):
+            return _init_page(page_dir, selected, still, theme=theme)
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:

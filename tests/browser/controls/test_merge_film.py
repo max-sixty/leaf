@@ -3,7 +3,7 @@ terminal seek, and its outcomes on a phone."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import open_page, resized
+from render_harness import open_page, resized, scroll_settled
 
 from leaf_dev.example_data import named_source
 
@@ -151,6 +151,20 @@ def test_merge_film_steps_have_a_keyboard_route(browser, serve):
     expect(
         page.locator('.film-stage > svg [data-label="commit f62bab1"]')
     ).to_be_visible()
+
+
+def test_a_step_pressed_on_a_phone_brings_the_film_into_view(browser, serve):
+    """Narrow, the film stands above its steps, so holding a step glides the page to
+    it. The glide sets off as the press lands, and the step list then draws the film's
+    new moment, which grows the step now told above the window while the glide runs."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(named_source("wt-merge")), context=context)
+    page.locator("#step-premerge button").tap()
+    scroll_settled(page)
+    expect(page.locator("#step-premerge")).to_have_attribute("data-now", "")
+    assert 0 <= page.locator("#merge-film").bounding_box()["y"] < 200
 
 
 def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser, serve):

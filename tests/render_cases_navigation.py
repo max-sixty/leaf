@@ -1000,7 +1000,6 @@ def data_projection_page(serve):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],

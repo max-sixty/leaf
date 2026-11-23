@@ -2,6 +2,7 @@
 turn on every page it holds, handing pending input over inline or as a pointer, and
 confirming what they hand over within their deadline."""
 
+import contextlib
 import fcntl
 import json
 import os
@@ -1660,16 +1661,19 @@ def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
     assert skill not in capsys.readouterr().out
 
 
-def test_a_hook_from_another_copy_sends_the_agent_back_to_the_skill(
+def test_a_hook_whose_leaf_ships_another_skill_sends_the_agent_back_to_it(
     claimed, monkeypatch, tmp_path, capsys
 ):
-    """The skill the agent read under the copy of Leaf its hooks ran before may
-    describe commands and rules the copy they run now changed, as after a resume or
-    `/reload-plugins`. The first prompt under a copy whose skill differs names the
-    skill to read again, beside the input it hands over, and the next prompt
-    doesn't; a prompt under the same copy, or a copy with the same skill, says
-    nothing of it."""
-    skill = str(schema_model.SKILL_FILE)
+    """The skill the agent read under the Leaf its hooks ran before may describe
+    commands and rules the Leaf they run now changed, as after a resume,
+    `/reload-plugins`, an update Codex or Pi makes to its copy in place, or a hand-off
+    to a checkout. The first prompt whose Leaf ships another skill than the previous
+    hook's names the skill to read again, beside the input it hands over, and the next
+    prompt doesn't. A prompt whose
+    Leaf ships the same skill, from the same copy or another, says nothing of it, and
+    the copy the previous hook ran from may be gone. Nor does an edit to the skill of
+    a checkout the hooks run, which the session developing it made."""
+    shipped = schema_model.SKILL_FILE.parent
 
     def prompt() -> str:
         hooks_model.cmd_hook(
@@ -1678,30 +1682,47 @@ def test_a_hook_from_another_copy_sends_the_agent_back_to_the_skill(
         out = capsys.readouterr().out
         return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
 
-    def ran_from(root: Path) -> None:
-        """The hooks of the copy at `root` ran last."""
-        with monkeypatch.context() as patched:
-            patched.setattr(leases_model, "PLUGIN_ROOT", root)
-            leases_model.mark_root("s1")
+    def runs(root: Path, skill: str | None = None) -> str:
+        """The hooks run the copy at `root`, which ships this Leaf's skill, with
+        `skill` for its SKILL.md where given, and the path that names it."""
+        directory = root / "skills" / "leaf"
+        if not directory.is_dir():
+            shutil.copytree(shipped, directory)
+        if skill is not None:
+            (directory / "SKILL.md").write_text(skill)
+        monkeypatch.setattr(schema_model, "SKILL_FILE", directory / "SKILL.md")
+        monkeypatch.setattr(hooks_model, "PLUGIN_ROOT", root)
+        return str(directory / "SKILL.md")
 
-    assert skill not in prompt()
-    assert skill not in prompt()
+    assert str(schema_model.SKILL_FILE) not in prompt()
+    assert str(schema_model.SKILL_FILE) not in prompt()
 
     same = tmp_path / "same"
-    shutil.copytree(schema_model.SKILL_FILE.parent, same / "skills" / "leaf")
-    ran_from(same)
+    assert runs(same) not in prompt()
+    assert runs(same, "A skill being edited.\n") not in prompt()
+
+    local = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "local"
+    skill = runs(local, "A skill being edited.\n")
+    shutil.rmtree(same)
     assert skill not in prompt()
 
-    other = tmp_path / "other"
-    shutil.copytree(schema_model.SKILL_FILE.parent, other / "skills" / "leaf")
-    (other / "skills" / "leaf" / "SKILL.md").write_text("An earlier skill.\n")
-    ran_from(other)
+    runs(local, "An updated skill.\n")
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Is it done?"}
     )
     context = prompt()
     assert context.count(skill) == 1
     assert asked["id"] in context
+    assert skill not in prompt()
+
+    pi = tmp_path / ".pi" / "agent" / "git" / "github.com" / "max-sixty" / "leaf"
+    skill = runs(pi, "An updated skill.\n")
+    assert skill not in prompt()
+    runs(pi, "Pi's update.\n")
+    assert skill in prompt()
+
+    skill = runs(tmp_path / "checkout", "A checkout's skill.\n")
+    assert skill in prompt()
     assert skill not in prompt()
 
 
@@ -2067,14 +2088,14 @@ def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
 
 
 def test_a_watch_delivers_nothing_from_a_page_its_leaf_cannot_write(claimed):
-    """Input on a page vendored at another protocol waits for a Leaf that can write
-    the page: no receipt could be recorded for it here, so a watch that delivered it
+    """Input on a page a newer Leaf vendored waits for a Leaf that can write the
+    page: no receipt could be recorded for it here, so a watch that delivered it
     woke the session again on every pass, and a Codex watch offered it as a new turn
-    each time. The prompt still names the page and the re-vendor that frees it."""
+    each time. The prompt still names the page and the Leaf that frees it."""
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed, newer=True)
 
     def delivered(reading):
         pytest.fail(f"{reading.page_dir} delivered input its Leaf cannot receipt")
@@ -2276,6 +2297,49 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     layer = layer_record(claimed)
     assert layer is not None
     assert layer["protocol"] == vendored
+
+
+def test_two_renewals_of_a_page_take_turns(claimed, monkeypatch):
+    """Two readers acting for the session can set out to renew one page at once, as
+    a hook reading the session's pages and the restart of a page's server whose copy
+    was replaced can. The second waits for the first through its restart, then finds the
+    page renewed and changes nothing: it neither restarts the server the first just
+    started nor reports a refusal, as it would were it to pass its first reading
+    while the first is still stopping the server."""
+    vendored_at_another_protocol(claimed)
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    outcomes, restarts = [], []
+    second = threading.Thread(
+        target=lambda: outcomes.append(vendoring_model.renew_held(claimed, "s1"))
+    )
+    # The second renewal has reached the wait for its turn, or else the restart.
+    turned = threading.Event()
+    acquire = cleanup_model.acquire
+    restart = vendoring_model.restarting_server
+
+    def taking_turns(held, path, deadline):
+        if path.name == schema_model.INIT_LOCK and threading.current_thread() is second:
+            turned.set()
+        return acquire(held, path, deadline)
+
+    @contextlib.contextmanager
+    def restarting(page_dir, harness):
+        restarts.append(threading.current_thread() is second)
+        if threading.current_thread() is second:
+            turned.set()
+        else:
+            # The second sets out while the first is stopping the server.
+            second.start()
+            assert turned.wait(STATED_TIMEOUT)
+        with restart(page_dir, harness):
+            yield
+
+    monkeypatch.setattr(cleanup_model, "acquire", taking_turns)
+    monkeypatch.setattr(vendoring_model, "restarting_server", restarting)
+    first = vendoring_model.renew_held(claimed, "s1")
+    second.join(STATED_TIMEOUT)
+    assert (first, outcomes, restarts) == (None, [None], [False])
+    assert event_contracts_model.write_refusal(claimed) is None
 
 
 def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypatch):

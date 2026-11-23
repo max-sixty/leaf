@@ -569,7 +569,7 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
         "description": "Late shadow words.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

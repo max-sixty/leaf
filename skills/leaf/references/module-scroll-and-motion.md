@@ -62,7 +62,7 @@ screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where
 keeps a `scrollbar-gutter` across states.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`).
+page's, which is the document's own (`document.scrollingElement`).
 
 When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
@@ -124,9 +124,17 @@ it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
-inside a live sample. Use it only for a deliberate move; focusing a visible control or
-redrawing keeps the scroll.
+it is, pass that box as `within`: the box places the item at `block` with `behavior`,
+as a reading region does, and the boxes inside it reveal it nearest at once. Unlike
+native `Element.scrollIntoView`, it stays inside a live sample. Use it only for a
+deliberate move; focusing a visible control or redrawing keeps the scroll.
+
+`scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
+to the page's `document.scrollingElement`. A widget that keeps something in view as
+another widget moves, as `lf-code` keeps the line a film runs, passes the first as
+`within` unless it is the page, so the page stays where the reader left it. It,
+`alreadyShown` and `onUserInput` ([module-input.md](module-input.md)), which says when
+the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
@@ -233,7 +241,7 @@ only what it holds. A widget that switches view sets
 `hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
 handler returns; Leaf reads that as a replaced view and places the target at once rather
 than scrolling from the old view's reading position. A widget that keeps the box of
-what it hides, as `lf-visual-review` stacks its cases in one cell, may set
+what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view
@@ -265,10 +273,9 @@ A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter
 `returnDuration()`.
 
-`backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
+`backgroundFlash(element)` gives an element a brief yellow tint that fades to its
 own background, and tints each box inside it that paints a background of its own too.
-`flashDuration()` is how long Leaf's own arrival tint lasts, as on a newly arrived
-message.
+It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 
 ## Notices and spoken words
 

@@ -80,7 +80,7 @@ export const threadIn = (node) => closestAcross(node ?? null, THREAD);
 export const heldThread = () => threadIn(focused());
 
 // Its logged id.
-export const heldThreadId = () => drawnThreadId(heldThread());
+const heldThreadId = () => drawnThreadId(heldThread());
 
 // The thread every painter of current location draws — the page's contour and wash, the margin
 // entry's selection — which is the held thread except across a pointer press. A press

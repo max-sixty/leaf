@@ -30,8 +30,8 @@
    editing state until it returns. An explicit open can request the unanchored window
    posture while retaining the hidden subject as its semantic anchor. A drawn target's
    geometry may have zero area; its whole extent still supplies the fallback seat.
-   The editing surface uses this solver for its initial attachment, then retains
-   browser-owned following (`composing/floating-response.js`).
+   The comment box is solved again at each scroll, as the card is
+   (`composing/floating-response.js`).
 
    Both stand in one boundary (`commentBoundary`), the room the rules' `room-*` rows
    give: the part of the window the page shows, within the region whose flow holds the

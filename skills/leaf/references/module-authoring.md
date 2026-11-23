@@ -363,10 +363,6 @@ page doesn't count as settled until this work runs, so motion that may run until
 user stops it, such as playback, uses `nextAnimation(callback)` and
 `cancelAnimation(id)` instead.
 
-`afterScript(callback)` runs a callback once when the current script finishes, for a
-paint two steps of one script would otherwise trigger twice; pass the same function each
-time, not a new arrow.
-
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
 the page plays. Have its callback schedule a paint from `frameFor` rather than draw:
@@ -386,7 +382,9 @@ layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 ## Contained examples and scoped appearance
 
 `mountSample(frame, {template, window})` asynchronously mounts the authored template
-with that id as a contained Leaf page in an iframe. `window` defaults to `false`;
+with that id as a contained Leaf page in an iframe; `{source}` in place of `template`
+mounts a complete HTML document the module passes (`live-samples.md`, "Generated
+samples"). `window` defaults to `false`;
 `true` gives the child a full-window layout. Await the returned host, then its `ready`
 promise before reading its presentation. `reset()` replaces the child's isolated
 history, `setWindow(boolean)` changes its allocation, and `destroy()` releases the

@@ -61,6 +61,7 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -778,6 +779,75 @@ def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
         codex_adapter_model.run_adapter("codex", app_server="ws://127.0.0.1:1")
     assert not leases_model.adapter_is_live(harness.session)
     assert not leases_model.wait_is_live(None, harness.session)
+
+
+class _NextPass(BaseException):
+    """Ends an adapter's loop from inside its retry boundary, which catches only
+    `Exception`."""
+
+
+@pytest.mark.parametrize("installed", [True, False], ids=["installed", "checkout"])
+def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
+    monkeypatch, tmp_path, installed
+):
+    """Codex replaces its installed copy by moving it aside and renaming a new one
+    into its path. The adapter the old copy started reads no page after that: it
+    starts its successor through the new copy's launcher once its own leases are
+    gone, while it holds the start lock that keeps a claim from starting another
+    adapter meanwhile, and tries again when the successor refuses. An adapter that
+    runs a checkout goes on."""
+    for name in CLAUDE_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    root = (
+        tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "local"
+        if installed
+        else tmp_path / "checkout"
+    )
+    for directory in (".git", ".venv"):
+        (root / directory).mkdir(parents=True)
+    for module in (cleanup_model, session_runtime_model):
+        monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(
+        codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]
+    )
+    monkeypatch.setattr(codex_adapter_model, "retry_delay", lambda _failures: 0)
+    passes = itertools.count()
+
+    def replace_the_copy(_session):
+        if next(passes):
+            if installed:
+                pytest.fail("the adapter went on after Codex replaced its copy")
+            raise _NextPass
+        root.rename(tmp_path / "replaced")
+        (root / ".git").mkdir(parents=True)
+        return True
+
+    monkeypatch.setattr(codex_model, "recover_codex_receipt", replace_the_copy)
+    refusals = iter([Refused("the new copy's adapter could not reach Codex")])
+    started = []
+
+    @contextmanager
+    def starting(arguments, *, harness, launcher, **_options):
+        start_lock = codex_adapter_model.adapter_start_lock_path(harness.session)
+        assert leases_model.lock_is_held(start_lock)
+        assert not leases_model.adapter_is_live(harness.session)
+        assert not leases_model.wait_is_live(None, harness.session)
+        started.append((arguments, launcher))
+        if refusal := next(refusals, None):
+            raise refusal
+        yield {}
+
+    monkeypatch.setattr(codex_adapter_model, "starting_detached", starting)
+    if not installed:
+        with pytest.raises(_NextPass):
+            codex_adapter_model.run_adapter("codex")
+        assert started == []
+        return
+    assert codex_adapter_model.run_adapter("codex") == 0
+    launcher = (root / "bin" / "leaf").resolve()
+    assert started == [(["codex", "run", "--codex-path", "codex"], launcher)] * 2
 
 
 @pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])

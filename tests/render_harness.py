@@ -2740,8 +2740,8 @@ Page.unroute_all = _disarming
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
 # "Results do not depend on execution speed"). One that names no deadline
 # takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion
-# on any page, and every page action and wait on a page `readable` prepares. A wait
-# that spans a page handover names `HANDOVER_DEADLINE_MS`.
+# on any page, and every page action, wait and request in a context that `readable`
+# prepares a page of. A wait that spans a page handover names `HANDOVER_DEADLINE_MS`.
 render_checks_model.bound_expectations()
 
 
@@ -2770,7 +2770,9 @@ def readable(page, *, java_script_enabled=True):
         return page
     if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
         slow_cpu(page, _CPU_THROTTLE)
-    page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
+    # On the context, since `page.request` takes the context's default and not the
+    # page's; the page inherits it.
+    page.context.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     page.lf_armed = False
     if getattr(page.context, "lf_routed", False):
         _arm(page)

@@ -106,7 +106,7 @@
    The comment over the store below says where it came from. */
 
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
-import { admitResponse, layerHeaders } from "./layer-client.js";
+import { admitResponse, layerHeaders, takeLeafUnload } from "./layer-client.js";
 import { PENDING } from "./thread/identity.js";
 import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
@@ -119,7 +119,6 @@ import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
-import { pressCommand } from "./keyboard/dispatch.js";
 import { signal } from "./framework.js";
 import { boxOf, takesNoWords } from "./composing/input.js";
 
@@ -457,9 +456,14 @@ const writeWaiting = () => {
 // knows they no longer want them"). Keeping them in the browser past the tab instead
 // would need the store to know every write it ever took, or a late replay brings back
 // words sent, cancelled or written over elsewhere. Work a write is carrying needs no
-// prompt, since the resend above takes it on. A reload asks too, though its tab keeps
-// the work for it, since the prompt can't tell a reload from a close.
+// prompt, since the resend above takes it on. A reload the user asks for asks too,
+// though its tab keeps the work for it, since the prompt can't tell a reload from a
+// close. The prompt a reload Leaf asks for raises asks nothing (layer-client.js,
+// `takeLeafUnload`): it is no close, and after a server restarted under another Leaf,
+// which refuses this document's writes, every word typed since would otherwise put the
+// prompt in front of a reload the user never asked for.
 addEventListener("beforeunload", (event) => {
+  if (takeLeafUnload()) return;
   const stranded = [...draftCache].some(
     ([ctx, { durable }]) =>
       !durable && !writing.has(ctx) && holdsWork(activeDraftRecord(ctx)),
@@ -637,7 +641,6 @@ export function noticeDraftKept() {
 const RESUME_WRITING = {
   action: "resume-writing",
   command: "writing.resume",
-  run: () => pressCommand("writing.resume"),
   stands: () => writingPlace !== null,
 };
 

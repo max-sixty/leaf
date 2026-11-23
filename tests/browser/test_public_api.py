@@ -139,12 +139,13 @@ def output_package(path, value):
     )
     registry_path.write_text(json.dumps(registry))
     module = f"""import {{ html }} from "/vendor/lit.js";
-    import {{ LeafElement, publishOutput }} from "/runtime/widget-api.js";
+    import {{ LeafElement }} from "/runtime/widget-api.js";
 customElements.define("lf-output-proof", class extends LeafElement {{
   setup() {{
-    publishOutput(this, "count", {{count: 2}});
-    publishOutput(this, "count", {json.dumps(value)});
-    publishOutput(this, "count", null);
+    for (const count of [{{count: 2}}, {json.dumps(value)}, null]) {{
+      this.count = count;
+      this.dispatchEvent(new Event("change"));
+    }}
   }}
   render() {{ return html`Output example.`; }}
 }});

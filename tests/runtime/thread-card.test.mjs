@@ -79,9 +79,9 @@ test("a primary reply forwards the field's live hint and accessible name callbac
     { hintParts, hintLead, accessibleName },
   );
   try {
-    assert.equal(inputOptions.hintParts, hintParts);
-    assert.equal(inputOptions.hintLead, hintLead);
-    assert.equal(inputOptions.accessibleName, accessibleName);
+    assert.deepEqual(inputOptions.hintParts(), hintParts());
+    assert.deepEqual(inputOptions.hintLead(), hintLead());
+    assert.equal(inputOptions.accessibleName(), accessibleName());
   } finally {
     view.dispose();
   }

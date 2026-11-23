@@ -4,8 +4,10 @@
  * matches those identities in the arriving document and skips nodes the patch retained.
  * Generated controls may name a stable `data-lf-carry` key inside their nearest
  * named owner, which must itself match authored markup by id and tag. Another named
- * wrapper establishes a different scope, never skipped. Only focus and caret cross: their widget
- * owns their values and drawing. Other unnamed elements and changed tags carry nothing.
+ * wrapper establishes a different scope, never skipped. A control in the shadow root
+ * its widget draws into has the widget as its owner (`partOwner`), as one in the
+ * widget's own tree does. Only focus and caret cross: their widget owns their values
+ * and drawing. Other unnamed elements and changed tags carry nothing.
  *
  * Values, checked state, and disclosure state cross only when they differ from the
  * outgoing authored node. Read both nodes through the same platform properties: reflected
@@ -44,12 +46,25 @@
 import { setScroll } from "./arrivals.js";
 import { focusDestination, likeSelector, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { hostIn, isHTML, renderedUnder, skipped } from "./shadow-tree.js";
+import {
+  closestAcross,
+  hostIn,
+  isHTML,
+  renderedUnder,
+  skipped,
+  upFrom,
+} from "./shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
-import { closestAcross, elementById, inPage, pageDocument } from "./passages.js";
+import { elementById, inPage, pageDocument } from "./passages.js";
 import { ADDRESSABLE } from "./anchor-resolution.js";
 import { runtime } from "./context.js";
 import { drawnThreadId, THREAD, threadPart, wholeThread } from "./thread/selectors.js";
+
+// The named element a generated control's key is unique within: the nearest above it,
+// out through the shadow root a widget draws into, where the page's own tree holds only
+// the host.
+/** @param {Element} part */
+const partOwner = (part) => closestAcross(upFrom(part), "[id]");
 
 /** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
 const holdsValue = (node) =>
@@ -80,7 +95,7 @@ export function nameIn(holder, active) {
     Boolean(node && node !== holder && renderedUnder(node, holder)) &&
     (!page || inPage(/** @type {Element} */ (node)));
   const part = active.getAttribute("data-lf-carry");
-  const owner = part === null ? null : active.parentElement?.closest("[id]");
+  const owner = part === null ? null : partOwner(active);
   if (part !== null && inside(owner))
     return { id: owner.id, name: owner.localName, part, partName: active.localName };
   const found = closestAcross(active, ADDRESSABLE);
@@ -186,15 +201,19 @@ export function focusByKey(key, drawing, accept = () => true) {
 }
 
 // The element a page key names under `owner`, the element with its id: the owner, or
-// the generated control of its key and tag whose nearest named owner it is.
+// the generated control of its key and tag whose nearest named owner it is, in the
+// owner's own tree or in its shadow root.
 /** @param {Element} owner @param {{part?: string, partName?: string}} key */
-const keyedFocus = (owner, { part, partName }) =>
-  part === undefined
-    ? owner
-    : ([...owner.querySelectorAll(`[data-lf-carry="${CSS.escape(part)}"]`)].find(
-        (node) =>
-          node.parentElement?.closest("[id]") === owner && node.localName === partName,
-      ) ?? null);
+function keyedFocus(owner, { part, partName }) {
+  if (part === undefined) return owner;
+  const keyed = `[data-lf-carry="${CSS.escape(part)}"]`;
+  return (
+    [owner, owner.shadowRoot]
+      .flatMap((tree) => [...(tree?.querySelectorAll(keyed) ?? [])])
+      .find((node) => node.localName === partName && partOwner(node) === owner) ??
+    null
+  );
+}
 
 // Capture before replacement. JSON records can cross a reload; held nodes remain local
 // so an in-place install can skip restoration on the nodes it kept. Only a key naming
@@ -202,7 +221,8 @@ const keyedFocus = (owner, { part, partName }) =>
 /** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("./focus.js").Caret}} CarryRecord */
 /** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
-  const key = focusKey(focused(document));
+  // The focused control in whichever tree holds it, a widget's shadow root included.
+  const key = focusKey(focused());
   const focus = key?.id && !key.at && !key.thread ? key : null;
   const records = [];
   const held = new Map();

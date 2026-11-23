@@ -45,8 +45,9 @@ export { partOver } from "./thread/placement.js";
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
-// user sees, as scroll anchoring and the chrome leave it.
-export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+// user sees, as scroll anchoring and the chrome leave it; `whenNone` hears when such a
+// reading stops holding.
+export { growthIsSeen, landingInsets, shownWindow, whenNone } from "./geometry.js";
 export { registerRootHeader } from "./root-headers.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
@@ -80,8 +81,6 @@ export {
 } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (`shows`).
-export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
@@ -127,8 +126,8 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { alreadyShown, fitsWhole } from "./landing-scroll.js";
+export { atScrollEnd, scrollLimit } from "./scrolling.js";
+export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -149,13 +148,7 @@ export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export { declarationFor, layerFact, matchesWhen } from "./registry.js";
-export {
-  flashDuration,
-  foldDuration,
-  returnDuration,
-  backgroundFlash,
-  motion,
-} from "./motion.js";
+export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;
@@ -172,7 +165,6 @@ export { copyControl } from "./copy-control.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
-export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";

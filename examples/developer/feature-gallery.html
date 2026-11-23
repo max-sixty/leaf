@@ -1720,13 +1720,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>Changes in place</strong></h2>
             <p id="bg-since-seen-guide">
               Coming back after the agent has revised the page, a notice says how much
-              changed since the version you last saw. Press <kbd>v</kbd> to mark those
-              changes, or what changed since the latest version when you've seen them
-              all, or open Versions (<kbd>g</kbd> <kbd>V</kbd>) and press Compare beside
-              an earlier one. Each block changed since then has a green bar beside it
-              and a Change entry; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step
-              through them, <kbd>g</kbd> <kbd>H</kbd> hides them with the other
-              annotations, and <kbd>v</kbd> again takes them off. A revision that lands
+              changed since the version you last saw. Versions (<kbd>g</kbd>
+              <kbd>V</kbd>) names that version last seen and opens on it, and
+              <kbd>v</kbd> presses its Compare to mark those changes; once you have seen
+              them all it opens on the newest older version's, and Compare beside any
+              earlier version marks what changed since that one. Each block changed
+              since then has a green bar beside it and a Change entry; <kbd>h</kbd> and
+              <kbd>Shift</kbd>+<kbd>h</kbd> step through them, <kbd>g</kbd>
+              <kbd>H</kbd> hides them with the other annotations, and <kbd>g</kbd>
+              <kbd>V</kbd> <kbd>v</kbd> again takes them off. A revision that lands
               while you watch flashes. While the agent is On it for a comment, an accent
               bar stands beside the comment's block until it answers.
             </p>
@@ -3163,6 +3165,25 @@ gallery/
                 alt="the sample run list, twice"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
+              ></lf-shot>
+              <p id="bg-shot-focus-guide">
+                This pair opens on the run list's first columns at the size they had in
+                the browser, its divider where the Status column begins:
+                <code>density="2"</code> says the captures were taken at 2×, and
+                <code>focus-x</code>, <code>focus-y</code>, <code>focus-width</code> and
+                <code>focus-height</code> give the region in CSS pixels. Turn on Full
+                frame in the … menu to see the rest of the run list.
+              </p>
+              <lf-shot
+                id="bg-shot-focus"
+                alt="the sample run list's Status column, without and with it"
+                before="/media/051bee487bfb5d13.png"
+                after="/media/a99a1b63048502d0.png"
+                density="2"
+                focus-x="0"
+                focus-y="92"
+                focus-width="264"
+                focus-height="168"
               ></lf-shot>
               <p id="bg-capture-table-guide">
                 Captures that differ by something other than a version, such as the

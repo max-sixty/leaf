@@ -651,8 +651,9 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
             if (event.target === document)
               window.lfPageTrip.push(document.scrollingElement.scrollTop);
           }, {capture: true});
-          // Registered after the runtime's own listener, which answers a shortcut as
-          // the document captures it, so this reads the press's task once the walk has.
+          // Nothing is focused, so the key is aimed at the page itself, and the
+          // runtime answers it in its capture listener on the document. Registered
+          // after that one, this reads the press's task once the walk has.
           document.addEventListener('keydown', () => {
             window.lfAfterPress = {
               page: document.scrollingElement.scrollTop,
@@ -680,18 +681,24 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     assert immediate["localXFits"], (
         f"the vertical scrollport also overflowed sideways: {immediate}"
     )
+    # The panel's band at the window's foot, which it states to Leaf's landings.
+    foot = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.wait_for_function(
-        """() => {
+        """foot => {
           const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
           if (!range) return false;
           const rect = range.getBoundingClientRect();
           // The middle of the room the page shows, between the window's head and the
-          // panel at its foot, which the root's scroll padding states.
+          // panel at its foot.
           const style = getComputedStyle(document.scrollingElement);
           const top = parseFloat(style.scrollPaddingTop);
-          const bottom = innerHeight - parseFloat(style.scrollPaddingBottom);
+          const bottom = innerHeight - foot;
           return Math.abs((rect.top + rect.bottom) / 2 - (top + bottom) / 2) < 2;
-        }"""
+        }""",
+        arg=foot,
     )
     trip = page.evaluate("() => window.lfPageTrip")
     assert trip and trip == sorted(trip), (
@@ -952,7 +959,7 @@ def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     """A forced palette drops the shadow that frames a seated card, so the card keeps
     its frame as an outline on its edge, and the reply box focused in it still draws
-    its own ring."""
+    its own ring, on its `::after` over what the box holds (response.css)."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -982,7 +989,8 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         "shadow": "none",
     }
     ring = thread.locator(".lf-compose-field").evaluate(
-        "el => { const s = getComputedStyle(el); return [s.outlineStyle, s.outlineWidth]; }"
+        "el => { const s = getComputedStyle(el, '::after');"
+        " return [s.outlineStyle, s.outlineWidth]; }"
     )
     assert ring == ["solid", "2px"], ring
 

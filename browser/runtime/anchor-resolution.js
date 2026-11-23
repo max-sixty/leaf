@@ -197,6 +197,25 @@ export function revealAnchor(source, anchor) {
   return asked.some((hydration) => hydration?.then) ? Promise.all(asked) : null;
 }
 
+// Whether a thread stands on what its widget gives in place of a part it hasn't drawn,
+// such as a closed diff file's row for a line in it, or for a line of earlier data
+// (`resolveAnchor`'s `fallback` and `outdated` with no drawn datum).
+/** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
+export const standsIn = (anchor, placement) =>
+  Boolean(
+    (anchor?.datum || anchor?.visual) &&
+    placement &&
+    placement.status !== "exact" &&
+    !placement.datumElement,
+  );
+
+// Whether the part a thread stands in for is yet to be drawn, so drawing it moves the
+// thread there, or gives it a seat beside it. A thread on earlier data stays on the
+// place its widget gives it.
+/** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
+export const awaitsDrawing = (anchor, placement) =>
+  standsIn(anchor, placement) && placement?.status === "fallback";
+
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>

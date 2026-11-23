@@ -2,7 +2,7 @@
 and an obligation's digits and thread."""
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import ROOT, append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -19,9 +19,11 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
+    EXAMPLE_PACKAGES,
     LONG_PAGE,
     RELEASE_FOCUS,
     expect_obligations_answered,
+    expect_on_me,
     held_frames,
     leaf_page,
     open_page,
@@ -36,10 +38,12 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
+    undo,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
@@ -918,6 +922,133 @@ def test_m_pressed_while_a_glide_carries_asks_past_steps_on_from_where_it_lands(
     assert reached[0] == reached[1]
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_m_pressed_while_the_page_glides_lands_an_ask_in_a_sticky_track_where_it_lands_alone(
+    request, serve, engine
+):
+    """`d m` typed quickly, on a sidebar page whose stuck track holds the ask, ends where
+    the same keys typed slowly end: `d`'s glide carries the track up only until it
+    sticks, so the ask stands in the window where the glide leaves it and `m` moves the
+    page nowhere `d` doesn't. Counted as riding the whole glide, the ask read as leaving
+    the window above, and `m` pulled the page back most of the way to the top."""
+    paragraphs = "".join(
+        f"<p>Body paragraph {n} of the review, long enough to fill a line.</p>"
+        for n in range(120)
+    )
+    source = leaf_page(
+        "An ask in the track",
+        '<aside id="route"><div class="layout-track" id="track">'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Take the left route</lf-option>'
+        '<lf-option id="right">Take the right route</lf-option></lf-options></lf-group>'
+        "<p>Notes beside the ask.</p></div></aside>"
+        f'<article class="layout-column"><h1>Release review</h1>{paragraphs}</article>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 700)
+    ask = page.locator("#ask")
+    track_top = "document.getElementById('track').getBoundingClientRect().top"
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    standing = page.evaluate(track_top)
+    page.keyboard.press("d")
+    paged = settled()
+    stuck = page.evaluate(track_top)
+    # The track rode the start of `d`'s glide, short of the whole of it.
+    assert 1 < standing - stuck < paged, (standing, stuck, paged)
+    page.keyboard.press("m")
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(paged, abs=2)
+
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    # `m` pressed before `d`'s glide has moved the page, on any host.
+    with held_frames(page) as step:
+        page.keyboard.press("d")
+        page.keyboard.press("m")
+        step()
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(paged, abs=2)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_m_pressed_as_g_g_glides_back_lands_an_ask_its_released_track_carries_down(
+    request, serve, engine
+):
+    """`g g m` typed quickly, on a sidebar page whose stuck track holds the ask just
+    above the window's foot, ends where the same keys typed slowly end. `g g`'s glide to
+    the top takes the track's own place back past the line it sticks at, so the track
+    comes down with the page and carries the ask past the foot, and `m` brings it back.
+    Read as staying stuck, the ask stood whole where the glide leaves it, and `m` left
+    it under the foot."""
+    paragraphs = "".join(
+        f"<p>Body paragraph {n} of the review, long enough to fill a line.</p>"
+        for n in range(120)
+    )
+    source = leaf_page(
+        "An ask a released track carries",
+        '<aside id="route"><div class="layout-track" id="track">'
+        '<div id="before" style="height: 300px"></div>'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Take the left route</lf-option>'
+        '<lf-option id="right">Take the right route</lf-option></lf-options></lf-group>'
+        "</div></aside>"
+        f'<article class="layout-column"><h1>Release review</h1>{paragraphs}</article>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 700)
+    ask = page.locator("#ask")
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def foot_gap():
+        """How far the ask's foot stands above the window's, which no chrome covers
+        beside the page's column."""
+        return page.evaluate(
+            "document.documentElement.clientHeight"
+            " - document.getElementById('ask').getBoundingClientRect().bottom"
+        )
+
+    page.evaluate("() => scrollTo({top: 600, behavior: 'instant'})")
+    settled()
+    # Stand the ask, in the stuck track, 12px above the window's foot.
+    page.evaluate(
+        "gap => { const before = document.getElementById('before');"
+        " before.style.height = `${before.offsetHeight + gap - 12}px`; }",
+        foot_gap(),
+    )
+    settled()
+    assert foot_gap() == pytest.approx(12, abs=1)
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    assert settled() == 0
+    # Released, the track came down past the window's foot with the ask.
+    assert foot_gap() < 0
+    page.keyboard.press("m")
+    expect(ask).to_be_focused()
+    slowly = settled()
+    assert foot_gap() >= 0
+
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo({top: 600, behavior: 'instant'})")
+    settled()
+    with held_frames(page) as step:
+        page.keyboard.press("g")
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        step()
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(slowly, abs=2)
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
@@ -1791,3 +1922,95 @@ IN_THREAD = """() => {
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
   return at?.closest('[data-lf-thread]')?.dataset.lfThread ?? null;
 }"""
+# A widget owing the user one answer per case of the run its `source` binds
+# (`awaits.records`), from a package of the suite's own, since no bundled widget
+# declares it. It shows one case at a time, the others `hidden="until-found"`.
+RECORDS = ROOT / "tests/fixtures/packages/records"
+RECORDS_RUN = {
+    "cases": [
+        {"id": "status-column", "title": "Run list status"},
+        {"id": "detail-link", "title": "Run detail link"},
+        {"id": "desktop-navigation", "title": "Desktop navigation"},
+    ]
+}
+REVIEW = '<lf-test-review id="review" source="run"></lf-test-review>'
+
+
+def records_page(serve, *events):
+    """A page whose `review` owes a case of the run, with `events` in its log."""
+    url = live_url(
+        serve(leaf_page("Cases", REVIEW), packages=(*EXAMPLE_PACKAGES, RECORDS))
+    )
+    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
+    for event in events:
+        append_carried_log_record(serve.page_dir, event)
+    return url
+
+
+def test_each_record_a_widget_owes_is_its_own_obligation(browser, serve):
+    """The walk reaches each case the widget owes, hidden ones included, and answering
+    one answers only that case. Its On Me card reaches it while another case shows,
+    and feedback on it hands only that case to the agent."""
+    page = open_page(browser, records_page(serve))
+    case = page.locator("#review .test-case:not([hidden])")
+    looks_right = case.get_by_role("checkbox", name="Looks right")
+    first, second, third = (each["id"] for each in RECORDS_RUN["cases"])
+    expect_on_me(page, 3)
+    looks_right.focus()
+    page.keyboard.press("m")
+    expect(case).to_have_attribute("data-lf-datum", second)
+    expect(case).to_be_focused()
+    page.keyboard.press("m")
+    expect(case).to_have_attribute("data-lf-datum", third)
+    expect(case).to_be_focused()
+    page.keyboard.press("Shift+m")
+    expect(case).to_have_attribute("data-lf-datum", second)
+    with sending(page, "approve one independent case"):
+        looks_right.check()
+    expect_on_me(page, 2)
+    undo(page)
+    expect_on_me(page, 3)
+    expect(looks_right).not_to_be_checked()
+
+    page.locator(".lf-fp-leaf").click()
+    card = page.locator(".lf-fp-on-item").filter(
+        has=page.get_by_text(RECORDS_RUN["cases"][0]["title"], exact=True)
+    )
+    card.get_by_role("button", name="Show", exact=True).click()
+    expect(case).to_have_attribute("data-lf-datum", first)
+    expect(case).to_be_focused()
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep the status column narrow")
+    with sending(page, "hand feedback on this case to the agent"):
+        page.keyboard.press("Enter")
+    expect_on_me(page, 2)
+    looks_right.focus()
+    page.keyboard.press("m")
+    expect(case).to_have_attribute("data-lf-datum", second)
+
+
+def test_on_me_shows_a_record_a_reply_s_widget_owes(browser, serve):
+    """A record a widget in a reply owes is reachable from its On Me card before the
+    widget, or the case it shows, is drawn there."""
+    url = records_page(
+        serve,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "text": "Review the cases in this reply.\n\n"
+            '<lf-test-review id="reply-review" source="run"></lf-test-review>',
+        },
+    )
+    page = open_page(browser, url)
+    expect_on_me(page, 6)
+    page.locator(".lf-fp-leaf").click()
+    card = page.locator(
+        '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:detail-link"]'
+    )
+    card.get_by_role("button", name="Show", exact=True).click()
+    case = page.locator("#reply-review .test-case:not([hidden])")
+    expect(case).to_have_attribute("data-lf-datum", "detail-link")
+    expect(case).to_be_focused()
+    expect(case.get_by_role("checkbox", name="Looks right")).to_be_visible()

@@ -387,6 +387,22 @@ def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     )
 
 
+def test_a_position_record_s_container_stands_inside_the_widget(page_dir):
+    """The browser finds a position's containers among the widget's descendants, so a
+    record naming the widget's own tag as its container passes nothing a drop can
+    find, and the check refuses it before a drop throws."""
+    registry = vocabulary(page_dir)
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = "lf-board"
+    declare_vocabulary(page_dir, registry)
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    assert found(
+        findings, "record-within", "<lf-board>", verb="move", within="lf-board"
+    )
+
+
 def _independent_member_records():
     """An unfamiliar package composes selection, positions and scalar member state."""
     registry = deepcopy(model_layer())

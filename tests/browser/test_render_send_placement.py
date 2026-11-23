@@ -1325,7 +1325,17 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
-        shot.scroll_into_view_if_needed()
+        # The shot stands whole above the floating panel's band, where Leaf's own
+        # landing brings it, so the answer grows the card beside it past the window's
+        # foot.
+        shot.evaluate(
+            """async shot => {
+              const band = (await window.__lfWidgetApi()).landingInsets(
+                document.scrollingElement).bottom;
+              scrollBy({top: shot.getBoundingClientRect().bottom - (innerHeight - band),
+                behavior: 'instant'});
+            }"""
+        )
         if subject == "shot-fit-at-foot":
             shot.evaluate(
                 "shot => scrollBy(0, shot.getBoundingClientRect().bottom - innerHeight)"
@@ -2040,7 +2050,7 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
           const gap = subjectGap(room, 'bottom');
           const overflow = before.bottom + gap + height - boundary.bottom;
           const moved = makeRoom(
-            'bottom', before, before, room, height, boundary, scroller);
+            'bottom', before, before, room, height, boundary, scroller, target);
           const after = target.getBoundingClientRect();
           return {moved, overflow, remaining:after.bottom + gap + height - boundary.bottom,
                   visible:after.top >= boundary.top && after.bottom <= boundary.bottom};

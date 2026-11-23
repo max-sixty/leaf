@@ -660,12 +660,11 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     # the walk could stand them on instead is the measurement that says the two cannot
     # both be.
     position = page.evaluate(
-        """() => {
+        """async () => {
           const box = document.activeElement.getBoundingClientRect();
           const pick = document.querySelector('#storage-options .lf-pick')
             .getBoundingClientRect();
-          const foot = parseFloat(
-            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
+          const foot = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
           return {top: box.top, pick: pick.top, height: innerHeight - foot};
         }"""
     )
@@ -974,7 +973,8 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     """The draft route borrows an empty Add seat and moves beside a live Add press.
 
     The cards share one trailing column. An empty draft has only the route into its
-    field, so that badge sits over the hidden Add press. Once content reveals Add and
+    field, so that badge stands over the hidden Add press, in the digit column every
+    card's badge shares. Once content reveals Add and
     focus leaves the field, both actions are available and the route takes the inner
     seat. The field reserves both seats before either face appears.
     """
@@ -998,9 +998,13 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     submit = addition.locator(".lf-compose-submit")
     empty_submit = submit.evaluate(
         """el => { const box = el.getBoundingClientRect();
-                    return {x: box.left + box.width / 2}; }"""
+                    return {x: box.left + box.width / 2, left: box.left,
+                            right: box.right}; }"""
     )
-    assert obligation_centers[-1]["x"] == pytest.approx(empty_submit["x"], abs=0.5)
+    assert obligation_centers[-1]["x"] == pytest.approx(
+        obligation_centers[0]["x"], abs=0.5
+    )
+    assert empty_submit["left"] < obligation_centers[-1]["x"] < empty_submit["right"]
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
@@ -1338,7 +1342,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # for under the row. The window is sized so the sentence fits in the window but not
         # above the panel's band: the arrival lands on the change alone, and the change
         # stays where the user can read it.
-        measure = """() => {
+        measure = """async () => {
           const at = (id) => document.getElementById(id).getBoundingClientRect();
           const style = getComputedStyle(document.scrollingElement);
           return {
@@ -1346,7 +1350,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
             foot: at('sc-sug').bottom,
             view: document.scrollingElement.clientHeight,
             top: parseFloat(style.scrollPaddingTop),
-            bottom: parseFloat(style.scrollPaddingBottom),
+            bottom: (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom,
           };
         }"""
         before = page.evaluate(measure)

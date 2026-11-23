@@ -109,7 +109,10 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     expect(thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')).to_be_visible()
     expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
-    # The view grows to hold the answer, the message keeping its place within it.
+    # The view grows to hold the answer, the message keeping its place within it. The
+    # growth carries the message up from where it stood on screen to that place
+    # (box-motion.js), so the place is read where the panel's motion ends.
+    panel_settled(page, view="thread")
     assert message.evaluate(
         "m => m.getBoundingClientRect().top"
         " - m.closest('.lf-fp-view').getBoundingClientRect().top"

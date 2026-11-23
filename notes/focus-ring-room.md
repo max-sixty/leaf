@@ -87,9 +87,9 @@ a box that scrolls on one axis clips both, and `overflow-clip-margin` applies on
   rectangle over the control's box: it encloses both lines of a wrapped link and the
   words beside them, stands whole past the block's edge while the control is half
   scrolled out, and draws over a sticky header the control has scrolled under. It can't
-  read where a control places its ring (`--lf-ring-at`, set by 39 rules in 20
-  stylesheets). A control's own `::after`, placed the same way, also draws a whole ring
-  over a sticky header, and a native field has no `::after`. The user ruled out a
+  read where a control places its ring (`--lf-ring-at`, set across the stylesheets). A
+  control's own `::after`, placed the same way, also draws a whole ring over a sticky
+  header, and a native field has no `::after`. The user ruled out a
   separate drawing (2026-11-14).
 
   ```css

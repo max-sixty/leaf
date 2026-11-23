@@ -366,8 +366,8 @@ async function boot() {
     paintKeys,
   });
 
-  // Where the user is in the chrome's thread views, a margin card or entry and the
-  // panel's thread, which a revision carries.
+  // Where the user is in the chrome's views, a margin card or entry and the panel's
+  // thread or list, which a revision carries.
   const captureChrome = () => {
     const margin = app?.overlay?.captureCurrentLocation() ?? null;
     const panel = floatingPanel.captureCurrentLocation();
@@ -379,6 +379,7 @@ async function boot() {
     compositionInput: fabInput,
     openThread: (id, options) =>
       app.threadDestinations.openPageThread(id, { ...options, travel: false }),
+    threadReader: (node) => app.threadDestinations.readerOf(node),
     refreshThread: () => app.refreshThread(),
     midComposition: (...args) => app.midComposition(...args),
     hasPending: () => app.hasPending(),
@@ -395,7 +396,13 @@ async function boot() {
     captureObligationCurrentLocation: () => items.captureCurrentLocation(),
     restoreObligationCurrentLocation: (currentLocation) =>
       items.restoreCurrentLocation(currentLocation),
-    versions: { press: () => floatingPanel.doors.versions.press() },
+    versions: {
+      press: () => floatingPanel.doors.versions.press(),
+      shows: () => floatingPanel.doors.versions.shows(),
+      get scope() {
+        return floatingPanel.doors.versions.scope;
+      },
+    },
   });
 
   const inputs = createCompositionInputs({

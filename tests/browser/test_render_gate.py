@@ -2390,8 +2390,8 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
     scrolls, so the root holds that margin in. The root draws no frame, its edge
-    being the window's. Shell padding is viewport spacing, including Leaf's panel
-    clearance; a border makes the shell an actual frame whose edges can be read."""
+    being the window's. Shell padding is viewport spacing, including Leaf's head room;
+    a border makes the shell an actual frame whose edges can be read."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
@@ -3759,6 +3759,30 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
     ], findings
 
 
+def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
+    """A box turned a quarter shows across what it holds down, so what it clips to is
+    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    whole are not clipped out, and words held past its foot are."""
+    source = leaf_page(
+        "Turned column",
+        """<h1>Turned column</h1>
+<div id="turned"><p id="whole">Words the turned box shows whole.</p>
+<p id="cut">Words past its foot.</p></div>""",
+        head="""<style>
+#turned { box-sizing: content-box; width: 100px; height: 400px; border: 10px solid;
+  overflow: hidden; rotate: 90deg; margin: -140px auto; }
+#turned p { margin: 0; }
+#turned #cut { margin-top: 360px; }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted((finding["code"], finding["at"]) for finding in findings) == [
+        ("clipped-content", "<div id=turned>"),
+        ("clipped-out", "<p id=cut>"),
+    ], findings
+
+
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
     sized past the actual page edge remain render-gate findings: each is past the
@@ -3898,50 +3922,6 @@ def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
     assert [
         f for f in covered if {f["at"], f["under"]} == {"<p id=p0>", "<p id=over>"}
     ], f"a cover between the page's first and last words went unreported: {covered}"
-
-
-@pytest.mark.parametrize(
-    ("style", "under"),
-    [
-        ("", []),
-        ("body { padding: 0 }", ["<p id=last>"]),
-        (
-            "html, body { height: 100% } body { margin: 0; padding: 0 }"
-            " main { height: 100%; overflow-y: auto }",
-            ["<p id=last>"],
-        ),
-        (
-            "html, body { height: 100% } body { margin: 0; padding: 0; overflow-y: auto }",
-            ["<p id=last>"],
-        ),
-    ],
-    ids=["room-kept", "reset", "main-scrolls", "body-scrolls"],
-)
-def test_words_the_panel_covers_at_the_page_s_end_are_reported(
-    browser, serve, style, under
-):
-    """Leaf pads the page's end by the panel's room, so its last words scroll clear of
-    the panel. A reset that zeroes that padding, or a box of the page's own that scrolls
-    with nothing at its end, leaves them under the panel however far the user scrolls.
-    The gate reads the page from its top, as it reads the rest, and places each word
-    where it stands with every scroller holding it at its end: the document for the
-    reset, `main` or `body` for a page that scrolls a box of its own. The last paragraph
-    is reported there, and nothing above it."""
-    source = leaf_page(
-        "end",
-        "<h1>The end of the page</h1>"
-        + "".join(f"<p>Paragraph {i}. {'Filler. ' * 30}</p>" for i in range(30))
-        + f"<p id='last'>The last paragraph. {'Its closing words. ' * 30}</p>",
-        head=f"<style>{style}</style>",
-        layout=None,
-    )
-    page = open_page(browser, serve(source))
-    found = render_checks_model.evaluate_probe(page, "coveredWords")
-    page.close()
-    under_panel = [f for f in found if f["code"] == "under-panel"]
-    assert [f["at"] for f in under_panel] == under, found
-    # The author reads the record as words naming the element it found.
-    assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
 
 
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(

@@ -843,6 +843,7 @@ export function createThreadPreview({
       extent: place.extent,
       boundary,
       scroller,
+      element: place.element,
       coarse: coarsePointer.matches,
     });
     const { side, fresh, opening } = seat;
@@ -950,6 +951,7 @@ export function createThreadPreview({
                 fitted,
                 boundary,
                 scroller,
+                place.element,
               )
             ) {
               session.side.scrolled();

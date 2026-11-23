@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     open_threads,
     panel_settled,
+    post_event,
     put_preview_away,
     resized,
     sending,
@@ -259,8 +260,9 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     """A margin entry's label and status are its preview, which a resting pointer and the
     keyboard read, and a finger holds the entry to read them, with whatever else its
     title says. The preview stands clear of the finger, above the entry, while the press
-    lasts, and a row arriving meanwhile doesn't move it. The release presses nothing and
-    leaves the preview standing until the next touch; a tap presses and shows none."""
+    lasts. A row arriving meanwhile doesn't move it, and a thread arriving leaves the
+    entry held. The release presses nothing and leaves the preview standing until the
+    next touch; a tap presses and shows none."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
         leaf_page(
@@ -307,7 +309,7 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
         long_press(page, point)
         expect(preview).to_be_visible()
         expect(preview).to_have_text(words)
-        expect(entry).to_have_attribute("data-lf-held", "")
+        expect(entry).to_have_attribute("data-lf-touch-held", "")
         held = preview.bounding_box()
         # Clear of the finger: wholly above the entry.
         assert held["y"] + held["height"] <= box["y"], (held, box)
@@ -326,16 +328,33 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             expect(entry_keyed("note")).to_be_visible()
             rendered(page)
             assert preview.bounding_box() == held
+            # A thread arriving meanwhile, which redraws the page's threads, leaves the
+            # held entry held.
+            post_event(
+                page,
+                url.rsplit("/versions/", 1)[0] + "/api/event",
+                data={
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Arriving thread.",
+                    "anchor": {"section": "before", "quote": "Just before."},
+                },
+            )
+            page.wait_for_function(
+                "() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0"
+            )
+            rendered(page)
+            expect(entry).to_have_attribute("data-lf-touch-held", "")
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
         rendered(page)
         expect(preview).to_have_text(words)
-        expect(entry).to_have_attribute("data-lf-held", "")
+        expect(entry).to_have_attribute("data-lf-touch-held", "")
     assert page.evaluate("window.pressed") == []
     entry_keyed("act").tap()
     rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
     expect(preview).to_be_hidden()
-    expect(entry_keyed("act")).not_to_have_attribute("data-lf-held", "")
+    expect(entry_keyed("act")).not_to_have_attribute("data-lf-touch-held", "")
 
 
 OBLIGATION_MARKERS_PAGE = leaf_page(

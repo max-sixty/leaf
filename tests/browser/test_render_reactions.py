@@ -967,7 +967,7 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     message = card.locator(".lf-msg-body").first.bounding_box()
     reply = card.locator(".lf-compose-field").bounding_box()
     padding = card.evaluate(
-        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-comment-inset'))"
+        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-thread-pad'))"
     )
     assert message["x"] + message["width"] + padding == pytest.approx(
         reply["x"] + reply["width"], abs=1
@@ -2248,7 +2248,7 @@ def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
             rendered(page)
             expect(preview).to_be_hidden()
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-held'))
+            .filter((chip) => chip.hasAttribute('data-lf-touch-held'))
             .map((chip) => [chip.dataset.lfToken,
                             document.getElementById('lf-preview').innerText])""")
 

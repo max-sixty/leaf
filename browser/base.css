@@ -332,7 +332,7 @@
 }
 /* The body's position and box are important against the page's own rules: Leaf's
  * document-anchored paint takes the initial containing block as its origin, so it may
- * not become a containing block, and the foot's room pads it, which the live body's
+ * not become a containing block, and the head's room pads it, which the live body's
  * minimum (below) fills the window with only at border-box. It is the shell, the
  * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
  * page-layout.js). */
@@ -375,9 +375,9 @@ body {
   inherits: false;
   initial-value: none;
 }
-/* The live shell's fixed chrome arrives after the authored document, but its room is
- * part of the document's final layout. The render-blocking theme reserves that room so
- * the useful initial HTML paints where it will remain. The root stays the document
+/* The live shell's fixed chrome arrives after the authored document and takes no room
+ * from it, so the useful initial HTML paints where it will remain. The root stays the
+ * document
  * scrollport on both axes. A page wider than the window scrolls sideways to its far
  * side, as on the open web; a root that clipped sideways left that side out of reach.
  * `page check --render` refuses such a page (`page-scrolls`). Its definite height
@@ -399,8 +399,12 @@ body {
      * margin every box reads from the slot (surfaces.css). */
     --lf-landing-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-top: var(--lf-landing-top) !important;
-    /* The floating panel states the root's `scroll-padding-bottom` in its style as its
-     * box changes height (floating-panel.js, `followBox`), from these. */
+    /* The floating panel states the root's landing band at the window's foot as its box
+     * changes height (floating-panel.js, `followBox`), from these. It states it to
+     * Leaf's landings alone (geometry.js, `landingBand`): as the root's
+     * `scroll-padding-bottom` it would hold every reveal the browser makes above a band
+     * across the whole window, and scroll the page under a box stuck beside the panel to
+     * bring the box out of it. */
     --lf-foot-band: calc(var(--lf-foot-room) + var(--lf-landing-room))
       calc(var(--lf-floating-gap) + var(--lf-landing-room));
     /* Floating editors stand above the chrome that this padding clears. Chromium and
@@ -423,15 +427,14 @@ body {
     &[data-lf-floating-editor] {
       scroll-padding: calc(0 * var(--lf-landing-top)) !important;
     }
-    /* The foot's room is the body's own end, where content growing above it only
-     * lengthens the body: a box standing after the content would move with each growth.
-     * A page of parts makes it the open part's end instead, and a workspace its regions'
-     * ends (layouts.css). The head's room is the body's own start the same way, padding
-     * rather than a box, so a page that lays its body out as a grid or flex row of
-     * header, nav and main finds no item of Leaf's among its own. */
+    /* The head's room is the body's own start, padding rather than a box, so a page
+     * that lays its body out as a grid or flex row of header, nav and main finds no
+     * item of Leaf's among its own. The foot keeps no room: the floating panel stands
+     * over the page, as every control of Leaf's does (browser/AGENTS.md, "The page
+     * holds still under the user's aim"), and folds to its leaf where it covers what the
+     * user reads. */
     body {
       padding-top: var(--lf-head-room);
-      padding-bottom: var(--lf-foot-room);
     }
     /* Every live body but a block sample's (below) fills the window less its own
      * margins, with or without a Layout. The body is a size container (`lf-shell`),
@@ -452,15 +455,20 @@ body {
    * height (lf-sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
-   * takes a block's. Its body keeps the floating panel's row room at its foot, as a
-   * window's does, so the frame is that much taller and the row stands under the
-   * sample's last block rather than over it. An open view covers the sample at the
-   * height its page already has: opening one changes nothing about the containing
-   * page's layout. */
+   * takes a block's. The frame is the sample's window, and it holds the sample's
+   * chrome below its page: the body keeps the floating panel's row room at its foot, so
+   * the frame is that much taller and the row stands under the sample's last block
+   * rather than over it. A window's body keeps none, since a window's size is the
+   * user's, and the panel folds where it covers what they read. An open view covers
+   * the sample at the height its page already has: opening one changes nothing about
+   * the containing page's layout. */
   html[data-lf-live][data-lf-sample-block] {
     overflow-y: hidden;
     --lf-page-pad-start: 24px;
     --lf-page-pad-end: 24px;
+    & body {
+      padding-bottom: var(--lf-foot-room);
+    }
   }
 }
 /* Declared Markdown is the readable first paint, with its exact authored pre
@@ -742,7 +750,7 @@ main {
 @media screen and (max-width: 640px) {
   :root {
     --lf-page-pad-start: 28px;
-    --lf-page-pad-end: 72px;
+    --lf-page-pad-end: calc(72px + var(--lf-safe-bottom));
   }
 }
 /* Working density: the same faces, set for operating a surface rather than reading
@@ -1005,7 +1013,9 @@ lf-suggestion:has(
   display: block;
   & > :is(lf-old, lf-new) {
     display: block;
-    padding: 2px 10px;
+    /* A framed box that starts or ends the slot, such as an options group, stands
+       clear of the tint's edge (`--lf-clear`) rather than nearly meeting it. */
+    padding: var(--lf-clear) 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
     transition: padding var(--lf-motion-fold) ease;
@@ -1055,10 +1065,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * `reading-regions.js` reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview or a visual review's evidence, marks them with the same
- * role and takes these same rules, so no package keeps a copy of them. They are the
- * kernel's rather than the default package's for that reason: a package's rules name
- * its own widgets, and these reach every package's.
+ * controls beside its preview, marks them with the same role and takes these same
+ * rules, so no package keeps a copy of them. They are the kernel's rather than the
+ * default package's for that reason: a package's rules name its own widgets, and these
+ * reach every package's.
  *
  * The grammar (the rows, and which child stands in which) holds over what a widget
  * declares for itself, such as a board's block margin and minimum width when the board
@@ -1066,8 +1076,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
  * it. The look (frame, paper, padding, the
  * header's font) is a default inside :where(), so a package that draws its generated
- * pane another way, the visual review framing its evidence with the review's own
- * border, does so with one class rather than by outranking the attribute. */
+ * pane another way does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
@@ -1091,11 +1100,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-width: 0;
   --lf-block-frame: 1;
 }
+/* The frame clips to its rounding, so a body, header or footer that paints its own
+ * ground to the pane's edges, as a file tree or an editor does, takes the frame's
+ * corners. Clip, not hidden: a hidden box is a scroll container, which would take the
+ * sticky boxes inside a body that doesn't scroll off the window. */
 :where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
+  overflow: clip;
 }
 :where([data-lf-reading-role="pane"]) > header {
   padding: var(--lf-pane-bar-pad);
@@ -1141,26 +1155,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
   --lf-pane-top: var(--lf-pane-inset);
-  padding: var(--lf-pane-top) var(--lf-pane-inset)
-    calc(var(--lf-pane-inset) + var(--lf-end-room));
-  scroll-padding-block-end: var(--lf-end-room);
+  padding: var(--lf-pane-top) var(--lf-pane-inset) var(--lf-pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
-}
-
-/* Only the last region owns the clearance; a footer already stands below the body. A
- * pane holds one body with its footer after it (module-scroll-and-motion.md, "Reading
- * regions"), so the body ends the pane exactly when no footer follows it. Asked as
- * `:not(:has(> footer))` on the pane, the question made every focus move restyle the
- * whole page in Chromium (test_a_has_leads_only_to_a_subject_naming_an_element). */
-:where([data-lf-reading-role="pane"]) > :not(header, footer):last-child {
-  --lf-end-room: inherit;
-}
-@container not style(--lf-end-room: 0px) {
-  :where([data-lf-reading-role="pane"]) > footer {
-    --lf-end-room: inherit;
-    padding-block-end: calc(var(--lf-pane-bar-pad-block) + var(--lf-end-room));
-  }
 }
 
 /* Board motion carries a compact card label without duplicating its live

@@ -213,9 +213,9 @@ summary from before a compaction, doesn't carry its rules.
   and history; `references/module-state.md` for recorded state, data, authenticated
   HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;
-  `references/module-previews.md` for what an element shows when the user points
-  at it, tabs to it or holds it; `references/module-controls.md` for the controls
-  Leaf builds for a widget;
+  `references/module-previews.md` for the preview Leaf shows of an element the user
+  points at, tabs to or holds; `references/module-controls.md` for the controls a
+  widget builds;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
   `references/module-annotations.md` for margin entries, visual parts and Threads.
 - `references/interface-goals.md`: before writing a widget, package CSS, or page CSS

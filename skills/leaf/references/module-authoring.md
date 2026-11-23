@@ -12,10 +12,10 @@ files beside this one:
   subscriptions, and editing a bound file;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
   presses, and text entry;
-- [module-previews.md](module-previews.md): what an element shows of itself when
-  the user points at it, tabs to it or holds it;
-- [module-controls.md](module-controls.md): the controls Leaf builds for a widget,
-  and marking the words a widget writes into the page;
+- [module-previews.md](module-previews.md): the preview Leaf shows of an element the
+  user points at, tabs to or holds;
+- [module-controls.md](module-controls.md): the controls a widget builds, and marking
+  the words it writes into the page;
 - [module-scroll-and-motion.md](module-scroll-and-motion.md): reading regions,
   scrolling, travel, motion, and notices;
 - [module-annotations.md](module-annotations.md): margin contributions, visual

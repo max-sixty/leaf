@@ -20,7 +20,6 @@ import {
   keeps,
   showNativeLayer,
   closeNativeLayer,
-  isNativeLayer,
   offerAction,
   once,
   says,
@@ -96,7 +95,11 @@ customElements.define(
         if (event.newState === "open" && !this.#pinned) this.#pin(true);
       });
       bubble.addEventListener("toggle", (event) => {
-        if (event.newState === "closed" && this.#pinned && !isNativeLayer(bubble))
+        if (
+          event.newState === "closed" &&
+          this.#pinned &&
+          !bubble.matches(":popover-open")
+        )
           this.#pin(false);
       });
     }
@@ -123,7 +126,7 @@ customElements.define(
 
     #sync() {
       if (!this.#bubble?.isConnected) return;
-      const open = isNativeLayer(this.#bubble);
+      const open = this.#bubble.matches(":popover-open");
       if (this.#pinned && !open) showNativeLayer(this.#bubble);
       else if (!this.#pinned && open) closeNativeLayer(this.#bubble);
     }

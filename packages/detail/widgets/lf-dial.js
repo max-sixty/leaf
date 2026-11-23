@@ -124,7 +124,6 @@ import {
   PAGE_INTERFACE,
   phrasing,
   onPress,
-  plainPress,
   previewChanged,
   PREVIEW_ENDED,
   readingAt,
@@ -158,6 +157,12 @@ const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
+// Whether a press is the primary button with no modifier held, which the dial takes; a
+// modified one keeps its usual meaning.
+/** @param {MouseEvent} event */
+const plainPress = (event) =>
+  event.button === 0 &&
+  !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
 /** @param {Element} heading */

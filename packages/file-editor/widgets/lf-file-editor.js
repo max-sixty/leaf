@@ -78,7 +78,6 @@ import {
   allButCommandReference,
   announce,
   boundFile,
-  describeFailure,
   RequestError,
   closeLayer,
   closeNativeLayer,
@@ -89,7 +88,6 @@ import {
   focused,
   handBack,
   iconTemplate,
-  isNativeLayer,
   LeafElement,
   offered,
   offeredAction,
@@ -429,7 +427,7 @@ customElements.define(
             : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!of.latest && isNativeLayer(choices())) closeNativeLayer(choices());
+        if (!of.latest) closeNativeLayer(choices());
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)
@@ -643,7 +641,9 @@ customElements.define(
             } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
-            of.failure = { kind: "save", message: describeFailure(fault), replace };
+            const message =
+              fault instanceof Error ? fault.message || fault.name : String(fault);
+            of.failure = { kind: "save", message, replace };
             of.owed ||= owedBefore;
           }
         } finally {
@@ -715,7 +715,9 @@ customElements.define(
           of.sent = null;
           of.failure = null;
         } catch (fault) {
-          of.failure = { kind: "read", message: describeFailure(fault) };
+          const message =
+            fault instanceof Error ? fault.message || fault.name : String(fault);
+          of.failure = { kind: "read", message };
         } finally {
           clearTimeout(slow);
           of.loading = false;

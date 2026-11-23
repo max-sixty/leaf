@@ -88,8 +88,6 @@ import {
   alreadyShown,
   generatedElement,
   dragging,
-  cancelAnimation,
-  nextAnimation,
   compoundReadingRegionId,
   registerReadingRegion,
   keepsHidden,
@@ -113,7 +111,6 @@ import {
   registerVisualParts,
   scopedMediaUrl,
   retainUserIntent,
-  scrollBehavior,
   scrollIntoView,
   setChildren,
   showReadingSubject,
@@ -1078,7 +1075,7 @@ export class Trace extends LeafElement {
     if (!this.#playing && !this.#scrubbing) return;
     // A playing film is continuous mechanical motion, outside resting proof.
     // Pausing keeps the playhead where it stands.
-    if (this.#playFrame) cancelAnimation(this.#playFrame);
+    if (this.#playFrame) cancelAnimationFrame(this.#playFrame);
     this.#playFrame = 0;
     this.#playing = false;
     this.#playbackWanted = null;
@@ -1131,7 +1128,7 @@ export class Trace extends LeafElement {
       const waiting = this.#pendingPicture || this.#playbackWanted;
       if (waiting && (!shown || time - shown.timestamp > MAX_LAG)) {
         previousTick = now;
-        this.#playFrame = nextAnimation(tick);
+        this.#playFrame = requestAnimationFrame(tick);
         return;
       }
       time = Math.min(
@@ -1152,9 +1149,9 @@ export class Trace extends LeafElement {
       } else this.#drawTime();
       this.#revealTime("page");
       if (time === end) this.pause();
-      else this.#playFrame = nextAnimation(tick);
+      else this.#playFrame = requestAnimationFrame(tick);
     };
-    this.#playFrame = nextAnimation(tick);
+    this.#playFrame = requestAnimationFrame(tick);
   }
   // Fetch and decode the next captures playback will show.
   #warmed = new Set();
@@ -1464,21 +1461,21 @@ export class Trace extends LeafElement {
     if (!travel) return;
     await this.#pendingPicture?.ready;
     if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
+    const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "instant"
+      : "smooth";
     // A saved element's row stands in the tree's own scroll box, which can hide it
     // inside the window. A nearest landing reveals it there and the tree in the page,
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoView(row, { block: "nearest", behavior: scrollBehavior() });
+      if (row) scrollIntoView(row, { block: "nearest", behavior });
       return;
     }
     // The moment's picture comes to the middle of the window where the user does not
     // already see it whole, as a pane or the floating panel can keep it from them.
     if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
-      scrollIntoView(this.#nodes.stage, {
-        block: "center",
-        behavior: scrollBehavior(),
-      });
+      scrollIntoView(this.#nodes.stage, { block: "center", behavior });
   }
 
   #stream() {

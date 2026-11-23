@@ -190,12 +190,11 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
-    reading = """() => window.__lfWidgetApi().then(
-      motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
-    assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
+    assert not page.evaluate(
+        "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
+    ), "the page loaded under reduced motion, so the change below is none"
 
     page.emulate_media(reduced_motion="reduce")
-    assert page.evaluate(reading) == {"reduced": True, "scroll": "instant"}
     step = page.evaluate(
         "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
@@ -210,7 +209,6 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     ), "the navigation factory kept its load-time motion preference"
 
     page.emulate_media(reduced_motion="no-preference")
-    assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
     # A glide shares a frame the page already asked for (rendering.js), so with none
     # asked for, its frames are the ones held here.
@@ -226,6 +224,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     )
     page.keyboard.press("d")
     assert page.evaluate("() => window.__lfFrames.length") > 0
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
+        "the step landed at once after the user asked for motion again"
+    )
     page.emulate_media(reduced_motion="reduce")
     page.evaluate(
         """() => {

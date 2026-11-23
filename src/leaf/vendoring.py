@@ -157,14 +157,17 @@ def renew_layer(
     (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
     names, and say what still holds the page back, for its agent to act on.
 
-    A plugin update that bumps the page protocol reaches a session once it loads the
-    update (`session_runtime.py` says when), and its
+    A plugin update that bumps the page protocol reaches a session once its hooks
+    run the update (`session-lifetime.md`, "Which Leaf runs a session"), and its
     Leaf then refuses every page the session holds until the agent runs the
     `leaf page init` the refusal names. That init keeps the page's log, and so
     its threads and decisions, its source and its selection, so it asks nothing of
     the agent's judgment, and the first Leaf to act for the page's session makes it
-    instead: a write command naming the page (`cli.page_argument`) or a prompt or
-    Stop hook (`hook_transport.read_plans`). Only the session holding the page renews
+    instead: a write command naming the page (`cli.resolve_dir`), the prompt hook
+    serving the page again (`reconnect`), or a hook that reads the session's pages
+    (`hook_transport.read_plans`), as the prompt and Stop hooks do and a tool
+    boundary does with something to carry or a status check due. A read command
+    leaves the page as it is. Only the session holding the page renews
     it, or any caller while no live session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf

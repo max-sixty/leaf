@@ -356,8 +356,8 @@ QUEUED = Record(
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
         "clerk wrote and each finding it passes on (`clerk`), one for each summary "
         "a summary fork wrote or left to the agent (`summary_fork`), and one for "
-        "each time the session's hooks moved to a copy of Leaf with another skill "
-        "(`hooks.copy_changed`). Each says whether it wakes the session (`wake`): a "
+        "each time the session's hooks moved to a Leaf with another skill "
+        "(`hooks.skill_changed`). Each says whether it wakes the session (`wake`): a "
         "line that tells it of work it now owes wakes it while it is idle, until a "
         "hook has printed the line.",
         object_schema(

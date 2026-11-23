@@ -19,6 +19,7 @@ from render_cases_interaction import (
 from render_cases_layout import solid_png
 from render_cases_navigation import _publish
 from render_harness import (
+    EXAMPLES,
     RELEASE_FOCUS,
     back_gesture,
     clocked,
@@ -4154,3 +4155,36 @@ def test_a_preview_leaves_a_region_the_user_works_in_reachable(
         assert page.evaluate("() => window.pressed") == "region"
     else:
         expect(page.locator("#region")).to_be_focused()
+
+
+def test_a_margin_markers_preview_stands_its_gap_past_the_ring_of_what_it_marks(
+    browser, serve
+):
+    """A decision's margin marker stands just past the decision's edge, and where the
+    window leaves no room beside it, its preview reaches back over the decision. The
+    marker stands for the decision, so the preview stands its gap past the decision's
+    ring rather than on it, where the preview's face would cover the ring."""
+    page = open_page(
+        browser, serve(next(e for e in EXAMPLES if e.stem == "pr-walkthrough"))
+    )
+    resized(page, 1200, 900)
+    marker = page.locator(
+        '[data-lf-margin-for="pr-approval-decision"] .lf-margin-entry'
+    ).first
+    tab_onto(marker)
+    expect(page.locator(PREVIEW)).to_be_visible()
+    rendered(page)
+    seen = page.evaluate(
+        """() => {
+          const group = document.getElementById('pr-approval-decision');
+          const ring = parseFloat(getComputedStyle(group).getPropertyValue('--lf-band-room'));
+          const box = group.getBoundingClientRect();
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          return {
+            across: tip.left < box.right + ring && box.left - ring < tip.right,
+            clear: Math.max(tip.top - (box.bottom + ring), (box.top - ring) - tip.bottom),
+          };
+        }"""
+    )
+    assert seen["across"], f"the preview stands beside the decision: {seen}"
+    assert seen["clear"] == pytest.approx(6, abs=0.5), seen

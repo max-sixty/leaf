@@ -176,9 +176,8 @@ End reach the ends, and a step shows its position in Leaf's panel, such as `Entr
 7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
 runs after a move, and `scroll: false` keeps the page still.
 
-A row whose press carries the user along a list of its own, as a timeline's arrows
-carry a user on its step list to the new step's row, declares `lands(from)` ("Command
-rows") rather than moving focus in its `run`.
+A row whose press carries the user along a list of its own declares `lands(from)`
+("Command rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
@@ -228,6 +227,7 @@ user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
+For a control in a widget's shadow root, that ancestor is the widget.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
@@ -241,13 +241,13 @@ of controls the user moves through with arrow keys offers one Tab stop with
 `rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
-events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
-it with `completed: true`; cancellation, a native context menu, or leaving the document
-calls it with `false`. The function returned by `end` runs when that press is over,
-after any compatibility mouseup and click it owes. Keep press-local work in these
-callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
-presses, and the connection's abort signal ends any work still running when the widget
-disconnects.
+events. `begin(pointerdown, path)`, a passive listener, may return
+`end(event, completed)`: release calls it with `completed: true`; cancellation, a
+native context menu, or leaving the document calls it with `false`. The function `end`
+returns runs when that press is over, after any compatibility mouseup and click it
+owes. Keep press-local work in these callbacks. Register inside `whileConnected`; the
+returned unsubscribe stops new presses, and the connection's abort signal ends work
+still running when the widget disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;

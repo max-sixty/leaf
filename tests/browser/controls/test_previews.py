@@ -2466,6 +2466,40 @@ def test_a_preview_stands_its_gap_past_the_ring_round_a_padded_box_it_fills(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_stands_by_a_target_a_transform_moved(engine, request, serve):
+    """A control in a box a transform moves, as a table granted room is translated into
+    place (layouts.css), previews beside itself in each engine. Firefox leaves an
+    anchor's transforms out of `anchor()`, so the preview's edges are measured from the
+    box Firefox reads (css-anchors.js, `anchorBox`); measured from the box a script
+    reads, the preview stood the translation away from its control."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Moved",
+                '<p><button id="before">Before</button></p>'
+                '<div style="translate: 180px 60px"><p>A moved control: '
+                '<button id="moved" aria-label="Moved name">●</button></p></div>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Moved name")
+    rendered(page)
+    across, below = page.evaluate(
+        """() => {
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          const box = document.getElementById('moved').getBoundingClientRect();
+          return [tip.left - box.left, tip.top - box.bottom];
+        }"""
+    )
+    assert across == pytest.approx(0, abs=1), (across, below)
+    assert 0 < below < 24, (across, below)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in(
     engine, request, serve
 ):

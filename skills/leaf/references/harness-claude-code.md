@@ -54,7 +54,8 @@ or work you set running that no page shows, for you to act on where it still hol
 `turn-end-check.md` is what it asks. That catches what slips; it doesn't ask for you,
 so keep asking by the routes in `conversation-loop.md`, "The On lists". What it writes
 is yours like anything you write: the user's reply reaches you as any reply does, and
-you resolve the thread of one that isn't theirs, as that section says.
+you resolve the thread of one that isn't theirs, as that section says for a question
+that no longer applies.
 
 ## Session list
 

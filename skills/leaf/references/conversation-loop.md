@@ -111,7 +111,7 @@ contract says. From the first handoff on, every turn's final response includes t
 exact page URL; progress messages don't repeat it. An export hands over its file URL,
 and a harness that already shows the page uses its own handoff surface.
 
-When the page's work and conversation are finished, end your side of it with
+When the page's work and conversation are finished, end your side of the page with
 `leaf page close <page>` (`page-checkpoints.md`, "Ending").
 
 A to-do's start ends with the to-do, through `leaf task end` or a
@@ -273,11 +273,11 @@ needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
 When the user answers a question your message asked by another route than the one it
-offered, such as in chat, or in words where it offered a choice, use the answer and,
-once nothing else in the question's thread waits on them, resolve that thread, which
-takes the question off On Me. Resolve it the same
-way once you see the effect of a step you asked for, checking the effect of each step
-you can whenever you read the lists, and when a question no longer applies. Where the
+offered, such as in chat, or in words where it offered a choice, use the answer. If
+nothing else in the question's thread waits on them, resolve the thread, which takes
+the question off On Me. Resolve a thread the same way once you see the effect of a
+step you asked for, checking the effect of each step you can whenever you read the
+lists, and when a question no longer applies. Where the
 thread should say how it ended, such as the answer they gave in chat or what you saw,
 reply there first:
 

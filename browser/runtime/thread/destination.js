@@ -81,6 +81,7 @@ import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
+import { awaitsDrawing } from "../anchor-resolution.js";
 
 /** @typedef {NonNullable<ReturnType<typeof threadNamed>>} ThreadRecord */
 /** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
@@ -92,6 +93,7 @@ import { threadPlace as placementOf } from "./placement.js";
 /** @param {{placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * threadIdsAt: (node: Element) => readonly string[],
  * scrollToThread: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToThread"],
+ * revealThread: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["revealThread"],
  * arrive: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["arrive"],
  * prepareNavigationStep: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
  * preview?: ReturnType<typeof import("../annotation-overlay/margin-projection.js").createMarginProjection>["threadPreview"] | null}} dependencies */
@@ -99,6 +101,7 @@ export function createThreadDestinations({
   placedAt,
   threadIdsAt,
   scrollToThread,
+  revealThread,
   arrive,
   prepareNavigationStep,
   preview = null,
@@ -332,6 +335,21 @@ export function createThreadDestinations({
     // arrival lands there, never on the primary's view (`threadFocusTarget`'s `page`).
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
+      // A thread on a part its widget hasn't drawn, or has drawn where the page doesn't
+      // show it, as in a file the user closed, moves there or gains a seat beside it
+      // once the widget shows the part, so travel has the widget show it before choosing
+      // which of the page's drawings shows the thread (anchor-resolution.js,
+      // `awaitsDrawing`).
+      const anchor = threadNamed(id)?.anchor;
+      const placement = placedAt(id);
+      if (
+        navigationStep &&
+        placement &&
+        (anchor?.datum || anchor?.visual) &&
+        (awaitsDrawing(anchor, placement) || !placeDrawn(id)) &&
+        !(await revealThread(id, intent))
+      )
+        return null;
       // A route to a message is an arrival at it, so a seat holding it back shows it.
       if (part === "message") showHeld(id);
       const openSurface = async () => {

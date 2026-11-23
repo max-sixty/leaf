@@ -35,6 +35,9 @@ const windowBoundary = (left, top, width, height) => {
 const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
+// The element a surface is about, which no sticky box holds, so a scroll of the page
+// carries it the whole way.
+const subject = document.body.appendChild(document.createElement("p"));
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
 const scroller = (scrollTop, height = 3000) => {
   const box = { scrollTop, scrollHeight: height, clientHeight: 850 };
@@ -62,6 +65,7 @@ const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) 
     extent: clear,
     boundary,
     width: 320,
+    element: subject,
     scroller: scroller(scrolled, document),
     coarse,
   });
@@ -119,6 +123,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       room: paragraph,
       boundary,
       row: clear.top,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     };
@@ -172,6 +177,7 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
     clear,
     room: paragraph,
     row: clear.top,
+    element: subject,
     scroller: scroller(1000),
     coarse: false,
   };
@@ -213,6 +219,7 @@ test("beside, clearing a margin row never costs the card width", async () => {
       clear,
       room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
@@ -324,6 +331,7 @@ test("zoom clearance reaches the solver through the floating driver", async () =
       clear,
       room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
@@ -386,7 +394,13 @@ test("a carried surface stands where it was dropped, past the attachment limit",
   ]) {
     const stand = async (moved) => {
       const rule = commentPlacement();
-      const input = { clear, boundary, scroller: scroller(1000), coarse: false };
+      const input = {
+        clear,
+        boundary,
+        element: subject,
+        scroller: scroller(1000),
+        coarse: false,
+      };
       assert.equal(rule.choose(input).side, side);
       rule.adopt({ box: dropped, placement: { ...rule.capture(), moved } });
       const seat = rule.choose(input);
@@ -432,6 +446,7 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
       clear,
       room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
@@ -491,6 +506,7 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
       clear,
       room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
@@ -535,6 +551,7 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
   const seat = card.choose({
     clear: null,
     boundary,
+    element: subject,
     scroller: scroller(1000),
     coarse: false,
   });
@@ -564,6 +581,7 @@ test("a surface starts by its subject right of it, or under words that leave it 
       room: paragraph,
       column,
       boundary,
+      element: subject,
       scroller: scroller(100),
       coarse: false,
     });
@@ -615,6 +633,7 @@ test("chrome beside a card's columns leaves it the window's height", async () =>
       clear,
       room: paragraph,
       boundary: rowed,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });

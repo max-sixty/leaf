@@ -92,11 +92,19 @@
    answers which item a press takes, and the hand over it that a press takes one.
    Derived at the paint from what refreshAim resolved, so cursor and mark cannot
    disagree. The hand stands on the element under the pointer (page-geometry.js), so
-   arming and a crossing restyle only what that element holds. Elsewhere a press takes
+   arming and a crossing restyle only what that element holds. Between the items an item
+   holds, the element under the pointer is the outer item itself, and a press there takes
+   it. That is how a comment takes a large item, such as a whole article, which the
+   maintainer requires. Between a page's sections the item is the article, so arming and
+   a crossing there restyle the whole page. The maintainer accepts that cost against
+   Responsiveness (root `AGENTS.md`), and a cheaper hand is welcome if a press there
+   still takes the article. An arrow there would say a press takes nothing. A hand on a
+   Leaf element under the pointer would cost less, but every reading of what lies under
+   the pointer would then have to look through that element. Elsewhere a press takes
    nothing (claimPress) and the page keeps its own cursor, the I-beam over words no item
    holds: an arrow declared on the body for them would restyle every element each time
-   the page arms or disarms, which can take Firefox over a second on a page of large
-   text documents. A control keeps its own cursor while armed. Only an armed page or
+   the page arms or disarms, which can take Firefox over a second on a page of large text
+   documents. A control keeps its own cursor while armed. Only an armed page or
    Design mode paints the hand, so the rule reads no mark on `body`, whose every change
    makes Firefox visit the whole page. Where the aim's press takes an item on the page,
    it takes it whatever cursor the page gives the item, so the hand covers that cursor,
@@ -316,27 +324,21 @@ html[data-lf-draw-mode] {
     -webkit-user-select: text;
   }
 
-  /* Where a control stands decides its face: in the runtime's furniture a press is a
-     .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
-     this one adds, since it floats over page content rather than the empty rail. */
+  /* A comment box is the frame of the card it becomes, cut to a reply box around its
+     words (response.css): it runs to the card's sides, and over the card's padding past
+     the field the words stand in, which stands where the card's first message will. So
+     its frame (annotation-chrome.css) reserves above it the card's head row and the gap
+     under it, and below it the card's reply row less that padding. */
   :is(.lf-fab-bar, .lf-margin-preview) {
-    --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
-    --lf-comment-frame-top: calc(
-      1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
+    --lf-comment-frame-top: calc(var(--lf-msg-head-height) + var(--lf-msg-body-gap));
+    /* The card's reply row at rest: its field a message's gap under the words
+       (surfaces.css), and its box's band past the field to the card's foot
+       (response.css). The editor's frame reserves the row beneath them, so a box that
+       fills the window becomes a card of the same height. */
+    --lf-comment-reply-row: calc(
+      var(--lf-msg-gap) + var(--lf-compose-h) + var(--lf-thread-pad)
     );
-    /* The card's reply row at rest, its box a message's gap under the words
-       (surfaces.css) and running to the card's foot (annotation-chrome.css). The
-       editor's frame reserves the row beneath them, so a box that fills the window
-       becomes a card of the same height. */
-    --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h) + 2px);
-    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + 1px);
-  }
-  /* Under a mouse the empty reply box is its one row tall (response.css), which comes
-     to the response line with its frame, so the row reserves no frame beyond it. */
-  @media (hover: hover) and (pointer: fine) {
-    :is(.lf-fab-bar, .lf-margin-preview) {
-      --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h));
-    }
+    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) - var(--lf-thread-pad));
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
@@ -1079,9 +1081,11 @@ html[data-lf-draw-mode] {
     background: color-mix(in srgb, var(--lf-accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--lf-accent) 72%, transparent);
   }
-  /* As wide as "99 of 99", so the field keeps its width as the count changes. */
+  /* As wide as "99 of 99", so the field keeps its width as the count changes, and
+     `--lf-clear` before the first step, so a hovered step's face doesn't touch it. */
   .lf-page-search-status {
     inline-size: 7ch;
+    margin-inline-end: var(--lf-clear);
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 1lh;

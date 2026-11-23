@@ -225,7 +225,7 @@ lf-tabs[data-lf-views] > lf-tab {
       --lf-tabstrip-pad: 8px;
       box-sizing: border-box;
       min-block-size: var(--lf-tabstrip-h);
-      border-radius: calc(var(--lf-r) - 1px) calc(var(--lf-r) - 1px) 0 0;
+      border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
       --lf-tabstrip-bg: var(--lf-card);
       background: var(--lf-tabstrip-bg);
       flex-wrap: nowrap;
@@ -350,8 +350,8 @@ lf-tabs[data-lf-views] > lf-tab {
         align-self: stretch;
         background: var(--lf-field);
         border-inline-end: 1px solid var(--lf-border);
-        border-start-start-radius: calc(var(--lf-r) - 1px);
-        border-end-start-radius: calc(var(--lf-r) - 1px);
+        border-start-start-radius: var(--lf-r-in);
+        border-end-start-radius: var(--lf-r-in);
       }
       lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
         background: none;
@@ -546,7 +546,7 @@ lf-tabs[data-lf-views] > lf-tab {
         padding: 8px var(--lf-tabstrip-pad) 0;
         border-inline-end: 0;
         border-bottom: 1px solid var(--lf-border);
-        border-radius: calc(var(--lf-r) - 1px) calc(var(--lf-r) - 1px) 0 0;
+        border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
       }
       lf-tabs[list="side"][data-lf-views]::before,
       lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {

@@ -1,10 +1,11 @@
 /**
- * Promptfoo's setup and teardown for one run. Setup builds the public site, then
- * captures each selected candidate's labelled views and source into its packet and
- * asserts the historical contrast there, so a run whose fixture no longer shows its
- * defect or its repair stops before any model is called. It also seeds the judge's
- * home with the host's Codex login. Teardown retires that seed and counts each
- * column's grades, leaving out what could not be scored.
+ * Promptfoo's setup and teardown for one run. Setup prepares the candidates, then
+ * seeds the judge's home with the host's Codex login. Preparing builds the public
+ * site, captures each selected candidate's labelled views and source into its packet
+ * and asserts the historical contrast there, so a run whose fixture no longer shows
+ * its defect or its repair stops before any model is called; it needs no Codex CLI or
+ * login, so the eval's smoke test runs it alone. Teardown retires the judge's seed and
+ * counts each column's grades, leaving out what could not be scored.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -154,15 +155,21 @@ async function capture(browser, run, test) {
   );
 }
 
-export async function beforeAll({ suite }) {
-  const { metadata } = suite.defaultTest;
-  await stageSite(path.join(metadata.run, "site"));
+/** Stage the site and write every candidate's packet under the run. */
+export async function prepareCandidates(suite) {
+  const { run } = suite.defaultTest.metadata;
+  await stageSite(path.join(run, "site"));
   const browser = await launchChromium();
   try {
-    for (const test of suite.tests) await capture(browser, metadata.run, test);
+    for (const test of suite.tests) await capture(browser, run, test);
   } finally {
     await browser.close();
   }
+}
+
+export async function beforeAll({ suite }) {
+  await prepareCandidates(suite);
+  const { metadata } = suite.defaultTest;
   const login = path.join(
     await mkdtemp(path.join(tmpdir(), "leaf-ui-grader-")),
     ".codex",

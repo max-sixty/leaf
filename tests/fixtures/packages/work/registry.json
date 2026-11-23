@@ -110,12 +110,7 @@
     },
     "owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
     "refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "verbs": {
       "state": {
@@ -151,24 +146,12 @@
         },
         "phase": {
           "type": "string"
-        },
-        "readings": {
-          "type": "string"
         }
       },
       "required": ["id"],
       "additionalProperties": false
     },
-    "content": "members",
-    "refers": {
-      "readings": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "readings"
-        },
-        "owns": true
-      }
-    }
+    "content": "members"
   },
   "lf-test-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
@@ -272,24 +255,7 @@
       },
       "lf-test-roster": {
         "role": "scope"
-      },
-      "lf-test-summary": {
-        "role": "readings"
       }
     }
-  },
-  "lf-test-summary": {
-    "description": "A local exclusive-reference target.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
-    "content": "empty"
   }
 }

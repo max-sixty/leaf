@@ -140,6 +140,8 @@ lf-trace[hidden="until-found"] {
   --lf-trace-capture-h: 14px;
   --lf-trace-mark: color-mix(in srgb, var(--lf-ink) 55%, var(--lf-paper));
   --lf-trace-input: var(--lf-accent);
+  /* The band around the selected mark's name, which reaches past the label holding it. */
+  --lf-trace-word-band: 2px;
   /* The overview, beside the scroller, follows its pan. */
   timeline-scope: --lf-trace-pan;
   position: relative;
@@ -264,7 +266,9 @@ lf-trace[hidden="until-found"] {
   background: var(--lf-trace-input);
   cursor: pointer;
 }
-/* A label sits above its first call's bar, its left edge on that bar's start. */
+/* A label sits above its first call's bar, its left edge on that bar's start. Its
+ * clip, which ends a long name in an ellipsis, leaves the selected name's band whole
+ * (Safari can't widen a clip, so there the band stays cut at the label's edge). */
 .lf-trace-input-label {
   inset-block-start: 3px;
   padding: 2px 4px 2px 0;
@@ -272,7 +276,8 @@ lf-trace[hidden="until-found"] {
   color: var(--lf-ink);
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: var(--lf-trace-word-band);
   text-overflow: ellipsis;
   box-sizing: border-box;
   cursor: pointer;
@@ -338,7 +343,7 @@ lf-trace[hidden="until-found"] {
   border-radius: var(--lf-r-s);
   background: var(--lf-accent);
   color: var(--lf-paper);
-  box-shadow: 0 0 0 2px var(--lf-accent);
+  box-shadow: 0 0 0 var(--lf-trace-word-band) var(--lf-accent);
 }
 /* A moment flag shows its selection on its staff and pill instead. */
 .lf-trace-moment-flag .lf-trace-word[data-lf-current] {
@@ -709,10 +714,6 @@ lf-trace-bookmark {
   flex: 0 0 auto;
   min-inline-size: var(--lf-trace-control-size);
   block-size: var(--lf-trace-control-size);
-}
-/* These adjacent targets keep the shared ring inside their own allocation. */
-.lf-trace-transport-button {
-  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);

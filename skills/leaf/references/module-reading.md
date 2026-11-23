@@ -37,7 +37,7 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`word`), as `lf-visual-review` says "review", else what its element answers
+entry declares (`word`), as `lf-playground-preset` says "preset", else what its element answers
 from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
@@ -60,8 +60,8 @@ link preview counts a thread about any of them.
 ### Reading declarations
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
-widget's entry, each fact under its own name, as `declarationFor(card)?.shows` reads a
-view's `shows`. `matchesWhen(element, when)` says whether the element's attributes
+widget's entry, each fact under its own name, as `declarationFor(element)?.awaits`
+reads a widget's `awaits`. `matchesWhen(element, when)` says whether the element's attributes
 satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
@@ -82,7 +82,12 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn.
+name a datum not yet drawn. Leaf also asks `lfRevealDatum` for the key of a thread on
+the widget as it takes the user to that thread on the page, including a thread made
+on an earlier value of the data. Such a key can name a part that has since changed or gone,
+so open what would hold it, as a diff opens the file an earlier line was in, or return
+`null`. Leaf may ask again for a part that already shows, so leave such a part as it is
+rather than selecting or redrawing it again.
 
 A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
@@ -129,7 +134,11 @@ reads one off the `language-…` class a block of code names it by, on a `<code>
 `<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
 language Leaf doesn't colour, and undefined where no class names one, so only the
 latter takes a default; `langForPath(path)` derives one from a file name, and
-`ensureSyntaxLanguage(lang)` loads one ahead of time. `dressCode(root)` colours
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `syntaxNow(lang)` resolves, once
+the language has loaded, to `{tokenize, declarations}`: `tokenize(source, state)` is
+`syntax` as a synchronous call, for a module that colours text as it lays it out, such
+as an editor's highlighter, and `declarations` lists each `[property, value]` a token's
+`style` can hold, once, for a module that styles tokens by name. `dressCode(root)` colours
 each `pre > code` in `root` whose `language-…` class names a language and that wears
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
@@ -173,13 +182,16 @@ the drawing needs them.
 
 `iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
-symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
-`runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
+symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls"). For a symbol whose action follows its
-state, such as Expand all turning to Collapse all, `nameAction(control, action,
-{label, title, className})` swaps in the new action's symbol and says its name as the
-tooltip and accessible name, unless `label` or `title` says more.
+(`module-authoring.md`, "Generated controls").
+[`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
+The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
+names, each with its symbol and the words its press says. For a symbol whose action
+follows its state, such as Expand all turning to Collapse all,
+`nameAction(control, action, {label, title, className})` swaps in the new action's
+symbol and says its name as the tooltip and accessible name, unless `label` or `title`
+says more.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
 
@@ -296,17 +308,6 @@ Me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
-An element declaring `shows`, such as a board card, is a view of another widget's
-answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
-`shownAnswer(element)` reads it in `render()`, which then redraws with every change to
-that widget's state, and returns `null` where the element shows no answer. Otherwise
-it returns `{owner, value, available, takes, answer}`: the widget, the value its
-answer names now (`null` for none), whether the user can change it, `takes(value)`,
-whether the widget can answer `value` (`null` clears it), and `answer(value, says)`,
-which sends the widget's own command and returns what `dispatch` returns, or `null`
-where the widget can't take `value`. Place the view by `value`, and change it only
-through `answer`, so the view records nothing of its own.
-
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
@@ -319,15 +320,15 @@ through its widget or thread. Act on a collection only when its `phase` is `read
 
 ### Work hierarchies
 
-`readWork(scope)` reads a work hierarchy the page declares within `scope`, such as
-goals and the workers on them, so a widget that counts its children's work reads it here
-rather than from their reports. The page's `$work.widgets` gives tags roles. A `goal`
-names its recorded `state` attribute and lists the values under `done` and `stopped`; a
-`worker` does the same under `running` and `retired`, and may name its assignment
-attribute in `on`. `evidence` marks the element that shows observed data. The result
-lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running` and
-`quiet` workers, each with its authored `element`, and `done` counts finished leaves.
-`workAncestor` reads the same declaration. Atlas in `examples/command-hub.page/` is the worked example.
+`readWork(scope)` reads the work hierarchy within `scope`, such as goals and the
+workers on them, so a widget that counts its children's work reads it here rather than
+from their reports. Leaf owns the work roles, and a package maps its tags onto them in
+`$work.widgets` ([package-data.md, "Work roles"](package-data.md#work-roles)), which
+composition checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals,
+`liveWorkers`, and `running` and `quiet` workers, each with its authored `element`, and
+`done` counts finished leaves. `workAncestor(element, role)` returns the nearest element
+at or above `element` with that role. Atlas in `examples/command-hub.page/` is the
+worked example.
 
 ### Page history and reports
 

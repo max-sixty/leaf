@@ -117,8 +117,6 @@ import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
-import { pressCommand } from "./keyboard/dispatch.js";
-import { commandKeysNow } from "./keyboard/control-keys.js";
 import { signal } from "./framework.js";
 import { takesNoWords } from "./composing/input.js";
 
@@ -640,8 +638,7 @@ export function noticeDraftKept() {
 /** @type {import("./notifications.js").NoticePress} */
 const RESUME_WRITING = {
   action: "resume-writing",
-  keys: () => commandKeysNow("writing.resume"),
-  run: () => pressCommand("writing.resume"),
+  command: "writing.resume",
   stands: () => writingPlace !== null,
 };
 

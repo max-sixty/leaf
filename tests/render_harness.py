@@ -100,6 +100,7 @@ from leaf_dev.browser import (
     scroll_settled,
     slow_cpu,
     threads_tab,
+    unfold,
 )
 from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
@@ -205,7 +206,7 @@ PASSAGE_SOURCES = (
     FEATURE_GALLERY,
     named_source("pr-walkthrough"),
     named_source("ship-review"),
-    named_source("visual-review-gallery"),
+    named_source("review-parts"),
 )
 
 ANCHOR_SOURCES = (
@@ -1002,6 +1003,12 @@ def cursor_over(page, locator):
     locator.hover()
     box = locator.bounding_box()
     return cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+
+def comparison_view(url):
+    """Whether `url` is a comparison's own `/api/view` request, which names the revision
+    it is shown on (`shown=`); Versions' counts of changes ask without it."""
+    return "/api/view?" in url and "shown=" in url
 
 
 def holding(page, held, count, what):
@@ -2084,7 +2091,7 @@ def stance_exit(page):
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
-    than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
+    than the latest and no other press stands there (floating-panel.js, `OPEN_LATEST`)."""
     return field_press(page).filter(has_text="Open latest")
 
 
@@ -2355,9 +2362,7 @@ def page_comment(page):
     field becoming its reply, so this puts an open view away first, and unfolds a panel
     folded to the leaf."""
     host = page.locator(PANEL)
-    if host.get_attribute("data-lf-rest") == "mark":
-        page.locator(".lf-fp-leaf").click()
-        expect(host).to_have_attribute("data-lf-rest", "row")
+    unfold(page)
     if host.get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
@@ -3509,6 +3514,20 @@ def select_words(page, passage):
     locator.click(click_count=3, position={"x": x, "y": y})
 
 
+# The browser's speech recognizer, replaced at its boundary as tests/runtime's
+# dictation tests replace it: each instance records whether it was aborted, and a
+# test hears words through its `onresult`.
+FAKE_RECOGNITION = """
+window.lfRecognizers = [];
+window.SpeechRecognition = class {
+  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
+  start() { setTimeout(() => this.onstart?.()); }
+  stop() { setTimeout(() => this.onend?.()); }
+  abort() { this.aborted = true; }
+};
+"""
+
+
 def write(box, text):
     """Replace a text box's words the way typing them would, as `fill` does.
 
@@ -3538,7 +3557,7 @@ def compare_with(page, version=None):
         versions.locator(".lf-fp-compare").first
         if version is None
         else versions.get_by_role(
-            "button", name=re.compile(rf"^Compare with v{version}( |$)")
+            "button", name=re.compile(rf"\bCompare with v{version}( |,|$)")
         )
     )
     press.click()

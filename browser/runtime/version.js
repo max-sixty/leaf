@@ -123,8 +123,8 @@ import {
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
-import { handingBackPlace, savedReadingSettled, spell } from "./keyboard/bindings.js";
-import { commandKeysNow, commandSteps } from "./keyboard/control-keys.js";
+import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
+import { commandSteps } from "./keyboard/control-keys.js";
 import { letHeldKeysGo } from "./keyboard/controller.js";
 import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
@@ -190,8 +190,16 @@ import {
   reloadDocument,
   reportPageError,
 } from "./layer-client.js";
-import { projectDocument, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/runtime/framework.js";
+import { projectDocument, readApplication, readPart } from "./semantic-state.js";
+import {
+  AsyncDirective,
+  batch,
+  directive,
+  effect,
+  nothing,
+  signal,
+  untracked,
+} from "/runtime/framework.js";
 
 import {
   ADDRESSABLE,
@@ -446,6 +454,112 @@ const parenthesized = (roles) => {
   return said.length ? ` (${said.join(", ")})` : "";
 };
 
+// How many changes stand since each version older than the one being read, which
+// Versions says on its Compare: what a comparison with it would mark (`changesSince`).
+// A count reads the revision being read and the widgets' state, so it stands while
+// both do; the publisher keeps the widgets' state the same object while it holds.
+// While Versions is open it counts the missing ones among the versions whose Compare
+// shows in the window (`countWhenShown`), newest first and one at a time. A count
+// fetches its version and compares the whole page, so what opening Versions, a pick or
+// a stamp sets off follows the rows on screen, not how many versions the session has
+// stamped (AGENTS.md, "Responsiveness"). Closing Versions or the page moving on leaves
+// at most one count half done. Rejected: counting the rows near the window as
+// `nearObserver` reads it (geometry.js), whose 600px past each edge of a scroller suits
+// layout work; for counts, each pick would also fetch and compare those 600px of rows.
+const widgetStates = readPart((root) => root.effective.widgets);
+const versionCounts = signal(
+  /** @type {{revision: number | null, widgets: unknown, counts: ReadonlyMap<number, number>}} */ ({
+    revision: null,
+    widgets: null,
+    counts: new Map(),
+  }),
+);
+/** How many changes a comparison with the version at `revision` would mark, or null
+ * until Versions has counted them for the page as it stands.
+ * @param {number} revision */
+export const changesCounted = (revision) => {
+  const at = versionCounts.value;
+  return at.revision === runtime.currentRevision && at.widgets === widgetStates()
+    ? (at.counts.get(revision) ?? null)
+    : null;
+};
+/** The versions whose Compare shows in the window, by revision.
+ * @type {Set<number>} */
+const countsShown = new Set();
+/** @type {WeakMap<Element, number>} */
+const shownRevision = new WeakMap();
+// Wakes Versions' counting for the page as it stands when a row comes into view; it
+// does nothing while Versions is closed.
+let countShown = () => {};
+/** @type {IntersectionObserver | undefined} */
+let showing;
+const watchShowing = () =>
+  (showing ??= new IntersectionObserver((entries) => {
+    for (const { target, isIntersecting } of entries) {
+      const revision = shownRevision.get(target);
+      if (revision === undefined) continue;
+      if (isIntersecting) countsShown.add(revision);
+      else countsShown.delete(revision);
+    }
+    countShown();
+  }));
+/** `<button ${countWhenShown(revision)}>`: while Versions is open, it counts the
+ * changes since the version at `revision` once this element shows in the window. */
+export const countWhenShown = directive(
+  class extends AsyncDirective {
+    /** @type {Element | null} */
+    node = null;
+    /** @param {number} revision */
+    render(revision) {
+      return nothing;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[number]} args */
+    update(part, [revision]) {
+      if (this.node !== part.element) {
+        this.node = part.element;
+        watchShowing().observe(this.node);
+      }
+      shownRevision.set(this.node, revision);
+      return nothing;
+    }
+    disconnected() {
+      if (!this.node) return;
+      showing?.unobserve(this.node);
+      const revision = shownRevision.get(this.node);
+      if (revision !== undefined) countsShown.delete(revision);
+    }
+    reconnected() {
+      if (this.node) watchShowing().observe(this.node);
+    }
+  },
+);
+/** @param {number} revision @param {unknown} widgets @param {() => boolean} open */
+async function countVersions(revision, widgets, open) {
+  const counts = () => {
+    const at = versionCounts.peek();
+    return at.revision === revision && at.widgets === widgets ? at.counts : new Map();
+  };
+  // A version whose count fails keeps Compare's word, and the others still count.
+  /** @type {Set<number>} */
+  const failed = new Set();
+  while (open()) {
+    const entry = runtime.versions.findLast(
+      ({ revision: at }) =>
+        countsShown.has(at) && comparable(at) && !counts().has(at) && !failed.has(at),
+    );
+    if (!entry) return;
+    const n = await changesSince(revisionBase(entry), open).catch(() => null);
+    if (!open()) return;
+    if (n === null) failed.add(entry.revision);
+    else
+      versionCounts.value = {
+        revision,
+        widgets,
+        counts: new Map(counts()).set(entry.revision, n),
+      };
+  }
+}
+
 /** @typedef {{revision: number, version: number | null, name: string, note: string | null, current: boolean, active: boolean, comparable: boolean}} VersionRow */
 /** @param {import("../types/contract.js").ServedState} state
  * @param {Readonly<Record<string, string>>} notes @param {NonNullable<typeof runtime.active>} active */
@@ -521,18 +635,19 @@ function pickerModel(state) {
       // The base's revision, which each row of the menu names it by.
       base: selectedBase()?.revision ?? null,
       on: diffOn.value,
-      // The version Versions offers to compare with, which it opens at: the base, else
-      // the version the user last saw while the page has changed since, else the newest
-      // version older than the one being read; null where none is older.
-      offered:
-        (
-          selectedBase() ??
-          seenBase() ??
-          runtime.versions.findLast((entry) => comparable(entry.revision))
-        )?.revision ?? null,
+      offered: offeredVersion(),
     }),
   });
 }
+// The version Versions offers to compare with, which it opens at: the base, else the
+// version the user last saw while the page has changed since, else the newest version
+// older than the one being read; null where none is older.
+export const offeredVersion = () =>
+  (
+    selectedBase() ??
+    seenBase() ??
+    runtime.versions.findLast((entry) => comparable(entry.revision))
+  )?.revision ?? null;
 
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
@@ -552,22 +667,9 @@ function paintPicker() {
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
 export const versionsReading = () => pickerModel(runtime.state);
-// Versions' own keys that other surfaces wear after Versions' keys: the one that
-// compares the version the user stands on, as its Compare does, and the one that opens
-// the latest version (floating-panel.js, `compareRow` and `latestRow`).
-export const COMPARE_KEY = "v";
-export const LATEST_KEY = "l";
 // Whether Versions stands open, as the floating panel says (`createVersionController`).
 let versionsStand = () => false;
-/** The keys that would make a press of one of Versions' own keys now: Versions' keys,
- * then that key, as `g V v`. None while Versions stands, where `g V` would put it away
- * and its rows are in front of the user, or where no key would open it.
- * @param {string} key */
-export const throughVersions = (key) => {
-  if (versionsStand()) return [];
-  const opening = commandKeysNow("version.open");
-  return opening.length ? [...opening, spell(key)] : [];
-};
+export const versionsShown = () => versionsStand();
 // Versions, a list of the floating panel's own, and a newer page to open, as rows of the
 // page's controls.
 registerPageControl({
@@ -1560,9 +1662,7 @@ export async function showComparison(base) {
   // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
-    n
-      ? `${counted(n, "change")} since ${base.name}`
-      : `No text changes since ${base.name}`,
+    n ? `${counted(n, "change")} since ${base.name}` : `No changes since ${base.name}`,
     { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
@@ -1594,15 +1694,19 @@ async function loadBase(base, wanted, shown = null) {
     return { doc, baseDocument, baseAuthored, savedAfter };
   }
 }
-/** How many changes a comparison with `base` would mark, read without marking any, or
- * null where the revision being read moved on meanwhile.
- * @param {ComparisonBase} base */
-export async function changesSince(base) {
-  const revision = runtime.currentRevision;
-  const wanted = () => runtime.currentRevision === revision;
-  const loaded = await loadBase(base, wanted);
-  if (!loaded || !wanted()) return null;
-  return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
+/** How many changes a comparison with `base` would mark, read without marking any, for
+ * the revision being read when the count is in; null once `wanted` says it is moot.
+ * @param {ComparisonBase} base @param {() => boolean} wanted */
+export async function changesSince(base, wanted) {
+  while (wanted()) {
+    const revision = runtime.currentRevision;
+    const current = () => wanted() && runtime.currentRevision === revision;
+    const loaded = await loadBase(base, current);
+    if (loaded && current())
+      return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes
+        .length;
+  }
+  return null;
 }
 // A press that ends a comparison says so, as `g H` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count; the page
@@ -1704,7 +1808,7 @@ function revisionDocument(revision) {
  *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => Promise<boolean>,
  *   captureObligationCurrentLocation: () => ObligationLocation,
  *   restoreObligationCurrentLocation: (currentLocation: ObligationLocation | null) => void,
- *   versions: { press: () => void, shows: () => boolean },
+ *   versions: { press: () => void, shows: () => boolean, scope: import("./keyboard/bindings.js").Scope },
  * }} controller */
 export function createVersionController({
   initialDocument,
@@ -1743,8 +1847,9 @@ export function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    title: "versions",
+    title: () => (versions.shows() ? "close Versions" : "Versions"),
     run: () => versions.press(),
+    opens: () => versions.scope,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
@@ -2458,8 +2563,8 @@ export function createVersionController({
       restorePlace(view.page, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a visual review's
-    // capture does in a document page: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a shot's capture
+    // stage does in a document page: the page keeps its own place beside the region's.
     if (
       view.page &&
       !restored.has(pageScroller) &&
@@ -3256,6 +3361,30 @@ export function createVersionController({
       latest: goActive,
     });
     effect(paintPicker);
+    // Versions counts while it is open, for the page as it stands: a revision landing
+    // or a widget's state moving stops the counting under way and starts the next, and
+    // a row coming into view wakes it once it has counted those already in view.
+    effect(() => {
+      if (!versions.shows()) return;
+      const revision = runtime.currentRevision;
+      const widgets = widgetStates();
+      if (revision === null) return;
+      let open = true;
+      let counting = false;
+      const wake = () => {
+        if (counting) return;
+        counting = true;
+        void countVersions(revision, widgets, () => open).finally(() => {
+          counting = false;
+        });
+      };
+      countShown = wake;
+      untracked(wake);
+      return () => {
+        open = false;
+        countShown = () => {};
+      };
+    });
   }
 
   return {

@@ -79,6 +79,11 @@ otherwise it waits until the growth is out of view or the reading is interrupted
 The returned function cancels the pending change. When a user's own gesture requests
 that change, cancel the hold and apply the change in that gesture.
 
+To end a wait of your own once an element's growth would move nothing the user sees,
+call `whenNone([element], growthIsSeen, leave)`: it calls `leave` once that holds for
+every element, and again each time it holds after it stopped holding, and returns the
+step that stops watching.
+
 When a widget redraws or resizes content where the user is reading, the browser's
 scroll anchoring keeps their place: don't restore `scrollTop` or set
 `overflow-anchor: none`. Redraw by keeping the nodes the change leaves as they were,
@@ -119,9 +124,17 @@ it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
-inside a live sample. Use it only for a deliberate move; focusing a visible control or
-redrawing keeps the scroll.
+it is, pass that box as `within`: the box places the item at `block` with `behavior`,
+as a reading region does, and the boxes inside it reveal it nearest at once. Unlike
+native `Element.scrollIntoView`, it stays inside a live sample. Use it only for a
+deliberate move; focusing a visible control or redrawing keeps the scroll.
+
+`scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
+to the page's `document.scrollingElement`. A widget that keeps something in view as
+another widget moves, as `lf-code` keeps the line a film runs, passes the first as
+`within` unless it is the page, so the page stays where the reader left it. It,
+`alreadyShown` and `onUserInput` ([module-input.md](module-input.md)), which says when
+the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
@@ -222,11 +235,13 @@ the browser's find-in-page does: it opens each closed `<details>` holding it, an
 `beforematch` at each element holding it that is `hidden="until-found"`, then removes
 that attribute. It also opens a closed popover holding the target. A widget that folds
 content hides it with `hidden="until-found"` and opens it on `beforematch`, as `lf-tabs`
-does for a panel, so the browser's find reaches it too. A widget that switches view sets
+does for a panel, so the browser's find reaches it too; print shows it open. Take a
+folded element that is itself a Tab stop out of the Tab order, since the fold hides
+only what it holds. A widget that switches view sets
 `hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
 handler returns; Leaf reads that as a replaced view and places the target at once rather
 than scrolling from the old view's reading position. A widget that keeps the box of
-what it hides, as `lf-visual-review` stacks its cases in one cell, may set
+what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view

@@ -281,7 +281,7 @@ def test_a_prompt_restarts_a_server_another_installed_copy_started(
     runtime = {**serving["runtime"], "path": str(older), "commit": older.name}
     service = read_record(claimed / "service.json")
     write_record(claimed / "service.json", {**service, "runtime": runtime})
-    for module in (reconnect_model, layer_model):
+    for module in (reconnect_model, server_model, layer_model):
         monkeypatch.setattr(module, "PLUGIN_ROOT", newer)
     capsys.readouterr()
 

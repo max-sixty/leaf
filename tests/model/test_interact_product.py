@@ -359,39 +359,19 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     assert markup_findings(first, registry) == []
 
 
-def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
-    """An existing id is insufficient when a typed reference names the wrong role."""
+def test_a_worker_is_assigned_only_to_a_goal(page_dir):
+    """The work reading assigns a worker only to the goal its `on` names, so an id of
+    an element with another role is refused, while a goal's passes."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-test-plan id="hub" readings="goal">'
+        '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-test-worker id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
-        "</lf-test-worker></lf-test-task></lf-test-plan>"
-    )
-
-    errors = reference_errors(
-        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
-    )
-
-    assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
-        ("reference-contract", "$work.widgets", {"role": "readings"}),
-        ("reference-contract", "$work.widgets", {"role": "goal"}),
-    ]
-
-
-def test_a_readings_seat_answers_to_one_command(page_dir):
-    """A command fills the seat it names, so each seat in a document is named by
-    exactly one command: a second command naming it is refused, and so is a seat no
-    command names, while each command naming its own seat passes."""
-    registry = registry_storage.load_registry(page_dir)
-    parser = SourceDocument(
-        '<lf-test-plan id="one" readings="seat"></lf-test-plan>'
-        '<lf-test-plan id="two" readings="seat"></lf-test-plan>'
-        '<lf-test-plan id="three" readings="other"></lf-test-plan>'
-        '<lf-test-summary id="seat"></lf-test-summary>'
-        '<lf-test-summary id="other"></lf-test-summary>'
-        '<lf-test-summary id="orphan"></lf-test-summary>'
+        "</lf-test-worker>"
+        '<lf-test-worker id="assigned" state="working" on="goal">'
+        "<strong>Assigned</strong></lf-test-worker>"
+        "</lf-test-task></lf-test-plan>"
     )
 
     errors = reference_errors(
@@ -400,21 +380,10 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
 
     assert errors == [
         Finding(
-            "owned-twice",
-            "<lf-test-plan>",
-            {
-                "line": 1,
-                "attr": "readings",
-                "target": "seat",
-                "first": "<lf-test-plan id=one>",
-                "first_line": 1,
-            },
-        ),
-        Finding(
-            "unowned",
-            "<lf-test-summary>",
-            {"line": 1, "referrer": "lf-test-plan", "attr": "readings"},
-        ),
+            "work-assignment",
+            "<lf-test-worker>",
+            {"line": 1, "attr": "on", "target": "tree", "target_tag": "lf-test-tree"},
+        )
     ]
 
 
@@ -590,13 +559,13 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     assert refused("hidden") == [("attribute-schema", "additionalProperties", [])]
 
 
-def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
-    """An attribute a member declares unique within its owner (`unique`), such as a
-    playground preset's `for`, refuses a repeat in the same owner, and a preset carries
-    the id a comment on it records, since without one the comment lands on the whole
-    playground. Both doors refuse a break before any browser draws it: message markup,
-    where a reply's playground otherwise reaches the user with only a static check, and
-    the page's own source."""
+def test_a_message_refuses_a_playground_preset_without_an_id(
+    tmp_path, initialized_page
+):
+    """A preset carries the id a comment on it records, since without one the comment
+    lands on the whole playground. Message markup refuses a preset without one before
+    any browser draws it, where a reply's playground otherwise reaches the user with
+    only a static check."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(preset):
@@ -608,14 +577,11 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
             "</lf-playground></lf-group>"
         )
 
-    def preset(*names, ident=' id="preset-loud"'):
+    def preset(ident):
         return (
             f'<lf-playground-preset{ident} label="Loud">'
-            + "".join(
-                f'<lf-playground-setting for="{name}" value="4"></lf-playground-setting>'
-                for name in names
-            )
-            + "</lf-playground-preset>"
+            '<lf-playground-setting for="size" value="4"></lf-playground-setting>'
+            "</lf-playground-preset>"
         )
 
     def reply(markup):
@@ -633,32 +599,12 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
             return refused.findings
         return []
 
-    assert reply(playground(preset("size"))) == []
+    assert reply(playground(preset(' id="preset-loud"'))) == []
     assert found(
-        reply(playground(preset("size", "size"))),
-        "repeated-key",
-        "<lf-playground-setting>",
-        key="for",
-        value="size",
-    )
-    assert found(
-        reply(playground(preset("size", ident=""))),
+        reply(playground(preset(""))),
         "attribute-schema",
         "<lf-playground-preset>",
         keyword="required",
-    )
-    (page_dir / "index.html").write_text(
-        re.sub(
-            r"<main>.*?</main>",
-            f"<main>{playground(preset('size', 'size'))}</main>",
-            PAGE,
-            flags=re.DOTALL,
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "repeated-key", "<lf-playground-setting>", key="for", value="size"
     )
 
 
@@ -682,13 +628,12 @@ def test_a_message_admits_an_option_that_leads_with_a_strong_and_no_label(page_d
     ]
 
 
-def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never enters the log, nor
-    does a command naming the page's seat, which it would fill from another document."""
+def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
+    """A worker in reply markup may work on a goal on the page beside it, and one
+    naming a page element that isn't a goal never enters the log."""
     subjects = (
-        '<lf-test-plan id="hub" readings="seat"><lf-test-task id="goal" status="active">'
+        '<lf-test-plan id="hub"><lf-test-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"
-        '<lf-test-summary id="seat"></lf-test-summary>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -698,7 +643,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
 
-    def reply(markup):
+    def reply(on):
         return CliRunner().invoke(
             cli_model.cli,
             [
@@ -707,23 +652,19 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
                 "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
-                f"Choose:\n\n{markup}",
+                "Assigned:\n\n"
+                f'<lf-test-plan id="quoted"><lf-test-worker id="quoted-worker"'
+                f' state="working" on="{on}"><strong>Worker</strong>'
+                "</lf-test-worker></lf-test-plan>",
             ],
         )
 
-    swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
-    assert swapped.exit_code != 0
-    assert 'where role="readings"' in words(swapped.output)
+    misassigned = reply("tree")
+    assert misassigned.exit_code != 0
+    assert 'on="tree" must name a goal' in words(misassigned.output)
 
-    borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
-    assert borrowed.exit_code != 0
-    assert "outside its own document" in borrowed.output
-
-    valid = reply(
-        '<lf-test-plan id="quoted" readings="quoted-seat"></lf-test-plan>'
-        '<lf-test-summary id="quoted-seat"></lf-test-summary>'
-    )
-    assert valid.exit_code == 0, valid.output
+    assigned = reply("goal")
+    assert assigned.exit_code == 0, assigned.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):

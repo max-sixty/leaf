@@ -148,21 +148,6 @@ load, until a resize; `lf-options.js` reads computed style only when a surface
 shows an option's consequence for that reason. The test's `firefox_browser` case
 catches a render that splits the row's first layout again.
 
-### A restyle skipped under a nested container in Chromium
-
-Playwright Chromium 153.0.8010.12 left the visual review's case buttons in the
-wide layout's padding (`14px 4px`, not `10px 8px`) when the window crossed the
-review's 58rem container query, while the case list between them was an
-inline-size container, as the theme makes a pane's body. On 2026-10-25,
-narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
-crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/defaults.css` declares `container-type: normal`,
-since nothing in the list queries it. Recheck by deleting that declaration,
-narrowing the page with `leaf-dev probe` and reading a case button's computed
-padding; `test_page_fixture_renders[visual-review-gallery]` in
-`tests/journeys/test_render_gate.py` reads the same difference in its resize
-journey.
-
 ### A recomputed length less a percentage counts as a change in Chromium
 
 Playwright Chromium 158.0.8127.18 (build 1254) counted an inheriting registered
@@ -627,7 +612,9 @@ opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chro
 its frame shows, except that a block's page counts until it arrives or a deadline
 passes, since its arrival sets the frame's height (`browser/runtime/sample.js`), and
 `page check --render` scrolls each frame still waiting into view
-(`src/leaf/render_checks.py`, `start_near_work`). Recheck with
+(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+holds the page's presentation, or the jump that showed it, only while they still see
+its frame (`packages/default/widgets/lf-sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
@@ -883,8 +870,8 @@ milestone, blocked on bugs 2055371, 2057633 and 2060883.
 
 `anchorBox` in `browser/runtime/css-anchors.js` measures that laid-out box from
 offsets wherever `anchorDropsTransforms()` finds the engine drops transforms, so
-pins, rows, key chips, the design label and floating cards stand on a widened
-table (translated) and on a reveal.js slide (translated and scaled), and the
+pins, rows, key chips, the design label, floating cards and previews stand on a
+widened table (translated) and on a reveal.js slide (translated and scaled), and the
 block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
 size difference to their far edges. An engine that keeps transforms, the
 Nightly pref included, fails that check, and none of this runs. Offsets are

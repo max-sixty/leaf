@@ -23,11 +23,11 @@
  * Reset starts the child. The browser's Find searches only the children that have
  * started. A frame the reader sees as it mounts starts at once, and the containing
  * page presents before it unless the frame's resize on arrival would move what the
- * reader sees then. The sample's arrival is its child's, which the host counts
- * (sample.js); a frame waiting to start counts until the browser's first reading of
- * it has said whether it starts (`whenNear`). A resize of a child the reader did not
- * ask to load, one that started near the window but out of their
- * sight, waits while it would move what they see, the frame keeping its current
+ * reader sees, waiting only while it still would. The sample's arrival is its child's,
+ * which the host counts (sample.js); a frame waiting to start counts until the
+ * browser's first reading of it has said whether it starts (`whenNear`). A resize of
+ * a child the reader did not ask to load, one that started near the window but out of
+ * their sight, waits while it would move what they see, the frame keeping its current
  * height (`heldGrowth`), until they look away, or until they click, type or press a
  * key inside the child, which makes every later resize of that document theirs,
  * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
@@ -68,6 +68,7 @@ import {
   handBack,
   heldGrowth,
   whenNear,
+  whenNone,
 } from "/runtime/widget-api.js";
 
 export class Sample extends HTMLElement {
@@ -274,11 +275,33 @@ export class Sample extends HTMLElement {
     const following = this.#track(ready);
     this.#starting.resolve(following);
     const shown = following.catch(() => {});
-    if (present) widgetController(this).present(shown);
     /** @type {PromiseWithResolvers<void>} */
     const { promise: fitted, resolve: fit } = Promise.withResolvers();
     this.#fitted = fit;
-    return Promise.race([fitted, shown]);
+    const landing = Promise.race([fitted, shown]);
+    if (!asked) return landing;
+    // What the reader asked with, the page's presentation or the gesture that brought
+    // the frame near, waits for the frame only while they see it: once they look away
+    // its fit moves nothing they see. In Chromium a child whose arrival waits on a
+    // rendering gets none while its frame is off screen (notes/browser-support.md, "A
+    // sample's page out of view in Chromium"), so without that end a reader who
+    // scrolled past the frame as it loaded would hold the page until they came back.
+    const away = this.#lookAway(landing);
+    if (present) widgetController(this).present(Promise.race([shown, away]));
+    return Promise.race([landing, away]);
+  }
+
+  // Resolves once the reader looks away from the frame before `landing`, its first fit
+  // to its child.
+  /** @param {Promise<unknown>} landing @returns {Promise<void>} */
+  #lookAway(landing) {
+    return new Promise((resolve) => {
+      const stop = whenNone([this.#frame], growthIsSeen, () => {
+        stop();
+        resolve();
+      });
+      landing.then(stop);
+    });
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded

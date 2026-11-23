@@ -3759,6 +3759,30 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
     ], findings
 
 
+def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
+    """A box turned a quarter shows across what it holds down, so what it clips to is
+    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    whole are not clipped out, and words held past its foot are."""
+    source = leaf_page(
+        "Turned column",
+        """<h1>Turned column</h1>
+<div id="turned"><p id="whole">Words the turned box shows whole.</p>
+<p id="cut">Words past its foot.</p></div>""",
+        head="""<style>
+#turned { box-sizing: content-box; width: 100px; height: 400px; border: 10px solid;
+  overflow: hidden; rotate: 90deg; margin: -140px auto; }
+#turned p { margin: 0; }
+#turned #cut { margin-top: 360px; }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted((finding["code"], finding["at"]) for finding in findings) == [
+        ("clipped-content", "<div id=turned>"),
+        ("clipped-out", "<p id=cut>"),
+    ], findings
+
+
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
     sized past the actual page edge remain render-gate findings: each is past the

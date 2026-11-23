@@ -185,11 +185,14 @@ export async function replyDestination(
 
 // The thread itself, for a user whose node has no like where it now stands. Another
 // owner that put them on a drawn node meanwhile, as a list keeping its rows does, has
-// placed them already.
-/** @param {string} id @param {OpenThread} open @param {UserIntent} may */
-async function threadDestination(id, open, may) {
+// placed them already, and a travel taking them to the thread lands them itself
+// (anchor-travel.js, `travellingTo`), as when a press on a closed file's marker opens
+// the file and the thread leaves the marker for a seat beside its line.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} may
+ * @param {(id: string) => boolean} travellingTo */
+async function threadDestination(id, open, may, travellingTo) {
   const at = focused();
-  if (at && at !== document.body && drawn(at)) return null;
+  if (travellingTo(id) || (at && at !== document.body && drawn(at))) return null;
   const shown = await open(id, { part: "thread", intent: may });
   return shown instanceof Element && focused() === shown && may() ? shown : null;
 }
@@ -212,8 +215,8 @@ export const carryingThreadPlace = (node) => {
   );
 };
 /** @param {OpenThread} open
- * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean}} placement */
-export function holdThreadPlace(open, { threadAt, seated }) {
+ * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean, travellingTo: (id: string) => boolean}} placement */
+export function holdThreadPlace(open, { threadAt, seated, travellingTo }) {
   carrying = null;
   const held = holdCurrentLocation();
   const node = held?.node;
@@ -245,7 +248,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
         carried.add(node);
         const control = destination
           ? await replyDestination(id, open, intent, { destination })
-          : await threadDestination(id, open, may);
+          : await threadDestination(id, open, may, travellingTo);
         // The row itself came along (replies.js), so it is the user's box still.
         if (control === node) carried.delete(node);
         return control;

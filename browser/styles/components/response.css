@@ -378,18 +378,10 @@ leaf-composition-field {
    side of the shelf, which is its foot wherever it stands above the field; a surface
    that hangs its shelf below the field aligns them to its top. A surface whose ground
    is not the paper sets the ground and ring its pictures meet it with. */
-/* How far a picture's corner marks stand out past it, in a draft's shelf and on a
-   rewrite's pictures alike. */
-.lf-composer-media,
-.lf-msg-media {
-  --lf-media-mark-overhang: 6px;
-}
 .lf-composer-media {
   --lf-media-room: max(
     calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur)),
-    calc(
-      var(--lf-media-mark-overhang) + (var(--lf-aim-floor) - var(--lf-mark-size)) / 2
-    )
+    calc(var(--lf-mark-overhang) + (var(--lf-aim-floor) - var(--lf-mark-size)) / 2)
   );
   /* A surface that places its shelf by a field rather than by its own edge adds
      `--lf-focus-ring-w` to `--lf-media-gap` (tokens.css), since the ring the field
@@ -403,7 +395,7 @@ leaf-composition-field {
   padding: var(--lf-media-room);
   /* In flow, the pictures stand far enough into their row to keep the corner mark
      inside it, and their gap clear of the field that follows. */
-  margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room))
+  margin: calc(var(--lf-mark-overhang) - var(--lf-media-room))
     calc(-1 * var(--lf-media-room))
     calc(var(--lf-media-gap) + var(--lf-focus-ring-w) - var(--lf-media-room));
   box-sizing: border-box;
@@ -414,7 +406,7 @@ leaf-composition-field {
    below the shelf. */
 .lf-composer-media-item {
   --lf-media-mark-reach: calc(
-    var(--lf-mark-size) - var(--lf-media-mark-overhang) +
+    var(--lf-mark-size) - var(--lf-mark-overhang) +
       (var(--lf-aim-floor) - var(--lf-mark-size)) / 2
   );
   position: relative;
@@ -462,11 +454,11 @@ leaf-composition-field {
    stands over the box's carry band (`.lf-surface-grip`), which its reach can cross, so
    the press is the mark's. */
 .lf-composer-media-item > [data-lf-corner] {
-  inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
-  inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
+  inset-block-start: calc(-1 * var(--lf-mark-overhang));
+  inset-inline-end: calc(-1 * var(--lf-mark-overhang));
 }
 .lf-composer-media-item > .lf-composer-drawing-undo {
-  inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
+  inset-inline: calc(-1 * var(--lf-mark-overhang)) auto;
 }
 @media (hover: hover) {
   .lf-composer-media-item:not(:hover, :focus-within) > [data-lf-corner] {

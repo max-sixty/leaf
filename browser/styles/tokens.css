@@ -264,6 +264,11 @@
   /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --lf-mark-size: 20px;
+  /* How far a corner mark (controls.css, `data-lf-corner`) stands out past the corner
+     it rides, on an attachment and on the floating panel's box alike. The panel's
+     fold, reach included (surfaces.css), then ends at the foot of the pictures the
+     panel holds `--lf-media-gap` above its box, so a press on a picture opens it. */
+  --lf-mark-overhang: 6px;
   /* A draft's attached pictures (response.css, `.lf-composer-media`): how tall one
      stands at most, enough to tell a pasted screenshot by its content, which 56px was
      not; and how far they stand clear of the edge they meet as it is drawn, wherever a

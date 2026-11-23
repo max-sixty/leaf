@@ -331,6 +331,13 @@ def panel_corner_hover(page: Page) -> None:
     settle(page)
 
 
+def page_comment_photo_corner(page: Page) -> None:
+    """The panel's fold shown at its top-left corner below a draft's attached
+    screenshot."""
+    page_comment_photo(page)
+    panel_corner_hover(page)
+
+
 def share_link(page: Page) -> None:
     """The page's link, focused by keyboard as read-only text in About this page,
     which the menu's Copy link opens when the clipboard refuses the copy."""
@@ -3382,6 +3389,7 @@ STATES = (
     ),
     State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
+    State("page-comment-photo-corner", "feature-gallery", page_comment_photo_corner),
     State(
         "share-link",
         "feature-gallery",

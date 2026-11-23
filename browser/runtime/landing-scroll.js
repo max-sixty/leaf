@@ -495,11 +495,8 @@ function scrollIntoReadingBand(
 // prepare its inner overflow before its enclosing context lands in the reading band. A destination in a
 // fixed layer, such as a modal's list, has no reading region: its boxes reveal it
 // nearest, out to that layer. `within` ends the walk at that box, so only it and the
-// boxes inside it move: an item comes into its own strip or list while the page around
-// it stays where the user reads. The boxes inside it reveal the destination nearest at
-// once, and the box itself places it at `block` with `behavior`, as a reading region
-// does, so a code block following a playhead glides its line to the middle of its pane
-// (lf-code.js). Native
+// boxes inside it move, each revealing the destination nearest: an item comes into
+// its own strip or list while the page around it stays where the user reads. Native
 // `scrollIntoView({container: "nearest"})` is no substitute: Firefox still scrolls the
 // boxes around it (notes/browser-support.md, "Native reveal bounded to its scroller").
 // A reveal that returns the reader to a place they had, as a restore brings back the
@@ -528,8 +525,8 @@ export function scrollIntoView(
   // Only a box that will move is asked to, as a first tab's ring room at its strip's
   // start moves nothing: a call that moves nothing still reads as a scroll the gesture
   // made (tests/shift_watch.js, "Scrolls a gesture makes").
-  for (const { box, by } of innerMoves(where, targetScroller, within, sideways, block))
-    if (by.left || by.top) land(box, by, box === within ? behavior : "instant", kept);
+  for (const { box, by } of innerMoves(where, targetScroller, within, sideways))
+    if (by.left || by.top) land(box, by, "instant", kept);
   if (!targetScroller) return;
   scrollIntoReadingBand(aligned, holder, block, behavior, kept);
 }
@@ -537,9 +534,9 @@ export function scrollIntoView(
 // The moves the walk before a destination's reading region makes (`scrollIntoView`),
 // each read when the caller asks for it, after it made the last: every box clipping the
 // destination reveals it across at the nearest edge, and each inside `targetScroller`
-// down too, nearest, but for `within`, which places it at `block`.
-/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways @param {ScrollLogicalPosition} [block] */
-function* innerMoves(where, targetScroller, within, sideways, block = "nearest") {
+// down too.
+/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways */
+function* innerMoves(where, targetScroller, within, sideways) {
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -563,7 +560,7 @@ function* innerMoves(where, targetScroller, within, sideways, block = "nearest")
         ? placementBy(
             where,
             destination,
-            box === within ? block : "nearest",
+            "nearest",
             band,
             topMargin(where, box, band, start),
           )

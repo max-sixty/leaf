@@ -158,9 +158,10 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     browser, serve
 ):
     """The film's playhead output lights the slice.rs line a step runs in the one
-    excerpt quoting it, and the source pane brings that line to its middle without
-    moving the page. Once the reader scrolls the pane, a new line out of view leaves it
-    where they put it, until they act on the film again; the last step lights nothing."""
+    excerpt quoting it, and the source pane brings that line into view with room round
+    it, without moving the page. Once the reader scrolls the pane, a new line out of
+    view leaves it where they put it, whoever moved the film, until a line lit in their
+    view takes the pane up again; the last step lights nothing."""
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
@@ -199,7 +200,7 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     )
     expect(marked).to_be_in_viewport(ratio=1)
     scroll_settled(page, "#sort-source")
-    # Brought to the middle, with room for the lines before it and after.
+    # Brought in with room for the lines before it and after.
     room = page.evaluate(
         """() => {
           const pane = document.getElementById('sort-source').getBoundingClientRect();
@@ -222,9 +223,37 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     assert pane.evaluate("element => element.scrollTop") == 0
     expect(marked).not_to_be_in_viewport()
 
+    # The reader's own step of the film leaves the pane with them too.
     scrub.press("ArrowRight")
     expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
         "data-lf-line", "1416"
+    )
+    rendered(page)
+    assert pane.evaluate("element => element.scrollTop") == 0
+    expect(marked).not_to_be_in_viewport()
+
+    # They scroll the lit line back into view, a fifth of the way down the pane, and
+    # the next line lit in their view takes the pane up again.
+    page.mouse.wheel(
+        0,
+        page.evaluate(
+            """() => {
+              const pane = document.getElementById('sort-source').getBoundingClientRect();
+              const line = document.querySelector('#sort-source [data-lf-at]').getBoundingClientRect();
+              return Math.round(line.top - pane.top - pane.height / 5);
+            }"""
+        ),
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    scroll_settled(page, "#sort-source")
+    scrub.press("ArrowRight")
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1431"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    seek(times["insert"])
+    expect(page.locator("#code-insert-head [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1313"
     )
     expect(marked).to_be_in_viewport(ratio=1)
     assert page.evaluate("document.scrollingElement.scrollTop") == 0

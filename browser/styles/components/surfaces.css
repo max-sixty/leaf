@@ -867,7 +867,11 @@ summary {
    whose words' box is the measure less two borders, the card's and its own, and the
    card's padding on each side. A step's words keep the messages' width, and a
    summary's that width less the inset its region keeps at their end rather than room
-   for Send. */
+   for Send. The comment box the seat opens keeps the row too, its field at the card's
+   padding (response.css, `.lf-fab-bar[data-lf-presentation="inline"]`), and its words
+   end where the message they become will, `--lf-comment-text-end` inside the column:
+   past its own end inset it keeps the room by which its field is wider than the
+   column. */
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * var(--lf-thread-frame));
 }
@@ -891,6 +895,11 @@ summary {
   padding-inline-end: max(
     var(--lf-compose-pad-inline-start),
     100% - var(--lf-thread-card) + 4px + var(--lf-compose-pad-inline-start)
+  );
+}
+[data-lf-thread-surface] > .lf-fab-bar leaf-text.lf-fab-input {
+  padding-inline-end: calc(
+    var(--lf-comment-text-end) - 1px + max(0px, 100% - var(--lf-seat-column))
   );
 }
 .lf-page-thread::after {

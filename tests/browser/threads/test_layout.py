@@ -30,10 +30,12 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import (
     LANDING_WORDS,
     _shadow_tree_widget,
     append_agent_reply,
+    long_diff_thread,
     open_panel_thread,
     paste_image,
 )
@@ -426,6 +428,53 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
     assert theirs == pytest.approx(mine, abs=0.5), (mine, theirs)
+
+
+# The words of each line a node shows, from its text's own boxes: a message's, or a
+# field's in its closed root.
+LINE_WORDS = """node => {
+  const root = window.marginEditorRoots.get(node)?.querySelector('.cm-content') ?? node;
+  const lines = new Map();
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let text = walk.nextNode(); text; text = walk.nextNode())
+    for (let at = 0; at < text.data.length; at++) {
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 1);
+      const box = range.getClientRects()[0];
+      if (!box?.width) continue;
+      const top = Math.round(box.top);
+      lines.set(top, (lines.get(top) ?? '') + text.data[at]);
+    }
+  return [...lines].sort(([a], [b]) => a - b).map(([, words]) => words.trim());
+}"""
+
+
+def test_a_seat_s_comment_box_breaks_its_lines_where_its_message_will(browser, serve):
+    """A seat's comment box runs the row's width, where the card its comment becomes
+    will stand, and its words break their lines where that card's message will, so Send
+    moves no word. Wrapping at the row's width, a comment under a diff line broke its
+    lines at the row's end and rewrapped at the seat's column once sent."""
+    url, _ = long_diff_thread(serve)
+    page = open_page(browser, url, init_script=MARGIN_EDITOR_ROOTS)
+    resized(page, 1280, 900)
+    page.locator("#patch").get_by_role(
+        "button", name="Comment on app.py · new line 1", exact=True
+    ).click()
+    box = page.locator("#patch .lf-fab-bar leaf-text")
+    expect(box).to_be_focused()
+    words = LANDING_WORDS.strip()
+    page.keyboard.insert_text(words)
+    rendered(page)
+    typed = box.evaluate(LINE_WORDS)
+    assert len(typed) > 1, typed
+    page.keyboard.press("Enter")
+    sent = page.locator(
+        "#patch .lf-msg[data-lf-author=user] .lf-msg-text", has_text=words[:40]
+    )
+    expect(sent).to_be_visible()
+    rendered(page)
+    assert sent.evaluate(LINE_WORDS) == typed
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):

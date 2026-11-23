@@ -22,7 +22,7 @@
    they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
-import { quickShortcuts } from "./bindings.js";
+import { placeHandedBack, quickShortcuts } from "./bindings.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import {
   controlNavigationKeys,
@@ -195,7 +195,10 @@ export function mountKeyboard({
     if (!pageUpgraded() || pressingHeld) return;
     /** @type {DocumentEventMap["lf-held-keys"]} */
     const taking = new CustomEvent("lf-held-keys", {
-      detail: { ready: keyReady, keep: () => runtime.statePhase === "waiting" },
+      detail: {
+        ready: keyReady,
+        keep: () => runtime.statePhase === "waiting" || !placeHandedBack(),
+      },
     });
     document.dispatchEvent(taking);
     const { keys, pause, release } = taking.detail;
@@ -203,7 +206,16 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      if (!quickShortcuts()) keys.length = 0;
+      // Until a reload's place is handed back, the run waits wherever focus is, even
+      // in a box the page opened before the hand-back put the user back in theirs.
+      if (!placeHandedBack()) {
+        pause();
+        pressingHeld = false;
+        return;
+      }
+      // With single-key commands off, a held key only ever types into a box, as the
+      // words a user typed through a reload do into the box it hands back.
+      if (!quickShortcuts() && !typesText(focused())) keys.length = 0;
       const [key] = keys;
       if (!key) {
         release();

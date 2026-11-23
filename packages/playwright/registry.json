@@ -403,7 +403,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" },
         "label": {
           "type": "string",
@@ -458,9 +457,6 @@
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
       "required": ["id"],
       "additionalProperties": false
     },

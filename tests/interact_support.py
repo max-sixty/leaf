@@ -758,7 +758,6 @@ def declare_data_input(
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
@@ -1431,10 +1430,6 @@ def _report_authored_detail(registry):
     }
 
 
-def _report_without_overruled(registry):
-    del registry["lf-test-task"]["attributes"]["properties"]["overruled"]
-
-
 def _report_without_module(registry):
     registry["lf-test-bare"] = {
         **deepcopy(registry["lf-test-task"]),
@@ -1448,9 +1443,6 @@ def _user_verb_text(registry):
 
 def _agent_verb_answers(registry):
     registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
-    registry["lf-options"]["attributes"]["properties"]["overruled"] = {
-        "type": "boolean"
-    }
 
 
 def _body_record_with_prose(registry):
@@ -1528,7 +1520,6 @@ def trial_family(root: Path) -> None:
             "verbs": {"decide": deciding_verb(outcomes)},
             "example": example,
         }
-        declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (

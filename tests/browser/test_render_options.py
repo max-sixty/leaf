@@ -2270,7 +2270,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                     "description": "A block that can hold a local agent task.",
                     "attributes": {
                         "type": "object",
-                        "properties": {"id": {"type": "string"}},
+                        "properties": {},
                         "required": ["id"],
                         "additionalProperties": False,
                     },

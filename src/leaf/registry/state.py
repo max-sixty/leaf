@@ -54,15 +54,11 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-content", path, tag, verb=verb, child=child_tag
                 )
+            # Composition gives the child's id the same grammar
+            # (`contract.stamp_grammars`).
             if set(child["attributes"].get("required", [])) != {"id"}:
                 raise registry_error(
                     "creates-required", path, tag, verb=verb, child=child_tag
-                )
-            # Composition gives the child's id the same grammar
-            # (`contract.stamp_grammars`).
-            if not declares_string(child["attributes"].get("properties", {}).get("id")):
-                raise registry_error(
-                    "creates-id", path, tag, verb=verb, child=child_tag
                 )
             # A creates verb owns id-and-words members, not independent widget
             # owners. Capabilities read from the authored owner inventory cannot

@@ -674,7 +674,6 @@ customElements.define('lf-draft-subject', class extends LeafElement {
                 "attributes": {
                     "type": "object",
                     "properties": {
-                        "id": {"type": "string"},
                         "source": {"type": "string"},
                     },
                     "required": ["id"],

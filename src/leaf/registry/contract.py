@@ -652,6 +652,30 @@ def stamp_words(registry: dict) -> dict:
     return registry
 
 
+# The boolean attribute a version sets on a widget to take back what a writer recorded
+# on the whole of it: the user's decision (the registry's `$restated`) or the agent's
+# report (`$report`).
+RETRACTIONS = {"user": "restated", "agent": "overruled"}
+
+
+def stamp_retractions(registry: dict) -> dict:
+    """Write into a validated vocabulary, for each verb whose unit is the whole widget,
+    the attribute that takes it back (`RETRACTIONS`) as a boolean, replacing any the
+    widget's declaration lists. So a version can take back every such decision and
+    report whatever the declaration says, and validation and an author reading the
+    entry read the attribute there. An agent's verb always has that unit. A verb with
+    another unit names a member by id, as a board's move names a card, and that
+    member's own declaration lists `restated`.
+
+    Each composition stamps it (`registry.layer.stamp_composition`)."""
+    for entry in element_declarations(registry).values():
+        for _verb, spec in state_specs(entry):
+            if spec["unit"] == "widget":
+                properties = entry["attributes"].setdefault("properties", {})
+                properties[RETRACTIONS[verb_writer(spec)]] = {"type": "boolean"}
+    return registry
+
+
 def _named_attributes(entry: dict):
     """(attribute, grammar) for each attribute of one element declaration whose value
     is a name Leaf looks up: the element's own `id`, an input's source attribute
@@ -668,16 +692,25 @@ def _named_attributes(entry: dict):
 
 
 def stamp_grammars(registry: dict) -> dict:
-    """Write into a validated vocabulary the grammar of each attribute
-    `_named_attributes` finds, as its schema's `pattern`, replacing any the
-    declaration gave. Leaf owns these grammars, so a package declares only that such
-    an attribute is a string, and validation and an author reading the entry read the
-    grammar here. An attribute's schema may be `true`, which then becomes the
-    grammar alone, or `false`, which admits no value already and is left as it is.
+    """Write into a validated vocabulary the `id` every element takes, as a string and
+    the first of its attributes, and the grammar of each attribute `_named_attributes`
+    finds, as its schema's `pattern`, replacing any the declaration gave. Leaf owns
+    `id` and these grammars, so a package declares only whether an element requires
+    its `id`, and that each other such attribute is a string; validation and an author
+    reading the entry read the rest here. A schema a declaration lists for `id` is
+    replaced, not kept: Leaf names a created child, an asking widget and a pane by id,
+    and one whose `id` took no string could never be named. Another such attribute's
+    schema may be `true`, which then becomes the grammar alone, or `false`, which
+    admits no value already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for entry in element_declarations(registry).values():
-        properties = entry["attributes"].get("properties", {})
+        attributes = entry["attributes"]
+        properties = attributes["properties"] = {"id": {"type": "string"}} | {
+            attr: schema
+            for attr, schema in attributes.get("properties", {}).items()
+            if attr != "id"
+        }
         for attr, grammar in _named_attributes(entry):
             if properties.get(attr) is True:
                 properties[attr] = {}

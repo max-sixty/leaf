@@ -37,7 +37,7 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`word`), as `lf-visual-review` says "review", else what its element answers
+entry declares (`word`), as `lf-playground-preset` says "preset", else what its element answers
 from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`

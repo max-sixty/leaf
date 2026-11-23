@@ -310,8 +310,8 @@ in one turn; `dev/leaf_dev/draw_failures.py` reads the executor's final
 author ran, for findings that say a widget or the page's code failed to run or draw.
 
 ```sh
-uv run leaf-dev eval run 'widgets-draw-as-written*' visual-change-uses-captures/review --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval run 'widgets-draw-as-written*' visual-change-uses-captures/review --harness codex --repeat 6 -j 2
+uv run leaf-dev eval run 'widgets-draw-as-written*' --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run 'widgets-draw-as-written*' --harness codex --repeat 6 -j 2
 ```
 
 The runs authored at `73222dc97` with the cases of `371e34337`: 70 pages on Claude Code
@@ -373,8 +373,8 @@ script misused `generatedElement`, and its plain check, which runs any page with
 script, caught it.
 
 ```sh
-uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness codex --repeat 10 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps --harness codex --repeat 10 -j 2
 ```
 
 Inferred, not measured: the thread results cover one request per widget, and the

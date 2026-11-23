@@ -205,7 +205,7 @@ PASSAGE_SOURCES = (
     FEATURE_GALLERY,
     named_source("pr-walkthrough"),
     named_source("ship-review"),
-    named_source("visual-review-gallery"),
+    named_source("review-parts"),
 )
 
 ANCHOR_SOURCES = (

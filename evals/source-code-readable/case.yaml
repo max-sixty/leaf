@@ -287,3 +287,130 @@ variants:
           literal too. Showing how either renders beside the source is fine. Fail if the
           typed Markdown appears only rendered, or only inside an lf-text-document whose
           preview tab opens first.
+  # A page-owned stepper stands over the source it walks, and the user asks which line
+  # a step is on. An author who misses the excerpt's input scripts the excerpt from
+  # the stepper's module, which ties the two widgets to each other.
+  lines-follow-a-widget:
+    metadata:
+      purpose: Source that follows another widget's step binds to that widget's declared
+        output, which holds the file's own line numbers.
+      page: []
+    vars:
+      prompt: |
+        You are revising a Leaf page that teaches binary search. The reader steps
+        through one search with the page's own widget, lf-search-steps, and reads the
+        function's source under it. The user commented on the section: "As I step
+        through, I can't tell which line of search() the step is on. Can the source
+        show it as I go?"
+
+        The section as it stands, quoting lines 12-21 of search.py:
+
+        ```html
+        <section id="walk">
+          <h2>One search, step by step</h2>
+          <lf-search-steps id="search-walk"></lf-search-steps>
+          <lf-code id="search-source" lines="12-21"><pre><code class="language-python">def search(items, target):
+            lo, hi = 0, len(items)
+            while lo &lt; hi:
+                mid = (lo + hi) // 2
+                if items[mid] &lt; target:
+                    lo = mid + 1
+                else:
+                    hi = mid
+            found = lo &lt; len(items) and items[lo] == target
+            return lo if found else None
+        </code></pre></lf-code>
+        </section>
+        ```
+
+        The widget's entry in `page/registry.json`:
+
+        ```json
+        {
+          "lf-search-steps": {
+            "description": "One binary search over a fixed list, which the reader steps through.",
+            "attributes": {
+              "type": "object",
+              "properties": { "id": { "type": "string" } },
+              "required": ["id"],
+              "additionalProperties": false
+            },
+            "content": "empty"
+          }
+        }
+        ```
+
+        Its module, `page/widgets/lf-search-steps.js`:
+
+        ```js
+        // <lf-search-steps>: one binary search over a fixed list, a step at a time.
+        import { html } from "/vendor/lit.js";
+        import { LeafElement } from "/runtime/portable-api.js";
+
+        const ITEMS = [3, 8, 13, 21, 34, 55, 89];
+        // Searching for 34. Each step leaves the bounds [lo, hi) it names.
+        const STEPS = [
+          { lo: 0, hi: 7, says: "Start with the whole list." },
+          { lo: 0, hi: 7, mid: 3, says: "The middle item is 21." },
+          { lo: 4, hi: 7, says: "21 is below 34, so the left half goes." },
+          { lo: 4, hi: 7, mid: 5, says: "The middle item is 55." },
+          { lo: 4, hi: 5, says: "55 is not below 34, so the right half goes." },
+          { lo: 4, hi: 5, mid: 4, says: "The middle item is 34." },
+          { lo: 4, hi: 4, says: "34 is not below 34, so the bounds meet at index 4." },
+          { lo: 4, hi: 4, says: "Index 4 holds 34: found." },
+        ];
+
+        customElements.define(
+          "lf-search-steps",
+          class extends LeafElement {
+            static properties = { step: { state: true } };
+
+            setup() {
+              this.step = 0;
+            }
+
+            go(by) {
+              this.step = Math.min(STEPS.length - 1, Math.max(0, this.step + by));
+            }
+
+            render() {
+              const { lo, hi, mid, says } = STEPS[this.step];
+              const place = (index) =>
+                index === mid ? "mid" : index >= lo && index < hi ? "in" : "out";
+              return html`
+                <ol class="items">
+                  ${ITEMS.map((item, index) => html`<li class=${place(index)}>${item}</li>`)}
+                </ol>
+                <p>${says}</p>
+                <button type="button" ?disabled=${this.step === 0} @click=${() => this.go(-1)}>
+                  Back
+                </button>
+                <button
+                  type="button"
+                  ?disabled=${this.step === STEPS.length - 1}
+                  @click=${() => this.go(1)}
+                >
+                  Next
+                </button>
+              `;
+            }
+          },
+        );
+        ```
+
+        Reply with the revised section, registry entry and module.
+    assert:
+      - type: llm-rubric
+        metric: code-follows-the-widget
+        value: |
+          Pass only if the lf-code names the stepper with for="search-walk", the
+          stepper's registry entry declares an output whose contract is
+          "source-lines" (an `outputs` member such as {"contract": "source-lines"}),
+          and the module assigns the element property that output names and then
+          dispatches a plain `change` event on the element when the step changes.
+          The value assigned is a string in lf-code's range grammar, such as "15" or
+          "20-21" (or null while no line applies), in the numbers search.py gives the
+          lines, 12 to 21. Fail if the stepper's module or a page script reaches the
+          lf-code to mark it, as by querying it or setting its `hi`, a class or a
+          style, if the two talk through a custom event or a callback instead, or if
+          the value is a number or an array or counts from the excerpt's first line.

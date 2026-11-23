@@ -853,8 +853,10 @@ customElements.define(
         },
         draggable: "lf-card",
         handle: ".lf-grip",
-        // Movability is the card's own where it shows an answer (#movable).
-        filter: (_event, card) => !this.#movable(card),
+        // Movability is the card's own where it shows an answer (#movable). Sortable
+        // passes null for a press on no card, such as a column's heading, which
+        // starts no drag.
+        filter: (_event, card) => !card || !this.#movable(card),
         preventOnFilter: false,
         // Named because a board an agent sent in a reply is scrolled by the panel's list,
         // while one in the page is scrolled by the browser root. Sortable cannot infer

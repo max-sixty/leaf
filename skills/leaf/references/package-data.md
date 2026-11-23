@@ -145,8 +145,8 @@ The record kind fixes the event's payload, a closed object with every field requ
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
   attribute holds no other JSON type, so a number is recorded as its digits.
-- `position` sends `{unit, value, rank}`: the moved element, the destination container,
-  and its rank. A container is an element of the tag `record.within` names, a declared
+- `position` sends `{unit, value, rank}`: the moved element's id, the destination
+  container's id, and the element's rank there. A container is an element of the tag `record.within` names, a declared
   one, inside the widget and with an id of its own, and its members are its children
   that have ids. The widget is never its own container, so a widget with one list of
   members still holds them in a container element.

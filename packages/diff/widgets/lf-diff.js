@@ -55,7 +55,6 @@ import {
   offerAction,
   LeafElement,
   PendingTaskEvent,
-  publishOutput,
   threadSurface,
   releaseOutlets,
   reportFailure,
@@ -1378,22 +1377,18 @@ customElements.define(
               : operation === "rename"
                 ? "renamed"
                 : null;
-      publishOutput(
-        this,
-        "files",
-        this.fileEntries
-          ? {
-              ...(this.singleFile ? { current: this.activePath } : {}),
-              files: this.fileEntries.map(({ record }) => ({
-                path: record.path,
-                key: diffDatumKey({ path: record.path, file: true }),
-                ...(status(record.operation)
-                  ? { status: status(record.operation) }
-                  : {}),
-              })),
-            }
-          : null,
-      );
+      // The `files` output: held here, and `change` says it moved.
+      this.files = this.fileEntries
+        ? {
+            ...(this.singleFile ? { current: this.activePath } : {}),
+            files: this.fileEntries.map(({ record }) => ({
+              path: record.path,
+              key: diffDatumKey({ path: record.path, file: true }),
+              ...(status(record.operation) ? { status: status(record.operation) } : {}),
+            })),
+          }
+        : null;
+      this.dispatchEvent(new Event("change"));
     }
 
     /** @param {SourceRecord} source @param {string | null | undefined} renderKey @returns {Promise<EntryPreparation>} */
@@ -1699,8 +1694,10 @@ customElements.define(
       const coordinate = readDiffCoordinate(key);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      if (this.singleFile) this.selectFile(entry);
-      else if (entry.filtered) this.clearFilter();
+      // Leaf can ask again for a part it has shown, so each step does nothing once done.
+      if (this.singleFile && this.activePath !== entry.record.path)
+        this.selectFile(entry);
+      else if (!this.singleFile && entry.filtered) this.clearFilter();
       if (!entry.details) return null;
       if (!entry.details.open) entry.details.open = true;
       if (entry.loaded || entry.refused) return null;

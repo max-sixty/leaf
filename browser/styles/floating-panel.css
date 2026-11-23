@@ -41,7 +41,7 @@
     /* Where the panel's words start: the row's padding in from the panel's edge, then
        the words' inset, as the field's stand beside the leaf. A view's name, its tabs,
        its messages and the line over the row all start there. */
-    --lf-fp-text-edge: calc(var(--lf-fp-row-pad) + var(--lf-thread-text-inset));
+    --lf-fp-text-edge: calc(var(--lf-thread-pad) + var(--lf-thread-text-inset));
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
        more room) where the window holds it, and the window less a gutter where not.
        The window is the viewport the panel is fixed to (`100%`), which a page's root
@@ -179,7 +179,7 @@
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    padding: var(--lf-fp-row-pad);
+    padding: var(--lf-thread-pad);
     box-sizing: border-box;
     position: relative;
   }
@@ -201,22 +201,25 @@
   .lf-fp-row > .lf-fp-expand {
     --lf-icon-action-face: var(--lf-line);
     position: absolute;
-    inset-block-start: var(--lf-fp-row-pad);
-    inset-inline-end: var(--lf-fp-row-pad);
+    inset-block-start: var(--lf-thread-pad);
+    inset-inline-end: var(--lf-thread-pad);
   }
   .lf-floating-panel[data-lf-expanded] .lf-fp-row:has(> .lf-fp-expand) {
-    min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
+    min-height: calc(2 * var(--lf-line) + 2 * var(--lf-thread-pad) + 4px);
   }
   /* The leaf is a symbol (controls.css), a line tall, its mark a size up from an
      action's symbol. It stands centred in the room the field leaves at the row's end,
      the row's padding from the field's edge as from the panel's, its margin making up
      the row's gap. So its dots, which hang past its top-left corner (below), stay
      clear of the field's ring, which stands inside the field's edge while the user
-     writes. */
+     writes. Its focus ring stands on its edge rather than inside it, where its badges
+     would cover the ring's corners, and so stands clear of the panel's edge by the
+     row's padding less the ring. */
   .lf-fp-leaf {
     --lf-icon-action-face: var(--lf-line);
+    --lf-ring-at: 0px;
     flex: none;
-    margin-inline-start: calc(var(--lf-fp-row-pad) - 2px);
+    margin-inline-start: calc(var(--lf-thread-pad) - 2px);
   }
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
@@ -319,6 +322,9 @@
   .lf-fp-search:focus-visible {
     outline: none;
   }
+  /* The search's scope, a chip, and its steps after it stand clear of the field's
+     edges (`--lf-clear`; browser/AGENTS.md, "A box inside a frame either meets its
+     edge or stands clear of it"). */
   .lf-fp-mode {
     display: inline-flex;
     flex: none;
@@ -326,8 +332,8 @@
     align-items: center;
     gap: 4px;
     padding: 3px 4px;
-    margin-inline-end: 2px;
-    border-radius: var(--lf-r);
+    margin-inline-end: var(--lf-clear);
+    border-radius: var(--lf-chip-r);
     background: color-mix(in srgb, var(--lf-accent) 10%, transparent);
     color: var(--lf-ink);
     font: var(--lf-font-small);
@@ -361,11 +367,11 @@
     flex: none;
     align-items: center;
     min-height: var(--lf-line);
+    margin-inline-end: var(--lf-clear);
     gap: 0;
   }
-  /* Search's steps are a line tall, as the row's other presses are. */
   .lf-fp-actions .lf-icon-action {
-    --lf-icon-action-face: var(--lf-line);
+    --lf-icon-action-face: calc(var(--lf-line) - 2 * var(--lf-clear));
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
@@ -469,10 +475,10 @@
     --lf-focus-box: .lf-fp-row;
   }
   .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field {
-    margin-block: calc(-1 * var(--lf-fp-row-pad));
-    margin-inline-start: calc(-1 * var(--lf-fp-row-pad));
-    padding-block: var(--lf-fp-row-pad);
-    padding-inline-start: var(--lf-fp-row-pad);
+    margin-block: calc(-1 * var(--lf-thread-pad));
+    margin-inline-start: calc(-1 * var(--lf-thread-pad));
+    padding-block: var(--lf-thread-pad);
+    padding-inline-start: var(--lf-thread-pad);
     --lf-ring-at: var(--lf-focus-ring-inset);
     border-radius: 0;
     border-start-start-radius: var(--lf-r-l);
@@ -868,13 +874,14 @@
     }
   }
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-left corner,
+     standing out past it as every corner mark does (tokens.css, `--lf-mark-overhang`),
      shown while the pointer is near that corner (floating-panel.js, `data-lf-corner`).
      It fades rather than moves, so nothing shifts under the pointer. An open view's
      head line holds that corner, so the mark waits for the view to go rather than
      stand over its first words. */
   .lf-fp-minimize {
-    top: -9px;
-    left: -9px;
+    top: calc(-1 * var(--lf-mark-overhang));
+    left: calc(-1 * var(--lf-mark-overhang));
     opacity: 0;
     visibility: hidden;
     transition:
@@ -929,11 +936,11 @@
     align-items: center;
     gap: 2px;
     min-height: 36px;
-    padding: 8px var(--lf-fp-row-pad) 0 var(--lf-fp-text-edge);
+    padding: 8px var(--lf-thread-pad) 0 var(--lf-fp-text-edge);
     box-sizing: border-box;
   }
   .lf-fp-head:has(> .lf-fp-name > .lf-fp-back) {
-    padding-inline-start: var(--lf-fp-row-pad);
+    padding-inline-start: var(--lf-thread-pad);
   }
   /* The name takes the room the presses leave, and they keep the line's end and their
      room, a name that names the view to assistive tech alone included, so the name
@@ -972,7 +979,7 @@
     align-items: center;
     gap: var(--lf-fp-controls-gap);
     min-height: 40px;
-    padding: 3px var(--lf-fp-row-pad) var(--lf-reach-room) var(--lf-fp-text-edge);
+    padding: 3px var(--lf-thread-pad) var(--lf-reach-room) var(--lf-fp-text-edge);
     box-sizing: border-box;
   }
   .lf-fp-crumb {
@@ -1019,7 +1026,7 @@
      row it stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
     min-height: 32px;
-    padding: 6px var(--lf-fp-row-pad) 0 var(--lf-fp-text-edge);
+    padding: 6px var(--lf-thread-pad) 0 var(--lf-fp-text-edge);
   }
   .lf-fp-joined {
     display: flex;
@@ -1215,7 +1222,7 @@
     --lf-top: 0px;
     --lf-top-covered: 0px;
     --lf-landing-room: 0px;
-    --lf-rows-bleed: var(--lf-fp-row-pad);
+    --lf-rows-bleed: var(--lf-thread-pad);
     grid-area: 1 / 1;
     min-height: 0;
     max-height: 100%;
@@ -1300,8 +1307,7 @@
   .lf-fp-view .lf-awaited {
     --lf-awaited-ground: var(--lf-fp-surface);
     bottom: calc(-1 * var(--lf-fp-view-pad-end));
-    margin-inline: calc(-1 * var(--lf-fp-text-edge))
-      calc(-1 * (var(--lf-fp-row-pad) + var(--lf-fp-transcript-room)));
+    margin-inline: calc(-1 * var(--lf-fp-text-edge)) calc(-1 * var(--lf-thread-pad));
     margin-block-end: calc(
       -1 * (var(--lf-fp-view-pad-end) + var(--lf-fp-transcript-end))
     );
@@ -1723,11 +1729,6 @@
   .lf-fp-show {
     margin-inline-start: auto;
   }
-  /* Reply leading the line hangs its inset (controls.css, `--lf-word-inset`), so its
-     word stands on the card's edge, as the card's heading and an answered line do. */
-  .lf-fp-answers > .lf-fp-reply:first-child {
-    margin-inline-start: calc(-1 * var(--lf-word-inset));
-  }
   /* A card's first line ends in its Show (floating-panel.js, `cardHead`), centred on
      a line that holds one, else on the first line of the message's face. */
   .lf-fp-on-head {
@@ -1809,23 +1810,21 @@
   }
   /* The thread, drawn as a card's (thread/thread-card.js), stands on the view's
      padding, as the quote's rule does, and its to-dos and transcript inset their words
-     onto the thread's edge. The transcript keeps the room around it a card's box gives
-     its own, but on the side the quote's rule stands, its first author 16px under the
-     quote, the quote head's 12px included, and at its foot, its last words a message's
-     gap over the field (`--lf-fp-transcript-end`, above). Each message's head reaches
-     into that room at its end, so its controls, the head's last item, end react and
-     copy under the view head's ✕, and the head's cut (surfaces.css) stands a gap past
-     them rather than across copy. */
+     onto the thread's edge. The transcript runs to the view's padding at its end, as a
+     card's runs to the card's, so each message's head, and its controls, its last
+     item, end react and copy under the view head's ✕, and each message ends its words
+     the thread's inset inside it, as it starts them. Its first author stands 16px
+     under the quote, the quote head's 12px included, and its last words a message's
+     gap over the field (`--lf-fp-transcript-end`, above). */
   .lf-fp-messages > .lf-page-thread {
     padding: 0;
   }
   .lf-fp-messages .lf-thread-transcript {
-    --lf-fp-transcript-room: calc(8px + var(--lf-sp-1));
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
-    padding-inline-end: var(--lf-fp-transcript-room);
   }
-  .lf-fp-messages .lf-msg-head {
-    margin-inline-end: calc(-1 * var(--lf-fp-transcript-room));
+  .lf-fp-messages .lf-msg,
+  .lf-fp-messages .lf-thread-working {
+    --lf-msg-text-end: var(--lf-thread-text-inset);
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame

@@ -37,7 +37,7 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`word`), as `lf-visual-review` says "review", else what its element answers
+entry declares (`word`), as `lf-playground-preset` says "preset", else what its element answers
 from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
@@ -82,7 +82,12 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn.
+name a datum not yet drawn. Leaf also asks `lfRevealDatum` for the key of a thread on
+the widget as it takes the user to that thread on the page, including a thread made
+on an earlier value of the data. Such a key can name a part that has since changed or gone,
+so open what would hold it, as a diff opens the file an earlier line was in, or return
+`null`. Leaf may ask again for a part that already shows, so leave such a part as it is
+rather than selecting or redrawing it again.
 
 A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
@@ -315,15 +320,15 @@ through its widget or thread. Act on a collection only when its `phase` is `read
 
 ### Work hierarchies
 
-`readWork(scope)` reads a work hierarchy the page declares within `scope`, such as
-goals and the workers on them, so a widget that counts its children's work reads it here
-rather than from their reports. The page's `$work.widgets` gives tags roles. A `goal`
-names its recorded `state` attribute and lists the values under `done` and `stopped`; a
-`worker` does the same under `running` and `retired`, and may name its assignment
-attribute in `on`. `evidence` marks the element that shows observed data. The result
-lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running` and
-`quiet` workers, each with its authored `element`, and `done` counts finished leaves.
-`workAncestor` reads the same declaration. Atlas in `examples/command-hub.page/` is the worked example.
+`readWork(scope)` reads the work hierarchy within `scope`, such as goals and the
+workers on them, so a widget that counts its children's work reads it here rather than
+from their reports. Leaf owns the work roles, and a package maps its tags onto them in
+`$work.widgets` ([package-data.md, "Work roles"](package-data.md#work-roles)), which
+composition checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals,
+`liveWorkers`, and `running` and `quiet` workers, each with its authored `element`, and
+`done` counts finished leaves. `workAncestor(element, role)` returns the nearest element
+at or above `element` with that role. Atlas in `examples/command-hub.page/` is the
+worked example.
 
 ### Page history and reports
 

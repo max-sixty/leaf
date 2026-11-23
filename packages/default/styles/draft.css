@@ -119,9 +119,6 @@ lf-draft > pre {
     font: var(--lf-font-ui);
     white-space: nowrap;
   }
-  .lf-draft-status:empty {
-    display: none;
-  }
   lf-draft:is(:hover, [data-lf-focus-within], [required], :has(> .lf-draft-edit))
     .lf-draft-tools {
     opacity: 1;

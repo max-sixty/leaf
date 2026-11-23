@@ -4,8 +4,8 @@ import { ShotView } from "./shot-view.js";
  * `density`, their device pixel ratio, and `focus-x`, `focus-y`, `focus-width` and
  * `focus-height`, the region in their CSS pixels that every view opens cropped to.
  * The maintainer chose to let markup state them, so a pair written in a page opens on
- * its change as a visual review's case does; a containing package states them as an
- * author does, and allocates the box. The region is the author's to state rather than
+ * its change; a containing package states them as an author does, and allocates the
+ * box. The region is the author's to state rather than
  * the comparison's to find: the comparison runs after presentation, so a region it
  * found would resize a shot the reader already sees, and its bounds would take in
  * whatever else moved, such as every row below one that grew. Four attributes rather

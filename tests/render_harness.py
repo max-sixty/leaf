@@ -100,6 +100,7 @@ from leaf_dev.browser import (
     scroll_settled,
     slow_cpu,
     threads_tab,
+    unfold,
 )
 from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
@@ -205,7 +206,7 @@ PASSAGE_SOURCES = (
     FEATURE_GALLERY,
     named_source("pr-walkthrough"),
     named_source("ship-review"),
-    named_source("visual-review-gallery"),
+    named_source("review-parts"),
 )
 
 ANCHOR_SOURCES = (
@@ -2090,7 +2091,7 @@ def stance_exit(page):
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
-    than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
+    than the latest and no other press stands there (floating-panel.js, `OPEN_LATEST`)."""
     return field_press(page).filter(has_text="Open latest")
 
 
@@ -2361,9 +2362,7 @@ def page_comment(page):
     field becoming its reply, so this puts an open view away first, and unfolds a panel
     folded to the leaf."""
     host = page.locator(PANEL)
-    if host.get_attribute("data-lf-rest") == "mark":
-        page.locator(".lf-fp-leaf").click()
-        expect(host).to_have_attribute("data-lf-rest", "row")
+    unfold(page)
     if host.get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)

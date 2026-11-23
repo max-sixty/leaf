@@ -170,7 +170,8 @@ or in the host while no match exists. The declaration does not inherit. Declare
 `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
-Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+Leaf rings every box that holds visible focus, at a control's gap outside it, and its
+own word and symbol presses one band inside their edge. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
 its kind (`styles/tokens.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
 `0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
@@ -255,7 +256,7 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` does, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles

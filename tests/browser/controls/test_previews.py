@@ -38,7 +38,6 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
-from leaf_dev.example_data import named_source
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -242,33 +241,58 @@ def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serv
             assert preview_parts(page.locator(control), route) == [words], control
 
 
-# A visual review's Add feedback, which `c` presses, given a mark its quiet word names
-# (`dataset.lfQuiet`, as a module writes one), then the chip its face draws for `c`.
+# A widget's worded control that `f` presses, as its command row names it (`lfCommands`,
+# `control`).
+KEYED = """import { nothing } from "/vendor/lit.js";
+import { LeafElement, commandsChanged, offerAction } from "/runtime/widget-api.js";
+customElements.define("lf-keyed", class extends LeafElement {
+  setup() {
+    const feedback = offerAction("word", "keyed-feedback", "Add feedback");
+    this.append(feedback);
+    this.lfCommands = {
+      title: "On a case",
+      rows: [{ id: "keyed.feedback", title: "Add feedback", keys: ["f"],
+        control: feedback, run: () => {} }],
+    };
+    commandsChanged(this);
+  }
+  render() {
+    return nothing;
+  }
+});
+"""
+# The control given a mark its quiet word names (`dataset.lfQuiet`, as a module writes
+# one), then the chip its face draws for `f`.
 QUIET_BESIDE_KEYS = """(button) => {
   const mark = Object.assign(document.createElement('span'), {textContent: ' ●'});
   mark.dataset.lfQuiet = 'Unsaved changes';
   button.append(mark);
 }"""
 DRAWN_CHIP = """(button) => button.append(Object.assign(document.createElement('kbd'),
-  {className: 'lf-key-badge', ariaHidden: 'true', textContent: 'c'}))"""
+  {className: 'lf-key-badge', ariaHidden: 'true', textContent: 'f'}))"""
 
 
 def test_beside_a_key_chip_a_control_previews_its_whole_name(browser, serve):
-    """An approved case's row previews its check's verdict, its quiet word, alone. A
-    control a key presses previews its whole name as the head of that key's chip, since
-    the key presses the control, not the mark its quiet word names; once its face draws
-    the chip, the quiet word alone is what the face leaves unsaid."""
-    page = open_page(browser, serve(named_source("visual-review-gallery")))
-    widget = page.locator("#visual-review-run")
-    widget.locator(".lf-vr-approval-input").first.check()
-    row = widget.locator('.lf-vr-case-button:has([data-lf-approved="true"])')
-    assert preview_parts(row) == ["Looks right"]
-    feedback = widget.locator(".lf-vr-feedback").first
+    """A control a key presses previews its whole name as the head of that key's chip,
+    since the key presses the control, not the mark its quiet word names; once its face
+    draws the chip, the quiet word alone is what the face leaves unsaid."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Keyed",
+                '<h1>Keyed</h1><lf-keyed id="keyed"><p>A case to review.</p></lf-keyed>',
+            ),
+            layer_registry={"lf-keyed": element_declaration("lf-keyed", upgrade=True)},
+            layer_widgets={"lf-keyed.js": KEYED},
+        ),
+    )
+    feedback = page.locator("#keyed .keyed-feedback")
     feedback.evaluate(QUIET_BESIDE_KEYS)
     expect(feedback.locator(".lf-quiet")).to_have_text("Unsaved changes")
     chips = page.locator(f"{PREVIEW} .lf-preview-keys kbd")
     assert preview_parts(feedback, "focus") == ["Add feedback Unsaved changes ●"]
-    expect(chips).to_have_text(["c"])
+    expect(chips).to_have_text(["f"])
     feedback.evaluate(DRAWN_CHIP)
     assert preview_parts(feedback, "focus") == ["Unsaved changes"]
     expect(chips).to_have_count(0)
@@ -784,7 +808,7 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     rendered(page)
     expect(preview).to_be_visible()
     expect(page.locator(CARD)).to_be_hidden()
-    expect(page.locator("#passage")).not_to_have_attribute("data-lf-held", "")
+    expect(page.locator("#passage")).not_to_have_attribute("data-lf-touch-held", "")
     touch("touchStart")
     touch("touchEnd")
     expect(page.locator(CARD)).to_be_visible()
@@ -2466,6 +2490,40 @@ def test_a_preview_stands_its_gap_past_the_ring_round_a_padded_box_it_fills(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_stands_by_a_target_a_transform_moved(engine, request, serve):
+    """A control in a box a transform moves, as a table granted room is translated into
+    place (layouts.css), previews beside itself in each engine. Firefox leaves an
+    anchor's transforms out of `anchor()`, so the preview's edges are measured from the
+    box Firefox reads (css-anchors.js, `anchorBox`); measured from the box a script
+    reads, the preview stood the translation away from its control."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Moved",
+                '<p><button id="before">Before</button></p>'
+                '<div style="translate: 180px 60px"><p>A moved control: '
+                '<button id="moved" aria-label="Moved name">●</button></p></div>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Moved name")
+    rendered(page)
+    across, below = page.evaluate(
+        """() => {
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          const box = document.getElementById('moved').getBoundingClientRect();
+          return [tip.left - box.left, tip.top - box.bottom];
+        }"""
+    )
+    assert across == pytest.approx(0, abs=1), (across, below)
+    assert 0 < below < 24, (across, below)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in(
     engine, request, serve
 ):
@@ -2585,7 +2643,7 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
     rendered(page)
     assert page.evaluate("location.hash") == "", "the held link was followed"
     expect(tip).to_be_visible()
-    expect(page.locator("#go")).to_have_attribute("data-lf-held", "")
+    expect(page.locator("#go")).to_have_attribute("data-lf-touch-held", "")
     put_away()
 
     page.evaluate("() => { window.GestureEvent = class extends UIEvent {}; }")
@@ -3094,8 +3152,8 @@ def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_
     expect(word).to_have_text("Reads two")
     rendered(page)
     assert _crossed(page) == ["read two", "ended Reads one"]
-    expect(page.locator("#two")).to_have_attribute("data-lf-held", "")
-    expect(page.locator("#one")).not_to_have_attribute("data-lf-held", "")
+    expect(page.locator("#two")).to_have_attribute("data-lf-touch-held", "")
+    expect(page.locator("#one")).not_to_have_attribute("data-lf-touch-held", "")
     touch("touchEnd")
 
 

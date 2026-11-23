@@ -230,7 +230,7 @@
      holds whatever range its owner says it rests on (`pointRange`), and slides only as
      the owner says; its preview stands above the line and, as any hold's, its release
      presses nothing. A finger that only moves, as a pointer would, reads no range, and
-     the author's element holding the range wears no `data-lf-held`.
+     the author's element holding the range wears no `data-lf-touch-held`.
    - While a preview stands, by pointer or by focus, it is Escape's first step and the
      press does nothing else (keyboard/AGENTS.md, "Escape"): it covers what lies under
      it, so the user can put it away without moving the pointer or focus, and without
@@ -241,9 +241,11 @@
    Each pointer boundary costs the path it walks, the nodes under the pointer, and a
    preview showing costs what it reads, for a control the page's commands, and a few
    hit tests for its side, never the page's elements (root AGENTS.md,
-   "Responsiveness"). The target a finger held wears `data-lf-held` while its preview
-   stands, so its surface can keep it where the finger held it (margin-layout.js,
-   `HELD`).
+   "Responsiveness"). The target a finger held wears `data-lf-touch-held` while its
+   preview stands, so its surface can keep it where the finger held it (margin-layout.js,
+   `HELD`). The mark is the finger's alone: a thread's hold on an element is
+   `data-lf-held` (thread/presentation.js), and each pass that writes one clears it
+   from elements it no longer holds.
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
    holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.
@@ -342,6 +344,7 @@ import {
 import { hasArea, holds } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
 import { markRoom } from "./mark-room.js";
+import { anchorBox } from "./css-anchors.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -1165,8 +1168,9 @@ function show(from, route, read = null, at, again = false, aim = false) {
     standing.holder !== holder &&
     !(standing.target instanceof Range)
   )
-    standing.holder.removeAttribute("data-lf-held");
-  if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
+    standing.holder.removeAttribute("data-lf-touch-held");
+  if (route === "hold" && !(target instanceof Range))
+    keeps(holder, "data-lf-touch-held", "");
   if (standing) record.described = standing.described;
   else {
     // A screen reader hears a preview shown on focus as what focus is on describes,
@@ -1465,9 +1469,12 @@ function stand(record, reading, standing, aim = false) {
   // since the preview stands over all of it; its width bounds the preview's.
   const room = shownWindow({ gap: EDGE, item: tip });
   tip.style.setProperty("--lf-preview-span", layoutPx(room.width));
-  const by = source.getBoundingClientRect();
+  // Its edges stand at offsets from the box `anchor()` reads its source at, which in
+  // Firefox leaves out the source's transforms (css-anchors.js, `anchorBox`).
+  const by = anchorBox(source);
   // The size this decision read, which the observer of what it stands by compares.
-  followedSize = { width: by.width, height: by.height };
+  const { width: sourceWidth, height: sourceHeight } = source.getBoundingClientRect();
+  followedSize = { width: sourceWidth, height: sourceHeight };
   const width = tip.getBoundingClientRect().width;
   const height = atLayoutPrecision(wholeHeight());
   // What it is about stays in view: the box it stands by, and what its declaration
@@ -1843,7 +1850,7 @@ function hide() {
     else described.el.setAttribute("aria-describedby", described.attribute);
   }
   if (record.route === "hold" && !(record.target instanceof Range))
-    record.holder.removeAttribute("data-lf-held");
+    record.holder.removeAttribute("data-lf-touch-held");
   follow(null);
   awaitView(null);
   placed = null;

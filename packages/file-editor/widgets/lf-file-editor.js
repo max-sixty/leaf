@@ -16,7 +16,7 @@
  * merge puts them in place of a reader's later typing, or calls the reader's own save
  * a conflict.
  *
- * The editor publishes its files as a `files` output, each named by the label the
+ * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
  * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
@@ -94,7 +94,6 @@ import {
   offered,
   offeredAction,
   onCurrentLocation,
-  publishOutput,
   rove,
   rowWalk,
   shadowStage,
@@ -397,7 +396,7 @@ customElements.define(
       // one open. It is built when a name or the open file changes, never as the reader
       // types, so a keystroke's work doesn't grow with how many files the editor holds.
       // Two bindings of one file list it once, since a navigator keys its rows by path.
-      const publishFiles = () => {
+      const holdFiles = () => {
         /** @type {Set<string>} */
         const listed = new Set();
         /** @type {{path: string, key: string}[]} */
@@ -408,13 +407,11 @@ customElements.define(
           listed.add(of.named);
           named.push({ path: of.named, key: of.binding });
         }
-        publishOutput(
-          this,
-          "files",
-          named.length
-            ? { files: named, ...(file.named ? { current: file.named } : {}) }
-            : null,
-        );
+        // The `files` output: held here, and `change` says it moved.
+        this.files = named.length
+          ? { files: named, ...(file.named ? { current: file.named } : {}) }
+          : null;
+        this.dispatchEvent(new Event("change"));
       };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
@@ -752,7 +749,7 @@ customElements.define(
         stopWatch?.();
         const stops = [...files.values()].map((of) =>
           of.api.watch(() => {
-            if (of.api.label !== of.named) publishFiles();
+            if (of.api.label !== of.named) holdFiles();
             if (of === file) void refresh(of);
           }),
         );
@@ -805,12 +802,12 @@ customElements.define(
         remember(leaving);
         void flush(leaving);
         paint();
-        publishFiles();
+        holdFiles();
         opening = connected ? refresh(file) : null;
         return opening;
       };
       paint();
-      publishFiles();
+      holdFiles();
       this.#placeSelection = () => {
         editor.placeSelection();
         comparison?.placeSelection();

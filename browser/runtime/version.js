@@ -110,8 +110,8 @@ import {
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
-import { savedReadingSettled, spell } from "./keyboard/bindings.js";
-import { commandKeysNow, commandSteps } from "./keyboard/control-keys.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
+import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
@@ -615,18 +615,19 @@ function pickerModel(state) {
       // The base's revision, which each row of the menu names it by.
       base: selectedBase()?.revision ?? null,
       on: diffOn.value,
-      // The version Versions offers to compare with, which it opens at: the base, else
-      // the version the user last saw while the page has changed since, else the newest
-      // version older than the one being read; null where none is older.
-      offered:
-        (
-          selectedBase() ??
-          seenBase() ??
-          runtime.versions.findLast((entry) => comparable(entry.revision))
-        )?.revision ?? null,
+      offered: offeredVersion(),
     }),
   });
 }
+// The version Versions offers to compare with, which it opens at: the base, else the
+// version the user last saw while the page has changed since, else the newest version
+// older than the one being read; null where none is older.
+export const offeredVersion = () =>
+  (
+    selectedBase() ??
+    seenBase() ??
+    runtime.versions.findLast((entry) => comparable(entry.revision))
+  )?.revision ?? null;
 
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
@@ -646,22 +647,9 @@ function paintPicker() {
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
 export const versionsReading = () => pickerModel(runtime.state);
-// Versions' own keys that other surfaces wear after Versions' keys: the one that
-// compares the version the user stands on, as its Compare does, and the one that opens
-// the latest version (floating-panel.js, `compareRow` and `latestRow`).
-export const COMPARE_KEY = "v";
-export const LATEST_KEY = "l";
 // Whether Versions stands open, as the floating panel says (`createVersionController`).
 let versionsStand = () => false;
-/** The keys that would make a press of one of Versions' own keys now: Versions' keys,
- * then that key, as `g V v`. None while Versions stands, where `g V` would put it away
- * and its rows are in front of the user, or where no key would open it.
- * @param {string} key */
-export const throughVersions = (key) => {
-  if (versionsStand()) return [];
-  const opening = commandKeysNow("version.open");
-  return opening.length ? [...opening, spell(key)] : [];
-};
+export const versionsShown = () => versionsStand();
 // Versions, a list of the floating panel's own, and a newer page to open, as rows of the
 // page's controls.
 registerPageControl({
@@ -1799,7 +1787,7 @@ function revisionDocument(revision) {
  *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => Promise<boolean>,
  *   captureObligationCurrentLocation: () => ObligationLocation,
  *   restoreObligationCurrentLocation: (currentLocation: ObligationLocation | null) => void,
- *   versions: { press: () => void, shows: () => boolean },
+ *   versions: { press: () => void, shows: () => boolean, scope: import("./keyboard/bindings.js").Scope },
  * }} controller */
 export function createVersionController({
   initialDocument,
@@ -1838,8 +1826,9 @@ export function createVersionController({
     id: "version.open",
     ready: savedReadingSettled,
     keys: ["Shift+v"],
-    title: "versions",
+    title: () => (versions.shows() ? "close Versions" : "Versions"),
     run: () => versions.press(),
+    opens: () => versions.scope,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
@@ -2527,8 +2516,8 @@ export function createVersionController({
       restorePlace(view.page, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a visual review's
-    // capture does in a document page: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a shot's capture
+    // stage does in a document page: the page keeps its own place beside the region's.
     if (
       view.page &&
       !restored.has(pageScroller) &&

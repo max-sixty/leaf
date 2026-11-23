@@ -356,11 +356,16 @@
   }
   /* The measure of the prose a box holds from its content edge, which the runtime
    * reads to find the prose (content-layout.js, `proseRect`) and to tell the page's
-   * flow from a figure standing past it (margin-layout.js). It does not inherit: a
-   * flow in the column's flow says it again. */
+   * flow from a figure standing past it (margin-layout.js). The column states it, and
+   * a flow in the column's flow inherits it. Every other box standing directly in the
+   * column or a flow sets it to zero (the first rule with the breakouts, below), and
+   * the boxes it holds inherit that zero. Each flow could instead write `inherit` for
+   * a property that doesn't inherit, but then a mark on a flow, such as the aim's,
+   * would restyle every box standing in it (browser/AGENTS.md, "What a style rule
+   * costs"). */
   @property --lf-prose-measure {
     syntax: "<length>";
-    inherits: false;
+    inherits: true;
     initial-value: 0px;
   }
   .layout-column {
@@ -520,11 +525,14 @@
       [data-lf-flow]
     )
   ) {
-    > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
-    > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
-    > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
-    > [data-lf-flow] {
-      --lf-prose-measure: inherit;
+    > :not(
+      .layout-column,
+      :is(section, article, details):where(
+        :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
+      ),
+      [data-lf-flow]
+    ) {
+      --lf-prose-measure: 0px;
     }
     /* Only a Layout that states a measure hands out room: in a workspace every block
      * fills its region, a flow's included. */

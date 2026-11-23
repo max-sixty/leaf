@@ -202,24 +202,26 @@ function advance(entry, signal, admitted = null) {
  * }} ObligationLists
  */
 /** Published workflows include local sends, before the server can classify them: a
- * send has no stage the server knows yet, and a widget move no coordinate the server
- * has read. A send `launching` waits for the server to launch the page's agent first.
+ * `local` send waits on the agent, or is blocked where the server refused it, and a
+ * widget move has no coordinate the server has read. A send `launching` waits for the
+ * server to launch the page's agent first.
  *
  * @template T
- * @typedef {T extends unknown ? Omit<T, "stage" | "coordinate"> & {
- *   stage: ServedWorkflow["stage"] | "sending";
+ * @typedef {T extends unknown ? Omit<T, "coordinate"> & {
  *   coordinate: readonly (string | null)[] | null;
+ *   local?: boolean;
  *   launching?: boolean;
  * } : never} PublishedWorkflow
  */
 /** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
-/** One row of On Me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A row names its record by `id`. `also`, on a
- * record's row, names the other records the user answers at its place; `live` says
- * whether the agent has it in hand now. `localQueues` joins the current obligation or
- * to-do record before publication (`CurrentQueueItem`).
+/** One row of On Me, On <agent> or Done, as `served_state.queues` serves it or this
+ * tab places it: `owner` names the list. A row names its record by `id`, and `also`,
+ * on a record's row, the other records the user answers at its place. `localQueues`
+ * joins the current obligation or to-do record before publication
+ * (`CurrentQueueItem`), which says where the item stands: whether the agent has it in
+ * hand, and how a done one ended.
  *
  * @typedef {import("../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
  */
@@ -232,21 +234,11 @@ function advance(entry, signal, admitted = null) {
  * @typedef {QueueItem & QueueRecord} CurrentQueueItem
  */
 
-/** A finished item, in the Done of the list `owner` names: how it ended, when, and the
- * outcome's detail.
- *
- * @typedef {QueueItem & {
- *   state: "done" | "failed" | "dropped";
- *   ended: string | null;
- *   detail: string | null;
- * }} DoneItem
- */
-
 /**
  * @typedef {{
  *   on_user: readonly QueueItem[];
  *   on_agent: readonly QueueItem[];
- *   done: readonly DoneItem[];
+ *   done: readonly QueueItem[];
  * }} WireQueues
  */
 
@@ -380,7 +372,7 @@ const widgetObligation = keptEach(
    * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
    * @param {boolean} answerWithdrawn @returns {ObligationRecord} */
   (item, widget, verb, withdrawals, answerWithdrawn) => {
-    const completed = item.status === "answered" && !answerWithdrawn;
+    const completed = item.answered && !answerWithdrawn;
     const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue =
       /** @type {{ e: Event }[]} */ (widget.entries).some(
@@ -424,12 +416,12 @@ function normalizedObligations(obligations, widgets, descriptors, pendingWithdra
       return widgetObligation(item, widget, verb, withdrawals, answerWithdrawn);
     },
   );
-  // A widget's record keeps the server's status and next actor, which only the log
-  // decides.
+  // A widget's record keeps where the server says it stands and its next actor, which
+  // only the log decides.
   return {
     all,
     user: all.filter((item) => item.next_actor === "user"),
-    unanswered: all.filter((item) => item.status === "open"),
+    unanswered: all.filter((item) => item.state !== "done"),
   };
 }
 
@@ -603,8 +595,8 @@ function localQueues(served, workflows, todos, items, local, record) {
   // The threads holding a send this tab has in flight.
   const sentIn = new Set(
     workflows.flatMap((workflow) =>
-      workflow.stage === "sending" &&
-      workflow.condition === null &&
+      workflow.local &&
+      workflow.state !== "blocked" &&
       workflow.subject.kind === "thread"
         ? [workflow.thread]
         : [],
@@ -633,14 +625,14 @@ function localQueues(served, workflows, todos, items, local, record) {
     );
   };
   // Whether an item the server listed as done stands open again in this tab.
-  /** @param {DoneItem} item */
+  /** @param {QueueItem} item */
   const reopened = (item) =>
     namesRecord(item) &&
-    obligationOf(item).status === "open" &&
+    obligationOf(item).state !== "done" &&
     obligationOf(item).next_actor === item.owner;
   // Whether an item the server listed as open has ended in this tab.
   /** @param {QueueItem} item */
-  const endedHere = (item) => namesRecord(item) && obligationOf(item).status !== "open";
+  const endedHere = (item) => namesRecord(item) && obligationOf(item).state === "done";
   /** @param {QueueItem} item */
   const todoOf = (item) => {
     const todo = todoRecord.get(item.id);
@@ -649,32 +641,15 @@ function localQueues(served, workflows, todos, items, local, record) {
   };
   // A record's row carries this tab's record of its obligation, and a to-do's row the
   // served to-do.
-  /** @template {QueueItem} T @param {T} item @returns {T & QueueRecord} */
-  const current = (item) => {
-    if (namesRecord(item)) {
-      const obligation = obligationOf(item);
-      return /** @type {T & QueueRecord} */ (
-        /** @type {unknown} */ (recordRow(item, obligation))
-      );
-    }
-    return /** @type {T & QueueRecord} */ (
-      /** @type {unknown} */ (todoRow(item, todoOf(item)))
+  /** @param {QueueItem} item @returns {CurrentQueueItem} */
+  const current = (item) =>
+    /** @type {CurrentQueueItem} */ (
+      /** @type {unknown} */ (
+        namesRecord(item)
+          ? recordRow(item, obligationOf(item))
+          : todoRow(item, todoOf(item))
+      )
     );
-  };
-  /** @param {DoneItem} done */
-  const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }) =>
-    current(/** @type {QueueItem} */ (item));
-  /** @param {QueueItem} item @returns {DoneItem & QueueRecord} */
-  const asDone = (item) => ({
-    ...current(item),
-    live: false,
-    state:
-      namesRecord(item) && obligationOf(item).status === "withdrawn"
-        ? "dropped"
-        : "done",
-    ended: null,
-    detail: null,
-  });
   /** @param {"user" | "agent"} owner */
   const reopenedFor = (owner) =>
     served.done.filter((item) => item.owner === owner && reopened(item));
@@ -691,13 +666,12 @@ function localQueues(served, workflows, todos, items, local, record) {
       subject: source.subject,
       thread: item.thread,
       also: [],
-      live: false,
     });
   };
   return {
     on_user: [
       ...served.on_user.filter(standsOpen).map(current),
-      ...reopenedFor("user").map(asOpen),
+      ...reopenedFor("user").map(current),
       ...local.filter((item) => item.next_actor === "user").map(localRow),
     ].toSorted(
       (a, b) =>
@@ -715,11 +689,11 @@ function localQueues(served, workflows, todos, items, local, record) {
       ...served.on_agent
         .filter((item) => item.kind === "todo" && standsOpen(item))
         .map(current),
-      ...reopenedFor("agent").map(asOpen),
+      ...reopenedFor("agent").map(current),
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.
     done: [
-      ...[...served.on_user, ...served.on_agent].filter(endedHere).map(asDone),
+      ...[...served.on_user, ...served.on_agent].filter(endedHere).map(current),
       ...served.done.filter((item) => !reopened(item)).map(current),
     ],
   };
@@ -735,14 +709,14 @@ function localUpdates(workflows) {
   /** @type {Map<string | null, Workflow>} */
   const newest = new Map();
   for (const workflow of workflows)
-    if (workflow.stage === "sending" && workflow.condition === null)
+    if (workflow.local && workflow.state !== "blocked")
       newest.set(workflow.thread, workflow);
   /** @type {ObligationRecord[]} */
   const records = [];
   const named = workflows.map(
     /** @returns {Workflow} */ (workflow) => {
-      if (workflow.stage !== "sending") return workflow;
-      const refused = workflow.condition !== null;
+      if (!workflow.local) return workflow;
+      const refused = workflow.state === "blocked";
       const owner = refused
         ? workflow
         : /** @type {Workflow} */ (newest.get(workflow.thread));
@@ -758,8 +732,13 @@ function localUpdates(workflows) {
             target: "id" in workflow.subject ? workflow.subject.id : workflow.input,
           },
           answer: null,
-          status: "open",
           next_actor: refused ? "user" : "agent",
+          state: workflow.state,
+          reason: workflow.reason,
+          outcome: null,
+          answered: false,
+          seen: false,
+          workflow: workflow.id,
         });
       return { ...workflow, obligation: id };
     },
@@ -1124,9 +1103,6 @@ export function createSemanticApplication({ presentation } = {}) {
           projection.pendingWithdrawals,
         )
       : NO_OBLIGATIONS;
-    // Thread attention is the server's reading, and one local fact adjusts it: a
-    // refused send hands a thread the server left with the agent back to the user,
-    // whose Retry it is.
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
@@ -1193,17 +1169,6 @@ export function createSemanticApplication({ presentation } = {}) {
       const thread = threadOfEntry(entry);
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
-    const obligated = folded.map(
-      /** @returns {Thread} */ (thread) => {
-        const retry = recovery.get(thread.id);
-        return retry && thread.attention?.kind !== "needs_user"
-          ? {
-              ...thread,
-              attention: { kind: "needs_user", reason: "resend", workflow: retry },
-            }
-          : thread;
-      },
-    );
     // A send this tab has not delivered, in the served workflow's shape, naming the
     // record it serves once `localUpdates` publishes it. A widget move owes no answer
     // until the server has read it, so only a refused one publishes a record: the
@@ -1226,7 +1191,7 @@ export function createSemanticApplication({ presentation } = {}) {
         input: turn?.id ?? entry.localId,
         message: turn ? turnMessage(turn) : null,
         thread,
-        at_work: false,
+        local: true,
         // The server's tuple, where the local fold keys a coordinate.
         coordinate: turn
           ? ["thread", thread]
@@ -1234,7 +1199,9 @@ export function createSemanticApplication({ presentation } = {}) {
             ? coordinateOf(entry.projection.coordinate)
             : null,
         obligation: null,
-        stage: "sending",
+        state: rejected ? "blocked" : "waiting",
+        reason: rejected ? "failed" : null,
+        seen: false,
         ts: turn?.ts ?? null,
         detail: null,
         detail_seq: null,
@@ -1244,8 +1211,6 @@ export function createSemanticApplication({ presentation } = {}) {
         delivery_session: null,
         delivery_turn: null,
         response: null,
-        activity: [],
-        condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         started_by: [],
         launching: entry.launching,
       };
@@ -1271,6 +1236,36 @@ export function createSemanticApplication({ presentation } = {}) {
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ]);
     const workflows = sends.workflows;
+    // Thread attention is the server's reading, and two local facts adjust it. A
+    // refused send hands a thread the server left with the agent back to the user,
+    // whose Retry it is. And a thread this tab opened, which the server has yet to
+    // read, stands by the record its newest send in flight publishes.
+    const servedIds = new Set([
+      ...servedItems.all.map((item) => item.id),
+      ...todos.map((todo) => todo.id),
+    ]);
+    const servedUsers = new Set(servedItems.user.map((item) => item.id));
+    const sendingIn = new Map(
+      sends.records.flatMap((item) =>
+        item.next_actor === "agent" && item.thread !== null
+          ? [[item.thread, item.id]]
+          : [],
+      ),
+    );
+    const obligated = folded.map(
+      /** @returns {Thread} */ (thread) => {
+        const retry = recovery.get(thread.id);
+        if (retry && !(thread.attention && servedUsers.has(thread.attention)))
+          return { ...thread, attention: `update:${retry}` };
+        const sent = sendingIn.get(thread.id);
+        return sent &&
+          thread.attention !== null &&
+          thread.attention !== sent &&
+          !servedIds.has(thread.attention)
+          ? { ...thread, attention: sent }
+          : thread;
+      },
+    );
     // The records this tab's sends publish join the served inventory once it is read.
     const localRecords = ready ? sends.records : [];
     const all = [...servedItems.all, ...localRecords];
@@ -1289,8 +1284,8 @@ export function createSemanticApplication({ presentation } = {}) {
       document,
       widgets,
       workflows,
-      todos.filter((todo) => todo.state === "open"),
       items.all,
+      todos.filter((todo) => todo.state !== "done"),
       markingRead,
       ready,
     );

@@ -2891,9 +2891,10 @@ def all_pages(page: Page) -> None:
             "session_cwd": f"/workspace/tend.{place}",
             "activity": {
                 **activity,
-                "kind": "working",
-                "dropped": None,
-                "awaiting": None,
+                "presence": "here",
+                "state": "running",
+                "reason": None,
+                "next_actor": "agent",
                 "detail": "Running the sandbox suite against both harnesses",
             },
         }

@@ -440,7 +440,7 @@ def page_facts(state: dict, events: list) -> dict:
         """How a question On Me no longer holds ended, or None while it stands: the
         user's answer, or a resolve of its thread (`obligations`), by whoever the
         thread stands resolved by where it still does."""
-        if record["status"] != "open":
+        if record["state"] == "done":
             return "answered"
         if record["next_actor"] is not None:
             return None
@@ -463,7 +463,7 @@ def page_facts(state: dict, events: list) -> dict:
             )
     started = []
     for item, start in item_starts(events).items():
-        if todos.get(item, {}).get("state") == "open":
+        if todos.get(item, {}).get("state", "done") != "done":
             about = f'the agent\'s to-do "{todos[item]["title"]}"'
         elif item in updates:
             subject = updates[item]["subject"]

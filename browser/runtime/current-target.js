@@ -216,7 +216,7 @@ export function questionAsked(node) {
     obligationsIn(whole, asked),
     (item) => obligationPlace(item, all).source,
   );
-  return drawn.find((item) => item.status === "open") ?? null;
+  return drawn.find((item) => item.state !== "done") ?? null;
 }
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited

@@ -4,7 +4,8 @@
  * against them. An obligation is answered only through its source, a widget's own
  * controls or a reply in its thread, so no row offers a control of Leaf's own to end
  * it. Every row but a to-do's names an obligation record and carries it
- * (`obligation`). */
+ * (`obligation`); a to-do's row carries the to-do (`todo`). Either says where the item
+ * stands (`itemRecord`). */
 import { agentSays, saidBy } from "./voice.js";
 
 // An On list's name, for whoever it is on: the user's On Me, or On <agent>. A list's
@@ -55,11 +56,25 @@ export const itemNoun = (item) =>
 // the end it gave its own to-do are its acts, in its voice; Leaf says how anything
 // else on the user's list ended (voice.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
-/** @param {import("./framework/application.js").DoneItem} item */
+/** @typedef {import("./framework/snapshot.js").Immutable<import("./framework/application.js").CurrentQueueItem>} CurrentItem */
+// The record a row carries, which says where its item stands: a to-do's row the
+// to-do, every other row its obligation record.
+/** @param {CurrentItem} item */
+export const itemRecord = (item) => item.todo ?? item.obligation;
+/** @param {CurrentItem} item */
 export const itemOutcome = (item) =>
   item.kind === "update"
     ? agentSays("Answered")
     : saidBy(
         item.owner === "agent" ? "agent" : "leaf",
-        OUTCOMES[item.state] ?? item.state,
+        OUTCOMES[itemRecord(item).outcome ?? "done"],
       );
+
+// When a finished list item ended, and the detail its ending gave: the agent's end of
+// a to-do, or the answer's own time.
+/** @param {CurrentItem} item */
+export const itemEnding = ({ todo, obligation }) =>
+  Object.freeze({
+    ended: (todo ? todo.end : obligation.answer)?.event?.ts ?? null,
+    detail: todo?.end?.detail ?? null,
+  });

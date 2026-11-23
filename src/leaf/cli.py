@@ -1570,6 +1570,20 @@ def thread_resolve(page_dir: Path, message: str) -> dict:
     return cmd_resolve(page_dir, message)
 
 
+@thread.command("reopen", short_help="Reopen a closed thread as the agent.")
+@page_argument(renew=True)
+@click.argument("message", metavar="MESSAGE")
+def thread_reopen(page_dir: Path, message: str) -> dict:
+    """Reopen the thread MESSAGE is in, as the agent.
+
+    It brings a thread the user resolved back to their list; the Leaf skill's
+    references/threads.md says when to.
+    """
+    from leaf.thread import cmd_reopen
+
+    return cmd_reopen(page_dir, message)
+
+
 @cli.group(short_help="Create or end to-dos, start work on your list, and plan.")
 def task() -> None:
     """Create and end to-dos, say which item on your list you are working on, and

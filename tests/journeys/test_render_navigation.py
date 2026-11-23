@@ -774,7 +774,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"
     assert reading["prompt"]["target"] == "bg-choice-ask"
-    assert reading["status"] == "open"
+    assert (reading["state"], reading["next_actor"]) == ("waiting", "user")
 
     gallery_tab("tab", name="Threads").click()
     open_threads(page)
@@ -959,7 +959,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
-    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "delivered")
     expect(picked_up).to_have_css(
         "border-top-color",
         resting.evaluate("node => getComputedStyle(node).borderTopColor"),

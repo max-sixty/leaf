@@ -246,14 +246,26 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | withdrawn
-  next_actor: null,   // user | agent | null
+  next_actor: null,   // whose move it is: user | agent | null
+  state: "done",      // waiting | running | blocked | done
+  reason: null,       // what the state leaves out, such as why it is blocked
+  outcome: "done",    // how a done one ended: done | failed | dropped
+  answered: true,     // whether its own answer stands on it
 }
 ```
 
+Every record says where it stands in `next_actor`, `state`, `reason` and `outcome`, the
+same words a thread, a plan step and the page's status use. An open one is `waiting` on
+its `next_actor`; one the agent has in hand is `running`; one that is owed while nothing
+moves it is `blocked`, with the `reason`: `stopped` or `interrupted` (its turn ended
+first), `quiet` (nothing has renewed it for a quarter of an hour), `undelivered` (no
+turn has taken it in), `terminal` (the agent's turn waits on the user in its own window)
+or `failed` (handed back to send again). A `done` one is `answered` when the answer its
+source takes stands on it, and was withdrawn when `outcome` is `dropped`.
+
 A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
-show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
+show while it is open. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer: the
 innermost named group round the widget, an element whose registry entry declares
 `reading-role: group` such as an `lf-group`, or else the widget itself; `prompt.text`
@@ -264,7 +276,7 @@ arrives. Each `source.kind` adds its own facts:
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
   settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
-  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
@@ -310,9 +322,12 @@ through the widget's own command.
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
-(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
-obligation's row lists in `also` the ids of the other obligations the user answers at
-the same place, such as the agent's answer in a thread about it.
+(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. The
+record or to-do says where the row stands: the agent has it in hand while its `state` is
+`running`, and a row in `done` ended as its `outcome` says, a to-do's `end` holding the
+detail the agent gave. An obligation's row lists in `also` the ids of the other
+obligations the user answers at the same place, such as the agent's answer in a thread
+about it.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row; an obligation is answered only
 through its widget or thread. Act on a collection only when its `phase` is `ready`.

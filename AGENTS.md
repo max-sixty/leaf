@@ -401,13 +401,14 @@ uses. A draft being typed also stays out of the log until the user sends it, but
 outlives its node: the page's server keeps it for every tab and device
 (`src/leaf/drafts.py`), and the agent never reads it.
 
-Python decides where the agent's work stands. `activity.py` decides the status of
-the agent's work on the whole page, which the Leaf panel shows. `workflows.py`
-decides the status of each update the user handed over, which messages, thread
-attention, margin entries and the Stop hook read; thread attention also reads the
-obligations the user still owes. A busy page doesn't mean every message is being
-worked on. The browser adds its own unsent gestures to the status the server sends,
-but never moves a workflow to another stage, not even as time passes. Another page
+Python decides where the agent's work stands, in the one vocabulary every record and
+surface reads (`standing.py`): whose move it is, and whether the work is waiting,
+running, blocked or done. `activity.py` decides it for the agent's work on the whole
+page, which the Leaf panel shows, and for each obligation record, each to-do and each
+update the user handed over (`workflows.py`), which messages, thread attention, the On lists,
+margin entries and the Stop hook read. A busy page doesn't mean every message is being
+worked on. The browser adds its own unsent gestures to what the server sends, but
+never changes where a workflow stands, not even as time passes. Another page
 learns a page's activity only from the row `server_rows.py` writes and from whether
 the page's server is alive. It shows that activity only in its list of other pages
 (`/api/pages`), and that list feeds no page's own state and no server's reading of a

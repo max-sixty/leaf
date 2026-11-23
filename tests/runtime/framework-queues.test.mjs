@@ -5,6 +5,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "../../browser/runtime/framework/application.js";
+import { itemEnding, itemOutcome } from "../../browser/runtime/queues.js";
+import { todoWord } from "../../browser/runtime/thread/workflow.js";
 import { servedReading } from "../served.mjs";
 
 const adopted = (name) => {
@@ -74,14 +76,14 @@ test("the browser publishes the queues the server selected", () => {
   ]);
 });
 
-test("a start gone quiet holds nothing, so its to-do shows no line in hand", () => {
+test("a start gone quiet holds nothing, so its to-do reads Gone quiet, not On it", () => {
   const { app } = adopted("quiet start");
-  const running = Object.fromEntries(
-    published(app).on_agent.map(({ todo }) => [todo.title, todo.running?.text ?? null]),
+  const words = Object.fromEntries(
+    published(app).on_agent.map(({ todo }) => [todo.title, todoWord(todo).text]),
   );
-  assert.deepEqual(running, {
-    "Rebuild the chart": null,
-    "Check the colours": "Comparing the palette",
+  assert.deepEqual(words, {
+    "Rebuild the chart": "Gone quiet",
+    "Check the colours": "On it",
   });
 });
 
@@ -175,37 +177,39 @@ test("Done lists completed obligations and to-dos through their own records", ()
   const { app } = adopted("done");
   const { done } = published(app);
   const answered = done.find((item) => item.kind === "widget");
-  assert.equal(answered.obligation.status, "answered");
-  assert.equal(answered.id, answered.obligation.id);
-  assert.equal(answered.state, "done");
-  assert.ok(
-    done.some(
-      (item) => item.kind === "todo" && item.todo.title === "Check the colours",
-    ),
+  assert.deepEqual(
+    [answered.obligation.state, answered.obligation.outcome],
+    ["done", "done"],
   );
+  assert.equal(answered.id, answered.obligation.id);
+  assert.deepEqual(itemOutcome(answered), { text: "Done", voice: "leaf" });
+  const todo = done.find((item) => item.kind === "todo");
+  assert.equal(todo.todo.title, "Check the colours");
+  // The agent's end of its own to-do is its act, with the detail it gave.
+  assert.deepEqual(itemOutcome(todo), { text: "Done", voice: "agent" });
+  assert.equal(itemEnding(todo).detail, "Matched the theme");
 });
 
 test("an item lands in the Done of the list it left, newest first", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const owners = Object.fromEntries(done.map((item) => [item.id, item.owner]));
-  // The answered obligation leaves On Me; the ended to-do and the comment the agent
-  // answered leave On <agent>.
-  assert.deepEqual(owners, {
-    "widget:ship": "user",
-    e4: "agent",
-    "update:e2": "agent",
-  });
-  // The comment keeps the record On <agent> listed it under, so a row moving to Done is
-  // the same item, now answered by the reply.
-  const sent = done.find((item) => item.id === "update:e2");
-  assert.deepEqual(
-    [sent.kind, sent.obligation.status, sent.obligation.answer.event.id],
-    ["update", "answered", "e3"],
-  );
-  const times = done.map((item) => Date.parse(item.ended));
+  // The answered obligation leaves On Me, and the ended to-do On <agent>. The comment
+  // the agent answered with a to-do stays owed through it (`workflows.py`).
+  assert.deepEqual(owners, { "widget:ship": "user", e4: "agent" });
+  const times = done.map((item) => Date.parse(itemEnding(item).ended));
+  assert.ok(times.every(Number.isFinite));
   assert.deepEqual(
     times,
     times.toSorted((a, b) => b - a),
+  );
+  // A comment the agent answered keeps the record On <agent> listed it under, so a row
+  // moving to Done is the same item, now answered by the reply.
+  const sent = published(adopted("queues on both sides").app).done.find(
+    (item) => item.kind === "update",
+  );
+  assert.deepEqual(
+    [sent.id, sent.obligation.state, sent.obligation.answer.event.id],
+    ["update:e1", "done", "e2"],
   );
 });

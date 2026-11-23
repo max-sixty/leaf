@@ -26,6 +26,7 @@ from interact_support import (
     record_claim,
     response_reference,
     said,
+    served_state_error,
     serving,
     state_json,
     working,
@@ -46,6 +47,7 @@ from leaf import presence as presence_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import standing as standing_model
 from leaf import state as cleanup_model
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
@@ -61,10 +63,10 @@ def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
     assert claim is not None
     cleanup_model.open_session_turn(claim["id"])
     assert page_state(claimed)["listening"] is False
-    assert activity_reading(claimed)["kind"] == "listening"
+    assert activity_reading(claimed)["presence"] == "here"
 
     cleanup_model.close_session_turn(claim["id"])
-    assert activity_reading(claimed)["kind"] == "away"
+    assert activity_reading(claimed)["presence"] == "away"
 
 
 def test_a_session_the_next_input_wakes_reads_listening(page_dir, tmp_path):
@@ -78,7 +80,7 @@ def test_a_session_the_next_input_wakes_reads_listening(page_dir, tmp_path):
     job.mkdir()
     cleanup_model.write_json(job / "state.json", {"sessionId": "s1"})
     record_claim(page_dir, job=str(job), turn_closed=cleanup_model.now_iso())
-    assert activity_reading(page_dir)["kind"] == "listening"
+    assert activity_reading(page_dir)["presence"] == "here"
 
     sessions = harness_model.claude_code_sessions()
     sessions.mkdir(exist_ok=True)
@@ -92,27 +94,27 @@ def test_a_session_the_next_input_wakes_reads_listening(page_dir, tmp_path):
     }
     cleanup_model.write_json(sessions / f"{os.getpid()}.json", worker)
     cleanup_model.write_json(sessions / f"{os.getpid()}.k.key", {"peerToken": "t"})
-    assert activity_reading(page_dir)["kind"] == "away"
+    assert activity_reading(page_dir)["presence"] == "away"
 
     cleanup_model.write_json(
         harness_model.claude_code_config() / "settings.json",
         {"crossSessionInbound": "accept"},
     )
-    assert activity_reading(page_dir)["kind"] == "listening"
+    assert activity_reading(page_dir)["presence"] == "here"
 
     # A project can narrow the user's accept, from the repository's root too.
     (project / ".claude").mkdir()
     cleanup_model.write_json(
         project / ".claude" / "settings.local.json", {"crossSessionInbound": "hold"}
     )
-    assert activity_reading(page_dir)["kind"] == "away"
+    assert activity_reading(page_dir)["presence"] == "away"
 
     # Only the user's settings grant it.
     cleanup_model.write_json(
         project / ".claude" / "settings.local.json", {"crossSessionInbound": "accept"}
     )
     cleanup_model.write_json(harness_model.claude_code_config() / "settings.json", {})
-    assert activity_reading(page_dir)["kind"] == "away"
+    assert activity_reading(page_dir)["presence"] == "away"
 
 
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
@@ -127,11 +129,16 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     assert session_model.cmd_wait(claimed) == 0
     delivered(capsys)
     activity = activity_reading(claimed)
-    assert activity["kind"] == "working"
-    assert [item["stage"] for item in activity["obligations"]] == ["picked_up"]
+    assert activity["state"] == "running"
+    assert [(item["state"], item["seen"]) for item in activity["obligations"]] == [
+        ("waiting", True)
+    ]
     agent_state = state_json(claimed)
     agent_activity = agent_state["activity"]
-    assert agent_activity["kind"] == activity["kind"]
+    assert (agent_activity["presence"], agent_activity["state"]) == (
+        activity["presence"],
+        activity["state"],
+    )
     # The agent reading names each owed answer by its record's id beside the answer;
     # the move itself is listed once.
     [move] = owed(agent_state)
@@ -151,15 +158,15 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
 
     end_work(claimed)
     session_model.cmd_waiting(claimed)
-    assert activity_reading(claimed)["kind"] == "working"
+    assert activity_reading(claimed)["state"] == "running"
 
     cleanup_model.close_session_turn(claim["id"])
     ended = activity_reading(claimed)
-    assert ended["kind"] == "away"
-    assert ended["obligations"][0]["condition"] == {
-        "kind": "ended",
-        "operation": "work",
-    }
+    assert ended["presence"] == "away"
+    assert (ended["obligations"][0]["state"], ended["obligations"][0]["reason"]) == (
+        "blocked",
+        "stopped",
+    )
 
     lease_path = leases_model.waiter_lease_path(claimed, claim["id"])
     assert lease_path is not None
@@ -176,15 +183,40 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         },
     )
     settled = activity_reading(claimed)
-    assert settled["kind"] == "listening"
+    assert (settled["presence"], settled["state"]) == ("here", "done")
     assert settled["obligations"] == []
     leases_model.release_lease(lease)
 
 
+def _served_at(page, minutes=0):
+    """The whole reading the server serves of the page `minutes` from now, held to its
+    schema, so every standing these tests reach is one the schema names."""
+    now = datetime.now().astimezone() + timedelta(minutes=minutes)
+    events = events_model.read_events(page)
+    state = served_page.full_state(page, events, now=now.isoformat())
+    assert (error := served_state_error(state)) is None, error
+    return state
+
+
 def _activity_at(page, minutes=0):
-    """The page's activity as the server would read it `minutes` from now."""
+    """The page's activity as the server would read it `minutes` from now, read
+    beside the whole reading it serves then (`_served_at`)."""
+    _served_at(page, minutes)
     now = datetime.now().astimezone() + timedelta(minutes=minutes)
     return activity_reading(page, now.isoformat())
+
+
+def _standing(item: dict) -> tuple:
+    return item["state"], item["reason"]
+
+
+def _overdue(activity: dict) -> int:
+    """How many owed updates have stalled with the agent to act, which only the
+    user's nudge moves (`standing.STRANDED`)."""
+    return sum(
+        item["state"] == "blocked" and item["reason"] in standing_model.STRANDED
+        for item in activity["obligations"]
+    )
 
 
 def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pid):
@@ -231,18 +263,20 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     # is gone changes nothing.
     harness_says("busy")
     harness_says("waiting", pid=dead_pid)
-    assert _activity_at(claimed)["kind"] == "working"
+    assert _activity_at(claimed)["state"] == "running"
     unrenewed = _activity_at(claimed, 16)
-    assert unrenewed["counts"]["handling"] == 0
-    assert unrenewed["obligations"][0]["condition"] == {
-        "kind": "stale",
-        "operation": "work",
-    }
+    assert _standing(unrenewed["obligations"][0]) == ("blocked", "quiet")
 
-    # A dialog in the terminal is observed work the page announces.
+    # A dialog in the terminal is observed work the page announces, and holds the
+    # turn on the user's answer there.
     harness_says("waiting")
     waiting = _activity_at(claimed)
-    assert (waiting["kind"], waiting["observed_kind"]) == ("working", "awaiting_user")
+    assert (
+        waiting["state"],
+        waiting["reason"],
+        waiting["next_actor"],
+        waiting["observed_kind"],
+    ) == ("blocked", "terminal", "user", "awaiting_user")
 
     # Escape: the turn ended with no Stop hook, and the move it held reads Turn
     # ended at once.
@@ -250,10 +284,7 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     claim_record = service_model.page_claim(claimed)
     assert claim_record is not None
     assert claim_record["turn_closed"] is None
-    assert _activity_at(claimed)["obligations"][0]["condition"] == {
-        "kind": "ended",
-        "operation": "work",
-    }
+    assert _standing(_activity_at(claimed)["obligations"][0]) == ("blocked", "stopped")
 
     # The next prompt renews the turn the interrupt left open, and the move it
     # holds is handled in it again.
@@ -262,20 +293,31 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     capsys.readouterr()
-    assert _activity_at(claimed)["counts"]["handling"] == 1
+    renewed = _activity_at(claimed)
+    assert renewed["state"] == "running"
+    assert [(item["state"], item["seen"]) for item in renewed["obligations"]] == [
+        ("waiting", True)
+    ]
 
     # A start the agent writes after that renews the turn, and the move it starts
-    # stops being believed at the next interrupt.
+    # stops being believed at the next interrupt, which only the user's nudge moves.
     harness_says("idle", ago=5)
     assert _start(claimed, comment["id"], "Cutting the lede").exit_code == 0
-    assert _activity_at(claimed)["counts"]["active"] == 1
+    assert _activity_at(claimed)["counts"]["running"] == 1
+
+    # A dialog over work the turn has started holds that work, too, on the user's
+    # answer in the terminal.
+    harness_says("waiting")
+    assert _standing(_activity_at(claimed)["obligations"][0]) == ("blocked", "terminal")
     harness_says("idle")
     ended = _activity_at(claimed)
-    assert (ended["kind"], ended["dropped"]) == ("away", True)
-    assert ended["obligations"][0]["condition"] == {
-        "kind": "stale",
-        "operation": "work",
-    }
+    assert (
+        ended["presence"],
+        ended["state"],
+        ended["reason"],
+        ended["next_actor"],
+    ) == ("away", "blocked", "stopped", "user")
+    assert _standing(ended["obligations"][0]) == ("blocked", "stopped")
 
     # A status the harness has no word on is no reading at all.
     harness_says("compacting")
@@ -312,6 +354,19 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     consume_pending_input("s1")
+    follow_up = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "Keep the wide one in.",
+        },
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    consume_pending_input("s1")
     harness_says("busy")
     assert (
         _start(claimed, comment["id"], "Workers are comparing layouts").exit_code == 0
@@ -330,33 +385,38 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     for minutes in (0, 10):
         ending = _activity_at(claimed, minutes)
         assert (
-            ending["kind"],
+            ending["state"],
+            ending["reason"],
             ending["detail"],
             ending["observed"],
-            ending["dropped"],
         ) == (
-            "working",
+            "running",
+            None,
             "Workers are comparing layouts",
             activity_model.BACKGROUND_DETAIL,
-            False,
         )
+        # One reply answers both messages, so the one the ended turn took in beside
+        # the started one waits with it and does not read stopped.
+        assert {
+            item["id"]: _standing(item)
+            for item in _served_at(claimed, minutes)["workflows"]
+        } == {comment["id"]: ("running", None), follow_up["id"]: ("waiting", None)}
 
     for idle in ("idle", "shell"):
         harness_says(idle)
         ended = _activity_at(claimed, 10)
-        assert (ended["kind"], ended["dropped"], ended["observed"]) == (
-            "away",
-            True,
-            "",
-        )
+        assert (
+            ended["presence"],
+            ended["state"],
+            ended["reason"],
+            ended["observed"],
+        ) == ("away", "blocked", "stopped", "")
 
     # Background work the session starts after that break carries no start the
     # break dropped.
     harness_says("busy")
-    assert _activity_at(claimed, 10)["obligations"][0]["condition"] == {
-        "kind": "stale",
-        "operation": "work",
-    }
+    [owed] = _activity_at(claimed, 10)["obligations"]
+    assert (owed["state"], owed["reason"]) == ("blocked", "stopped")
 
 
 def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):
@@ -396,15 +456,16 @@ def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):
         for minutes in (0, 20):
             running = _activity_at(claimed, minutes)
             assert (
-                running["kind"],
+                running["state"],
                 running["detail"],
                 running["observed_kind"],
-                [todo["running"] for todo in running["todos"]],
-            ) == ("working", "", "working", [None])
+                [todo["line"] for todo in running["todos"]],
+            ) == ("running", "", "working", [None])
 
         cleanup_model.close_session_turn("s1")
         harness_says("idle")
-        assert _activity_at(claimed)["kind"] == "listening"
+        awaiting = _activity_at(claimed)
+        assert (awaiting["presence"], awaiting["state"]) == ("here", "waiting")
     finally:
         leases_model.release_lease(lease)
 
@@ -412,9 +473,9 @@ def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     """With nothing taking input, a comment that has only just arrived is the
     session's next turn to take, and Leaf messages a Claude Code session as it
-    arrives. The page asks the user to nudge the agent only once an owed move has
-    stalled with the agent to act, which `counts.overdue` names: one still Sent
-    past the pickup grace, or one a turn picked up and ended without answering."""
+    arrives. The page asks the user to nudge the agent (`next_actor` the user) only
+    once an owed move has stalled with the agent to act: one still unpicked past the
+    pickup grace, or one a turn picked up and ended without answering."""
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
 
@@ -435,15 +496,24 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     consume_pending_input("s1")
 
     turn_ends()
-    assert _activity_at(claimed, 3)["kind"] == "away"
-    assert _activity_at(claimed, 3)["counts"]["overdue"] == 0
+    assert _activity_at(claimed, 3)["presence"] == "away"
+    assert _overdue(_activity_at(claimed, 3)) == 0
 
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Still there?"}
     )
     fresh, late = _activity_at(claimed), _activity_at(claimed, 3)
-    assert (fresh["kind"], fresh["counts"]["overdue"]) == ("away", 0)
-    assert (late["kind"], late["counts"]["overdue"]) == ("away", 1)
+    assert (fresh["presence"], _overdue(fresh), fresh["next_actor"]) == (
+        "away",
+        0,
+        "agent",
+    )
+    assert (late["presence"], _overdue(late), late["state"], late["next_actor"]) == (
+        "away",
+        1,
+        "blocked",
+        "user",
+    )
 
     # Picked up by the next turn. A long, silent step past the working grace
     # leaves nothing to say the turn ended, so it asks for no nudge; the turn
@@ -453,11 +523,15 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     )
     capsys.readouterr()
     consume_pending_input("s1")
-    assert _activity_at(claimed)["counts"]["overdue"] == 0
-    assert _activity_at(claimed, 16)["counts"]["overdue"] == 0
+    assert _overdue(_activity_at(claimed)) == 0
+    assert _overdue(_activity_at(claimed, 16)) == 0
     turn_ends()
     stranded = _activity_at(claimed)
-    assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)
+    assert (stranded["presence"], _overdue(stranded), stranded["next_actor"]) == (
+        "away",
+        1,
+        "user",
+    )
 
 
 def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
@@ -511,8 +585,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
     )
-    assert (waiting["kind"], waiting["observed_kind"]) == (
-        "working",
+    assert (waiting["state"], waiting["reason"], waiting["observed_kind"]) == (
+        "blocked",
+        "terminal",
         "awaiting_approval",
     )
     thinking = activity_model.canonical_activity(
@@ -523,7 +598,12 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         {**stream, "kind": "thinking"},
         updates=nothing,
     )
-    assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
+    assert (
+        thinking["presence"],
+        thinking["state"],
+        thinking["reason"],
+        thinking["observed_kind"],
+    ) == ("here", "blocked", "quiet", None)
 
     workflow = {
         "id": "input-1",
@@ -531,9 +611,12 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "seq": 1,
         "subject": {"kind": "thread", "id": "input-1"},
         "obligation": "update:input-1",
-        "stage": "picked_up",
+        "pickup": "opened",
+        "held_by": None,
+        "handed_back": False,
         "ts": now.isoformat(),
-        "condition": None,
+        "delivery_session": "session-1",
+        "delivery_turn": "turn-1",
         "response": None,
     }
     reply = {
@@ -560,7 +643,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         reply=reply,
         updates=obligations_model.collection([owed]),
     )["workflows"]
-    assert ended["condition"] == {"kind": "ended", "operation": "response"}
+    assert (ended["state"], ended["reason"]) == ("blocked", "stopped")
 
 
 def test_queued_input_does_not_hide_fresh_work(claimed):
@@ -573,12 +656,19 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
         delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
+    assert (activity["state"], activity["detail"]) == (
+        "running",
         "Revising the heading",
     )
-    assert activity["counts"]["queued"] == 1
-    assert activity["obligations"][0]["stage"] == "queued"
+    # An owed answer counts once: no turn has taken this one in, so it is no second
+    # answer among those waiting.
+    assert activity["counts"] == {"running": 0, "waiting": 0, "blocked": 0, "unseen": 1}
+    [owed_move] = activity["obligations"]
+    assert (owed_move["state"], owed_move["seen"], owed_move["queued"]) == (
+        "waiting",
+        False,
+        True,
+    )
 
 
 def test_newer_pending_input_does_not_reclassify_page_work(claimed):
@@ -590,12 +680,17 @@ def test_newer_pending_input_does_not_reclassify_page_work(claimed):
     )
 
     activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
+    assert (activity["state"], activity["detail"]) == (
+        "running",
         "Revising the heading",
     )
-    assert activity["counts"]["pending"] == 1
-    assert activity["obligations"][0]["stage"] == "sent"
+    assert activity["counts"]["unseen"] == 1
+    [owed_move] = activity["obligations"]
+    assert (owed_move["state"], owed_move["seen"], owed_move["queued"]) == (
+        "waiting",
+        False,
+        False,
+    )
 
 
 def test_queued_input_does_not_hide_live_codex_activity(claimed):
@@ -620,13 +715,14 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
         delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"], activity["observed"]) == (
-        "working",
+    assert (activity["state"], activity["detail"], activity["observed"]) == (
+        "running",
         "",
         "Running the checks",
     )
     assert activity["observed_kind"] == "tool"
-    assert activity["counts"]["queued"] == 1
+    assert activity["counts"]["unseen"] == 1
+    assert [item["queued"] for item in activity["obligations"]] == [True]
     leases_model.release_lease(lease)
 
 
@@ -656,8 +752,8 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     assert "stream" not in live
     assert "stream" not in live["status"]
     activity = live["activity"]
-    assert (activity["kind"], activity["detail"], activity["observed"]) == (
-        "working",
+    assert (activity["state"], activity["detail"], activity["observed"]) == (
+        "running",
         "",
         "Running the tests",
     )
@@ -669,7 +765,11 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     with service_model.PageTransaction(claimed) as transaction:
         transaction.clear_stream_activity("s1", "turn-live")
     returned = activity_reading(claimed)
-    assert (returned["kind"], returned["detail"]) == ("listening", "")
+    assert (returned["presence"], returned["state"], returned["detail"]) == (
+        "here",
+        "done",
+        "",
+    )
     leases_model.release_lease(lease)
 
 
@@ -739,8 +839,8 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         )
 
     activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"], activity["observed"]) == (
-        "working",
+    assert (activity["state"], activity["detail"], activity["observed"]) == (
+        "running",
         "Checking the rollout against staging",
         "Running the tests",
     )
@@ -760,8 +860,8 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     assert ended.exit_code == 0, ended.output
     session_model.cmd_waiting(claimed)
     waiting = activity_reading(claimed)
-    assert (waiting["kind"], waiting["detail"], waiting["observed"]) == (
-        "working",
+    assert (waiting["state"], waiting["detail"], waiting["observed"]) == (
+        "running",
         "",
         "Running the tests",
     )
@@ -776,17 +876,17 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     )
     quiet = activity_reading(claimed)
     assert (
-        quiet["kind"],
+        quiet["state"],
         quiet["detail"],
         quiet["observed_kind"],
         quiet["observed"],
     ) == (
-        "working",
+        "running",
         "",
         "tool",
         "Running the tests",
     )
-    assert quiet["counts"]["pending"] == 1
+    assert quiet["counts"]["unseen"] == 1
     leases_model.release_lease(lease)
 
 
@@ -827,17 +927,18 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
     )
 
     activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
+    assert (activity["state"], activity["detail"]) == (
+        "running",
         "Handling the new work",
     )
     end_work(claimed)
     session_model.cmd_waiting(claimed)
     without_old_stream = activity_reading(claimed)
-    assert (without_old_stream["kind"], without_old_stream["observed_kind"]) == (
-        "listening",
-        None,
-    )
+    assert (
+        without_old_stream["presence"],
+        without_old_stream["state"],
+        without_old_stream["observed_kind"],
+    ) == ("here", "waiting", None)
     leases_model.release_lease(lease)
 
 
@@ -871,7 +972,11 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
         {"activity": {**activity, "ts": "2020-01-01T00:00:00+00:00"}},
     )
     stale = activity_reading(claimed)
-    assert (stale["kind"], stale["observed_kind"]) == ("listening", None)
+    assert (stale["presence"], stale["state"], stale["observed_kind"]) == (
+        "here",
+        "done",
+        None,
+    )
     leases_model.release_lease(lease)
 
 
@@ -895,9 +1000,9 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
         },
     )
     assert [
-        (workflow["input"], workflow["stage"])
+        (workflow["input"], workflow["state"])
         for workflow in page_state(page_dir)["workflows"]
-    ] == [(comment["id"], "working"), (followup["id"], "sent")]
+    ] == [(comment["id"], "running"), (followup["id"], "waiting")]
     monkeypatch.setattr(
         read_context,
         "now_iso",
@@ -905,19 +1010,26 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
     )
 
     state = page_state(page_dir)
-    activity = state["activity"]
-    assert (activity["kind"], activity["held"]) == ("unheld", False)
-    assert {item["input"]: item["stage"] for item in state["workflows"]} == {
-        comment["id"]: "sent",
-        followup["id"]: "sent",
+    assert state["activity"]["presence"] == "gone"
+    # Nothing in hand, each update reads from its delivery alone: unpicked past
+    # the pickup grace.
+    assert {
+        item["input"]: (item["state"], item["reason"], item["seen"])
+        for item in state["workflows"]
+    } == {
+        comment["id"]: ("blocked", "undelivered", False),
+        followup["id"]: ("blocked", "undelivered", False),
+    }
+    # One answer is owed for the two, and its update hasn't stopped: it still awaits
+    # delivery, and counts there alone.
+    assert state["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 1,
     }
     assert all(
         (workflow["agent"], workflow["detail"]) == (None, None)
-        for workflow in state["workflows"]
-    )
-    assert all(workflow["activity"] == [] for workflow in state["workflows"])
-    assert all(
-        workflow["condition"] == {"kind": "stale", "operation": "delivery"}
         for workflow in state["workflows"]
     )
 
@@ -937,7 +1049,7 @@ def test_idle_activity_refreshes_when_its_ownership_expires(page_dir, monkeypatc
         lambda: (started + timedelta(minutes=14)).isoformat(),
     )
     before = page_state(page_dir)["activity"]
-    assert (before["kind"], before["held"]) == ("closed", True)
+    assert before["presence"] == "closed"
     assert before["next_transition_at"] == (started + timedelta(minutes=15)).isoformat()
 
     monkeypatch.setattr(
@@ -946,7 +1058,7 @@ def test_idle_activity_refreshes_when_its_ownership_expires(page_dir, monkeypatc
         lambda: (started + timedelta(minutes=15)).isoformat(),
     )
     after = page_state(page_dir)["activity"]
-    assert (after["kind"], after["held"]) == ("closed", False)
+    assert after["presence"] == "closed"
     assert after["next_transition_at"] is None
 
 
@@ -1167,16 +1279,26 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             / timedelta(minutes=1)
         )
 
+    def owed_moves():
+        """The owed updates as activity reads them, with what only Python holds:
+        whether a harness queue has each, and whether the claimant's running turn
+        took it in."""
+        return [
+            (item["queued"], item["handling"])
+            for item in activity_reading(d)["obligations"]
+        ]
+
     agent, activity = declare("working", "revising the plan")
-    assert (agent, activity["kind"], activity["detail"]) == (
+    assert (agent, activity["state"], activity["detail"]) == (
         "Claude",
-        "working",
+        "running",
         "revising the plan",
     )
-    assert activity["counts"]["pending"] == 1
+    assert activity["counts"]["unseen"] == 1
+    assert owed_moves() == [(False, False)]
     # A claim still believed but minutes old is dated by its own word.
     _, activity = declare("working", "revising the plan", quiet_for=5 * 60)
-    assert (activity["kind"], minutes_old(activity)) == ("working", 5)
+    assert (activity["state"], minutes_old(activity)) == ("running", 5)
 
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -1184,8 +1306,9 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [first_comment], phase="queued")
     _, activity = declare("working", "revising the plan")
-    assert activity["kind"] == "working"
-    assert (activity["counts"]["queued"], activity["counts"]["pending"]) == (1, 0)
+    assert activity["state"] == "running"
+    assert activity["counts"]["unseen"] == 1
+    assert owed_moves() == [(True, False)]
 
     # Picked up into the claimant's open turn before the agent has said anything: the
     # page is working, on the comment the turn picked up.
@@ -1195,11 +1318,12 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
         )
     # Fresh page work keeps its own sentence beside the comment the turn picked up.
     _, activity = declare("working", "revising the plan")
-    assert (activity["kind"], activity["detail"]) == ("working", "revising the plan")
-    assert activity["counts"]["handling"] == 1
+    assert (activity["state"], activity["detail"]) == ("running", "revising the plan")
+    assert activity["counts"]["unseen"] == 0
+    assert owed_moves() == [(False, True)]
     _, activity = declare("waiting")
-    assert (activity["kind"], activity["detail"]) == ("working", "")
-    assert activity["counts"]["handling"] == 1
+    assert (activity["state"], activity["detail"]) == ("running", "")
+    assert owed_moves() == [(False, True)]
 
     append_carried_log_record(
         d,
@@ -1223,11 +1347,11 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
         # A newer user input keeps its own pending delivery while the page's fresh
         # work declaration continues to describe what the agent is doing overall.
         activity = activity_reading(d)
-        assert (activity["kind"], activity["detail"]) == (
-            "working",
+        assert (activity["state"], activity["detail"]) == (
+            "running",
             "revising the plan",
         )
-        assert activity["counts"]["pending"] == 1
+        assert activity["counts"]["unseen"] == 1
 
         # A transport that can watch the session's own steps reports one beside the
         # agent's own sentence.
@@ -1237,21 +1361,22 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             stream={"kind": "tool", "detail": "Running the tests"},
         )
         assert (
-            activity["kind"],
+            activity["state"],
             activity["detail"],
             activity["observed_kind"],
             activity["observed"],
-        ) == ("working", "revising the plan", "tool", "Running the tests")
+        ) == ("running", "revising the plan", "tool", "Running the tests")
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into an invitation: it is the silence with no
         # watcher, dated by the claim's last word.
         _, activity = declare("working", "revising the plan", quiet_for=20 * 60)
-        assert (activity["kind"], activity["dropped"], minutes_old(activity)) == (
-            "stalled",
-            False,
-            20,
-        )
+        assert (
+            activity["presence"],
+            activity["state"],
+            activity["reason"],
+            minutes_old(activity),
+        ) == ("here", "blocked", "quiet", 20)
         assert activity["detail"] == "revising the plan"
 
         # The same silence reached by evidence rather than by the clock: the Stop hook
@@ -1261,11 +1386,12 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             _, activity = declare(
                 "working", "revising the plan", quiet_for=quiet_for, turn_ended=5 * 60
             )
-            assert (activity["kind"], activity["dropped"], minutes_old(activity)) == (
-                "stalled",
-                True,
-                5,
-            )
+            assert (
+                activity["presence"],
+                activity["state"],
+                activity["reason"],
+                minutes_old(activity),
+            ) == ("here", "blocked", "stopped", 5)
 
         # A turn that has only just ended holds it no longer: with no word from the
         # harness that work goes on, the page stops reading working at the ending.
@@ -1273,16 +1399,20 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
         _, activity = declare(
             "working", "revising the plan", quiet_for=60, turn_ended=30
         )
-        assert (activity["kind"], activity["dropped"]) == ("stalled", True)
+        assert (activity["state"], activity["reason"]) == ("blocked", "stopped")
         _, activity = declare(
             "working", "revising the plan", quiet_for=60, turn_ended=5 * 60
         )
-        assert activity["kind"] == "working"
+        assert activity["state"] == "running"
 
         # Waiting on the user, with input on its way.
         _, activity = declare("waiting")
-        assert (activity["kind"], activity["detail"]) == ("listening", "")
-        assert activity["counts"]["pending"] == 1
+        assert (activity["presence"], activity["state"], activity["detail"]) == (
+            "here",
+            "waiting",
+            "",
+        )
+        assert activity["counts"]["unseen"] == 1
     finally:
         leases_model.release_lease(lease)
 
@@ -1290,11 +1420,20 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
     # nobody listening and the turn over, an update that has only just arrived still
     # reads away, since the session's next turn takes it.
     _, activity = declare("waiting")
-    assert (activity["kind"], activity["counts"]["overdue"]) == ("away", 0)
+    assert (activity["presence"], activity["state"], activity["next_actor"]) == (
+        "away",
+        "waiting",
+        "agent",
+    )
     _, activity = declare(
         "working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60
     )
-    assert (activity["kind"], activity["counts"]["overdue"]) == ("away", 0)
+    assert (
+        activity["presence"],
+        activity["state"],
+        activity["reason"],
+        activity["next_actor"],
+    ) == ("away", "blocked", "stopped", "agent")
 
     # Once an update has waited past the pickup grace with nothing to carry it, the
     # remedy is the user's, dated since nobody has been there.
@@ -1312,38 +1451,40 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
     _, activity = declare(
         "working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60
     )
-    assert (activity["kind"], activity["dropped"], minutes_old(activity)) == (
-        "away",
-        True,
-        5,
-    )
-    assert activity["counts"]["overdue"] == 1
+    assert (
+        activity["presence"],
+        activity["state"],
+        activity["reason"],
+        activity["next_actor"],
+        minutes_old(activity),
+    ) == ("away", "blocked", "stopped", "user", 5)
+    assert _overdue(activity_reading(d)) == 1
 
     # Claude's own status gets a far longer rope: with no turn closed, the same
     # silence is just a long turn.
     _, activity = declare("working", "running the migration", quiet_for=10 * 60)
-    assert activity["kind"] == "working"
+    assert activity["state"] == "running"
 
     # A dead session needs no timeout: the owning pid is gone, so the claim it left has
     # nothing behind it however lately it was written.
     _, activity = declare("working", "running the migration", session_pid=dead_pid)
-    assert activity["kind"] == "unheld"
+    assert activity["presence"] == "gone"
 
     # Nothing ever claimed the page, as a server started outside an agent harness: a
     # claim of work made moments ago is evidence and still stands, and an hour of its
     # silence leaves nothing holding the page.
     agent, activity = declare("working", "running the migration", claimed=False)
-    assert (agent, activity["kind"]) == ("Agent", "working")
+    assert (agent, activity["state"]) == ("Agent", "running")
     agent, activity = declare(
         "working", "running the migration", quiet_for=60 * 60, claimed=False
     )
-    assert (agent, activity["kind"]) == ("Agent", "unheld")
+    assert (agent, activity["presence"]) == ("Agent", "gone")
 
     agent, activity = declare("working", "revising the plan", agent="Codex")
-    assert (agent, activity["kind"]) == ("Codex", "working")
+    assert (agent, activity["state"]) == ("Codex", "running")
 
     _, activity = declare("idle")
-    assert activity["kind"] == "closed"
+    assert activity["presence"] == "closed"
 
 
 def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
@@ -1369,13 +1510,42 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
     finally:
         leases_model.release_lease(lease)
     activity = state["activity"]
-    assert (activity["kind"], activity["detail"]) == (
-        "listening",
+    assert (activity["presence"], activity["state"], activity["detail"]) == (
+        "here",
+        "waiting",
         "",
     )
-    assert (activity["counts"]["pending"], activity["counts"]["queued"]) == (0, 0)
+    assert activity["counts"]["unseen"] == 0
     [view] = state["browser"]["views"].values()
     assert [item["kind"] for item in view["queues"]["on_agent"]] == ["update"]
+
+
+def test_an_update_its_turn_left_blocks_an_undeclared_page_on_the_user(claimed):
+    """With no declaration at all, an update a turn took in and was seen to end over
+    is one only the user's nudge moves: the page reads it stopped, dated by that
+    ending."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
+    )
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    with service_model.PageTransaction(claimed) as transaction:
+        delivery_model.record_pickup(
+            transaction, [comment], session=claim["id"], turn=claim["turn"]
+        )
+    cleanup_model.close_session_turn(claim["id"])
+    ended = service_model.page_claim(claimed)
+    assert ended is not None and ended["turn_closed"]
+
+    activity = activity_reading(claimed)
+    assert (
+        activity["state"],
+        activity["reason"],
+        activity["next_actor"],
+    ) == ("blocked", "stopped", "user")
+    assert datetime.fromisoformat(activity["ts"]) == datetime.fromisoformat(
+        ended["turn_closed"]
+    )
 
 
 def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir):
@@ -1395,13 +1565,13 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
     )
     assert started.exit_code == 0, started.output
     activity = activity_reading(page_dir)
-    assert (activity["kind"], activity["detail"]) == ("working", "reading the traces")
+    assert (activity["state"], activity["detail"]) == ("running", "reading the traces")
     assert activity["detail_source"]["item"] == comment["id"]
 
     task = working(page_dir, "drafting v2")
     state = page_state(page_dir)
-    assert (state["activity"]["kind"], state["activity"]["detail"]) == (
-        "working",
+    assert (state["activity"]["state"], state["activity"]["detail"]) == (
+        "running",
         "drafting v2",
     )
     assert state["activity"]["detail_source"] == {
@@ -1409,7 +1579,7 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
         "item": task["item"],
     }
     [workflow] = [w for w in state["workflows"] if w["input"] == comment["id"]]
-    assert workflow["at_work"]
+    assert workflow["state"] == "running"
 
 
 def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
@@ -1419,7 +1589,7 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
     named, as after any other closed turn."""
     obligation = {
         "seq": 1,
-        "stage": "picked_up",
+        "queued": False,
         "input": "e1",
         "answer": {"kind": "reply", "ref": "t1"},
         "response": None,

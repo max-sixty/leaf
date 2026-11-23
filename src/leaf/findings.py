@@ -2506,6 +2506,12 @@ _TEXT = {
         " stands as you wrote it; if this edit changes what it reports, summarize"
         f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
     ),
+    "stays-closed": lambda at, v: (
+        f"the user resolved thread {v['thread']!r}, so this message went into it"
+        " without bringing it back to their list, which suits the answer or result"
+        f" they asked for; `{v['command']}` brings it back where the message holds"
+        " news they would want to stop and read"
+    ),
     "title-kept": lambda at, v: (
         f"the thread is already titled {v['title']!r}, so the reply's title went"
         " unused; `leaf thread edit` with --title renames the thread"

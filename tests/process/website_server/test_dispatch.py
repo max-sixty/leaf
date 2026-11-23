@@ -596,7 +596,9 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     assert website_server.page_claim(page_dir) is None
     activity = activity_reading(page_dir)
     assert activity["observed_kind"] is None
-    assert [item["stage"] for item in activity["obligations"]] == ["sent"]
+    assert [(item["state"], item["seen"]) for item in activity["obligations"]] == [
+        ("waiting", False)
+    ]
     # The reply reservation is released, so the Worker's own receipt reaches the user.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
@@ -688,7 +690,11 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     claim_record = website_server.page_claim(page_dir)
     assert claim_record is not None
     assert claim_record["turn_closed"] is not None
-    assert (activity["kind"], activity["obligations"]) == ("listening", [])
+    assert (activity["presence"], activity["state"], activity["obligations"]) == (
+        "here",
+        "done",
+        [],
+    )
     assert socket.closed
 
 

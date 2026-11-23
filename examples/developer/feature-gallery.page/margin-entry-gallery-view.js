@@ -95,7 +95,7 @@ const GROUPS = [
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
-        workflowStage: "picked_up",
+        workflowState: "waiting",
       },
       {
         name: "Working",
@@ -103,7 +103,7 @@ const GROUPS = [
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
-        workflowStage: "working",
+        workflowState: "running",
       },
       {
         name: "Update stale",
@@ -125,7 +125,7 @@ const GROUPS = [
         icon: "activity",
         behavior: "disclosure",
         rank: "reading",
-        workflowStage: "working",
+        workflowState: "running",
       },
     ],
   },

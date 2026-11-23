@@ -101,7 +101,10 @@ delivery.receive_delivery(os.environ["DELIVERY"])
             if event["kind"] == "pickup"
         ]
         assert pickup["phase"] == "opened"
-        assert owed_answers(page)[0]["stage"] == "picked_up"
+        assert (owed_answers(page)[0]["state"], owed_answers(page)[0]["seen"]) == (
+            "waiting",
+            True,
+        )
     assert acknowledged_through(silent) == 0
 
 

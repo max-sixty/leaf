@@ -874,13 +874,14 @@
     }
   }
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-left corner,
+     standing out past it as every corner mark does (tokens.css, `--lf-mark-overhang`),
      shown while the pointer is near that corner (floating-panel.js, `data-lf-corner`).
      It fades rather than moves, so nothing shifts under the pointer. An open view's
      head line holds that corner, so the mark waits for the view to go rather than
      stand over its first words. */
   .lf-fp-minimize {
-    top: -9px;
-    left: -9px;
+    top: calc(-1 * var(--lf-mark-overhang));
+    left: calc(-1 * var(--lf-mark-overhang));
     opacity: 0;
     visibility: hidden;
     transition:

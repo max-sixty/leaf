@@ -4100,9 +4100,13 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     page.mouse.move(card["x"] + 20, card["y"] + 6)
     expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
     button = minimize.bounding_box()
-    # It rides the corner: its centre sits on the box's top-left edge.
-    assert abs(button["x"] + button["width"] / 2 - card["x"]) <= 2
-    assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    # It rides the corner, standing out past it as every corner mark does.
+    overhang = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-mark-overhang'))"
+    )
+    assert button["x"] == pytest.approx(card["x"] - overhang, abs=1)
+    assert button["y"] == pytest.approx(card["y"] - overhang, abs=1)
     # A view opening carries the corner up, away from the still pointer, and the
     # button with it goes; putting the view away brings the corner back to it.
     page.locator("body").focus()
@@ -6038,15 +6042,15 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     Escape hands the user back to the attachment: they never left what they were
     writing, so the page's field keeps Send in its corner and the counts aside, behind
     the viewer, after it and as they press back into the words, and a rewrite keeps
-    its thread view's height."""
+    its thread view's height. The draft's picture stands above the box's top-left
+    corner, so the panel's fold, which a pointer at that corner shows, stands clear of
+    the picture, and a pointer on the picture shows no fold."""
     page = floating(browser, serve(LONG_PAGE))
     viewer = page.locator("dialog.lf-media-viewer")
 
     def look_at(picture):
-        # Its foot's middle, clear of the removal mark on its top corner and of the
-        # fold mark that a pointer near the box's top-left shows over its foot's start.
-        box = picture.bounding_box()
-        picture.click(position={"x": box["width"] / 2, "y": box["height"] - 3})
+        # Its foot's start, clear of the removal mark on its top corner.
+        picture.click(position={"x": 3, "y": picture.bounding_box()["height"] - 3})
         expect(viewer).to_be_visible()
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
@@ -6057,7 +6061,19 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     send = page.locator(".lf-fp-field .lf-compose-submit")
     expect(send).to_be_visible()
     words = field(page).bounding_box()
-    look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
+    picture = page.locator(".lf-fp-box .lf-composer-media-open")
+    fold = page.locator(".lf-fp-minimize")
+    card = page.locator(".lf-fp-card").bounding_box()
+    page.mouse.move(card["x"] + 20, card["y"] + 6)
+    expect(fold).to_be_visible()
+    foot = picture.bounding_box()
+    assert picture.evaluate(
+        "(picture, [x, y]) => picture.contains(document.elementFromPoint(x, y))",
+        [foot["x"] + 3, foot["y"] + foot["height"] - 1],
+    )
+    page.mouse.move(foot["x"] + 3, foot["y"] + foot["height"] - 3)
+    expect(fold).to_be_hidden()
+    look_at(picture)
     expect(send).to_be_visible()
     assert field(page).bounding_box() == words
     field(page).click()

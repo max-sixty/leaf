@@ -1017,24 +1017,33 @@ export function createFloatingPanel({
   // routes. It shows only while the pointer is near the corner it rides, so the panel
   // at rest, and under a pointer passing over the field or the leaf, carries no
   // control the user did not reach for. Near is the box's top-left corner, a mark's
-  // width in and half a row down, which holds the button itself. The corner moves when
-  // the box changes size under a still pointer, as a view opening above a press on Send
-  // carries it up, so nearness is read again then (`follow`): a button left showing
-  // where the pointer no longer is would ride the box's next change, such as a refused
-  // send taking that view back, across the window without input.
+  // width in and half a row down, or the button itself where it stands out past the
+  // box, and never a draft's pictures, which the panel holds above the box: a pointer
+  // on one shows the picture's own marks and leaves its press to the picture. The
+  // corner moves when the box changes size under a still pointer, as a view opening
+  // above a press on Send carries it up, so nearness is read again then (`follow`): a
+  // button left showing where the pointer no longer is would ride the box's next
+  // change, such as a refused send taking that view back, across the window without
+  // input.
   const CORNER = { across: 64, down: 24 };
-  /** @type {{x: number, y: number} | null} */
+  const foldMark = shell("minimize");
+  /** @type {{x: number, y: number, onMark: boolean} | null} */
   let pointer = null;
   const readCorner = () => {
     const box = card.getBoundingClientRect();
     const near =
       pointer !== null &&
+      (pointer.onMark || (pointer.x >= box.left && pointer.y >= box.top)) &&
       pointer.x <= box.left + CORNER.across &&
       pointer.y <= box.top + CORNER.down;
     keeps(host, "data-lf-corner", near ? "" : null);
   };
   host.addEventListener("pointermove", (event) => {
-    pointer = { x: event.clientX, y: event.clientY };
+    pointer = {
+      x: event.clientX,
+      y: event.clientY,
+      onMark: event.target instanceof Node && foldMark.contains(event.target),
+    };
     readCorner();
   });
   host.addEventListener("pointerleave", () => {

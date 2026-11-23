@@ -146,6 +146,7 @@ available from `portable-api.js`. It defaults to `instant` and updates Leaf's sc
 readers before that position paints, including writes during resize delivery. Smooth
 scrolling reports its positions through the browser's scroll events.
 
+`atScrollEnd(box)` says whether a box is scrolled as far down as it goes.
 `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.

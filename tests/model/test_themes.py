@@ -171,7 +171,9 @@ def test_a_theme_s_bases_must_be_installed_and_lead_nowhere_back(tmp_path):
 
 def test_a_project_package_restates_a_kernel_idiom(tmp_path, monkeypatch):
     """The kernel's idioms compose before every package, so a project package that
-    restates one replaces the entry and its rule follows the kernel's."""
+    restates one replaces the entry. Its rule for the idiom outranks the kernel's
+    whatever its weight, which the browser decides
+    (`test_a_package_restyles_an_idiom_whatever_its_rule_weighs`)."""
     project = tmp_path / "proj" / ".leaf"
     project.mkdir(parents=True)
     callout = {
@@ -187,7 +189,4 @@ def test_a_project_package_restates_a_kernel_idiom(tmp_path, monkeypatch):
     assert layer_5 is not None
     layer = selected(layer_5, page)
     assert layer.vocabulary.registry[".lf-callout"] == callout
-    sheet = layer.files["/theme.css"].decode()
-    assert sheet.index(
-        "background: var(--lf-ground);\n  padding: 12px 16px"
-    ) < sheet.index("background: teal")
+    assert "background: teal" in layer.files["/theme.css"].decode()

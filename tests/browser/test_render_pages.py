@@ -161,7 +161,7 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     excerpt quoting it, and the source pane brings that line into view with room round
     it, without moving the page. Once the reader scrolls the pane, a new line out of
     view leaves it where they put it, until they act on the film again; the last step
-    lights nothing."""
+    lights nothing, and a line lit in an excerpt the page doesn't draw moves nothing."""
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
@@ -232,6 +232,25 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
 
     seek(times["last"])
     expect(marked).to_have_count(0)
+
+    # The pane follows to the film's first line, well above the last excerpt. That
+    # excerpt then leaves the drawing, as a closed disclosure's contents do, and a line
+    # lit in it leaves the pane where it stood.
+    seek(0)
+    expect(page.locator("#code-merge-sort [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1550"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    scroll_settled(page, "#sort-source")
+    held = pane.evaluate(
+        "element => { document.getElementById('code-merge').style.display = 'none'; return element.scrollTop; }"
+    )
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert 0 < held == pane.evaluate("element => element.scrollTop")
 
 
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):

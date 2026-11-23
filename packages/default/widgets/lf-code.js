@@ -52,7 +52,8 @@
  * the first marked line in the box that scrolls it. When the line stands outside a band
  * of that box, from 15% of its height to 70%, the block sets the box's scroll at once
  * so the line stands a third of the way down, with the lines that run next below it.
- * Where that box is the page, it moves nothing.
+ * Where that box is the page, or the page doesn't render the line, as in a closed
+ * disclosure, it moves nothing.
  *
  * The reader's hand inside the box, a press, wheel, touch or key there, stops the
  * following, so the box holds still while they read or scroll it, and their hand on
@@ -229,7 +230,9 @@ customElements.define(
     #follow() {
       this.#mark();
       const [row] = this.#at;
-      if (!row) return;
+      // A row the page doesn't render, as in a closed disclosure, has no place to bring
+      // into view.
+      if (!row?.checkVisibility()) return;
       const [scroller] = scrollersOf(row);
       if (!scroller || scroller === document.scrollingElement) return;
       let box = boxes.get(scroller);

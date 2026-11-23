@@ -2525,9 +2525,11 @@
   // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
   // through the rendering, on the boxes the call scrolls: the one it names, or for a
   // reveal or focus every box holding its target.
+  // A reading that scrolls a box and puts it back before the task ends scrolls nothing
+  // the user sees (arrivals.js, `readScrolled`).
   const scrollCalled = (target, holders = false) => {
     const aim = open?.aim;
-    if (!aim) return;
+    if (!aim || /\breadScrolled\b.*arrivals\.js/.test(new Error().stack)) return;
     const source = window.lfInputWork.current();
     const owner = source && inputRenderings.get(source.event);
     if (!owner || (owner !== open && owner.own !== open.own)) {

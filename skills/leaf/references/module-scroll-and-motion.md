@@ -79,6 +79,11 @@ otherwise it waits until the growth is out of view or the reading is interrupted
 The returned function cancels the pending change. When a user's own gesture requests
 that change, cancel the hold and apply the change in that gesture.
 
+To end a wait of your own once an element's growth would move nothing the user sees,
+call `whenNone([element], growthIsSeen, leave)`: it calls `leave` once that holds for
+every element, and again each time it holds after it stopped holding, and returns the
+step that stops watching.
+
 When a widget redraws or resizes content where the user is reading, the browser's
 scroll anchoring keeps their place: don't restore `scrollTop` or set
 `overflow-anchor: none`. Redraw by keeping the nodes the change leaves as they were,

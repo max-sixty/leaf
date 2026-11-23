@@ -8,8 +8,8 @@
    control, live region, help, inspection paint, legend and Go-to hints. Its permanent
    home stands after the document and takes no room there; a modal opened from an
    authored popover carries this scope with it (keyboard/layer-stack.js).
-   The theme reserves the chrome's room
-   (html[data-lf-live]). The page and panel scroll separately.
+   The page keeps no room for the chrome, which stands over it. The page and panel
+   scroll separately.
 
    The private rules are one `@scope (.lf-chrome)`, so their class names cannot meet a
    page's. Rules outside it are the shared vocabulary, each class declared in
@@ -324,13 +324,12 @@ html[data-lf-draw-mode] {
     --lf-comment-frame-top: calc(
       1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
     );
-    /* The card's reply row at rest, its box a message's gap (surfaces.css) under the
-       words, which the editor's frame reserves beneath them, so a box that fills the
-       window becomes a card of the same height. */
+    /* The card's reply row at rest, its box a message's gap under the words
+       (surfaces.css) and running to the card's foot (annotation-chrome.css). The
+       editor's frame reserves the row beneath them, so a box that fills the window
+       becomes a card of the same height. */
     --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h) + 2px);
-    --lf-comment-frame-bottom: calc(
-      var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px
-    );
+    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + 1px);
   }
   /* Under a mouse the empty reply box is its one row tall (response.css), which comes
      to the response line with its frame, so the row reserves no frame beyond it. */
@@ -1008,7 +1007,7 @@ html[data-lf-draw-mode] {
   .lf-change-bar {
     background: var(--lf-change);
   }
-  /* A change's mark is an annotation, so hiding annotations (`o`, annotation-layer.js)
+  /* A change's mark is an annotation, so hiding annotations (`g H`, annotation-layer.js)
      hides its bar too. */
   :scope[data-lf-annotations-hidden] .lf-change-bar {
     background: transparent;

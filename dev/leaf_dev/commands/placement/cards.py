@@ -69,7 +69,7 @@ import click
 from playwright.sync_api import Page
 
 from leaf.event_log import read_events
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import (
     PageClient,
@@ -580,7 +580,11 @@ def answer(words: str, leaves: str) -> None:
     """The agent answers the reader's message as an agent does: from its delivery,
     declaring what the answer leaves (`--done` or `--obligation`)."""
     served = served_page.get()
-    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    delivery = json.loads(
+        served.leaf(
+            "wait", str(served.directory), timeout=SERVED_TIMEOUT_MS / 1000
+        ).stdout
+    )
     ref = next(
         event["answer"]["ref"]
         for batch in delivery["batches"]

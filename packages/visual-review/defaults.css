@@ -244,8 +244,14 @@ lf-visual-review {
   min-block-size: 0;
   --lf-full-height: inherit;
 }
+/* An empty discussion still lays out, as a hidden line at the case's foot, so its
+   thread outlet stands where a comment box seated in it will (composing/surface.js,
+   `seatFab`), and a screen reader finds no empty region. */
 .lf-vr-discussion:has(> .lf-vr-threads:empty) {
-  display: none;
+  visibility: hidden;
+  block-size: 0;
+  border-block-width: 0;
+  overflow: clip;
 }
 .lf-vr-threads {
   min-block-size: 0;

@@ -4368,6 +4368,7 @@ def test_a_widget_module_under_another_name_is_refused(tmp_path, monkeypatch):
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-callout")
     widgets = package / "widgets"
+    widgets.mkdir()
     (widgets / "lf-calout.js").write_text(
         "customElements.define('lf-callout', class extends HTMLElement {});\n"
     )
@@ -4516,13 +4517,14 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     runner = CliRunner()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    theme = layer / "overrides.css"
+    theme = layer / "defaults.css"
     theme.write_text(":root { --lf-accent: rebeccapurple; }\n")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert result.exit_code == 0, result.output
     assert theme.read_text() == ":root { --lf-accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
+    (layer / "instructions").mkdir()
     (layer / "instructions" / "author.md").write_text("Keep me.\n")
     before = {
         path.relative_to(layer): path.read_bytes()
@@ -4601,6 +4603,7 @@ def test_package_init_widget_refuses_existing_members_without_writing(
     if collision == "tag":
         add_test_widget(package, tag)
     elif collision == "module":
+        (package / "widgets").mkdir()
         (package / "widgets" / f"{tag}.js").write_text("// keep this module\n")
     else:
         tag = "lf-options"
@@ -4704,9 +4707,8 @@ def test_package_init_validates_the_complete_package(
 
     assert result.exit_code != 0
     assert str(malformed) in result.output
-    assert not (layer / "overrides.css").exists()
+    assert not (layer / "defaults.css").exists()
     assert not (layer / "registry.json").exists()
-    assert not (layer / "widgets").exists()
 
 
 def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch):

@@ -621,9 +621,15 @@ on screen ran 300 animation frames, one 300 px below the window 1, one in a clos
 `<details>` 1, and a same-origin frame off screen 300; a ResizeObserver attached after
 the first second delivered nothing in either hidden opaque frame. No Chromium switch
 tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among them.
-Leaf counts what a sample's page does after loading only while its frame shows
-(`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
-waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
+Firefox renders such a frame anyway: on 2026-11-22, in Playwright's Firefox 159.0, an
+opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chromium
+159.0.8154.6 ran none. Leaf counts what a sample's page does after loading only while
+its frame shows, except that a block's page counts until it arrives or a deadline
+passes, since its arrival sets the frame's height (`browser/runtime/sample.js`), and
+`page check --render` scrolls each frame still waiting into view
+(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+holds the page's presentation, or the jump that showed it, only while they still see
+its frame (`packages/default/widgets/lf-sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.

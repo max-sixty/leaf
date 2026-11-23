@@ -45,7 +45,6 @@ import { effect, untracked } from "/runtime/framework.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../errors.js";
 import { fragmentTarget } from "../anchor-resolution.js";
-import { restrictUserIntent } from "../user-intent.js";
 import { threadNamed } from "./state.js";
 
 /** @typedef {{id: string, reader: "primary" | null}} OpenThread */
@@ -99,7 +98,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
         : null;
     if (open?.id === id && (!kept || open.reader === kept.reader)) return null;
     // Under the intent of the restoration that asks (history.js), which a newer
-    // navigation or the user's own move ends.
+    // navigation or the user's own input ends.
     return async () => {
       if (!intent()) return false;
       if (!threadNamed(id)) {
@@ -121,16 +120,16 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
     };
   }
 
-  // The arrival's route to the thread `url` names, under the intent the arrival began
-  // with, or null where it names none. `restored` is an arrival whose place the browser
-  // restored, a reload's or a traversal's into the document.
-  /** @param {URL} url @param {import("../user-intent.js").UserIntent} arrival
+  // The arrival's route to the thread `url` names, under the arrival's intent
+  // (history.js, `beginRestoration`), or null where it names none. `restored` is an
+  // arrival whose place the browser restored, a reload's or a traversal's into the
+  // document.
+  /** @param {URL} url @param {import("../user-intent.js").UserIntent} intent
    * @param {{restored: boolean}} options */
-  function arrive(url, arrival, { restored }) {
+  function arrive(url, intent, { restored }) {
     const id = url.searchParams.get("thread");
     if (!id) return null;
     const beside = !restored && Boolean(fragmentTarget(url.hash));
-    const intent = restrictUserIntent(arrival, arrival);
     return async () => {
       if (!intent()) return null;
       if (!threadNamed(id)) {

@@ -592,3 +592,48 @@ def test_a_visit_whose_address_moves_while_it_starts_opens_no_stale_thread(
         )
     finally:
         release(page, held)
+
+
+# What the restoration under way allows the routes it starts, a thread view's opening
+# without focus among them (thread/destination.js, `openPageThread`): whether its intent
+# is still available (history.js, `pendingRestoration`).
+HISTORY = """async () => {
+  const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+  window.__lfHistory = await import(new URL('runtime/history.js', new URL(entry, location.href)).href);
+}"""
+RESTORATION_AVAILABLE = (
+    "() => window.__lfHistory.pendingRestoration()?.intent.available() ?? null"
+)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("move", ["key", "wheel"])
+def test_a_restoration_ends_at_the_users_own_input(request, serve, engine, move):
+    """A reload's return to its entry, and every route it starts, as the opening of the
+    thread view the entry names, ends once the user presses a key or scrolls while it
+    still waits: none of it moves a user who has moved."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    open_threads(page)
+    page.locator(".lf-fp-thread").first.click()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.wait_for_function("navigation.transition === null")
+        page.reload(wait_until="commit")
+        holding(page, held, 1, "the reload's first reading")
+        wait_until_ready(page, through="upgraded")
+        page.evaluate(HISTORY)
+        assert page.evaluate(RESTORATION_AVAILABLE) is True
+        if move == "key":
+            page.keyboard.press("ArrowDown")
+        else:
+            page.mouse.move(400, 300)
+            page.mouse.wheel(0, 200)
+        page.wait_for_function(f"() => ({RESTORATION_AVAILABLE})() === false")
+    finally:
+        release(page, held)

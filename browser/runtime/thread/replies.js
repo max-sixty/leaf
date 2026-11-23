@@ -551,10 +551,13 @@ export const replyIsEditing = (key) => {
 // exact generation. A fresh document has not materialized its native owner yet: the
 // session stands through that route's awaited landing, then either has an owner or
 // retires. Ordinary reload carries no editing capability and never enters this path.
+// A session that no longer stands, as one whose words another tab sent or cleared,
+// keeps nothing open, and `land` runs all the same, since it carries more of the
+// arrival than the session (version.js, `keepReplySession`).
 /** @param {ReturnType<typeof captureDraftEditing>} editing
  * @param {() => Promise<Element | null>} land */
 export async function restoreReplyEditing(editing, land) {
-  if (!editing?.mirrored || !draftEditingStands(editing)) return null;
+  if (!editing?.mirrored || !draftEditingStands(editing)) return land();
   const context = editing.context;
   let session = compositions.get(context);
   if (!session) session = openSession(context, { owner: null });

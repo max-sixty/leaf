@@ -21,12 +21,14 @@ from render_harness import (
     select_words,
     sending,
     stamp_page,
+    stored_draft,
     stored_draft_text,
     ticked,
     told,
     wait_for_check_api,
     wait_for_revision,
     write,
+    write_draft_elsewhere,
 )
 
 from browser.drafts import (
@@ -362,6 +364,65 @@ def test_executable_revision_keeps_a_reply_where_it_was_written(request, serve, 
     expect(reply).to_be_focused()
     assert editing_read(reply) == before
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_whose_reply_another_tab_cleared_returns_to_the_entry(
+    request, serve, engine
+):
+    """A revision that reloads the page while the user writes a reply, whose words
+    another tab clears before the reload arrives, still returns the user to the entry:
+    the thread they were in opens again, though no words are left to put back."""
+    page = editing_reply_page(request.getfixturevalue(engine), serve)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    expect(editor).to_be_focused()
+    write(editor, "Words another tab clears.")
+    reply = page.evaluate(
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing().context"
+    )
+    written = stored_draft(page, reply)
+    assert written and written["text"] == "Words another tab clears."
+    # The reload's document waits until the words are cleared, so it is served the
+    # drafts as they stand then (runtime/drafts.js, `lf-drafts`).
+    held = []
+
+    def hold_reload(route):
+        if route.request.resource_type == "document" and "_leaf-revision" in (
+            route.request.url
+        ):
+            held.append(route)
+        else:
+            route.fallback()
+
+    page.route("**/*", hold_reload)
+    try:
+        stamp_page(
+            serve.page_dir, editing_revision_source("after"), "Change the module"
+        )
+        told(page)
+        # Open latest, as `open_latest` runs it, without waiting on the reload it
+        # starts, which waits here on the held document.
+        page.evaluate(
+            "async () => { void (await window.__lfCheckApi()).versionPicker.latest(); }"
+        )
+        holding(page, held, 1, "the reload's document")
+        write_draft_elsewhere(page, reply, "", over=written)
+        page.unroute("**/*", hold_reload)
+        for route in held:
+            route.continue_()
+        held.clear()
+        wait_for_revision(page, 2)
+        expect(
+            page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+        ).to_be_visible()
+    finally:
+        for route in held:
+            route.continue_()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

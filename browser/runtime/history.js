@@ -662,10 +662,10 @@ let draftReturn = null;
 // is one ordered operation under one intent, which its every step and every route it
 // starts runs under: a newer restoration, or any navigation but this document's own
 // rename, aborts it, as the platform aborts a traversal's own (`NavigateEvent.signal`),
-// and the user's own move supersedes it. Until it
-// settles, a departure, the hidden page's checkpoint or a revision's handoff writes the
-// record it owes, rather than a reading of the page it is still putting back, unless
-// the user has given any input since (`owes`, `readRecord`, version.js `reloadInto`);
+// and the user's own input ends it, for a route that moves no focus as for one that
+// does (`stands`). Until it settles, a departure, the hidden page's checkpoint or a
+// revision's handoff writes the record it owes, rather than a reading of the page it
+// is still putting back (`owes`, `readRecord`, version.js `reloadInto`);
 // so does the handoff a revision's reload brings (`extras`). It settles once every
 // piece of work it runs has (`run`), its fresh thread arrival and last fragment landing
 // among them (leaf.js), so a navigation finds it to abort until the last has run.
@@ -682,10 +682,11 @@ function beginRestoration(record, intent, ended = null, since = inputCount()) {
   const signal = ended
     ? AbortSignal.any([ended, controller.signal])
     : controller.signal;
+  const stands = () => !signal.aborted && inputCount() === since;
   /** @type {Restoration} */
   const restoration = {
     record,
-    intent: restrictUserIntent(intent, () => !signal.aborted),
+    intent: restrictUserIntent(intent, stands),
     abort: () => {
       controller.abort();
       settle();
@@ -699,7 +700,7 @@ function beginRestoration(record, intent, ended = null, since = inputCount()) {
         if (!held) settle();
       }
     },
-    owes: () => restoring === restoration && Boolean(record) && inputCount() === since,
+    owes: () => restoring === restoration && Boolean(record) && stands(),
     extras: null,
   };
   let held = 0;

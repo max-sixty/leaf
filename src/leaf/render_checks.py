@@ -71,14 +71,44 @@ _RENDERING_SETTLED = """facts => {
 }"""
 
 
+# Every context and page Leaf's code opens outside the suite, a developer tool's
+# included, comes from one of these two openers
+# (`test_the_pages_leaf_opens_take_the_served_deadline`). Each sets the default on the
+# context, which its pages and its `request` calls inherit, so every Playwright wait
+# that names no deadline takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
+# which a page's `load` overruns on a starved host. A default a caller then sets on
+# the page itself wins over the context's.
+
+
+def open_render_context(browser, **options):
+    """A new context from `browser`, opened with Playwright's `new_context` `options`,
+    whose waits take `SERVED_TIMEOUT_MS`, and `expect`'s too (`bound_expectations`)."""
+    context = browser.new_context(**options)
+    context.set_default_timeout(SERVED_TIMEOUT_MS)
+    bound_expectations()
+    return context
+
+
 def open_render_page(opener, **options):
     """A new page from `opener`, a browser or a context, opened with Playwright's
-    `new_page` `options`, whose every Playwright wait that names no deadline, its
-    navigations included, takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
-    which a page's `load` overruns on a starved host."""
+    `new_page` `options`, in a context whose waits take `SERVED_TIMEOUT_MS`, and
+    `expect`'s too (`bound_expectations`)."""
     page = opener.new_page(**options)
-    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    page.context.set_default_timeout(SERVED_TIMEOUT_MS)
+    bound_expectations()
     return page
+
+
+def bound_expectations() -> None:
+    """Give every Playwright `expect` in this process that names no deadline
+    `SERVED_TIMEOUT_MS` in place of Playwright's own five seconds, which an
+    expectation on a starved host overruns. Playwright keeps this default for the
+    whole process, not for a page or a context. The suite sets it once
+    (`render_harness`); Leaf's tools share no entry point but the openers above, so
+    each opener sets it."""
+    from playwright.sync_api import expect
+
+    expect.set_options(timeout=SERVED_TIMEOUT_MS)
 
 
 def _timeout(page, timeout_ms: int | None) -> int:

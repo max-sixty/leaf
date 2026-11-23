@@ -17,7 +17,14 @@ import click
 from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import one_frame, rendered, wait_for_probe, wait_until_ready
+from leaf.render_checks import (
+    one_frame,
+    open_render_context,
+    open_render_page,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
 from leaf_dev import ROOT
 
 
@@ -234,7 +241,8 @@ def tab(
     drawing `scale` device pixels to a CSS pixel. It keeps where a mouse last moved over
     it (`POINTER`), for `settle`. A caller listens on it before it `load`s."""
     width, height = window.size
-    context = browser.new_context(
+    context = open_render_context(
+        browser,
         viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
@@ -244,9 +252,7 @@ def tab(
     )
     context.add_init_script(POINTER)
     try:
-        page = context.new_page()
-        page.set_default_timeout(15_000)
-        yield page
+        yield open_render_page(context)
     finally:
         context.close()
 

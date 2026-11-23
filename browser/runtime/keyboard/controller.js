@@ -151,9 +151,7 @@ export function mountKeyboard({
       ev.defaultPrevented &&
       ev
         .composedPath()
-        .some(
-          (node) => node instanceof Element && authoredScope(node) === node,
-        );
+        .some((node) => node instanceof Element && authoredScope(node) === node);
     if (!authored) press(ev);
   });
   // A row that `waits` is what Leaf does with a key only once nothing else has taken
@@ -183,8 +181,7 @@ export function mountKeyboard({
   readLeavingKeys((ev) => {
     if (ev.type !== "keydown") return;
     press(ev);
-    if (ev.key.length !== 1 && !ev.defaultPrevented && !ev.isComposing)
-      run(ev, true);
+    if (ev.key.length !== 1 && !ev.defaultPrevented && !ev.isComposing) run(ev, true);
   });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
@@ -243,8 +240,7 @@ export function mountKeyboard({
     // readings of where the user is would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
-    if (reactArmed() && (takesLetters(active) || claimsEsc(active)))
-      setReact(false);
+    if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (goToSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
       setGoToSequence(false);
     }

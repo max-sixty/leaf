@@ -807,6 +807,7 @@ export function createThreadPreview({
           },
         },
         ui.autoUpdate,
+        ui.getOverflowAncestors,
       );
     if (!place) {
       if (preview.style.visibility !== "hidden") {

@@ -1,14 +1,15 @@
 /* Floating presentation of the one native response bar.
 
    Composition owns its durable target and native editor. This owner chooses its initial
-   side, measure and CSS attachment. Each ancestor scroll solves the box again, as it
-   does the card, so the room's edges can hold it in (`scroll-held-in`). Beside its
-   words the answer writes nothing, and the browser carries the box by its anchor; held
-   in by an edge, the box stands in that edge's plane (floating.js). Generic repaints
-   do not solve another position for the open box. A scroll, target or field resize,
-   viewport resize, horizontal target motion, and declared layout changes invalidate
-   the attachment. Replacing its target or native seat retires it. The compact response
-   strip retains ordinary collision placement and scroll observation. A seated editor
+   side, measure and CSS attachment. Each scroll around its words solves the box again,
+   as it does the card, so the room's edges can hold it in (`scroll-held-in`). Beside
+   its words the answer writes nothing, and the browser carries the box by its anchor;
+   held in by an edge, the box stands in that edge's plane (floating.js). While the open
+   box stands beside its words, a repaint solves no new position for it
+   (`nativeAttachment`); a scroll, a target or field resize, a viewport resize,
+   horizontal target motion and a declared layout change end that attachment.
+   Replacing its target or native seat retires it. The compact response strip keeps
+   ordinary collision placement, and a layout shift invalidates it too. A seated editor
    carries its frame through attachment changes under the shared rule in
    comment-placement.js; its durable anchor and native editor stay intact.
 
@@ -62,6 +63,7 @@ import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";
 import {
+  cardMeasure,
   commentAttachment,
   commentReference,
   commentBoundary,
@@ -101,9 +103,13 @@ export function createFloatingResponsePlacement({
   let fabWithheld = false;
   /** @type {ReturnType<typeof holdFocus> | null} */
   let fabWithheldFocus = null;
+  // What invalidates the placement, a scroll included, invalidates the attachment too.
   const fabPosition = floatingPlacement({
     floating: fabBar,
-    update: () => scheduleFabPosition(),
+    update: () => {
+      nativeAttachment = false;
+      scheduleFabPosition();
+    },
   });
   let nativeAttachment = false;
   // The attachment the seated editor last landed on, separate from whichever
@@ -278,10 +284,10 @@ export function createFloatingResponsePlacement({
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
-  // The editing observer reports scroll, size and horizontal target movement: a target
-  // moved without resizing must let the shared placement rule choose its side again,
-  // while one moved only vertically is carried by its anchor.
-  // A compact strip still observes scroll and layout shifts. Explicit publication may
+  // The editing observer reports size and horizontal target movement: a target moved
+  // without resizing must let the shared placement rule choose its side again, while
+  // one moved only vertically is carried by its anchor. A compact strip observes layout
+  // shifts as well. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
   // only its observers and geometry, never a handoff waiting for an inline seat.
@@ -317,7 +323,8 @@ export function createFloatingResponsePlacement({
   }
 
   /** @typedef {(reference: import("@floating-ui/dom").VirtualElement & {contextElement: Element},
-   * floating: HTMLElement, update: () => void) => () => void} EditingObserver */
+   * floating: HTMLElement, update: () => void,
+   * options: import("@floating-ui/dom").AutoUpdateOptions) => () => void} EditingObserver */
   /** @type {{editing: EditingObserver, compact: typeof import("@floating-ui/dom").autoUpdate} | null} */
   let observationModes = null;
   // Built outside `watchFabPosition`, whose scope holds the target it watches: the
@@ -326,12 +333,9 @@ export function createFloatingResponsePlacement({
   /** @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
    * @returns {EditingObserver} */
   function editingObserver(autoUpdate) {
-    return (reference, floating, update) => {
-      const invalidate = () => {
-        nativeAttachment = false;
-        update();
-      };
-      const stopSize = autoUpdate(reference, floating, invalidate, {
+    return (reference, floating, update, options) => {
+      const stopSize = autoUpdate(reference, floating, update, {
+        ...options,
         layoutShift: false,
       });
       let x = reference.getBoundingClientRect().left;
@@ -342,7 +346,7 @@ export function createFloatingResponsePlacement({
           const next = reference.getBoundingClientRect().left;
           if (next === x) return;
           x = next;
-          invalidate();
+          update();
         },
         {
           ancestorScroll: false,
@@ -358,8 +362,8 @@ export function createFloatingResponsePlacement({
     };
   }
   /** @param {Element} target
-   * @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate */
-  function watchFabPosition(target, autoUpdate) {
+   * @param {Pick<typeof import("@floating-ui/dom"), "autoUpdate" | "getOverflowAncestors">} ui */
+  function watchFabPosition(target, { autoUpdate, getOverflowAncestors }) {
     const reference = {
       contextElement: response.pointIn(target) ?? target,
       getBoundingClientRect: () => {
@@ -378,6 +382,7 @@ export function createFloatingResponsePlacement({
       target,
       reference,
       response.open || response.rests ? observes.editing : observes.compact,
+      getOverflowAncestors,
     );
   }
   // A retained native Range and a resolved passage are two routes to geometry. Only
@@ -503,12 +508,18 @@ export function createFloatingResponsePlacement({
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     fabScroller = place.scroller;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
-    // pass gives CSS that side's actual inline room. If a later resize makes the chosen
-    // side narrower than the bar's minimum, use the whole boundary and let shift overlap
-    // the target instead of silently moving the draft.
+    // pass gives CSS that side's actual inline room. The box's frame is no wider than the
+    // card's measure (annotation-chrome.css), so its room is written up to that measure,
+    // as the card's width is, and a scroll that carries its words across a wider room
+    // writes nothing. If a later resize makes the chosen side narrower than the bar's
+    // minimum, use the whole boundary and let shift overlap the target instead of
+    // silently moving the draft.
     /** @param {number} available @param {number} scale */
     const setWidth = (available, scale) => {
-      const room = available;
+      const room =
+        response.open || response.rests
+          ? Math.min(available, cardMeasure())
+          : available;
       fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, room)));
       if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
         fabBar.style.setProperty(
@@ -557,7 +568,7 @@ export function createFloatingResponsePlacement({
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
-        watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
+        watchFabPosition(owner ?? document.documentElement, ui);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
           room: place.room,

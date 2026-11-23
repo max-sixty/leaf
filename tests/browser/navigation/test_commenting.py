@@ -536,9 +536,11 @@ def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll
     stands at the window's top through the scroll rather than once it ends
     (placement-rules.json, `scroll-held-in`). Each scroll solves it again, as it does
     its card, and an answer writes the box only where an edge takes it in or lets it
-    go, so no write follows the scroll. A scroll's event comes after the frame that drew
-    it, so the frame in which the target's top crosses the edge draws the box carried
-    with it, as it does the card."""
+    go, so no write follows the scroll. Scrolled past the target's foot and back, the
+    box returns beside the foot while that scroll still moves, a box at rest included,
+    since whether focus is in sight is read at each scroll (user-place.js). A scroll's
+    event comes after the frame that drew it, so the frame in which an edge crosses
+    draws the box as the frame before left it, as it does the card."""
     page = open_page(request.getfixturevalue(engine), serve(A_TALL_ASK))
     resized(page, *ROOM_IN_THE_MARGIN)
     page.keyboard.press("m")
@@ -567,6 +569,28 @@ def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll
         write for write in writes if any("lf-fab" in step for step in write["target"])
     ]
     assert not scroll_followers(box_writes, frames), box_writes
+    foot = page.evaluate(
+        "() => document.getElementById('route').getBoundingClientRect().bottom"
+    )
+    gesture_writes(page, round(foot) + 200)
+    _, frames, back = gesture_writes(
+        page,
+        -400,
+        sample="""() => {
+          const bar = document.querySelector('.lf-fab-bar');
+          return {
+            shown: bar.checkVisibility({visibilityProperty: true}),
+            box: bar.getBoundingClientRect().top,
+            foot: document.getElementById('route').getBoundingClientRect().bottom,
+          };
+        }""",
+    )
+    returned = [sample["read"] for sample in back if sample["read"]["foot"] > 0]
+    assert len(returned) >= frames // 3, back
+    beside = [
+        read for read in returned[1:] if read["shown"] and read["box"] < read["foot"]
+    ]
+    assert len(beside) == len(returned) - 1, back
     if box == "open":
         expect(page.locator(".lf-fab-input")).to_be_focused()
         expect(page.locator(".lf-fab-input")).to_have_js_property(

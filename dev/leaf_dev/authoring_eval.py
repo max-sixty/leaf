@@ -135,7 +135,8 @@ def bound_sources(page: Path, state: Path) -> dict:
     """What each of `page`'s sources holds, judged against the page's layer. A child
     process reads it under the run's state home `state`, where the run installed its
     packages (`metadata.installed`), so a layer that selects one of them composes.
-    Read in this process, such a page's layer names a package this machine lacks."""
+    Read in this process, such a page's layer names a package this machine lacks. A
+    read that fails raises with what the child wrote to stderr."""
     code = (
         "import json, sys\n"
         "from pathlib import Path\n"
@@ -149,8 +150,9 @@ def bound_sources(page: Path, state: Path) -> dict:
         env=environment(XDG_STATE_HOME=str(state)),
         capture_output=True,
         text=True,
-        check=True,
     )
+    if result.returncode:
+        raise RuntimeError(f"reading {page}'s bound data failed:\n{result.stderr}")
     return json.loads(result.stdout)
 
 

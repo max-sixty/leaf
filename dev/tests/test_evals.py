@@ -1075,5 +1075,5 @@ def test_a_finished_page_reads_its_data_under_the_runs_state_home(tmp_path):
     leaf("data", "set", str(page), "patch", said=manifest)
 
     assert "+new" in json.dumps(bound_sources(page, state)["patch"]["value"])
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(RuntimeError, match="unknown package 'team-charts'"):
         bound_sources(page, tmp_path / "another-state")

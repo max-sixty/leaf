@@ -3,11 +3,13 @@
 import io
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     one_frame,
@@ -405,6 +407,152 @@ def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tm
             "code": "words-left-screen",
             "words": "replicas: 4autoscaling:  minReplicas: 3",
         },
+    )
+
+
+def test_a_reload_that_loses_a_saves_answer_keeps_the_typing_after_it(
+    browser, serve, tmp_path
+):
+    """The reader types the file back to what it was while a save of their edit is in
+    flight, and the tab reloads after the file took that save but before its answer
+    came back. Leaving asks first, the reloaded editor holds the words the reader last
+    typed rather than the save's, and writes them to the file."""
+    file = tmp_path / "notes.md"
+    file.write_text("Original.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    held = []
+
+    def hold(route):
+        if route.request.method == "POST":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/files/notes", hold)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    holding(page, held, 1, "the save of the draft")
+    # The file takes the save; its answer never reaches the tab.
+    held[0].fetch()
+    assert file.read_text() == "Original.\nDraft."
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    expect(editor).to_have_text("Original.")
+    page.unroute("**/api/files/notes", hold)
+    left = []
+
+    def leaving(dialog):
+        left.append(dialog.type)
+        dialog.accept()
+
+    page.on("dialog", leaving)
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
+            and response.status == 200
+            and response.request.post_data_json["text"] == "Original.\n"
+        )
+    ):
+        page.reload()
+        wait_until_ready(page)
+        expect(editor).to_have_text("Original.")
+    assert file.read_text() == "Original.\n"
+    assert left == ["beforeunload"]
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+
+
+@pytest.mark.parametrize("typed", ["back", "on"])
+def test_a_retry_after_a_save_with_no_answer_keeps_the_typing_after_it(
+    browser, serve, tmp_path, typed
+):
+    """A save gets no answer, and the reader types it away: back to the file as read,
+    while the save never reached the file, or on past it, after the file took it.
+    Retry settles that lost save against the file before anything is written, so the
+    editor and then the file hold what the reader last typed, the status clears, and
+    leaving no longer asks."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n\nEnd.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def lose(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        if typed == "on":
+            route.fetch()
+        route.abort()
+
+    page.route("**/api/files/notes", lose)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    last = "Notes.\n\nEnd.\n"
+    if typed == "on":
+        assert file.read_text() == "Notes.\n\nEnd.\nDraft."
+        # A line far enough from the lost save's that a line merge would take it in.
+        page.keyboard.press("ControlOrMeta+Home")
+        page.keyboard.insert_text("Added.")
+        page.keyboard.press("Enter")
+        last = "Added.\n" + last
+    shown = last.replace("\n", "")
+    expect(editor).to_have_text(shown)
+    page.unroute("**/api/files/notes", lose)
+    if typed == "on":
+        with page.expect_response(
+            lambda response: (
+                response.request.method == "POST"
+                and response.url.endswith("/api/files/notes")
+                and response.status == 200
+            )
+        ) as saved:
+            retry.click()
+        assert saved.value.request.post_data_json["text"] == last
+    else:
+        retry.click()
+    expect(retry).to_be_hidden()
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+    expect(editor).to_be_focused()
+    left = []
+    page.on("dialog", lambda dialog: (left.append(dialog.type), dialog.accept()))
+    page.reload()
+    wait_until_ready(page)
+    assert left == []
+    expect(editor).to_have_text(shown)
+    assert file.read_text() == last
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        *([http_error_console(409)] if typed == "on" else []),
     )
 
 

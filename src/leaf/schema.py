@@ -370,15 +370,6 @@ FACTS: dict[str, dict] = {
     "exhibit": _conditional({"const": True}),
     "history": {"const": True},
     "owners": _TAGS,
-    "unique": {
-        "type": "object",
-        "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {
-            "type": "string",
-            "pattern": f"^{WIDGET_NAME}$",
-        },
-    },
     "refers": REFERENCE_SCHEMA,
     "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
@@ -602,7 +593,7 @@ LAYER_FACTS = {
 # attribute, and sharing a spelling is no reason to share a check. `awaits` and
 # `inputs` name attributes too and keep their own loops, having more to say about each
 # than that it exists.
-ATTRIBUTE_FACTS = ("prepaint", "refers", "unique")
+ATTRIBUTE_FACTS = ("prepaint", "refers")
 
 # The kernel compiled from ASSETS's modules (`runtime_selection.read_runtime`).
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"

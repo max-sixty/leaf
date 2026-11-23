@@ -735,21 +735,21 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     ("tag", "key", "value", "missing"),
     [
         ("lf-option", "refers", {"for": {}, "about": {}}, "about"),
-        ("lf-option", "unique", {"tone": "lf-options"}, "tone"),
+        ("lf-option", "prepaint", "tone", "tone"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
     """These keys point at attributes rather than declaring them — the ones that name
-    another element, and the ones no two members of an owner share — and each is read
-    by a pass that finds the attribute absent and does nothing. That is the
+    another element, and the one that names the notation the first paint draws — and
+    each is read by a pass that finds the attribute absent and does nothing. That is the
     never-closed vocabulary's own failure mode: no error anywhere, the widget simply
     missing from the pass, and a page that looks authored correctly because it was. The
     door is the only place the mistake is visible, so it refuses here.
 
     Parametrized rather than written one by one, because it is one rule
-    (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
+    (ATTRIBUTE_FACTS) and the case that would go wrong is a key left off the tuple —
     which tests written by hand could never see. The shapes differ and the rule does
     not: a mapping keyed by the names, or one name."""
     registry = vocabulary(page_dir)

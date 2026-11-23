@@ -1296,13 +1296,6 @@ _TEXT = {
             + " asking the question"
         ),
     ),
-    "repeated-key": _refuses(
-        _DECIDES,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
-            f" {v['first_line']} in the same <{v['scope']}>"
-        ),
-    ),
     "unknown-reference": _refuses(
         _REFERS,
         lambda at, v: (

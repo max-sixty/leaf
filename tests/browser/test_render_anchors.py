@@ -4588,15 +4588,20 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
     browser, serve, subtests
 ):
     """A thread whose passage a closed box hides, a closed disclosure, a tab not
-    chosen or a diff file opened and closed again, stands its marker level with the
-    box, so the page shows that the box holds a thread. A press on the marker opens
-    the box and lands the user on the thread."""
+    chosen or a diff file opened and closed again, stands its marker level with what
+    the page shows for the box, so the page shows that the box holds a thread. A press
+    on the marker opens the box and lands the user on the thread, on a phone too and
+    after the box closed round the thread's open card. A suggestion the box hides
+    offers no Accept until the box opens."""
     url = serve(
         leaf_page(
             "closed boxes",
             '<h1 id="title">Review</h1>'
             '<details id="fold"><summary>Notes</summary>'
             '<p id="folded">The retry waits grow without bound.</p></details>'
+            '<details id="offers"><summary>Offers</summary><p>Plain words '
+            '<lf-suggestion id="offer"><lf-old>two</lf-old><lf-new>three</lf-new>'
+            "</lf-suggestion> follow.</p></details>"
             '<lf-tabs id="tabs">'
             '<lf-tab id="tab-one" label="One"><p id="shown">First tab.</p></lf-tab>'
             '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
@@ -4626,27 +4631,54 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
     file.evaluate("details => { details.open = true; }")
     expect(line).to_be_attached()
     file.evaluate("details => { details.open = false; }")
+    suggestion = page.locator('.lf-margin-cluster[data-lf-margin-for="offer"]')
 
-    for case, box, opened, marker in (
-        ("closed disclosure", page.locator("#fold"), page.locator("#folded"), "folded"),
+    def marker(key):
+        return page.locator(f'[data-lf-margin-for^="{key}"] .lf-margin-marker')
+
+    with subtests.test(case="suggestion"):
+        expect(suggestion).to_be_hidden()
+        page.locator("#offers > summary").click()
+        expect(suggestion).to_be_visible()
+
+    for case, face, opened, key in (
+        ("tab not chosen", page.locator("#tabs"), "#unchosen", "unchosen"),
         (
-            "tab not chosen",
-            page.locator("#tabs"),
-            page.locator("#unchosen"),
-            "unchosen",
+            "file opened and closed again",
+            file.locator(":scope > summary"),
+            line,
+            "id:patch/",
         ),
-        ("file opened and closed again", file, line, "id:patch/"),
+        ("closed disclosure", page.locator("#fold > summary"), "#folded", "folded"),
     ):
         with subtests.test(case=case):
-            entry = page.locator(f'[data-lf-margin-for^="{marker}"] .lf-margin-marker')
+            entry = marker(key)
             entry.scroll_into_view_if_needed()
             expect(entry).to_be_visible()
-            assert abs(entry.bounding_box()["y"] - box.bounding_box()["y"]) <= 2, (
-                "the marker stands apart from the closed box holding its thread"
+            assert abs(entry.bounding_box()["y"] - face.bounding_box()["y"]) <= 2, (
+                "the marker stands apart from what the page shows for its closed box"
             )
             entry.click()
-            expect(opened).to_be_in_viewport()
-            expect(opened).to_have_class(re.compile(r"\blf-mark-here\b"))
+            target = page.locator(opened) if isinstance(opened, str) else opened
+            expect(target).to_be_in_viewport()
+            expect(target).to_have_class(re.compile(r"\blf-mark-here\b"))
+
+    with subtests.test(case="closed round its card"):
+        expect(marker("folded")).to_have_attribute("aria-expanded", "true")
+        page.locator("#fold").evaluate("details => { details.open = false; }")
+        expect(marker("folded")).to_be_visible()
+        marker("folded").click()
+        expect(page.locator("#fold")).to_have_attribute("open", "")
+        expect(page.locator("#folded")).to_be_in_viewport()
+
+    with subtests.test(case="phone"):
+        page.get_by_role("tab", name="One").click()
+        resized(page, 400, 900)
+        entry = marker("unchosen")
+        entry.scroll_into_view_if_needed()
+        entry.click()
+        expect(page.locator("#unchosen")).to_be_visible()
+        expect(page.locator(PANEL_THREAD)).to_contain_text("About unchosen.")
 
 
 def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(

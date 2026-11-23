@@ -957,6 +957,58 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     assert page.evaluate("() => [window.heard, window.ran]") == [0, ["scroll.up"]]
 
 
+def test_a_widget_in_a_message_keeps_a_key_it_answers(browser, serve):
+    """A message's markup is a document its writer authored, though the panel showing
+    it stands outside `body`, so a widget there keeps a key its own listener answers
+    and prevents, as it would on the page, and Leaf's command for the key doesn't act
+    beside it. Where the key was aimed is read as it is pressed, so the widget keeps it
+    even where its answer redraws the element the key was aimed at."""
+    url = serve(LONG_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-film",
+            "author": "user",
+            "revision": 1,
+            "text": "Show me the film.",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "c-film",
+            "revision": 1,
+            "text": "Here it is.",
+        },
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, "c-film")
+    view.locator(".lf-msg-body").last.evaluate("""(body) => {
+      const film = document.createElement('section');
+      film.tabIndex = 0;
+      film.textContent = 'A film';
+      window.played = 0;
+      film.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.played += 1;
+        const redrawn = film.cloneNode();
+        redrawn.textContent = 'A film, playing';
+        film.replaceWith(redrawn);
+        redrawn.focus();
+      });
+      body.append(film);
+      window.ran = [];
+      document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+      film.focus();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, []]
+
+
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
     browser, serve, subtests
 ):

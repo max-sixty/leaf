@@ -112,20 +112,22 @@ a widget's state or the threads. For any other state it reads, hold the value in
 
 ### How scopes compose
 
-A key goes first to listeners on the focused element and around it, then to the scope on
-the focused control, the widgets around it and the page. A widget's own listener keeps a
-key, even a page key, by preventing its default; declare keys the reader should find in
-the command reference. A key pressed inside an outlet Leaf fills with a Thread
+A key reaches listeners on the focused element and around it before Leaf's scopes: the
+focused control's, the widgets' around it, then the page's. A listener keeps a key,
+even a page key, by preventing its default. Listeners on the document and the window
+hear only keys Leaf leaves, and Escape lets go of a focused control after them unless
+one prevented it. Leaf hears first only while Go-to or reactions are armed, with
+nothing focused, and while focus is scrolled out of sight, where a key other than
+typing or Escape lets go of it.
+
+Among scopes, a key pressed inside an outlet Leaf fills with a Thread
 (`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
 presentation") skips the widgets around the outlet: it goes to the scopes inside the
 outlet and on it, then to the page. A scope takes only keys whose rows make a press, by
 a `run` or by naming a `control` Leaf clicks, so other keys pass outward. A row keeps
 its key while unavailable, so the key never falls through to a different meaning further
 out; an unavailable Escape, though, passes on to the next Escape. Text fields keep their
-editing keys ahead of every widget scope. A key other than typing or Escape, pressed
-while the user has scrolled the focused control out of sight, lets go of the control
-first and goes to the page, so neither a widget's command or listener nor the browser's
-Enter and Space acts on what the user can't see.
+editing keys ahead of every widget scope.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the

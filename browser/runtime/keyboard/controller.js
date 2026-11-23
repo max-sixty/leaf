@@ -39,6 +39,7 @@ import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
 import { readLeavingKeys } from "../field-keys.js";
+import { authoredScope } from "../passages.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
 // a server serving another layer, ends bootstrap's hold: nothing in it will run what
 // was held, so those keys are dropped and later ones reach the page as they come.
@@ -134,18 +135,26 @@ export function mountKeyboard({
   // Leaf's own, and before the page's listeners on the document and the window, which
   // hear only a key Leaf leaves. So a key keeps the order a widget's own listener would
   // give it: the focused element's handling comes first, then Leaf's command there, then
-  // a page-wide shortcut. A key aimed inside `body` whose default is already prevented
-  // by then is the page's, as role-button-press.js reads a press, so a page widget that
-  // answers a letter itself and prevents it keeps it from Leaf's page command. Read
-  // again here, it would act at wherever page code had moved focus, such as the trigger
-  // a page's menu hands focus back to. Leaf's chrome stands outside `body`, and a key
-  // aimed at `body` itself was read in capture.
+  // a page-wide shortcut. A key aimed inside an authored document, the page's `body` or
+  // a message's body (`authoredScope`), whose default is already prevented by then is
+  // its author's, as role-button-press.js reads a press, so a widget that answers a
+  // letter itself and prevents it keeps it from Leaf's page command, in the page or in a
+  // message the panel shows. The event's path, fixed as it was dispatched, says where
+  // the key was aimed even where that answer redrew or removed the element. Read again
+  // here, it would act at wherever that code had moved focus, such as the trigger a
+  // page's menu hands focus back to. The rest of Leaf's chrome stands outside both, so
+  // its keys stay Leaf's whatever a page listener prevents, and a key aimed at `body`
+  // itself was read in capture.
   document.documentElement.addEventListener("keydown", (ev) => {
-    const { target } = ev;
-    if (target === document.body) return;
-    const pages =
-      ev.defaultPrevented && target instanceof Node && document.body.contains(target);
-    if (!pages) press(ev);
+    if (ev.target === document.body) return;
+    const authored =
+      ev.defaultPrevented &&
+      ev
+        .composedPath()
+        .some(
+          (node) => node instanceof Element && authoredScope(node) === node,
+        );
+    if (!authored) press(ev);
   });
   // A row that `waits` is what Leaf does with a key only once nothing else has taken
   // it, as Escape lets go of a control in the page (keyboard/page.js), so it is read
@@ -174,7 +183,8 @@ export function mountKeyboard({
   readLeavingKeys((ev) => {
     if (ev.type !== "keydown") return;
     press(ev);
-    if (ev.key.length !== 1 && !ev.defaultPrevented && !ev.isComposing) run(ev, true);
+    if (ev.key.length !== 1 && !ev.defaultPrevented && !ev.isComposing)
+      run(ev, true);
   });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
@@ -233,7 +243,8 @@ export function mountKeyboard({
     // readings of where the user is would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
-    if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
+    if (reactArmed() && (takesLetters(active) || claimsEsc(active)))
+      setReact(false);
     if (goToSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
       setGoToSequence(false);
     }

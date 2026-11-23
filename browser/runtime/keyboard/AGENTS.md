@@ -53,11 +53,13 @@ the page's has the user's focus to answer it, so Leaf's command runs first, and 
 listener hears only a key Leaf leaves. Leaf reads every other key, printed letters
 included, on the root element: after the listeners on the focused control and on each
 element around it, the page's own among them, and before the page's listeners on the
-document and the window, which hear only a key Leaf leaves. A key aimed inside `body`
-whose default is already prevented there is the page's, and Leaf takes no step for it. A widget whose ARIA pattern types ahead, such
-as a menu, a tree or a select-only combobox, keeps the letters and digits typed while
-focus is in it, whether or not it prevents them, as a text field and a select keep
-theirs (`text-entry.js`). A row that `waits`, as Escape letting go of a control in the
+document and the window, which hear only a key Leaf leaves. A key aimed inside an
+authored document, the page's `body` or a message's body, whose default is already
+prevented there is its author's, and Leaf takes no step for it; the rest of Leaf's
+chrome keeps its keys whatever a page listener prevents. A widget whose ARIA pattern
+types ahead, such as a menu, a tree or a select-only combobox, keeps the letters and
+digits typed while focus is in it, whether or not it prevents them, as a text field and
+a select keep theirs (`text-entry.js`). A row that `waits`, as Escape letting go of a control in the
 page, is read last, on the window, after every listener the page has, and only if none
 prevented the key (`controller.js`).
 

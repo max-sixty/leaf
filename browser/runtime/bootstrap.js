@@ -13,7 +13,12 @@
   const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
     for (const mark of marks) arrived.searchParams.delete(mark);
+    // The rename drops the entry's own state, the record of where the user was on it
+    // that a revision's reload returns them to (history.js), so the state is written
+    // back to the renamed entry. A sandboxed sample's document keeps no entries.
+    const state = window.navigation.currentEntry?.getState();
     history.replaceState(history.state, "", arrived);
+    if (state !== undefined) window.navigation.updateCurrentEntry({ state });
   }
   const script = (() => {
     const entry = document.currentScript;

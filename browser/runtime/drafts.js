@@ -112,6 +112,8 @@ import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
+import { nameIn, namedIn } from "./carry.js";
+import { renderedUnder } from "./shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
@@ -119,7 +121,7 @@ import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 import { pressCommand } from "./keyboard/dispatch.js";
 import { signal } from "./framework.js";
-import { takesNoWords } from "./composing/input.js";
+import { boxOf, takesNoWords } from "./composing/input.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
@@ -1279,7 +1281,7 @@ function moveToPage(ctx) {
 // it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
-/** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret}} DraftRoute */
+/** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret, control?: import("./carry.js").FocusKey}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
  * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
@@ -1366,7 +1368,7 @@ export function createWritingResume({
   // content edit, so it leaves the writing place where it was. Back to such a stop opens
   // the box where the user stands (`travel: false`, history.js).
   /** @param {string} ctx @param {DraftRoute} [options] */
-  const showDraft = async (ctx, { travel = true } = {}) => {
+  const showDraft = async (ctx, { travel = true, control } = {}) => {
     const route = writingRoute(ctx);
     if (!route) return false;
     const intent = retainUserIntent();
@@ -1376,6 +1378,11 @@ export function createWritingResume({
       onFrame: true,
       travel,
     });
+    // A control inside the box, where history returns the user to one (`draftFocus`).
+    const box = frame && control ? boxOf(route(ctx)?.input?.()) : null;
+    const within = box && control ? namedIn(box, control) : null;
+    if (within && within !== box)
+      intent.handoff(() => focusDestination(within, "return"));
     return Boolean(frame) && intent();
   };
   return {
@@ -1420,9 +1427,11 @@ export function captureDraftEditing(at = focused()) {
 // The draft focus is on, as history keeps it for an entry the user left writing
 // (history.js): its context, and the caret where focus is in its editor, or `box` where
 // the user stands on the box it is written in, as a walk leaves them
-// (`standsOnDraft`). A reply's mirror is its thread's, which history names by the
-// thread. The words stay in the drafts store, which brings them back with the box.
-/** @param {Element | null} [at] @returns {{draft: string, caret?: import("./focus.js").Caret, box?: true} | null} */
+// (`standsOnDraft`), or on a control inside it, as a drawing's Undo, which `control`
+// names within the box (carry.js, `nameIn`). A reply's mirror is its thread's, which
+// history names by the thread. The words stay in the drafts store, which brings them
+// back with the box.
+/** @param {Element | null} [at] @returns {{draft: string, caret?: import("./focus.js").Caret, box?: true, control?: import("./carry.js").FocusKey} | null} */
 export function draftFocus(at = focused()) {
   const editing = captureDraftEditing(at);
   if (editing && !editing.mirrored)
@@ -1430,10 +1439,19 @@ export function draftFocus(at = focused()) {
       draft: editing.context,
       ...(editing.selection && { caret: editing.selection }),
     };
-  const stood = [...draftEditors].find(
-    (view) => !view.mirrored && standsOnDraft(view.ctx),
-  );
-  return stood ? { draft: stood.ctx, box: true } : null;
+  if (!at) return null;
+  for (const view of draftEditors) {
+    if (view.mirrored) continue;
+    const box = boxOf(editorInput(view));
+    if (!box || !renderedUnder(at, box)) continue;
+    const frame = writingRoute(view.ctx)?.(view.ctx)?.frame?.();
+    return {
+      draft: view.ctx,
+      box: true,
+      ...(at !== frame && { control: nameIn(box, at) }),
+    };
+  }
+  return null;
 }
 
 /** @typedef {NonNullable<ReturnType<typeof captureDraftEditing>>} DraftEditing */

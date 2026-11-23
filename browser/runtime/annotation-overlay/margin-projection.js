@@ -121,7 +121,7 @@ import {
   rove,
   currentLocationIn,
 } from "../focus.js";
-import { focusKey, focusedBy } from "../carry.js";
+import { focusByKey, focusKey } from "../carry.js";
 
 import { el, generatedElement, offerActionElement } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
@@ -2222,11 +2222,17 @@ export function createMarginProjection({
           closeControl: true,
           cause: "return",
         });
-      const named =
-        focus?.kind === "preview" && focus.key?.on !== "thread" && destination
-          ? focus.key && focusedBy(focus.key, () => destination)
-          : null;
-      if (named && named !== destination && intent()) focusDestination(named, "return");
+      if (
+        focus?.kind === "preview" &&
+        focus.key &&
+        focus.key.on !== "thread" &&
+        destination
+      )
+        focusByKey(
+          focus.key,
+          () => destination,
+          (named) => named !== destination && intent(),
+        );
       return Boolean(destination);
     });
   }

@@ -337,6 +337,44 @@ def test_executable_revision_keeps_the_user_on_the_message_they_were_on(
     expect(page.locator(f'.lf-msg[data-lf-message="{key}"]')).to_be_focused()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_leaves_a_put_away_comment_shut(request, serve, engine):
+    """A comment the user put away with Escape stays put away through a revision that
+    reloads the page, as through any reload: its words don't take focus."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(serve(editing_revision_source("before"))),
+    )
+    page.locator("#passage").click(click_count=3)
+    page.keyboard.press("c")
+    composer = page.locator(".lf-composer leaf-text")
+    write(composer, "Words put away for later.")
+    page.keyboard.press("Escape")
+    if composer.is_visible():
+        page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    page.evaluate("document.activeElement?.blur?.(); getSelection().removeAllRanges()")
+    replace_editing_document(page, serve)
+    expect(composer).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_keeps_the_page_selection(request, serve, engine):
+    """Words the user selected in prose a revision leaves as it was stay selected
+    through the revision's reload, as through any reload."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(serve(editing_revision_source("before"))),
+    )
+    page.evaluate("""() => {
+      const text = document.getElementById('passage').firstChild;
+      const at = text.data.indexOf('stable passage');
+      getSelection().setBaseAndExtent(text, at, text, at + 'stable passage'.length);
+    }""")
+    replace_editing_document(page, serve)
+    page.wait_for_function("() => getSelection().toString() === 'stable passage'")
+
+
 def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, serve):
     """A live replacement continues actual editing, with its selection; an ordinary
     reload returns the user to the reply with the selection's ends."""

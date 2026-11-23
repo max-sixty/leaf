@@ -14,6 +14,7 @@ from render_harness import (
     select_words,
 )
 
+from browser.test_render_drawing import draw_over
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
@@ -213,3 +214,38 @@ def test_a_reload_leaves_a_kept_draft_shut(request, serve, engine):
     assert page.evaluate(FOCUS_SEEN)
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_reload_keeps_focus_on_a_control_in_a_comment_box(request, serve, engine):
+    """Focus on a control in a new comment's box, as its drawing's Undo, comes back to
+    that control after a reload, with the box and its drawing open again."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    draw_over(page, page.locator("#p3"))
+    undo = page.get_by_role("button", name="Undo last stroke")
+    undo.focus()
+    expect(undo).to_be_focused()
+    reload(page)
+    expect(undo).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_tab_discarded_while_hidden_comes_back_where_it_was_left(
+    request, serve, engine
+):
+    """A tab the browser discards while hidden, as a phone or a desktop's memory saver
+    does, unloads without `beforeunload`; the record written as it was hidden brings
+    the user's selection back when it loads again."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const text = document.getElementById('p20').firstChild;
+      getSelection().setBaseAndExtent(text, 0, text, 'Paragraph 20.'.length);
+    }""")
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {value: 'hidden', configurable: true});
+      document.dispatchEvent(new Event('visibilitychange'));
+      // The discard, which runs no unload handler.
+      addEventListener('beforeunload', (event) => event.stopImmediatePropagation(), {capture: true});
+    }""")
+    reload(page)
+    page.wait_for_function("() => getSelection().toString() === 'Paragraph 20.'")

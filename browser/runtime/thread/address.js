@@ -108,10 +108,14 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
         raiseError(`Thread ${id} is unavailable`);
         return false;
       }
+      // Where the user stands, moving no scroller: a passage the page no longer shows
+      // there, as one a revision moved into a closed tab, leaves the thread to the
+      // floating panel rather than reveal it under the user.
       await openPageThread(id, {
         part: "thread",
         focus: false,
         travel: false,
+        scroll: false,
         intent,
         reader: kept?.reader ?? null,
       });

@@ -376,7 +376,8 @@ def test_forward_to_a_decision_in_a_message_returns_to_the_decision(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_returns_words_selected_in_a_message(request, serve, engine):
     """Words the user selected in a card's message are selected again when Back from
-    the next thread reopens the card."""
+    the next thread reopens the card, though the message's age in its head reads
+    differently by then, as it does once a minute passes."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
@@ -397,6 +398,8 @@ def test_back_returns_words_selected_in_a_message(request, serve, engine):
           const text = [...node.childNodes].find((n) => n.nodeType === 3 && n.data.includes('cache'));
           const at = text.data.indexOf('the cache');
           getSelection().setBaseAndExtent(text, at, text, at + 'the cache '.length);
+          for (const age of node.closest('.lf-msg').querySelectorAll('time span'))
+            age.textContent = '9m ago';
         }"""
     )
     page.keyboard.press("t")

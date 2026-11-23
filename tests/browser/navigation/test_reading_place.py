@@ -355,6 +355,20 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     assert returned == (None if close_source else before)
 
 
+# Prose whose selections and carets history returns to, and a decision far below that
+# `m` leaves them for.
+EXACT_ENDS_PAGE = leaf_page(
+    "Exact ends",
+    "<h1>Exact ends</h1>"
+    '<p id="spaced">Tend · sandboxing keeps the runner apart from the host.</p>'
+    '<p id="marked"><em>Emphasis</em> and then the words after it carry on.</p>'
+    '<div style="height:1600px"></div>'
+    '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+    '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+    '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize("where", ["before a space", "where an element ends"])
 def test_history_returns_a_caret_between_the_same_characters(
@@ -362,21 +376,7 @@ def test_history_returns_a_caret_between_the_same_characters(
 ):
     """A caret in prose comes back between the characters it stood between, though it
     stood just before a space, or where an element ends and the words after it begin."""
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            leaf_page(
-                "Exact caret",
-                "<h1>Exact caret</h1>"
-                '<p id="spaced">Tend · sandboxing keeps the runner apart from the host.</p>'
-                '<p id="marked"><em>Emphasis</em> and then the words after it carry on.</p>'
-                '<div style="height:1600px"></div>'
-                '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
-                '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
-                '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
-            )
-        ),
-    )
+    page = open_page(request.getfixturevalue(engine), serve(EXACT_ENDS_PAGE))
     block = "spaced" if where == "before a space" else "marked"
     page.evaluate(
         """block => {
@@ -404,6 +404,24 @@ def test_history_returns_a_caret_between_the_same_characters(
         f"([block, want]) => ({before})(block) === want",
         arg=[block, 4 if block == "spaced" else 8],
     )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_with_its_trailing_space(request, serve, engine):
+    """Words selected with the space after them come back with that space, though the
+    passage a comment on them would quote ends at their last word."""
+    page = open_page(request.getfixturevalue(engine), serve(EXACT_ENDS_PAGE))
+    page.evaluate("""() => {
+      const text = document.getElementById('spaced').firstChild;
+      const at = text.data.indexOf('keeps');
+      getSelection().setBaseAndExtent(text, at, text, at + 'keeps the '.length);
+    }""")
+    assert page.evaluate("getSelection().toString()") == "keeps the "
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function("() => getSelection().toString() === 'keeps the '")
 
 
 UNNAMED_PROSE = """

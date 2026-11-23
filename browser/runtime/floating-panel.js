@@ -282,7 +282,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
-import { focusKey, focusedBy } from "./carry.js";
+import { focusByKey, focusKey } from "./carry.js";
 import { holdPlace, standsAt } from "./user-place.js";
 import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
@@ -5893,9 +5893,12 @@ export function createFloatingPanel({
     const intent = retainUserIntent();
     const returnFocus = () => {
       const view = openView();
-      const target = focus && view && (focusedBy(focus, () => view) ?? view);
-      if (target && intent() && !currentLocationIn(target))
-        focusDestination(target, "return");
+      if (focus && view)
+        focusByKey(
+          focus,
+          () => view,
+          (target) => intent() && !currentLocationIn(target),
+        );
     };
     if (trail.value.at(-1)?.thread === thread.key && openView()) {
       returnFocus();

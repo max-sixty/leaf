@@ -321,7 +321,7 @@ export function settledAway(el) {
 export const GENERATED = ".lf-ui, [data-lf-gen]";
 // A message's body: what the runtime renders from its writer's Markdown, any HTML an
 // agent wrote in it included.
-const MESSAGE_BODY = ".lf-msg-body";
+export const MESSAGE_BODY = ".lf-msg-body";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
 // What a heading in it heads, as a page's title in its header heads the page (`headed`).

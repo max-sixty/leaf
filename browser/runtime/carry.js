@@ -73,7 +73,7 @@ const holdsTick = (node) =>
 // focus is on, or whose shadow tree holds it, by its id; else its place among the
 // elements like it in the nearest element with an id inside the holder, or the holder.
 /** @param {Element} holder @param {Element} active @returns {FocusKey} */
-function nameIn(holder, active) {
+export function nameIn(holder, active) {
   const page = holder === pageDocument();
   /** @param {Element | null | undefined} node @returns {node is Element} */
   const inside = (node) =>
@@ -111,7 +111,14 @@ export function focusKey(active) {
     const turn = closestAcross(active, "[data-lf-message]");
     const message =
       turn && renderedUnder(turn, whole) ? turn.getAttribute("data-lf-message") : null;
-    if (!turn || !message) return withCaret({ thread, on: "thread" });
+    // A control the view draws in the thread, as a card's Close on its head line, by
+    // its place in the thread's drawing.
+    if (!turn || !message)
+      return withCaret({
+        thread,
+        on: "thread",
+        ...(active === whole ? {} : nameIn(whole, active)),
+      });
     const named = turn === active ? {} : nameIn(turn, active);
     return withCaret({ thread, on: "message", message, ...named });
   }
@@ -121,18 +128,13 @@ export function focusKey(active) {
 }
 
 // The element a focus key names now, or null: a thread's part in the drawing of the
-// thread `drawing` finds, its reply, else in the message the key names, the element
-// named there, else at its place there, else the message, else the drawing; a page
+// thread `drawing` finds, its reply, else in the message the key names, or in the
+// drawing where the key names none, the element named there, else at its place there,
+// else the message, else the drawing; a page
 // element by its id or its owner's key, else at its place in its holder while the page
 // shows the key's revision, else that holder.
 /** @param {FocusKey} key @param {(thread: string) => Element | null} drawing @returns {Element | null} */
-export function focusedBy(key, drawing) {
-  const { at } = key;
-  /** @type {Element} */
-  let scope = pageDocument();
-  /** @type {(id: string) => Element | null} */
-  let find = (id) => elementById(id, scope);
-  let placed = key.revision === runtime.currentRevision;
+function focusedBy(key, drawing) {
   if (key.thread) {
     const whole = drawing(key.thread);
     if (!whole) return null;
@@ -141,17 +143,40 @@ export function focusedBy(key, drawing) {
     const turn = key.message
       ? whole.querySelector(`[data-lf-message="${CSS.escape(key.message)}"]`)
       : null;
-    if (!turn) return whole;
-    scope = turn;
-    find = (id) => turn.querySelector(`[id="${CSS.escape(id)}"]`);
-    placed = true;
+    if (key.message && !turn) return whole;
+    return namedIn(turn ?? whole, key);
   }
-  const owner = key.id ? find(key.id) : scope;
-  if (!owner || (key.name && owner.localName !== key.name))
-    return key.thread ? scope : null;
+  const page = pageDocument();
+  const owner = key.id ? elementById(key.id, page) : page;
+  if (!owner || (key.name && owner.localName !== key.name)) return null;
   if (key.part !== undefined) return keyedFocus(owner, key);
-  const target = (placed && at && owner.querySelectorAll(at[0])[at[1]]) || owner;
-  return target === pageDocument() ? null : target;
+  const placed = key.revision === runtime.currentRevision;
+  const target =
+    (placed && key.at && owner.querySelectorAll(key.at[0])[key.at[1]]) || owner;
+  return target === page ? null : target;
+}
+
+// The element `key` names inside `holder` (`nameIn`), as a message or a draft's box:
+// the element with its id, or its owner's generated control, else at its place, else
+// the holder; a place inside a holder that isn't the page stays valid across
+// revisions.
+/** @param {Element} holder @param {FocusKey} key @returns {Element | null} */
+export function namedIn(holder, key) {
+  const owner = key.id ? holder.querySelector(`[id="${CSS.escape(key.id)}"]`) : holder;
+  if (!owner || (key.name && owner.localName !== key.name)) return holder;
+  if (key.part !== undefined) return keyedFocus(owner, key);
+  return (key.at && owner.querySelectorAll(key.at[0])[key.at[1]]) || owner;
+}
+
+// Returns the user to what `key` names (`focusedBy`), with the caret it kept, where
+// `accept` takes the element; answers the element, or null where nothing took focus.
+/** @param {FocusKey} key @param {(thread: string) => Element | null} drawing
+ * @param {(target: Element) => boolean} [accept] @returns {Element | null} */
+export function focusByKey(key, drawing, accept = () => true) {
+  const target = focusedBy(key, drawing);
+  if (!target || !accept(target)) return null;
+  focusDestination(target, "return", { caret: key.caret ?? null });
+  return target;
 }
 
 // The element a page key names under `owner`, the element with its id: the owner, or

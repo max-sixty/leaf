@@ -42,28 +42,37 @@
  * and the leaf's menu's row for the latest, explicitly release that hold.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the obligation view restores the selected obligation by id. Both installs restore these
- * readings; the patch passes its retained nodes so restoration skips them. Unnamed
- * replaced controls receive no guessed focus. Authored controls and registered draft
- * editors carry native editing under their existing replacement identity; arbitrary
- * selections and module state cannot cross documents. Drafts and chrome preferences
- * use their own stores.
+ * contract. Both installs restore authored values and disclosures; the patch passes its
+ * retained nodes so restoration skips them. Registered draft editors carry native
+ * editing under their existing replacement identity; module state cannot cross
+ * documents. Drafts and chrome preferences use their own stores.
  *
- * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin and panel location, mechanical carry, and obligation location. A newer
- * revision may consume it, but ordinary reloads and history travel cannot replay it.
- * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or obligation location. State application serializes responses and remains
- * pending after navigation starts until the old document is discarded.
+ * A fresh-document install is a reload, so it returns the user to the entry's record as
+ * every reload does (history.js, `returnOnArrival`): the page's place, the thread view
+ * and where they were in it, which reader the margin's rule opens it in where its
+ * passage is gone (thread/address.js, `claim`), focus, and the selection. Beside that it
+ * stores a page-scoped, one-use handoff of what the record doesn't hold: each reading
+ * region's place, the values typed into authored controls, with focus and its caret
+ * where it was in one, back in the replacement turn so typing goes on before the page
+ * presents, the words being written with their native editing session, the comparison
+ * and the pointer. A newer revision may
+ * consume it, but ordinary reloads and history travel cannot replay it. An in-place
+ * patch is no navigation, so it restores the page's place, the margin's and the
+ * panel's location, focus, and the selected obligation by id itself; it gives an
+ * unnamed replaced control no guessed focus. Explicit historical travel carries reading
+ * position and the decision landmark, without mechanical carry or obligation location.
+ * State application serializes responses and remains pending after navigation starts
+ * until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
  * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
- * `landArrival` runs after presentation: a valid revision handoff restores continuity;
+ * `landArrival` runs after presentation: a valid revision handoff restores its part;
  * unexpected mechanical failures report without blocking proved state or deferred
- * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
- * different revision. Ordinary reloads and full-document history travel keep the browser's
- * restored offset; history.js keeps where the user was on each same-document entry.
+ * arrivals. A fresh navigation aimed nowhere arrives at a new entry, which holds no
+ * record, so where the page shows another revision since this tab last left it, the
+ * view the tab saved as it left (`savedView`, written at `pagehide`) places it. Every
+ * reload and full-document traversal returns to its entry's record instead.
  * Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
@@ -2270,14 +2279,20 @@ export function createVersionController({
       const view = captureView();
       const editingContinuity = captureEditingContinuity();
       tabStore.set(VIEW_KEY, JSON.stringify(view));
+      // The reload returns the user to the entry's record, as every reload does
+      // (history.js): the page's place, the thread view and where they were in it,
+      // focus and the selection. The handoff holds only what the record doesn't, and
+      // the focus and caret of an authored control with the values typed into it, which
+      // come back in the replacement turn, so typing goes on while the page is still
+      // held back from presenting, before the record's return, which follows it.
       tabStore.set(
         HANDOFF_KEY,
         JSON.stringify({
           revision: target.revision,
           url: location.href,
-          view,
-          retainedCurrentLocation: captureRetainedCurrentLocation(),
+          view: { ...view, page: null },
           ...editingContinuity,
+          obligationCurrentLocation: null,
           carry: captureCarry(live, source).records,
           comparison: selectedBase(),
           pointer: pointerAt(),
@@ -3020,14 +3035,13 @@ export function createVersionController({
 
   function installArrival() {
     installReadingContinuity();
-    // Ordinary reload and full-document history travel keep the browser's restored
-    // offset; history.js keeps where the user was on each same-document entry. The root is
-    // its document scrollport, so native restoration is both
-    // more complete and less surprising than a parallel session-store reading. Leaf
-    // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
-    // target a widget generates, hides, or moves (`aimArrival`), and travel to a
-    // different authored revision, where a passage is a better landmark than the old
-    // document's pixels.
+    // A reload, a revision's included, and Back or Forward from another document return
+    // to the entry's record (history.js); a revision's reload adds its handoff. Two
+    // arrivals hold no record: a fresh URL aimed at a target a widget generates, hides,
+    // or moves (`aimArrival`), and a new navigation in this tab to a page that shows
+    // another revision since the tab last left it, whose new entry the view saved at
+    // `pagehide` places (`savedView`), a passage being a better landmark there than the
+    // old document's pixels.
     const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
       performance.getEntriesByType("navigation")[0]
     )?.type;
@@ -3072,7 +3086,6 @@ export function createVersionController({
         if (handoff) {
           restorePointer(handoff.pointer);
           restoreView(handoff.view, currentIntent);
-          void restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
           if (handoff.comparison) showComparison(handoff.comparison);
@@ -3090,7 +3103,6 @@ export function createVersionController({
     return {
       landArrival,
       savedView,
-      handedOff: Boolean(handoff),
       restored: navigationType !== "navigate",
     };
   }
@@ -3105,8 +3117,8 @@ export function createVersionController({
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
   // where it is. The fragment is read before widgets upgrade, since a widget may write
   // its own view into the URL (a root tab set names its open panel), and that is
-  // display state, not a destination. A reload or history traversal keeps the
-  // browser's restored offset instead, and input during the arrival ends it. However
+  // display state, not a destination. A reload or history traversal returns to its
+  // entry's record instead (history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade
   // (anchor-travel.js, `fragmentShown`), so the widget shows the state the URL names:

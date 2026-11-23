@@ -50,25 +50,27 @@
  * and Firefox alike. A route reads its record before it reveals anything, and the push
  * it commits writes that record (`prepareEntry`); a departure from the document writes
  * it at `beforeunload`, the last moment both engines keep the write through a reload
- * (measured: Firefox drops one made at `pagehide` as the page reloads). The user arrives
+ * (measured: Firefox drops one made at `pagehide` as the page reloads). A hidden page
+ * may never see that moment, since a phone or a desktop's memory saver discards a
+ * hidden tab without it, so the record is written as the page is hidden too, and
+ * written again at whatever departure follows. The user arrives
  * at an entry by a traversal within the document, or by a reload or a traversal from
  * another document (`arrivalRecord`), and each returns them to its record the same way
  * (`returnOnArrival`). Rejected: a map of live nodes and pixel offsets by entry key,
  * which a reload emptied, so Back after it had nothing to return to, and whose offsets
  * named content a revision had moved.
  *
- * A revision's handoff (version.js) and the floating panel's hold of where the user
- * stepped in from (`readPlace`) read the same page place, focus identity and thread
- * reading, and stay apart from this record where they need what it must not hold. The
- * handoff restores a revision's reload itself, in place of this record: besides what
- * that reload alone owes, each reading region's place, the words being written and the
- * values typed, which history never puts back, the comparison and the pointer, it
- * reopens the thread views by the margin's and the panel's own rules for a revision,
- * as a card whose passage the revision hid opening in the panel, and hands a reply
- * being written back with its words. The hold is read as the user steps into the panel
- * and used while they stand there, in this document, so it keeps the node they left
- * and its page place, read before the step put away the card that drew it, where a
- * record could name only what the arriving document draws.
+ * A revision's reload is a reload, so it returns to this record too; its handoff
+ * (version.js) adds only what history never puts back: each reading region's place,
+ * the values typed, the words being written with their native editing session, the
+ * comparison and the pointer. The record's thread opens where the user stands, moving
+ * no scroller, so a card whose passage the revision hid opens in the floating panel
+ * (thread/address.js, `claim`). The panel's hold of where the user stepped in from
+ * (`readPlace`) reads the same page place, focus identity and thread reading, and stays
+ * apart from this record: it is read as the user steps into the panel and used while
+ * they stand there, in this document, so it keeps the node they left and its page
+ * place, read before the step put away the card that drew it, where a record could
+ * name only what the arriving document draws.
  *
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
@@ -156,7 +158,9 @@ import {
 } from "./anchor-resolution.js";
 import { targetSegments } from "./resolved-target.js";
 import {
+  authoredScope,
   blockAt,
+  MESSAGE_BODY,
   pageDocument,
   pageWords,
   pointAt,
@@ -164,7 +168,7 @@ import {
   segmentsIn,
   spanIn,
 } from "./passages.js";
-import { focusKey, focusedBy } from "./carry.js";
+import { focusByKey, focusKey } from "./carry.js";
 import { draftFocus } from "./drafts.js";
 import { nextRender } from "./rendering.js";
 import { aborted } from "./abort.js";
@@ -351,20 +355,23 @@ function readSelection() {
   return { anchor, ends: directed([start - base, end - base]) };
 }
 // A selection inside one message of a thread, which the page's reading doesn't hold:
-// the message, by its thread and its id, and each end as how many of its characters
-// come before it, which name the same place in every drawing of the message, since its
-// words are the log's.
+// the message, by its thread and its id, and each end as how many characters of its
+// body come before it (passages.js, `authoredScope`), which name the same place in
+// every drawing of the message, since its body's words are the log's. Its head, whose
+// age changes as time passes, is no part of them.
 /** @param {Element} turn @param {AbstractRange} range @param {(ends: [number, number]) => [number, number]} directed
  * @returns {RecordSelection | null} */
 function inMessage(turn, range, directed) {
   const drawing = closestAcross(turn, THREAD);
   const thread = drawing && drawnThreadId(wholeThread(drawing));
   const message = turn.getAttribute("data-lf-message");
-  if (!thread || !message) return null;
+  const body = authoredScope(range.startContainer);
+  if (!thread || !message || !turn.contains(body) || !body.contains(range.endContainer))
+    return null;
   /** @param {Node} node @param {number} offset */
   const before = (node, offset) => {
     const words = document.createRange();
-    words.setStart(turn, 0);
+    words.setStart(body, 0);
     words.setEnd(node, offset);
     return words.toString().length;
   };
@@ -410,7 +417,7 @@ function readingIndex(reading, node, offset) {
 // Put the user back where a record says they were, once the claimants have revealed
 // what the entry shows and the page stands where the record places it: at the reading
 // they had in the open thread's view, then on what focus was on (carry.js,
-// `focusedBy`), or, where the page no longer draws it, at the reading place beside the
+// `focusByKey`), or, where the page no longer draws it, at the reading place beside the
 // page's landmark, unless focus was in the floating panel's list, which the address's
 // claim has shown standing on its row (thread/address.js). The return settles once they
 // are there, so a command acting on the returned place awaits it.
@@ -428,23 +435,19 @@ function returnTo(record) {
     void draftReturn?.(key);
     return;
   }
-  /** @type {Element | null} */
-  let focus = null;
-  if (key) {
-    const thread = key.thread === null ? (open?.id ?? null) : key.thread;
-    if (thread !== null)
-      focus = focusedBy(
-        /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
-        drawingOf,
-      );
-  }
-  const caret = key?.caret ?? null;
-  if (focus && focus !== document.body && presented(focus)) {
-    focusDestination(focus, "return", { caret });
-    // A field's caret is its whole selection, and clearing the document's would
-    // collapse it.
-    if (caret) return;
-  } else if (!record.list) landAtReading();
+  const thread = key?.thread === null ? (open?.id ?? null) : key?.thread;
+  const focus =
+    key && thread !== null
+      ? focusByKey(
+          /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
+          drawingOf,
+          (target) => target !== document.body && presented(target),
+        )
+      : null;
+  // A field's caret is its whole selection, and clearing the document's would
+  // collapse it.
+  if (focus && key?.caret) return;
+  if (!focus && !record.list) landAtReading();
   const { selection } = record;
   returnSelection(
     selection &&
@@ -484,10 +487,11 @@ function passageEnds({ anchor, ends }) {
 function messageEnds({ message, ends }, thread) {
   const drawing = thread ? threadParts?.focusTarget(thread, "thread") : null;
   const turn = drawing?.querySelector(`[data-lf-message="${CSS.escape(message)}"]`);
-  if (!turn || !drawn(turn)) return null;
+  const body = turn?.querySelector(MESSAGE_BODY);
+  if (!body || !drawn(body)) return null;
   /** @param {number} count @returns {import("./native-selection.js").SelectionEnd | null} */
   const point = (count) => {
-    const texts = document.createTreeWalker(turn, NodeFilter.SHOW_TEXT);
+    const texts = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
     let left = count;
     for (let text = texts.nextNode(); text; text = texts.nextNode()) {
       const { length } = /** @type {Text} */ (text);
@@ -680,10 +684,14 @@ export function mountHistory({
   // origin is opaque, has no entry to keep a record in.
   if (!window.navigation.currentEntry) return;
   // Leaving for another document, by a reload or a link out of the page, leaves the
-  // entry too (the header).
-  addEventListener("beforeunload", () => {
+  // entry too, and hiding the page may be the last the page sees of it (the header).
+  const keep = () => {
     if (anchoringIsReady())
       window.navigation.updateCurrentEntry({ state: readRecord() });
+  };
+  addEventListener("beforeunload", keep);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") keep();
   });
   window.navigation.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;

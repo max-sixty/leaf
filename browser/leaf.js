@@ -845,15 +845,18 @@ async function boot() {
     // A draft's box opens where the user stands, as the walk or Resume writing opened it.
     draft: (key) =>
       key.box
-        ? writingResume.showDraft(key.draft, { travel: false })
+        ? writingResume.showDraft(key.draft, {
+            travel: false,
+            ...(key.control && { control: key.control }),
+          })
         : writingResume.resumeDraft(key.draft, {
             travel: false,
             ...(key.caret && { caret: key.caret }),
           }),
   });
   const landFragment = version.aimArrival();
-  const { landArrival, savedView, handedOff, restored } = offlineInteractive
-    ? { landArrival: () => {}, savedView: null, handedOff: false, restored: false }
+  const { landArrival, savedView, restored } = offlineInteractive
+    ? { landArrival: () => {}, savedView: null, restored: false }
     : version.installArrival();
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
   // The entry's `?thread=` (thread/address.js).
@@ -874,16 +877,16 @@ async function boot() {
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
   });
   threadAddress.followOpenThread();
-  // A reload, or Back or Forward from another document, arrives at the entry's record,
-  // which returns the user where they left it (history.js, `returnOnArrival`); a
-  // revision's handoff carries its own reload (version.js). Only a visit the entry kept
-  // no record of travels to the thread its address names.
-  const arrival = offlineInteractive || handedOff ? null : arrivalRecord();
+  // A reload, a revision's among them, or Back or Forward from another document,
+  // arrives at the entry's record, which returns the user where they left it
+  // (history.js, `returnOnArrival`); a revision's handoff adds only what the record
+  // doesn't hold (version.js). Only a visit the entry kept no record of travels to the
+  // thread its address names.
+  const arrival = offlineInteractive ? null : arrivalRecord();
   if (arrival) void afterPresentation(() => returnOnArrival(arrival, threadArrival));
-  const threadArrive =
-    handedOff || arrival
-      ? null
-      : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
+  const threadArrive = arrival
+    ? null
+    : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
   if (threadArrive) void afterPresentation(threadArrive);
 
   async function presentPage() {

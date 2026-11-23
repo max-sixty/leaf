@@ -41,10 +41,13 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 import turbohtml
 
 from leaf.findings import Finding
 from leaf.render_checks import (
+    ADDRESS_MARKS,
     RENDER_VIEWPORT,
     PageNotReady,
     asked_again,
@@ -167,25 +170,41 @@ class PageCode:
                 )
         if not self.reports:
             return []
-        return [*self.reports, *self.network_errors.findings()]
+        return [*self.reports, *self.network_errors]
 
 
-def _failed_requests(page) -> "FailedRequests":
+def _failed_requests(page) -> list[Finding]:
     """The requests of `page` that fail or answer an error status from now on, filled
-    in as they do (`FailedRequests`). A request the page itself abandons, as a
-    navigation does, is not a failure: Chromium names it `net::ERR_ABORTED`, Firefox
-    `NS_BINDING_ABORTED`."""
-    failures = FailedRequests()
+    in as they do, each with its resource type and the address of the frame that made
+    it (`frame_address`). A request the page itself abandons, as a navigation does, is
+    not a failure: Chromium names it `net::ERR_ABORTED`, Firefox `NS_BINDING_ABORTED`."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    network_errors = []
+
+    def frame_of(request) -> str:
+        # Read as the failure arrives: a `Frame` follows its navigations, so read
+        # later it would name the document the frame went on to, not the one that
+        # made the request.
+        try:
+            return frame_address(request.frame.url)
+        except PlaywrightError:
+            # A service worker's request belongs to no frame.
+            return "<no-frame>"
 
     def failed(request):
         failure = request.failure or "request failed"
         if "ERR_ABORTED" in failure or "NS_BINDING_ABORTED" in failure:
             return
-        failures.heard.append(
-            (
-                request,
+        network_errors.append(
+            Finding(
                 "request-failed",
-                {"kind": request.resource_type, "error": failure},
+                values={
+                    "kind": request.resource_type,
+                    "error": failure,
+                    "frame": frame_of(request),
+                    "url": request.url,
+                },
             )
         )
 
@@ -193,47 +212,34 @@ def _failed_requests(page) -> "FailedRequests":
         if response.status < 400:
             return
         request = response.request
-        failures.heard.append(
-            (
-                request,
+        network_errors.append(
+            Finding(
                 "request-status",
-                {"status": response.status, "kind": request.resource_type},
+                values={
+                    "status": response.status,
+                    "kind": request.resource_type,
+                    "frame": frame_of(request),
+                    "url": request.url,
+                },
             )
         )
 
     page.on("requestfailed", failed)
     page.on("response", answered)
-    return failures
+    return network_errors
 
 
-class FailedRequests:
-    """The failed requests a page made, each stated with its resource type and the
-    address of the frame that made it. The bootstrap takes its marks (`asked_again`)
-    and the host key off that address as the document starts, but a failure can reach
-    this process before the rewrite does, so each frame's address is read when the
-    findings are stated, once the page has settled or missed its stage, rather than
-    as the failure arrives."""
-
-    def __init__(self):
-        self.heard: list[tuple[object, str, dict]] = []
-
-    def findings(self) -> list[Finding]:
-        from playwright.sync_api import Error as PlaywrightError
-
-        def frame_of(request) -> str:
-            try:
-                return request.frame.url
-            except PlaywrightError:
-                # A service worker's request belongs to no frame.
-                return "<no-frame>"
-
-        return [
-            Finding(
-                code,
-                values={**values, "frame": frame_of(request), "url": request.url},
-            )
-            for request, code, values in self.heard
-        ]
+def frame_address(url: str) -> str:
+    """A document's address as the user sees it: without the marks the bootstrap takes
+    off the address bar as the document starts (`ADDRESS_MARKS`). A request can fail
+    before that rewrite reaches this process, and the same document stays named the
+    same whichever comes first."""
+    parts = urlsplit(url)
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    if not any(name in ADDRESS_MARKS for name, _ in pairs):
+        return url
+    kept = [(name, value) for name, value in pairs if name not in ADDRESS_MARKS]
+    return urlunsplit(parts._replace(query=urlencode(kept)))
 
 
 def run_page_code(browser, url: str) -> list[Finding]:
@@ -263,6 +269,6 @@ def run_page_code(browser, url: str) -> list[Finding]:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
         browser_error = Finding("browser-error", values={"error": str(error).strip()})
-        return [*code.reports, browser_error, *code.network_errors.findings()]
+        return [*code.reports, browser_error, *code.network_errors]
     finally:
         page.close()

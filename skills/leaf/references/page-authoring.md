@@ -228,8 +228,8 @@ steps `--lf-sp-1` to `--lf-sp-5` tighten under `density-working`.
 The page is `body`. One `main` directly inside it holds the page's content, its title
 included, and carries its Layout. Site furniture around that content, such as a
 site-wide header, navigation or footer, can stand beside `main`, where comments,
-revisions and checks cover it as they cover `main`. Only `main` takes the Layout, so
-the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
+revisions and checks cover it as they cover `main`. `page-layout.md`, "Layouts", says
+how to lay out what stands beside it.
 
 Leaf pads `body`'s head by `--lf-head-room`, the phone's status bar. Leaf's panel
 stands over the page's foot and takes no room, so lay the page out in the whole
@@ -309,7 +309,8 @@ a pasted link, so write a description that makes sense on its own.
 
 Widget attributes carry scalars and children carry prose; a member of a compound widget
 takes its name in `label`, as an option card and a board card do, and shows its title
-in its own HTML, a leading `<strong>`. A widget whose body is data, such as `lf-code`,
+in its own HTML, a leading `<strong>`, usually in the same words. A widget whose body is
+data, such as `lf-code`,
 holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.

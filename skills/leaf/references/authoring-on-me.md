@@ -21,9 +21,9 @@ Each option is a result the user can pick, so its title says what choosing it do
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
 handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
 in a value, such as how long captures are kept, say once above them what that value
-costs, and each title can be the whole option. A card carries its name in `label`,
-which On Me and threads show, and shows its title in its own HTML, a leading
-`<strong>`, usually in the same words. The user should be able to compare the options
+costs, and each title can be the whole option. On Me and threads name an option by its
+card's `label`; `page-authoring.md`, "Markup", says where the card's title goes. The user
+should be able to compare the options
 down the list without reading their prose, as through `small.lf-tag` chips for the facts
 they weigh, such as effort or risk. Keep each chip to a word or two, such as “2 days”
 rather than “about two days of work”, so a card's chips fit on one line beside its pick

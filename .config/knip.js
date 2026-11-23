@@ -57,4 +57,6 @@ export default {
     "/checks/*": ["src/leaf/render-checks/*"],
   },
   include: ["files", "exports", "types", "cycles"],
+  // Knip grades a cycle a warning by default, which exits 0.
+  rules: { cycles: "error" },
 };

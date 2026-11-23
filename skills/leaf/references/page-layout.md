@@ -381,8 +381,8 @@ On a page that takes a theme, the buttons, fields and choices you write in plain
 wear the faces of Leaf's own controls; the vocabulary's `button` and `input, select`
 entries say how to write each. Any rule of yours outranks that face, so a
 control drawn for the task, such as a stack of layer tiles or a curve's handles, takes
-the page's own design. `page-authoring.md`, "Style the page", says how to keep the face
-out of a box.
+the page's own design. `page-authoring.md`, "Style the page", says how to leave the
+controls in one box with the browser's look.
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

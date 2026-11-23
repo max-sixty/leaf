@@ -106,6 +106,6 @@ persistent or foreign page", says how to take one over. A wait exits 0 with inpu
 
 Write every answer still owed, then return to your harness's wait loop. Run
 `leaf page open <page>` to put down current starts and leave feedback open.
-When you need an answer, send a thread message that asks for it (`threads.md`, "Ask for
-a pick"); page availability creates no obligation. While you keep working, leave the
-update or to-do started.
+When you need an answer, send a thread message that asks for it, with a choice in its
+markup or `--obligation` (`threads.md`, "Ask for a pick"); page availability creates no
+obligation. While you keep working, leave the update or to-do started.

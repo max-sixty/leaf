@@ -636,7 +636,8 @@ export class TabSet extends LeafElement {
     // a fragment, either of which opens it (`beforematch`, above).
     for (const panel of previous ? [previous, active] : this.#panels) {
       if (panel === active) panel.removeAttribute("hidden");
-      else panel.setAttribute("hidden", "until-found");
+      else if (panel.getAttribute("hidden") !== "until-found")
+        panel.setAttribute("hidden", "until-found");
       // A tabpanel of prose has no focusable content, so Tab reaches the open
       // panel itself. hidden="until-found" skips only what a panel holds, not
       // the panel. A scrolling panel also takes a native browser stop without
@@ -815,9 +816,11 @@ export class TabSet extends LeafElement {
   // tab opens: a narrowed window, a panel opening beside the page, or a side list's
   // column turning into a row would otherwise leave the open tab past the edge.
   #positionStrip = () => {
-    if (getComputedStyle(this.#strip).flexDirection === "column")
-      this.#strip.setAttribute("aria-orientation", "vertical");
-    else this.#strip.removeAttribute("aria-orientation");
+    const column = getComputedStyle(this.#strip).flexDirection === "column";
+    if (column !== this.#strip.hasAttribute("aria-orientation")) {
+      if (column) this.#strip.setAttribute("aria-orientation", "vertical");
+      else this.#strip.removeAttribute("aria-orientation");
+    }
     this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();
@@ -881,10 +884,10 @@ export class TabSet extends LeafElement {
   #open(panel, from) {
     const start = this.#start(panel);
     const offset = Number(tabStore.get(this.#placeKey(panel)));
-    pageScroller.scrollTo({
-      top: offset > 0 ? start + offset : Math.min(from, start),
-      behavior: "instant",
-    });
+    const top = offset > 0 ? start + offset : Math.min(from, start);
+    // A page already there is left alone, so a scroll under way is not stopped.
+    if (Math.abs(top - pageScroller.scrollTop) >= 1)
+      pageScroller.scrollTo({ top, behavior: "instant" });
   }
 
   /** @param {Element} panel */

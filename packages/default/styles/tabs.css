@@ -298,9 +298,13 @@ lf-tabs > lf-tab {
       padding-block: 0 !important;
       border-block-width: 0 !important;
     }
-    /* Until the module chooses the panel to open (lf-tabs.js, `#opening`), the first
-     * one stands alone, as it does for a user who has opened no other. */
-    lf-tabs:not(:defined) > lf-tab:not(:first-of-type) {
+    /* Until the module chooses the panel to open (lf-tabs.js, `#opening`), one panel
+     * stands alone: the one the address names, or that holds the place it names, as
+     * the address of the page's own set does once the user has opened a tab, and
+     * else the first. The browser restores a reload's scroll offset over this layout,
+     * so it has to be the open panel's wherever a rule can know which that is. */
+    lf-tabs:not(:defined):has(:target) > lf-tab:not(:target, :has(:target)),
+    lf-tabs:not(:defined):not(:has(:target)) > lf-tab:not(:first-of-type) {
       display: none !important;
     }
     /* A panel the user stops seeing holds no one's place. The browser's scroll anchor

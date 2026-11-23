@@ -335,6 +335,45 @@ def test_back_returns_to_a_named_control_in_a_message_the_agent_rewrote(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_forward_to_a_decision_in_a_message_returns_to_the_decision(
+    request, serve, engine
+):
+    """Forward to the stop where `m` put the user on the choice an agent's reply asks
+    in a card puts them on that choice again, drawn in the card, not on the message
+    holding it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Every node, or the hot shards?",
+        {"section": "p40", "quote": "Paragraph 40."},
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Every node. Choose which budget to take it from.",
+        '<lf-group id="budget" label="Which budget pays?"><h3 id="budget-h">Which budget'
+        ' pays?</h3><lf-options id="budget-pick"><lf-option id="infra">Infrastructure'
+        ' reserve</lf-option><lf-option id="team">The team\'s quarter</lf-option>'
+        "</lf-options></lf-group>",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    decision = page.locator(".lf-margin-preview lf-options#budget-pick")
+    page.keyboard.press("m")
+    expect(decision).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(decision).not_to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_forward()
+    expect(decision).to_be_focused()
+    # The card closed and opened again by the walk alone draws the choice too.
+    page.keyboard.press("Escape")
+    expect(decision).not_to_be_visible()
+    page.keyboard.press("m")
+    expect(decision).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_returns_words_selected_in_a_message(request, serve, engine):
     """Words the user selected in a card's message are selected again when Back from
     the next thread reopens the card."""

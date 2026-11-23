@@ -297,4 +297,4 @@ without Leaf, whose theme would leave them on screen, writes none. Where a contr
 quiet words are all its face leaves unsaid, its preview reads them alone, as a check's
 verdict; a widget whose quiet words the page shows another way, as a column's head
 shows each cell's run, declares the control's `lfPreview` returning `false`
-(`module-input.md`, "Previews").
+(`module-previews.md`).

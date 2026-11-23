@@ -173,7 +173,11 @@ export function shownWindow({
 // would be drawn at a rect the user never sees. The band itself is the padding box less
 // whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
 // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
-// past the edge.
+// past the edge. A box that clips both axes with `overflow: clip` paints what it holds
+// past its padding box by its `overflow-clip-margin`, and its band reaches as far;
+// Chromium paints no margin where either axis clips another way. A margin measured
+// from the content or border box, which no sheet here writes, reads as none, and so
+// does WebKit's, which has no such property.
 //
 // `page check --render` imports this to ask which container cut a box away, so the
 // band a handover is refused against and the band the page paints to are one reading.
@@ -197,11 +201,17 @@ export function shownBand(el) {
   const scaleY = isHTML(el) && el.offsetHeight ? b.height / el.offsetHeight : 1;
   const left = b.left + el.clientLeft * scaleX,
     top = b.top + el.clientTop * scaleY;
+  const reach =
+    s.overflowX === "clip" && s.overflowY === "clip"
+      ? parseFloat(s.overflowClipMargin) || 0
+      : 0;
+  const x = reach * scaleX;
+  const y = reach * scaleY;
   return {
-    left,
-    top,
-    right: left + el.clientWidth * scaleX,
-    bottom: top + el.clientHeight * scaleY,
+    left: left - x,
+    top: top - y,
+    right: left + el.clientWidth * scaleX + x,
+    bottom: top + el.clientHeight * scaleY + y,
   };
 }
 

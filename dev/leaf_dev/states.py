@@ -1330,7 +1330,7 @@ def card_after_interjection(page: Page) -> None:
         "thread",
         "reply",
         reference,
-        "--ephemeral",
+        "--done",
         "--text",
         "The answer continues with the detail requested in the interjection. " * 5,
     )

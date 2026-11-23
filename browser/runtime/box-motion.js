@@ -282,8 +282,24 @@ const paints = (style) =>
     (side) => Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0,
   );
 /** @param {CSSStyleDeclaration} style */
-const rings = (style) =>
+const outlines = (style) =>
   style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
+// The ring `element` wears: its own outline, or the one on the box laid over it, its
+// ::after, where something it holds would cover its own (surfaces.css, "A focused box
+// whose band something would cover"). That box stands inset from the element's edge
+// alike on every side, so `outside` is how far it reaches past that edge.
+/** @typedef {{style: CSSStyleDeclaration, pseudo: string | null, outside: number}} Ring */
+/** @param {Element} element @param {CSSStyleDeclaration} style @returns {Ring | null} */
+const ringOf = (element, style) => {
+  if (outlines(style)) return { style, pseudo: null, outside: 0 };
+  const over = getComputedStyle(element, "::after");
+  if (over.content === "none" || !outlines(over)) return null;
+  return {
+    style: over,
+    pseudo: "::after",
+    outside: -(Number.parseFloat(over.top) || 0),
+  };
+};
 
 // root: the element whose parts move, the box among them, and only what moves with the
 // box: a part with a job of its own beside it, such as a grip whose clip leaves its
@@ -814,9 +830,13 @@ export function boxMotion({
     rtl = getComputedStyle(box).direction === "rtl";
     // Every part moves on one clock, through the one door for motion; it plays here,
     // since this reading found that it does.
-    /** @param {Element} element @param {Keyframe[]} keyframes */
-    const start = (element, keyframes) => {
-      const animation = playMotion(element, keyframes, { duration, easing });
+    /** @param {Element} element @param {Keyframe[]} keyframes @param {string | null} [pseudoElement] */
+    const start = (element, keyframes, pseudoElement = null) => {
+      const animation = playMotion(element, keyframes, {
+        duration,
+        easing,
+        pseudoElement,
+      });
       if (animation) running.push(animation);
       return animation;
     };
@@ -831,9 +851,9 @@ export function boxMotion({
       frames.push(clipFrame(...outline(to, grow, radii)));
       return frames;
     };
-    /** @param {Element} element @param {string} property @param {string} value */
-    const hold = (element, property, value) =>
-      start(element, [{ [property]: value }, { [property]: value }]);
+    /** @param {Element} element @param {string} property @param {string} value @param {string | null} [pseudo] */
+    const hold = (element, property, value, pseudo = null) =>
+      start(element, [{ [property]: value }, { [property]: value }], pseudo);
     const translated = new Set();
     /** @param {Element} element @param {number} dx @param {number} dy */
     const move = (element, dx, dy) => {
@@ -1128,15 +1148,15 @@ export function boxMotion({
     // The surface draws a ring that changes size while it moves, in the ring's own
     // colour, the box's own ring among them, and inside it the part's own ground, which
     // the part stands without meanwhile.
-    /** @param {Element} element @param {CSSStyleDeclaration} style @param {Box} from @param {Box} to @param {boolean} [compact] */
-    function drawRing(element, style, from, to, compact = false) {
-      const offset = Number.parseFloat(style.outlineOffset);
-      const reach = Number.parseFloat(style.outlineWidth) + offset;
+    /** @param {Element} element @param {CSSStyleDeclaration} style @param {Ring} ring @param {Box} from @param {Box} to @param {boolean} [compact] */
+    function drawRing(element, style, ring, from, to, compact = false) {
+      const offset = Number.parseFloat(ring.style.outlineOffset) + ring.outside;
+      const reach = Number.parseFloat(ring.style.outlineWidth) + offset;
       const radii = radiiOf(style);
       const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
-      keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+      keeps(ringLayer, "style", `background: ${ring.style.outlineColor}`);
       keeps(ringFill, "style", colour && `background: ${colour}`);
-      hold(element, "outlineColor", "transparent");
+      hold(element, "outlineColor", "transparent", ring.pseudo);
       if (colour) hold(element, "backgroundColor", "transparent");
       /** @type {[Element, number][]} */
       const layers = [
@@ -1177,7 +1197,8 @@ export function boxMotion({
         }
         if (part.whole) return carryContent(part, from);
         if (!same(from, to)) within = { from, to };
-        if (!sized && rings(style)) drawRing(element, style, from, to);
+        const ring = sized ? null : ringOf(element, style);
+        if (ring) drawRing(element, style, ring, from, to);
         else if (!sized && paints(style) && !part.holdsWindow) carryContent(part, from);
         if (!same(from, to))
           motions.set(element, { from, to, ...motions.get(element), frames: true });
@@ -1204,7 +1225,8 @@ export function boxMotion({
     // A ring the box comes to wear while it moves, as focus reaching the card a
     // comment's Send opened does, would stand at the box's rest size over an outline
     // still travelling, so it waits for the tween's end.
-    if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+    const boxRing = ringOf(box, boxStyle);
+    if (boxRing) drawRing(box, boxStyle, boxRing, boxFrom, boxAt, compact);
     else hold(box, "outlineColor", "transparent");
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.

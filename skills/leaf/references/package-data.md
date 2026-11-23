@@ -202,8 +202,12 @@ A verb the agent writes, such as the task `status` on the Atlas example page, de
 it with `leaf page report`; the page shows it at once, and it stays until a new version
 answers it. `text: true` requires each report to carry short news for a person in
 `detail.text`. Each verb has one writer, so no key holds both a user's action and an
-agent's report. A widget with such a verb also declares a boolean `overruled` attribute,
-which a version sets to keep its authored state over the report.
+agent's report. A widget with such a verb takes a boolean `overruled` attribute, which a
+version sets to keep its authored state over the report. A widget whose user verb has
+`unit: "widget"` takes a boolean `restated` the same way, which a version sets to take
+the user's decision back. Leaf writes both into the composed declaration, so the
+package's own lists neither. An element that another widget's verb names by id, as
+`lf-board`'s `move` names an `lf-card`, lists `restated` itself.
 
 `awaits` puts a widget's obligations on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
@@ -371,7 +375,6 @@ contract").
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
       "required": ["id", "source"],

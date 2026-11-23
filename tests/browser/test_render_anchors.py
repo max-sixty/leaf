@@ -3697,7 +3697,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },
@@ -5212,7 +5212,7 @@ LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
         "additionalProperties": False,
     },

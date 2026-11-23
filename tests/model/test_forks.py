@@ -675,7 +675,7 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     claimed, monkeypatch, capsys, moved
 ):
     """A follower runs as long as its session, while the session's hooks hand
-    themselves to whichever Leaf delivers for it now: another copy or checkout, its
+    themselves to whichever Leaf delivers for it now: a checkout selected since, its
     own checkout moved past a protocol bump, or another Leaf once its own is removed.
     The follower then ends, giving up the lane, with EX_TEMPFAIL for the module to
     start it again under that Leaf."""

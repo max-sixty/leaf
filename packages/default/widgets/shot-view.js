@@ -14,14 +14,15 @@ import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {import("./image-difference.js").Difference} Difference */
 /** @typedef {import("./image-difference.js").Rectangle} Rectangle */
 /** @typedef {import("./image-difference.js").Side} Side */
-/** @typedef {{pixelRatio?: number, captureWidth?: number, focus?: Rectangle | undefined, labels?: Record<Side, string>}} ShotMetadata */
+/** @typedef {{pixelRatio?: number, focus?: Rectangle | undefined}} ShotMetadata */
 /** @typedef {{available: number, availableHeight?: number | undefined, screenHeight: number, labelHeight: number, sourceWidth?: number | undefined, sourceHeight?: number | undefined, focus?: Rectangle | undefined, full?: boolean, actual?: boolean, view?: string, gap: number}} ShotGeometryInput */
 /** @typedef {NonNullable<ReturnType<typeof fitShotGeometry>>} ShotGeometry */
 const SHOT_VIEWS = {
-  flip: "Slider",
-  compare: "Pair",
+  slider: "Slider",
+  pair: "Pair",
   pixels: "Pixels",
 };
+const LABELS = { before: "Before", after: "After" };
 let nextOptionsId = 0;
 
 /** @param {import("./image-difference.js").OutlineRegion} region @param {Difference} reading */
@@ -74,7 +75,7 @@ function fitShotGeometry({
   focus = undefined,
   full = false,
   actual = false,
-  view = "flip",
+  view = "slider",
   gap,
 }) {
   const crop = focus && !full ? focus : null;
@@ -105,12 +106,12 @@ function fitShotGeometry({
   const stack = fit(1, 2, labelHeight, room);
   const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
-  const fitScale = view === "compare" ? pairScale : fit(1, 1, 0, room);
+  const fitScale = view === "pair" ? pairScale : fit(1, 1, 0, room);
   const scale = actual ? 1 : fitScale;
   // An image's scale and its viewing window are different dimensions. At actual
   // size each window uses its share of the allocation while both remain visible.
-  const columns = view === "compare" && layout === "side" ? 2 : 1;
-  const rows = view === "compare" && layout === "stack" ? 2 : 1;
+  const columns = view === "pair" && layout === "side" ? 2 : 1;
+  const rows = view === "pair" && layout === "stack" ? 2 : 1;
   const captionHeight = rows === 2 ? labelHeight : 0;
   const viewportWidth = Math.min(
     width * scale,
@@ -118,7 +119,7 @@ function fitShotGeometry({
   );
   const viewportHeight =
     availableHeight === undefined
-      ? height * (view === "compare" ? pairScale : scale)
+      ? height * (view === "pair" ? pairScale : scale)
       : Math.min(
           height * scale,
           Math.max(
@@ -200,7 +201,7 @@ function readShotNodes(host) {
 }
 
 export class ShotView {
-  view = "flip";
+  view = "slider";
   position = 50;
   actual = false;
   full = false;
@@ -293,10 +294,8 @@ export class ShotView {
       });
     /** @param {Side} state @param {boolean} [frame] */
     const caption = (state, frame = false) => {
-      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
-        state
-      ];
-      const stacked = this.view === "compare" && this.geometry?.layout === "stack";
+      const label = LABELS[state];
+      const stacked = this.view === "pair" && this.geometry?.layout === "stack";
       return html`<span
         ${ref(
           (node) =>
@@ -309,7 +308,7 @@ export class ShotView {
         aria-label=${frame ? nothing : `${label} — ${host.getAttribute("alt")}`}
         ?data-lf-shot-hidden=${
           !frame &&
-          this.view === "flip" &&
+          this.view === "slider" &&
           (state === "before" ? this.position === 0 : this.position === 100)
         }
         >${label}</span
@@ -320,24 +319,18 @@ export class ShotView {
     /** @param {Side} state @param {number} index */
     const frame = (state, index) => {
       const alt = host.getAttribute("alt");
-      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
-        state
-      ];
-      const pair = this.view === "compare";
+      const label = LABELS[state];
+      const pair = this.view === "pair";
       const reading = this.reading;
       const regions = reading?.regions
         .filter((region) => region.side === state)
         .map((region) => differenceMark(region, reading));
-      return html`<div
-        class="lf-shotframe lf-media-frame"
-        data-lf-state=${state}
-        ${box()}
-      >
+      return html`<div class="lf-shotframe" data-lf-state=${state} ${box()}>
         <div class="lf-shot-frame-label" data-lf-state=${state} ${box()}>
           ${caption(state, true)}
         </div>
         <div
-          class="lf-shotviewport"
+          class="lf-shotviewport lf-media-frame"
           role="region"
           aria-label=${`${label} — ${alt}`}
           ${box()}
@@ -404,7 +397,6 @@ export class ShotView {
                   ${offered(actionClass("word", "lf-shot-view"), true)}
                   appearance="button"
                   value=${value}
-                  ?disabled=${value === "pixels" && this.images.length !== 2}
                   >${text}</wa-radio
                 >`,
             )}
@@ -533,9 +525,7 @@ export class ShotView {
       ...allocation,
       labelHeight: parseFloat(getComputedStyle(this.#nodes.caption).blockSize),
       sourceWidth:
-        (imageWidth && imageWidth / ratio) ||
-        Number(host.dataset.lfMediaWidth) / ratio ||
-        metadata.captureWidth,
+        (imageWidth && imageWidth / ratio) || Number(host.dataset.lfMediaWidth) / ratio,
       sourceHeight:
         Math.max(0, ...images.map((image) => image.naturalHeight)) / ratio ||
         Number(host.dataset.lfMediaHeight) / ratio,

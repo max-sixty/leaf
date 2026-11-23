@@ -45,23 +45,51 @@ import {
   ariaBindings,
   bindings,
   commandEntries,
+  declaredCommandAvailable,
   labelOf,
   live,
+  parsed,
   spell,
+  spokenBinding,
+  titleOf,
   word,
 } from "./bindings.js";
-import { activeCommandBinding, availableCommandRoutes } from "./dispatch.js";
+import { activeCommandBinding, availableCommandRoutes, pressRuns } from "./dispatch.js";
 import { ELEMENTS, pageScopes } from "./register.js";
 import { projectControlShortcuts, reflectElementShortcuts } from "./scopes.js";
 import { nativeActivationAt } from "./text-entry.js";
 import { focused, focusRevision } from "../focus.js";
 import { untracked } from "/runtime/framework.js";
 
-/** @param {import("./bindings.js").Scope | null | undefined} scope */
-const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
+/** @typedef {import("./bindings.js").Scope} Scope
+ * @typedef {import("./bindings.js").Command} Command */
+/** The page's commands that open a scope (`opens`, bindings.js), each with that scope:
+ * `g` with Go-to's, `g V` with Versions'. Each is listed once by its id, though a Go-to
+ * destination stands in two scopes, keyless among the page's commands. */
+function doors() {
+  /** @type {Map<string, {door: Command, opened: Scope}>} */
+  const found = new Map();
+  for (const scope of pageScopes())
+    if (scope !== ELEMENTS)
+      for (const door of scope?.rows ?? []) {
+        const opened = door.opens?.();
+        if (opened && !found.has(door.id)) found.set(door.id, { door, opened });
+      }
+  return [...found.values()];
+}
+/** The presses that open a scope, each spelled as a key chip spells it: the steps of
+ * the command whose press enters it (`opens`), or null where no command opens it.
+ * @param {Scope} scope @returns {string[] | null} */
+export function doorSteps(scope) {
+  const entry = doors().find(({ opened }) => opened === scope);
+  return entry ? commandSteps(entry.door.id) : null;
+}
+/** @param {Scope | null | undefined} scope @returns {readonly string[]} */
+const stepsBefore = (scope) =>
+  (scope && doorSteps(scope)) ?? word(scope?.sequence) ?? [];
 // The presses that reach a row, each spelled as a key chip spells it: a step is one
 // press, so a label's own words never split into steps.
-/** @param {import("./bindings.js").Scope} scope @param {import("./bindings.js").Command} row */
+/** @param {Scope} scope @param {Command} row @returns {string[]} */
 const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
 
 /** The complete shortcut one command advertises, each press a step as a key chip
@@ -70,7 +98,7 @@ const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boo
  * command id rather than by row identity: a scope may carry another owner's command as a
  * row of its own — a `g` destination wraps the declaration it stands for — and the
  * shortcut the user presses is the one that scope prefixes. */
-/** @param {string} id */
+/** @param {string} id @returns {string[]} */
 export function commandSteps(id) {
   for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
     for (const row of scope?.rows ?? [])
@@ -78,34 +106,36 @@ export function commandSteps(id) {
   return [];
 }
 
-// The Go-to sequence's opening command, whose key starts every destination's steps.
-const GO_TO_OPEN = "navigation.go-to.open";
-/** How a key would make a command's press now, as the dispatcher reads it, or null: the
- * command's own binding, else, for a live destination of the Go-to sequence while `g`
- * would open the sequence, the sequence's steps before the destination's binding, as
- * `g i` makes Resume writing's. Null where no key would make it, as with the caret in a
- * box, where each is a letter typed.
- * @param {string} id @returns {{before: readonly string[], binding: string} | null} */
+/** The keys that would make a command's press now, as the dispatcher reads them, each
+ * spelled as a key chip spells it, or null. They are the command's own binding where a
+ * key reaches it here, else the keys of a command that would open the scope holding it
+ * (`opens`), found the same way, then its own binding: `g i` makes Resume writing's
+ * through Go-to, and `g V l` Open latest's through Go-to and then Versions. A row in
+ * a scope that already stands is reached by its own binding or not at all, so its door
+ * is passed over. A row behind a door is available by what it declares, since its
+ * control is drawn only once the door opens. Null where no key would make it, as with
+ * the caret in a box, where each is a letter typed.
+ * @param {string} id @returns {string[] | null} */
 function pressNow(id) {
   const own = activeCommandBinding([id]);
-  if (own !== null) return { before: [], binding: own };
-  const goTo = activeCommandBinding([GO_TO_OPEN]);
-  if (goTo === null) return null;
-  for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
-    for (const row of scope?.rows ?? []) {
-      if (row.id !== id || !live(row)) continue;
-      const [binding] = bindings(row);
-      const before = stepsBefore(scope);
-      if (binding && before[0] === spell(goTo)) return { before, binding };
-    }
+  if (own !== null) return [spell(own)];
+  for (const { door, opened } of doors()) {
+    if (opened.at?.()) continue;
+    const row = opened.rows.find(
+      (row) => row.id === id && declaredCommandAvailable(row),
+    );
+    const [binding] = row ? bindings(row) : [];
+    if (binding === undefined) continue;
+    const opening = pressNow(door.id);
+    if (opening) return [...opening, spell(binding)];
+  }
   return null;
 }
 /** The keys that would make a command's press now (`pressNow`), each spelled as a key
  * chip spells it, or none, as on a page that shows no keys, a touchscreen's. */
 /** @param {string} id */
 export function commandKeysNow(id) {
-  const now = advertisesKeys() ? pressNow(id) : null;
-  return now ? [...now.before, spell(now.binding)] : [];
+  return (advertisesKeys() && pressNow(id)) || [];
 }
 
 /** @typedef {{revision: number, available: ReturnType<typeof availableCommandRoutes>, controls: Map<Element, string[]>}} Reaching */
@@ -168,3 +198,39 @@ export function paintCoreControls() {
   for (const control of new Set([...was.keys(), ...painted.keys()]))
     if (was.get(control) !== painted.get(control)) reflectElementShortcuts(control);
 }
+
+/** What a listener hears of the keys that would run `rows` if pressed now, each resolved
+ * as its press would be (dispatch.js, `pressRuns`), read out as key names, since a screen
+ * reader renders a chip's "esc" literally. Every announcement that names a key names it
+ * here, after words that name none, so it names no key a nearer scope, a focused field or
+ * an earlier step of Escape takes, as a drawing's composer takes `z` and a grabbed card
+ * Escape. Each key costs what its press would. Rows doing one thing under one title, as a
+ * mode's own key and the Escape that leaves it, are said once ("w or Escape exit Draw
+ * mode"). A touchscreen hears no keys, as it is shown none (`advertisesKeys`); a finger
+ * uses the controls on screen. */
+/** @param {readonly import("./bindings.js").Command[]} rows */
+export const saying = (rows) => {
+  if (!advertisesKeys()) return "";
+  /** @type {Map<string, string[]>} */
+  const said = new Map();
+  for (const row of rows) {
+    if (!live(row)) continue;
+    const reached = bindings(row).filter((binding) => pressRuns(binding, row));
+    if (!reached.length) continue;
+    const title = titleOf(row);
+    said.set(title, [...(said.get(title) ?? []), spoken(row, reached)]);
+  }
+  return [...said].map(([title, keys]) => `${keys.join(" or ")} ${title}`).join(", ");
+};
+// A row's own label where it has one, read the way every other surface reads a cell, and
+// the bindings where it has none — which is what keeps a listener hearing "Escape" rather
+// than the keycap's "esc". Asking whether the label was written as a string made the same fact
+// announce two ways by accident: an option group's digits are spelled "1–3" because its label
+// happens to be a string, while the sequence's were read out as "1 or 2 or 3" because its label
+// counts what the page holds and so has to be a function.
+/** @param {import("./bindings.js").Command} row @param {string[]} reached */
+const spoken = (row, reached) => {
+  if (reached.some((binding) => parsed(binding).mods.length))
+    return reached.map(spokenBinding).join(" or ");
+  return word(row.label) ?? reached.map(spokenBinding).join(" or ");
+};

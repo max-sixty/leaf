@@ -77,14 +77,22 @@ node. Use the focus query when retaining a focused entry while updating its read
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
 part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and
-calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
-parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
+calls `registerVisualParts(source, read, {reveal, label})` once, where the widget
+builds itself (`setup()`, or behind `once()`). The registration lasts as long as the
+element, with nothing to undo, and a second call for the same element throws. `read()`
+returns the parts drawn now as `{id, element, label}`, each id a nonempty string with
+no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
 already, so cancel work that would hide it. `label(id)` names a part in Threads, in its
 margin entry and in Page Map without changing the visual, or returns `null`. Call the
 returned `update()` after the parts or their positions change: a part's margin entry
 stands level with the part, and Leaf learns that a part moved inside the visual only
 from `update()`.
+
+The user picks a part as they pick any element that isn't words, with Alt-click or in
+Select mode (`page-authoring.md`, "Stable anchors"). Leaf finds the part under the
+pointer by hit-testing, so paint each part across the area a user aims at: an SVG shape
+with `fill: none` takes a press only along its stroke.
 
 A visual with too many parts to list, such as a chart's points, also passes `find` and
 `at`, and its `read()` may return none, since `read()` is what the target picker and a
@@ -116,14 +124,20 @@ Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and 
 `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
-is the name obligations and workflows use. `root` is its opening message, `anchor` names
-the `section` and `datum` it is attached to, and `attention` is the obligation record
-that speaks for it, or `null` when nobody owes a move there: its `next_actor` is
-`"user"` when the thread waits on the user and `"agent"` when it is with the agent, and
-its `state` says where that stands. `resolved` is set while
-it stands resolved. A message's `reactions` lists the reactions it takes and those in
-force, and is `null` on a message that takes none. An agent's message carries `agent`,
-the name it shows under.
+is the name obligations and workflows use. `root` is its opening message, and
+`attention` is the obligation record that speaks for it, or `null` when nobody owes a
+move there: its `next_actor` is `"user"` when the thread waits on the user and
+`"agent"` when it is with the agent, and its `state` says where that stands. `resolved`
+is set while it stands resolved. A message's `reactions` lists the reactions it takes
+and those in force, and is `null` on a message that takes none. An agent's message
+carries `agent`, the name it shows under.
+
+A Thread's `anchor` says what it is about, and is `null` for a comment on the whole
+page. It names a `section`, an element's id, and may say where inside that element with
+a `datum`, a `visual` part or a `quote`, the words of a passage; a quote may stand
+inside a datum. `prefix` and `suffix`, where the anchor has them, are the text before
+and after the quote, which tell two copies of the same words apart.
+[events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
 `agentName()` returns the page's current agent name, or "the agent" when none is
 supplied. Use it when a package attributes agent activity.
@@ -257,8 +271,8 @@ declaration, and the registry says nothing. Leaf calls
 with the threads anchored exactly to the widget or to its data, and the open comment
 box. Return, in the same order, an outlet for each target or `null`, or a promise of
 that array; an asynchronous `threadOutlets` checks `signal` before changing the DOM. A
-target is `{anchor, placement, thread}`, with `thread` `null` for the comment box. A
-target on a datum names it in `anchor.datum`, with its element at
+target is `{anchor, placement, thread}`, where `thread` is the Thread, or `null` for the
+comment box. A target on a datum names it in `anchor.datum`, with its element at
 `placement.datumElement`; a passage running across several data names the last there and
 the first in `anchor.from`. A target with no `anchor.datum` is the widget itself: a
 thread anchored to its element and nothing inside it. A thread on a passage or a visual
@@ -315,27 +329,60 @@ registered Leaf surface, there is nothing to update or release, and `open` is `n
 ### Page annotation presentation
 
 On a page whose `body` has `data-annotations="page"`, one element may supply the outlets
-for all of the page's threads with `placePageThreads(owner, render)`. Its `render` takes
-the same targets and returns the same array as `threadOutlets`, for passages and visual
+for the page's threads with `placePageThreads(owner, render)`. Its `render` takes the
+same arguments and returns the same array as `threadOutlets`, for passages and visual
 parts as well as data; a widget's own outlet still wins. Outlets stay inside the
 element, and if `render` fails, presentation fails.
 
-The same element can show obligations, updates, status and margin actions by registering
-`consumeAnnotations(owner, render)`. `render` runs synchronously after the conversations
-are placed, with the current inventory and a view:
+The targets are the open comment box and the threads whose subject Leaf finds on the
+page, resolved ones among them. A thread Leaf has nowhere to place, such as a comment on
+the whole page, is not a target, and neither is one whose subject Leaf can't find on
+the page. A target's `anchor` says what it is about, as a Thread's does ("Reading and
+opening Threads from a widget"), and its `placement` says where it stands.
+`placement.place` is the element it stands by, such as the block that holds a passage.
+Only a target on a passage has `placement.ranges`, an array of live `Range`s in reading
+order, one over its words in each text node they run through, to measure where the
+words are drawn.
 
-- `view.items(entry)` returns the items the owner's visible controls don't already
-  show, and `view.activate(item)` runs one. Key items by `contributionItemKey(item)`.
-- `view.controls(entry)` returns the contribution's real controls. Place those nodes,
-  not copies of their markup, so they keep their behavior. `view.controlKey(control)`
-  and `view.controlRecord(control)` name and describe one.
+The same element, or another, can show obligations, updates, status and margin actions
+by registering `consumeAnnotations(owner, render)`. `render(entries, view)` runs after
+the threads are placed. It draws synchronously, and Leaf refuses a `render` that
+returns a promise. `entries` is an array of the page's annotations in page order,
+grouped into one entry for each thing they are about, such as an element or a passage a
+thread quotes. An entry has a `key` to key its row by and a `title` that names what it
+is about, and the view reads the rest:
+
+- `view.target(entry)` returns the element the entry is about, which for a passage is
+  the element holding it.
+- `view.items(entry)` returns the entry's items, less any that one of its controls
+  already stands for, and `view.activate(item)` runs one. An item has a `kind`, one of
+  the margin's kinds ("Margin contributions"), a `text` to show for it, and for some a
+  `label` naming its subject, as an obligation's `label` is its question. An open
+  thread about the same thing that no outlet holds is among the items, with kind
+  `comment` and the Thread as its `thread`. Key items by `contributionItemKey(item)`.
+- `view.controls(entry)` returns the real controls that margin contributions offer for
+  it. Place those nodes, not copies of their markup, so they keep their behavior.
+  `view.controlKey(control)` and `view.controlRecord(control)` name and describe one.
 - `view.arriving` is true while focus is on its way to an entry here; release held
   layout so its control can be reached.
-- `view.place(entry, row)` ties a row to its source for commenting and Escape.
+- `view.place(entry, row)` ties a row to its source for commenting and Escape. Put the
+  row inside `owner` first, since `place` throws for a row outside it.
 
 Both registrations throw on other pages, and return handles with `read()`, `update()`
-and `unregister()`; register them in `whileConnected`. Keep rows keyed, and hold size
-changes back with `HeldReading` (`module-scroll-and-motion.md`, "Holding the reader's
-place") while updating surviving controls at once. An owner that scrolls inside its own
-box registers it as a reading region. Whatever the owner doesn't show stays in Threads
-and the On lists of Leaf's panel.
+and `unregister()`; register them in `whileConnected`. `update()` asks for `render`
+again. `read()` returns the current entries from the handle of `consumeAnnotations`, and
+what `readThreads()` returns from the handle of `placePageThreads`.
+
+The `update()` of the `placePageThreads` handle returns nothing to await, so do what
+must follow a placement in the `onCommit` its `render` is handed, which runs once Leaf
+has filled the outlets. That handle also has `open(node)` and `reveal(key)`.
+`open(node)` opens the comment box on the visual part or datum that holds `node`, or
+else on the nearest element with an `id`, `node` itself included, and throws where
+there is none. `reveal(key)` takes the user to that Thread, in the outlet that holds it
+or else in Leaf's panel.
+
+Keep rows keyed, and hold size changes back with `HeldReading`
+(`module-scroll-and-motion.md`, "Holding the reader's place") while updating surviving
+controls at once. An owner that scrolls inside its own box registers it as a reading
+region. Whatever the owner doesn't show stays in Threads and the On lists of Leaf's
+panel.

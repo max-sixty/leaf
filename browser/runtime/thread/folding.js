@@ -20,7 +20,7 @@
    user away from the thread and leave nothing on screen to say it was resolved, and
    offers the press that matters most next (`nextStep`). After a Resolve that is the
    next open thread, `t`'s press, while one stands open; after a Reopen, or a Resolve
-   that left none open, it is the press that takes the settlement back, as ⌘Z would
+   that left none open, it is ⌘Z's Undo, while ⌘Z would take the settlement back
    (undo.js, `offerUndo`). The user chose Next thread over Undo there; ⌘Z and the
    menu's Undo still take the Resolve back. The notice goes when the log refuses the
    settlement or it is taken back, so its press never acts for a settlement that no
@@ -36,7 +36,6 @@
    (glossary.md, "Reader-facing words"). */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
-import { pressCommand } from "../keyboard/dispatch.js";
 import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -59,7 +58,6 @@ const nextStep = (resolving, undo) =>
     ? {
         action: "next-thread",
         command: "thread.next",
-        run: () => pressCommand("thread.next"),
         stands: () => undo.stands() && anyOpenThread(),
       }
     : undo;

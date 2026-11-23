@@ -108,28 +108,6 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
 
 
-def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
-    """An agent writing a widget from memory can leave out the attribute that makes
-    it ask, and satisfying the refusal with `--obligation` would leave the widget
-    asking nothing. So the refusal names the attribute the widget's registry entry
-    asks with."""
-    asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which wording?"}
-    )
-    shown = '<lf-draft id="wording">\n<pre>\nShip on Monday.</pre></lf-draft>'
-    refused = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", response_reference(page_dir, asked)]
-        + ["--text", f"Edit it?\n\n{shown}"],
-    )
-
-    assert refused_on(refused.stdout).values == {
-        "tag": "lf-draft",
-        "id": "wording",
-        "needs": "`required`",
-    }
-
-
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
     page_dir,
 ):

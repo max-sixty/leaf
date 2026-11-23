@@ -70,7 +70,7 @@ import {
   isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
-  newSessionId,
+  hex,
   pageRoute,
   releaseAssetRoute,
   sessionCookie,
@@ -565,7 +565,7 @@ export class SessionOutbound extends WorkerEntrypoint<Env, OutboundProps> {
 }
 
 function randomSessionId(): string {
-  return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
+  return hex(crypto.getRandomValues(new Uint8Array(16)));
 }
 
 // What a visitor's record is readable by: Leaf's page protocol for the page files, and

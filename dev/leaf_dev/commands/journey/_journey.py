@@ -93,6 +93,7 @@ from urllib.parse import urljoin
 import click
 import psutil
 from playwright.sync_api import BrowserContext, Locator, Page
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf import inference, thread_titles
@@ -102,6 +103,7 @@ from leaf.files import revision_path
 from leaf.findings import Finding
 from leaf.interaction_log import read_interactions
 from leaf.leases import wait_is_live
+from leaf.render_checks import open_render_context, open_render_page
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
 from leaf.state import session_live, session_record, turn_open
@@ -145,9 +147,6 @@ from leaf_dev.website import (
 # raising it means raising `publish-site.yaml`'s `timeout-minutes` too.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
-# The reload after the turn gets this long to present, then as long again to follow
-# the published revision: its container may take seconds to answer the first read.
-TURN_PRESENTATION = 120_000
 # How long the page gets to draw a reply the container has admitted; the runtime's own
 # quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
@@ -506,7 +505,6 @@ def send_written(
         session.context.request,
         session.state_url,
         headers=session.headers,
-        timeout=120_000,
     ).json()
     profile.observe(accepted)
     assert posted.request.post_data_json is not None
@@ -599,14 +597,18 @@ def open_news(page: Page, thread: str) -> None:
     """Open the news `thread` holds back, if it shows any, as a reader waiting on it
     does: in the floating panel's view of the thread or on its card at its passage.
     The page times what it then shows, so when this runs changes no reading."""
-    news = page.locator(
+    # The notice as it stands now, held by its node rather than a locator: the runtime
+    # removes the notice with the news it held, and a click on a node that has left
+    # the document fails at once, where a locator's would wait for a match that never
+    # comes, holding up the session's prompts the journey answers between looks.
+    news = page.query_selector(
         f':is(.lf-page-thread, [data-lf-thread-view])[data-lf-thread="{thread}"]'
         " .lf-thread-news"
     )
-    if news.count() and news.first.is_visible():
+    if news is not None and news.is_visible():
         try:
-            news.first.click(timeout=1000)
-        except PlaywrightTimeout:
+            news.click()
+        except PlaywrightError:
             # The notice went, its news shown, between the look and the click.
             pass
 
@@ -1181,14 +1183,11 @@ class BrowserEnd:
             self.session.context.request,
             self.session.state_url,
             headers=self.session.headers,
-            timeout=120_000,
         ).json()
 
     def names(self, active: dict, marker: str) -> bool:
         """Whether the served revision's authored board names `marker`."""
-        document = self.session.context.request.get(
-            urljoin(self.url, active["url"]), timeout=120_000
-        )
+        document = self.session.context.request.get(urljoin(self.url, active["url"]))
         return document.ok and board_names_release(document.text(), marker)
 
     def ask(self, marker: str, profile: AgentProfile, ask: int) -> dict:
@@ -1203,12 +1202,12 @@ class BrowserEnd:
         return the reloaded page's profile."""
         with capture_script_responses(self.session.page):
             page, url, failures = self.session.page, self.url, self.session.failures
-            reloaded = page.reload(wait_until="load", timeout=120_000)
+            reloaded = page.reload(wait_until="load")
             check(
                 reloaded is not None and reloaded.ok,
                 f"{url} did not reload after its agent turn",
             )
-            await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
+            await_presentation(page, url, failures)
             startup = startup_reading(page)
             # Startup can present the offline authored fallback when its first read
             # fails; the wait above then lasts until a later answer is applied. The
@@ -1218,9 +1217,7 @@ class BrowserEnd:
             followed_at = time.monotonic()
             try:
                 page.wait_for_function(
-                    "window.__leafVerifier.revisionAtLeast",
-                    arg=published["revision"],
-                    timeout=TURN_PRESENTATION,
+                    "window.__leafVerifier.revisionAtLeast", arg=published["revision"]
                 )
             except PlaywrightTimeout:
                 pass
@@ -1526,8 +1523,8 @@ def local_session(browser, url: str) -> Session:
     """A user's session, in a MacBook's window, on the page a local server serves at
     its keyed `url`."""
     width, height = WINDOWS["macbook"].size
-    context = browser.new_context(viewport={"width": width, "height": height})
-    page = context.new_page()
+    context = open_render_context(browser, viewport={"width": width, "height": height})
+    page = open_render_page(context)
     failures, _ = load_presented(page, url)
     state_url = PageClient(url).state_url
     state = read_state(context.request, state_url).json()

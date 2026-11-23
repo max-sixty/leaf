@@ -24,7 +24,7 @@
    beside, and its bar is the same bar at zero blocks' length: a short one in the gap the
    blocks left, which the user asked for so that nothing breaks where a
    change's new side reaches zero. A change's mark is an annotation, so hiding
-   annotations (`o`) hides its bar. The bar marks the block, not its words: its change's
+   annotations (`g H`) hides its bar. The bar marks the block, not its words: its change's
    Change entry opens which words went and came. The user chose the bar
    over a wash of the block's own background, which hid whatever the block shades
    itself, an option's card and the chosen option's tint among them, and over leaving
@@ -76,7 +76,8 @@ import { el, offerAction, reveal } from "./widget-elements.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { onCurrentLocation } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { scrollContainer } from "./geometry.js";
+import { inkedBox, scrollContainer } from "./geometry.js";
+import { union } from "./rect.js";
 import { scrollBehavior } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
 import { LAYOUT } from "./widget-upgrade.js";
@@ -121,27 +122,11 @@ export function outlineChange(change) {
   outlined.value = change;
 }
 
-// Where a block draws: `rect`, reaching out on its start side from the edge of the list
-// item the block stands in by its list's inset, since the browser draws the item's
-// marker outside the item's box, in that inset. So the paint beside an item, or beside
-// anything in one, stands clear of the marker. The reach starts at the item rather than
-// the list, so an item in a list laid out as a grid or a row of cards keeps its paint
-// beside it rather than beside the list's first item.
+// What a block draws (geometry.js, `inkedBox`), reaching over a list marker beside it,
+// as the marks it draws round itself do, so the paint beside an item stands clear of
+// its marker; or `rect`, its placement's reading, where no part of it shows.
 /** @param {Element} target @param {Box} rect @returns {Box} */
-function inked(target, rect) {
-  const item = target.closest("li");
-  if (!item?.parentElement) return rect;
-  const inset = parseFloat(getComputedStyle(item.parentElement).paddingInlineStart);
-  const box = item.getBoundingClientRect();
-  const edge = { left: box.left - inset, right: box.right + inset };
-  const rtl = target.matches(":dir(rtl)");
-  return {
-    left: rtl ? rect.left : Math.min(rect.left, edge.left),
-    top: rect.top,
-    right: rtl ? Math.max(rect.right, edge.right) : rect.right,
-    bottom: rect.bottom,
-  };
-}
+const inked = (target, rect) => inkedBox(target) ?? rect;
 // Where a bar stands: `gap` from the start edge of what the target draws, which is its
 // right in right-to-left text, and a table's edge for a cell, so the bar stands in the
 // margin rather than in the cell before it. A target with no room before it, such as a
@@ -150,7 +135,7 @@ function inked(target, rect) {
 /** @param {Element} target @param {Box} rect @param {number} gap */
 function barLeft(target, rect, gap) {
   const ink = inked(target, rect);
-  const edge = (target.closest("table") ?? target).getBoundingClientRect();
+  const edge = target.closest("table")?.getBoundingClientRect() ?? ink;
   return target.matches(":dir(rtl)")
     ? Math.min(
         Math.max(ink.right, edge.right) + gap,
@@ -225,24 +210,15 @@ function gapRange(change) {
   return range;
 }
 // What a change covers on the page: what its blocks draw together, or its gap the width
-// of what the block it stands by draws. `rect` is that block's, as its placement read
-// it.
+// of what the block it stands by draws. `rect` is that block's box, as its placement
+// read it.
 /** @param {Change} change @param {Box} rect @returns {Box} */
 function extentOf(change, rect) {
   if (!change.blocks.length) {
     const { left, right } = inked(change.at, rect);
     return { left, right, ...gapOf(change, rect) };
   }
-  const boxes = change.blocks
-    .map((block, at) => ({ block, box: at ? block.getBoundingClientRect() : rect }))
-    .filter(({ box }) => box.right > box.left || box.bottom > box.top)
-    .map(({ block, box }) => inked(block, box));
-  return {
-    left: Math.min(...boxes.map((box) => box.left)),
-    top: Math.min(...boxes.map((box) => box.top)),
-    right: Math.max(...boxes.map((box) => box.right)),
-    bottom: Math.max(...boxes.map((box) => box.bottom)),
-  };
+  return union(change.blocks.flatMap((block) => inkedBox(block) ?? [])) ?? rect;
 }
 
 // The open change's card: a head saying what the change did between which versions,

@@ -2,20 +2,43 @@
 and closing its turn, session end releasing its pages, and the prompt that serves a
 resumed session's pages again."""
 
+import contextlib
 import json
 import os
+import socket
 import subprocess
 
+import pytest
 from interact_support import (
     LEAF_COMMAND,
     STATED_TIMEOUT,
+    append_carried_log_record,
+    available_loopback_port,
+    fixture_service,
+    inlined,
+    read_record,
+    record_claim,
     start_server_command,
+    vendored_at_another_protocol,
     wait_for,
+    write_record,
+)
+from model.test_session_lifecycle import (
+    prompt,
 )
 
+from leaf import files as files_model
+from leaf import hook_transport as hook_transport_model
+from leaf import hooks as hooks_model
+from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import reconnect as reconnect_model
+from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf.registry import storage as registry_storage
+from leaf.registry.kernel import kernel_protocol
 
 
 def test_the_server_a_prompt_hook_starts_lives_as_long_as_its_session(claimed):
@@ -53,3 +76,219 @@ def test_the_server_a_prompt_hook_starts_lives_as_long_as_its_session(claimed):
         assert service_model.claim_is_active(claim), outage
         assert claim is not None
         assert (claim["pid"], claim["turn"]) == (os.getpid(), f"{outage}-resumed")
+
+
+@pytest.mark.parametrize("cause", ["newer Leaf", "port held", "no time left"])
+def test_a_prompt_says_why_a_page_did_not_start_and_tries_again(
+    page_dir, capsys, monkeypatch, cause
+):
+    """A start refused, as for a page a newer Leaf initialized, while another
+    process holds the page's port, or once the hook has no time left before its
+    deadline, leaves the page as it was and tells the turn which page and why. The
+    next prompt tries again, and serves the page once the cause is gone."""
+    record_claim(page_dir)
+    with contextlib.ExitStack() as cause_stands:
+        if cause == "newer Leaf":
+            fixture_service(page_dir, available_loopback_port(), "session")
+            layer = page_dir / schema_model.LAYER_FILE
+            recorded = layer.read_bytes()
+            record = registry_storage.layer_record(page_dir)
+            assert record is not None
+            later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
+            layer.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+            cause_stands.callback(layer.write_bytes, recorded)
+            reason = "Use a newer Leaf"
+        elif cause == "port held":
+            holder = cause_stands.enter_context(socket.socket())
+            holder.bind(("127.0.0.1", 0))
+            holder.listen()
+            fixture_service(page_dir, holder.getsockname()[1], "session")
+            reason = "Address already in use"
+        else:
+            fixture_service(page_dir, available_loopback_port(), "session")
+            bounded = cause_stands.enter_context(monkeypatch.context())
+            bounded.setattr(hook_transport_model, "CONFIRM_WITHIN", 0)
+            reason = "no time left"
+        capsys.readouterr()
+        prompt()
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        opening, refused, *_ = context.split("\n")
+        assert opening == hook_transport_model.ATTENTION_OPENING
+        assert refused.startswith(
+            f"- {page_dir.resolve()}: server was down and did not start again: "
+        )
+        assert reason in refused
+        assert server_model.running_server(page_dir) is None
+        assert read_record(page_dir / "service.json")["enabled"] is True
+
+    prompt()
+    assert server_model.running_server(page_dir) is not None
+    assert capsys.readouterr().out == ""
+
+
+def test_a_prompt_serves_only_a_page_its_session_still_means_to_serve(page_dir, capsys):
+    """A retained record alone cannot have a prompt serve a page the agent stopped,
+    one served persistently or as a preview, one another session or harness holds,
+    one whose records this Leaf can't read, or one never served. Nor does a
+    session's start serve the session's own page, whatever brought it back."""
+    service = {
+        "host": "127.0.0.1",
+        "bind": "127.0.0.1",
+        "port": available_loopback_port(),
+        "enabled": True,
+        "lifetime": "session",
+        "server_id": "retired-server",
+    }
+    for case in (
+        "stop",
+        "persistent",
+        "preview",
+        "transferred",
+        "foreign-harness",
+        "obsolete-claim",
+        "obsolete-service",
+        "missing-service",
+        "uninitialized-page",
+        "new-session",
+    ):
+        sid = f"reconnect-{case}"
+        record_claim(page_dir, id=sid)
+        write_record(page_dir / "service.json", service)
+        claim_path = service_model.claim_path(page_dir)
+        raw = files_model.read_json(claim_path)
+        events = (page_dir / "events.jsonl").read_bytes()
+        if case == "stop":
+            assert not hosting_model.cmd_stop(page_dir)
+        elif case == "persistent":
+            write_record(
+                page_dir / "service.json", {**service, "lifetime": "persistent"}
+            )
+        elif case == "preview":
+            cleanup_model.write_json(page_dir / "preview.json", {})
+        elif case == "transferred":
+            record_claim(page_dir, id="successor")
+        elif case == "foreign-harness":
+            record_claim(page_dir, id=sid, harness="codex")
+        elif case == "obsolete-claim":
+            cleanup_model.write_json(
+                claim_path,
+                {**raw, "format": "leaf-claim/0"},
+            )
+        elif case == "obsolete-service":
+            cleanup_model.write_json(
+                page_dir / "service.json",
+                {
+                    **files_model.read_json(page_dir / "service.json"),
+                    "format": "leaf-service/0",
+                },
+            )
+        elif case == "missing-service":
+            (page_dir / "service.json").unlink()
+        elif case == "uninitialized-page":
+            (page_dir / "events.jsonl").unlink()
+        elif case == "new-session":
+            sid = "never-claimed-a-leaf"
+        claimed_before = claim_path.read_bytes()
+        prompt(sid)
+        assert "did not start again" not in capsys.readouterr().out, case
+        assert server_model.running_server(page_dir) is None, case
+        assert claim_path.read_bytes() == claimed_before, case
+        (page_dir / "events.jsonl").write_bytes(events)
+        (page_dir / "preview.json").unlink(missing_ok=True)
+
+    record_claim(page_dir, id="reconnect-control")
+    write_record(page_dir / "service.json", service)
+    for source in ("startup", "compact", "resume"):
+        hooks_model.cmd_hook(
+            "claude-code",
+            {
+                "hook_event_name": "SessionStart",
+                "session_id": "reconnect-control",
+                "source": source,
+            },
+        )
+        assert server_model.running_server(page_dir) is None, source
+    prompt("reconnect-control")
+    assert server_model.running_server(page_dir) is not None
+
+
+@pytest.mark.parametrize(
+    "resumed", ["after its end", "at an older protocol", "after a crash"]
+)
+def test_a_resumed_sessions_first_prompt_serves_its_page_again(
+    page_dir, capsys, dead_pid, resumed
+):
+    """A resumed session holds a claim whose lifetime has gone, and its page's
+    server retired with it, leaving the service enabled. Its first prompt takes the
+    page back and serves it at the recorded address, taking a page at an older page
+    protocol to this Leaf's first, as `leaf server start` would. The prompt's turn
+    is the claim's, even after a crash, which leaves the old generation live under
+    a dead process: a claim made after the prompt opened would start a generation
+    with a turn of its own. The prompt hands that turn the input the user left
+    meanwhile. The session's start serves nothing: it opens no turn."""
+    if resumed == "after a crash":
+        record_claim(page_dir, pid=dead_pid)
+    else:
+        record_claim(page_dir)
+        cleanup_model.end_harness_instance("s1")
+    port = available_loopback_port()
+    fixture_service(page_dir, port, "session")
+    left = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Still there?"}
+    )
+    if resumed == "at an older protocol":
+        vendored_at_another_protocol(page_dir)
+    capsys.readouterr()
+
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "SessionStart", "session_id": "s1", "source": "resume"},
+    )
+    assert capsys.readouterr().out == ""
+    assert server_model.running_server(page_dir) is None
+
+    prompt(prompt_id="resumed")
+    running = server_model.running_server(page_dir)
+    assert running is not None and running["port"] == port
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None and record["protocol"] == kernel_protocol()
+    claim = service_model.page_claim(page_dir)
+    assert service_model.claim_is_active(claim)
+    assert claim is not None and claim["turn"] == "resumed"
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = inlined(context)["batches"]
+    assert [event["id"] for event in batch["events"]] == [left["id"]]
+    assert hook_transport_model.ATTENTION_OPENING not in context
+
+
+def test_a_prompt_restarts_a_server_another_installed_copy_started(
+    claimed, tmp_path, monkeypatch, capsys
+):
+    """A prompt from an installed copy of Leaf restarts a page server another
+    installed copy started under its own copy, at the same address, within the
+    hook's deadline (`model/test_session_lifecycle.py` holds which servers it
+    restarts)."""
+    started = start_server_command(claimed, session_id="s1")
+    assert started.returncode == 0, started.stderr
+    serving = server_model.running_server(claimed)
+    assert serving is not None
+    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
+    older, newer = cache / "0a0a0a0a0a0a", cache / "1b1b1b1b1b1b"
+    runtime = {**serving["runtime"], "path": str(older), "commit": older.name}
+    service = read_record(claimed / "service.json")
+    write_record(claimed / "service.json", {**service, "runtime": runtime})
+    for module in (reconnect_model, layer_model):
+        monkeypatch.setattr(module, "PLUGIN_ROOT", newer)
+    capsys.readouterr()
+
+    prompt()
+    assert capsys.readouterr().out == ""
+    restarted = server_model.running_server(claimed)
+    assert restarted is not None
+    assert restarted["server_id"] != serving["server_id"]
+    assert restarted["url"] == serving["url"]
+    assert restarted["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)

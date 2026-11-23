@@ -2,10 +2,11 @@
 
 Text comes on stdin through a pipe, a heredoc or a file. A terminal or a socket is
 the caller's own session, which may never end: Claude Code hands a command spanning
-lines a socket that stays open (measured at 2.1.304), so a reply spanning lines
-that gives neither `--text` nor `--file` would wait there until the tool's timeout. Reading neither, a command given no text finds none and refuses at
-once, as for an empty pipe (`NO_BODY`). An option that names stdin itself,
-`--file -`, reads it whatever it is, as a Node caller's pipe, a socket, needs.
+lines a socket that stays open, so a reply spanning lines that gives neither
+`--text` nor `--file` would wait there until the tool's timeout. Reading neither, a
+command given no text finds none and refuses at once, as for an empty pipe
+(`NO_BODY`). An option that names stdin itself, `--file -`, reads it whatever it is,
+as a Node caller's pipe, a socket, needs.
 
 A sandboxed command runs under the bridge (`bridge.run`), which relays the
 caller's stdin over a pipe of its own, so the bridge's client reads the caller's

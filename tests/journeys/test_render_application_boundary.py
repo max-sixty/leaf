@@ -1,10 +1,13 @@
 """Joint browser proof for immutable page inputs and fresh revision activation."""
 
 import json
+import re
 
 import pytest
 from browser.test_render_application_boundary import (
     PAGE_MODULE,
+    THREAD_READER,
+    THREAD_READER_DECLARATION,
     activation_page,
     arrived,
     long_thread,
@@ -20,17 +23,25 @@ from render_cases_interaction import (
 )
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
+    PANEL,
     before_landing_frame,
+    consume_browser_errors,
     expect_open_threads,
     holding,
+    http_error_console,
+    leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
+    panel_settled,
     reported_browser_errors,
     resized,
+    round_trip,
     scroll_settled,
     sending,
     stamp_page,
+    stored_draft_text,
     told,
     wait_for_revision,
     write,
@@ -38,7 +49,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import slow_cpu
+from leaf_dev.browser import PANEL_THREAD, slow_cpu
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -450,3 +461,143 @@ def test_thread_presentation_waits_for_its_own_widgets_only(browser, serve):
     reported_browser_errors(
         page, "leaf: Presentation failed: thread descendant failure"
     )
+
+
+@pytest.mark.parametrize("while_pending", ["stay", "choose-earlier"])
+def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
+    browser, serve, while_pending
+):
+    """One public reading carries both optimistic turns and live authored unit state."""
+    url = serve(
+        leaf_page(
+            "Shared Threads",
+            '<h1>Shared Threads</h1><lf-thread-reader id="reader"></lf-thread-reader>',
+        ),
+        layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
+        layer_widgets={"lf-thread-reader.js": THREAD_READER},
+    )
+    for event in [
+        {
+            "id": "question",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "**Decision**",
+        },
+        {
+            "id": "answer",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "question",
+            "text": "Choose a direction.\n\n"
+            '<lf-options id="direction"><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+        },
+    ]:
+        append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    reader = page.locator("#reader")
+    expect(reader).to_contain_text("Decision")
+    record = reader.evaluate("""node => {
+      const reading = node.collection;
+      const cloned = structuredClone(reading);
+      const allFrozen = value => !value || typeof value !== 'object' ||
+        (Object.isFrozen(value) && Object.values(value).every(allFrozen));
+      return {reading: cloned, frozen: allFrozen(reading), same: node.sameReading, topic: node.topic};
+    }""")
+    assert record["frozen"] and record["same"]
+    assert record["topic"] == "Decision"
+    root, reply = record["reading"]["threads"][0]["msgs"]
+    assert root["text"] == "**Decision**" and root["body"]["text"].strip() == "Decision"
+    assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
+    assert reply["body"]["kind"] == "authored"
+    assert "North" in reply["body"]["text"]
+    assert "html" not in root and "html" not in reply
+    assert '"html"' not in json.dumps(record)
+    open_threads(page)
+    # The agent answered without naming the thread, so it reads its opening words.
+    expect(page.locator(".lf-fp-thread")).to_contain_text("Decision")
+    open_panel_thread(page, "question")
+    expect(page.locator("#direction")).to_have_count(1)
+    message_top = page.locator("#direction").evaluate(
+        "node => node.getBoundingClientRect().top"
+    )
+    with sending(page, "choose North in the authored reply"):
+        page.locator("#north .lf-pick").click()
+    round_trip(page)
+    assert (
+        page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
+        == message_top
+    )
+    assert reader.evaluate("""node => node.collection.threads[0].msgs[1].body.units
+      .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    box = page_comment(page)
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    write(box, "Pending **words**")
+    send.click()
+    holding(page, held, 1, "the shared collection's pending root")
+    expect(reader).to_contain_text("Pending words")
+    pending = reader.evaluate(
+        "node => node.collection.threads.find(thread => thread.root.pending)"
+    )
+    # The send opens the pending thread's view in the panel.
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
+    held.pop().continue_()
+    round_trip(page)
+    admitted = reader.evaluate(
+        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
+        pending["key"],
+    )
+    assert admitted["id"] != pending["id"]
+    assert admitted["root"]["key"] == pending["root"]["key"]
+    selected = page.locator(f'{PANEL_THREAD}[data-lf-thread="{admitted["id"]}"]')
+    expect(selected).to_be_visible()
+
+    box = page_comment(page)
+    write(box, "Refused words")
+    send.click()
+    holding(page, held, 1, "the shared collection's refused root")
+    expect(reader).to_contain_text("Refused words")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Refused words")
+    if while_pending == "choose-earlier":
+        # Refusal restores the earlier selection only while the provisional root
+        # still owns it; a later user choice must remain the selected conversation.
+        selected = open_panel_thread(page, "question")
+    # Chrome reports no shift within 500ms of input, so the refusal lands after it:
+    # taking back the view the send opened moves nothing the pointer was not near.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    route = held.pop()
+    route.fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "attempt": route.request.post_data_json["attempt"],
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    round_trip(page)
+    consume_browser_errors(page, http_error_console(400))
+    expect(reader).not_to_contain_text("Refused words")
+    assert stored_draft_text(page, "general") == "Refused words"
+    if while_pending == "choose-earlier":
+        # The field takes no keys from a user who has moved on: the thread they chose
+        # stays open in it, and the words wait in the page comment.
+        expect(box).to_have_count(0)
+        expect(selected).to_be_visible()
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+        expect(box).to_have_js_property("value", "Refused words")
+    else:
+        # Where the send left the user, the field returns to the refused words.
+        expect(box).to_be_focused()
+        expect(page.locator(PANEL)).not_to_have_attribute(
+            "data-lf-open", re.compile(".")
+        )
+    expect(page.locator('[data-lf-thread^="pending:"]')).to_have_count(0)
+    page.unroute("**/api/event")

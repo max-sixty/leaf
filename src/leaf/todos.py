@@ -53,7 +53,7 @@ decided this. Letting only the session that last started a to-do end it would
 make another session start the to-do first, a step that protects nothing.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
+widget the newest revision declares (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `served_state.work` serves
 each standing as `activity` reads it.

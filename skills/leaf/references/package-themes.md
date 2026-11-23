@@ -3,9 +3,10 @@
 Read with [packages.md](packages.md), which holds the package contract and how styles
 compose. A theme is a page's look: a package whose rules style the page as a whole,
 whether or not it also declares widgets. Defaults that Layouts and the page's sheet
-should outrank, such as element rules, belong in `defaults.css`, in the layer with
-Leaf's own defaults; rules meant to win over widget defaults and Layouts belong in
-`overrides.css`. Idioms belong in either, declared in the package's registry.
+should outrank, such as element rules and the tokens a theme sets on `:root`, belong in
+`defaults.css`, in the layer with Leaf's own defaults; rules meant to win over widget
+defaults and Layouts belong in `overrides.css`. Idioms belong in either, declared in
+the package's registry.
 
 ## Personal themes
 
@@ -42,6 +43,9 @@ themes = ["editorial", "dense"]
 default = "editorial"
 ```
 
+`default` names one of `themes`, or `reading`, which every page can select without its
+being listed. Leave `default` out to keep `reading` the default.
+
 A personal theme stands alone or builds on another theme it names as its base, in its
 `registry.json`:
 
@@ -53,7 +57,10 @@ Leaf composes the base first, after any base that one names, and the theme after
 so a theme that builds on `reading` states only what it changes, such as its three
 colours, a face and a corner, and its rule wins a tie with the reading look's. A theme
 that names no base composes without `reading`. Either way its pages keep Leaf's idioms,
-such as `.lf-callout` and `.lf-tag`, which Leaf draws on every page. Leaf refuses a
+such as `.lf-callout` and `.lf-tag`, which Leaf draws on every page. Leaf's rules for
+them rank above the reading face's and below every other rule of `lf-base`, so a
+theme's rule for an idiom's element, such as `.lf-tag` or a bare `dt`, outranks
+Leaf's whatever its weight. Leaf refuses a
 base that isn't installed, and bases that name each other, when `leaf package
 install` installs the theme and when a page taking it composes.
 
@@ -64,6 +71,12 @@ instructions; leaving it unspecified uses the default on a new page. Select one 
 selected theme and its bases compose right after Leaf's default package and before
 them, so a project package can restate what a theme declares, and its rules win a tie
 with the theme's.
+
+To try a theme while writing it, select its directory as a package: `leaf page init
+<page> --package ./my-theme` needs no install and no `themes.toml` entry. The page then
+keeps its own theme, `reading` unless it chose another, and the package composes after
+that theme, so the package's `$theme.base` isn't read. `--theme` composes the installed
+package as the page's theme, after the base it names.
 
 A page captures its selected theme when initialized. Re-initializing preserves that
 choice, even if the user's default changes; an explicit `--theme` replaces it.
@@ -108,7 +121,9 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the page's
 `--lf-paper`, which is the browser's `Canvas` until a theme or the page sets it. The
 reading theme paints the window that colour, and a look of your own on a page that
-takes no theme paints `html` the same way. Each solid containing surface
+takes no theme paints `html` the same way. The reading theme paints `body` in it too,
+so a theme built on `reading` draws a texture behind the page on `body`, since one on
+`html` alone lies under the body's ground. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -155,7 +170,8 @@ or in the host while no match exists. The declaration does not inherit. Declare
 `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
-Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+Leaf rings every box that holds visible focus, at a control's gap outside it, and its
+own word and symbol presses one band inside their edge. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
 its kind (`styles/tokens.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
 `0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
@@ -306,10 +322,11 @@ Type, space and shape:
 | Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page                                                                                                                                                          |
 
 Changing `--lf-accent` does not choose the count's pair or the status palette. Check
-the foreground against each ground where it is used, in both color schemes. A theme
-may set `light-dark()` values so the browser's scheme preference selects the palette.
-Subtree overrides follow normal CSS inheritance: when changing a token locally,
-redeclare any value stepped from it that is needed there, such as `--lf-card` after
-`--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow` after `--lf-accent`. Keep
-the inherited `--lf-ground` surface contract described above so opaque nested controls
-match their containing surface.
+the foreground against each ground where it is used, in both color schemes. `page check
+--render` draws the light scheme only, so read the dark one on the served page in a
+browser set to dark. A theme may set `light-dark()` values so the browser's scheme
+preference selects the palette. Subtree overrides follow normal CSS inheritance: when
+changing a token locally, redeclare any value stepped from it that is needed there,
+such as `--lf-card` after `--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow`
+after `--lf-accent`. Keep the inherited `--lf-ground` surface contract described above
+so opaque nested controls match their containing surface.

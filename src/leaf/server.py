@@ -73,8 +73,8 @@ SERVICE: Record[ServiceRecord] = Record(
             },
             {
                 "restart": described(
-                    "The mark `page init` leaves while it holds a served page down "
-                    "to rewrite its layer record (`hosting.restarting_server`).",
+                    "The mark `hosting.restarting_server` leaves while it holds a "
+                    "served page down to restart it.",
                     STRING,
                 )
             },

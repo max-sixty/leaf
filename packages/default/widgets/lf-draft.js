@@ -311,6 +311,8 @@ customElements.define(
       if (quoted(this) || this.#tools) return;
       this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
+      // Its marks join into one toolbar (controls.css, `data-lf-joined`).
+      this.#tools.dataset.lfJoined = "";
       this.append(this.#tools);
       // Leaf stands Copy last in the toolbar (`lfBar`), so Tab from the editor reaches
       // Save first. It copies the source the box shows, the editor's while it is open.
@@ -372,7 +374,7 @@ customElements.define(
       const editing = Boolean(this.#editor);
       if (this.#editor) this.#editor.readOnly = !this.#available();
       render(
-        html`<span ${offered("lf-draft-status")} role="status"
+        html`<span ${offered("lf-draft-status")} role="status" ?hidden=${!this.#failed}
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
           ${TOOLS.map(

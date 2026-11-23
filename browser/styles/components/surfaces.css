@@ -865,15 +865,22 @@ summary {
    words still wrap where they would in a margin card at the measure, as they will once
    sent. Past them it keeps the room by which it is wider than that card's reply box,
    whose words' box is the measure less two borders, the card's and its own, and the
-   card's padding on each side. A summary's words and a step's keep the messages'
-   width. */
+   card's padding on each side. A step's words keep the messages' width, and a
+   summary's that width less the inset its region keeps at their end rather than room
+   for Send. */
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
 }
-[data-lf-thread-surface] .lf-msg-body,
-[data-lf-thread-surface] .lf-summary-text,
-[data-lf-thread-surface] .lf-thread-working-words {
+[data-lf-thread-surface] .lf-msg-body {
   max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
+}
+[data-lf-thread-surface] .lf-thread-working-words {
+  max-inline-size: calc(
+    var(--lf-seat-column) - var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px)
+  );
+}
+[data-lf-thread-surface] .lf-summary-text {
+  max-inline-size: calc(var(--lf-seat-column) - 2 * var(--lf-thread-text-inset));
 }
 [data-lf-thread-surface] .lf-thread-reply {
   margin-inline: calc(-1 * var(--lf-comment-inset));

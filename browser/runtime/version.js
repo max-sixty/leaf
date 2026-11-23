@@ -1735,6 +1735,8 @@ export function createVersionController({
   let authoredRoot = layerRoot(document);
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
+  // The bootstrap reads the same key, before any module loads, to know a hand-back is
+  // coming (bootstrap.js, `handedBack`).
   const HANDOFF_KEY = "lf-revision-handoff";
 
   // g V names the versions, and what each one changed: the chrome's Versions, which the

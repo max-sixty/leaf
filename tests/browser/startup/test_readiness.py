@@ -773,13 +773,26 @@ def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
     assert focused.get_attribute("data-lf-key") == key
 
 
-def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, serve):
+# The first keys the reloaded page hears, after the words the reply already holds: a
+# capital with its Shift, or a Space, which on another page still loading scrolls it.
+@pytest.mark.parametrize(
+    ("held", "first", "reads"),
+    [
+        ("Hold ", ["Shift+T", "he resend"], "Hold The resend"),
+        ("Hold", [" the resend"], "Hold the resend"),
+    ],
+    ids=["capital", "space"],
+)
+def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
+    browser, serve, held, first, reads
+):
     """A user typing on as the tab reloads means the keys for the reply they were
     writing. Those the new document hears before it has handed the reply back wait for
-    it and go there, a capital's Shift included, rather than running the page's
-    single-key commands, one of which resolves the thread (keyboard/bindings.js,
-    `placeHandedBack`). The new document's first state answer is held while the keys
-    are typed, so they reach it before the hand-back however fast the machine is."""
+    it and go there, a capital's Shift and a Space included, and the keys after go on
+    into the reply, rather than running the page's single-key commands, one of which
+    resolves the thread (keyboard/bindings.js, `placeHandedBack`; bootstrap.js,
+    `handedBack`). The new document's first state answer is held while the keys are
+    typed, so they reach it before the hand-back however fast the machine is."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -802,10 +815,10 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, 
     reply = page.locator(
         '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] .lf-thread-reply leaf-text'
     )
-    write(reply, "Hold ")
+    write(reply, held)
     original_document = page.evaluate("performance.timeOrigin")
     replaced = {"document": False}
-    held = []
+    answers = []
 
     def navigated(frame):
         if frame == page.main_frame:
@@ -813,7 +826,7 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, 
 
     def state_answer(route):
         if replaced["document"]:
-            held.append(route)
+            answers.append(route)
         else:
             route.fallback()
 
@@ -826,12 +839,13 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, 
             {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
         )
     page.wait_for_function("() => document.readyState !== 'loading'")
-    # The run starts on a letter: a Space with no run before it scrolls the page, as on
-    # any page still loading, and that ends the hand-back.
-    page.keyboard.press("Shift+T")
-    page.keyboard.type("he resend")
+    for keys in first:
+        if keys.startswith("Shift+"):
+            page.keyboard.press(keys)
+        else:
+            page.keyboard.type(keys)
     page.unroute("**/api/state*", state_answer)
-    for route in held:
+    for route in answers:
         route.fallback()
     wait_until_ready(page)
     page.unroute("**/api/**")
@@ -839,7 +853,9 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, 
 
     assert page.evaluate("performance.timeOrigin") != original_document
     expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "Hold The resend")
+    expect(reply).to_have_js_property("value", reads)
+    page.keyboard.type(" now")
+    expect(reply).to_have_js_property("value", reads + " now")
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)

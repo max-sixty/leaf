@@ -385,6 +385,15 @@
     /** @type {KeyboardEvent[]} */
     const held = [];
     let taken = false;
+    // Whether this document is the reload Leaf asked for, which the document it
+    // replaced handed the user's place as it went (version.js, `HANDOFF_KEY`). A user
+    // typing through that reload means a Space too for the box coming back, so it
+    // starts a run as a letter does, rather than scrolling the page.
+    const handedBack =
+      /** @type {PerformanceNavigationTiming | undefined} */ (
+        performance.getEntriesByType("navigation")[0]
+      )?.type === "reload" &&
+      window.lfStorage.tabStore.get("lf-revision-handoff") !== null;
     /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
     /** @type {(() => boolean) | null} */
@@ -439,8 +448,8 @@
       else beat ||= setTimeout(show, 150);
     };
     // Whether the hold takes `event`, which then acts only when the run is replayed.
-    // The input clock asks this first and leaves such a key uncounted until then
-    // (document-inputs.js, `holdKeys`).
+    // Where a place is handed back, the input clock asks this first and leaves such a
+    // key uncounted until then (document-inputs.js, `holdKeys`).
     /** @param {KeyboardEvent} event */
     const holds = (event) => {
       if (!window.lfKeyboard.quick) return false;
@@ -455,13 +464,14 @@
       // owner cannot reproduce, and must not act ahead of keys pressed before it.
       if (held.length || taken) return printed;
       // Only a printed page key starts a run. One typed into a field is the field's,
-      // and Space on its own scrolls. The prepaint's `takesLetters` is also the
+      // and Space on its own scrolls, but where Leaf's reload hands a place back
+      // (`handedBack`). The prepaint's `takesLetters` is also the
       // runtime's rule, so a checkbox or radio, which takes no letters,
       // holds the key as the presented page would act on it. `leaf-text` is the
       // runtime's text field; its closed root makes the host the event's origin.
       const origin = event.composedPath()[0];
       const typing = origin instanceof Element && takesLetters(origin);
-      if (typing || !printed || event.key === " ") return false;
+      if (typing || !printed || (event.key === " " && !handedBack)) return false;
       // Once the document upgrades, the dispatcher supplies readiness from
       // command declarations. Useful page keys pass immediately; only a key
       // whose input is still loading starts another ordered run.
@@ -524,9 +534,12 @@
       letGo();
       endRow();
     };
-    // A bare modifier acts on nothing, as the Shift before a capital the hold keeps, so
-    // it is no input either while the hold stands.
-    holdKeys((event) => HALF_PRESSES.has(event.key) || holds(event));
+    // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
+    // replays, so it doesn't stop the hand-back it waits for, and neither is a bare
+    // modifier, which acts on nothing, as the Shift before a capital the hold keeps. On
+    // any other load a held key still counts, so a key typed while the page starts
+    // still stops arrival work, such as reopening a comment box, as it always did.
+    if (handedBack) holdKeys((event) => HALF_PRESSES.has(event.key) || holds(event));
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through

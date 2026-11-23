@@ -10,9 +10,9 @@
   // back from someone already using the authored page. focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
-  // A key the bootstrap holds back acts only once the hold replays it, so until then it
-  // is no input: work it waits for, such as the hand-back of a place a reload took, is
-  // not superseded by it (bootstrap.js, `holdEarlyKeys`).
+  // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
+  // only once the hold replays it, so until then it is no input, and the hand-back it
+  // waits for is not superseded by it (bootstrap.js, `holdEarlyKeys`).
   /** @type {((event: KeyboardEvent) => boolean) | null} */
   let holdsKey = null;
   /** @type {Set<(event: Event) => void>} */

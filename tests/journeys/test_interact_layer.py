@@ -922,7 +922,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     package under a name of its own beside the bundled ones, described by the first
     paragraph of its author instructions and its entries' descriptions, and an
     installed package in place of the bundled one whose name it takes. `default`, on
-    every page already, and the theme `theme list` offers are not listed."""
+    every page already, is not listed."""
     team = tmp_path / "src" / "team-charts"
     packages_model.cmd_package_init(team, "lf-trend")
     (team / "instructions").mkdir(exist_ok=True)
@@ -960,4 +960,3 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     assert packages["playwright"]["installed"] is False
     assert "lf-trace" in packages["playwright"]["entries"]
     assert "default" not in packages
-    assert "reading" not in packages

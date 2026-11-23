@@ -10,8 +10,8 @@
    move it there at every fit, and a jump there cut the glide following an answer into
    sight. And that a glide lands on its goal in a box that stands only at whole pixels,
    so `u` pressed after `d` has landed takes the box back to its top. And that a glide
-   goes on where layout moves its box, by scroll anchoring or a clamp, and gives the box
-   up to any other move, which is a hand's. */
+   goes on where a clamp moves its box and gives the box up to any other move, which is
+   a hand's, and that a landing's glide heads where the landing now puts the box. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -220,7 +220,7 @@ test("a glide lands on its goal in a box that stands at whole pixels", async () 
   box.remove();
 });
 
-test("a glide goes on where layout moves its box, and stops where a hand moves it", async () => {
+test("a glide goes on where a clamp moves its box, and stops where a hand moves it", async () => {
   // A box 400px tall over content 2000px tall.
   const box = document.createElement("div");
   document.body.append(box);
@@ -250,12 +250,6 @@ test("a glide goes on where layout moves its box, and stops where a hand moves i
     }
     await frameAt(start + 1000);
   };
-  // Scroll anchoring moves the box with content that grows above what it shows.
-  await glide(100, () => {
-    height += 22;
-    top += 22;
-  });
-  assert.equal(box.scrollTop, 100, "the glide stopped where anchoring moved the box");
   // Content lost at the end clamps the box, and comes back before the glide lands.
   await glide(
     1500,
@@ -268,7 +262,8 @@ test("a glide goes on where layout moves its box, and stops where a hand moves i
     },
   );
   assert.equal(box.scrollTop, 1500, "the glide stopped where a clamp moved the box");
-  // A hand moves the box by more than layout does in that frame, or with no layout.
+  // A hand moves the box, in a frame where layout changes or not, and by just what the
+  // content grew: anchoring moves no box a glide holds.
   for (const grows of [0, 22]) {
     await glide(100, () => {
       height += grows;
@@ -280,6 +275,58 @@ test("a glide goes on where layout moves its box, and stops where a hand moves i
       `the glide took the box back from a hand (${grows})`,
     );
   }
+  let left = 0;
+  await glide(100, () => {
+    height += 22;
+    top += 22;
+    left = top;
+  });
+  assert.equal(box.scrollTop, left, "the glide took the box back from a hand");
+  stopGlide(box);
+  box.remove();
+});
+
+test("a landing's glide heads where the landing now puts its box", async () => {
+  // A box 400px tall over content 2000px tall.
+  const box = document.createElement("div");
+  document.body.append(box);
+  let top = 1000;
+  let height = 2000;
+  Object.defineProperties(box, {
+    scrollTop: { get: () => top },
+    scrollHeight: { get: () => height },
+    clientHeight: { get: () => 400 },
+  });
+  box.scrollTo = ({ top: to = top }) => {
+    top = Math.round(Math.min(Math.max(to, 0), height - 400));
+  };
+  // Where the landing puts the box, which layout moves as it moves the destination.
+  /** @type {number | null} */
+  let aim = null;
+  // A glide to `goal` that asks `aim`, with `between` run after each of its first frames.
+  /** @param {number} goal @param {(() => void)[]} between */
+  const glide = async (goal, ...between) => {
+    await frameAt(performance.now());
+    const start = performance.now();
+    aim = goal;
+    glideTo(box, goal, () => aim);
+    for (const [frame, change] of between.entries()) {
+      await frameAt(start + 20 * (frame + 1));
+      change();
+    }
+    await frameAt(start + 1000);
+  };
+  // Content grows between what the box shows and the destination.
+  await glide(1500, () => {
+    height += 22;
+    aim = 1522;
+  });
+  assert.equal(box.scrollTop, 1522, "the glide stopped where the landing first put it");
+  // A destination gone from the page leaves the goal where it was.
+  await glide(1000, () => {
+    aim = null;
+  });
+  assert.equal(box.scrollTop, 1000, "the glide followed a destination that is gone");
   stopGlide(box);
   box.remove();
 });

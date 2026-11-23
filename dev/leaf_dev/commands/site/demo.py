@@ -59,7 +59,6 @@ from leaf_dev.browser import (
 )
 from leaf_dev.claude_code_module import claude_code_module
 from leaf_dev.leaf_assets import publish, stage
-from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
 
 GIF_WINDOW = Window((1120, 700))
@@ -489,7 +488,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 def demo_session(scratch: Path):
     """Own the recorder's state and delivery loop, independently of its invoking agent."""
     previous = os.environ.copy()
-    recording_environment = fixture_environment(detached_environment(None)) | {
+    recording_environment = detached_environment(None) | {
         "XDG_STATE_HOME": str(scratch / "state"),
         "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
         "CLAUDE_PID": str(os.getpid()),
@@ -522,7 +521,7 @@ def record_demo(output: Path | None) -> None:
         recording = Path(scratch) / "demo"
         recording.mkdir()
         page_dir = Path(scratch) / "page"
-        cmd_init(page_dir)
+        cmd_init(page_dir, ("reading",))
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
         cmd_waiting(page_dir)

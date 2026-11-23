@@ -1501,6 +1501,12 @@ export function createThreadPreview({
   return {
     element: preview,
     isOpen: previewOpen,
+    // The thread the open card shows, read through the card's revision, which the
+    // entry's thread address follows (thread/address.js).
+    shownThread: () => {
+      void cardRevision.value;
+      return previewSession?.item.thread.id ?? null;
+    },
     selection,
     show,
     refresh,

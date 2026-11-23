@@ -350,10 +350,15 @@ export function createThreadDestinations({
         // The user lands in the reader's view at once. The page then brings the
         // thread's passage into view, as travel to its card does (anchor-travel.js,
         // `scrollToThread`): after a route that travels, wherever the passage is, the
-        // widget holding it drawing it, with a departure that counts only where the page
-        // moves; after one that doesn't, as a press on the passage, only where the page
-        // draws it, so a passage the view opened over comes clear of it. Focus stays in
-        // the view (the header).
+        // widget holding it drawing it; after one that doesn't, as a press on the
+        // passage, only where the page draws it, so a passage the view opened over comes
+        // clear of it. Focus stays in the view (the header). The route's departure is
+        // planned on the view, a Back step where the user lands in a thread they weren't
+        // in (anchor-travel.js, `prepareNavigationStep`), and planned again by where the
+        // passage's landing puts the passage. It commits once the last landing is
+        // reached, so a thread with no passage on the page, one about the whole page or
+        // one whose passage a revision removed, is a step as well.
+        departure?.plan(destination);
         const reached = await whileCurrent(
           arrive(
             () => {
@@ -366,7 +371,7 @@ export function createThreadDestinations({
                 }
               );
             },
-            { intent: arriving, departure: thread.anchor ? null : departure },
+            { intent: arriving },
           ),
         );
         if (!reached) return null;
@@ -381,7 +386,9 @@ export function createThreadDestinations({
               drawn: !navigationStep,
             }),
           );
-        return mayPresent() ? selected.reader.destination(thread.key, request) : null;
+        if (!mayPresent()) return null;
+        departure?.commit();
+        return selected.reader.destination(thread.key, request);
       }
     }
     // The page's own drawings of the thread: its outlet or seat, a preview. Its
@@ -629,15 +636,17 @@ export function createThreadDestinations({
   // message where a message part lands (`message-edit.js`).
   // Landed on the thread instead, a long one's landing on its latest turn took the view
   // away from a rewrite it had just opened higher up.
-  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent */
-  async function openThreadDraft(context, intent) {
+  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent
+   * @param {{travel?: boolean}} [options] */
+  async function openThreadDraft(context, intent, { travel = true } = {}) {
     const route = threadDraft(context);
     if (!route) return null;
     const { part, name } = route;
     const thread = threadNamed(name);
     if (!thread) return null;
-    if (part === "reply") return openPageThread(thread.id, { part: "reply", intent });
-    const landed = await openPageThread(name, { part: "message", intent });
+    if (part === "reply")
+      return openPageThread(thread.id, { part: "reply", intent, travel });
+    const landed = await openPageThread(name, { part: "message", intent, travel });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }

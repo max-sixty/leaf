@@ -76,8 +76,9 @@ the first element `key` names in the referenced widget: a visual part's id, a pr
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
 focuses it, sets the URL's fragment to the widget's id and the key, and announces
-`success`. An absent destination
-keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
+`success`. Where it moves focus or the page, Back returns the user to where they were,
+as after a followed link. An absent destination keeps the reader's place and history
+and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
@@ -142,11 +143,11 @@ as an editor's highlighter, and `declarations` lists each `[property, value]` a 
 each `pre > code` in `root` whose `language-…` class names a language and that wears
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
-(`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
+(`package-themes.md`, "A page's theme"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
 `<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
-reading face as other personally themed content does.
+reading face as other content with its own design does.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
@@ -184,7 +185,7 @@ the drawing needs them.
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered.
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls").
+(`module-controls.md`).
 [`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
 The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
 names, each with its symbol and the words its press says. For a symbol whose action

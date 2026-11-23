@@ -1279,10 +1279,13 @@ function moveToPage(ctx) {
 // The command resumes the writing place; `resumeDraft` resumes the draft a press names,
 // as a row of Threads' Drafts does, at the caret the place last kept for it, else at its
 // words' end. Opening a draft is no content edit, so it leaves the writing place where
-// it was.
-/** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
+// it was. Each travels to the draft, a Back step, except where the caller opens it
+// where the user stands (`travel: false`), as a press on its passage's margin marker
+// does (thread/destination.js).
+/** @typedef {{travel?: boolean}} DraftRoute */
+/** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string) => Promise<void>, showDraft: (ctx: string) => Promise<boolean>}} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -1295,21 +1298,23 @@ export function createWritingResume({
       : Boolean(writingRoute(ctx)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
   const resume = () => (writingPlace ? resumeAt(writingPlace) : Promise.resolve());
-  /** @param {string} ctx */
-  const resumeDraft = (ctx) =>
+  /** @param {string} ctx @param {DraftRoute} [route] */
+  const resumeDraft = (ctx, route = {}) =>
     resumeAt(
       [writingPlace, ...earlierPlaces].find((place) => place?.context === ctx) ?? {
         context: ctx,
         selection: atEnd(ctx),
         generation: randomId(),
       },
+      route,
     );
-  /** @param {WritingPlace} place @returns {Promise<void>} */
-  const resumeAt = async (place) => {
+  /** @param {WritingPlace} place @param {DraftRoute} [route] @returns {Promise<void>} */
+  const resumeAt = async (place, route = {}) => {
     const intent = retainUserIntent();
     let input;
     // A thread view holds its own drafts, which the thread's destination reveals.
-    if (threadDraft(place.context)) input = await revealInThread(place.context, intent);
+    if (threadDraft(place.context))
+      input = await revealInThread(place.context, intent, route);
     else {
       const resolve = () => {
         const route = writingRoute(place.context);
@@ -1318,7 +1323,11 @@ export function createWritingResume({
         );
         return route ? route(place.context) : editor?.resume?.();
       };
-      input = await arriveEditor(resolve, { intent, caret: place.selection });
+      input = await arriveEditor(resolve, {
+        intent,
+        caret: place.selection,
+        travel: route.travel ?? true,
+      });
     }
     if (input === undefined || !intent()) return;
     const editor = [...draftEditors].find(

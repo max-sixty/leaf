@@ -643,7 +643,7 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
         packages=["file-editor"],
     )
     bind_file(serve.page_dir, "notes", file)
-    page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
+    page = open_page(browser, live_url(url))
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
@@ -665,7 +665,6 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     editor.click()
     page.keyboard.press("ControlOrMeta+End")
     page.keyboard.insert_text("Draft.")
-    page.clock.run_for(600)
     retry = widget.get_by_role("button", name="Retry", exact=True)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
@@ -675,7 +674,6 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
 
     # A clean refresh replaces earlier acknowledged editing history too.
     file.write_text("Latest file version.\n")
-    page.clock.resume()
     expect(editor).to_contain_text("Latest file version.")
     page.keyboard.press("ControlOrMeta+z")
     rendered(page)
@@ -699,9 +697,15 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
 
 
 def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_path):
-    """The full filename scrolls within its line, leaving the editor its room."""
+    """The full filename scrolls within its line, leaving the editor its room, and the
+    rows a long line wraps onto hang past its indent, so none reads as a line of its
+    own."""
     file = tmp_path / ("research-notes-" * 16 + ".md")
-    file.write_text("Editable on a phone.\n")
+    file.write_text(
+        "Editable on a phone.\n    - "
+        + "a long indented line that wraps onto rows of its own " * 2
+        + "\n"
+    )
     url = serve(
         leaf_page(
             "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
@@ -723,6 +727,24 @@ def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_
     expect(name).to_have_attribute("tabindex", "0")
     assert widget.locator(".lf-file-editor-edit").bounding_box()["height"] > 300
     assert widget.locator(".lf-file-editor-head").bounding_box()["width"] < 320
+    # Where each row of the long line starts its words.
+    rows = editor.locator(".cm-line", has_text="a long indented line").evaluate(
+        """(line) => {
+          const starts = new Map();
+          const at = document.createRange();
+          const texts = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          for (let text = texts.nextNode(); text; text = texts.nextNode())
+            for (let i = 0; i < text.data.length; i++) {
+              if (text.data[i] === " ") continue;
+              at.setStart(text, i);
+              at.setEnd(text, i + 1);
+              const { top, left } = at.getBoundingClientRect();
+              if (!starts.has(Math.round(top))) starts.set(Math.round(top), left);
+            }
+          return [...starts.values()];
+        }"""
+    )
+    assert len(rows) > 2 and all(start > rows[0] for start in rows[1:]), rows
     editor.click()
     expect(editor).to_be_focused()
     page.keyboard.press("Shift+Tab")

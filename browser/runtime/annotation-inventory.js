@@ -98,7 +98,7 @@ const inProgress = readPart(
  * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("./anchor-placement.js").Placement} Placement
  * @typedef {import("./passages.js").Segment} Segment
- * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
+ * @typedef {{activate: (route?: {travel?: boolean}) => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
  * @typedef {AnnotationItem & ItemSource} LiveItem
  * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, name: string | null, surface?: Element | null}} Pointed
  * @typedef {{key: string, target: Element, point: Element | null, passage: Placement | null,
@@ -123,7 +123,7 @@ export const annotationSelection = (root) => ({
   revision: root.document.revision,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
@@ -589,7 +589,7 @@ export function createAnnotationInventory({
       // drafts list publishes no keystroke, so words copied here would go stale.
       text: `${draftSends(draft)} draft`,
       context: leafSays(draftSends(draft)),
-      activate: () => resumeDraft(draft.context),
+      activate: (route) => resumeDraft(draft.context, route),
     });
     /** @type {Map<string, LiveItem[]>} */
     const threadDrafts = new Map();
@@ -1014,7 +1014,7 @@ export function createAnnotationInventory({
     targetPath,
     threadItem: marginThreadItem,
     threadIdsAt,
-    /** @param {AnnotationItem} item */
-    activate: (item) => sourceItem(item)?.activate(),
+    /** @param {AnnotationItem} item @param {{travel?: boolean}} [route] */
+    activate: (item, route) => sourceItem(item)?.activate(route),
   });
 }

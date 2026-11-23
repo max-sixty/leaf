@@ -502,6 +502,7 @@ def test_a_reload_that_loses_a_saves_answer_keeps_the_typing_after_it(
     with page.expect_response(
         lambda response: (
             response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
             and response.status == 200
             and response.request.post_data_json["text"] == "Original.\n"
         )
@@ -514,6 +515,53 @@ def test_a_reload_that_loses_a_saves_answer_keeps_the_typing_after_it(
     expect(widget.locator(".lf-file-editor-status")).to_have_text(
         "", use_inner_text=True
     )
+
+
+def test_a_retry_with_nothing_left_to_save_reads_the_file(browser, serve, tmp_path):
+    """A save that got no answer, which the reader then typed away, leaves nothing to
+    write: Retry reads the file instead, which settles the failure, so the status
+    clears and leaving no longer asks."""
+    file = tmp_path / "notes.md"
+    file.write_text("Original.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def fail_write(route):
+        route.abort() if route.request.method == "POST" else route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    expect(editor).to_have_text("Original.")
+    page.unroute("**/api/files/notes", fail_write)
+    retry.click()
+    expect(retry).to_be_hidden()
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+    expect(editor).to_be_focused()
+    left = []
+    page.on("dialog", lambda dialog: (left.append(dialog.type), dialog.accept()))
+    page.reload()
+    wait_until_ready(page)
+    assert left == []
+    expect(editor).to_have_text("Original.")
+    assert file.read_text() == "Original.\n"
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
 
 
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(

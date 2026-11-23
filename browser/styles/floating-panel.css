@@ -212,9 +212,12 @@
      the row's padding from the field's edge as from the panel's, its margin making up
      the row's gap. So its dots, which hang past its top-left corner (below), stay
      clear of the field's ring, which stands inside the field's edge while the user
-     writes. */
+     writes. Its focus ring stands on its edge rather than inside it, where its badges
+     would cover the ring's corners, and so stands clear of the panel's edge by the
+     row's padding less the ring. */
   .lf-fp-leaf {
     --lf-icon-action-face: var(--lf-line);
+    --lf-ring-at: 0px;
     flex: none;
     margin-inline-start: calc(var(--lf-thread-pad) - 2px);
   }
@@ -319,6 +322,9 @@
   .lf-fp-search:focus-visible {
     outline: none;
   }
+  /* The search's scope, a chip, and its steps after it stand clear of the field's
+     edges (`--lf-clear`; browser/AGENTS.md, "A box inside a frame either meets its
+     edge or stands clear of it"). */
   .lf-fp-mode {
     display: inline-flex;
     flex: none;
@@ -326,8 +332,8 @@
     align-items: center;
     gap: 4px;
     padding: 3px 4px;
-    margin-inline-end: 2px;
-    border-radius: var(--lf-r);
+    margin-inline-end: var(--lf-clear);
+    border-radius: var(--lf-chip-r);
     background: color-mix(in srgb, var(--lf-accent) 10%, transparent);
     color: var(--lf-ink);
     font: var(--lf-font-small);
@@ -361,11 +367,11 @@
     flex: none;
     align-items: center;
     min-height: var(--lf-line);
+    margin-inline-end: var(--lf-clear);
     gap: 0;
   }
-  /* Search's steps are a line tall, as the row's other presses are. */
   .lf-fp-actions .lf-icon-action {
-    --lf-icon-action-face: var(--lf-line);
+    --lf-icon-action-face: calc(var(--lf-line) - 2 * var(--lf-clear));
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
@@ -868,13 +874,14 @@
     }
   }
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-left corner,
+     standing out past it as every corner mark does (tokens.css, `--lf-mark-overhang`),
      shown while the pointer is near that corner (floating-panel.js, `data-lf-corner`).
      It fades rather than moves, so nothing shifts under the pointer. An open view's
      head line holds that corner, so the mark waits for the view to go rather than
      stand over its first words. */
   .lf-fp-minimize {
-    top: -9px;
-    left: -9px;
+    top: calc(-1 * var(--lf-mark-overhang));
+    left: calc(-1 * var(--lf-mark-overhang));
     opacity: 0;
     visibility: hidden;
     transition:
@@ -1721,11 +1728,6 @@
   }
   .lf-fp-show {
     margin-inline-start: auto;
-  }
-  /* Reply leading the line hangs its inset (controls.css, `--lf-word-inset`), so its
-     word stands on the card's edge, as the card's heading and an answered line do. */
-  .lf-fp-answers > .lf-fp-reply:first-child {
-    margin-inline-start: calc(-1 * var(--lf-word-inset));
   }
   /* A card's first line ends in its Show (floating-panel.js, `cardHead`), centred on
      a line that holds one, else on the first line of the message's face. */

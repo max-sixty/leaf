@@ -1087,7 +1087,8 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     field = preview.locator(".lf-thread-reply .lf-compose-field")
     before = field.bounding_box()
     ring = field.evaluate(
-        "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
+        "node => getComputedStyle(node, '::after').outlineColor"
+        ".match(/\\d+/g).map(Number)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("Shift+Enter")
@@ -1339,10 +1340,14 @@ def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visi
     clearance = image.evaluate(
         """image => {
           const field = image.closest('.lf-thread-reply').querySelector('.lf-compose-field');
-          const worn = [field, field.querySelector('leaf-text')].map(getComputedStyle)
+          // The field draws its ring on its ::after, which stands out from the
+          // field by its negative inset.
+          const worn = [getComputedStyle(field, '::after'),
+            getComputedStyle(field.querySelector('leaf-text'))]
             .filter(style => style.outlineStyle !== 'none');
           const ring = Math.max(0, ...worn.map(style =>
-            parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset)));
+            -(parseFloat(style.top) || 0) + parseFloat(style.outlineWidth)
+              + parseFloat(style.outlineOffset)));
           const shelf = getComputedStyle(image.closest('.lf-composer-media'));
           return {worn: worn.length, ring,
                   gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),

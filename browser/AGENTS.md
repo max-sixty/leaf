@@ -328,8 +328,10 @@ directly as in a terminal").
 - **A box inside a frame either meets its edge or stands clear of it.** A box that
   meets its frame's edge, as the floating panel's field and a thread card's reply box
   do, takes the frame's rounding at the corners they share and is square at the
-  others. A box that stands clear of every edge, as a message's rewrite does, is
-  rounded all round.
+  others. A box that stands clear, by `--lf-clear` or more, keeps the corners its kind
+  takes (`styles/tokens.css`, at `--lf-r`). So does a thumb that slides along its
+  track, or a mark round by meaning such as a dot, wherever it stands. Boxes joined at
+  seams count as one box.
 - **A word about shown material stands outside it.** Where the page shows an
   interface rather than says something, as a capture or a quoted sample does, a word
   about it, such as Before and After or a sample's note, stands on the page just above
@@ -495,6 +497,13 @@ holds when it changes, and so does an explicit `inherit` on each element between
 box and its readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
+
+An explicit `inherit` of a property that doesn't inherit costs even when the property
+stays the same. Once a child of a box writes one, Chromium restyles every child of the
+box whenever the box's own style changes, as it does when a mark or ring is drawn on
+the box (`test_holding_alt_over_an_article_restyles_none_of_the_sections_in_it`).
+Register a property that boxes pass down as inheriting, and set it back on the boxes
+it must not reach (layouts.css, `--lf-prose-measure`).
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
@@ -750,6 +759,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
+| The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `shadow-tree.js` `closedOver`                                                      |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `thread/messages.js` `addressableAt`                                               |

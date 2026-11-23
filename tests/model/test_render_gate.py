@@ -2,6 +2,7 @@
 
 import itertools
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -430,3 +431,64 @@ def test_output_contract_failures_refuse_page_and_package_checks():
     )
     assert BrowserCheck(["render check"], render=RenderReading(found, [])).status == 1
     assert WidgetQuality(1, findings=tuple(found)).status == 1
+
+
+def test_a_failed_request_names_the_document_that_made_it_without_its_marks():
+    """A failed request names the frame's document as the user sees it, read as the
+    failure arrives: neither the bootstrap's marks, which a failure can reach the
+    check ahead of, nor a document the frame navigated to before collection."""
+    from leaf.render_gate.page_code import _failed_requests
+
+    frame = SimpleNamespace(url="http://leaf.test/v1.html?view=a&t=key&_leaf-recovered")
+    handlers = {}
+    page = SimpleNamespace(
+        on=lambda event, handler: handlers.setdefault(event, handler)
+    )
+    failures = _failed_requests(page)
+
+    request = SimpleNamespace(
+        frame=frame,
+        failure="net::ERR_FAILED",
+        resource_type="script",
+        url="http://leaf.test/page/helper.js",
+    )
+    handlers["requestfailed"](request)
+    frame.url = "http://leaf.test/b.html"
+    # The frame has moved on to another document; a later failure names that one.
+    handlers["response"](SimpleNamespace(status=404, request=request))
+
+    assert [failure.values["frame"] for failure in failures] == [
+        "http://leaf.test/v1.html?view=a",
+        "http://leaf.test/b.html",
+    ]
+
+
+def test_a_marked_address_reads_as_the_address_the_bootstrap_leaves():
+    """The bootstrap rewrites the address with `URLSearchParams`, so a failure that
+    arrives before the rewrite names the same address as one that arrives after."""
+    from leaf.render_gate.page_code import frame_address
+
+    marked = "http://leaf.test/v1.html?q=~*%20+a!%27()%C3%A9&t=key&_leaf-recovered#f"
+    rewritten = "http://leaf.test/v1.html?q=%7E*++a%21%27%28%29%C3%A9#f"
+    assert frame_address(marked) == rewritten
+    assert frame_address(rewritten) == rewritten
+
+
+def test_a_marked_address_keeps_an_empty_fragment():
+    from leaf.render_gate.page_code import frame_address
+
+    rewritten = "http://leaf.test/v1.html?q=%7E*#"
+    assert frame_address("http://leaf.test/v1.html?q=~*&t=key#") == rewritten
+    assert frame_address(rewritten) == rewritten
+    assert (
+        frame_address("http://leaf.test/v1.html?t=key#") == "http://leaf.test/v1.html#"
+    )
+
+
+def test_the_address_marks_are_the_ones_the_bootstrap_takes_off():
+    from leaf.schema import ASSETS
+
+    bootstrap = (ASSETS / "runtime" / "bootstrap.js").read_text()
+    marks = re.search(r"const marks = \[([^\]]*)\]", bootstrap)
+    assert marks, "bootstrap.js no longer lists its marks as `const marks = [...]`"
+    assert set(json.loads(f"[{marks.group(1)}]")) == render_checks.ADDRESS_MARKS

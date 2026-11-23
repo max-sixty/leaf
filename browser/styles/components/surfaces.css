@@ -835,7 +835,10 @@ summary {
    it over the page. The frame is a shadow inside the edge rather than a border, since
    a resolved card gives its room back by folding (thread/inline.js), and a border
    keeps its last pixel until the fold ends. A seat's cards stand a gap apart; between
-   live neighbors may stand the inert pixels of one folding away.
+   live neighbors may stand the inert pixels of one folding away. The comment box the
+   seat opens under them stands that gap below them too, where the card it becomes
+   will: flush, a card's reply box and the comment box under it read as two fields of
+   one conversation.
    Rejected: an unframed thread that wore a quiet ground and an inset ring while it
    held focus, a frame drawn only on focus with the words running into its ring; a
    widget setting the thread's insets and measure in its own sheet, which drew the
@@ -867,7 +870,11 @@ summary {
    whose words' box is the measure less two borders, the card's and its own, and the
    card's padding on each side. A step's words keep the messages' width, and a
    summary's that width less the inset its region keeps at their end rather than room
-   for Send. */
+   for Send. The comment box the seat opens keeps the row too, its field at the card's
+   padding (response.css, `.lf-fab-bar[data-lf-presentation="inline"]`), and its words
+   end where the message they become will, `--lf-comment-text-end` inside the column:
+   past its own end inset it keeps the room by which its field is wider than the
+   column. */
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * var(--lf-thread-frame));
 }
@@ -893,12 +900,20 @@ summary {
     100% - var(--lf-thread-card) + 4px + var(--lf-compose-pad-inline-start)
   );
 }
+[data-lf-thread-surface] > .lf-fab-bar leaf-text.lf-fab-input {
+  padding-inline-end: calc(
+    var(--lf-comment-text-end) - 1px + max(0px, 100% - var(--lf-seat-column))
+  );
+}
 .lf-page-thread::after {
   border-radius: inherit;
 }
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads,
-[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread,
+[data-lf-thread-surface]
+  > :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
+  ~ .lf-fab-bar {
   margin-top: var(--lf-sp-2);
 }
 /* Every conversation shares its reading edge, including a floating draft: its words

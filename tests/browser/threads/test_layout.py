@@ -30,10 +30,12 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import (
     LANDING_WORDS,
     _shadow_tree_widget,
     append_agent_reply,
+    long_diff_thread,
     open_panel_thread,
     paste_image,
 )
@@ -426,6 +428,75 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
     assert theirs == pytest.approx(mine, abs=0.5), (mine, theirs)
+
+
+# The words of each line a node shows, from its text's own boxes, and where its words
+# may run to: a message's, or a field's in its closed root.
+WORDS_AS_DRAWN = """node => {
+  const words = window.marginEditorRoots.get(node)?.querySelector('.cm-content') ?? node;
+  const lines = new Map();
+  const walk = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
+  for (let text = walk.nextNode(); text; text = walk.nextNode())
+    for (let at = 0; at < text.data.length; at++) {
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 1);
+      const box = range.getClientRects()[0];
+      if (!box?.width) continue;
+      const top = Math.round(box.top);
+      lines.set(top, (lines.get(top) ?? '') + text.data[at]);
+    }
+  return {
+    lines: [...lines].sort(([a], [b]) => a - b).map(([, line]) => line.trim()),
+    end: words.getBoundingClientRect().right
+      - parseFloat(getComputedStyle(words).paddingInlineEnd),
+  };
+}"""
+
+
+@pytest.mark.parametrize("finger", [False, True], ids=["mouse", "finger"])
+@pytest.mark.parametrize("box", ["comment", "reply"])
+def test_a_seat_s_boxes_break_their_lines_where_their_messages_will(
+    browser, serve, box, finger
+):
+    """A seat's comment box and its card's reply box each run the row's width, and
+    their words end where the message they become will, so Send moves no word. Wrapping
+    at the row's width, a comment under a diff line broke its lines at the row's end
+    and rewrapped at the seat's column once sent. Under a finger, where Send keeps its
+    room at the end of every line, a reply's words ran a pixel past the message's, where
+    Send's room was reckoned from Send rather than from the room a message keeps."""
+    url, root = long_diff_thread(serve)
+    context = browser.new_context(has_touch=finger, is_mobile=finger)
+    page = open_page(browser, url, init_script=MARGIN_EDITOR_ROOTS, context=context)
+    resized(page, 1280, 900)
+    if box == "comment":
+        page.locator("#patch").get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        field = page.locator("#patch .lf-fab-bar leaf-text")
+    else:
+        field = page.locator(
+            f'#patch .lf-page-thread[data-lf-thread="{root}"]'
+        ).locator(".lf-thread-reply leaf-text")
+        field.click()
+    expect(field).to_be_focused()
+    words = LANDING_WORDS.strip()
+    page.keyboard.insert_text(words)
+    rendered(page)
+    typed = field.evaluate(WORDS_AS_DRAWN)
+    assert len(typed["lines"]) > 1, typed
+    if finger:
+        field.locator("xpath=..").locator(".lf-compose-submit").click()
+    else:
+        page.keyboard.press("Enter")
+    sent = page.locator(
+        "#patch .lf-msg[data-lf-author=user] .lf-msg-text", has_text=words[:40]
+    )
+    expect(sent).to_be_visible()
+    rendered(page)
+    drawn = sent.evaluate(WORDS_AS_DRAWN)
+    assert drawn["lines"] == typed["lines"]
+    assert drawn["end"] == pytest.approx(typed["end"], abs=0.5), (drawn, typed)
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):

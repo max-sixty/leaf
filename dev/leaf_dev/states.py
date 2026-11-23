@@ -331,6 +331,13 @@ def panel_corner_hover(page: Page) -> None:
     settle(page)
 
 
+def page_comment_photo_corner(page: Page) -> None:
+    """The panel's fold shown at its top-left corner below a draft's attached
+    screenshot."""
+    page_comment_photo(page)
+    panel_corner_hover(page)
+
+
 def share_link(page: Page) -> None:
     """The page's link, focused by keyboard as read-only text in About this page,
     which the menu's Copy link opens when the clipboard refuses the copy."""
@@ -1396,8 +1403,8 @@ def seat_held_news(page: Page) -> None:
 
 def seat_comment_box(page: Page) -> None:
     """A goal's row with its comment box open under the conversation it holds, the
-    words of a second comment typed: the box stands in the row's own outlet, with the
-    send that holds the goal beside it."""
+    words of a second comment typed, long enough to wrap: the box stands in the row's
+    own outlet, with the send that holds the goal beside it."""
     as_agent(
         "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
@@ -1408,7 +1415,8 @@ def seat_comment_box(page: Page) -> None:
     control.click()
     box = goal.locator(":scope > .atlas-task-threads .lf-fab-input")
     expect(box).to_be_focused()
-    page.keyboard.insert_text("Park it once the hunk lands")
+    page.keyboard.insert_text(LONG_DRAFT)
+    page.mouse.move(0, 0)
 
 
 def option_picked(page: Page) -> None:
@@ -2556,6 +2564,29 @@ def diff_line_threads(page: Page) -> None:
     settle(page)
 
 
+def diff_line_comment(page: Page) -> None:
+    """A line's comment box opened from its number under the long conversation the line
+    holds, a draft long enough to wrap typed in it: the box stands in the line's outlet
+    under the card."""
+    diff_line_threads(page)
+    # Clear of the panel at the window's foot, which would keep the box from a seat
+    # under it (composing/surface.js, `seatFab`).
+    page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it").evaluate(
+        "thread => scrollBy(0, thread.getBoundingClientRect().top - 120)"
+    )
+    scroll_settled(page)
+    number = page.locator("#dfg-lines").get_by_role(
+        "button", name="Comment on src/sync/retry.py · new line 16"
+    )
+    number.locator("..").hover()
+    number.click()
+    box = page.locator("#dfg-lines .lf-diff-thread-outlet .lf-fab-input")
+    expect(box).to_be_focused()
+    page.keyboard.insert_text(LONG_DRAFT)
+    page.mouse.move(0, 0)
+    settle(page)
+
+
 def diff_line_thread_walked(page: Page) -> None:
     """The long line conversation reached by Next thread (`t`), which rings its card
     and brackets its line."""
@@ -3404,6 +3435,7 @@ STATES = (
     ),
     State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
+    State("page-comment-photo-corner", "feature-gallery", page_comment_photo_corner),
     State(
         "share-link",
         "feature-gallery",
@@ -3551,6 +3583,12 @@ STATES = (
         "diff-thread-gallery",
         diff_line_thread_walked,
         region="#dfg-lines",
+    ),
+    State(
+        "diff-line-comment",
+        "diff-thread-gallery",
+        diff_line_comment,
+        region="#dfg-lines .lf-diff-thread-outlet:has(.lf-fab-bar)",
     ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),

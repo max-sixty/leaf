@@ -610,6 +610,12 @@ def test_a_retry_after_a_save_with_no_answer_keeps_the_typing_after_it(
         "", use_inner_text=True
     )
     expect(editor).to_be_focused()
+    # The answer reaches the driver before the editor takes it, and until then the
+    # save is still in flight, which leaving rightly asks about. The editor clears its
+    # record of the file's unsettled work in this tab once it has taken the answer.
+    page.wait_for_function(
+        "() => window.lfStorage.tabStore.get('file:notes-file:notes') === null"
+    )
     left = []
     page.on("dialog", lambda dialog: (left.append(dialog.type), dialog.accept()))
     page.reload()

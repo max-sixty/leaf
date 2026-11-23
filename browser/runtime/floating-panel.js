@@ -104,7 +104,11 @@
  *   away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open, and travel to a
  *   place on the page it would stand over once landed puts it away, so an `m` walk
- *   from a thread's view shows the next stop (`clearFor`). A thread's view
+ *   from a thread's view shows the next stop (`clearFor`). One Escape puts away a
+ *   thread opened over a list, such as Threads or On Me, as it does any other view;
+ *   Back returns to that list, as the ‹ does. The user chose this over Escape stepping
+ *   back to Threads at the thread's row, with a second Escape putting the list away. A
+ *   thread's view
  *   also goes when a route, such as the `t` walk, opens a thread's card on the page,
  *   so one thread stands open (`reveal`; the user chose this, so a walk doesn't
  *   leave the panel's thread under the card it opens). A card's Open in panel

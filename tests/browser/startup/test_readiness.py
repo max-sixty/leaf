@@ -552,11 +552,10 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     consume_browser_errors(page, "read failed: Unexpected token")
 
 
-def restart_under_another_runtime(page, serve, answer=None):
-    """The page's server restarting under another Leaf, as the tab sees it: its answers
+def answer_as_another_runtime(page):
+    """The page's server restarted under another Leaf, as the tab sees it: its answers
     name another runtime until the tab's source has said so once, which is the reading
-    the reload lands on. `answer` makes the tab ask the server something, by default
-    news of a comment. Returns once the reload has landed."""
+    the reload lands on."""
     restarted = {"answers": True}
 
     def another_runtime(route):
@@ -573,6 +572,13 @@ def restart_under_another_runtime(page, serve, answer=None):
 
     page.route("**/api/**", another_runtime)
     page.route("**/registry.json", another_runtime)
+
+
+def restart_under_another_runtime(page, serve, answer=None):
+    """The tab reloading onto the runtime its restarted server runs
+    (`answer_as_another_runtime`). `answer` makes the tab ask the server something, by
+    default news of a comment. Returns once the reload has landed."""
+    answer_as_another_runtime(page)
     with page.expect_navigation():
         if answer:
             answer()
@@ -689,6 +695,127 @@ def test_words_typed_as_the_server_restarts_go_with_the_reload_unasked(browser, 
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Hello world")
     assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [11, 11]
+
+
+def test_a_page_s_own_prompt_the_user_stays_at_leaves_leaf_asking_before_they_leave(
+    browser, serve
+):
+    """Leaf's reload asks nothing, but a page's own leave prompt can keep the document,
+    as when the user stays there. The next departure is the user's, so Leaf asks before
+    it drops the words the restarted server refused (drafts.js, `beforeunload`)."""
+    page = open_page(browser, serve(leaf_page("Restarted", "<h1>Rehearsal</h1>")))
+    prompts = []
+    page.on("dialog", lambda dialog: (prompts.append(dialog.type), dialog.dismiss()))
+    page.evaluate(
+        """() => {
+          window.ownPrompt = (event) => { event.preventDefault(); event.returnValue = ""; };
+          addEventListener("beforeunload", window.ownPrompt);
+        }"""
+    )
+    field = page.locator(".lf-fp-field leaf-text")
+    write(field, "Hello")
+    answer_as_another_runtime(page)
+    # The words are stranded once the server has refused their write; until then the
+    # write carries them, and leaving asks nothing.
+    with (
+        page.expect_event("dialog"),
+        page.expect_response(lambda response: response.url.endswith("/api/draft")),
+    ):
+        page.keyboard.insert_text(" world")
+    page.evaluate('() => removeEventListener("beforeunload", window.ownPrompt)')
+    # A reload of the user's own, which no Leaf code asks for.
+    with page.expect_event("dialog"):
+        page.evaluate("() => location.reload()")
+    assert prompts == ["beforeunload", "beforeunload"]
+    expect(field).to_have_js_property("value", "Hello world")
+
+
+@pytest.mark.parametrize("view", ["threads", "queue"])
+def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
+    browser, serve, view
+):
+    """The panel's lists are where the user is too: Threads, with the user on the row
+    they were on, and On Me come back open across the reload (floating-panel.js,
+    `captureCurrentLocation`)."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    if view == "threads":
+        open_threads(page)
+        on = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-lf-key]").first
+        on.focus()
+    else:
+        on = open_on_me(page)
+        on.focus()
+    expect(on).to_be_focused()
+    key = on.get_attribute("data-lf-key")
+
+    restart_under_another_runtime(page, serve)
+
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-open", view)
+    focused = page.locator(f"{panel_view(view)} :focus, {panel_view(view)}:focus")
+    expect(focused).to_have_count(1)
+    assert focused.get_attribute("data-lf-key") == key
+
+
+def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(browser, serve):
+    """A user typing on as the tab reloads means the keys for the reply they were
+    writing. Those the new document hears before it has handed the reply back wait for
+    it and go there, rather than running the page's single-key commands, one of which
+    resolves the thread (keyboard/bindings.js, `placeHandedBack`)."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    reply = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] .lf-thread-reply leaf-text'
+    )
+    write(reply, "Hold")
+    typed = " the resend until the queue drains, then retry it"
+    original_document = page.evaluate("performance.timeOrigin")
+
+    restart_under_another_runtime(
+        page, serve, answer=lambda: page.keyboard.type(typed, delay=80)
+    )
+
+    assert page.evaluate("performance.timeOrigin") != original_document
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hold" + typed)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "resolve"
+    ]
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):

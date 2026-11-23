@@ -5,6 +5,7 @@ interface DocumentInputs {
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
   readonly count: number;
+  readonly moves: number;
   observe(read: (event: Event) => void): () => boolean;
 }
 

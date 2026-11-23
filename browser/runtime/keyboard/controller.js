@@ -22,7 +22,7 @@
    they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
-import { quickShortcuts } from "./bindings.js";
+import { placeHandedBack, quickShortcuts } from "./bindings.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import {
   controlNavigationKeys,
@@ -192,7 +192,10 @@ export function mountKeyboard({
     if (!pageUpgraded() || pressingHeld) return;
     /** @type {DocumentEventMap["lf-held-keys"]} */
     const taking = new CustomEvent("lf-held-keys", {
-      detail: { ready: keyReady, keep: () => runtime.statePhase === "waiting" },
+      detail: {
+        ready: keyReady,
+        keep: () => runtime.statePhase === "waiting" || !placeHandedBack(),
+      },
     });
     document.dispatchEvent(taking);
     const { keys, pause, release } = taking.detail;

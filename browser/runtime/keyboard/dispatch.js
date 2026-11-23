@@ -97,6 +97,7 @@ import {
   commandEntries,
   commandRoutes,
   commandReady,
+  placeHandedBack,
   scopeAvailable,
   live,
   routedCommand,
@@ -518,7 +519,7 @@ function resolveKey(ev) {
   return null;
 }
 /** @param {KeyboardEvent} ev */
-export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+export const keyReady = (ev) => placeHandedBack() && resolveKey(ev) !== INPUT_PENDING;
 // What a press of `binding` would do now, resolved as the press itself would be with no
 // key behind it, or null: the one reading of whether a key works where the user is.
 // Escape's is what the platform's close request asks for (close-requests.js), and

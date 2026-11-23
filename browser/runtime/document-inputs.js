@@ -10,6 +10,9 @@
   // back from someone already using the authored page. focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
+  // Of those, the inputs that take the user somewhere: a press, a wheel, a touch or
+  // leaving the window. A key or text entry carries on where they are.
+  let moves = 0;
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
   // Early key holding and the runtime ask the same question of a key's origin.
@@ -50,6 +53,9 @@
     get count() {
       return inputs;
     },
+    get moves() {
+      return moves;
+    },
     observe(read) {
       inputReaders.add(read);
       return () => inputReaders.delete(read);
@@ -66,6 +72,7 @@
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
     inputs++;
+    if (event.type !== "keydown" && event.type !== "input") moves++;
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])

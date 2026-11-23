@@ -760,7 +760,12 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    its edge (tokens.css, "Where it stands"), where no frame's clip cuts it and no
    neighbour covers it, and a press looks the same in every seat. At no weight, so a
    seat that stands it elsewhere, as a diff line's comment press does, says so. A
-   page's own button keeps a control's gap. */
+   page's own button keeps a control's gap.
+
+   A seat hangs a press only into a margin wide enough to leave `--lf-clear` between
+   its face and the frame's edge (browser/AGENTS.md, "A box inside a frame either meets
+   its edge or stands clear of it"). In a narrower margin the face starts at the line's
+   text edge, as On Me's Reply does. */
 :where(.lf-btn),
 :where(.lf-icon-action) {
   --lf-ring-at: var(--lf-focus-ring-inset);

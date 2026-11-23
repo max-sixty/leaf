@@ -310,8 +310,7 @@ a pasted link, so write a description that makes sense on its own.
 
 Widget attributes carry scalars and children carry prose; a member of a compound widget
 takes its name in `label`, as an option card and a board card do, and shows its title
-in its own HTML, a leading `<strong>`, usually in the same words. A widget whose body is
-data, such as `lf-code`,
+in its own HTML, a leading `<strong>`. A widget whose body is data, such as `lf-code`,
 holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.

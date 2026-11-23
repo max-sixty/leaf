@@ -784,7 +784,7 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     rendered(page)
     expect(preview).to_be_visible()
     expect(page.locator(CARD)).to_be_hidden()
-    expect(page.locator("#passage")).not_to_have_attribute("data-lf-held", "")
+    expect(page.locator("#passage")).not_to_have_attribute("data-lf-touch-held", "")
     touch("touchStart")
     touch("touchEnd")
     expect(page.locator(CARD)).to_be_visible()
@@ -2619,7 +2619,7 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
     rendered(page)
     assert page.evaluate("location.hash") == "", "the held link was followed"
     expect(tip).to_be_visible()
-    expect(page.locator("#go")).to_have_attribute("data-lf-held", "")
+    expect(page.locator("#go")).to_have_attribute("data-lf-touch-held", "")
     put_away()
 
     page.evaluate("() => { window.GestureEvent = class extends UIEvent {}; }")
@@ -3128,8 +3128,8 @@ def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_
     expect(word).to_have_text("Reads two")
     rendered(page)
     assert _crossed(page) == ["read two", "ended Reads one"]
-    expect(page.locator("#two")).to_have_attribute("data-lf-held", "")
-    expect(page.locator("#one")).not_to_have_attribute("data-lf-held", "")
+    expect(page.locator("#two")).to_have_attribute("data-lf-touch-held", "")
+    expect(page.locator("#one")).not_to_have_attribute("data-lf-touch-held", "")
     touch("touchEnd")
 
 

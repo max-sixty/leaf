@@ -182,7 +182,14 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "node => ({family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize})"
     )
-    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box()["height"] == 32
+    # One line of words and the frame's padding on either side, inside its one-pixel
+    # edge (browser/AGENTS.md, "Shared containers determine control dimensions").
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    assert box.bounding_box()["height"] == box.evaluate(
+        """box => { const style = getComputedStyle(box);
+          return parseFloat(style.getPropertyValue('--lf-line'))
+            + 2 * parseFloat(style.getPropertyValue('--lf-thread-pad')) + 2; }"""
+    )
     write(field, "Carry this comment into its thread.")
     page.evaluate(
         """() => {
@@ -770,7 +777,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1
-    while (box := bar.bounding_box())["y"] + box["height"] + 21 < foot:
+    while (box := bar.bounding_box())["y"] + box["height"] + 21 <= foot:
         page.keyboard.press("Shift+Enter")
         page.keyboard.type(f"Line {lines}")
         lines += 1
@@ -827,6 +834,45 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     rest = page.evaluate(SIDE_COMMENT_DRAWN)
     assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1)
     assert rest["top"] > stood["top"] + 0.5, (stood, rest)
+
+
+def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
+    browser, serve
+):
+    """The comment box wears its ring on a box laid over its field, its ::after
+    (annotation-chrome.css), which exists only while the focus paint marks the box. Focus
+    coming back to the box while a line it gave up still travels makes that ::after
+    anew, and its ring waits for the tween's end as one the box wore from its start
+    does (box-motion.js): drawn at once, it would stand at the box's rest size over an
+    outline still travelling."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator("#p2").click(modifiers=["Alt"])
+    field = open_compact_comment(page, "Line 0")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("x")
+    rendered(page)
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    ring = "node => getComputedStyle(node, '::after').outlineColor"
+    worn = box.evaluate(ring)
+    assert worn != "rgba(0, 0, 0, 0)", worn
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fab-ground'))"
+    )
+    page.keyboard.press("Tab")
+    expect(field).not_to_be_focused()
+    assert box.evaluate("node => getComputedStyle(node, '::after').content") == "none"
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(field).to_be_focused()
+    assert page.evaluate("() => __lfHeld.some(motion => motion.playState === 'paused')")
+    assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
+    page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert box.evaluate(ring) == worn
 
 
 def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):

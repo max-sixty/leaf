@@ -49,7 +49,6 @@ import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
 import { actionName } from "./icon-paths.js";
-import { commandKeysNow } from "./keyboard/control-keys.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
@@ -59,7 +58,7 @@ import { commandKeysNow } from "./keyboard/control-keys.js";
  * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
  * @typedef {SemanticBackground | {key: "text", value: Words, stands: (() => boolean) | null,
  * press: NoticePress | null}} Background
- * @typedef {{action: string, command: string, run: () => unknown, stands: () => boolean}} NoticePress
+ * @typedef {{action: string, keys: () => readonly string[], run: () => unknown, stands: () => boolean}} NoticePress
  */
 
 export const liveEl = el("div", "lf-ui lf-live");
@@ -82,8 +81,8 @@ let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 // What the seat says, whether it shows, the press it offers, or null: the action it
-// is, the page command whose key makes the same press, what it does, and whether it
-// still can, as `{action, command, run, stands}`; and whether it is news, which answers
+// is, the keys that would make the same press now, what it does, and whether it still
+// can, as `{action, keys, run, stands}`; and whether it is news, which answers
 // no gesture of the user's. Errors are no notices: they go through errors.js, which
 // keeps them until they are dealt with.
 /** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null, about: string | null, news: boolean}>>} */
@@ -297,15 +296,14 @@ export function notice(
 
 // A notice's press, or a page's own (floating-panel.js, `pagePress`), as the field's end
 // offers it (composing/input.js, `BoxPress`): its action's word, the keys that would make
-// its command's press now, read at each ask, so a box standing it rechecks its keys
-// without reading the field's words again (composing/input.js, `pressing`), and what it
-// does.
+// the press now, read at each ask, so a box standing it rechecks its keys without
+// reading the field's words again (composing/input.js, `pressing`), and what it does.
 /** @param {Omit<NoticePress, "stands">} press
  * @returns {import("./composing/input.js").BoxPress} */
 export const pressReading = (press) => ({
   word: actionName(press.action),
   get keys() {
-    return commandKeysNow(press.command);
+    return press.keys();
   },
   run: press.run,
 });

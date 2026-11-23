@@ -1552,7 +1552,7 @@ export function createFloatingPanel({
         // view, as every send leaves its box for its thread (thread/landing.js,
         // `landSent`).
         route = { view: "thread", thread: handle.attempt };
-        open(route, { replace: true, part: "thread" });
+        open(route, { replace: true, part: "thread", travel: false });
       },
     });
     sync();
@@ -2013,11 +2013,19 @@ export function createFloatingPanel({
   /** @type {WeakMap<PanelRoute, ReadonlySet<import("./keyboard/bindings.js").Scope>>} */
   const openedIn = new WeakMap();
   // A thread lands the user in its reply (`focusView`), or on the thread itself
-  // (`part`), as the thread a send starts does.
-  /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean, part?: "reply" | "thread"}} [options] */
+  // (`part`), as the thread a send starts does. A thread opened where the user stands,
+  // as a send's is, passes `travel: false` to a package's reader, so its route adds no
+  // Back step (anchor-travel.js, `prepareNavigationStep`).
+  /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean, part?: "reply" | "thread", travel?: boolean}} [options] */
   function open(
     route,
-    { replace = false, reopen = false, focus = true, part = "reply" } = {},
+    {
+      replace = false,
+      reopen = false,
+      focus = true,
+      part = "reply",
+      travel = true,
+    } = {},
   ) {
     const before = trail.value.at(-1);
     if (before && routeKey(before) === routeKey(route) && !replace) {
@@ -2026,7 +2034,7 @@ export function createFloatingPanel({
       return;
     }
     if (route.thread && presentation && !presentation.primary) {
-      openInPackage(route.thread, { focus, part });
+      openInPackage(route.thread, { focus, part, travel });
       return;
     }
     // A view opened from a list it opens over, as a thread from Threads or On, has that
@@ -2049,13 +2057,17 @@ export function createFloatingPanel({
   // Where the page's package draws its conversations, a thread opens in its reader, in
   // its reply as a row's opening does (`focusView`), or on the thread a send starts
   // (`part`), and the view it was chosen from goes, uncovering the page.
-  /** @param {string} key @param {{focus?: boolean, message?: string | null, part?: "reply" | "thread"}} [options] */
-  function openInPackage(key, { focus = true, message = null, part = "reply" } = {}) {
+  /** @param {string} key @param {{focus?: boolean, message?: string | null, part?: "reply" | "thread", travel?: boolean}} [options] */
+  function openInPackage(
+    key,
+    { focus = true, message = null, part = "reply", travel = true } = {},
+  ) {
     if (trail.value.length) close();
     void threadActions.open(threadByKey(key)?.key ?? key, {
       part,
       focus,
       message,
+      travel,
     });
   }
   // A row of a list here that names a thread, in Threads, On Me's Reply and Discuss or
@@ -5750,9 +5762,8 @@ export function createFloatingPanel({
   // landed (`landed`, landing-scroll.js `landedBox`), as it gives way to a press on the
   // page: a long thread's view covers most of the window, and a place at the page's
   // foot can't be scrolled above even a short one. Back reopens a thread whose view the
-  // landing put away (history.js, `returnPlace`), and Forward, which lands the user on
-  // that place again, puts it away again, as any return onto a place it would stand
-  // over does. On Me stays where it lists the item travel lands on (`onMe.lists`), since its
+  // landing put away, which the entry it returns to names (thread/address.js), and
+  // Forward, to the entry naming none, puts it away again. On Me stays where it lists the item travel lands on (`onMe.lists`), since its
   // card shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread
   // On Me doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the
   // view would stand over clears it the same way, since the ring the user follows would
@@ -5987,17 +5998,16 @@ export function createFloatingPanel({
   }
 
   // A live revision carries the view open here across it, a thread and where its view
-  // was read to, or a list (version.js, `captureRetainedCurrentLocation`), and so does a
-  // return to a working place (history.js, `returnPlace`), as Back from a link followed
-  // out of the view is: the reader is still at it, so the view comes back as they left
-  // it, with the user in it where they were, and with a reply's own editing continuity
-  // handing back the field. A revision installed in place keeps the view, so its
-  // restore changes nothing. A view opened by the user's next visit does not come back
-  // (restore-state.js); this is not that. The lists that come back are those whose
-  // route is the view's name alone, as Threads and On Me are; one a route qualifies,
-  // as a menu group or Errors, stays shut.
-  /** @param {Element | null} [at] the node the user is on, else where focus is */
-  function captureCurrentLocation(at = focused()) {
+  // was read to, or a list (version.js, `captureRetainedCurrentLocation`): the reader
+  // is still at it, so the view comes back as they left it, with the user in it where
+  // they were, and with a reply's own editing continuity handing back the field. A
+  // revision installed in place keeps the view, so its restore changes nothing. A view
+  // opened by the user's next visit does not come back (restore-state.js); this is
+  // not that. The lists that come back are those whose route is the view's name
+  // alone, as Threads and On Me are; one a route qualifies, as a menu group or
+  // Errors, stays shut.
+  function captureCurrentLocation() {
+    const at = focused();
     const top = trail.value.at(-1);
     // The user is in the view or on its head line, whose controls, as a thread's
     // Resolve and Show on page, stand for the view; a reply in the field is its editing
@@ -6118,7 +6128,8 @@ export function createFloatingPanel({
       messagesAside: true,
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they were in the panel, read before the panel's
-      // reader, and the message they were on, goes.
+      // reader, and the message they were on, goes. The thread moves where the user
+      // stands, which is no step of theirs (history.js).
       yielded: () => {
         const top = trail.value.at(-1);
         if (!top?.thread) return null;
@@ -6128,7 +6139,7 @@ export function createFloatingPanel({
             null)
           : null;
         const key = top.thread;
-        return () => openInPackage(key, { focus, message });
+        return () => openInPackage(key, { focus, message, travel: false });
       },
       // A thread about the whole page opens here, and so does one about a passage once
       // the user has chosen the panel for threads (thread/threads-in-panel.js; the rule
@@ -6231,6 +6242,13 @@ export function createFloatingPanel({
     showTodo,
     captureCurrentLocation,
     restoreCurrentLocation,
+    // The thread whose view stands open above the row, read through the trail, and
+    // putting that view away: what the entry's thread address follows and asks for
+    // (thread/address.js).
+    shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
+    putThreadAway: () => {
+      if (threadOf(trail.value.at(-1))) close();
+    },
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,
     // `finishPlacement`).

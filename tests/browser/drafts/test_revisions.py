@@ -330,7 +330,8 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
 
     page.reload()
     wait_until_ready(page)
-    expect(page.locator(".lf-thread-reply leaf-text")).not_to_be_visible()
+    # The entry names the thread, so the reload opens it again, but no editing goes on.
+    expect(page.locator(".lf-thread-reply leaf-text:focus")).to_have_count(0)
     assert stored_draft_text(page, context) == words
 
 

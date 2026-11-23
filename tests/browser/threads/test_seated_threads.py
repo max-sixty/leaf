@@ -997,14 +997,20 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     if finish == "reload":
         page.reload()
         wait_until_ready(page)
-        # A resolved thread the page draws nowhere opens in the panel.
+        # The entry names the card's thread, so the reload opens it again, in the panel,
+        # since the page draws a resolved thread nowhere.
         open_panel_thread(page, root)
         settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
         expect(settle).to_have_accessible_name("✓ Resolved by Codex · Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)
-        expect(page.locator(PANEL_REPLY)).to_have_js_property("value", "Half a thought")
+        # Reopened, the thread goes back beside its passage, its reply with it.
+        card_reply = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+            " > .lf-thread-reply leaf-text"
+        )
+        expect(card_reply).to_have_js_property("value", "Half a thought")
         return
     if finish == "clear":
         page.keyboard.press("ControlOrMeta+a")

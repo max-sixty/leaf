@@ -176,9 +176,11 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
 
     def forced_ring(field):
         return field.evaluate("""field => {
-          // A floating editor gives its frame the ring; a seated editor wears it.
-          for (const node of [field, field.closest('.lf-compose-field')]) {
-            const style = getComputedStyle(node);
+          // A seated editor wears the ring; a floating editor draws it on a box laid
+          // over its frame, which an error about the box would otherwise cover.
+          const frame = field.closest('.lf-compose-field');
+          for (const [node, pseudo] of [[field], [frame], [frame, '::after']]) {
+            const style = getComputedStyle(node, pseudo);
             if (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0)
               return [style.outlineWidth, style.outlineStyle, style.outlineColor];
           }
@@ -209,14 +211,30 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     page.locator("#subject").click(modifiers=["Alt"])
     floating = page.locator(".lf-fab-input:visible").first
     expect(floating).to_be_focused()
-    physical_face = face(floating)
+    # The floating box is the frame of the card it becomes, so it takes the frame's
+    # padding and one-pixel edge back inside its field's padding. Its words then stand
+    # where the seated box's do, which sits at its card's padding.
+    frame = 1 + float(
+        floating.evaluate(
+            "node => getComputedStyle(node).getPropertyValue('--lf-thread-pad')"
+        ).removesuffix("px")
+    )
+
+    def framed(style):
+        sides = ("top", "right", "bottom", "left")
+        return style | {
+            f"padding-{side}": f"{float(style[f'padding-{side}'].removesuffix('px')) - frame:g}px"
+            for side in sides
+        }
+
+    physical_face = framed(face(floating))
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
     page.emulate_media(forced_colors="active")
     forced = forced_ring(floating)
     assert forced, "the floating response paints no focus ring in forced colors"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
-    draft_face = face(floating)
+    draft_face = framed(face(floating))
     # Touch reserves Send's column; a mouse lets words use its free corner.
     text_end = f"{44 + 2 * 16 + 1}px" if touch else "8px"
     assert (

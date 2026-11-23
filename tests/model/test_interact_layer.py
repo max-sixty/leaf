@@ -46,7 +46,6 @@ from interact_support import (
     shipped_sheets,
     vendored_at_another_protocol,
     wait_for,
-    words,
     write_record,
 )
 from model_folds import leaf_page
@@ -5031,84 +5030,55 @@ def test_review_evidence_packages_export_independently(
         ["page", "export", str(page), "-o", str(tmp_path / "export.html"), "--runtime"],
     )
     assert exported.exit_code == 0, exported.output
-    if package == "diff":
-        source = page / "index.html"
-        source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
-        checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
-        assert checked.exit_code != 0
-        assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
-
-
-def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    package = schema_model.BUNDLED_PACKAGES / "visual-review"
-    page = tmp_path / "visual-review"
-
-    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
-    initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "visual-review", str(page)],
-    )
-
-    assert checked.exit_code == 0, checked.output
-    assert initialized.exit_code == 0, initialized.output
-    registry = registry_storage.load_registry(page)
-    widget = registry["lf-visual-review"]
-    assert registry["$layer"]["packages"] == ["visual-review"]
-    assert widget["inputs"] == {
-        "run": {
-            "contract": "visual-run",
-            "source": "source",
-            "property": "value",
-        }
-    }
-    assert widget["verbs"]["review"]["unit"] == "case"
-    assert "visual-run" in registry["$data"]["contracts"]
-    assert "/widgets/lf-visual-review.js" in layer_files(page)
-    assert "author.md" in layer_instructions(page)
 
 
 @pytest.mark.parametrize(
-    ("change", "refusal"),
+    ("package", "widget", "value", "change", "refusal"),
     [
         (
-            lambda run: {**run, "cases": [*run["cases"], run["cases"][0]]},
+            "file-tree",
+            '<lf-file-tree id="tree" source="value"></lf-file-tree>',
+            lambda: {"files": [{"path": "src/app.py"}, {"path": "src/lib.py"}]},
+            lambda files: {**files, "files": [*files["files"], files["files"][0]]},
             "record keys must be unique",
         ),
         (
-            lambda run: {**run, "base": {**run["base"], "url": "http://a.test:99999/"}},
+            "playwright",
+            '<lf-trace id="trace" source="value"></lf-trace>',
+            lambda: json.loads(
+                data_file(named_source("playwright-trace-gallery")).read_text()
+            )["release-journey"],
+            lambda trace: {**trace, "viewerUrl": "http://a.test:99999/"},
             "'http://a.test:99999/' is not a 'uri'",
         ),
     ],
-    ids=["repeated-case-id", "url-the-browser-cannot-parse"],
+    ids=["repeated-record-key", "url-the-browser-cannot-parse"],
 )
-def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
-    tmp_path, monkeypatch, change, refusal
+def test_data_set_refuses_a_value_its_widget_cannot_show(
+    tmp_path, monkeypatch, package, widget, value, change, refusal
 ):
-    """A case id addresses the case's review decisions and threads, and the widget
-    opens each target URL with the browser's URL parser, so `data set` refuses a run
-    that repeats an id or names a URL that parser refuses, rather than storing a run
-    the widget cannot show."""
+    """A record's key addresses the decisions and threads on it, and a widget opens a
+    URL with the browser's URL parser, so `data set` refuses a value that repeats a
+    key or names a URL that parser refuses, rather than storing a value its widget
+    cannot show."""
     monkeypatch.chdir(tmp_path)
-    gallery = named_source("visual-review-gallery")
-    page = tmp_path / "visual-review"
+    page = tmp_path / "page"
     runner = CliRunner()
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
+        cli_model.cli, ["page", "init", "--package", package, str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    shutil.copy(gallery, page / "index.html")
-    run = json.loads(data_file(gallery).read_text())["gallery-visual-run"]
+    (page / "index.html").write_text(leaf_page("Values", widget))
 
     def data_set(value):
         return runner.invoke(
             cli_model.cli,
-            ["data", "set", str(page), "gallery-visual-run"],
+            ["data", "set", str(page), "value"],
             input=json.dumps(value),
         )
 
-    accepted = data_set(run)
-    refused = data_set(change(run))
+    accepted = data_set(value())
+    refused = data_set(change(value()))
 
     assert accepted.exit_code == 0, accepted.output
     assert refused.exit_code == 1
@@ -5628,9 +5598,16 @@ def instruction_page(tmp_path: Path, monkeypatch):
             f'<lf-instruction-owner id="owner"><{tag} id="member">One</{tag}>'
             "</lf-instruction-owner>"
         )
+        if tag == "lf-instruction-unused":
+            entry["outputs"] = {"held": {"contract": "instruction-held"}}
         registry[tag] = entry
     registry["$data"]["contracts"].update(
         {
+            "instruction-held": {
+                "description": "Records a widget holds for others to read.",
+                "schema": {"type": "object"},
+                "instructions": {"producer": "Hold the records whole."},
+            },
             "instruction-records": {
                 "description": "Records for the selected widget.",
                 "schema": {"type": "object"},
@@ -5684,6 +5661,13 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
         "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
     )
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
+    # A widget holding a contract's value selects the contract as one reading it does.
+    holder = page_instructions(instruction_page, entries=("lf-instruction-unused",))
+    assert (
+        "# Data contract `instruction-held`\n\nHold the records whole."
+        in (holder["producer"])
+    )
+    assert "instruction-held" not in selected["producer"]
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):

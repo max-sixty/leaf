@@ -67,6 +67,8 @@
    cut to what that region shows, and across to the rail for a bounded block in the
    column's flow. A target or its rendered part leaving
    withholds the row before the next paint; layout withholds it when its region hides it.
+   A row whose threads a closed disclosure or an unchosen tab hides stands by the box
+   the page shows for it, which the user can open (`face`, `closedFaceOver`).
 
    A control carries its label as a native descendant. This owner chooses its place
    before CSS reveals it and clears that readiness while the label is inactive, so a
@@ -93,11 +95,14 @@ import {
   stuckShift,
 } from "../geometry.js";
 import {
+  closedOver,
+  drawn,
   eachRenderedChild,
   eachRenderedElement,
   isText,
   skipped,
   skipper,
+  untilFound,
   composedParentNode,
   renderedParent,
   renderedUnder,
@@ -145,7 +150,7 @@ import {
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {import("../resolved-target.js").ResolvedTarget} ResolvedTarget
  * @typedef {{able: () => boolean, controls: () => number, open: () => boolean, changed: () => void}} Fold
- * @typedef {{anchor: () => Element | null, point: () => Element | null, passage: () => ResolvedTarget | null, order: number, fold: Fold}} RowOptions
+ * @typedef {{anchor: () => Element | null, point: () => Element | null, passage: () => ResolvedTarget | null, face: () => Element | null, order: number, fold: Fold}} RowOptions
  * @typedef {{root: HTMLElement, projection: HTMLElement, lanes: Map<Element, HTMLElement>, sizes: ResizeObserver}} Layer
  */
 /** @typedef {import("../css-anchors.js").Anchor} Anchor
@@ -1309,7 +1314,8 @@ export const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
 /** @param {HTMLElement} part @param {HTMLElement | null} row */
 export function paintedBox(part, row) {
   const box = part.getBoundingClientRect();
-  const target = row && isCarrier(row.parentElement) ? rows.get(row)?.anchor() : null;
+  const options = row && isCarrier(row.parentElement) ? rows.get(row) : null;
+  const target = options && (options.face() ?? options.anchor());
   if (!row || !target?.isConnected || skipped(target)) return box;
   const stands = standsNow(row);
   if (!stands) return box;
@@ -1577,6 +1583,40 @@ function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
 }
+// What the page shows in place of `node` while a closed box hides it (shadow-tree.js,
+// `closedOver`): a closed disclosure's summary, or else the nearest box round the
+// closed one that draws one of its own, as a tab set does round a panel it hasn't
+// chosen. A row stands by it level with its top, since the line and words it would
+// stand by are inside (`face`). None where nothing round the closed box draws, or the
+// page doesn't draw the closed box itself, as under `display: none` or in skipped
+// content off screen, where reading round it would force that content's layout.
+/** @param {Node} node @returns {Element | null} */
+export function closedFaceOver(node) {
+  const closed = closedOver(node);
+  if (!closed) return null;
+  if (closed instanceof HTMLDetailsElement && !untilFound(closed)) {
+    const summary = closed.querySelector(":scope > summary") ?? closed;
+    return drawn(summary) ? summary : null;
+  }
+  if (!drawn(closed)) return null;
+  for (
+    let at = renderedParent(closed);
+    at && at !== pageScroller;
+    at = renderedParent(at)
+  ) {
+    const { width, height } = at.getBoundingClientRect();
+    if (width && height) return at;
+  }
+  return null;
+}
+
+// Whether a row with no face stands where the page doesn't show its target until the
+// target is drawn (`skippedUntilDrawn`) or the closed box round it opens (shadow-tree.js,
+// `closedOver`), which a stylesheet may lay out unseen. Opening the box changes its
+// `hidden` or `open`, which the page's observer hears (`heardPage`).
+/** @param {Element} target */
+const unshown = (target) => skippedUntilDrawn(target) || Boolean(closedOver(target));
+
 // Whether `target` stands in content the browser skips (`skipped`), whose row is
 // withheld until a pass after it is drawn. Revealing a panel or opening a disclosure
 // resizes what holds it, which brings that pass. A box that skips what it holds while
@@ -1759,26 +1799,30 @@ function scheduleStirReading() {
     const documentOnly = boxes.every((box) => box === pageScroller);
     for (const row of documentOnly ? [...withheldRows] : [...rows.keys()]) {
       const options = rows.get(row);
-      const target = options?.anchor();
-      if (!options || !target?.isConnected) continue;
+      const anchored = options?.anchor();
+      if (!options || !anchored?.isConnected) continue;
       const withheld = row.classList.contains("lf-withheld");
-      if (withheld && skippedUntilDrawn(target)) continue;
-      const words = quotedBoxes(options);
-      const start = words.length ? wordsStart(options) : null;
-      // A box inside the target that scrolls a passage's words moves them too.
+      // A box inside the target that scrolls a passage's words moves them too. One
+      // round a face holds the target, so the target answers for a face as well.
+      const from = (options.point() ? null : wordsStart(options)) ?? anchored;
       const moving =
         documentOnly ||
         boxes.some((box) => {
           /** @type {Node | null} */
-          let at = start ?? target;
+          let at = from;
           for (; at; at = renderedParent(at)) if (at === box) return true;
           return false;
         });
       if (!moving) continue;
       if (!withheld && documentOnly) continue;
+      const face = options.face();
+      if (!face && withheld && unshown(anchored)) continue;
+      const target = face ?? anchored;
+      const words = face ? [] : quotedBoxes(options);
+      const start = words.length ? wordsStart(options) : null;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
-      const point = options.point();
+      const point = face ? null : options.point();
       const subject =
         point?.getBoundingClientRect() ??
         words[0] ??
@@ -2025,19 +2069,20 @@ function layoutMountedRows(layer) {
       reads.push(read);
       continue;
     }
-    const target = options.anchor();
-    if (!target?.isConnected) {
+    const anchored = options.anchor();
+    if (!anchored?.isConnected) {
       present.push({ row, at: null });
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
-    // A target in skipped content — a tab not chosen, a closed disclosure, lines out of
-    // view — has nowhere to stand, and every reading below would force that content's
-    // style and layout to say so. Withheld like a target that has gone, it is anchored
-    // by the pass that runs once it is drawn (`skippedUntilDrawn`), and keeps the lane
-    // it stands in meanwhile, so a tab switch does not move the rows of a reading
-    // region's hidden panels between lanes.
-    if (skippedUntilDrawn(target)) {
+    // A row whose threads a closed box hides, such as a closed disclosure or a tab not
+    // chosen, stands by what the page shows for that box (`face`). A target in other
+    // skipped content, such as lines out of view, has nowhere to stand, and every
+    // reading below would force that content's style and layout to say so. Withheld
+    // like a target that has gone, it is anchored by the pass that runs once it is
+    // drawn (`skippedUntilDrawn`), and keeps the lane it stands in meanwhile.
+    const face = options.face();
+    if (!face && unshown(anchored)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;
@@ -2051,15 +2096,21 @@ function layoutMountedRows(layer) {
       });
       continue;
     }
+    const target = face ?? anchored;
     const anchor = targetBox(target);
     anchors.set(row, anchor);
     // Level with the row a gesture pointed into, where the row's comment has one
     // (pointed-place.js), or with the first line of the passage its comments quote;
-    // otherwise level with the target's top.
-    const point = options.point();
-    const words = quotedBoxes(options);
+    // otherwise level with the target's top. A closed box draws neither.
+    const point = face ? null : options.point();
+    const words = face ? [] : quotedBoxes(options);
     const passageNode = words.length ? wordsStart(options) : null;
-    observeGeometry(point ?? target);
+    // A face is watched from the line or words its threads are about, so opening the
+    // box, in a shadow tree too, resizes a box the pass watches.
+    const watched = face
+      ? (options.point() ?? renderedParent(wordsStart(options)))
+      : point;
+    observeGeometry(watched ?? anchored);
     present.push({
       row,
       at: point ?? passageNode ?? target,

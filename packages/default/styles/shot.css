@@ -28,7 +28,7 @@ lf-shot {
 }
 /* Until its module draws, a shot holds the room its first drawing takes, so nothing
    below it moves when the drawing lands: the toolbar, and the stage's padding and
-   gutter around the frame Slider fits (`fitShotGeometry`, shot-view.js). Delivery
+   gutter around the frames its view fits (`fitShotGeometry`, shot-view.js). Delivery
    paints the captures' size on the element (`data-lf-media-width`,
    `data-lf-media-height`), and a frame takes the stage's width at the captures'
    ratio, but never enlarges them past their CSS size (their bitmap's, divided by
@@ -67,13 +67,21 @@ lf-shot {
       margin-block-start: var(--lf-shot-toolbar);
       box-sizing: content-box;
       padding: calc(var(--lf-shot-frame-room) + 1px);
-      aspect-ratio: attr(data-lf-media-width type(<number>)) /
-        attr(data-lf-media-height type(<number>));
+      /* The frame's size in CSS pixels, and the screen's height that the toolbar and
+         the stage's padding leave. */
+      --lf-shot-held-width: calc(
+        attr(data-lf-media-width type(<number>)) / attr(density type(<number>), 1)
+      );
+      --lf-shot-held-height: calc(
+        attr(data-lf-media-height type(<number>)) / attr(density type(<number>), 1)
+      );
+      --lf-shot-held-screen: calc(
+        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room)
+      );
+      aspect-ratio: var(--lf-shot-held-width) / var(--lf-shot-held-height);
       max-block-size: min(
-        attr(data-lf-media-height type(<number>)) / attr(density type(<number>), 1) *
-          1px,
-        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
-          2px
+        var(--lf-shot-held-height) * 1px,
+        var(--lf-shot-held-screen) - 2px
       );
     }
     /* A pair that opens on its focus holds the focus's frame, which `focus-width` and
@@ -81,11 +89,48 @@ lf-shot {
     lf-shot[data-lf-media-width][data-lf-media-height][focus-width][focus-height]:not(
         :defined
       )::before {
-      aspect-ratio: attr(focus-width type(<number>)) / attr(focus-height type(<number>));
-      max-block-size: min(
-        attr(focus-height px),
-        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
-          2px
+      --lf-shot-held-width: attr(focus-width type(<number>));
+      --lf-shot-held-height: attr(focus-height type(<number>));
+    }
+    /* A pair that opens in Pair holds the arrangement Pair fits, whichever draws the
+       captures larger: side by side, each frame in half the width less the gap, which
+       wider inline padding gives the box, or stacked, each frame under its name
+       (`.lf-shot-frame-label`) and both within the screen. A stacked frame is always
+       wider, so stacking wins (`held-stack` is 1) only where the screen lets its frame
+       stand taller than a side-by-side one. That choice reads the shot's width with its
+       gutter, so a classic scrollbar can tip a pair within a gutter of the tie. */
+    lf-shot[view="pair"][data-lf-media-width][data-lf-media-height]:not(
+        :defined
+      )::before {
+      --lf-shot-held-side: min(
+        var(--lf-shot-held-height) * 1px,
+        (100cqi - 2 * var(--lf-shot-frame-room) - 4px - var(--lf-shot-gap)) *
+          var(--lf-shot-held-height) / (2 * var(--lf-shot-held-width))
+      );
+      --lf-shot-held-stacked: min(
+        var(--lf-shot-held-height) * 1px,
+        (var(--lf-shot-held-screen) - var(--lf-shot-gap)) / 2 -
+          var(--lf-shot-label-height) - var(--lf-shot-gap) - 2px
+      );
+      --lf-shot-held-stack: max(
+        0,
+        sign(var(--lf-shot-held-stacked) - var(--lf-shot-held-side))
+      );
+      aspect-ratio: calc(
+          (2 - 1.5 * var(--lf-shot-held-stack)) * var(--lf-shot-held-width)
+        ) /
+        var(--lf-shot-held-height);
+      max-block-size: calc(
+        (1 - var(--lf-shot-held-stack)) * var(--lf-shot-held-height) * 1px + 2 *
+          var(--lf-shot-held-stack) * var(--lf-shot-held-stacked)
+      );
+      padding-block: calc(
+        var(--lf-shot-frame-room) + 1px + var(--lf-shot-held-stack) *
+          (1px + var(--lf-shot-label-height) + 1.5 * var(--lf-shot-gap))
+      );
+      padding-inline: calc(
+        var(--lf-shot-frame-room) + 1px + (1 - var(--lf-shot-held-stack)) *
+          (1px + var(--lf-shot-gap) / 2)
       );
     }
   }

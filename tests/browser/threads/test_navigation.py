@@ -148,10 +148,12 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
             if left in ("passage thread's link", "Show on page")
             else page_root
         )
+        open_panel_thread(page, root)
         if left in ("walk", "Show on page"):
             # From the page's foot, so going to the passage at its top moves the page.
+            # Opening the passage's thread in the panel brought its passage into view.
             page.evaluate("scrollTo({top: 1e6, behavior: 'instant'})")
-        open_panel_thread(page, root)
+            scroll_settled(page)
         thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     if left == "walk":
         page.keyboard.press("Escape")
@@ -160,8 +162,11 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
         destination = card
     elif left == "Show on page":
         page.locator(".lf-fp-head .lf-fp-on-page").click()
-        # A press lands in the card's reply (thread/focus.js, `openingPart`).
-        destination = page.locator(".lf-margin-preview .lf-thread-reply :focus")
+        # A press lands on the card's thread, its reply holding no words
+        # (floating-panel.js, `movedPart`).
+        destination = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+        )
     else:
         link = thread.get_by_role("link", name="the last paragraph")
         link.scroll_into_view_if_needed()

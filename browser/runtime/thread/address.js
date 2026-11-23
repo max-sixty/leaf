@@ -25,7 +25,11 @@
    place in it to the entry's record (history.js). Where the user was in the thread's
    view, the record holds the route's `reader` request for that view, which the claim
    passes on, so a thread about a passage the user read in the floating panel opens
-   there again rather than beside its passage.
+   there again. The user's choice of where threads open (threads-in-panel.js) says
+   where routes open a thread from now on, not which view the user stood in, so Back
+   after Show on page returns them to the panel's view they read the thread in, though
+   Show on page chose cards. Rejected: opening the entry's thread by the choice alone,
+   under which that Back no longer returned the user to the view they had left.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
    focus. Where the browser restored the page's place, as on a reload, the arrival is a

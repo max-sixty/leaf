@@ -31,18 +31,23 @@
 
    The card is a wide window's surface: it stands only on a window with room for the
    rail (content-layout.js, `windowHoldsRail`), whether or not this page's Layout stands
-   one there. On a window with no room for it, as a phone's, no card opens
-   (`showPreview`) and nothing accompanies a target; every route to a thread, a press on
-   its marker included, opens it where a thread the page draws no view of opens
-   (thread/destination.js): the floating panel, which holds a whole thread full-width
-   from the window's foot, its passage quoted at its head and Show on page taking the
-   user to the passage itself. A card open as a narrowing window loses the rail goes
-   there too (`yieldPreview`), and a widening one gives the thread back to a card
-   (destination.js, `returnToPage`). The user chose this over a card
+   one there, and only while the user hasn't chosen the floating panel for threads
+   (thread/threads-in-panel.js). Where it can't stand no card opens (`showPreview`) and
+   nothing accompanies a target, so under that choice an arrival opens no thread by
+   itself, as on a phone; every route to a thread, a press on its marker included,
+   opens it where a thread the page draws no view of opens (thread/destination.js): the
+   floating panel. On a window with no room for the rail, the panel holds a whole thread
+   full-width from the window's foot, its passage quoted at its head and Show on page
+   taking the user to the passage itself. A card open as a narrowing window loses the
+   rail goes there too (`yieldPreview`), and a widening one gives the thread back to a
+   card under the cards choice (destination.js, `returnToPage`). The user chose this
+   over a card
    placed for a narrow window, which stands under or over its words in from the window's
    edge, over a strip of cut-off words and often over the passage itself, and needs
    placement rules of its own. Its cost is that the panel covers most of a phone's
-   window, so the passage shows there only in the quote, until Show on page.
+   window, so the passage shows there only in the quote and in the strip above the
+   panel, where a route that travels brings it (thread/destination.js), until Show on
+   page.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -55,6 +60,7 @@
 
 import { createThreadPreview } from "./thread-preview.js";
 import { windowHoldsRail } from "../content-layout.js";
+import { threadsInPanel } from "../thread/threads-in-panel.js";
 
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
@@ -1620,7 +1626,7 @@ export function createMarginProjection({
     threadItem = null,
     { origin = null, accompanies = false, forced = false } = {},
   ) {
-    if (designModeActive() || !windowHoldsRail()) return null;
+    if (designModeActive() || !windowHoldsRail() || threadsInPanel()) return null;
     const previous = card.selection();
     const disclosed =
       (previous?.disclosed && previous.entry.key === entry.key) ||
@@ -1647,8 +1653,9 @@ export function createMarginProjection({
   }
 
   // A press on a marker opens its card, or puts away the card it already shows. Where
-  // no card stands, as on a window with no room for the rail (header), the thread opens
-  // where every other route opens it (thread/destination.js): the floating panel. Either
+  // no card stands, as on a window with no room for the rail or once the user has chosen
+  // the panel for threads (header), the thread opens where every other route opens it
+  // (thread/destination.js): the floating panel. Either
   // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
   // A marker may stand for its thread's part rather than by it: by what a widget gives
   // in place of a part it hasn't drawn (anchor-resolution.js, `standsIn`), or by a

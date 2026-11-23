@@ -114,6 +114,7 @@ import {
   ANNOTATIONS_TOGGLE,
   restoreAnnotations,
 } from "./runtime/annotation-layer.js";
+import { restoreThreadsInPanel } from "./runtime/thread/threads-in-panel.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
 import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
@@ -526,7 +527,6 @@ async function boot() {
 
   floatingPanel = createFloatingPanel({
     wireInput: inputs.wireInput,
-    prepareNavigationStep: anchorTravel.prepareNavigationStep,
     observeFeedback: app.read.observeFeedback,
     threadActions: app.threadActions,
     registerChromeThreadPresentation: app.registerChromeThreadPresentation,
@@ -835,6 +835,7 @@ async function boot() {
   if (!offlineInteractive) {
     restoreUserView({ setDesignMode: designMode.setActive });
     restoreAnnotations();
+    restoreThreadsInPanel();
     // A page nobody has used starts Tab at the first control. Inputs before the
     // module graph arrived already gave this document a place to keep.
     recoverComposer.handoff(releaseFocus);

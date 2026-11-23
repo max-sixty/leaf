@@ -10,7 +10,7 @@ from browser.controls import (
     RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
 )
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
@@ -580,7 +580,9 @@ RING_SCOPE_THREAD = {
 
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
-    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded."""
+    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded, with
+    the panel chosen for threads about a passage."""
+    choose_threads_in_panel(page)
     show_resolved(page)
     keys = page.locator(".lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.lfKey)"

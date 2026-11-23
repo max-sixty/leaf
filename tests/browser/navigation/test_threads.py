@@ -220,7 +220,8 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
 
     The source message's caret must not remain the thread walk's starting point.
     Pointer and native keyboard links share that arrival with Go-to hints, from either
-    thread surface.
+    thread surface. The walk goes on in the place the user chose for threads: a card
+    after a thread read in its card, and the panel once they chose the panel.
     """
     url = serve(
         leaf_page(
@@ -299,7 +300,9 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     expect(page.locator("#arrival")).to_be_focused()
     page.keyboard.press("t")
     next_thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
+        f'{PANEL_THREAD}[data-lf-thread="{roots[2]}"]'
+        if surface == "panel"
+        else f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
     )
     expect(next_thread).to_be_focused()
 
@@ -826,11 +829,11 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
 
 def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     """A walk shows the thread it lands on and no other, so `c` and the walk's position
-    have one thread to mean. From a thread open in the panel, `t` to a thread about a
-    passage opens its card and puts the panel's view away; from that card, `t` to a
-    thread about the whole page opens it in the panel and closes the card. Were both to
-    stay open, the panel would say "Thread 2 of 2" under the thread the user had
-    left."""
+    have one thread to mean. From the thread about the whole page, open in the panel,
+    `t` to a thread about a passage opens its card and puts the panel's view away; from
+    a card, `t` to the thread about the whole page opens it in the panel and closes the
+    card. Were both to stay open, the panel would say "Thread 2 of 2" under the thread
+    the user had left."""
     url = serve(INLINE_PAGE)
     first = panel_comment(
         serve.page_dir, "About the bold text.", {"section": "p", "quote": "bold text"}
@@ -842,16 +845,20 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     )
     general = panel_comment(serve.page_dir, "About the whole page.")
     page = open_page(browser, url)
-    view = open_panel_thread(page, first)
+    view = open_panel_thread(page, general)
     # The caret leaves the reply for the view, where the thread's keys answer.
     page.keyboard.press("Escape")
     expect(view).to_be_focused()
 
+    # The thread about the whole page stands after every passage's, so `t` comes round
+    # to the first.
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{first}"]')).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
+    page.keyboard.press("t")
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
     page.keyboard.press("t")
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{general}"]')).to_be_focused()
     expect(card).to_be_hidden()

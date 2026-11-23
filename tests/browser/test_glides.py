@@ -153,3 +153,61 @@ def test_a_second_landing_takes_the_glide_the_first_set_off(request, serve, engi
         }"""
     )
     assert landed["still"] == landed["at"], landed
+
+
+@pytest.mark.parametrize(
+    ("grown", "style"),
+    [
+        ("below", "height: 190px"),
+        ("down", "padding-bottom: 80px"),
+        # Undrawn for the glide's first frames, as content grows above it.
+        ("down", "display: none"),
+    ],
+    ids=["above-subject", "subject", "hidden"],
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_s_room_made_past_a_landing_holds_as_layout_moves_its_subject(
+    request, serve, engine, grown, style
+):
+    """A press that lands a heading at the window's centre and opens a card 420px tall
+    under it glides to where the card fits under the heading, though content above the
+    heading, or the heading itself, then grows as the page glides (comment-placement.js,
+    `makeRoom`), or the heading is briefly not drawn."""
+    page = open_page(request.getfixturevalue(engine), serve(PAGE))
+    page.set_viewport_size({"width": 1000, "height": 700})
+    page.evaluate(
+        """async ([grown, style]) => {
+          const { scrollIntoView } = await window.__lfWidgetApi();
+          const { makeRoom, subjectGap } = await window.__lfOverlayApi();
+          const subject = document.getElementById('down');
+          const room = { left: 8, top: 8, right: 8, bottom: 8 };
+          window.boundary = () => ({ top: 0, bottom: innerHeight, height: innerHeight });
+          window.left = () => {
+            const { bottom } = subject.getBoundingClientRect();
+            return boundary().bottom - bottom - subjectGap(room, 'bottom') - 420;
+          };
+          document.getElementById('press').addEventListener('click', () => {
+            scrollIntoView(subject, { block: 'center', behavior: 'smooth' });
+            const read = () => {
+              const clear = subject.getBoundingClientRect();
+              return subject.checkVisibility()
+                ? { clear, extent: clear, room, element: subject }
+                : null;
+            };
+            makeRoom('bottom', read, 420, boundary(), document.scrollingElement);
+            document.getElementById(grown).style.cssText += style;
+            if (style === 'display: none')
+              document.getElementById('below').style.height = '190px';
+          });
+        }""",
+        [grown, style],
+    )
+    page.locator("#start").scroll_into_view_if_needed()
+    scroll_settled(page)
+    with held_frames(page) as step:
+        page.locator("#press").click()
+        step(3)
+        page.evaluate("document.getElementById('down').style.display = ''")
+        step(9)
+    scroll_settled(page)
+    assert page.evaluate("left()") == pytest.approx(0, abs=1)

@@ -149,17 +149,16 @@ import {
   visualViewport,
   shownExtent,
   shownParts,
-  shownBox,
   shownRect,
   shownRectHeld,
 } from "../geometry.js";
 import { markRoom } from "../mark-room.js";
 import { clamp, union } from "../rect.js";
 import {
-  glideTo,
+  glideBy,
+  gliding,
   moveScrollerBy,
   pageScroller,
-  scrollGoal,
   scrollStarts,
   whereGlidesLand,
 } from "../scrolling.js";
@@ -196,6 +195,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
  * middleware: import("@floating-ui/dom").Middleware[],
  * plane: (answer: Position) => "page" | "window" | Element}} PlacementOptions */
 /** @typedef {import("../mark-room.js").MarkRoom} MarkRoom */
+/** @typedef {{element: Element, clear: Extent, extent: Extent, room: MarkRoom}} Clearance */
 /** @typedef {{element: Element, contextNode: Node,
  * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent, room: MarkRoom,
  * row: number, lastRow: number, column: number | null,
@@ -203,6 +203,27 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{target: Element | null, point?: Element | null,
  * passage?: {range?: Range, contextNode?: Node | null, attachment?: Extent | null} | null,
  * boundary?: ReturnType<typeof commentBoundary> | null}} AttachmentRequest */
+// What a surface attached to `target`, or to the row `point` names in it, stands clear
+// of (`clear`) and beside (`extent`), read where the page stands; null where the target
+// isn't drawn. A surface making its room reads this alone (`makeRoom`).
+/** @param {Element} target @param {Element | null} [point] @returns {Clearance | null} */
+export function attachmentClearance(target, point = null) {
+  if (!visibleTargetParts(target).length) return null;
+  const clips = new Map();
+  const shown = union(
+    shownParts(target)
+      .map(/** @param {Element} part */ (part) => shownRect(part, clips))
+      .filter((box) => box !== null),
+  );
+  const whole = shownExtent(target) ?? target.getBoundingClientRect();
+  const extent = point ? pointBand(whole, point) : whole;
+  return {
+    element: point ?? target,
+    clear: point ? extent : (shown ?? whole),
+    extent,
+    room: markRoom(target, whole, COMMENT_GAP),
+  };
+}
 /** @overload @param {AttachmentRequest & {target: null}} options @returns {Attachment} */
 /** @overload @param {AttachmentRequest & {target: Element}} options @returns {(Attachment & {clear: Extent}) | null} */
 /** @overload @param {AttachmentRequest} options @returns {Attachment | null} */
@@ -236,31 +257,18 @@ export function commentAttachment({
   // returns; an explicit Resume can request the window posture above without changing
   // that target. A drawn target may have a zero-area box, as an SVG line does, and
   // still supplies the geometry fallback below.
-  if (!visibleTargetParts(target).length) return null;
-  const margin = marginSpot(target, point, passage?.range);
+  const near = attachmentClearance(target, point);
+  if (!near) return null;
+  const { element, extent } = near;
   const context = point ?? passage?.contextNode ?? target;
-  const element = point ?? target;
-  const geometry = floatingGeometry([element, context]);
-  const clips = new Map();
-  const shown = union(
-    shownParts(target)
-      .map(/** @param {Element} part */ (part) => shownRect(part, clips))
-      .filter((box) => box !== null),
-  );
-  const whole = shownExtent(target) ?? target.getBoundingClientRect();
-  const extent = point ? pointBand(whole, point) : whole;
-  const clear = point ? extent : (shown ?? whole);
   return {
-    element,
+    ...near,
     contextNode: context,
-    geometry,
-    clear,
-    extent,
-    room: markRoom(target, whole, COMMENT_GAP),
+    geometry: floatingGeometry([element, context]),
     row: (passage?.attachment ?? extent).top,
     lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
-    margin,
+    margin: marginSpot(target, point, passage?.range),
     scroller: scrollerFor(element),
   };
 }
@@ -382,13 +390,6 @@ const sameBoundary = (a, b) =>
 /** @param {Side | null} side */
 const vertical = (side) => side === "top" || side === "bottom";
 
-// How far the glide under way in `scroller` will still carry `element` down the window,
-// and what `read` returns read where it lands (scrolling.js, `whereGlidesLand`).
-/** @template T @param {Element} scroller @param {Element} element @param {(ahead: number) => T} read @returns {T} */
-function whereLanded(scroller, element, read) {
-  const stood = shownBox(element).top;
-  return whereGlidesLand([scroller], () => read(shownBox(element).top - stood));
-}
 // How far, in viewport pixels, scrolling `scroller` toward the end that brings room in
 // on `side` carries `element` before it first stops riding (geometry.js, `carried`).
 // The browser scrolls in local CSS pixels, which the scroller's transformed axis
@@ -426,49 +427,49 @@ function reachableRoom(side, extent, room, boundary, scroller, element) {
   };
 }
 
-// Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
-// under or over it, as far as the scroller travels; whether it moved. Where `extent`
-// and this surface cannot show together, no scroll makes that room. The boundary
-// then holds the surface over its subject instead of scrolling the subject away. The
-// room is read where the scroller is headed (`whereLanded`), as a key pressed while the
-// page glides acts as though the glide had landed, and a glide under way takes the move
-// into its goal (`glideTo`), so the page lands once, with the room made. The move
-// carries `clear` only until `element`, the subject `clear` is a box of, first stops
-// riding it (geometry.js, `carried`), so a subject in a sticky box the scroll can't
+// Scrolls `scroller` to make the room a surface `height` tall needs on `side` of what it
+// is about, under or over it, as far as the scroller travels; whether it asked for a
+// move. `read` reads what the surface stands clear of (`attachmentClearance`) where the
+// page stands: null while its subject isn't drawn, and false once the surface has
+// closed. Where the subject's `extent` and this surface cannot show together, no scroll
+// makes that room. The boundary then holds the
+// surface over its subject instead of scrolling the subject away. The room is read where
+// the scroller is headed (scrolling.js, `whereGlidesLand`), as a key pressed while the
+// page glides acts as though the glide had landed. A glide under way takes the room
+// into its goal and reads it again at each frame, though the room asks for no move yet
+// (scrolling.js, `glideBy`), so the page lands once, with the room made, wherever layout
+// moves the subject meanwhile. The move carries `clear` only until its `element` first
+// stops riding it (geometry.js, `carried`), so a subject in a sticky box the scroll can't
 // carry asks for no move.
-/** @param {"top" | "bottom"} side @param {Extent} clear @param {Extent} extent @param {MarkRoom} room @param {number} height @param {Boundary} boundary @param {Element} scroller @param {Element} element */
-export function makeRoom(
-  side,
-  clear,
-  extent,
-  room,
-  height,
-  boundary,
-  scroller,
-  element,
-) {
-  const gap = subjectGap(room, side);
-  if (extent.height + gap + height > boundary.height) return false;
-  const projection = scrollAxes(scroller).y.y;
-  if (!projection) return false;
-  const goal = scrollGoal(scroller);
-  const by = whereLanded(scroller, element, (ahead) => {
+/** @param {"top" | "bottom"} side @param {() => Clearance | null | false} read @param {number} height @param {Boundary} boundary @param {Element} scroller */
+export function makeRoom(side, read, height, boundary, scroller) {
+  // The move left to make, read with the scroller where it stands.
+  const further = () => {
+    const near = read();
+    if (near === false) return null;
+    if (!near) return 0;
+    const { clear, extent, room, element } = near;
+    const gap = subjectGap(room, side);
+    const projection = scrollAxes(scroller).y.y;
+    if (!projection || extent.height + gap + height > boundary.height) return 0;
     const overflow =
       side === "top"
-        ? boundary.top - (clear.top + ahead - gap - height)
-        : clear.bottom + ahead + gap + height - boundary.bottom;
+        ? boundary.top - (clear.top - gap - height)
+        : clear.bottom + gap + height - boundary.bottom;
     if (overflow <= 0.5) return 0;
     return carried(
       element,
       scroller,
       ((side === "top" ? -1 : 1) * overflow) / projection,
     );
-  });
-  if (Math.abs(by * projection) <= 0.5) return false;
-  if (goal !== scroller.scrollTop) {
-    glideTo(scroller, goal + by);
-    return true;
+  };
+  const by = whereGlidesLand([scroller], further) ?? 0;
+  const asks = Math.abs(by * scrollAxes(scroller).y.y) > 0.5;
+  if (gliding(scroller)) {
+    glideBy(scroller, further);
+    return asks;
   }
+  if (!asks) return false;
   const before = scroller.scrollTop;
   moveScrollerBy(scroller, by);
   return scroller.scrollTop !== before;

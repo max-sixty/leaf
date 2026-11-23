@@ -111,12 +111,11 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  glideTo,
+  glideBy,
   SCROLL_SLACK,
   scrollGoal,
   scrollLimit,
   scrollToEnd,
-  whereGlidesLand,
 } from "../scrolling.js";
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
@@ -1079,17 +1078,19 @@ export class ThreadView {
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
       // reply's ground, its head first where it is taller than that, read where the
-      // box is headed, New reply stuck at its foot (scrolling.js, `whereGlidesLand`),
-      // through the box's transforms. The box glides there, as it glides to the end.
-      const scale = scrollAxes(scroller).y.y;
-      const by = whereGlidesLand([scroller], () => {
+      // box is headed, New reply stuck at its foot, through the box's transforms. The
+      // box glides there, as it glides to the end, and reads the turn again at each
+      // frame (scrolling.js, `glideBy`), so a transcript that changes above the turn
+      // meanwhile still leaves it in sight.
+      glideBy(scroller, () => {
+        if (!turn.isConnected) return null;
+        const scale = scrollAxes(scroller).y.y;
         const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
         const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
         return scale
           ? carried(turn, scroller, Math.min(Math.max(below, 0), from()) / scale)
           : 0;
       });
-      glideTo(scroller, stood + by);
     });
   }
 

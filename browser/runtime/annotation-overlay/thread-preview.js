@@ -180,6 +180,7 @@ import {
   cardMeasure,
   cardMinimum,
   COMMENT_GAP,
+  attachmentClearance,
   commentAttachment,
   commentReference,
   commentBoundary,
@@ -753,19 +754,16 @@ export function createThreadPreview({
     const target = targetFor(session.entry);
     const point = entryPoint(session.entry);
     if (!target) {
-      const cluster = threadCardCluster(session, control);
-      const box = cluster.getBoundingClientRect();
+      const near = clusterClearance(threadCardCluster(session, control));
+      const { element: cluster, extent } = near;
       return {
         element: cluster,
         place: {
-          element: cluster,
+          ...near,
           contextNode: cluster,
           geometry: floatingGeometry([cluster]),
-          clear: box,
-          extent: box,
-          room: markRoom(cluster, box, COMMENT_GAP),
-          row: box.top,
-          lastRow: box.top,
+          row: extent.top,
+          lastRow: extent.top,
           column: null,
           margin: null,
           scroller: scrollerFor(cluster),
@@ -779,6 +777,26 @@ export function createThreadPreview({
     // Floating UI follows the scrollers around what the card stands by, so a card on a
     // row deep in a target follows the box that scrolls that row, not only the target's.
     return { element: place?.element ?? target, place };
+  }
+  // What the card stands clear of, as `threadCardPlace` reads it, without the lines and
+  // rows it hangs from: what making its room reads at each frame of a glide
+  // (comment-placement.js, `makeRoom`).
+  /** @param {Session} session @param {Element} control */
+  function threadCardClearance(session, control) {
+    const target = targetFor(session.entry);
+    return target
+      ? attachmentClearance(target, entryPoint(session.entry))
+      : clusterClearance(threadCardCluster(session, control));
+  }
+  /** @param {Element} cluster */
+  function clusterClearance(cluster) {
+    const box = cluster.getBoundingClientRect();
+    return {
+      element: cluster,
+      clear: box,
+      extent: box,
+      room: markRoom(cluster, box, COMMENT_GAP),
+    };
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Feed the shared placement policy the current conversation and native draft;
@@ -943,13 +961,11 @@ export function createThreadPreview({
               (side === "top" || side === "bottom") &&
               makeRoom(
                 side,
-                place.clear,
-                place.extent,
-                place.room,
+                () =>
+                  previewSession === session && threadCardClearance(session, control),
                 fitted,
                 boundary,
                 scroller,
-                place.element,
               )
             ) {
               session.side.scrolled();

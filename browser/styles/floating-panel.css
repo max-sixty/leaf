@@ -1300,8 +1300,7 @@
   .lf-fp-view .lf-awaited {
     --lf-awaited-ground: var(--lf-fp-surface);
     bottom: calc(-1 * var(--lf-fp-view-pad-end));
-    margin-inline: calc(-1 * var(--lf-fp-text-edge))
-      calc(-1 * (var(--lf-thread-pad) + var(--lf-fp-transcript-room)));
+    margin-inline: calc(-1 * var(--lf-fp-text-edge)) calc(-1 * var(--lf-thread-pad));
     margin-block-end: calc(
       -1 * (var(--lf-fp-view-pad-end) + var(--lf-fp-transcript-end))
     );

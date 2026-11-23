@@ -230,7 +230,6 @@
     align-self: stretch;
     justify-content: flex-start;
     padding-inline: calc(var(--lf-thread-text-inset) - 1px + var(--lf-thread-frame));
-    border-radius: var(--lf-r-l);
     font: var(--lf-font-message);
     cursor: text;
   }

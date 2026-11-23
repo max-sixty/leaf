@@ -1594,6 +1594,12 @@ wa-copy-button.lf-icon-action {
 .lf-response-face[aria-pressed]:where(:not([aria-pressed="true"])) {
   background: var(--lf-card);
 }
+/* The comment box's face while the box rests (`data-lf-rest`; composing/surface.js,
+   `restFab`) wears the corner of the card the box becomes, as the open box's field
+   does (annotation-chrome.css). */
+[data-lf-rest] > .lf-response-face {
+  border-radius: var(--lf-r-l);
+}
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`data-lf-corner`, below), as the floating panel's fold, an attachment's
    removal and a drawing's Undo last stroke do, or stands in a toolbar inside its

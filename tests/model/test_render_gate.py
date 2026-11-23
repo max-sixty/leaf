@@ -463,6 +463,17 @@ def test_a_failed_request_names_the_document_that_made_it_without_its_marks():
     ]
 
 
+def test_a_marked_address_reads_as_the_address_the_bootstrap_leaves():
+    """The bootstrap rewrites the address with `URLSearchParams`, so a failure that
+    arrives before the rewrite names the same address as one that arrives after."""
+    from leaf.render_gate.page_code import frame_address
+
+    marked = "http://leaf.test/v1.html?q=~*%20+a!%27()%C3%A9&t=key&_leaf-recovered#f"
+    rewritten = "http://leaf.test/v1.html?q=%7E*++a%21%27%28%29%C3%A9#f"
+    assert frame_address(marked) == rewritten
+    assert frame_address(rewritten) == rewritten
+
+
 def test_the_address_marks_are_the_ones_the_bootstrap_takes_off():
     from leaf.schema import ASSETS
 

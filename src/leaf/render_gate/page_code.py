@@ -41,7 +41,7 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
 
 import turbohtml
 
@@ -233,13 +233,24 @@ def frame_address(url: str) -> str:
     """A document's address as the user sees it: without the marks the bootstrap takes
     off the address bar as the document starts (`ADDRESS_MARKS`). A request can fail
     before that rewrite reaches this process, and the same document stays named the
-    same whichever comes first."""
+    same whichever comes first, so the query left is spelled as the bootstrap's
+    `URLSearchParams` spells it."""
     parts = urlsplit(url)
     pairs = parse_qsl(parts.query, keep_blank_values=True)
     if not any(name in ADDRESS_MARKS for name, _ in pairs):
         return url
-    kept = [(name, value) for name, value in pairs if name not in ADDRESS_MARKS]
-    return urlunsplit(parts._replace(query=urlencode(kept)))
+    query = "&".join(
+        f"{_form_encoded(name)}={_form_encoded(value)}"
+        for name, value in pairs
+        if name not in ADDRESS_MARKS
+    )
+    return urlunsplit(parts._replace(query=query))
+
+
+def _form_encoded(text: str) -> str:
+    """`text` as the WHATWG form serializer writes it, which keeps only ASCII
+    alphanumerics and `*-._`, where Python's quoting also keeps `~` and drops `*`."""
+    return quote_plus(text, safe="*").replace("~", "%7E")
 
 
 def run_page_code(browser, url: str) -> list[Finding]:

@@ -19,7 +19,7 @@
    out as a scroll write lands, and costs a write and a write back for each box a glide
    moves, whose events fold into those the glide sends every frame. */
 import { inputs } from "./inputs.js";
-import { isElement, renderedParent, renderedUnder } from "./shadow-tree.js";
+import { isElement, renderedParent } from "./shadow-tree.js";
 import { anchorHolder, anchorNamed } from "./css-anchors.js";
 import { scrollAxes } from "./element-axes.js";
 import {
@@ -35,6 +35,7 @@ import {
   whereGlidesLand,
 } from "./scrolling.js";
 import {
+  clippedPlace,
   fixedInWindow,
   inFront,
   placeBox,
@@ -189,12 +190,15 @@ export const holderOf = (node) =>
 // read by how far its glides move the element its boxes carry, less how far they move
 // the fixed box ending it, which takes a scroll only at the next frame in Chromium and
 // may take it at once elsewhere. A vector in client pixels, with the outermost box
-// whose glide carries it; null where none does. An element's own scroll moves what it
-// holds and not its box: `heldTravel` asks for what it holds, which rides its own glide
-// whole, through its transforms (element-axes.js, `scrollAxes`). A scroll the browser
-// runs, as a wheel's, has no goal Leaf knows, so it adds nothing. Where a box Leaf
-// anchors will stand also depends on its placement, which solves again after a scroll
-// (floating.js), and this reads only the scrolls.
+// that glides, whatever the vector, since glides that carry a node nowhere can still
+// move what clips it; null where no glide carries it. Where glides past a fixed box
+// Leaf anchors carry it, `held` names that box and how far the glides inside it carry
+// the node within it. An element's own scroll moves what it holds and not its box:
+// `heldTravel` asks for what it holds, which rides its own glide whole, through its
+// transforms (element-axes.js, `scrollAxes`). A scroll the browser runs, as a wheel's,
+// has no goal Leaf knows, so it adds nothing. Where a box Leaf anchors will stand also
+// depends on its placement, which solves again after a scroll (floating.js), and this
+// reads only the scrolls.
 /** @param {Element | Range | Anchor} node */
 export const glideTravel = (node) =>
   travelFrom(
@@ -213,37 +217,35 @@ function travelFrom(holder, own) {
     .filter((box) => box !== own && scrollGoal(box) !== box.scrollTop);
   const outer = gliding.at(-1);
   if (!holder || !outer) return null;
-  /** @returns {{x: number, y: number}} */
-  const travel = () => {
-    let x = 0;
-    let y = 0;
-    for (const { base, fixed } of parts) {
+  // Where each part's element stands in the fixed box ending the part, if any.
+  const stand = () =>
+    parts.map(({ base, fixed }) => {
       const at = shownBox(base);
-      x += at.left;
-      y += at.top;
-      if (!fixed) continue;
-      const held = shownBox(fixed);
-      x -= held.left;
-      y -= held.top;
-    }
-    return { x, y };
-  };
-  const from = travel();
-  const to = whereGlidesLand(gliding, travel);
-  let x = to.x - from.x;
-  let y = to.y - from.y;
+      const frame = fixed ? shownBox(fixed) : { left: 0, top: 0 };
+      return { x: at.left - frame.left, y: at.top - frame.top };
+    });
+  const from = stand();
+  const moves = whereGlidesLand(gliding, stand).map((to, at) => ({
+    x: to.x - (from[at]?.x ?? 0),
+    y: to.y - (from[at]?.y ?? 0),
+  }));
+  const [inside = { x: 0, y: 0 }] = moves;
   if (holder === parts[0]?.boxes[0] && holder !== own) {
     const axis = scrollAxes(holder).y;
     const by = scrollGoal(holder) - holder.scrollTop;
-    x -= by * axis.x;
-    y -= by * axis.y;
+    inside.x -= by * axis.x;
+    inside.y -= by * axis.y;
   }
-  // Whether a glide past a fixed box Leaf anchors carries it, which no reading of this
-  // frame shows.
+  const fixed = parts[0]?.fixed;
   const anchored = parts
     .slice(1)
     .some(({ boxes }) => boxes.some((box) => gliding.includes(box)));
-  return Math.abs(x) < 0.5 && Math.abs(y) < 0.5 ? null : { x, y, outer, anchored };
+  return {
+    x: moves.reduce((sum, move) => sum + move.x, 0),
+    y: moves.reduce((sum, move) => sum + move.y, 0),
+    outer,
+    held: fixed && anchored ? { fixed, ...inside } : null,
+  };
 }
 
 // How far `node`'s box stands outside the part of the window the page shows
@@ -270,20 +272,28 @@ export function glideGap(node) {
 // chrome's covers included, as they stand once the glides land (geometry.js,
 // `seenRect`; scrolling.js, `whereGlidesLand`), or null where none of it is seen
 // there. So an inner glide that brings a node into its box's view while an outer glide
-// brings that box into the window shows the node, which the box's clip as it stands now
-// would hide. A box Leaf anchors takes its anchor's glide only at the next frame
-// (`anchored`), and stands in no box that glide moves, so the window alone cuts it
-// there (`inFront`). `rest` reads the covers where they come to rest too (geometry.js,
-// `seenRect`).
-/** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, outer: Element, anchored?: boolean}} travel @param {boolean} [rest] */
+// brings that box into the window shows the node, which the box's clip as it stood
+// would hide. A box Leaf anchors takes its anchor's glides only at the next frame
+// (`held`): the node is cut by the clips inside that box where the glides inside it
+// leave it, and the box then rides its anchor's glides, which the window and the
+// chrome's covers alone cut there (`inFront`). `rest` reads the covers where they come
+// to rest too (geometry.js, `seenRect`).
+/** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, held?: {fixed: Element, x: number, y: number} | null}} travel @param {boolean} [rest] */
 export function seenGlided(node, box, travel, rest = false) {
   const holder = placeHolder(node);
   if (!holder) return null;
-  const moved = shifted(box, travel.x, travel.y);
-  if (travel.anchored || !renderedUnder(holder, travel.outer))
-    return inFront(moved, holder, rest);
-  return whereGlidesLand(scrollersOf(holder), () =>
-    seenRect(node, new Map(), moved, rest),
+  const { held } = travel;
+  if (!held)
+    return whereGlidesLand(scrollersOf(holder), () =>
+      seenRect(node, new Map(), shifted(box, travel.x, travel.y), rest),
+    );
+  const stop = renderedParent(held.fixed) ?? undefined;
+  const inside = whereGlidesLand(scrollersOf(holder), () =>
+    clippedPlace(node, new Map(), shifted(box, held.x, held.y), stop),
+  );
+  return (
+    inside &&
+    inFront(shifted(inside, travel.x - held.x, travel.y - held.y), holder, rest)
   );
 }
 

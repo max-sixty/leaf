@@ -652,13 +652,19 @@ export function carried(node, box, by) {
     if (lines?.scroller !== box) continue;
     const { band, padTop, padBottom } = lines;
     const { top, bottom } = el.getBoundingClientRect();
+    // How far the box's local top and foot stand from the band's, which a flipped
+    // scroller draws at the other edge of the window.
+    const [start, end] =
+      scale > 0
+        ? [top - band.top, band.bottom - bottom]
+        : [band.bottom - bottom, top - band.top];
     // How far the box stands inside each line, and so how far the scroll carries it
     // toward that line before it reaches it: up to a unit below zero where the box is
     // on the line, further below where the scroll carries it away from the line, and
     // NaN on a side it doesn't stick to.
-    const below = (top - band.top) / scale - padTop - Number.parseFloat(style.top);
-    const above =
-      (band.bottom - bottom) / scale - padBottom - Number.parseFloat(style.bottom);
+    const size = Math.abs(scale);
+    const below = start / size - padTop - Number.parseFloat(style.top);
+    const above = end / size - padBottom - Number.parseFloat(style.bottom);
     for (const short of [way * below, -way * above])
       if (short >= -1) ride = way * Math.min(way * ride, Math.max(0, short));
   }

@@ -75,7 +75,7 @@ Keep a widget simple: show the evidence and actions the reader needs, since ever
 control competes with them. Add an optional control when a caller needs it, and let
 the page's author turn it on. Use the theme's tokens and shared control styles before
 writing widget CSS, build each press by its role so it wears Leaf's face
-(`module-authoring.md`, "Generated controls"), and reuse Leaf's thread symbol, comment
+(`module-controls.md`), and reuse Leaf's thread symbol, comment
 box and keyboard hints (`module-input.md`, "Commands and keyboard routes", and
 `module-annotations.md`, "Widget-local Thread placement").
 
@@ -282,8 +282,7 @@ nested widgets in authored order, so users can quote those words; the render che
 refuses a page where they changed. Declare it on a wrapper round authored content, and
 leave it off a widget whose module rewrites or reorders what it holds. Whatever the
 module adds to a verbatim widget stands inside a box it built with `offer`, with no
-words marked `says: true`, which would make them the page's (`module-authoring.md`,
-"Generated controls").
+words marked `says: true`, which would make them the page's (`module-controls.md`).
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

@@ -41,8 +41,9 @@
  * (`alreadyShown`), so one that follows the user, a Tab's arrival, entering a reply or
  * returning to a thread, and one that takes them somewhere, travel and the walks, ask
  * one question. It is shown where a nearest landing would move nothing: the user sees
- * it (geometry.js, `seenRect`, which takes away the box the chrome covers, so a control
- * beside the floating panel stays put), out to its ring's room where the user is on or
+ * it (geometry.js, `seenRect`, which takes away the box the chrome covers where its
+ * motion leaves it, so a control beside the floating panel stays put, and one a view of
+ * the panel is opening over is not shown), out to its ring's room where the user is on or
  * inside it (see below), as far as the boxes between it and its reading region let that
  * room show (`landable`), along each axis where it fits its room; and where it is taller
  * than its room, a nearest landing's own moves bring no more of it in, so a box taller
@@ -348,7 +349,9 @@ export function alreadyShown(
   const shown = shownFor(where);
   const box = destinationBox(where);
   const out = on ? marginBox(where, box) : box;
-  const seen = seenRect(shown, new Map(), out);
+  // Past the chrome's covers where their motion leaves them, against which a landing
+  // places the box, so one a view is opening over counts as covered.
+  const seen = seenRect(shown, new Map(), out, true);
   if (!seen) return false;
   const room = landingRoom(where);
   const want = landable(shown, out);

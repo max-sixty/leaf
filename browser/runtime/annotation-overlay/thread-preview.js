@@ -197,6 +197,7 @@ import { retainUserIntent } from "../user-intent.js";
 import { openingPart, threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies, pruneThreadSeat } from "../thread/inline.js";
 import { dismissReply, releaseReplies, replyIsEditing } from "../thread/replies.js";
+import { IN_PANEL } from "../thread/threads-in-panel.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
 import { errorOver } from "../errors.js";
 
@@ -280,14 +281,18 @@ export function createThreadPreview({
   });
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
-  // reads a long thread wider than the card's room beside the column. The card closes,
-  // so one thread stands open, and the view's Show on page comes back.
+  // reads a long thread wider than the card's room beside the column, and chooses the
+  // panel for the threads after it (floating-panel.js, `openThread`), which its
+  // preview says. The card closes, so one thread stands open, and the view's Show on page comes
+  // back. It is the card's press that moves its thread (`lf-thread-move`,
+  // thread/selectors.js), which `p` presses (thread/landing.js).
   const previewOpenInPanel = offerAction(
     "symbol",
-    "lf-margin-preview-expand",
-    "Open in panel",
-    { action: "expand" },
+    "lf-margin-preview-expand lf-thread-move",
+    undefined,
+    { action: "open-in-panel" },
   );
+  previewOpenInPanel.lfPreview = () => ({ detail: [`${IN_PANEL} from now on`] });
   // The card's head line: the thread's notice of held news and Next unread, Previous and
   // Next, Open in panel, the thread's Resolve or Reopen, and Close. It stands in the
   // thread, over its first message's head, whose track it shares (annotation-chrome.css),
@@ -1252,9 +1257,6 @@ export function createThreadPreview({
       // Whether the reader stands at the end the transcript's keeper follows
       // (scrolling.js, `followEnd`).
       standsAtEnd: () => Boolean(session.end?.standsAtEnd()),
-      // The card stands for the thread on the page, where taking back a settlement made
-      // in it opens the thread again.
-      reader: "page",
       // Resolve stands the user on the thread that took the resolved one's place in the
       // card (`buildThreadCard`), or, where the passage held no other, on the target
       // the closed card stood by, since a resolved thread has no margin card (header).
@@ -1499,6 +1501,12 @@ export function createThreadPreview({
   return {
     element: preview,
     isOpen: previewOpen,
+    // The thread the open card shows, read through the card's revision, which the
+    // entry's thread address follows (thread/address.js).
+    shownThread: () => {
+      void cardRevision.value;
+      return previewSession?.item.thread.id ?? null;
+    },
     selection,
     show,
     refresh,

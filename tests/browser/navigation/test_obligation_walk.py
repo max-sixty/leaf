@@ -19,6 +19,7 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
+    LONG_PAGE,
     RELEASE_FOCUS,
     expect_obligations_answered,
     held_frames,
@@ -40,6 +41,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
+from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
@@ -1863,3 +1865,56 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     assert ring["offset"] > 0, ring
     assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring
     assert ring["ring"]["left"] + ring["width"] < workspace["words"], (ring, workspace)
+
+
+@pytest.mark.parametrize("where", ["margin", "panel"])
+def test_an_m_walk_between_thread_asks_is_a_back_step_naming_the_thread_it_left(
+    browser, serve, where
+):
+    """`m` from the question one thread asks to the one another asks is a Back step,
+    as every walk's stop is, whether the threads open in margin cards or in the
+    floating panel, and the entry it leaves still names the thread it left."""
+    url = serve(LONG_PAGE)
+    threads = []
+    for n, section in enumerate(("p3", "p41")):
+        comment = {"kind": "comment", "author": "user", "revision": 1, "text": f"Q{n}?"}
+        if where == "margin":
+            comment["anchor"] = {
+                "section": section,
+                "quote": f"Paragraph {section[1:]}.",
+            }
+        root = append_carried_log_record(serve.page_dir, comment)["id"]
+        # A question the reply's widget asks, which `m` draws before it lands there.
+        thread_model.post_reply(
+            serve.page_dir,
+            {"parent": root},
+            f'Pick one.\n\n<lf-group id="ask-{n}" label="Which {n}?">\n'
+            f'<h3 id="ask-{n}-h">Which {n}?</h3><lf-options id="pick-{n}">'
+            f'<lf-option id="pick-{n}-a">Alpha</lf-option>'
+            f'<lf-option id="pick-{n}-b">Beta</lf-option></lf-options></lf-group>',
+        )
+        threads.append(root)
+    page = open_page(browser, url)
+    page.keyboard.press("m")
+    page.wait_for_function(f"({IN_THREAD})() !== null")
+    first = page.evaluate(IN_THREAD)
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    page.keyboard.press("m")
+    page.wait_for_function(f"(({IN_THREAD})() ?? {first!r}) !== {first!r}")
+    assert page.evaluate(IN_THREAD) in threads
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+    left = page.evaluate(
+        "new URL(navigation.entries()[navigation.currentEntry.index - 1].url)"
+        ".searchParams.get('thread')"
+    )
+    assert left == first
+
+
+# The thread the focused node is in, across shadow roots, or null.
+IN_THREAD = """() => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at?.closest('[data-lf-thread]')?.dataset.lfThread ?? null;
+}"""

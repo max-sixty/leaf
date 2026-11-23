@@ -835,7 +835,10 @@ summary {
    it over the page. The frame is a shadow inside the edge rather than a border, since
    a resolved card gives its room back by folding (thread/inline.js), and a border
    keeps its last pixel until the fold ends. A seat's cards stand a gap apart; between
-   live neighbors may stand the inert pixels of one folding away.
+   live neighbors may stand the inert pixels of one folding away. The comment box the
+   seat opens under them stands that gap below them too, where the card it becomes
+   will: flush, a card's reply box and the comment box under it read as two fields of
+   one conversation.
    Rejected: an unframed thread that wore a quiet ground and an inset ring while it
    held focus, a frame drawn only on focus with the words running into its ring; a
    widget setting the thread's insets and measure in its own sheet, which drew the
@@ -907,7 +910,10 @@ summary {
 }
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
 [data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads,
-[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
+[data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread,
+[data-lf-thread-surface]
+  > :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
+  ~ .lf-fab-bar {
   margin-top: var(--lf-sp-2);
 }
 /* Every conversation shares its reading edge, including a floating draft: its words

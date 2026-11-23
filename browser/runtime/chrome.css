@@ -334,7 +334,8 @@ html[data-lf-draw-mode] {
     --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + 1px);
   }
   /* Under a mouse the empty reply box is its one row tall (response.css), which comes
-     to the response line with its frame, so the row reserves no frame beyond it. */
+     to the response line with its frame, so the row reserves only the box's band
+     beyond it. */
   @media (hover: hover) and (pointer: fine) {
     :is(.lf-fab-bar, .lf-margin-preview) {
       --lf-comment-reply-row: calc(

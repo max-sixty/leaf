@@ -1815,7 +1815,8 @@
   .lf-fp-messages .lf-thread-transcript {
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
   }
-  .lf-fp-messages .lf-msg {
+  .lf-fp-messages .lf-msg,
+  .lf-fp-messages .lf-thread-working {
     --lf-msg-text-end: var(--lf-thread-text-inset);
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,

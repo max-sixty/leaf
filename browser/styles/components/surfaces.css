@@ -864,12 +864,15 @@ summary {
    runs to the card's sides and foot, as a margin card's does (response.css), and its
    words still wrap where they would in a margin card at the measure, as they will once
    sent. Past them it keeps the room by which it is wider than that card's reply box,
-   whose words' box is the measure less the card's border and the box's band on each
-   side. */
+   whose words' box is the measure less two borders, the card's and its own, and the
+   card's padding on each side. A summary's words and a step's keep the messages'
+   width. */
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
 }
-[data-lf-thread-surface] .lf-msg-body {
+[data-lf-thread-surface] .lf-msg-body,
+[data-lf-thread-surface] .lf-summary-text,
+[data-lf-thread-surface] .lf-thread-working-words {
   max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
 }
 [data-lf-thread-surface] .lf-thread-reply {
@@ -880,8 +883,7 @@ summary {
 [data-lf-thread-surface] .lf-thread-reply .lf-compose-field > leaf-text {
   padding-inline-end: max(
     var(--lf-compose-pad-inline-start),
-    100% - var(--lf-thread-card) + 2 * (1px + var(--lf-reply-band)) +
-      var(--lf-compose-pad-inline-start)
+    100% - var(--lf-thread-card) + 4px + var(--lf-compose-pad-inline-start)
   );
 }
 .lf-page-thread::after {
@@ -1197,7 +1199,7 @@ summary {
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
-  max-inline-size: 100%;
+  max-inline-size: calc(100% - var(--lf-msg-text-end, 0px));
   font: var(--lf-font-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
@@ -1272,7 +1274,7 @@ summary {
 .lf-thread-controls {
   position: absolute;
   position-anchor: --lf-thread-headline;
-  inset-inline-start: calc(anchor(right) + var(--lf-sp-2));
+  inset-inline-start: calc(anchor(end) + var(--lf-sp-2));
   inset-block-start: anchor(center);
   translate: 0 -50%;
   inline-size: var(--lf-thread-action-room);
@@ -1305,7 +1307,11 @@ summary {
   anchor-name: --lf-thread-headline;
   min-height: var(--lf-thread-action-room);
   box-sizing: border-box;
-  margin-inline-end: calc(var(--lf-thread-action-room) + var(--lf-sp-2));
+  /* Short of the messages' edge by a head's margin, as a message's head is, less the
+     words' inset its region already keeps at its end. */
+  margin-inline-end: calc(
+    var(--lf-thread-action-room) + var(--lf-sp-2) - var(--lf-thread-text-inset)
+  );
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--lf-sp-2));
 }
 /* Next unread is an inline press (controls.css) after its symbol, on the line its

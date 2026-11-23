@@ -408,7 +408,8 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     in Feed mode, across by its inset. The rewrite is a comment box whose
     frame and padding stand around the words, which keep their place, at the frame's
     padding; where the thread's reply box runs to the frame's edges under the message,
-    in the panel and in a card, the rewrite takes its height. Discard and
+    in the panel and in a card, the rewrite takes the height of its field, less the
+    frame's padding a card's box takes in around it. Discard and
     Save take the message's head. Escape and Discard step back up to the reply box,
     and Save leaves the user on the thread, as a send does, leaving the thread as it
     was.

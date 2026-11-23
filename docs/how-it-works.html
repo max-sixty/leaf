@@ -1468,9 +1468,11 @@ sequenceDiagram
               through the launcher in the copy they loaded, but each keeps one copy and
               updates it in place, so the session's next hook runs the update. A path
               names no version there, so Leaf tells two copies apart by path and commit.
-              A page server or a Codex delivery adapter from that copy outlives the
-              hooks, and moves to the update on its own, without waiting for a hook.
-              Leaf never reads a harness's record of the installed copy.
+              A page server, a Codex delivery adapter or Pi's watch between turns from
+              that copy outlives the hooks, and moves to the update on its own, without
+              waiting for a hook, except that a server or watch whose pages the update
+              can't read waits for the hook that renews them. Leaf never reads a
+              harness's record of the installed copy.
             </p>
             <p id="leaf-copy-outlast">
               Three things outlive the process, so a session can find one that another

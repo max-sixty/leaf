@@ -267,9 +267,9 @@ def still_named(held: int, path: Path) -> bool:
 
 class LoadedCopy:
     """The installed copy of Leaf this process loaded, held so that a process that
-    outlives the hooks that start it, such as a page server or Codex's delivery
-    adapter, can tell once its harness has put another copy at that path
-    (`replaced`).
+    outlives the hooks that start it, such as a page server, Codex's delivery
+    adapter or Pi's watch between turns, can tell once its harness has put another
+    copy at that path (`replaced`).
 
     Codex and Pi each keep one clone and update it in place (`installed_copy`).
     Codex moves the copy aside, renames a new one into its path and deletes the old
@@ -308,6 +308,16 @@ class LoadedCopy:
         if self._held is not None:
             os.close(self._held)
             self._held = None
+
+
+class CopyReplaced(Exception):
+    """A watch between turns has found another copy in place of the installed copy
+    it loaded (`LoadedCopy.replaced`), as Pi puts one there when it updates its
+    clone, and one that reads the session's pages (`session._successor_reads`), and
+    has stopped reading pages and let its lease go for that copy's watch to take
+    (`hooks.main`). It is defined here rather than beside the watch so that
+    `hooks.main` catches it without importing the watch, which a hook in a session
+    holding no page never loads."""
 
 
 def now_iso() -> str:
@@ -465,8 +475,9 @@ class Record(Generic[_RecordValue]):
 
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. Only retirement (`retire_if_gone`) and `Record.newer` read a record this
-    way; every other reader goes through `Record.read`."""
+    none. Only retirement (`retire_if_gone`), `Record.newer` and a watch asking
+    whether a newer copy reads a page (`session._successor_reads`) read a record
+    this way; every other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -804,7 +815,8 @@ def close_session_turn(
 ) -> bool:
     """Close the session's turn. `ended_at` is when the harness saw the turn end, in
     POSIX seconds, for a close that reaches here later: a turn a prompt opened or
-    renewed since then is a newer one, which an unnamed close must not end."""
+    renewed since then is a newer one, which an unnamed close must not end, and a
+    turn already closed keeps the close it has."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
@@ -812,8 +824,14 @@ def close_session_turn(
             or (expected is not ... and record != expected)
             or (
                 ended_at is not None
-                and record["turn_opened"] is not None
-                and datetime.fromisoformat(record["turn_opened"]).timestamp() > ended_at
+                and (
+                    turn_closed(record)
+                    or (
+                        record["turn_opened"] is not None
+                        and datetime.fromisoformat(record["turn_opened"]).timestamp()
+                        > ended_at
+                    )
+                )
             )
         ):
             return False

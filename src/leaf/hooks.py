@@ -24,8 +24,8 @@ The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
 that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
-as the Interrupt from Pi's extension does, and then leaves a turn opened or
-renewed since open.
+as the Interrupt from Pi's extension does (`state.close_session_turn` says which
+turns such a close leaves as they are).
 
 Most sessions with the plugin installed never claim a page, so in a session
 holding no claim the launcher answers each hook registered `--if-claimed`
@@ -72,12 +72,15 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 import json
 import os
 import time
+from pathlib import Path
+from typing import NoReturn
 
 from .leases import first_hook_for_tool, mark_hooks, mark_skill
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
     PLUGIN_ROOT,
+    CopyReplaced,
     advance_turn,
     close_session_turn,
     flocked,
@@ -502,10 +505,22 @@ def main(
 
     The Click hook command is the caller.
     A watch owns leases, so it releases them when the harness terminates it.
+
+    A watch whose harness replaced the installed copy it loaded
+    (`state.CopyReplaced`) goes on as the watch of the copy now at that path, which
+    this process becomes through that copy's launcher, with the payload it started
+    with; an Interrupt it answers again leaves the turn its predecessor closed as it
+    was (`state.close_session_turn`). The harness started this process and waits on
+    it: Pi's extension reads the line it prints and stops it by its pid, so the
+    watch carries on under the new copy with no change to the extension, as a hook
+    handed to a selected checkout does. Exiting for the extension to start the
+    watch again would need the extension to tell that exit from a watch with
+    nothing to say. A new copy that can't start, as one whose environment can't be
+    built, leaves the session unwatched until the extension starts the watch again
+    after the next run, as any failed watch does; the session's hooks can't run
+    until that copy can start either.
     """
-    import os
     import sys
-    import tempfile
 
     from .session_runtime import delivering_launcher, own_launcher
 
@@ -526,29 +541,14 @@ def main(
 
         hook_harness(harness, sid).escape_sandbox()
     launcher = delivering_launcher(sid)
+    flags = [
+        flag
+        for flag, given in (("--watch", watch), ("--pages", pages), ("--fork", fork))
+        if given
+    ]
     if launcher != own_launcher():
-        # Delegate the whole hook before publishing lifecycle or pickup. Keeping
-        # the stdin as a file avoids a pipe-size limit on large tool payloads;
-        # exec retains cancellation and the watch's exact lifetime.
-        with tempfile.TemporaryFile() as incoming:
-            incoming.write(json.dumps(payload).encode())
-            incoming.seek(0)
-            os.dup2(incoming.fileno(), 0)
-        environment = dict(os.environ)
-        environment.pop("LEAF_HOST_LAUNCHER", None)
-        os.execve(
-            launcher,
-            [
-                str(launcher),
-                "hook",
-                "--harness",
-                harness,
-                *(["--watch"] if watch else []),
-                *(["--pages"] if pages else []),
-                *(["--fork"] if fork else []),
-            ],
-            environment,
-        )
+        # Delegate the whole hook before publishing lifecycle or pickup.
+        _run_hook(launcher, harness, flags, payload)
     if pages:
         cmd_pages(payload)
         return
@@ -560,10 +560,37 @@ def main(
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
-        from .leases import release_on_termination
+        from .leases import end_if_terminated, release_on_termination
 
         release_on_termination()
-        if woke := cmd_watch(harness, payload):
+        try:
+            woke = cmd_watch(harness, payload)
+        except CopyReplaced:
+            # A stop that arrived as the watch let go, whose raise a finalizer
+            # discarded, ends it here rather than the successor never hearing it.
+            end_if_terminated()
+            _run_hook(own_launcher(), harness, flags, payload)
+        if woke:
             print(woke, flush=True)
         return
     cmd_hook(harness, payload)
+
+
+def _run_hook(
+    launcher: Path, harness: str, flags: list[str], payload: dict
+) -> NoReturn:
+    """Replace this process with `launcher`'s `leaf hook` for `harness` with
+    `flags`, given `payload` on its stdin. The harness's process handle then
+    reaches the hook wherever it runs, so cancellation and a watch's lifetime hold.
+    The stdin is a file rather than a pipe, which a large tool payload would fill."""
+    import tempfile
+
+    with tempfile.TemporaryFile() as incoming:
+        incoming.write(json.dumps(payload).encode())
+        incoming.seek(0)
+        os.dup2(incoming.fileno(), 0)
+    environment = dict(os.environ)
+    environment.pop("LEAF_HOST_LAUNCHER", None)
+    os.execve(
+        launcher, [str(launcher), "hook", "--harness", harness, *flags], environment
+    )

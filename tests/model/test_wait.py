@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -60,6 +61,7 @@ from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
 from leaf.interaction_log import read_interactions
+from leaf.registry import storage as storage_model
 from leaf.registry.kernel import kernel_protocol
 
 
@@ -814,6 +816,109 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert hooks_model.cmd_watch("claude-code", stop) is None
 
 
+# `leaf ARGS` as a child running this tree's modules from the copy of Leaf at the
+# path in its first argument, as a process runs that loaded that copy before Pi
+# updated it: its plugin root, its launcher and the kernel registry on disk are that
+# copy's.
+_RUNNING_FROM = """
+import sys
+from pathlib import Path
+
+from leaf import session_runtime, state
+from leaf.__main__ import main
+from leaf.registry import kernel
+
+root = Path(sys.argv[1])
+state.PLUGIN_ROOT = session_runtime.PLUGIN_ROOT = root
+kernel.KERNEL_REGISTRY = root / "browser" / "runtime" / "kernel-registry.json"
+sys.argv = ["leaf", *sys.argv[2:]]
+main()
+"""
+
+
+@pytest.mark.parametrize(
+    "renewed", [True, False], ids=["pages renewed", "pages at the old protocol"]
+)
+def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
+    page_dir, monkeypatch, sessionless, spawn, tmp_path, renewed
+):
+    """Pi updates its clone of Leaf in place and then removes the clone's
+    environment. Once the copy now at that path reads every page the session holds,
+    the watch between turns that the old copy started reads no page: it lets its
+    lease go and, in the process Pi's extension started and reads, runs that copy's
+    watch with the payload it started with, so the extension's handle on it holds.
+    An update that moves the page protocol leaves the pages at the old one until the
+    session's next hook renews them, and until then the old watch goes on watching
+    and wakes the session for input."""
+    root = tmp_path.joinpath(".pi", "agent", "git", "github.com", "max-sixty", "leaf")
+    for directory in (".git", ".venv", "bin", "browser/runtime"):
+        (root / directory).mkdir(parents=True)
+    (root / "bin" / "leaf").write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin)}))\n"
+    )
+    (root / "bin" / "leaf").chmod(0o755)
+    monkeypatch.setenv("PI_SESSION_ID", "pi-s1")
+    monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
+    monkeypatch.setenv("LEAF_PI_WATCH", "1")
+    service_model.claim_page(page_dir)
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir)
+    cleanup_model.prompt_turn("pi-s1")
+    interrupt = {
+        "hook_event_name": "Interrupt",
+        "session_id": "pi-s1",
+        "ended_at": time.time(),
+    }
+    watch = spawn(
+        [sys.executable, "-c", _RUNNING_FROM, str(root), "hook", "--harness", "pi"]
+        + ["--watch"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    watch.stdin.write(json.dumps(interrupt))
+    watch.stdin.close()
+    wait_for(
+        lambda: leases_model.wait_is_live(None, "pi-s1"),
+        lambda live: live,
+        failure="the watch never took its lease",
+    )
+    # Pi's reset brings the next page protocol, and its clean removes the
+    # environment.
+    protocol = kernel_protocol() + 1
+    (root / "browser" / "runtime" / "kernel-registry.json").write_text(
+        json.dumps({"$events": {"protocol": protocol}})
+    )
+    (root / ".venv").rmdir()
+    if not renewed:
+        append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "meanwhile"}
+        )
+        output, errors = watch.communicate(timeout=STATED_TIMEOUT)
+        assert watch.returncode == 0, errors
+        assert output.startswith(f"{page_dir} has new input")
+        [ended] = read_interactions(page_dir, types=("watch",))
+        assert ended["ended"] == "woke"
+        return
+    # The session's next hook renews the page at the new copy's protocol, a write
+    # that moves the page's reading, so the watch passes again at once.
+    layer = page_dir / "layer.json"
+    record = storage_model.LAYER.read(layer)
+    assert record is not None
+    storage_model.LAYER.write(layer, {**record, "protocol": protocol})
+    output, errors = watch.communicate(timeout=STATED_TIMEOUT)
+    assert watch.returncode == 0, errors
+    assert json.loads(output) == {
+        "argv": ["hook", "--harness", "pi", "--watch"],
+        "payload": interrupt,
+    }
+    [ended] = read_interactions(page_dir, types=("watch",))
+    assert ended["ended"] == "copy-replaced"
+
+
 @pytest.mark.parametrize("ending", ["Stop", "Escape"])
 def test_a_watch_leaves_input_to_a_later_turn_while_it_runs(
     claimed, monkeypatch, ending
@@ -1176,7 +1281,10 @@ def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
     """An extension's watch closes an interrupted turn only after the extension saw it
     end, and a Claude Code or Pi turn has no id, so a prompt in between renews
     the same turn. The Interrupt payload states when the turn ended, and a turn
-    opened or renewed since then is not closed by it."""
+    opened or renewed since then is not closed by it. Nor is a closed turn closed
+    again: the watch that goes on under a copy Pi put in place of its own answers
+    the Interrupt its predecessor answered (`hooks.main`), and the close keeps the
+    time it has."""
     cleanup_model.prompt_turn("s1")
     ended = time.time()
     time.sleep(0.01)
@@ -1191,6 +1299,10 @@ def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
     turn_record_4 = cleanup_model.session_record("s1")
     assert turn_record_4 is not None
     assert turn_record_4["turn_closed"] is not None
+
+    time.sleep(0.01)
+    hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": time.time()})
+    assert cleanup_model.session_record("s1") == turn_record_4
 
 
 def test_a_page_served_mid_wait_joins_the_running_watch(

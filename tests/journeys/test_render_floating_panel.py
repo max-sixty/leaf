@@ -129,7 +129,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
+    expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_visible()
     at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
@@ -139,7 +139,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
+    expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_visible()
     at_end(".lf-msg", gap=True)
 
     # The answer to the user's turn waits below the fold behind New reply, and its
@@ -412,11 +412,11 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 
 
 @pytest.mark.parametrize("route", ["finger", "key"])
-def test_versions_opens_at_the_version_the_page_shows(browser, serve, route):
+def test_versions_opens_beside_the_version_the_page_shows(browser, serve, route):
     """Reopened from an older version, a list too long for the panel opens with the
     version shown in view, whichever way it opens, so Showing doesn't start out of
-    sight. A key lands on that version, and a finger's opening leaves focus on the
-    list."""
+    sight. A key lands on the version before it, the one Versions offers, and a
+    finger's opening leaves focus on the list."""
     url = serve(LONG_PAGE)
     note = "Moved the rollout decision into its own section. " * 3
     for revision in range(12):
@@ -457,7 +457,8 @@ def test_versions_opens_at_the_version_the_page_shows(browser, serve, route):
       const box = row.getBoundingClientRect();
       return box.top >= list.top - 0.5 && box.bottom <= list.bottom + 0.5;
     }""")
-    expect(shown.locator(".lf-fp-item") if not finger else view).to_be_focused()
+    offered = view.locator(".lf-fp-version > .lf-fp-item").last
+    expect(offered if not finger else view).to_be_focused()
 
 
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(

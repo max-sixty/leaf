@@ -35,6 +35,7 @@ import { cancelRender, nextFrame, sizeObserver } from "./rendering.js";
 import {
   browserScrolls,
   holdScroll,
+  readScrolled,
   readerScrolls,
   scrollDrawn,
   setScroll,
@@ -625,6 +626,19 @@ const holding = (box) => {
 /** @param {Element} box */
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
+// Read `read` with each of `boxes` that a glide is moving at its goal, as the page will
+// stand once the glides under way land, though none has (arrivals.js, `readScrolled`).
+// Only a box a glide holds is written, so no scroll the browser drives is stopped and
+// the write's events fold into those the glide sends every frame.
+/** @template T @param {Iterable<Element>} boxes @param {() => T} read @returns {T} */
+export const whereGlidesLand = (boxes, read) =>
+  readScrolled(
+    [...boxes].flatMap((box) => {
+      const goal = scrollGoal(box);
+      return holding(box) && goal !== box.scrollTop ? [[box, goal]] : [];
+    }),
+    read,
+  );
 // Whether `box` stands at its end with no glide taking it away. A glide a press has just
 // started may not have moved the box yet, since its first frame can write where the box
 // already stands. A keeper that read that box as following its end would put it back

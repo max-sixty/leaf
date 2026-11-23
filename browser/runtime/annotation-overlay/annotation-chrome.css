@@ -362,8 +362,8 @@
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
      own, so focus on the thread rings the card: the ring takes the
      card's edge in place of its border, inset, since the card stands over the page and
-     nothing outside it is free. Rejected: ringing and tinting the thread 13px inside
-     the card's own border, a frame in a frame with the reply field a third box inside
+     nothing outside it is free. Rejected: ringing and tinting the thread inside the
+     card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's focus; the card's face only carries it, and its surface while the
      card moves. A message holding focus, as Next On Me leaves the reply it lands on,
@@ -389,18 +389,19 @@
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
      the surface by an even-odd clip, which also bounds where it takes a press, so the
-     surface's own controls and words keep theirs. The card's band is its padding,
-     inside the border its overflow clips at; the comment box's hugs its field, whose
-     inside is the caret's, from outside. The band paints nothing: the pointer on it
-     takes the grab cursor and, after a beat, the surface's own border takes the
-     accent, so a pointer crossing the band to a control inside flashes nothing.
-     Rejected: tinting the whole band, which on the card lights a 12px frame at every
-     crossing.
+     surface's own controls and words keep theirs. Each surface's band hugs its edge
+     from outside and takes in its border: the inside of the comment box's field is the
+     caret's, and the card's reply box runs to the card's sides and foot. The band
+     paints nothing: the pointer on it takes the grab cursor and, after a beat, the
+     surface's own border takes the accent, so a pointer crossing the band to a control
+     inside flashes nothing. Rejected: tinting the whole band, which on the card lit a
+     frame at every crossing; and the card's band inside its border, its padding, which
+     the reply box covers.
      A focused field's ring already stands in the box's border, so there the cursor
      alone shows the grip. */
   .lf-surface-grip {
-    --lf-grip-out: 0px;
-    --lf-grip-in: var(--lf-comment-inset);
+    --lf-grip-out: 6px;
+    --lf-grip-in: 1px;
     --lf-grip-band: calc(var(--lf-grip-out) + var(--lf-grip-in));
     position: absolute;
     inset: calc(-1 * var(--lf-grip-out));
@@ -421,10 +422,16 @@
     touch-action: none;
     user-select: none;
     pointer-events: auto;
-    border-radius: calc(var(--lf-r-l) - 1px);
+    border-radius: calc(var(--lf-r-l) + var(--lf-grip-out));
   }
-  /* The transcript's focus-ring room reaches into this top band. The grip still
-     takes presses there; its clipped centre leaves the messages and controls free. */
+  @media (pointer: coarse) {
+    .lf-surface-grip {
+      --lf-grip-out: 12px;
+    }
+  }
+  /* The card's grip stands over its face, so the band's pixel inside the card's edge,
+     the face's border, takes presses for the grip; its clipped centre leaves the
+     messages, controls and reply box free. */
   .lf-margin-preview > .lf-surface-grip {
     z-index: 1;
   }
@@ -447,17 +454,10 @@
     cursor: grabbing;
   }
   .lf-fab-bar > .lf-surface-grip {
-    --lf-grip-out: 6px;
-    --lf-grip-in: 1px;
     inset: calc(var(--lf-comment-frame-top) - var(--lf-grip-out))
       calc(var(--lf-comment-frame-inline) - var(--lf-grip-out))
       calc(var(--lf-comment-frame-bottom) - var(--lf-grip-out));
     border-radius: calc(var(--lf-r) + var(--lf-grip-out));
-  }
-  @media (pointer: coarse) {
-    .lf-fab-bar > .lf-surface-grip {
-      --lf-grip-out: 12px;
-    }
   }
   /* A target-only box is not carried; one seated in a widget hides its grip in that
      widget's tree (response.css). */
@@ -658,13 +658,13 @@
        (155 and 158) sticks a box in a subgrid scroller at the scroller's
        edge, ignoring its padding, which stood the stuck head that room above the
        actions' line. */
-    --lf-top-start: var(--lf-transcript-room);
+    --lf-top-start: var(--lf-transcript-edge-room);
     --lf-top: var(--lf-top-start);
-    padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
-      var(--lf-transcript-room);
+    padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
+      var(--lf-transcript-edge-room);
     padding-block-end: var(--lf-transcript-room);
-    margin-inline: calc(-1 * var(--lf-transcript-room));
-    margin-block-start: calc(-1 * var(--lf-transcript-room));
+    margin-inline: calc(-1 * var(--lf-transcript-edge-room));
+    margin-block-start: calc(-1 * var(--lf-transcript-edge-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
   /* The transcript is a subgrid. Chromium (153 and 156) and Firefox (155) lay out a
@@ -698,8 +698,10 @@
   .lf-margin-thread .lf-awaited {
     z-index: 1;
     bottom: calc(-1 * var(--lf-transcript-room));
-    margin-inline: calc(-1 * (var(--lf-thread-text-inset) + var(--lf-transcript-room)))
-      calc(-1 * var(--lf-transcript-room));
+    margin-inline: calc(
+        -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
+      )
+      calc(-1 * var(--lf-transcript-edge-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
     padding-block-end: var(--lf-transcript-room);
   }
@@ -713,35 +715,44 @@
   .lf-margin-thread .lf-thread-transcript::before {
     content: "";
     grid-column: 1 / -1;
-    margin-inline: calc(-1 * (var(--lf-thread-text-inset) + var(--lf-transcript-room)))
-      calc(-1 * var(--lf-transcript-room));
+    margin-inline: calc(
+        -1 * (var(--lf-thread-text-inset) + var(--lf-transcript-edge-room))
+      )
+      calc(-1 * var(--lf-transcript-edge-room));
     position: sticky;
     z-index: 1;
     inset-block-start: calc(var(--lf-top) - var(--lf-thread-room-cover, 0px));
     block-size: calc(var(--lf-thread-room-cover, 0px) + var(--lf-msg-head-height));
     margin-block-end: calc(
-      var(--lf-transcript-room) - var(--lf-thread-room-cover, 0px) -
+      var(--lf-transcript-edge-room) - var(--lf-thread-room-cover, 0px) -
         var(--lf-msg-head-height)
     );
     background: var(--lf-paper);
   }
-  /* The field stands at the card's inset; words stand one inset inside it. The
-     transcript keeps room past its edges for what is drawn beyond a box: a focus ring,
-     which a rewrite reaching the reply box's edges draws outside itself as the reply
-     box does; an open progress group's border; and the marks round a block in a
-     message, such as the ring Next On Me (`m`) draws round an ask's options. Those
-     marks stand a region's gap outside the block, the farthest out of the three, so
-     they set the room. It is taken from the card's inset,
-     so the words keep their width and place and nothing scrolls sideways. Once
-     anything is scrolled away, what stands on the heads' line covers the room above
-     it, the stuck head row across both tracks (`data-lf-scrolled`,
+  /* The words stand the thread text inset inside the card's padding. The transcript
+     keeps room past their edges for what is drawn beyond a box: a focus ring, which a
+     rewrite draws outside its frame; an open progress group's border; and the marks
+     round a block in a message, such as the ring Next On Me (`m`) draws round an ask's
+     options. Those marks stand a region's gap outside the block, the farthest out of
+     the three, so they set the room below the turns, which the reply row's gap holds.
+     At the sides and top, where the card's edge bounds the transcript, the room is
+     what the card's padding and border leave inside the card's own ring, which the
+     transcript's paper would otherwise cover: the words' inset holds a region's gap at
+     their sides, and the room holds the rewrite's ring past its frame and a focused
+     head control's ring above the heads, where their slot starts (`--lf-top-start`).
+     The room is taken from the card's padding, so the words keep their width and
+     place and nothing scrolls sideways. Once anything is scrolled away, what stands on the heads' line covers
+     the room above it, the stuck head row across both tracks (`data-lf-scrolled`,
      thread-preview.js); at the top a ring still has it. */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: max(var(--lf-focus-region-room), var(--lf-group-ring-end));
+    --lf-transcript-edge-room: calc(
+      var(--lf-comment-inset) + 1px - var(--lf-focus-ring-w)
+    );
     padding: 0;
   }
   .lf-margin-thread .lf-page-thread[data-lf-scrolled] {
-    --lf-thread-room-cover: var(--lf-transcript-room);
+    --lf-thread-room-cover: var(--lf-transcript-edge-room);
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
@@ -774,8 +785,9 @@
       display: none;
     }
   }
-  /* The row's ring has room in the card's common inset. Its inline containment keeps
-     a draft from widening the card. */
+  /* The reply row runs over the card's padding to its sides and foot, so the reply box
+     meets the card's edge there (response.css). Its inline containment keeps a draft
+     from widening the card. */
   .lf-margin-thread .lf-thread-reply {
     contain: inline-size;
     display: grid;
@@ -783,7 +795,7 @@
     box-sizing: border-box;
     min-height: var(--lf-comment-reply-row);
     align-items: stretch;
-    margin: 0;
+    margin: 0 calc(-1 * var(--lf-comment-inset)) calc(-1 * var(--lf-comment-inset));
     padding-block: var(--lf-msg-gap) 0;
   }
   .lf-margin-thread .lf-thread-reply .lf-composer-media {
@@ -812,7 +824,7 @@
      `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
      covers as hidden, while a whole message lands flush with its own head. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
-    --lf-top: calc(var(--lf-transcript-room) + var(--lf-msg-head-height));
+    --lf-top: calc(var(--lf-transcript-edge-room) + var(--lf-msg-head-height));
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-msg-head-height) + var(--lf-focus-ring-landing));

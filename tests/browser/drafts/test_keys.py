@@ -305,9 +305,9 @@ def reading_keys_walk(page, down, up):
         60
         if down == "j"
         else page.evaluate(
-            "() => { const s = getComputedStyle(document.scrollingElement); return ("
+            "async () => { const s = getComputedStyle(document.scrollingElement); return ("
             " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-            " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+            " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
         )
     )
 
@@ -401,9 +401,9 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
     slow_cpu(page, 20)
     step = page.evaluate(
-        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     start = round(step * 2)
     page.evaluate("""() => {
@@ -446,9 +446,9 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
             60
             if down == "j"
             else page.evaluate(
-                "() => { const s = getComputedStyle(document.scrollingElement); return ("
+                "async () => { const s = getComputedStyle(document.scrollingElement); return ("
                 " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-                " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+                " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
             )
         )
         page.keyboard.press(down)

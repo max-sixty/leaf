@@ -38,7 +38,6 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
-  coverBoxes,
 } from "./geometry.js";
 export {
   drawnElements,
@@ -62,6 +61,7 @@ export {
   regionScrollBehavior,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
+export { carriersOf } from "./scroll-containers.js";
 export {
   layoutBox,
   pageDocument,

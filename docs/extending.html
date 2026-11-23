@@ -641,7 +641,7 @@
 flowchart TD
   accTitle: A page selects its theme as a package
   accDescr: The author selects the Editorial theme from the packages on the user's machine, which also hold Leaf's reading theme and the user's Dense theme. The release-review page records that selection, and the export carries the same theme.
-  Themes["Themes on this machine&lt;br/&gt;reading · Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Selects: Editorial"]
+  Themes["Themes on this machine&lt;br/&gt;Reading · Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Selects: Editorial"]
   Page -->|export| Export["Exported review&lt;br/&gt;Same Editorial theme"]
 </pre>
               </lf-diagram>
@@ -2003,9 +2003,9 @@ packages/callout/
 </pre>
 
             <p>
-              Every package beyond the bundled default joins a page with
-              <code>--package</code>. In the commands below, <code>PAGE</code> is the
-              page directory to create or update:
+              Every package joins a page with <code>--package</code>, the page’s theme
+              included. In the commands below, <code>PAGE</code> is the page directory
+              to create or update:
             </p>
             <pre
               id="page-init-command"
@@ -2410,8 +2410,9 @@ flowchart TD
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
-              Leaf’s default widgets and controls. The pages below demonstrate optional
-              packages; the Code review package provides authoring instructions.
+              Leaf’s default widgets and controls in the reading theme. The other pages
+              below each demonstrate an optional package; the Code review package
+              provides authoring instructions.
             </p>
             <div class="package-catalog">
               <a
@@ -2421,7 +2422,7 @@ flowchart TD
               >
                 <strong>Reading</strong>
                 <span
-                  >Leaf’s reading theme: the type, colour and faces that prose, tables
+                  >Leaf’s reading theme: the type, color and faces that prose, tables
                   and controls read in.</span
                 >
                 <em>Open page ↗</em>

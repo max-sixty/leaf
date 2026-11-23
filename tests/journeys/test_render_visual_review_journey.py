@@ -30,6 +30,7 @@ from leaf import media as media_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_visual_review_journey import (
+    FLOWING,
     assert_keyboard_focus,
     comment_on_target,
     go_to,
@@ -582,7 +583,7 @@ def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resiz
 ):
     """A focused comment editor remains reachable when its visual-review seat narrows."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 768)
+    resized(page, *FLOWING)
     widget = page.locator("#visual-review-run")
     widget.locator(".lf-vr-case-button").nth(1).click()
     datum = widget.locator('[data-lf-datum="keep-mobile-destinations"]')

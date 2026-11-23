@@ -13,9 +13,10 @@ import test from "node:test";
 import { keepInBand, scrollIntoView } from "/runtime/landing-scroll.js";
 import { glideTo, scrollGoal, stopGlide } from "/runtime/scrolling.js";
 
-// A scroller 300px wide and 400px tall over content 1000px wide and 5000px tall,
-// holding one box at `contentTop` and `contentLeft`, 100px tall and as wide as `width`;
-// the box's viewport place is its content place less the scroller's scroll.
+// A scroller 300px wide and 400px tall, with no border or scrollbar, over content
+// 1000px wide and 5000px tall, holding one box at `contentTop` and `contentLeft`, 100px
+// tall and as wide as `width`; the box's viewport place is its content place less the
+// scroller's scroll.
 function laidOut(contentTop, contentLeft = 0, width = 300) {
   const scroller = document.createElement("div");
   scroller.style.overflow = "auto";
@@ -39,6 +40,8 @@ function laidOut(contentTop, contentLeft = 0, width = 300) {
     scrollWidth: { get: () => 1000 },
     clientHeight: { get: () => 400 },
     clientWidth: { get: () => 300 },
+    offsetHeight: { get: () => 400 },
+    offsetWidth: { get: () => 300 },
   });
   scroller.scrollTo = ({ top = scrollTop, left = scrollLeft }) => {
     scrollTop = top;
@@ -141,6 +144,8 @@ test("a reveal in an inner scrollport travels the fraction it asks for", () => {
     scrollWidth: { get: () => 300 },
     clientHeight: { get: () => 200 },
     clientWidth: { get: () => 300 },
+    offsetHeight: { get: () => 200 },
+    offsetWidth: { get: () => 300 },
   });
   inner.scrollTo = ({ top = scrollTop }) => {
     scrollTop = top;

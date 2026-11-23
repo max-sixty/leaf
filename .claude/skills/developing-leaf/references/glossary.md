@@ -29,7 +29,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The On view's tab in Leaf's panel, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
-| **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
+| **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source. Versions names the one the user last saw **v3 (last seen)** while the page has changed since |
 
 The user is talking with the agent, and the page is where that conversation happens,
 so every word a surface shows about the work is said by the agent or by Leaf, and
@@ -166,10 +166,10 @@ behavior. A compound widget may own reading regions without being a pane.
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container after `body` |
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the comment field and, at its end, the leaf. While a search or stance is active, the ✕ that ends it stands between them. A **folded** panel shows only the leaf in the window's corner |
-| **Leaf** | The mark at the row's end, coloured by the agent's state, with the count of what waits on the user and a dot when a thread has an unread reply; a press opens the On view on the tab those marks point at: the leaf's menu while an error waits unseen there, else On Me while anything waits on the user, else Threads while a thread has news, else the menu. A press on a folded leaf unfolds the panel |
+| **Leaf** | The mark at the row's end, coloured by the agent's state, with the count of what waits on the user and a dot when a thread has an unread reply; a press opens the On view on the tab those marks point at: the leaf's menu while an error waits unseen there, else On Me while anything waits on the user, else Threads while a thread has news, else the menu. A press on a folded leaf unfolds the panel. `o` presses it |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
 | **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position, and Reply with its key at its end while that key enters the field. While a stance such as Draw mode stands, the field takes no words and the row's mode chip names the stance in a word (**Draw**) beside its ✕. Its words read dim, and a passing notice a step brighter |
-| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
+| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, Threads and the plan, which ← and → move through) or All pages. Escape or a press on the page closes it |
 | **Beacon** | A mark at the window's edge, with an arrowhead toward the comment box the user's keys type into, a thread card's reply or the anchored comment box, standing while a scroll has carried the box out of the window; a press brings the box back with the caret in it (`writing-beacon.js`) |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
@@ -217,7 +217,7 @@ its link's preview counts them.
 | **Scope** | A registered boundary where commands apply and can hide outer ones |
 | **Design mode** | The `l` interaction that turns input into interface comments until the user exits |
 | **Draw mode** | The `w` interaction that turns pointer input into a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `o` toggles whether it shows |
+| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `g H` toggles whether it shows |
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
@@ -243,7 +243,7 @@ its link's preview counts them.
 | **Binding badge** | A key badge showing a command's current binding |
 | **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |
 
-Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `o`
+Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `g H`
 toggles what the page shows without changing what input means. Commands have stable
 dotted ids.
 

@@ -45,7 +45,9 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     expect(case).to_have_attribute("data-lf-datum", first)
     expect(case).to_be_focused()
     page.keyboard.press("c")
-    field = case.locator(".lf-fab-input")
+    # The review fills the window, so its case's discussion ends under the floating
+    # panel's row, and the box stands beside the case rather than in it.
+    field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     page.keyboard.type("m means mobile")
     expect(field).to_have_js_property("value", "m means mobile")

@@ -57,6 +57,7 @@ from render_harness import (
     SAID_PAGE,
     _traffic,
     compare_with,
+    comparison_view,
     consume_browser_errors,
     expect_open_threads,
     expect_panel_says,
@@ -3753,10 +3754,10 @@ def clearance_page(browser, serve, rail=True):
 
     def place_bottom(offset):
         return page.evaluate(
-            """offset => {
+            """async offset => {
               const scroller = document.scrollingElement;
               const destination = document.getElementById('destination');
-              const clear = parseFloat(getComputedStyle(scroller).scrollPaddingBottom);
+              const clear = (await window.__lfWidgetApi()).landingInsets(scroller).bottom;
               const before = destination.getBoundingClientRect();
               scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
               const after = destination.getBoundingClientRect();
@@ -3793,14 +3794,15 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     covered = place_bottom(clear["clear"] / 2)
     assert covered["bottom"] <= covered["viewport"]
     assert covered["bottom"] > covered["viewport"] - covered["clear"]
+    clear_band = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.keyboard.press("t")
     page.wait_for_function(
-        """() => {
-          const clear = parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingBottom);
-          return document.getElementById('destination').getBoundingClientRect().bottom
-            <= innerHeight - clear + .5;
-        }"""
+        """clear => document.getElementById('destination').getBoundingClientRect().bottom
+            <= innerHeight - clear + .5""",
+        arg=clear_band,
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") != pytest.approx(
         covered["scroll"], abs=1
@@ -3893,7 +3895,6 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
 
     held = []
     requests = []
-    view_request = re.compile(r"/api/view\?")
 
     def hold_first_view(route):
         requests.append(route.request.url)
@@ -3902,7 +3903,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         else:
             route.continue_()
 
-    page.route(view_request, hold_first_view)
+    page.route(comparison_view, hold_first_view)
     released = False
     try:
         compare_with(page, 1)
@@ -3923,7 +3924,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
     finally:
         if held and not released:
             held[0].continue_()
-        page.unroute(view_request)
+        page.unroute(comparison_view)
 
 
 def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, serve):
@@ -3938,15 +3939,14 @@ def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, se
     expect(page.locator(".lf-ins-block")).to_have_count(2)
 
     held = []
-    view_request = re.compile(r"/api/view\?")
-    page.route(view_request, lambda route: held.append(route))
+    page.route(comparison_view, lambda route: held.append(route))
     compare_with(page, 2)
     holding(page, held, 1, "the replacement comparison")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     held[0].fulfill(status=500, json={"error": "comparison unavailable"})
     expect_panel_says(page, "Couldn't load v2")
     consume_browser_errors(page, http_error_console(500))
-    page.unroute(view_request)
+    page.unroute(comparison_view)
 
     menu = panel_menu(page, "versions")
     compare = menu.get_by_role("button", name="Compare with v2")

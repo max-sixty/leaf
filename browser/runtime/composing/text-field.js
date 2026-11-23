@@ -626,6 +626,11 @@ class LeafText extends HTMLElement {
     this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
     this.#rest.rows = 1;
+    // Chrome raises a DevTools issue for a form field with neither an id nor a name,
+    // which every page's render check would report as the page's. The host keeps
+    // whatever name its owner gives it; this node is the field's own, so its name is
+    // fixed.
+    this.#rest.name = "words";
     // In `focusin`, never `focus`: Chromium, Firefox and WebKit send no `focusin` for
     // a node that passes focus on in its own `focus` handler, and the move inside the
     // closed root reaches nothing outside it, so the page would never hear the field

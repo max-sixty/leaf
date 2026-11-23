@@ -76,7 +76,12 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
 
     ok = gate()
     assert ok.returncode == 0, ok.stdout + ok.stderr
-    assert json.loads(ok.stdout)["browser"]["browser"] == "Chrome"
+    clean = json.loads(ok.stdout)
+    assert clean["browser"]["browser"] == "Chrome"
+    # Chrome raises DevTools issues the suite's headless shell never does, such as one
+    # for a form field with neither an id nor a name. The page check reports each as
+    # the page's, so Leaf's own panel and fields must raise none.
+    assert not [f for f in clean["findings"] if f["code"] == "devtools-issue"], clean
 
     # A box that cuts off its own words passes the static lint, and only a layout
     # engine sees the words it loses.

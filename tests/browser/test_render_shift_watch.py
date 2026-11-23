@@ -2188,10 +2188,10 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
 ):
     """A box that follows its own layout, as box-motion.js carries a floating box's
     parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
-    landing draws in, after that frame's tick. The motion is the input's though news
-    lands before the next tick, as a pasted image's landing in an open thread can,
-    where the panel's head jumped the rest of its carry in one frame and read as moved
-    by news. The growing box stands after the control, so only the carry moves it."""
+    landing draws in, after that frame's tick. The motion is the input's though the
+    server's reading lands after that delivery and before the next tick, as it can
+    when a pasted image lands in an open thread. The growing box stands after the
+    control, so only the carry moves it."""
     page = open_page(
         browser,
         serve(

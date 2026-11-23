@@ -408,7 +408,8 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     in Feed mode, across by its inset. The rewrite is a comment box whose
     frame and padding stand around the words, which keep their place, at the frame's
     padding; where the thread's reply box runs to the frame's edges under the message,
-    in the panel and in a card, the rewrite takes its height. Discard and
+    in the panel and in a card, the rewrite takes the height of its field, less the
+    frame's padding a card's box takes in around it. Discard and
     Save take the message's head. Escape and Discard step back up to the reply box,
     and Save leaves the user on the thread, as a send does, leaving the thread as it
     was.
@@ -452,17 +453,23 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     ).bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
     # The panel's and a card's reply box run to the frame's edges, so there the
-    # rewrite takes its height alone; Feed draws its reply box at the part's edge,
-    # where the words' inset leaves the rewrite's frame none of its sides.
-    sides = {"panel": ("height",), "seat": ("height",), "card": ("height",)}
-    for side in sides.get(surface, ()):
-        assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    # rewrite takes its height alone; a card's box also takes in the card's padding
+    # above and below its field, which the rewrite, standing clear of the card's edges,
+    # leaves out. Feed draws its reply box at the part's edge, where the words' inset
+    # leaves the rewrite's frame none of its sides.
+    padding = (
+        thread.evaluate(
+            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-thread-pad'))"
+        )
+        if surface in ("seat", "card")
+        else 0
+    )
+    if surface in ("panel", "seat", "card"):
+        height = reply_field["height"] - 2 * padding
+        assert abs(field["height"] - height) < 0.5, (padding, field, reply_field)
     # In a card the rewrite's frame stands at the card's padding, that far inside the
     # reply box's start.
     if surface in ("seat", "card"):
-        padding = thread.evaluate(
-            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-comment-inset'))"
-        )
         inside = field["x"] - reply_field["x"]
         assert abs(inside - padding) < 0.5, (padding, field, reply_field)
     head = message.locator(".lf-msg-head").bounding_box()

@@ -2090,7 +2090,7 @@ def stance_exit(page):
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
-    than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
+    than the latest and no other press stands there (floating-panel.js, `OPEN_LATEST`)."""
     return field_press(page).filter(has_text="Open latest")
 
 

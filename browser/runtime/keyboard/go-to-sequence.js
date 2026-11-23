@@ -123,13 +123,6 @@ export function createGoToSequence({
   placeThreadEdge,
   stepReading,
 }) {
-  // How a destination in this sequence is written where the sequence itself is not on screen —
-  // a notice naming the way back to a draft that has just gone down, say. Spelled off the
-  // row's own binding, so a rebinding cannot leave a sentence promising the old press.
-  /** @param {Command} row */
-  const formatGoToAddress = (row) =>
-    [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
-
   // ---------- the g sequence: visible page targets ----------
   // These queries declare which page actions join the generated namespace. A link belongs
   // to the authored body, including link apparatus a page widget generated: lf-toc's
@@ -205,6 +198,7 @@ export function createGoToSequence({
       keys: ["Shift+t"],
       title: () => (doors.threads.shows() ? "close Threads" : "Threads"),
       run: () => doors.threads.press(),
+      opens: () => doors.threads.scope,
       when: () => true,
     },
     {
@@ -214,6 +208,7 @@ export function createGoToSequence({
       // the user's rather than closing.
       title: () => (doors.queue.shows() ? "close On Me" : "On Me"),
       run: () => doors.queue.press(),
+      opens: () => doors.queue.scope,
       when: () => true,
     },
     {
@@ -223,6 +218,7 @@ export function createGoToSequence({
       title: () =>
         doors.agent.shows() ? `close ${doors.agent.name()}` : doors.agent.name(),
       run: () => doors.agent.press(),
+      opens: () => doors.agent.scope,
       when: () => true,
     },
     {
@@ -230,6 +226,7 @@ export function createGoToSequence({
       keys: ["Shift+l"],
       title: () => (doors.leaves.shows() ? "close All pages" : "All pages"),
       run: () => doors.leaves.press(),
+      opens: () => doors.leaves.scope,
       when: () => doors.leaves.shows() || leavesOffered(),
     },
     {
@@ -240,13 +237,6 @@ export function createGoToSequence({
       when: () => true,
     },
   ];
-  // Whether each door's surface stands, by the door's id.
-  const DOOR_STANDS = new Map([
-    ["navigation.panel.threads", () => doors.threads.shows()],
-    ["navigation.panel.queue", () => doors.queue.shows()],
-    ["navigation.panel.agent", () => doors.agent.shows()],
-    ["navigation.panel.leaves", () => doors.leaves.shows()],
-  ]);
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard
   // remain one behavior.
@@ -539,16 +529,15 @@ export function createGoToSequence({
     root: () => document,
     reach: "with g armed",
     sequence: sequenceKeys,
-    sequencePrefix,
     liveInCommandReference: true,
     at: () => goToActive,
     claims: allButCommandReference,
     // Built on first use, after composition supplied the other owners' destination rows.
-    // The door to a surface that stands leads them all: its press closes what the user
-    // stands beside, and a line too narrow for every door keeps that one.
+    // The door whose scope (`opens`) stands leads them all: its press closes what the
+    // user stands beside, and a line too narrow for every door keeps that one.
     get rows() {
       goRows ??= build();
-      const open = goRows.filter((row) => DOOR_STANDS.get(row.id)?.());
+      const open = goRows.filter((row) => row.opens?.()?.at?.());
       return open.length
         ? [...open, ...goRows.filter((row) => !open.includes(row))]
         : goRows;
@@ -738,6 +727,7 @@ export function createGoToSequence({
     title: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),
+    opens: () => GO_TO_SCOPE,
   };
 
   const goToSequenceActive = () => goToActive;
@@ -756,7 +746,6 @@ export function createGoToSequence({
 
   return {
     goToStatus,
-    formatGoToAddress,
     setGoToSequence,
     paintGoToHints: hints.paint,
     goToSequenceActive,

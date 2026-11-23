@@ -147,7 +147,10 @@ rule draws at once is drawn.
   share the floating panel's field, the container sets its dimensions from a theme token
   and each mode's controls fill it. It grows only for content, such as typed words, or
   an explicit action, such as More room. A one-line control's visible height is
-  `--lf-line` (`styles/tokens.css`), and its touch target meets the minimum
+  `--lf-line` (`styles/tokens.css`). A field that runs to its frame's edges adds the
+  frame's padding to that height, as a thread card's reply box does, a comment box
+  does in the frame of the card it becomes, and the floating panel's field does while
+  it holds the caret. A control's touch target meets the minimum
   `surfaces.css` sets; a control that derives its height from its font or the touch
   minimum instead changes the height of every container that holds it. Checks:
   `test_whatever_the_field_holds_the_row_keeps_its_line` compares the row's height with

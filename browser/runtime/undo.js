@@ -100,6 +100,7 @@
    comment does (`keepRefusedWords`), which carried it under whatever was sent from
    that box next. */
 import { notice } from "./notifications.js";
+import { commandKeysNow } from "./keyboard/control-keys.js";
 import {
   applicationState,
   readApplication,
@@ -523,7 +524,7 @@ export function createUndo({
   /** @param {string} attempt @returns {import("./notifications.js").NoticePress} */
   const offerUndo = (attempt) => ({
     action: "undo",
-    command: "history.undo",
+    keys: () => commandKeysNow("history.undo"),
     run() {
       if (!settled()) return null;
       const entry = runtime.undo.find(({ event }) => event.attempt === attempt);

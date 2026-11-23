@@ -2378,11 +2378,14 @@ flowchart TD
             </p>
             <p id="version-comparison">
               The Versions list (<kbd>g</kbd> <kbd>V</kbd>) holds each stamped version.
-              Each version older than the one shown offers Compare, which marks the
-              blocks that changed since it. <kbd>v</kbd>, or Show changes under
-              Annotations in the leaf's menu, marks what changed since the version the
-              user last saw, or else the newest older one. A second press of
-              <kbd>v</kbd>, or the lit Compare, clears the marks.
+              Each version older than the one shown offers Compare, which says how many
+              changes stand since that version and marks them. The version the user last
+              saw reads <em>last seen</em> while the page has changed since. Versions
+              opens on that version, else on the newest older one, and
+              <kbd>v</kbd> there presses the Compare of the version it stands on, so
+              <kbd>g</kbd> <kbd>V</kbd> <kbd>v</kbd> marks what changed since the user
+              last looked. Pressing the lit Compare again, or the same keys, clears the
+              marks.
             </p>
             <p id="live-revisions">
               An open tab installs a live revision while preserving reading position and
@@ -4456,6 +4459,10 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     <td>Open or close On Me.</td>
                   </tr>
                   <tr>
+                    <td><kbd>A</kbd></td>
+                    <td>Open or close the agent's list, such as On Claude.</td>
+                  </tr>
+                  <tr>
                     <td><kbd>L</kbd></td>
                     <td>
                       Open or close All pages, when neighbouring pages are available.
@@ -4468,6 +4475,10 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                   <tr>
                     <td><kbd>V</kbd></td>
                     <td>Open Versions, when version history is available.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>H</kbd></td>
+                    <td>Hide or show the annotations: pins and passage marks.</td>
                   </tr>
                   <tr>
                     <td><kbd>p</kbd></td>

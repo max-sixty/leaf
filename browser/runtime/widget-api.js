@@ -45,8 +45,9 @@ export { partOver } from "./thread/placement.js";
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
-// user sees, as scroll anchoring and the chrome leave it.
-export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+// user sees, as scroll anchoring and the chrome leave it; `whenNone` hears when such a
+// reading stops holding.
+export { growthIsSeen, landingInsets, shownWindow, whenNone } from "./geometry.js";
 export { registerRootHeader } from "./root-headers.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
@@ -80,8 +81,6 @@ export {
 } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (`shows`).
-export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";

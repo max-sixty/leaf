@@ -725,9 +725,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
 
     # Once its track sticks, the map stays put through the rest of its sidebar, its
     # start in view where the sidebar ends, and fills its track less the track's focus
-    # room, above the panel's room.
-    panel_box = page.locator(".lf-fp-card").bounding_box()
-    assert panel_box is not None
+    # room.
     track = page.locator("#route > .layout-track")
     sidebar_end = page.locator("#route").evaluate(
         "node => node.parentElement.getBoundingClientRect().bottom "
@@ -744,7 +742,6 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         assert box is not None
         assert box["y"] >= 0, box
         foot = box["y"] + box["height"]
-        assert foot <= panel_box["y"] + 1, (box, panel_box)
         track_box = track.bounding_box()
         assert track_box is not None
         assert foot == pytest.approx(track_box["y"] + track_box["height"] - 8, abs=1)

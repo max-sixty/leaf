@@ -10,3 +10,4 @@ export {
   cardMinimum,
   makeRoom,
 } from "./comment-placement.js";
+export { markRoom } from "../mark-room.js";

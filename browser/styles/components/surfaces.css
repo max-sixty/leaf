@@ -1094,16 +1094,16 @@ summary {
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
    closed (thread/transcript.js). One disclosure at its head controls the entire
-   range. Open, the covered messages follow it at their own inner gap. */
+   range. Open, the covered messages follow it at their own inner gap. Each item of a
+   transcript keeps its gap above it alone, since nothing collapses a gap below one
+   into the next: a card's transcript is a grid, and a closed fold's hidden messages
+   are boxes of their own between the checkpoint and what follows. */
 .lf-thread-checkpoint {
-  margin-block: var(--lf-msg-gap);
+  margin-block-start: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
 }
-.lf-thread-checkpoint[data-lf-expanded="true"] {
-  margin-block-end: 8px;
-}
 .lf-thread-transcript > .lf-msg[data-lf-summary] {
-  margin-block: 8px;
+  margin-block-start: 8px;
   anchor-name: var(--lf-fold-foot);
 }
 /* A closed fold hides its messages until found, which keeps each one's box, empty and

@@ -624,13 +624,6 @@
   .lf-margin-thread .lf-msg-body {
     grid-column: 1 / -1;
   }
-  /* Grid margins do not collapse. Keep the conversation's single inter-group
-     gap and a fold's single inter-message gap instead of adding both edges. */
-  .lf-margin-thread
-    .lf-thread-transcript
-    > :is(.lf-thread-checkpoint, .lf-msg[data-lf-summary]) {
-    margin-block-end: 0;
-  }
   .lf-margin-thread .lf-reply-space {
     grid-row: 3;
   }

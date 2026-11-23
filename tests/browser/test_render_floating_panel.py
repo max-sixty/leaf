@@ -24,7 +24,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import page_at_rest, rings_drawn, solid_png
+from render_cases_layout import page_at_rest, ring_faults, rings_drawn, solid_png
 from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
@@ -6138,11 +6138,11 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(field(page)).to_be_focused()
     face = page.locator(".lf-fp-field").evaluate(
         """box => {
-          const style = getComputedStyle(box);
+          const ring = getComputedStyle(box, '::after');
           const card = document.querySelector('.lf-fp-card');
           const at = box.getBoundingClientRect(), edge = card.getBoundingClientRect();
-          return [style.outlineStyle, style.outlineWidth, style.outlineOffset,
-            style.backgroundColor !== getComputedStyle(card).backgroundColor,
+          return [ring.outlineStyle, ring.outlineWidth, ring.outlineOffset,
+            getComputedStyle(box).backgroundColor !== getComputedStyle(card).backgroundColor,
             [at.top - edge.top, at.left - edge.left, edge.bottom - at.bottom]
               .map(Math.round)];
         }"""
@@ -6168,6 +6168,47 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     # The resume has drawn whatever it decided, an error included.
     rendered(page)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
+
+
+def test_the_field_s_ring_stands_over_what_covers_its_words(browser, serve):
+    """The ring the field wears while it holds the caret stands one band inside the
+    box's edge, where Send stands, so what paints the field's paper over the words
+    leaves it whole: Send shown over words that run under its corner, under a resting
+    pointer, and an error about the field."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    for word in ("the words run on toward the corner where Send stands " * 4).split():
+        page.keyboard.insert_text(f"{word} ")
+        rendered(page)
+        if field(page).evaluate("(node) => node.matches(':state(corner-taken)')"):
+            break
+    else:
+        raise AssertionError("the words never reached Send's corner")
+    send = page.locator(".lf-fp-field .lf-compose-submit").bounding_box()
+    assert send is not None
+    page.mouse.move(send["x"] + send["width"] / 2, send["y"] + send["height"] / 2)
+    expect(page.locator(".lf-fp-field .lf-compose-field")).to_have_attribute(
+        "data-lf-send-armed", ""
+    )
+    rendered(page)
+    assert not (faults := ring_faults(rings_drawn(page), "with Send over the words")), (
+        "\n".join(faults)
+    )
+
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        raiseError('That writing place is unavailable',
+            {subject: document.querySelector('.lf-fp-field leaf-text')});
+    }""")
+    expect(page.locator(".lf-fp-field .lf-compose-error")).to_be_visible()
+    rendered(page)
+    assert not (faults := ring_faults(rings_drawn(page), "under an error")), "\n".join(
+        faults
+    )
 
 
 def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve):

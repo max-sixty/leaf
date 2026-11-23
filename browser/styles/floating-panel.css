@@ -457,7 +457,11 @@
 
      The field names the row as the box that shows its focus, so the row can give up
      its line while the ring stands. The ring is the field's slot's (`.lf-fp-field`)
-     rather than the editor's, so Send, standing in the editor's corner, stays put. */
+     rather than the editor's, so Send, standing in the editor's corner, stays put. It
+     is drawn on a box laid over what the slot holds (surfaces.css, "A focused box
+     whose band something would cover"): Send's box reaches the slot's end edge, under
+     the ring's band, and paints the field's paper over the words it stands on, as an
+     error does over the whole field. */
   .lf-fp-field .lf-compose-field > leaf-text {
     --lf-focus-box: .lf-fp-row;
   }
@@ -466,13 +470,23 @@
     margin-inline-start: calc(-1 * var(--lf-fp-row-pad));
     padding-block: var(--lf-fp-row-pad);
     padding-inline-start: var(--lf-fp-row-pad);
-    outline: var(--lf-focus-ring);
     --lf-ring-at: var(--lf-focus-ring-inset);
     border-radius: 0;
     border-start-start-radius: var(--lf-r-l);
     border-end-start-radius: var(--lf-r-l);
     background: var(--lf-card);
     --lf-wears-ring: 1;
+  }
+  /* As high as Send and the error (response.css) and after them, so over them. */
+  .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    outline: var(--lf-focus-ring);
+    outline-offset: var(--lf-focus-ring-inset);
   }
   .lf-floating-panel[data-lf-open]
     .lf-fp-row[data-lf-control-focus-visible]

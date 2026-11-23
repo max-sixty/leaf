@@ -58,9 +58,10 @@
  *
  * The reader's hand inside the box, a press, wheel, touch or key there, stops the
  * following, so the box holds still while they read or scroll it, and their hand on
- * the widget `for` names starts it again. Rejected: following again once a marked line
- * came into the reader's view, which took the pane from a reader who had scrolled up to
- * read the lede as soon as the film lit a line beside it.
+ * the widget `for` names starts it again for the blocks that name it. Rejected:
+ * following again once a marked line came into the reader's view, which took the pane
+ * from a reader who had scrolled up to read the lede as soon as the film lit a line
+ * beside it.
  *
  * It is a `LeafElement` only to be handed `playhead`; it draws no Lit template, and its
  * source draw is the update's completion, so Leaf's first anchor pass waits for the
@@ -92,29 +93,22 @@ import {
   tokenLines,
 } from "/runtime/portable-api.js";
 
-// Whether the blocks in each box still follow there, and the boxes each followed widget
-// keeps following. A box is shared, as one pane holds several excerpts, so the reader's
-// hand inside it stops every block there, and their hand on a widget the blocks follow
-// starts them again (see the header). The hand is read from the document's one reading
-// of the reader's inputs (`onUserInput`), which binds no key, and is one of its
-// gestures: an `input` follows a gesture already counted, and a script that moves the
-// followed widget dispatches one with no reader behind it.
-/** @typedef {{follows: boolean}} Following */
-/** @type {WeakMap<Element, Following>} */
-const boxes = new WeakMap();
-/** @type {WeakMap<Element, Set<Following>>} */
-const resumes = new WeakMap();
+// Which of the reader's gestures last had their hand on or inside each element, counted
+// from the first. A block follows in its box unless their hand was in the box after it
+// was last on the widget the block follows (see the header), so a hand in the box holds
+// it from the page's load, before any block there has followed a line. The hand is read
+// from the document's one reading of the reader's inputs (`onUserInput`), which binds
+// no key, and is one of its gestures: an `input` follows a gesture already counted, and
+// a script that moves the followed widget dispatches one with no reader behind it.
+/** @type {WeakMap<Element, number>} */
+const hands = new WeakMap();
+let gestures = 0;
 const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
 onUserInput((event) => {
   if (!HAND.has(event.type)) return;
-  const path = event.composedPath();
-  for (const node of path) {
-    const box = node instanceof Element ? boxes.get(node) : undefined;
-    if (box) box.follows = false;
-  }
-  for (const node of path)
-    for (const box of (node instanceof Element && resumes.get(node)) || [])
-      box.follows = true;
+  gestures += 1;
+  for (const node of event.composedPath())
+    if (node instanceof Element) hands.set(node, gestures);
 });
 
 // "3-5,8" → [[3, 5], [8, 8]].
@@ -238,21 +232,15 @@ customElements.define(
       const [row] = this.#at;
       // A row the page doesn't render, as in a closed disclosure, has no place to bring
       // into view.
-      if (!row?.checkVisibility()) return;
+      if (!arrived || !row?.checkVisibility()) return;
       const [scroller] = scrollersOf(row);
       if (!scroller || scroller === document.scrollingElement) return;
-      let box = boxes.get(scroller);
-      if (!box) boxes.set(scroller, (box = { follows: true }));
       const id = this.getAttribute("for");
       const followed =
         id &&
         /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id);
-      if (followed) {
-        let followers = resumes.get(followed);
-        if (!followers) resumes.set(followed, (followers = new Set()));
-        followers.add(box);
-      }
-      if (!arrived || !box.follows) return;
+      const resumed = (followed && hands.get(followed)) || 0;
+      if ((hands.get(scroller) ?? 0) > resumed) return;
       const frame = scroller.getBoundingClientRect();
       const { top, bottom } = row.getBoundingClientRect();
       if (

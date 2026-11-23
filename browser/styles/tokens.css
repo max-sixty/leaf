@@ -210,6 +210,18 @@
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
+  /* A box that meets a hairline frame's edge from inside, such as a toolbar's end mark
+     or an option group's corner cell, takes this rounding at the corners they share:
+     the frame's --lf-r less its hairline, so the box's edge, and a ring drawn inside
+     it, follows the frame's inner curve (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). */
+  --lf-r-in: calc(var(--lf-r) - 1px);
+  /* The least room between a box and its frame's edge that reads as standing clear of
+     the edge rather than nearly meeting it (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). A seat that stands a box clear of an
+     edge, such as a card's grip or a block's toolbar, reads it. It is a length of its
+     own rather than --lf-sp-1, which a denser layout narrows below it. */
+  --lf-clear: 4px;
   /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
@@ -647,8 +659,10 @@
        and any box that draws a frame round itself stands its rings on the frame (the
        user's choice): a ring a gap off a frame read as a second box round it.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
-       box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing
+       box padded inside a frame it fills, one whose clip leaves no room outside it, or
+       one of Leaf's word and symbol presses, which Leaf seats on frames' edges and in
+       their corners (controls.css, `.lf-btn` and `.lf-icon-action`): one band inside
+       its edge, at --lf-focus-ring-inset. A box that clips a mark standing
        outside its target cuts it, as it cuts the target. A box the page's layout leaves
        less room round than a region's gap, as a full-height workspace's body
        (layouts.css), stands its marks at a control's gap: inside, they would run over

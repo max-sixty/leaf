@@ -1073,9 +1073,11 @@ html[data-lf-draw-mode] {
     background: color-mix(in srgb, var(--lf-accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--lf-accent) 72%, transparent);
   }
-  /* As wide as "99 of 99", so the field keeps its width as the count changes. */
+  /* As wide as "99 of 99", so the field keeps its width as the count changes, and
+     `--lf-clear` before the first step, so a hovered step's face doesn't touch it. */
   .lf-page-search-status {
     inline-size: 7ch;
+    margin-inline-end: var(--lf-clear);
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 1lh;

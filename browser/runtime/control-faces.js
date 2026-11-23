@@ -96,6 +96,11 @@
      which nothing but the keys or assistive technology reaches, so any focus on it
      rings its target and brings the target into view (details-shelf.js).
 
+   A holder whose presses join into one control says so with `data-lf-joined`, as a
+   block's toolbar of marks and a question's Done cell do: each press in it is square
+   where it meets the next, rings inside its edge, and takes the holder's rounding where
+   it meets the holder's corners (controls.css).
+
    A difference that was only a past choice is not a role: a symbol once came bordered
    in some widgets and quiet in others, a word framed in some, quiet in others and a
    list's row in a third, four presses among words drew four faces of their own, seven

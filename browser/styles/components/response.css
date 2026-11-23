@@ -337,6 +337,11 @@ leaf-composition-field {
   inset-inline-end: var(--lf-compose-action-end, var(--lf-compose-action-inset));
   inset-block-end: var(--lf-compose-action-inset);
 }
+/* Send that words from elsewhere brought into the corner lets a press through to the
+   words until the pointer moves (composing/input.js, `data-lf-send-fresh`). */
+.lf-compose-field[data-lf-send-fresh] > .lf-compose-submit {
+  pointer-events: none;
+}
 /* The microphone's slash marks a dictation that failed, so any microphone not on a failed
    press draws without it. */
 :not([data-lf-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {

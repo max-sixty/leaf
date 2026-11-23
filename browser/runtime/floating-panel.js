@@ -1453,7 +1453,7 @@ export function createFloatingPanel({
       enters: () => fieldReading(null, input).end,
       // While a stance stands the field takes no words (field-readings.js, `still`).
       closed: stanceHolds,
-      cornerAtRest: false,
+      cornerAtRest: () => false,
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1542,7 +1542,7 @@ export function createFloatingPanel({
           // end, as over the page's (field-readings.js, `end`).
           enters: () => fieldReading(key, replyInput()).end,
           closed: stanceHolds,
-          cornerAtRest: false,
+          cornerAtRest: () => false,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it

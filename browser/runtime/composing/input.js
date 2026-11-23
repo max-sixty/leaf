@@ -30,10 +30,15 @@
 // The user writes in a box while focus is in it, on its editor or a press in its
 // corner such as Dictate, or while a dictation runs in it (`writesIn`). The box's press
 // at rest (`enters`) stands only while they don't, so it never stands beside the press
-// in the corner. A box whose corner stays empty at rest (`cornerAtRest` false), as the
-// floating panel's field is, shows Dictate or Send there only while the user writes or
-// it holds words, and its owner keeps the corner's room exactly while one shows
-// (floating-panel.css).
+// in the corner, nor while the box holds a draft, an attachment alone included. A box
+// whose corner stays empty at rest (`cornerAtRest` false), as the floating panel's
+// field is, shows Dictate or Send there only while the user writes or it holds words,
+// and its owner keeps the corner's room exactly while one shows (floating-panel.css).
+// Words that arrive from elsewhere (`sync.load`), such as a draft mirrored from another
+// tab or the words a refused send hands back, bring Send into the corner without the
+// user's move, so Send lets a press through to the words until the pointer moves
+// (`data-lf-send-fresh`, response.css): a pointer resting where the corner was free
+// never sends.
 //
 // An error about a box (errors.js, its `subject`), such as a refused send's whose words
 // came back to it or an image it would not take, stands over the box's words and
@@ -111,7 +116,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {() => string | BoxPress | null} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {() => boolean} [closed]
- * @property {boolean} [cornerAtRest]
+ * @property {() => boolean} [cornerAtRest]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
  * @property {string} [sendClass]
@@ -388,7 +393,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       closed = () => false,
       // Whether the corner shows Dictate, or Send, while the user isn't writing in the
       // empty box; false leaves it empty then.
-      cornerAtRest = true,
+      cornerAtRest = () => true,
       save,
       send,
       sendClass = "",
@@ -467,7 +472,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let stopDictationRevision = null;
     const dictationPhase = () =>
       loadingDictation ? "starting" : (dictation?.phase ?? "idle");
-    const writing = () => focusInBox.value || dictationPhase() !== "idle";
+    // A signal, so a reader of `writesIn` outside the box hears a dictation end.
+    const dictating = signal(false);
+    const writing = () => focusInBox.value || dictating.value;
     const dictationStatus = () =>
       loadingDictation
         ? "Starting microphone…"
@@ -593,8 +600,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     /** @param {PointerEvent & {currentTarget: HTMLElement}} event */
     const point = (event) => {
-      if (event.pointerType === "touch") return;
       const box = event.currentTarget;
+      keeps(box, "data-lf-send-fresh", null);
+      if (event.pointerType === "touch") return;
       const send = sendBtn?.getBoundingClientRect();
       const on =
         send &&
@@ -624,7 +632,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const advertising = advertisesKeys();
       const sendKeys = advertising ? sendKey() : "";
       const status = dictationStatus();
-      const offered = writing() || status ? "" : enters();
+      const offered = writing() || hasWords || status ? "" : enters();
       const press = typeof offered === "string" ? null : offered;
       const suffix =
         !advertising || offered === null
@@ -708,7 +716,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;
-      const corner = cornerAtRest || writing();
+      const corner = cornerAtRest() || writing();
       const micShown =
         offersDictation && !shut && (phase !== "idle" || (!hasWords && corner));
       const micAction = live
@@ -840,6 +848,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (submitIn) paintKeysWithin(submitIn);
       });
     const refresh = () => {
+      dictating.value = dictationPhase() !== "idle";
       if (dictationPhase() === "idle") {
         stopDictationRevision?.();
         stopDictationRevision = null;
@@ -848,6 +857,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       field.requestUpdate();
     };
     const draftChanged = () => {
+      if (ta.parentElement) keeps(ta.parentElement, "data-lf-send-fresh", null);
       save(draftValue());
       refresh();
     };
@@ -881,7 +891,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // value the box already holds is left where it is — which is what lets another tab's
     // notification, a reopened composer, and a mirrored panel box all say it unconditionally.
     sync.load = /** @param {string} value */ (value) => {
-      if (draftValue() !== value) hydrate(value);
+      if (draftValue() !== value) {
+        hydrate(value);
+        if (value && ta.parentElement)
+          keeps(ta.parentElement, "data-lf-send-fresh", "");
+      }
       refresh();
     };
     ta[INPUT_DRAFT] = sync;

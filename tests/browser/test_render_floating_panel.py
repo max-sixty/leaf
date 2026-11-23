@@ -5005,6 +5005,27 @@ def test_stop_stands_while_its_dictation_runs(browser, serve):
     expect(field(page)).to_have_attribute("data-lf-says", "destination")
 
 
+def test_send_another_tab_brings_lets_a_resting_press_through(browser, serve):
+    """Words another tab writes in the page's field bring Send into its corner under a
+    pointer resting where the corner stood empty. A press there before the pointer
+    moves places the caret in the words rather than sending them (browser/AGENTS.md,
+    "Controls stay where the user aims")."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, url)
+    other = floating(browser, url)
+    box = field(page).bounding_box()
+    page.mouse.move(box["x"] + box["width"] - 12, box["y"] + box["height"] / 2)
+    write(field(other), "Written in the other tab")
+    expect(field(page)).to_have_js_property("value", "Written in the other tab")
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    expect(send).to_be_visible()
+    page.mouse.down()
+    page.mouse.up()
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_js_property("value", "Written in the other tab")
+    expect(page.locator(".lf-fp-opened")).to_be_hidden()
+
+
 def test_closing_a_view_leaves_dictate_beside_the_caret(browser, serve):
     """A pointer on an open view's Close leaves the caret in the page's field, which
     the user is still writing in, so Dictate keeps its corner."""

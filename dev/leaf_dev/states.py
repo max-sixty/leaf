@@ -2080,18 +2080,29 @@ def page_comment_send_shown(page: Page) -> None:
     expect(page.locator("#lf-preview")).to_be_visible()
 
 
+def error_about(page: Page, box: str) -> None:
+    """An error about the composer `box` names, standing over its words."""
+    page.locator(f"{box} leaf-text").evaluate("""async (subject) => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        raiseError('That writing place is unavailable', {subject});
+    }""")
+    expect(page.locator(f"{box} .lf-compose-error")).to_be_visible()
+
+
 def page_comment_error(page: Page) -> None:
     """The floating panel's field holding the caret, with an error about it standing
     over its words."""
     page_comment_long(page)
-    page.evaluate("""async () => {
-        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-        const {raiseError} = await import(
-            new URL('runtime/errors.js', new URL(boot, location.href)));
-        raiseError('That writing place is unavailable',
-            {subject: document.querySelector('.lf-fp-field leaf-text')});
-    }""")
-    expect(page.locator(".lf-fp-field .lf-compose-error")).to_be_visible()
+    error_about(page, ".lf-fp-field")
+
+
+def card_reply_error(page: Page) -> None:
+    """The first margin card's reply box holding the caret, with an error about it
+    standing over its words."""
+    card_reply_long(page)
+    error_about(page, ".lf-margin-preview .lf-thread-reply")
 
 
 def option_long(page: Page) -> None:
@@ -3757,6 +3768,7 @@ STATES = (
     ),
     State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State("plan-card-reply-error", "review-a-plan", card_reply_error),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
     State(

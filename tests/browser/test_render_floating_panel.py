@@ -6197,18 +6197,38 @@ def test_the_field_s_ring_stands_over_what_covers_its_words(browser, serve):
         "\n".join(faults)
     )
 
-    page.evaluate("""async () => {
-        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-        const {raiseError} = await import(
-            new URL('runtime/errors.js', new URL(boot, location.href)));
-        raiseError('That writing place is unavailable',
-            {subject: document.querySelector('.lf-fp-field leaf-text')});
-    }""")
+    field(page).evaluate(
+        "async (subject) => (await window.__lfWidgetApi())"
+        ".raiseError('That writing place is unavailable', {subject})"
+    )
     expect(page.locator(".lf-fp-field .lf-compose-error")).to_be_visible()
     rendered(page)
     assert not (faults := ring_faults(rings_drawn(page), "under an error")), "\n".join(
         faults
     )
+
+
+def test_a_press_inside_the_field_s_ring_keeps_its_words_focused(browser, serve):
+    """Holding the caret, the field's slot runs to the panel's edges and wears the ring
+    one band inside them, so a press between the ring and the words' box is a press on
+    the field, and the words keep the focus."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    page.keyboard.insert_text("A comment being written")
+    slot = page.locator(".lf-fp-field").bounding_box()
+    words = page.locator(".lf-fp-field .lf-compose-field").bounding_box()
+    assert slot is not None and words is not None
+    # The band the slot's padding holds, beside the words' box and above and below it.
+    for x, y in (
+        (slot["x"] + 3, slot["y"] + slot["height"] / 2),
+        (words["x"] + words["width"] / 2, slot["y"] + 3),
+        (words["x"] + words["width"] / 2, slot["y"] + slot["height"] - 3),
+    ):
+        assert words["x"] > x or y < words["y"] or y > words["y"] + words["height"]
+        page.mouse.click(x, y)
+        expect(field(page)).to_be_focused()
 
 
 def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve):

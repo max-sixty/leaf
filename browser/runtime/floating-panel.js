@@ -846,7 +846,15 @@ export function createFloatingPanel({
                 paint();
               }}
             ></button>
-            <div class="lf-fp-field">
+            <div
+              class="lf-fp-field"
+              @mousedown=${(/** @type {MouseEvent} */ event) => {
+                // Holding the caret, the slot runs to the panel's edges and wears the
+                // ring there (floating-panel.css), so its padding reads as the field's:
+                // a press on it keeps the focus the words hold.
+                if (event.target === event.currentTarget) event.preventDefault();
+              }}
+            >
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
                 ${
                   initial

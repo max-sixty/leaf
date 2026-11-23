@@ -23,10 +23,14 @@ const ATOMIC_INLINE =
 // atomic inline (CSS Transforms, "transformable element"), so an element drawing no box
 // (`display: contents`), an inline box of words and a table column take none of theirs.
 // Null where the box adds nothing, as most boxes do, so a climb builds a matrix only for
-// those that add something.
+// those that add something. An element the browser computes no style for, one out of
+// the document or in a document no window shows, draws no box and reads every property
+// as an empty string, from which no turn can be read, so it adds nothing, as its empty
+// bounding rect says.
 /** @param {Element} node */
 function ownTransform(node) {
   const style = getComputedStyle(node);
+  if (!style.display) return null;
   const zoom = Number(style.zoom);
   const turns =
     (style.rotate !== "none" || style.scale !== "none" || style.transform !== "none") &&

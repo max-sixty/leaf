@@ -13,8 +13,11 @@
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
    `cancelAnimation` for continuous mechanical motion, and `sizeObserver` in place
    of `new ResizeObserver`. The lint gate
-   refuses the browser's own in the runtime and in the bundled packages, so the loop and
-   the reading answer for every owner there without a list of them. Coalescing owners
+   refuses the browser's own in the runtime, so the loop and the reading answer for
+   every owner there without a list of them. In the bundled packages it refuses
+   `ResizeObserver` alone: a package's settling work comes through `nextRender` and
+   `nextFrame`, and its motion that may run until the user stops it calls the browser's
+   frame, which the reading doesn't count. Coalescing owners
    keep their own flags; this module holds the one queue behind them.
 
    The neutral `queued-work.js` home binds a callback's one deferred invocation to that same lifecycle,

@@ -57,8 +57,6 @@ import { sectionMarks } from "./toc-marks.js";
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
 import {
-  atLayoutPrecision,
-  atScrollEnd,
   comparisonChanges,
   frameFor,
   holdFocus,
@@ -74,7 +72,6 @@ import {
   readObligations,
   readThreads,
   scrollerFor,
-  scrollLimit,
   sizeObserver,
   whileConnected,
   named,
@@ -586,7 +583,13 @@ customElements.define(
       this.#standLens(clear, this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      const end = atScrollEnd(this.#scroller);
+      // Two pixels short of its end still reads as the end: fractional layout and a
+      // scaled display leave the browser a pixel short of where a scroll was aimed.
+      const end =
+        this.#scroller.scrollHeight -
+          this.#scroller.clientHeight -
+          this.#scroller.scrollTop <=
+        2;
       for (const measured of this.#measured)
         if (measured.shown && (end || measured.position <= threshold))
           current = measured;
@@ -609,7 +612,7 @@ customElements.define(
     // length or landing band has changed; a scroll alone reaches the early return.
     /** @param {{top: number, bottom: number}} clear @param {Element} scroller */
     #standLens(clear, scroller) {
-      const reach = scrollLimit(scroller);
+      const reach = scroller.scrollHeight - scroller.clientHeight;
       const band = scroller.clientHeight - clear.top - clear.bottom;
       const inputs = `${reach} ${band} ${clear.top}`;
       if (inputs === this.#lensInputs) return;
@@ -622,10 +625,11 @@ customElements.define(
           size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
         };
       };
+      // Both at layout's 1/64px, so a measure that jitters below it writes nothing new.
       const transform = (
         /** @type {{start: number, size: number}} */ { start, size },
       ) =>
-        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
+        `translateY(${layoutPx(start)}) scaleY(${Math.round(Math.max(floor, size) * 64) / 64})`;
       if (reach <= 0) {
         this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;

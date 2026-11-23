@@ -172,12 +172,8 @@ alignment does.
 ### Media URLs
 
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it
-on a generated image or link, so it resolves on published pages too.
-`isCanonicalMediaUrl(href)` says whether a path is such a `/media/…` path.
-
-`canvas2D(canvas, options)` returns the native 2D context of a canvas or offscreen
-canvas, and throws if the browser cannot create it. Pass native context options when
-the drawing needs them.
+on a generated image or link, so it resolves on published pages too. Any other address
+goes on as written.
 
 ### Icons
 

@@ -418,7 +418,9 @@ keyboard's.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
-the browser's own. A rendering callback does its layout reads before its writes, since
+the browser's own, except `requestAnimationFrame` in a package, which is for motion
+that may run until the user stops it, such as playback, and which the settled reading
+doesn't count. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
 in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
 forced style also lays out whatever in `body` is out of date, a closed tab's panel
@@ -693,7 +695,8 @@ A question the runtime asks in many places has one owner, which every caller ask
 since a second copy drifts from it at the edges, such as under a stuck header or in a
 shadow tree. Before writing or approving a predicate or measurement, look for its
 question in "The browser answers first" and then here. A change that creates an owner
-adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
+adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`, whose packages'
+block names what a package answers with the browser's own call instead.
 
 | Question                                                                                              | Owner                                                                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |

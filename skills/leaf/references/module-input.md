@@ -282,8 +282,7 @@ first destination that can take focus. The layer's Escape is an ordinary command
 Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 `modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.
 Inside a live sample they suppress the browser's own focus moves, so place the arrival
-with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or a
-dialog modal.
+with `focusDestination`.
 
 A control that opens a popover, such as a menu of choices, names it with
 `popovertarget`, or passes itself as the source of `showNativeLayer(popover, {source})`.
@@ -309,8 +308,7 @@ itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 ### Pointer presses
 
 A handler that takes over a click, such as a link that opens a source line, acts only on
-`plainPress(event)`, the primary button with no modifier, so a modified click keeps its
-usual meaning.
+the primary button with no modifier held, so a modified click keeps its usual meaning.
 
 A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a

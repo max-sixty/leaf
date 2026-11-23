@@ -1087,11 +1087,20 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"
 
+    # The reply box runs to the card's sides and foot, inside its hairline; the
+    # thread's controls and messages keep their room inside its padding.
+    reply_row = thread.locator(":scope > .lf-thread-reply").evaluate(
+        """row => { const box = row.getBoundingClientRect();
+          const card = row.parentElement.getBoundingClientRect();
+          return [box.left - card.left, card.right - box.right, card.bottom - box.bottom]; }"""
+    )
+    assert reply_row == [1, 1, 1], reply_row
     clearances = thread.evaluate(
         """el => {
           const root = el.getBoundingClientRect();
           return [...el.children]
-            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none')
+            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none'
+              && !child.matches('.lf-thread-reply'))
             .flatMap(child => {
               const box = child.getBoundingClientRect();
               return [box.left - root.left, root.right - box.right,

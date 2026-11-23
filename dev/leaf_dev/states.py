@@ -306,9 +306,11 @@ def thread_reply_photo(page: Page) -> None:
 
 
 def page_comment_photo_hover(page: Page) -> None:
-    """The panel's attached screenshot under the pointer, which shows its removal."""
+    """The panel's attached screenshot under a resting pointer, which shows its removal
+    and the preview naming the press that views it."""
     page_comment_photo(page)
     page.locator(".lf-fp-field .lf-composer-media-open").hover()
+    preview_shown(page)
 
 
 def panel_corner_hover(page: Page) -> None:
@@ -408,8 +410,10 @@ def panel_leaf(page: Page) -> None:
 
 
 def panel_status_hover(page: Page) -> None:
-    """The expanded panel while the pointer rests over its leaf."""
+    """The expanded panel while the pointer rests over its leaf, whose preview says
+    what waits on the user."""
     page.locator(".lf-fp-leaf").hover()
+    preview_shown(page)
 
 
 def panel_status_cut(page: Page) -> None:
@@ -674,13 +678,21 @@ def control_preview(page: Page) -> None:
     the card alone."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview .lf-resolve").hover()
+    preview_shown(page)
+    settle(page)
+
+
+def preview_shown(page: Page) -> None:
+    """Wait until the preview of what the pointer rests on has opened, which it does
+    after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
+    state ending on such a hover waits here, or its still catches the preview in one
+    capture and not the next."""
     page.wait_for_function(
         """() => {
           const tip = document.getElementById('lf-preview');
           return !tip || tip.matches(':popover-open');
         }"""
     )
-    settle(page)
 
 
 # Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
@@ -2068,11 +2080,13 @@ def option_long(page: Page) -> None:
 
 
 def option_add_hover(page: Page) -> None:
-    """A compact alternative's Add face beside its one-line draft."""
+    """A compact alternative's Add face beside its one-line draft, under a resting
+    pointer whose preview names the press and its key."""
     form = page.locator("#bg-choice > .lf-another")
     form.locator("leaf-text").click()
     page.keyboard.insert_text("Keep the current behavior")
     form.get_by_role("button", name="Add and select option", exact=True).hover()
+    preview_shown(page)
 
 
 def options_in_pane(page: Page) -> None:

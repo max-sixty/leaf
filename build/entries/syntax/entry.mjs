@@ -69,6 +69,11 @@ export const leafTheme = {
     { scope: ["markup.inserted"], settings: { foreground: "var(--lf-ok-ink)" } },
     { scope: ["markup.deleted"], settings: { foreground: "var(--lf-danger-ink)" } },
     { scope: ["keyword.operator"], settings: { foreground: "var(--lf-code-ink)" } },
+    // A heading and strong words are bold, emphasis italic and a link's address
+    // underlined, as the rendered text would show them.
+    { scope: ["markup.heading", "markup.bold"], settings: { fontStyle: "bold" } },
+    { scope: ["markup.italic"], settings: { fontStyle: "italic" } },
+    { scope: ["markup.underline.link"], settings: { fontStyle: "underline" } },
   ],
 };
 

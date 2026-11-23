@@ -336,9 +336,12 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
 def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_path):
     """The editor colours a file by the tokenizer and theme a code block of the same
     file is coloured by, so a YAML number, boolean, null, key, string and comment, and a
-    Markdown heading, each wear in the editor what they wear in the block."""
+    Markdown heading, strong and emphasised words and a link's address, each wear in
+    the editor the colour and face they wear in the block."""
     yaml = "# Worker\nreplicas: 3\nenabled: true\nceiling: null\nowner: 'oncall'\n"
-    markdown = "# Runbook\n\nThe queue grows when **every** slot is busy.\n"
+    markdown = (
+        "# Runbook\n\nWhen **every** slot is busy, *only* then, [see](notes.md).\n"
+    )
     (tmp_path / "values.yaml").write_text(yaml)
     (tmp_path / "runbook.md").write_text(markdown)
     url = serve(
@@ -357,14 +360,17 @@ def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_p
     editor = page.locator("lf-file-editor").get_by_role(
         "textbox", name="File contents", exact=True
     )
-    # The face each word wears, in the editor and in the code block of its language.
+    # The face each word wears, in the editor and in the code block of its language: a
+    # word the theme leaves uncoloured is in each one's own ink.
     faces = """([words, lang]) => {
       const face = (root) => Object.fromEntries(words.map((word) => {
+        const ink = getComputedStyle(root).color;
         const texts = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         for (let text = texts.nextNode(); text; text = texts.nextNode())
           if (text.data.trim() === word) {
             const style = getComputedStyle(text.parentElement);
-            return [word, [style.color, style.fontStyle, style.fontWeight]];
+            return [word, [style.color === ink ? "ink" : style.color, style.fontStyle,
+              style.fontWeight, style.textDecorationLine]];
           }
         return [word, null];
       }));
@@ -375,7 +381,7 @@ def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_p
     }"""
     for words, lang, shown in (
         (["# Worker", "replicas", "3", "true", "null", "'oncall'"], "yaml", "ceiling"),
-        (["# Runbook"], "markdown", "Runbook"),
+        (["# Runbook", "**every**", "*only*", "notes.md"], "markdown", "Runbook"),
     ):
         if lang == "markdown":
             page.locator("#to-runbook").click()
@@ -387,6 +393,14 @@ def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_p
         in_editor, in_block = page.evaluate(faces, [words, lang])
         assert all(in_block.values()), in_block
         assert in_editor == in_block, (in_editor, in_block)
+    # The theme gives Markdown its faces: a heading and strong words bold, emphasis
+    # italic and a link's address underlined.
+    assert {word: face[1:] for word, face in in_block.items()} == {
+        "# Runbook": ["normal", "700", "none"],
+        "**every**": ["normal", "700", "none"],
+        "*only*": ["italic", "400", "none"],
+        "notes.md": ["normal", "400", "underline"],
+    }
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):

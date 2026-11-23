@@ -567,8 +567,9 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
 def test_tab_onto_a_nested_workspace_link_clears_the_floating_panel(
     request, serve, engine
 ):
-    """The workspace's tab scroller clears the collapsed panel on native Tab,
-    including when an outer tab transfers its end clearance to nested views."""
+    """Native Tab brings a link in a nested workspace tab clear of the panel's row,
+    which stands over the tab's scroller: a landing in a scroller reaching under the
+    row ends its band where the page's does."""
     source = leaf_page(
         "Review evidence",
         '<header><h1>Review evidence</h1></header><lf-tabs id="views">'
@@ -1427,9 +1428,9 @@ def test_root_tab_targets_remain_global(browser, serve):
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
     """A page of parts whose opening part is a workspace gives that workspace the
-    window's height above the floating panel's row before the runtime upgrades the parts,
-    so nothing grows or moves when it does. The row's room is the part's own end, so the
-    part and the page reach the window's foot with no band below them."""
+    window's height before the runtime upgrades the parts, so nothing grows or moves
+    when it does. The part and the page reach the window's foot with no band below
+    them."""
     source = leaf_page(
         "Workspace part",
         '<header><h1>Review</h1></header><lf-parts id="parts">'
@@ -1452,18 +1453,15 @@ def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
             return page.evaluate("""() => {
               const block = document.querySelector('#surface').getBoundingClientRect();
               const part = document.querySelector('#work').getBoundingClientRect();
-              const room = parseFloat(getComputedStyle(document.querySelector('#work'))
-                .paddingBlockEnd);
               const scroller = document.scrollingElement;
               return {top: Math.round(block.top), height: Math.round(block.height),
-                      room: Math.round(room),
-                      under: Math.round(part.bottom - block.bottom - room),
+                      under: Math.round(part.bottom - block.bottom),
                       foot: Math.round(innerHeight - part.bottom),
                       scrolls: scroller.scrollHeight - scroller.clientHeight};
             }""")
 
         first = heights()
-        assert first["height"] > 400 and first["room"] > 0, first
+        assert first["height"] > 400, first
         assert first["under"] == first["foot"] == 0, first
         assert first["scrolls"] <= 0, first
         boot.pop().continue_()
@@ -1485,24 +1483,19 @@ def test_the_list_of_parts_stays_in_reach_in_every_window(browser, serve, subtes
     last = tabs.get_by_role("tab", name="Summary", exact=True)
     strip = page.locator("#root-parts > .lf-tabstrip")
 
-    with subtests.test("its last name lands above the floating row"):
-        # The list runs to the window's foot, under the floating panel's row where a
-        # narrow window puts the row over the column. A name the keyboard moves to
-        # still lands above the row, as a landing in the page does. The window leaves
-        # the list 100 px between its title and the row, whatever height the host's
-        # fonts give the title, so the list scrolls to reach its last name.
+    with subtests.test("its last name comes into the window"):
+        # The list runs to the window's foot. The window leaves the list 100 px below
+        # its title, whatever height the host's fonts give the title, so the list
+        # scrolls to reach its last name, which the keyboard brings whole into view.
         resized(page, 800, 900)
         title = page.locator("main > header").bounding_box()
-        under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
-        resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
+        resized(page, 800, round(title["y"] + title["height"] + 100))
         plan.focus()
         page.keyboard.press("End")
         expect(last).to_be_focused()
         scroll_settled(page)
-        row = page.locator(".lf-fp-row").bounding_box()
         box = last.bounding_box()
-        assert box["x"] < row["x"] + row["width"], (box, row)
-        assert box["y"] + box["height"] <= row["y"], (box, row)
+        assert box["y"] + box["height"] <= page.evaluate("innerHeight"), box
 
     with subtests.test("a short window leaves it a few names' room"):
         # The column stands fixed in the window, so a title taller than a short window

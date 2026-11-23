@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
@@ -45,6 +45,15 @@ from leaf_dev.browser import (
 from leaf_dev.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
+
+
+def keyboard_modality(page: Page) -> None:
+    """Press Tab, so focus placed next draws as the keyboard's, and wait until the Tab's
+    step has ended. Focus arriving before then is the step's own, which opens the
+    focused control's preview (focus.js, `stepping`). The step ends in a timer the
+    Tab's keydown queued, and a timer queued now runs after it."""
+    page.keyboard.press("Tab")
+    page.evaluate("() => new Promise((done) => setTimeout(done))")
 
 
 def printed_exhibit(page: Page) -> None:
@@ -131,7 +140,7 @@ def long_source_selected(page: Page) -> None:
 def captured_source_by_keyboard(page: Page) -> None:
     """The captured source's scroller focused by keyboard, its ring over the lines."""
     captured_source(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
 
 
@@ -168,7 +177,7 @@ def recorded_video_by_keyboard(page: Page) -> None:
     """The recording the keyboard stands on, where the browser's controls take its
     keys."""
     recorded_video(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-recording").focus()
 
 
@@ -199,7 +208,7 @@ def dynamic_request_preview(page: Page) -> None:
 
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-tab-btn").first.focus()
 
 
@@ -214,7 +223,7 @@ def boxed_tab_by_keyboard(page: Page) -> None:
         "Page & layout", exact=True
     ).click()
     page.locator("#bg-tabs").scroll_into_view_if_needed()
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
 
 
@@ -306,9 +315,11 @@ def thread_reply_photo(page: Page) -> None:
 
 
 def page_comment_photo_hover(page: Page) -> None:
-    """The panel's attached screenshot under the pointer, which shows its removal."""
+    """The panel's attached screenshot under a resting pointer, which shows its removal
+    and the preview naming the press that views it."""
     page_comment_photo(page)
     page.locator(".lf-fp-field .lf-composer-media-open").hover()
+    preview_shown(page)
 
 
 def panel_corner_hover(page: Page) -> None:
@@ -403,13 +414,15 @@ def page_about(page: Page) -> None:
 def panel_leaf(page: Page) -> None:
     """The floating panel's leaf, which opens the On view, with its keyboard focus
     paint."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-fp-leaf").focus()
 
 
 def panel_status_hover(page: Page) -> None:
-    """The expanded panel while the pointer rests over its leaf."""
+    """The expanded panel while the pointer rests over its leaf, whose preview says
+    what waits on the user."""
     page.locator(".lf-fp-leaf").hover()
+    preview_shown(page)
 
 
 def panel_status_cut(page: Page) -> None:
@@ -674,13 +687,21 @@ def control_preview(page: Page) -> None:
     the card alone."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview .lf-resolve").hover()
+    preview_shown(page)
+    settle(page)
+
+
+def preview_shown(page: Page) -> None:
+    """Wait until the preview of what the pointer rests on has opened, which it does
+    after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
+    state ending on such a hover waits here, or its still catches the preview in one
+    capture and not the next."""
     page.wait_for_function(
         """() => {
           const tip = document.getElementById('lf-preview');
           return !tip || tip.matches(':popover-open');
         }"""
     )
-    settle(page)
 
 
 # Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
@@ -1229,7 +1250,7 @@ def section_ring_by_keyboard(page: Page) -> None:
         '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
     )
     marker.wait_for()
-    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    keyboard_modality(page)
     marker.focus()
     page.keyboard.press("Enter")
     resolve = page.locator(".lf-margin-preview").get_by_role(
@@ -1756,6 +1777,9 @@ def retained_quote(page: Page) -> None:
     ).click()
     sample = page.locator("#bg-retained-quote-sample")
     sample.scroll_into_view_if_needed()
+    # Its page's body is inert until the page starts, and each attempt Playwright's
+    # click retries on it scrolls with another alignment, so the press waits for it.
+    sample.evaluate("sample => sample.ready")
     child = sample.frame_locator("iframe")
     go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-lf-key="bg-retained-quote-thread"]').click()
@@ -1994,7 +2018,7 @@ LONG_DRAFT = (
 def composer_send_focused(page: Page) -> None:
     """The same comment with the keyboard on its Send."""
     composer(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     send = page.locator(".lf-composer .lf-compose-submit")
     send.focus()
     expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
@@ -2005,6 +2029,13 @@ def composer_long(page: Page) -> None:
     composer(page)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_error(page: Page) -> None:
+    """A comment being typed on a selected passage, with an error about its box standing
+    over its words."""
+    composer_long(page)
+    error_about(page, ".lf-fab-bar")
 
 
 def composer_scrolling(page: Page) -> None:
@@ -2076,6 +2107,56 @@ def page_comment_long(page: Page) -> None:
     page.keyboard.insert_text(LONG_DRAFT)
 
 
+def page_comment_send_shown(page: Page) -> None:
+    """The floating panel's field with a page comment whose last line runs under Send's
+    corner, and the pointer resting on Send, which stands over the words."""
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    for word in LONG_DRAFT.split():
+        page.keyboard.insert_text(f"{word} ")
+        rendered(page)
+        if field.evaluate("(node) => node.matches(':state(corner-taken)')"):
+            break
+    else:
+        raise AssertionError("the draft never reached Send's corner")
+    box = page.locator(".lf-fp-field .lf-compose-submit").bounding_box()
+    assert box is not None
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page.mouse.move(x, y)
+    expect(page.locator(".lf-fp-field .lf-compose-field")).to_have_attribute(
+        "data-lf-send-armed", ""
+    )
+    # Armed, Send takes the pointer, which the hover reaches at the hand's next move,
+    # and the pointer resting there reads Send's preview.
+    page.mouse.move(x + 1, y)
+    expect(page.locator("#lf-preview")).to_be_visible()
+
+
+def error_about(page: Page, box: str) -> None:
+    """An error about the composer `box` names, standing over its words."""
+    page.locator(f"{box} leaf-text").evaluate("""async (subject) => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        raiseError('That writing place is unavailable', {subject});
+    }""")
+    expect(page.locator(f"{box} .lf-compose-error")).to_be_visible()
+
+
+def page_comment_error(page: Page) -> None:
+    """The floating panel's field holding the caret, with an error about it standing
+    over its words."""
+    page_comment_long(page)
+    error_about(page, ".lf-fp-field")
+
+
+def card_reply_error(page: Page) -> None:
+    """The first margin card's reply box holding the caret, with an error about it
+    standing over its words."""
+    card_reply_long(page)
+    error_about(page, ".lf-margin-preview .lf-thread-reply")
+
+
 def option_long(page: Page) -> None:
     """An option list's added option, typed long enough to wrap beside its Add press."""
     field = page.locator(".lf-another leaf-text").first
@@ -2090,11 +2171,13 @@ def option_long(page: Page) -> None:
 
 
 def option_add_hover(page: Page) -> None:
-    """A compact alternative's Add face beside its one-line draft."""
+    """A compact alternative's Add face beside its one-line draft, under a resting
+    pointer whose preview names the press and its key."""
     form = page.locator("#bg-choice > .lf-another")
     form.locator("leaf-text").click()
     page.keyboard.insert_text("Keep the current behavior")
     form.get_by_role("button", name="Add and select option", exact=True).hover()
+    preview_shown(page)
 
 
 def options_in_pane(page: Page) -> None:
@@ -2117,7 +2200,7 @@ def tally_after_an_answer(page: Page) -> None:
 
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
@@ -2290,6 +2373,10 @@ def theme_hierarchy(page: Page) -> None:
     page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
     page.keyboard.press("Enter")
     page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    # The disclosure's closing queues a pass of the margin's layout, which writes the
+    # scroll offset into each carrier's place. A pass that lands after the scroll below
+    # writes the same places with the new offset, which the styles read as moved rows.
+    settle(page)
     page.locator("#bg-theme-hierarchy").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )
@@ -2707,13 +2794,29 @@ def versions_menu(page: Page) -> None:
     wait_until_ready(page, PageClient(served_page.get().address).state())
     more_menu(page)
     page.locator('.lf-fp-item[data-lf-row="versions"]').click()
+    versions_counted(page)
+
+
+def versions_counted(page: Page) -> None:
+    """Wait for Versions to stand with each older version's count of changes before
+    its Compare, which Versions counts after it opens for the versions in view. A
+    Leaf that counts none holds no room for a count."""
     page.locator(".lf-fp-version").first.wait_for()
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.lf-fp-changes')].every((count) => {
+          const view = count.closest('.lf-fp-view').getBoundingClientRect();
+          const box = count.getBoundingClientRect();
+          const shown = box.bottom > view.top && box.top < view.bottom;
+          return !shown || count.textContent.trim();
+        })"""
+    )
 
 
 def versions_last_seen(page: Page) -> None:
     """Versions opened by its key on return to a page the agent stamped twice while
     the tab was hidden: the version the user last saw reads last seen, and the key
-    lands on it, whose Compare `v` presses."""
+    lands on it, whose Compare `v` presses. Each older version's Compare says how many
+    changes stand since it before its word."""
     page.evaluate("""() => {
       Object.defineProperty(document, 'visibilityState', {
         configurable: true, get: () => window.__lfVisibility ?? 'visible',
@@ -2741,7 +2844,7 @@ def versions_last_seen(page: Page) -> None:
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
-    page.locator(".lf-fp-version").first.wait_for()
+    versions_counted(page)
 
 
 def all_pages(page: Page) -> None:
@@ -3786,8 +3889,21 @@ STATES = (
     ),
     State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State("plan-card-reply-error", "review-a-plan", card_reply_error),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-send-shown",
+        "review-a-plan",
+        page_comment_send_shown,
+        region=".lf-fp-row",
+    ),
+    State(
+        "plan-page-comment-error",
+        "review-a-plan",
+        page_comment_error,
+        region=".lf-fp-row",
+    ),
     State(
         "plan-page-comment-empty",
         "review-a-plan",
@@ -3852,6 +3968,12 @@ STATES = (
         "triage-composer-resting",
         "triage-board",
         composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-error",
+        "triage-board",
+        composer_error,
         region=".lf-fab-bar",
     ),
     State(

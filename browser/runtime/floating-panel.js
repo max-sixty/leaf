@@ -210,7 +210,6 @@ import { actionName } from "./icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
 import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
-import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
@@ -278,7 +277,7 @@ import {
   tellDraft,
 } from "./drafts.js";
 import { textField } from "./composing/text-field.js";
-import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
+import { draftOf, standsAtItsBox, syncInput, writesIn } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { holdPlace, standsAt } from "./user-place.js";
@@ -303,8 +302,10 @@ import { versionPicker } from "./version-picker.js";
 import {
   COMPARE_KEY,
   LATEST_KEY,
+  changesCounted,
   comparisonBase,
   comparisonChanges,
+  countWhenShown,
   throughVersions,
   versionsReading,
 } from "./version.js";
@@ -848,7 +849,15 @@ export function createFloatingPanel({
                 paint();
               }}
             ></button>
-            <div class="lf-fp-field">
+            <div
+              class="lf-fp-field"
+              @mousedown=${(/** @type {MouseEvent} */ event) => {
+                // Holding the caret, the slot runs to the panel's edges and wears the
+                // ring there (floating-panel.css), so its padding reads as the field's:
+                // a press on it keeps the focus the words hold.
+                if (event.target === event.currentTarget) event.preventDefault();
+              }}
+            >
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
                 ${
                   initial
@@ -861,6 +870,7 @@ export function createFloatingPanel({
                           ></span
                         ><textarea
                           class="lf-fp-served-field"
+                          name="comment"
                           rows="1"
                           aria-label=${PAGE_FIELD_NAME}
                           autocapitalize="sentences"
@@ -1051,7 +1061,6 @@ export function createFloatingPanel({
   const markRoom = () =>
     keeps(host, "data-lf-long", (long || expanded) && !activeSearch() ? "" : null);
   lengthWatch.observe(field);
-  const searchSurface = shell("search-surface");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
@@ -1151,20 +1160,21 @@ export function createFloatingPanel({
   // While the user writes, from the moment they open the field, Dictate, then Send,
   // stand in its one corner, and the first key moves nothing. The user chose this
   // over the field changing at the first key, which moves its end and the action under
-  // it as typing begins.
-  let writing = false;
-  // Whether the field holds a draft, as the row last showed it: Send in the field's
-  // corner. The row takes that posture, or gives it up, only
-  // at the user's own move: typing, or a view changing, which stands another editor in
-  // the field. The caret coming into or leaving the field moves nothing, so a draft the
-  // user steps away from keeps every line where it was. The user chose this
-  // over the counts coming back as the caret leaves, which rewraps the draft
-  // each time the user steps out and again as they come back. Words a refused send
-  // hands back move nothing, so its action stays in the seat the empty field gave it,
-  // Dictate's, until the user types again; emptying the field always ends it. A draft is
-  // anything typed, a line break included.
+  // it as typing begins. At rest the corner stands empty, and the field's end press,
+  // such as Reply and its key, stands where the corner's press would, as far from the
+  // leaf on the page as in a thread: the two never stand together, since the composer
+  // decides both from whether the user writes in the field (composing/input.js,
+  // `writesIn`, `cornerAtRest`). While the field holds words, Send stays in the corner
+  // with the caret elsewhere, so a draft the user steps away from keeps every line
+  // where it was; the user chose this over the counts coming back as the caret left,
+  // which rewrapped the draft each time the user stepped out and back. Rejected:
+  // writing that lasts while focus stays anywhere in the panel. It stood Dictate beside
+  // the end press, and the room the field kept for it outlived it, so the end press
+  // stood a corner's width further from the leaf in some states.
+  // Whether the field holds a draft, and whether the user wrote in it, as the row last
+  // drew them. A draft is anything typed, a line break included.
   let drafted = false;
-  let postureMoved = true;
+  let drawnWriting = false;
   // The beat of the moment the leaf last answered (`gestureLeaf`).
   let answered = gestureReading().beat;
   // The thread the reader lands in once its reading is drawn: on opening,
@@ -1234,7 +1244,7 @@ export function createFloatingPanel({
     const error = fieldError();
     return readField({
       thread: !page,
-      writing: input === focused(),
+      writing: writesIn(input),
       error: error && {
         message: error.message,
         press: error.press?.stands() ? pressReading(error.press) : null,
@@ -1455,6 +1465,7 @@ export function createFloatingPanel({
       enters: () => fieldReading(null, input).end,
       // While a stance stands the field takes no words (field-readings.js, `still`).
       closed: stanceHolds,
+      cornerAtRest: () => false,
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1543,6 +1554,7 @@ export function createFloatingPanel({
           // end, as over the page's (field-readings.js, `end`).
           enters: () => fieldReading(key, replyInput()).end,
           closed: stanceHolds,
+          cornerAtRest: () => false,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -1592,7 +1604,6 @@ export function createFloatingPanel({
   };
   // A draft arriving in an empty field, or the last of it going, re-seats the row.
   function retype() {
-    postureMoved = true;
     if (Boolean(draftOf(fieldInput())) !== drafted) paint();
   }
   field.addEventListener("input", retype);
@@ -2081,9 +2092,6 @@ export function createFloatingPanel({
     if (inside) letGo();
   }
   function close({ handedOn = false } = {}) {
-    // Closing the view ends the writing posture too. A saved page draft keeps
-    // its own posture; entering the field starts writing again.
-    writing = false;
     const before = trail.value.at(-1);
     trail.value = [];
     searching = false;
@@ -2176,17 +2184,12 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
-  let writtenBand = 0;
   let bandFrame = 0;
   function followBox() {
-    // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
-    // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
-    // or an On Me row's Show lands what it reaches above an open view rather than
-    // under it. The browser's own reveals read the same padding, and Leaf's landings
-    // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
-    // root's padding from a fixed box in the chrome's shadow tree, so the box states
-    // it, in pixels and never as a custom property (root-state.js).
+    // How far the box reaches up from the window's foot, with the gap above the box and
+    // at least the foot's room (`--lf-foot-band`, base.css): the band Leaf's landings
+    // keep clear of (geometry.js, `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or
+    // an On Me row's Show lands what it reaches above an open view rather than under it.
     const box = card.getBoundingClientRect();
     const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
     const root = document.documentElement;
@@ -2198,15 +2201,12 @@ export function createFloatingPanel({
     const band = atLayoutPrecision(Math.max(rest, reach + clear));
     if (stateFootBand(band)) {
       // This runs in the box's size delivery, which may write only what no one observes
-      // (page-layout.js). The root's style is a page attribute the margin hears, and its
-      // pass places an open thread card in the same delivery, resizing a box shallower
-      // than any the delivery can still reach: a ResizeObserver loop. So the padding and
-      // the news of the room wait for the frame; Leaf's own landings read the band
-      // stated above at once.
-      writtenBand = band;
+      // (page-layout.js). The margin hears the news of the room, and its pass places an
+      // open thread card in the same delivery, resizing a box shallower than any the
+      // delivery can still reach: a ResizeObserver loop. So the news waits for the
+      // frame; Leaf's own landings read the band stated above at once.
       bandFrame ||= nextRender(() => {
         bandFrame = 0;
-        setRuntimeRootStyle(root, "scroll-padding-bottom", `${writtenBand}px`);
         announceRoom();
       });
     }
@@ -2522,7 +2522,6 @@ export function createFloatingPanel({
   /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean, part?: "reply" | "thread"}} [options] */
   function transition(before, { focus = true, handedOn = false, part = "reply" } = {}) {
     const after = trail.value.at(-1);
-    postureMoved = true;
     // The thread the user is in as the change begins, on the page or in the panel,
     // read before the paint that may take its view away.
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
@@ -2949,11 +2948,38 @@ export function createFloatingPanel({
   // pointer that can't hover (floating-panel.css). A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
   // the two words line up. Showing stands outside the press, as Compare does, over
-  // the row's end; the press carries it as `aria-current`. Versions opens at the
-  // version it offers to compare with (version.js, `selection.offered`), else at the
-  // version shown, the row marked `data-lf-at`.
+  // the row's end; the press carries it as `aria-current`. Before its word, Compare
+  // says how many changes a comparison with its version would mark, once Versions has
+  // counted them, which it does for the presses that show in the window (version.js,
+  // `changesCounted`, `countWhenShown`), so the counts stand one under another
+  // and a press on a count shows those changes. The count's room is held from the
+  // start, so a count coming in moves no words beside it. The press's name says the
+  // count first, as the press shows it, then "Compare with" the version. Versions opens
+  // at the version it offers to compare with (version.js, `selection.offered`), else
+  // at the version shown, the row marked `data-lf-at`.
   /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry */
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
+  // The room a count holds: three digits, past which a count is cut.
+  const CHANGES_ROOM = "100 changes";
+  /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry
+   * @param {ReturnType<typeof versionsReading>["selection"]} selection */
+  function comparePress(entry, selection) {
+    const n = changesCounted(entry.revision);
+    const said = n === null ? "" : n ? counted(n, "change") : "No changes";
+    return html`<button
+      type="button"
+      ${offeredAction("word", "lf-fp-compare")}
+      ${countWhenShown(entry.revision)}
+      aria-pressed=${String(selection.on && selection.base === entry.revision)}
+      aria-label=${[said, `Compare with ${entry.name}`].filter(Boolean).join(", ")}
+      @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
+    >
+      <span class="lf-fp-changes" data-lf-room=${CHANGES_ROOM}
+        ><span>${said}</span></span
+      >
+      Compare
+    </button>`;
+  }
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     /** @param {(typeof versions)[number]} entry */
@@ -2999,22 +3025,7 @@ export function createFloatingPanel({
                 entry.current
                   ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
                   : nothing
-              }${
-                entry.comparable
-                  ? html`<button
-                      type="button"
-                      ${offeredAction("word", "lf-fp-compare")}
-                      aria-pressed=${String(
-                        selection.on && selection.base === entry.revision,
-                      )}
-                      aria-label=${`Compare with ${entry.name}`}
-                      @click=${() =>
-                        putAwayThen(() => versionPicker.compare(entry.version))}
-                    >
-                      Compare
-                    </button>`
-                  : nothing
-              }
+              }${entry.comparable ? comparePress(entry, selection) : nothing}
             </div>`,
         )}
       </div>
@@ -5159,7 +5170,6 @@ export function createFloatingPanel({
     keeps(replyOutlet, "data-lf-thread", heading);
     keeps(replyOutlet, "data-lf-thread-view", heading === null ? null : "");
     if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
-    if (searchSurface.hidden !== !search) postureMoved = true;
     const input = fieldInput();
     if (input) syncInput(input);
     // The row's posture, which a row's press holds (`rowPress`).
@@ -5167,19 +5177,10 @@ export function createFloatingPanel({
     const posture = (name, value) => {
       if (!rowPress) keeps(host, name, value);
     };
-    // The caret this paint puts in the page's field starts the writing posture in the
-    // same paint, so the row draws it once rather than stepping out of it and back
-    // when the field takes focus (`onCurrentLocation`). While a stance stands the field
-    // takes no words, so the row holds no room for Send, and the stance's Close stands
-    // at the field's end on the page and in a thread alike (field-readings.js, `still`).
     const caretLands = caretToField && !replying && !search;
-    if (caretLands) writing = true;
-    posture("data-lf-writing", writing && !stanceStands() ? "" : null);
-    // A draft's Send takes the field's corner.
     const words = Boolean(draftOf(input));
-    if (postureMoved || !words) drafted = words;
-    postureMoved = false;
-    posture("data-lf-drafted", drafted ? "" : null);
+    drafted = words;
+    drawnWriting = writesIn(input);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-lf-expanded", expanded ? "" : null);
@@ -5340,7 +5341,7 @@ export function createFloatingPanel({
     return {
       onUser: onUserCount(),
       news,
-      kept: news || (!folded && (writing || drafted)) ? 0 : keptDrafts(),
+      kept: news || (!folded && (writesIn(fieldInput()) || drafted)) ? 0 : keptDrafts(),
     };
   }
   // The tab a press on the leaf opens the On view on, read from what its marks say: the
@@ -5680,8 +5681,8 @@ export function createFloatingPanel({
     },
     true,
   );
-  // Writing begins in the field and lasts while the user stays in the panel, so the
-  // line naming where the words go stays put while they press Resolve or a filter.
+  // What the field says turns on whether the user writes in it (`writesIn`), so the row
+  // draws again as that changes, and as the user moves within the panel.
   onCurrentLocation((node, _cause, left) => {
     const inside = Boolean(node) && renderedUnder(node, host);
     // Stepping in from the page holds where the user was, and from nowhere holds no
@@ -5690,9 +5691,7 @@ export function createFloatingPanel({
     if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
-    const next = inside ? writing || node?.localName === "leaf-text" : false;
-    if (next === writing && !inside) return;
-    writing = next;
+    if (!inside && writesIn(fieldInput()) === drawnWriting) return;
     paint();
   });
   // A press away from the panel puts away what stands open above the row (focus.js,

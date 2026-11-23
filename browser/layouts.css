@@ -10,13 +10,6 @@
   syntax: "*";
   inherits: false;
 }
-/* Clearance needed after the last content in a region reaching the window's foot.
- * It does not inherit: a container passes it only to a child taking over that edge. */
-@property --lf-end-room {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
 @layer lf-layouts {
   /* Each page Layout owns its page's geometry, the body's included; a page with no
    * Layout keeps the browser's margin. A Layout's body drops its margin and, as every
@@ -103,11 +96,6 @@
    * part is the shell its Layout's box stands in. On a phone the title, the list and the
    * part stack. Before the module upgrades the holder, the column holds only the title.
    *
-   * The room the floating panel's row keeps at the window's foot (`--lf-foot-room`,
-   * base.css) is the open part's own end rather than the body's, since the part is what
-   * reads to the page's end. So the part, the rule beside it and the column all reach
-   * the window's foot, and no band stands below them that belongs to neither.
-   *
    * What the page writes before the parts is whatever `main` holds besides the parts'
    * holder, which the authoring contract keeps to the page's header (page-layout.md,
    * "A page of parts"). Each child of `main` asks `main` whether it holds the parts, by
@@ -125,24 +113,6 @@
     initial-value: 0;
   }
   @media screen {
-    html[data-lf-interactive]
-      body:has(
-        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-          > [data-lf-views="parts"]
-      ) {
-      padding-bottom: 0;
-    }
-    html[data-lf-interactive]
-      body
-      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views="parts"]
-      > :not([role="tablist"], [hidden]) {
-      padding-block-end: var(--lf-foot-room);
-      /* A sidebar that is the part's box may reach into that room (below). */
-      :where(&) > .layout-sidebar {
-        --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-foot-room));
-      }
-    }
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
@@ -205,8 +175,8 @@
       > :not([role="tablist"], [hidden]) {
       align-self: stretch;
     }
-    /* A full-height workspace's height is its part's, short of the foot's room, not its
-     * content's, so the part contributes none of its own to the row it fills. */
+    /* A full-height workspace's height is its part's, not its content's, so the part
+     * contributes none of its own to the row it fills. */
     @media (min-width: 720px) and (min-height: 480px) {
       html[data-lf-interactive]
         body
@@ -873,31 +843,16 @@
     .layout-sidebar,
     :has(> [data-lf-track]) {
       --lf-top-outer: var(--lf-top);
-      /* The height a stuck track may take: the window below the sticky headers and
-         above the panel's room, less the gap the track keeps at each end. A widget
-         that fills the track reads it, as the contents map does (toc.css). */
-      --lf-track-room: calc(
-        100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--lf-sp-4)
-      );
+      /* The height a stuck track may take: the window below the sticky headers, less
+         the gap the track keeps at each end. A widget that fills the track reads it, as
+         the contents map does (toc.css). */
+      --lf-track-room: calc(100dvh - var(--lf-top-outer) - 2 * var(--lf-sp-4));
     }
     /* The room below a sidebar's aside that holds nothing of the page's, which its stuck
-     * track may reach through (below): the sidebar's own end padding, and, where the
-     * sidebar is its shell's box (the body's or a part's) and nothing follows it, the
-     * panel's room that the shell keeps at its end (base.css; the rule above that gives a
-     * part that room sets its sidebar's end room too). A footer below the aside leaves no
-     * room. The first rule has no specificity, so each condition overrides it, and a
-     * footer overrides what follows the sidebar.
-     * Rejected: moving the body's room into the sidebar's end, as a workspace keeps it in
-     * its regions (below). It would hold where a browser extension adds an element after
-     * `main`, which stops this reach, but it leaves a footer the page writes after
-     * `main` under the panel, and a page rule on `main`'s padding drops the panel's room. */
+     * track may reach through (below): the sidebar's own end padding. A footer below the
+     * aside leaves no room. The first rule has no specificity, so the footer's
+     * overrides it. */
     :where(.layout-sidebar) {
-      --lf-track-end-room: var(--lf-page-pad-end);
-    }
-    :where(body > main).layout-sidebar {
-      --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-foot-room));
-    }
-    .layout-sidebar:has(~ :not(script, template)) {
       --lf-track-end-room: var(--lf-page-pad-end);
     }
     .layout-sidebar:has(> footer) {
@@ -988,81 +943,21 @@
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--lf-sp-2) var(--lf-page-pad-end);
   }
-  /* The root workspace reaches the window's foot. Its last reading region keeps
-   * the panel's clearance inside its content; containers that pass the edge to a
-   * child pass --lf-end-room as well, rather than shortening that child's frame. So the
-   * body keeps none of the foot's room (base.css), as a page of parts' body keeps none,
-   * and where the window holds the workspace the page doesn't scroll. Content the page
-   * writes after `main` keeps room of its own, and the render gate reports its words
-   * that the panel covers (`under-panel`). A workspace inside a `main` that carries no
-   * Layout stops short of the foot's room, so there the body keeps it.
-   * Rejected: the body keeping the room wherever `main` has a later sibling that takes
-   * room in the flow, asked of the sibling's tag and attributes. A browser extension
-   * adds elements of its own to the body, which no such list can name, and each would
-   * let the page scroll by the room. */
   @media screen {
-    html[data-lf-live][data-lf-layout~="workspace"] body:has(> main.layout-workspace),
-    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
-      padding-block-end: 0;
-    }
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
       > :not(header, footer) {
-      --lf-end-room: var(--lf-foot-room);
       margin-block-end: 0;
     }
-    /* The body is the one region between header and footer, so a body short of
-     * main's end has the footer after it. */
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body
-      > main.layout-workspace
-      > :not(header, footer, :last-child) {
-      --lf-end-room: 0px;
-    }
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body
-      > main.layout-workspace
-      > footer {
-      padding-block-end: var(--lf-foot-room);
-    }
-    /* The body keeps the panel's room after what it holds, and a scroll that brings a
-     * control into view stops that far short of its end, as a pane's body does
-     * (base.css), whether the control is the body's own or a widget's in it. */
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body
-      > main.layout-workspace
-      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):not(
-        :has(> [data-lf-reading-role="pane"])
-      ) {
-      padding-block-end: var(--lf-end-room);
-      scroll-padding-block-end: var(--lf-end-room);
-    }
   }
-  /* Where the workspace flows no pane body scrolls, so a box of panes ends the page
-   * with the room below its panes rather than passing it to each. */
-  @media screen and ((width < 720px) or (height < 480px)) {
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body
-      > main.layout-workspace
-      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):has(
-        > [data-lf-reading-role="pane"]
-      ) {
-      padding-block-end: var(--lf-end-room);
-    }
-  }
+  /* Held, the root workspace reaches the window's foot, short only by the gap it keeps
+   * at its head, and the floating panel stands over whatever it crosses there, as it
+   * stands over a document's end. Where it flows, it ends as a document does. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
       block-size: calc(100dvh - var(--lf-head-room));
-    }
-    /* Held, each pane's own body scrolls up to the window's foot, so each pane keeps
-     * the room. */
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body
-      > main.layout-workspace
-      > :not(header, footer)
-      > [data-lf-reading-role="pane"] {
-      --lf-end-room: inherit;
+      padding-block-end: var(--lf-sp-2);
     }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only

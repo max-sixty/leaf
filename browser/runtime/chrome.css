@@ -8,8 +8,8 @@
    control, live region, help, inspection paint, legend and Go-to hints. Its permanent
    home stands after the document and takes no room there; a modal opened from an
    authored popover carries this scope with it (keyboard/layer-stack.js).
-   The theme reserves the chrome's room
-   (html[data-lf-live]). The page and panel scroll separately.
+   The page keeps no room for the chrome, which stands over it. The page and panel
+   scroll separately.
 
    The private rules are one `@scope (.lf-chrome)`, so their class names cannot meet a
    page's. Rules outside it are the shared vocabulary, each class declared in
@@ -328,19 +328,9 @@ html[data-lf-draw-mode] {
        (response.css). The editor's frame reserves the row beneath them, so a box that
        fills the window becomes a card of the same height. */
     --lf-comment-reply-row: calc(
-      var(--lf-msg-gap) + var(--lf-compose-h) + 2px + var(--lf-thread-pad)
+      var(--lf-msg-gap) + var(--lf-compose-h) + var(--lf-thread-pad)
     );
     --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) - var(--lf-thread-pad));
-  }
-  /* Under a mouse the empty reply box is its one row tall (response.css), which comes
-     to the response line with its frame, so the row reserves only the box's band
-     beyond it. */
-  @media (hover: hover) and (pointer: fine) {
-    :is(.lf-fab-bar, .lf-margin-preview) {
-      --lf-comment-reply-row: calc(
-        var(--lf-msg-gap) + var(--lf-compose-h) + var(--lf-thread-pad)
-      );
-    }
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the

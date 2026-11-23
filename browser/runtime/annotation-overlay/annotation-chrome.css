@@ -197,11 +197,29 @@
   .lf-fab-bar leaf-text.lf-fab-input {
     --lf-focus-box: .lf-fab-bar;
   }
+  /* Its ring stands one band inside its edge, as a card's reply box's does, drawn on a
+     box laid over what the field holds (surfaces.css, "A focused box whose band
+     something would cover"), since an error about the box covers its words to its edge.
+     The error stands inside the box's pixel edge, so the edge shows around it. */
   .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-control-focus-visible]
     .lf-compose-field {
-    outline: var(--lf-focus-ring);
     --lf-ring-at: var(--lf-focus-ring-inset);
     --lf-wears-ring: 1;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-control-focus-visible]
+    .lf-compose-field::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    outline: var(--lf-focus-ring);
+    outline-offset: var(--lf-focus-ring-inset);
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-error {
+    inset: 1px;
+    border-radius: calc(var(--lf-r-l) - 1px);
   }
   /* The box at rest beside a target (composing/surface.js, `restFab`) wears the field's
      face in the field's cell of the same frame, so opening it moves nothing. It carries

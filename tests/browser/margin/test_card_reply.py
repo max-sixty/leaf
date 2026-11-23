@@ -75,7 +75,9 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
         browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
     )
     resized(page, 1440, 900)
-    page.locator("#open").scroll_into_view_if_needed()
+    # The paragraph stands mid-window, so the page has room to scroll either way at the
+    # thread's edges.
+    page.locator("#open").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
@@ -130,7 +132,9 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     )
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
-    page.locator("#open").scroll_into_view_if_needed()
+    # The paragraph stands mid-window, so the page has room to scroll either way at the
+    # thread's edges.
+    page.locator("#open").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card.locator("leaf-text")).to_be_focused()
@@ -286,6 +290,30 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     # conversation's reading inset, rather than gaining a second frame.
     assert frame["field"][0] - frame["card"] == 1, frame
     assert frame["inset"] == 15, frame
+
+
+def test_a_card_reply_s_ring_stands_over_an_error_about_it(browser, serve):
+    """The ring the card's reply box wears while it holds the caret stands one band
+    inside the box's edge, so an error about the box, which covers its words to that
+    edge, leaves the ring whole."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    page.keyboard.press("Tab")  # keyboard modality, so the box's focus is visible
+    marker.focus()
+    page.keyboard.press("Enter")
+    reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    reply.focus()
+    expect(reply).to_be_focused()
+    reply.evaluate(
+        "async (subject) => (await window.__lfWidgetApi())"
+        ".raiseError('That writing place is unavailable', {subject})"
+    )
+    expect(page.locator(".lf-margin-preview .lf-compose-error")).to_be_visible()
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert any(".lf-compose-field" in seen["rule"] for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "under an error")), "\n".join(faults)
 
 
 def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):

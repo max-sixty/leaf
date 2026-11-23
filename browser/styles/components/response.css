@@ -721,7 +721,8 @@ leaf-composition-field {
    (annotation-chrome.css, surfaces.css), and over the card's padding above the field,
    inside the message's gap over it. The words take that band back in their padding,
    and Send and Dictate in their insets, so they stand where they would in a box at the
-   card's padding, while a press anywhere in the box reaches the words; its pictures
+   card's padding, while a press anywhere in the box reaches the words, and Send stands
+   centred in it, its insets taken inside the box's own pixel border; its pictures
    stand on its words' edge, so their removal's reach stays inside the card. Under a mouse, where Send takes only a free
    corner (above), it ends the line as the card's own symbols end theirs, hanging past
    the words' end by the symbol's inset (controls.css); under a finger it keeps its
@@ -740,8 +741,12 @@ leaf-composition-field {
   --lf-compose-pad-inline-start: calc(
     var(--lf-thread-text-inset) - 1px + var(--lf-thread-pad)
   );
-  --lf-compose-action-end: calc(var(--lf-compose-action-inset) + var(--lf-thread-pad));
-  --lf-compose-action-foot: calc(var(--lf-compose-action-inset) + var(--lf-thread-pad));
+  --lf-compose-action-end: calc(
+    var(--lf-compose-action-inset) + var(--lf-thread-pad) - 1px
+  );
+  --lf-compose-action-foot: calc(
+    var(--lf-compose-action-inset) + var(--lf-thread-pad) - 1px
+  );
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-foot));
   --lf-field-ground: var(--lf-ground);
   border-color: transparent;
@@ -761,12 +766,31 @@ leaf-composition-field {
     var(--lf-media-room) + var(--lf-thread-pad) + var(--lf-thread-text-inset)
   );
 }
+/* Its ring is drawn on a box laid over what it holds (surfaces.css, "A focused box
+   whose band something would cover"), since an error about the box covers its words
+   to its edge, under the ring's band, as Send's box does in the floating panel's
+   field (floating-panel.css). */
 :is(.lf-margin-preview, [data-lf-thread-surface])
   .lf-thread-reply
   .lf-compose-field[data-lf-control-focus-visible] {
   --lf-ring-at: var(--lf-focus-ring-inset);
   --lf-field-ground: var(--lf-card);
+  outline: none;
   background: var(--lf-card);
+}
+/* Over the field's border, where its own outline would stand, and as high as the
+   error (above) and after it, so over it. */
+:is(.lf-margin-preview, [data-lf-thread-surface])
+  .lf-thread-reply
+  .lf-compose-field[data-lf-control-focus-visible]::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-focus-ring-inset);
 }
 /* A floating comment box is the frame of the card it becomes, cut to a reply box
    around its field: it runs to the card's sides, and over the card's edge and padding
@@ -791,7 +815,9 @@ leaf-composition-field {
   --lf-compose-action-end: calc(
     var(--lf-compose-action-inset) + var(--lf-thread-frame)
   );
-  --lf-compose-action-foot: var(--lf-compose-action-end);
+  --lf-compose-action-foot: calc(
+    var(--lf-compose-action-inset) + var(--lf-thread-frame)
+  );
 }
 /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. Its

@@ -206,7 +206,12 @@ SCALE = 2
 def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     """Screenshot the tab `visit` brought to `state` to `folder/ARM.png`, and read
     into the visit the state's region in the screenshot, if it names one, its
-    elements' styles (`STYLES`)."""
+    elements' styles (`STYLES`).
+
+    The styles are read before the screenshot. The screenshot's style on the root
+    (`browser.HELD`) changes the root's style, and after a change there Chromium can
+    report an auto margin as 0px though the box stands where it did, as `main`'s did
+    on page-comment-photo in some captures and not others."""
     page = visit.page
     if state.region:
         target = page.locator(state.region)
@@ -224,11 +229,11 @@ def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
             "height": min(window["height"], bounds["y"] + bounds["height"] + room) - y,
         }
         visit.reading["region"] = {key: value * SCALE for key, value in clip.items()}
-    (folder / f"{arm}.png").write_bytes(screenshot(page))
     reading = page.evaluate(STYLES, STYLED)
     visit.reading["styles"] = {
         key: reading["faces"][face] for key, face in reading["elements"].items()
     }
+    (folder / f"{arm}.png").write_bytes(screenshot(page))
 
 
 def style_changes(

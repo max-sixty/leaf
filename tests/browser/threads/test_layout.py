@@ -1381,6 +1381,61 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
         assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
 
 
+@pytest.mark.parametrize("turned", ["root", "card"])
+def test_a_carried_card_travels_with_the_pointer_when_turned(browser, serve, turned):
+    """The carry's translate moves the card along the axes of the box it stands in, at
+    the card's own zoom (element-axes.js, `translateAxes`): a transform on the root
+    turns those axes, and the card's own turn, which applies inside its translate,
+    leaves them alone. So on a page turned half round, and as a card turned half round
+    and zoomed, the card travels the way the pointer does, standing under it from the
+    first frame of the move, rather than away from it."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this explanation.", {"section": "how-store"})
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    # The root turned about the card's centre leaves the card's box where it stood.
+    card.evaluate(
+        """(card, turned) => {
+          if (turned === 'card') {
+            card.style.rotate = '180deg';
+            card.style.zoom = '1.5';
+            return;
+          }
+          const box = card.getBoundingClientRect();
+          const root = document.documentElement;
+          root.style.transformOrigin = `${box.left + box.width / 2 + scrollX}px `
+            + `${box.top + box.height / 2 + scrollY}px`;
+          root.style.rotate = '180deg';
+        }""",
+        turned,
+    )
+    rendered(page)
+    # The middle of the grip's band along the card's top edge, wherever the turn puts it.
+    start = card.locator(":scope > .lf-surface-grip").evaluate(
+        """grip => {
+          const mark = document.createElement('i');
+          mark.style.cssText = 'position:absolute;left:50%;top:3px';
+          grip.append(mark);
+          const at = mark.getBoundingClientRect();
+          mark.remove();
+          return {x: at.left, y: at.top};
+        }"""
+    )
+    resting = card.bounding_box()
+    page.mouse.move(start["x"], start["y"])
+    page.mouse.down()
+    expect(card).to_have_attribute("data-lf-carried", "")
+    page.mouse.move(start["x"] - 40, start["y"] - 30)
+    one_frame(page)
+    held = card.bounding_box()
+    page.mouse.up()
+    assert (held["x"] - resting["x"], held["y"] - resting["y"]) == pytest.approx(
+        (-40, -30), abs=0.5
+    ), (resting, held)
+
+
 def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):
     """Under root zoom, the draft and the thread Send opens in the panel keep to a
     narrow window, and the card the thread moves to in a wide one shows its words."""

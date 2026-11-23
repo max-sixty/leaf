@@ -61,6 +61,7 @@ import { tick } from "../version-signal.js";
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import {
+  closedFaceOver,
   layoutMarginRows,
   marginColumn,
   mountMarginLayer,
@@ -1525,8 +1526,10 @@ export function createMarginProjection({
       threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
     const target = targetFor(entry) ?? null;
     // An entry about a part of a picture traces that part, not the picture
-    // (annotation-inventory.js, `entryPart`).
+    // (annotation-inventory.js, `entryPart`). One whose target a closed box hides traces
+    // the box its marker stands by.
     const part = entryPart(entry);
+    const face = target && closedFaceOver(target);
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
@@ -1554,8 +1557,8 @@ export function createMarginProjection({
       obligationShown
     );
     highlight(
-      marked ? (part?.element ?? target) : null,
-      marked ? (part?.surface ?? null) : null,
+      marked ? (face ?? part?.element ?? target) : null,
+      marked && !face ? (part?.surface ?? null) : null,
     );
   }
 
@@ -1605,10 +1608,12 @@ export function createMarginProjection({
   // no card stands, as on a window with no room for the rail (header), the thread opens
   // where every other route opens it (thread/destination.js): the floating panel. Either
   // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
-  // A marker by what a widget gives in place of a part it hasn't drawn stands in for
-  // that part (anchor-resolution.js, `standsIn`). A press on it asks for the part, so
-  // the thread opens by travel, which has the widget draw it (anchor-travel.js,
-  // `revealThread`) and lands where the thread then stands.
+  // A marker may stand for its thread's part rather than by it: by what a widget gives
+  // in place of a part it hasn't drawn (anchor-resolution.js, `standsIn`), or by a
+  // closed box that hides the part (margin-layout.js, `closedFaceOver`). A press on it
+  // asks for the part, so the thread opens by travel, which opens the box or has the
+  // widget draw the part (anchor-travel.js, `revealThread`) and lands where the thread
+  // then stands.
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1617,7 +1622,11 @@ export function createMarginProjection({
       return;
     }
     const id = threadIdOf(choice);
-    if (standsIn(threadNamed(id)?.anchor, placedAt(id))) {
+    const target = targetFor(entry);
+    if (
+      standsIn(threadNamed(id)?.anchor, placedAt(id)) ||
+      (target && closedFaceOver(target))
+    ) {
       void openPageThread(id);
       return;
     }

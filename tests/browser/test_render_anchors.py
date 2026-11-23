@@ -4584,6 +4584,71 @@ def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
         )
 
 
+def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
+    browser, serve, subtests
+):
+    """A thread whose passage a closed box hides, a closed disclosure, a tab not
+    chosen or a diff file opened and closed again, stands its marker level with the
+    box, so the page shows that the box holds a thread. A press on the marker opens
+    the box and lands the user on the thread."""
+    url = serve(
+        leaf_page(
+            "closed boxes",
+            '<h1 id="title">Review</h1>'
+            '<details id="fold"><summary>Notes</summary>'
+            '<p id="folded">The retry waits grow without bound.</p></details>'
+            '<lf-tabs id="tabs">'
+            '<lf-tab id="tab-one" label="One"><p id="shown">First tab.</p></lf-tab>'
+            '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
+            "</lf-tabs>"
+            '<lf-diff id="patch" source="patch" collapsed></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
+    for anchor in (
+        {"section": "folded"},
+        {"section": "unchosen"},
+        {"section": "patch", "datum": '["first.py","new",1]'},
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {anchor['section']}.",
+                "anchor": anchor,
+            },
+        )
+    page = open_page(browser, url)
+    file = page.locator("#patch .lf-diff-file > details").first
+    line = page.locator('#patch [data-lf-datum=\'["first.py","new",1]\']')
+    file.evaluate("details => { details.open = true; }")
+    expect(line).to_be_attached()
+    file.evaluate("details => { details.open = false; }")
+
+    for case, box, opened, marker in (
+        ("closed disclosure", page.locator("#fold"), page.locator("#folded"), "folded"),
+        (
+            "tab not chosen",
+            page.locator("#tabs"),
+            page.locator("#unchosen"),
+            "unchosen",
+        ),
+        ("file opened and closed again", file, line, "id:patch/"),
+    ):
+        with subtests.test(case=case):
+            entry = page.locator(f'[data-lf-margin-for^="{marker}"] .lf-margin-marker')
+            entry.scroll_into_view_if_needed()
+            expect(entry).to_be_visible()
+            assert abs(entry.bounding_box()["y"] - box.bounding_box()["y"]) <= 2, (
+                "the marker stands apart from the closed box holding its thread"
+            )
+            entry.click()
+            expect(opened).to_be_in_viewport()
+            expect(opened).to_have_class(re.compile(r"\blf-mark-here\b"))
+
+
 def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
     browser, serve
 ):

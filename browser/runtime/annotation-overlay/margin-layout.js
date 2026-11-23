@@ -67,6 +67,8 @@
    cut to what that region shows, and across to the rail for a bounded block in the
    column's flow. A target or its rendered part leaving
    withholds the row before the next paint; layout withholds it when its region hides it.
+   A target that a closed disclosure or an unchosen tab hides stands by the box the
+   page shows for it (`closedFaceOver`), which the user can open.
 
    A control carries its label as a native descendant. This owner chooses its place
    before CSS reveals it and clears that readiness while the label is inactive, so a
@@ -93,6 +95,7 @@ import {
   stuckShift,
 } from "../geometry.js";
 import {
+  closedOver,
   eachRenderedChild,
   eachRenderedElement,
   isText,
@@ -1577,6 +1580,28 @@ function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
 }
+// What a row stands by while a closed box hides its target (shadow-tree.js,
+// `closedOver`), so the page shows that the box holds something and a press on the
+// marker opens it (margin-projection.js, `togglePinned`): a closed `<details>`, which
+// draws its summary, or else the nearest box round the closed one that draws one of its
+// own, as a tab set does round a panel it hasn't chosen, whose box is empty. The target's
+// line and words are inside, so the row stands level with that box's top. None where
+// nothing round the closed box draws, which withholds the row.
+/** @param {Element} target @returns {Element | null} */
+export function closedFaceOver(target) {
+  const closed = closedOver(target);
+  if (!closed || closed.localName === "details") return closed;
+  for (
+    let at = renderedParent(closed);
+    at && at !== pageScroller;
+    at = renderedParent(at)
+  ) {
+    const { width, height } = at.getBoundingClientRect();
+    if (width && height) return at;
+  }
+  return null;
+}
+
 // Whether `target` stands in content the browser skips (`skipped`), whose row is
 // withheld until a pass after it is drawn. Revealing a panel or opening a disclosure
 // resizes what holds it, which brings that pass. A box that skips what it holds while
@@ -1759,11 +1784,13 @@ function scheduleStirReading() {
     const documentOnly = boxes.every((box) => box === pageScroller);
     for (const row of documentOnly ? [...withheldRows] : [...rows.keys()]) {
       const options = rows.get(row);
-      const target = options?.anchor();
-      if (!options || !target?.isConnected) continue;
+      const anchored = options?.anchor();
+      if (!options || !anchored?.isConnected) continue;
       const withheld = row.classList.contains("lf-withheld");
-      if (withheld && skippedUntilDrawn(target)) continue;
-      const words = quotedBoxes(options);
+      const face = closedFaceOver(anchored);
+      if (!face && withheld && skippedUntilDrawn(anchored)) continue;
+      const target = face ?? anchored;
+      const words = face ? [] : quotedBoxes(options);
       const start = words.length ? wordsStart(options) : null;
       // A box inside the target that scrolls a passage's words moves them too.
       const moving =
@@ -1778,7 +1805,7 @@ function scheduleStirReading() {
       if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
-      const point = options.point();
+      const point = face ? null : options.point();
       const subject =
         point?.getBoundingClientRect() ??
         words[0] ??
@@ -2025,19 +2052,20 @@ function layoutMountedRows(layer) {
       reads.push(read);
       continue;
     }
-    const target = options.anchor();
-    if (!target?.isConnected) {
+    const anchored = options.anchor();
+    if (!anchored?.isConnected) {
       present.push({ row, at: null });
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
-    // A target in skipped content — a tab not chosen, a closed disclosure, lines out of
-    // view — has nowhere to stand, and every reading below would force that content's
-    // style and layout to say so. Withheld like a target that has gone, it is anchored
-    // by the pass that runs once it is drawn (`skippedUntilDrawn`), and keeps the lane
-    // it stands in meanwhile, so a tab switch does not move the rows of a reading
-    // region's hidden panels between lanes.
-    if (skippedUntilDrawn(target)) {
+    // A target a closed box hides, such as a closed disclosure or a tab not chosen,
+    // stands by that box (`closedFaceOver`). A target in other skipped content, such as
+    // lines out of view, has nowhere to stand, and every reading below would force that
+    // content's style and layout to say so. Withheld like a target that has gone, it is
+    // anchored by the pass that runs once it is drawn (`skippedUntilDrawn`), and keeps
+    // the lane it stands in meanwhile.
+    const face = closedFaceOver(anchored);
+    if (!face && skippedUntilDrawn(anchored)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;
@@ -2051,13 +2079,14 @@ function layoutMountedRows(layer) {
       });
       continue;
     }
+    const target = face ?? anchored;
     const anchor = targetBox(target);
     anchors.set(row, anchor);
     // Level with the row a gesture pointed into, where the row's comment has one
     // (pointed-place.js), or with the first line of the passage its comments quote;
-    // otherwise level with the target's top.
-    const point = options.point();
-    const words = quotedBoxes(options);
+    // otherwise level with the target's top. A closed box draws neither.
+    const point = face ? null : options.point();
+    const words = face ? [] : quotedBoxes(options);
     const passageNode = words.length ? wordsStart(options) : null;
     observeGeometry(point ?? target);
     present.push({

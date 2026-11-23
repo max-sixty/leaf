@@ -316,22 +316,21 @@ html[data-lf-draw-mode] {
     -webkit-user-select: text;
   }
 
-  /* Where a control stands decides its face: in the runtime's furniture a press is a
-     .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
-     this one adds, since it floats over page content rather than the empty rail. */
+  /* A comment box is the frame of the card it becomes, cut to a reply box around its
+     words (response.css): it runs to the card's sides, and over the card's padding past
+     the field the words stand in, which stands where the card's first message will. So
+     its frame (annotation-chrome.css) reserves above it the card's head row and the gap
+     under it, and below it the card's reply row less that padding. */
   :is(.lf-fab-bar, .lf-margin-preview) {
-    --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
-    --lf-comment-frame-top: calc(
-      1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
-    );
+    --lf-comment-frame-top: calc(var(--lf-msg-head-height) + var(--lf-msg-body-gap));
     /* The card's reply row at rest: its field a message's gap under the words
        (surfaces.css), and its box's band past the field to the card's foot
        (response.css). The editor's frame reserves the row beneath them, so a box that
        fills the window becomes a card of the same height. */
     --lf-comment-reply-row: calc(
-      var(--lf-msg-gap) + var(--lf-compose-h) + 2px + var(--lf-comment-inset)
+      var(--lf-msg-gap) + var(--lf-compose-h) + 2px + var(--lf-thread-pad)
     );
-    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + 1px);
+    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) - var(--lf-thread-pad));
   }
   /* Under a mouse the empty reply box is its one row tall (response.css), which comes
      to the response line with its frame, so the row reserves only the box's band
@@ -339,7 +338,7 @@ html[data-lf-draw-mode] {
   @media (hover: hover) and (pointer: fine) {
     :is(.lf-fab-bar, .lf-margin-preview) {
       --lf-comment-reply-row: calc(
-        var(--lf-msg-gap) + var(--lf-compose-h) + var(--lf-comment-inset)
+        var(--lf-msg-gap) + var(--lf-compose-h) + var(--lf-thread-pad)
       );
     }
   }

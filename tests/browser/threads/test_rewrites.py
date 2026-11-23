@@ -459,7 +459,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     # leaves the rewrite's frame none of its sides.
     padding = (
         thread.evaluate(
-            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-comment-inset'))"
+            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-thread-pad'))"
         )
         if surface in ("seat", "card")
         else 0

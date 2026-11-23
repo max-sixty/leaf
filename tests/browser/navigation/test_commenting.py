@@ -461,6 +461,29 @@ def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("Which route?")
 
 
+def test_a_comment_box_is_the_frame_of_the_card_it_becomes(browser, serve):
+    """The box stands at the card Send opens, as wide, and inside its one-pixel edge as
+    tall as that card's reply box, the height a box written in at a frame's edge takes
+    (browser/AGENTS.md, "Shared containers determine control dimensions")."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.type("Take the left one")
+    box = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    reply = card.locator(".lf-thread-reply .lf-compose-field")
+    expect(reply).to_be_visible()
+    frame = card.bounding_box()
+    assert (box["x"], box["width"]) == pytest.approx(
+        (frame["x"], frame["width"]), abs=0.5
+    )
+    assert box["height"] - 2 == pytest.approx(reply.bounding_box()["height"], abs=0.5)
+
+
 def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, serve):
     """Without a margin the box at rest would lie on the page's own controls, where the
     next press would open it, so it waits for `c`, which opens it as ever."""

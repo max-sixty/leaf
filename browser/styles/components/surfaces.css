@@ -845,7 +845,7 @@ summary {
    which no longer read as the margin card. */
 [data-lf-thread-surface] > .lf-page-thread,
 [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
-  padding: calc(var(--lf-comment-inset) + 1px);
+  padding: var(--lf-thread-frame);
   border-radius: var(--lf-r-l);
   box-shadow: inset 0 0 0 1px var(--lf-border);
   background: var(--lf-ground);
@@ -869,7 +869,7 @@ summary {
    summary's that width less the inset its region keeps at their end rather than room
    for Send. */
 [data-lf-thread-surface] {
-  --lf-seat-column: calc(var(--lf-thread-card) - 2 * (var(--lf-comment-inset) + 1px));
+  --lf-seat-column: calc(var(--lf-thread-card) - 2 * var(--lf-thread-frame));
 }
 [data-lf-thread-surface] .lf-msg-body {
   max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
@@ -883,9 +883,9 @@ summary {
   max-inline-size: calc(var(--lf-seat-column) - 2 * var(--lf-thread-text-inset));
 }
 [data-lf-thread-surface] .lf-thread-reply {
-  margin-inline: calc(-1 * var(--lf-comment-inset));
-  margin-block: calc(var(--lf-msg-gap) - var(--lf-comment-inset))
-    calc(-1 * var(--lf-comment-inset));
+  margin-inline: calc(-1 * var(--lf-thread-pad));
+  margin-block: calc(var(--lf-msg-gap) - var(--lf-thread-pad))
+    calc(-1 * var(--lf-thread-pad));
 }
 [data-lf-thread-surface] .lf-thread-reply .lf-compose-field > leaf-text {
   padding-inline-end: max(
@@ -902,10 +902,10 @@ summary {
   margin-top: var(--lf-sp-2);
 }
 /* Every conversation shares its reading edge, including a floating draft: its words
-   stand this far inside the padding of the frame that holds it, the floating panel's
-   6px inside its hairline and a thread card's border and `--lf-comment-inset`, which
-   come to the same, so a thread's words stand as far inside a card as inside the
-   panel. The words of a view's head, a thread's quote, each message and each box
+   stand this far inside the padding of the frame that holds it, which is the same in
+   a card, a comment box and the floating panel (`--lf-thread-frame`, tokens.css), so a
+   thread's words stand as far inside a card as inside the panel. The words of a
+   view's head, a thread's quote, each message and each box
    written in start on that one edge, and a draft's lines stand where the sent
    message's will. What marks them off, the quote's rule, a rewrite's frame and a
    summary's region, stands at the padding. A field subtracts its border; messages and

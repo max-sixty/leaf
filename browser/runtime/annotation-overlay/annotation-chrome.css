@@ -116,12 +116,12 @@
     );
     width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(var(--lf-response-height), 1fr);
+    --lf-comment-box-h: calc(var(--lf-response-height) + 2 * var(--lf-thread-frame));
+    grid-template-rows: minmax(var(--lf-comment-box-h), 1fr);
     grid-auto-rows: auto;
     align-items: end;
     max-height: var(--lf-float-h, calc(100vh - var(--lf-head-room) - 16px));
-    padding: var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
-      var(--lf-comment-frame-bottom);
+    padding: var(--lf-comment-frame-top) 0 var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
   .lf-fab-bar[data-lf-card-width]:not(
@@ -176,13 +176,13 @@
   }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
     box-sizing: border-box;
-    min-height: var(--lf-response-height);
+    min-height: var(--lf-comment-box-h);
     grid-column: 1;
     grid-row: 1;
     align-self: stretch;
     grid-template-rows: minmax(0, 1fr);
     padding: 1px;
-    border-radius: var(--lf-r);
+    border-radius: var(--lf-r-l);
     background: var(--lf-card) content-box;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input {
@@ -200,6 +200,7 @@
   .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-control-focus-visible]
     .lf-compose-field {
     outline: var(--lf-focus-ring);
+    --lf-ring-at: var(--lf-focus-ring-inset);
     --lf-wears-ring: 1;
   }
   /* The box at rest beside a target (composing/surface.js, `restFab`) wears the field's
@@ -210,7 +211,8 @@
     grid-row: 1;
     align-self: stretch;
     justify-content: flex-start;
-    padding-inline: calc(var(--lf-thread-text-inset) - 1px);
+    padding-inline: calc(var(--lf-thread-text-inset) - 1px + var(--lf-thread-frame));
+    border-radius: var(--lf-r-l);
     font: var(--lf-font-message);
     cursor: text;
   }
@@ -235,7 +237,8 @@
     display: block;
     pointer-events: none;
   }
-  /* The focus ring stands outside the field in place of its border. */
+  /* The focus ring stands inside the box's edge, in place of its border, as it stands
+     inside a card's reply box and the panel's field (response.css). */
   .lf-fab-bar[data-lf-control-focus-visible] > .lf-fab-ground {
     --lf-box-ring: var(--lf-card);
   }
@@ -261,13 +264,10 @@
     grid-area: auto;
     inset-block-start: calc(
       100% - var(--lf-comment-frame-bottom) +
-        max(var(--lf-media-gap) + var(--lf-focus-ring-w), var(--lf-media-room)) -
-        var(--lf-media-room)
+        max(var(--lf-media-gap), var(--lf-media-room)) - var(--lf-media-room)
     );
-    inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
-    max-width: calc(
-      100% - 2 * var(--lf-comment-frame-inline) + 2 * var(--lf-media-room)
-    );
+    inset-inline-start: calc(-1 * var(--lf-media-room));
+    max-width: calc(100% + 2 * var(--lf-media-room));
     margin: 0;
     align-items: flex-start;
     pointer-events: none;
@@ -276,8 +276,7 @@
     .lf-composer-media:not([hidden]) {
     inset-block: auto
       calc(
-        100% - var(--lf-comment-frame-top) + var(--lf-media-gap) +
-          var(--lf-focus-ring-w) - var(--lf-media-room)
+        100% - var(--lf-comment-frame-top) + var(--lf-media-gap) - var(--lf-media-room)
       );
     align-items: flex-end;
   }
@@ -325,7 +324,7 @@
     /* It only clips, so nothing scrolls it, and its motion letting what it carries
        stand past its edge changes no scroll container (box-motion.js). */
     overflow: clip;
-    padding: var(--lf-comment-inset);
+    padding: var(--lf-thread-pad);
     border: 1px solid transparent;
     border-radius: var(--lf-r-l);
     background: var(--lf-paper) padding-box;
@@ -455,9 +454,8 @@
   }
   .lf-fab-bar > .lf-surface-grip {
     inset: calc(var(--lf-comment-frame-top) - var(--lf-grip-out))
-      calc(var(--lf-comment-frame-inline) - var(--lf-grip-out))
+      calc(-1 * var(--lf-grip-out))
       calc(var(--lf-comment-frame-bottom) - var(--lf-grip-out));
-    border-radius: calc(var(--lf-r) + var(--lf-grip-out));
   }
   /* A target-only box is not carried; one seated in a widget hides its grip in that
      widget's tree (response.css). */
@@ -740,9 +738,7 @@
      thread-preview.js); at the top a ring still has it. */
   .lf-margin-thread .lf-page-thread {
     --lf-transcript-room: var(--lf-focus-region-room);
-    --lf-transcript-edge-room: calc(
-      var(--lf-comment-inset) + 1px - var(--lf-focus-ring-w)
-    );
+    --lf-transcript-edge-room: calc(var(--lf-thread-frame) - var(--lf-focus-ring-w));
     padding: 0;
   }
   .lf-margin-thread .lf-page-thread[data-lf-scrolled] {
@@ -790,8 +786,8 @@
     box-sizing: border-box;
     min-height: var(--lf-comment-reply-row);
     align-items: stretch;
-    margin: 0 calc(-1 * var(--lf-comment-inset)) calc(-1 * var(--lf-comment-inset));
-    padding-block: calc(var(--lf-msg-gap) - var(--lf-comment-inset)) 0;
+    margin: 0 calc(-1 * var(--lf-thread-pad)) calc(-1 * var(--lf-thread-pad));
+    padding-block: calc(var(--lf-msg-gap) - var(--lf-thread-pad)) 0;
   }
   .lf-margin-thread .lf-thread-reply .lf-composer-media {
     grid-row: 1;

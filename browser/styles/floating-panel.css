@@ -188,7 +188,8 @@
      field, which stacked three in the menu's foot. */
   .lf-floating-panel[data-lf-open] .lf-fp-row {
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-thread-text-inset))) 1px no-repeat;
+      calc(100% - 2 * (var(--lf-thread-pad) + var(--lf-thread-text-inset))) 1px
+      no-repeat;
   }
   /* The more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
@@ -935,11 +936,12 @@
     align-items: center;
     gap: 2px;
     min-height: 36px;
-    padding: 8px 6px 0 calc(6px + var(--lf-thread-text-inset));
+    padding: 8px var(--lf-thread-pad) 0
+      calc(var(--lf-thread-pad) + var(--lf-thread-text-inset));
     box-sizing: border-box;
   }
   .lf-fp-head:has(> .lf-fp-name > .lf-fp-back) {
-    padding-inline-start: 6px;
+    padding-inline-start: var(--lf-thread-pad);
   }
   /* The name takes the room the presses leave, and they keep the line's end and their
      room, a name that names the view to assistive tech alone included, so the name
@@ -978,7 +980,8 @@
     align-items: center;
     gap: var(--lf-fp-controls-gap);
     min-height: 40px;
-    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-thread-text-inset));
+    padding: 3px var(--lf-thread-pad) var(--lf-reach-room)
+      calc(var(--lf-thread-pad) + var(--lf-thread-text-inset));
     box-sizing: border-box;
   }
   .lf-fp-crumb {
@@ -1025,7 +1028,8 @@
      row it stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
     min-height: 32px;
-    padding: 6px 6px 0 calc(6px + var(--lf-thread-text-inset));
+    padding: 6px var(--lf-thread-pad) 0
+      calc(var(--lf-thread-pad) + var(--lf-thread-text-inset));
   }
   .lf-fp-joined {
     display: flex;
@@ -1221,7 +1225,7 @@
     --lf-top: 0px;
     --lf-top-covered: 0px;
     --lf-landing-room: 0px;
-    --lf-rows-bleed: 6px;
+    --lf-rows-bleed: var(--lf-thread-pad);
     grid-area: 1 / 1;
     min-height: 0;
     max-height: 100%;

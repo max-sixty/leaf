@@ -422,8 +422,8 @@ flowchart TD
                 working directory.
               </p>
               <p id="handoff-runtime">
-                <code>leaf page init</code> records the page’s package and theme
-                selection. The Leaf serving the page supplies its runtime and composes
+                <code>leaf page init</code> records the page’s package selection, its
+                theme first. The Leaf serving the page supplies its runtime and composes
                 the <a href="/extending/#layer">selected packages</a>. The agent authors
                 its content using the HTML and Leaf elements described in
                 <a href="/extending/#pages">Extending</a>.
@@ -437,7 +437,7 @@ flowchart TD
               </p>
               <pre
                 id="handoff-commands"
-              ><code class="language-bash">leaf page init --package diagram ./review
+              ><code class="language-bash">leaf page init --package reading --package diagram ./review
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"

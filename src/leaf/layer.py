@@ -688,9 +688,9 @@ class LayerComposition:
 
 def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages`, its theme's among them (`themes.with_theme`): its core and
-    bundled packages, the user's installed ones, as this process first read them,
-    and the copies the page holds of packages it selects by path.
+    `packages`, in the order it lists them: its core and bundled packages, the
+    user's installed ones, as this process first read them, and the copies the page
+    holds of packages it selects by path.
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies

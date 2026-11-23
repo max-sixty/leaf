@@ -399,13 +399,7 @@ def page() -> None:
 @click.option(
     "--no-packages",
     is_flag=True,
-    help="remove all explicit packages, keeping the theme",
-)
-@click.option("--theme", metavar="NAME", help="select a theme from `leaf theme list`")
-@click.option(
-    "--no-theme",
-    is_flag=True,
-    help="take no theme, so the page starts from the browser's defaults",
+    help="select no packages, so the page starts from the browser's defaults",
 )
 @click.option(
     "--dry-run",
@@ -416,19 +410,18 @@ def init(
     dir: str,
     selected: tuple[str, ...],
     no_packages: bool,
-    theme: str | None,
-    no_theme: bool,
     dry_run: bool,
 ) -> dict:
-    """Create a page directory, recording the packages and theme it selects.
+    """Create a page directory, recording the packages it selects.
 
     The author writes PAGE/index.html; every Leaf that serves or checks the page
-    composes its layer from the selection. A new page takes the default theme
-    (`leaf theme list`). Re-running preserves the page's explicit packages unless
-    --package or --no-packages replaces them, and its theme unless --theme or
-    --no-theme replaces it, and validates the current vocabulary and markup. A changed selection restarts its server at the
-    same URL; identical initialization leaves it running. --dry-run reports the
-    planned change without writing it.
+    composes its layer from the selection, in the order listed. A page's look is
+    one of its packages, such as `reading`; a page that lists none starts from
+    the browser's defaults. Re-running preserves the page's packages unless
+    --package or --no-packages replaces them, and validates the current vocabulary
+    and markup. The result names the packages the page now selects. A changed
+    selection restarts its server at the same URL; identical initialization leaves
+    it running. --dry-run reports the planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -436,30 +429,11 @@ def init(
 
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
-    if theme is not None and no_theme:
-        raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
     # A selection named twice means it once.
     selections = () if no_packages else tuple(dict.fromkeys(selected)) or None
-    return cmd_init(
-        page_path(dir),
-        selections,
-        theme=False if no_theme else theme,
-        dry_run=dry_run,
-    )
-
-
-@cli.group(short_help="Discover themes for page authoring.")
-def theme() -> None:
-    """Discover themes for page authoring."""
-
-
-@theme.command("list", short_help="List themes and their author instructions.")
-def theme_list() -> dict:
-    from leaf.themes import cmd_list
-
-    return cmd_list()
+    return cmd_init(page_path(dir), selections, dry_run=dry_run)
 
 
 @cli.group(short_help="Create, check, install, and run packages.")
@@ -537,8 +511,7 @@ def package_install(package_path: Path) -> dict:
 def package_list() -> dict:
     """Print each package `page init --package NAME` can select, bundled or
     installed, with the first paragraph of its author instructions and the
-    description of each entry it declares. Every page already has `default`, and
-    `leaf theme list` offers its theme."""
+    description of each entry it declares. Every page already has `default`."""
     from leaf.packages import cmd_package_list
 
     return cmd_package_list()

@@ -561,7 +561,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    assert written(["page", "init", str(page_dir)]) == {"page": str(page_dir)}
+    assert written(["page", "init", str(page_dir)]) == {
+        "page": str(page_dir),
+        "packages": [],
+    }
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
@@ -3918,7 +3921,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     # uncontended; the second is the one taker that can find it held.
     second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
-    def paused_init(page_dir, selected, *, theme=None):
+    def paused_init(page_dir, selected):
         creator = threading.current_thread().name
         creations.append(creator)
         if creator == "first-init":
@@ -3926,7 +3929,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        return original_init(page_dir, selected, theme=theme)
+        return original_init(page_dir, selected)
 
     def initialize():
         try:
@@ -4168,6 +4171,41 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
     theme = layer_files(page)["/theme.css"].decode()
     assert theme.index("--package-first") < theme.index("--package-second")
+
+
+def test_a_page_wears_the_themes_it_lists_in_that_order(tmp_path, monkeypatch):
+    """A page's look is among the packages it lists. Leaf's `reading` composes only
+    where the page lists it, a theme listed after it wins a tie with it, and a page
+    that lists none composes none, so it starts from the browser's defaults.
+    `page init` returns the selection it recorded, which is how an author sees that
+    a selection replaced the page's earlier one."""
+    monkeypatch.chdir(tmp_path)
+    dense = tmp_path / "dense"
+    dense.mkdir()
+    (dense / "defaults.css").write_text(":root { --lf-accent: #814b07; }\n")
+    # The reading theme's ground, which no other sheet of the layer states.
+    paper, accent = "--lf-paper: light-dark(", "--lf-accent: #814b07"
+
+    def worn(name: str, *packages: str) -> tuple[list[str], str]:
+        page = tmp_path / name
+        selection = [arg for package in packages for arg in ("--package", package)]
+        made = CliRunner().invoke(
+            cli_model.cli, ["page", "init", *selection, str(page)]
+        )
+        assert made.exit_code == 0, made.output
+        return (
+            json.loads(made.output)["packages"],
+            layer_files(page)["/theme.css"].decode(),
+        )
+
+    selected, theme = worn("none")
+    assert selected == [] and paper not in theme
+    selected, theme = worn("built-on", "reading", "./dense")
+    assert selected == ["reading", "./packages/dense"]
+    assert theme.index(paper) < theme.index(accent)
+    selected, theme = worn("in-its-place", "./dense")
+    assert selected == ["./packages/dense"]
+    assert accent in theme and paper not in theme
 
 
 def test_init_refuses_non_utf8_package_instructions_before_revendoring(
@@ -5460,12 +5498,14 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
 
 
 def test_every_bundled_package_says_when_to_select_it():
-    """`package list` is where an author learns what each package is for, so each
-    bundled package's `author.md` opens with that paragraph."""
+    """`package list` is where an author learns what each package is for, Leaf's
+    `reading` theme among them, so each bundled package's `author.md` opens with that
+    paragraph."""
     listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
 
     assert listed.exit_code == 0, listed.output
     packages = json.loads(listed.output)["packages"]
+    assert "reading" in [each["name"] for each in packages]
     assert [each["name"] for each in packages if not each["description"]] == []
 
 

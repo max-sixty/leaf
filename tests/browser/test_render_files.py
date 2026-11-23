@@ -124,8 +124,18 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
+    # A heading wears the token theme's colour for one, so the file reads as Markdown.
     heading = editor.locator(".cm-line", has_text="A real file").locator("span").first
-    expect(heading).to_have_css("font-weight", "650")
+    expect(heading).to_have_css(
+        "color",
+        page.evaluate("""() => {
+          const probe = document.body.appendChild(document.createElement("span"));
+          probe.style.color = "var(--lf-syn-name)";
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""),
+    )
     size = editor.evaluate("node => getComputedStyle(node).fontSize")
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"
@@ -138,7 +148,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
-    expect(editor.get_by_text("literal", exact=True)).to_have_css(
+    expect(editor.get_by_text("`literal`", exact=True)).to_have_css(
         "color", "rgb(0, 85, 102)"
     )
     page.keyboard.press("Tab")
@@ -263,18 +273,6 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     name = widget.locator(".lf-file-editor-name")
     expect(editor).to_contain_text("replicas: 3")
-    # A YAML key wears the theme's colour for a key, as a code block's does.
-    key = editor.locator("span", has_text="replicas").first
-    expect(key).to_have_css(
-        "color",
-        page.evaluate("""() => {
-          const probe = document.body.appendChild(document.createElement("span"));
-          probe.style.color = "var(--lf-syn-type)";
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""),
-    )
     expect(name).to_have_text("deploy/values.yaml")
     expect(tree.get_by_role("treeitem", name="values.yaml")).to_have_attribute(
         "aria-selected", "true"
@@ -335,6 +333,76 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     page.keyboard.press("d")
     expect(tree.locator("input")).to_have_value("d")
     consume_browser_errors(page, http_error_console(409))
+
+
+def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_path):
+    """The editor colours a file by the tokenizer and theme a code block of the same
+    file is coloured by, so a YAML number, boolean, null, key, string and comment, and a
+    Markdown heading, strong and emphasised words and a link's address, each wear in
+    the editor the colour and face they wear in the block."""
+    yaml = "# Worker\nreplicas: 3\nenabled: true\nceiling: null\nowner: 'oncall'\n"
+    markdown = (
+        "# Runbook\n\nWhen **every** slot is busy, *only* then, [see](notes.md).\n"
+    )
+    (tmp_path / "values.yaml").write_text(yaml)
+    (tmp_path / "runbook.md").write_text(markdown)
+    url = serve(
+        leaf_page(
+            "Colours",
+            '<h1>Colours</h1><p><a id="to-runbook" href="#config:runbook">runbook</a></p>'
+            '<lf-file-editor id="config" binding="values runbook"></lf-file-editor>'
+            f'<pre><code class="language-yaml">{yaml}</code></pre>'
+            f'<pre><code class="language-markdown">{markdown}</code></pre>',
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "values", tmp_path / "values.yaml")
+    bind_file(serve.page_dir, "runbook", tmp_path / "runbook.md")
+    page = open_page(browser, live_url(url))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    # The face each word wears, in the editor and in the code block of its language: a
+    # word the theme leaves uncoloured is in each one's own ink.
+    faces = """([words, lang]) => {
+      const face = (root) => Object.fromEntries(words.map((word) => {
+        const ink = getComputedStyle(root).color;
+        const texts = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let text = texts.nextNode(); text; text = texts.nextNode())
+          if (text.data.trim() === word) {
+            const style = getComputedStyle(text.parentElement);
+            return [word, [style.color === ink ? "ink" : style.color, style.fontStyle,
+              style.fontWeight, style.textDecorationLine]];
+          }
+        return [word, null];
+      }));
+      return [
+        face(document.querySelector("lf-file-editor").shadowRoot.querySelector(".cm-content")),
+        face(document.querySelector(`pre code.language-${lang}`)),
+      ];
+    }"""
+    for words, lang, shown in (
+        (["# Worker", "replicas", "3", "true", "null", "'oncall'"], "yaml", "ceiling"),
+        (["# Runbook", "**every**", "*only*", "notes.md"], "markdown", "Runbook"),
+    ):
+        if lang == "markdown":
+            page.locator("#to-runbook").click()
+        expect(editor).to_contain_text(shown)
+        page.wait_for_function(
+            """() => document.querySelector("lf-file-editor").shadowRoot
+                .querySelector(".cm-content span[class]")"""
+        )
+        in_editor, in_block = page.evaluate(faces, [words, lang])
+        assert all(in_block.values()), in_block
+        assert in_editor == in_block, (in_editor, in_block)
+    # The theme gives Markdown its faces: a heading and strong words bold, emphasis
+    # italic and a link's address underlined.
+    assert {word: face[1:] for word, face in in_block.items()} == {
+        "# Runbook": ["normal", "700", "none"],
+        "**every**": ["normal", "700", "none"],
+        "*only*": ["italic", "400", "none"],
+        "notes.md": ["normal", "400", "underline"],
+    }
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):

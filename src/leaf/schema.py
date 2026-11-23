@@ -78,8 +78,13 @@ _RECORD_VALUE = {
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        # The element property that shows the value and the event after which it
+        # holds the user's (element-integration.js, `host`); the two come together.
+        "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+        "event": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["kind", "attr"],
+    "dependentRequired": {"property": ["event"], "event": ["property"]},
     "additionalProperties": False,
 }
 

@@ -57,6 +57,14 @@ function host(element) {
   const descriptor = widgetDescriptor(element);
   const verbs = Object.keys(descriptor?.declaration.verbs ?? {});
   const controller = verbs.length ? widgetController(element) : null;
+  // A `value` record naming an element `property` and `event` needs no module code: the
+  // property shows the recorded value, and the event records the value the property holds.
+  const held = verbs.flatMap((verb) => {
+    const { record } = descriptor?.declaration.verbs?.[verb] ?? {};
+    return record?.kind === "value" && record.event && record.property
+      ? [{ verb, property: record.property, event: record.event }]
+      : [];
+  });
   const name = descriptor
     ? `widget:${descriptor.id}:render`
     : `element:${element.localName}:${++regions}`;
@@ -80,7 +88,12 @@ function host(element) {
       const reading = controller?.read();
       // A revision's replacement lacks its verbs until its document is adopted.
       if (reading && reading !== shown && verbs.every((verb) => verb in reading.state))
-        untracked(() => Object.assign(element, { state: widgetState(reading) }));
+        untracked(() => {
+          const state = widgetState(reading);
+          Object.assign(element, { state });
+          for (const { verb, property } of held)
+            Object.assign(element, { [property]: state[verb]?.value ?? null });
+        });
       shown = reading ?? null;
       // A setter that schedules its draw, as a Lit property does, says when it is in.
       drawing?.resolve(
@@ -98,7 +111,24 @@ function host(element) {
       region = descriptor
         ? attachWidgetPresentation(descriptor.id, "render")
         : attachApplicationPresentation(name);
-      leaving = [effect(draw), data.connect(name), () => region?.disconnect()];
+      leaving = [
+        effect(draw),
+        data.connect(name),
+        () => region?.disconnect(),
+        ...held.map(({ verb, property, event }) => {
+          /** @param {Event} fired */
+          const record = (fired) => {
+            const value = /** @type {any} */ (element)[property] ?? null;
+            if (
+              fired.target === element &&
+              value !== (shown?.state[verb]?.value ?? null)
+            )
+              controller?.dispatch({ kind: "action", verb, detail: { value } });
+          };
+          element.addEventListener(event, record);
+          return () => element.removeEventListener(event, record);
+        }),
+      ];
       if (descriptor) widgetMounted(element, descriptor, false);
     },
     disconnect() {

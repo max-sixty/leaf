@@ -459,20 +459,32 @@ def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
     reader's, and the shift the opening announces a frame later must not return the
     tree to where the reader left it. Headless Chrome has no find bar, and Leaf
     intercepts a fragment navigation to travel there itself, so the page makes the
-    find's two moves: it opens the tree and scrolls the row into view natively.
+    find's two moves: it opens the tree and scrolls the row into view natively. The
+    browser's reveal stops at the window's foot rather than above the floating panel,
+    as Leaf's landings do, so the row is shown where the browser put it.
+
+    Those two moves are no input of the reader's, so the shift watch judges what they
+    move as moving by itself, once the reader's last input has finished rendering. The
+    closed tree stands below the window, as a find's match often does, so the opening
+    moves nothing the reader sees and the find scrolls the page to the match.
     """
     user, widget, _ = scrolled_closed_tree(browser, serve, "reduce")
-    # The reader goes back to reading the page, which takes focus off the summary.
-    user.get_by_text("Review note 0 on").click()
+    # The reader goes back to the top of the page, which takes focus off the summary.
+    user.get_by_role("heading", name="Saved element", level=1).click()
     rendered(user)
-    widget.locator(".lf-trace-node").last.evaluate(
+    assert widget.locator(".lf-trace-tree").evaluate(
+        "tree => tree.getBoundingClientRect().top >= innerHeight"
+    )
+    user.wait_for_function("() => !lfInputRenderingOpen()")
+    revealed = widget.locator(".lf-trace-node").last.evaluate(
         "row => { row.closest('details').open = true;"
-        " row.scrollIntoView({block: 'nearest'}); }"
+        " row.scrollIntoView({block: 'nearest'});"
+        " const {top, bottom} = row.getBoundingClientRect(); return [top, bottom]; }"
     )
     landed = user.evaluate(LANDED_ROW)
     user.context.close()
     assert landed["open"]
-    assert_row_shown(landed)
+    assert landed["row"] == pytest.approx(revealed, abs=1), (landed, revealed)
 
 
 def test_trace_tree_opens_at_each_checkpoints_reading(browser, serve):
@@ -780,7 +792,7 @@ def test_trace_metadata_inspection_preserves_pending_checkpoint(browser, serve):
 def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serve):
     """A frame played over a fitted capture covers it exactly, so playback shows one
     image and the recorded pointer lands on the frame it marks."""
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context = browser.new_context(viewport={"width": 1440, "height": 828})
     user = context.new_page()
     user.goto(serve(named_source("playwright-trace-gallery")))
     wait_until_ready(user)
@@ -788,7 +800,8 @@ def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serv
     widget.get_by_role("button", name="Start", exact=True).click()
     rendered(user)
     # The fitted capture is narrower than its canvas, where centering rules would
-    # otherwise reach the playback layer.
+    # otherwise reach the playback layer: the window is short enough for the stage's
+    # height, not its width, to bound the capture.
     assert widget.evaluate("""widget => {
       const image = widget.querySelector(
         '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');

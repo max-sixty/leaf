@@ -13,8 +13,10 @@ import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
+import { scrollLimit } from "./scrolling.js";
 import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
+import { elementAxes } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { keeps } from "./keeps.js";
 
@@ -238,10 +240,10 @@ export function lined(rect, node) {
 // directly.
 //
 // `landingBand` is where a landing may put something: the shown band less the
-// `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// The root states its band apart (`landingInsets`), which its padding copies but for
-// while a floating editor holds focus, when the browser's own caret reveal is given
-// none.
+// `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours,
+// and less the chrome standing across what it lands (`landingBand`'s header). The root
+// states its top apart (`landingInsets`), which its padding copies but for while a
+// floating editor holds focus, when the browser's own caret reveal is given none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. Scroll anchoring looks for the box it keeps still in the band the
@@ -457,20 +459,36 @@ export function stickyHolder(sticky, stop = null) {
     parent = renderedParent(parent);
   return parent;
 }
-// Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
-// box that clips what it holds, as a tab strip does, still sticks in that scroller.
-/** @param {Element} sticky */
-function sticks(sticky) {
+// Where `sticky` sticks: the scroller around it, that scroller's shown band and padding,
+// and the lines its top and its foot stick at, each NaN on a side it doesn't stick to.
+// A sticky box that clips what it holds, as a tab strip does, still sticks in that
+// scroller.
+/** @param {Element} sticky @param {CSSStyleDeclaration} style */
+function stickLines(sticky, style) {
   let scroller = renderedParent(sticky);
   while (scroller?.nodeType === 1 && !scrollContainer(scroller))
     scroller = renderedParent(scroller);
-  if (scroller?.nodeType !== 1) return false;
+  if (scroller?.nodeType !== 1) return null;
   const band = shownBand(scroller);
-  if (!band) return false;
-  const style = getComputedStyle(sticky);
+  if (!band) return null;
   const room = getComputedStyle(scroller);
   const padTop = Number.parseFloat(room.paddingTop) || 0;
   const padBottom = Number.parseFloat(room.paddingBottom) || 0;
+  return {
+    scroller,
+    band,
+    padTop,
+    padBottom,
+    top: band.top + padTop + Number.parseFloat(style.top),
+    foot: band.bottom - padBottom - Number.parseFloat(style.bottom),
+  };
+}
+// Whether `sticky` stands where sticking holds it, in the scroller around it.
+/** @param {Element} sticky */
+function sticks(sticky) {
+  const lines = stickLines(sticky, getComputedStyle(sticky));
+  if (!lines) return false;
+  const { scroller, band, padTop, padBottom, top: topLine, foot: footLine } = lines;
   const box = sticky.getBoundingClientRect();
   // Where that holder is the scroller itself, its scrolled content rather than its frame.
   const parent = stickyHolder(sticky, scroller);
@@ -480,8 +498,6 @@ function sticks(sticky) {
       ? { top: content + padTop, bottom: content + scroller.scrollHeight - padBottom }
       : parent && shownBox(parent);
   if (!holder) return false;
-  const topLine = band.top + padTop + Number.parseFloat(style.top);
-  const footLine = band.bottom - padBottom - Number.parseFloat(style.bottom);
   if (box.top <= topLine + 1 && holder.top < box.top - 1) return true;
   if (Math.abs(box.bottom - footLine) <= 1) return true;
   return box.bottom > footLine && holder.bottom > box.bottom + 1;
@@ -574,8 +590,51 @@ function displaced(sticky, style, axis) {
   const own = origin + range.to("px").value - (fromStart ? 0 : box[size]);
   return { by: own - box[start], scroller };
 }
+// A scroller's landing band: its shown band less the room its landings keep at each
+// edge (`landingInsets`); the root's ends at the foot band the panel states
+// (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
+// scroller inside the page can reach under it. Where a surface stands across the
+// columns a landing's destination stands in (`across`), the band ends at the root's
+// foot plus however far the page can still carry the scroller up (`pageCarry`), and
+// the root's band brings the destination the rest of the way clear.
+/** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
+export const landingBand = (scroller, across = null) => {
+  const band = insetBand(scroller, landingInsets(scroller));
+  if (!band || !across || footBand === null) return band;
+  if (scroller === document.documentElement) return band;
+  const foot = layoutWindow().bottom - footBand;
+  if (
+    band.bottom > foot &&
+    coverBoxes(scroller).some((box) => overlapsAcross(box, across))
+  )
+    band.bottom = Math.max(band.top, Math.min(band.bottom, foot + pageCarry(scroller)));
+  return band;
+};
+// How far scrolling the page on can still carry `scroller` up the window: to the page's
+// end, and no further than a box around the scroller that sticks at its top in the page
+// travels before it sticks, after which the page scrolls past it. So a side list
+// standing a pixel short of its line rides the page for that pixel alone. A box its
+// holder's end pushes past its line rides the page with the holder, and one that
+// sticks in a scroller inside the page rides it with that scroller. Nothing carries a
+// scroller fixed in the window, or one on a page that doesn't scroll, as a workspace
+// filling the window doesn't.
 /** @param {Element} scroller */
-export const landingBand = (scroller) => insetBand(scroller, landingInsets(scroller));
+export function pageCarry(scroller) {
+  const root = document.documentElement;
+  let carry = scrollLimit(root) - root.scrollTop;
+  /** @type {Element | null} */
+  let box = scroller;
+  for (; box instanceof Element; box = renderedParent(box)) {
+    const style = getComputedStyle(box);
+    if (inWindow(box, style)) return 0;
+    if (style.position !== "sticky") continue;
+    const lines = stickLines(box, style);
+    const travel =
+      lines?.scroller === root ? box.getBoundingClientRect().top - lines.top : NaN;
+    if (travel > -1) carry = Math.min(carry, travel);
+  }
+  return Math.max(0, carry);
+}
 /** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
 function insetBand(scroller, inset) {
   const band = shownBand(scroller);
@@ -588,8 +647,8 @@ function insetBand(scroller, inset) {
   };
 }
 // The root's band at the window's foot, in pixels, which the floating panel states as
-// it writes the root's `scroll-padding-bottom` (floating-panel.js, `followBox`), or
-// null where no panel stands, as on an export. Returns whether the band changed.
+// its box changes height (floating-panel.js, `followBox`), or null where no panel
+// stands, as on an export. Returns whether the band changed.
 /** @type {number | null} */
 let footBand = null;
 /** @param {number} band */
@@ -688,11 +747,11 @@ export const shownExtent = (el) =>
 // start edge as a loose list's paragraph does, reaches by the list inset
 // (`--lf-list-inset`) on the item's start side. Every other box reaches 0, such as an
 // item's second paragraph, which no marker stands beside, or a link that opens an item,
-// which keeps to its own edge. The margin's bars and its outline round a change
-// (margin-bars.js) and the marks a box draws round itself (surfaces.css,
+// which keeps to its own edge. What a target draws (`inkedBox`), where its marks stand
+// (`markedBox`) and the marks a box draws round itself (surfaces.css,
 // `[data-lf-beside-marker]`) all reach by this.
 /** @param {Element} box @returns {{left: number, right: number}} */
-export function markerReach(box) {
+function markerReach(box) {
   const none = { left: 0, right: 0 };
   const own = getComputedStyle(box);
   if (own.display.startsWith("inline")) return none;
@@ -726,12 +785,13 @@ export function markerReach(box) {
 /** @param {DOMRect} at @param {Element} holder @param {CSSStyleDeclaration} style */
 function opens(at, holder, style) {
   const outer = holder.getBoundingClientRect();
+  const scale = scaleOf(holder);
   const px = (/** @type {string} */ value) => Number.parseFloat(value);
-  const top = outer.top + px(style.borderTopWidth) + px(style.paddingTop);
+  const top = outer.top + (px(style.borderTopWidth) + px(style.paddingTop)) * scale.y;
   const start =
     style.direction === "rtl"
-      ? outer.right - px(style.borderRightWidth) - px(style.paddingRight)
-      : outer.left + px(style.borderLeftWidth) + px(style.paddingLeft);
+      ? outer.right - (px(style.borderRightWidth) + px(style.paddingRight)) * scale.x
+      : outer.left + (px(style.borderLeftWidth) + px(style.paddingLeft)) * scale.x;
   const edge = style.direction === "rtl" ? at.right : at.left;
   return Math.abs(edge - start) <= 1 && Math.abs(at.top - top) <= 1;
 }
@@ -750,6 +810,60 @@ export function readMarkerSides(boxes) {
       keeps(box, RUNTIME_PAINT_ATTRIBUTE.besideMarker, sides[at]),
     );
 }
+// How many of the window's pixels a band one CSS pixel wide round `box` takes across
+// (`x`) and down (`y`), under the transforms on it and every box round it
+// (element-axes.js, `elementAxes`): other than 1 under a scale, as in a slide scaled
+// to fit the window, and under a rotation, which turns each side's band partly
+// across and partly down.
+/** @param {Element} box @returns {{x: number, y: number}} */
+function scaleOf(box) {
+  const { x, y } = elementAxes(box);
+  return { x: Math.abs(x.x) + Math.abs(y.x), y: Math.abs(x.y) + Math.abs(y.y) };
+}
+// What `part` draws: its border box, reaching over a list marker beside it.
+/** @param {Element} part @param {DOMRect} [rect] @param {{x: number, y: number}} [scale] @returns {Box} */
+function inkOf(part, rect = part.getBoundingClientRect(), scale = scaleOf(part)) {
+  const reach = markerReach(part);
+  return {
+    left: rect.left - reach.left * scale.x,
+    top: rect.top,
+    right: rect.right + reach.right * scale.x,
+    bottom: rect.bottom,
+  };
+}
+// The box a target occupies on screen, as the reader sees it: what its shown parts
+// (`shownParts`) draw together, each reaching over a list marker beside it
+// (`markerReach`), or null where no part shows. Paint that stands beside a target,
+// such as the margin's bars, stands beside this.
+/** @param {Element} target @returns {Box | null} */
+export const inkedBox = (target) =>
+  union(shownParts(target).map((part) => inkOf(part)));
+// Where the marks Leaf draws round `part` stand: the room its band takes
+// (`--lf-band-room`, its gap and its width) outside what it draws (`inkOf`), or none
+// where they stand inside it, as a table cell's do.
+/** @param {Element} part @returns {Box} */
+function markedOf(part) {
+  const rect = part.getBoundingClientRect();
+  const scale = scaleOf(part);
+  const ink = inkOf(part, rect, scale);
+  const room = Math.max(
+    0,
+    Number.parseFloat(getComputedStyle(part).getPropertyValue("--lf-band-room")),
+  );
+  return {
+    left: ink.left - room * scale.x,
+    top: ink.top - room * scale.y,
+    right: ink.right + room * scale.x,
+    bottom: ink.bottom + room * scale.y,
+  };
+}
+// Where the marks Leaf draws round `target` stand (surfaces.css): round each shown
+// part, the room its band takes outside what the part draws (`inkedBox`), together;
+// or null where no part shows. Every box states its room whether or not a mark shows,
+// so a surface that stands clear of the marks, such as a thread's card or a preview,
+// clears them before they show.
+/** @param {Element} target @returns {Box | null} */
+export const markedBox = (target) => union(shownParts(target).map(markedOf));
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an
@@ -805,10 +919,17 @@ export function seenRect(item, clips, box = placeBox(item), rest = false) {
   const holder = placeHolder(item);
   // What clips a box only cuts it, so a box the visible viewport's height doesn't reach
   // shows nothing in front of the user, and its walk goes unread.
-  const { offsetTop, height } = visualViewport;
-  if (!holder || box.bottom <= offsetTop || box.top >= offsetTop + height) return null;
+  if (!holder || outOfWindow(box)) return null;
   const shown = clippedPlace(item, clips, box);
   return shown ? inFront(shown, holder, rest) : null;
+}
+// Whether `box` stands wholly above or below the visible viewport, where none of it is
+// in front of the user. It answers for a box with no height too, such as an empty
+// outlet a comment box would be seated in (composing/surface.js, `seatFab`).
+/** @param {Box} box */
+export function outOfWindow({ top, bottom }) {
+  const { offsetTop, height } = visualViewport;
+  return bottom <= offsetTop || top >= offsetTop + height;
 }
 // What of `box`, already cut by every box clipping `item`, is in front of the user: its
 // part within the visible viewport's height, less the boxes the chrome covers

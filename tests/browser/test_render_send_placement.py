@@ -1325,7 +1325,17 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
-        shot.scroll_into_view_if_needed()
+        # The shot stands whole above the floating panel's band, where Leaf's own
+        # landing brings it, so the answer grows the card beside it past the window's
+        # foot.
+        shot.evaluate(
+            """async shot => {
+              const band = (await window.__lfWidgetApi()).landingInsets(
+                document.scrollingElement).bottom;
+              scrollBy({top: shot.getBoundingClientRect().bottom - (innerHeight - band),
+                behavior: 'instant'});
+            }"""
+        )
         if subject == "shot-fit-at-foot":
             shot.evaluate(
                 "shot => scrollBy(0, shot.getBoundingClientRect().bottom - innerHeight)"
@@ -1997,13 +2007,18 @@ def test_send_grows_thread_around_the_words(
             rendered(page)
             page.keyboard.press("Enter")
             rendered(page)
-            opening = card.evaluate("""async card => {
-              const {commentBoundary, subjectGap} =
+            opening = card.evaluate(
+                """async (card, selector) => {
+              const {commentBoundary, COMMENT_GAP, markRoom, subjectGap} =
                 await window.__lfOverlayApi();
+              const block = document.querySelector(selector);
+              const room = markRoom(block, block.getBoundingClientRect(), COMMENT_GAP);
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
-                boundary:commentBoundary().top, gap:subjectGap()};
-            }""")
+                boundary:commentBoundary().top, gap:subjectGap(room, 'top')};
+            }""",
+                on.block,
+            )
             assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
             assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
                 opening["gap"], abs=1
@@ -2031,9 +2046,11 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
           const boundary = scroller.getBoundingClientRect();
           const before = target.getBoundingClientRect();
           const height = boundary.height * .6;
-          const gap = subjectGap();
+          const room = {left: 8, top: 8, right: 8, bottom: 8};
+          const gap = subjectGap(room, 'bottom');
           const overflow = before.bottom + gap + height - boundary.bottom;
-          const moved = makeRoom('bottom', before, before, height, boundary, scroller);
+          const moved = makeRoom(
+            'bottom', before, before, room, height, boundary, scroller);
           const after = target.getBoundingClientRect();
           return {moved, overflow, remaining:after.bottom + gap + height - boundary.bottom,
                   visible:after.top >= boundary.top && after.bottom <= boundary.bottom};

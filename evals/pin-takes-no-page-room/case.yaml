@@ -3,7 +3,7 @@
 description: pin-takes-no-page-room
 metadata:
   purpose:
-    "The rail and the margin: a pin is an overlay the user hides with `o` or More's Hide annotations,
+    "The rail and the margin: a pin is an overlay the user hides with `g H` or More's Hide annotations,
     so the page's CSS leaves no room for one, such as padding at the end of a heading."
   tags:
     - theme
@@ -38,5 +38,5 @@ assert:
       if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
       such room: the reply tells the user how to hide the markers to read what is under
       them by a route their phone has, Hide annotations under Annotations in the leaf's
-      menu (the `o` key alone fails, since the user has no keyboard), and any CSS left
+      menu (`g H` alone fails, since the user has no keyboard), and any CSS left
       is unrelated to the marker. Rewording the heading is allowed but not required.

@@ -109,12 +109,14 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
 def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it(
     browser, serve
 ):
-    """A sample's page gets no rendering while its frame is off screen, so a chart in
-    a sample out of view draws only once its frame shows, and the page reads as ready
-    without it. A check that reads every document the page can show brings each such
-    frame into view, a sample's own samples included, waits for its chart, and puts
-    back every box it scrolled, leaving nothing to move after it returns. One a scroll
-    can't show, as in a box clipped to nothing, stays as the page has it."""
+    """In Chromium a sample's page gets no rendering while its frame is off screen, so
+    a chart in a sample out of view draws only once its frame shows. The page reads as
+    ready without it: at once for a window sample, and for a block sample once the
+    deadline on its height passes (sample.js, `SIZING_MS`). A check that reads every
+    document the page can show brings each such frame into view, a sample's own
+    samples included, waits for its chart, and puts back every box it scrolled,
+    leaving nothing to move after it returns. One a scroll can't show, as in a box
+    clipped to nothing, stays as the page has it."""
     chart = (
         '<lf-chart id="line" data-height="120"><pre>'
         '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
@@ -135,6 +137,7 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
                 + '<div style="max-height: 0; overflow: hidden">'
                 + live_sample("clipped", " window", chart)
                 + "</div>"
+                + live_sample("block", "", chart)
                 + '<div style="height: 900px"></div>'
                 + live_sample(
                     "outer",
@@ -153,9 +156,10 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
         return frame.locator("lf-chart.lf-rendered").count()
 
     wait_until_ready(page)
-    assert (drawn("shown"), drawn("boxed")) == (1, 0)
+    assert (drawn("shown"), drawn("boxed"), drawn("block")) == (1, 0, 0)
     start_near_work(page)
-    assert (drawn("boxed"), drawn("outer", "inner"), drawn("clipped")) == (1, 1, 0)
+    assert (drawn("boxed"), drawn("block")) == (1, 1)
+    assert (drawn("outer", "inner"), drawn("clipped")) == (1, 0)
     places = """() => [scrollY, document.querySelector('#box').scrollTop,
         document.querySelector('#outer iframe').getBoundingClientRect().height]"""
     after = page.evaluate(places)

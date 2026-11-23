@@ -107,7 +107,12 @@ def test_a_passage_s_row_moves_with_the_page_s_scroll_in_the_task_that_scrolls(
     text = " ".join(
         f"Sentence number {i} says something about the release." for i in range(120)
     )
-    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    # The page goes on past the passage, so the scroll can put the words a third of the
+    # way down rather than stop at the page's end, under the floating panel.
+    body = (
+        f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+        '<div style="height: 100vh"></div>'
+    )
     events = [_comment_on("long", quote="the last words land")]
     page = open_page(browser, serve(leaf_page("Passage rows", body), events=events))
     row = page.locator('[data-lf-margin-for="long"]')

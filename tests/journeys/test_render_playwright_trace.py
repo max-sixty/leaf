@@ -392,7 +392,14 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # to the checkpoint that owns its saved tree.
     user.keyboard.press("Escape")
     body = widget.locator(".lf-trace-body")
-    body.hover()
+    # The pointer goes where the body already shows, as a user's does: `hover` would
+    # first scroll the body by Chromium's reveal rule, a scroll no user makes.
+    shown = body.bounding_box()
+    window = user.viewport_size["height"]
+    user.mouse.move(
+        shown["x"] + shown["width"] / 2,
+        (max(shown["y"], 0) + min(shown["y"] + shown["height"], window)) / 2,
+    )
     user.mouse.wheel(0, 80)
     rendered(user)
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -974,8 +981,11 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     expect_after_checkpoint(
         phone, (stop_time(record, actions[0]["phases"]["after"]) - origin) / 1000
     )
+    # The reader scrolls the tools up the window. Playwright's own reveal stops with
+    # them at the window's foot, under the floating panel, and scrolling by whole
+    # pixels leaves a third of a pixel of them past it.
     tools = phone.locator(".lf-trace-image-tools")
-    tools.scroll_into_view_if_needed()
+    tools.evaluate("tools => tools.scrollIntoView({block: 'center'})")
     expect(tools).to_be_in_viewport(ratio=1)
     stage_box = phone.locator(".lf-trace-stage").bounding_box()
     metadata_box = phone.locator(".lf-trace-metadata").bounding_box()

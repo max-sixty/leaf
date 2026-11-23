@@ -106,13 +106,17 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
     expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
     rendered(page)
     geometry = page.evaluate(
-        """() => {
+        """async () => {
+          const {COMMENT_GAP, markRoom, subjectGap} = await window.__lfOverlayApi();
           const controls = document.querySelector('[data-lf-kinds="comment"]')
             .closest('[data-lf-margin-for]').getBoundingClientRect();
+          const subject = document.getElementById('bracket');
+          const room = markRoom(subject, subject.getBoundingClientRect(), COMMENT_GAP);
           const card = document.querySelector('.lf-margin-preview');
           const box = card.getBoundingClientRect();
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
+                  gap: subjectGap(room, 'right'),
                   preferred: parseFloat(getComputedStyle(card)
                     .getPropertyValue('--lf-thread-card')),
                   minimum: parseFloat(getComputedStyle(card)
@@ -120,12 +124,13 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
         }"""
     )
     past = (
-        geometry["viewport"] - 8 - (geometry["controlsRight"] + 16)
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + geometry["gap"])
         >= geometry["preferred"]
     )
     assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
-        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 16,
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT))
+        + geometry["gap"],
         abs=0.5,
     ), geometry
     assert geometry["cardRight"] == pytest.approx(
@@ -149,6 +154,51 @@ PICK_UNDER_A_CARD = leaf_page(
 </lf-group>
 """,
 )
+
+
+def test_a_card_on_a_widget_stands_its_gap_past_the_ring_round_its_decision(
+    browser, serve
+):
+    """The options' own ring stands on their frame, and the ring round the decision
+    they fill, which shows while the user stands in it, stands past the decision's
+    padding: the card stands its gap past that ring rather than on it, whether or not
+    the ring shows yet."""
+    decision = leaf_page(
+        "Decision ring",
+        """
+<h1 id="title">Decision ring</h1>
+<lf-group id="ask" label="Which banner?" style="padding: 2px">
+  <lf-options id="choice">
+    <lf-option id="row" label="Status in words">Status in words.</lf-option>
+    <lf-option id="two" label="Keep two rows">Keep two rows.</lf-option>
+  </lf-options>
+</lf-group>
+""",
+    )
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Does the banner wrap?",
+        "anchor": {"section": "choice"},
+    }
+    page = open_page(browser, serve(decision, events=[comment]))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="choice"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    rendered(page)
+    clear = page.evaluate(
+        """() => {
+          const ask = document.getElementById('ask');
+          const room = parseFloat(getComputedStyle(ask).getPropertyValue('--lf-band-room'));
+          const box = ask.getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return Math.max(card.left - (box.right + room), (box.left - room) - card.right,
+                          card.top - (box.bottom + room), (box.top - room) - card.bottom);
+        }"""
+    )
+    assert clear == pytest.approx(8, abs=0.5)
 
 
 def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serve):

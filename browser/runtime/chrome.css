@@ -8,8 +8,8 @@
    control, live region, help, inspection paint, legend and Go-to hints. Its permanent
    home stands after the document and takes no room there; a modal opened from an
    authored popover carries this scope with it (keyboard/layer-stack.js).
-   The theme reserves the chrome's room
-   (html[data-lf-live]). The page and panel scroll separately.
+   The page keeps no room for the chrome, which stands over it. The page and panel
+   scroll separately.
 
    The private rules are one `@scope (.lf-chrome)`, so their class names cannot meet a
    page's. Rules outside it are the shared vocabulary, each class declared in
@@ -1007,7 +1007,7 @@ html[data-lf-draw-mode] {
   .lf-change-bar {
     background: var(--lf-change);
   }
-  /* A change's mark is an annotation, so hiding annotations (`o`, annotation-layer.js)
+  /* A change's mark is an annotation, so hiding annotations (`g H`, annotation-layer.js)
      hides its bar too. */
   :scope[data-lf-annotations-hidden] .lf-change-bar {
     background: transparent;

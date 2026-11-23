@@ -15,14 +15,21 @@ import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.
 import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
-import { isHTML, isElement } from "./shadow-tree.js";
+import { isHTML, isElement, isSVG } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
-import { elementAxes, scrollAxes } from "./element-axes.js";
+import {
+  carriedBox,
+  elementAxes,
+  elementBorderFrame,
+  elementMatrix,
+  innerBox,
+  scrollAxes,
+} from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { keeps } from "./keeps.js";
 
 /** @typedef {import('./rect.js').Box} Box
- * @typedef {{band: Box | null, axes: {x: boolean, y: boolean},
+ * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
  * placer: Element | null | undefined, scrolls: boolean}} ClipEntry
  * @typedef {Map<Element, ClipEntry>} ClipCache
  * @typedef {{box: Element, axes: {x: boolean, y: boolean}, scrolls: boolean,
@@ -175,11 +182,15 @@ export function shownWindow({
 // would be drawn at a rect the user never sees. The band itself is the padding box less
 // whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
 // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
-// past the edge. A box that clips both axes with `overflow: clip` paints what it holds
-// past its padding box by its `overflow-clip-margin`, and its band reaches as far;
-// Chromium paints no margin where either axis clips another way. A margin measured
+// past the edge — read against the container's own bounding rect through its frame
+// (element-axes.js, `innerBox`, on `matrix`, the container's map, where the caller
+// holds it), so a turned container's band is the box its turned padding box covers.
+// A box that clips both axes with `overflow: clip` paints what it holds past its
+// padding box by its `overflow-clip-margin`, in its own pixels, and its band reaches as
+// far; Chromium paints no margin where either axis clips another way. A margin measured
 // from the content or border box, which no sheet here writes, reads as none, and so
-// does WebKit's, which has no such property.
+// does WebKit's, which has no such property. Inside an SVG drawing a box clips only
+// where it sets a viewport of its own (`drawnViewport`).
 //
 // `page check --render` imports this to ask which container cut a box away, so the
 // band a handover is refused against and the band the page paints to are one reading.
@@ -188,8 +199,8 @@ export function shownWindow({
 //
 // The element's own document answers, so a sample can ask it of the containing page's
 // boxes in that page's viewport coordinates.
-/** @param {Element} el @returns {Box | null} */
-export function shownBand(el) {
+/** @param {Element} el @param {DOMMatrixReadOnly} [matrix] @returns {Box | null} */
+export function shownBand(el, matrix) {
   const doc = el.ownerDocument;
   // The root element's border box travels with the document, while its scrollport stays
   // pinned to the viewport. Every other scroller's visible band can be derived from its
@@ -198,23 +209,84 @@ export function shownBand(el) {
   const s = getComputedStyle(el);
   const axes = clippingAxes(s);
   if (!axes.x && !axes.y) return null;
-  const b = el.getBoundingClientRect();
-  const scaleX = isHTML(el) && el.offsetWidth ? b.width / el.offsetWidth : 1;
-  const scaleY = isHTML(el) && el.offsetHeight ? b.height / el.offsetHeight : 1;
-  const left = b.left + el.clientLeft * scaleX,
-    top = b.top + el.clientTop * scaleY;
+  if (isSVG(el) && el.ownerSVGElement) return drawnViewport(el);
   const reach =
     s.overflowX === "clip" && s.overflowY === "clip"
       ? parseFloat(s.overflowClipMargin) || 0
       : 0;
-  const x = reach * scaleX;
-  const y = reach * scaleY;
-  return {
-    left: left - x,
-    top: top - y,
-    right: left + el.clientWidth * scaleX + x,
-    bottom: top + el.clientHeight * scaleY + y,
+  const inner = {
+    left: el.clientLeft - reach,
+    top: el.clientTop - reach,
+    right: el.clientLeft + el.clientWidth + reach,
+    bottom: el.clientTop + el.clientHeight + reach,
   };
+  return innerBox(el, inner, matrix);
+}
+// The box a viewport nested in an SVG drawing, a nested <svg> or a <foreignObject>, clips
+// what it holds to: the one its x, y, width and height set in the user space it stands
+// in, its own transform included, carried to the window by SVG's own map
+// (`getScreenCTM`). A foreignObject's map is that space's; a nested <svg>'s also fits
+// its viewBox into the box, which `viewBoxFit` takes back out. Any other element of a
+// drawing sets no viewport and clips nothing.
+/** @param {SVGElement} el */
+function drawnViewport(el) {
+  const viewport = isSVG(el, "svg") || isSVG(el, "foreignObject") ? el : null;
+  const screen = viewport?.getScreenCTM();
+  if (!viewport || !screen) return null;
+  const left = viewport.x.animVal.value;
+  const top = viewport.y.animVal.value;
+  const { a, b, c, d, e, f } = screen;
+  const map = new window.DOMMatrix([a, b, c, d, e, f]);
+  return carriedBox(
+    isSVG(viewport, "svg") ? map.multiply(viewBoxFit(viewport).inverse()) : map,
+    {
+      left,
+      top,
+      right: left + viewport.width.animVal.value,
+      bottom: top + viewport.height.animVal.value,
+    },
+  );
+}
+// The map a nested <svg> adds inside its box, from its own user units to the space it
+// stands in: its viewBox fitted to its x, y, width and height as its preserveAspectRatio
+// says, or the move to x and y where it sets no viewBox (SVG, "The equivalent transform
+// of an SVG viewport").
+/** @param {SVGSVGElement} svg */
+function viewBoxFit(svg) {
+  const x = svg.x.animVal.value;
+  const y = svg.y.animVal.value;
+  const width = svg.width.animVal.value;
+  const height = svg.height.animVal.value;
+  const view = svg.viewBox.animVal;
+  if (!view?.width || !view.height) return new window.DOMMatrix().translate(x, y);
+  const { align, meetOrSlice } = svg.preserveAspectRatio.animVal;
+  const fits = align !== window.SVGPreserveAspectRatio.SVG_PRESERVEASPECTRATIO_NONE;
+  const slices = meetOrSlice === window.SVGPreserveAspectRatio.SVG_MEETORSLICE_SLICE;
+  let sx = width / view.width;
+  let sy = height / view.height;
+  if (fits) sx = sy = slices ? Math.max(sx, sy) : Math.min(sx, sy);
+  // The aligned values run xMinYMin, xMidYMin, xMaxYMin, xMinYMid, … from 2: across
+  // fastest, each a third of the free room further than the one before.
+  const step = fits
+    ? align - window.SVGPreserveAspectRatio.SVG_PRESERVEASPECTRATIO_XMINYMIN
+    : 0;
+  return new window.DOMMatrix()
+    .translate(
+      x - view.x * sx + ((width - view.width * sx) * (step % 3)) / 2,
+      y - view.y * sy + ((height - view.height * sy) * Math.floor(step / 3)) / 2,
+    )
+    .scale(sx, sy);
+}
+// Which of the window's axes a box's clip cuts, from the axes it clips on itself
+// (`clippingAxes`) and its map into the window. A clip on both axes cuts both. A clip on
+// one cuts the window's axis that one's direction lies nearest, so a quarter turn swaps
+// the axes and a slant keeps them, at the slant's few pixels' error.
+/** @param {{x: boolean, y: boolean}} local @param {DOMMatrixReadOnly} matrix */
+function windowAxes(local, matrix) {
+  if (local.x === local.y) return local;
+  const [across, down] = local.x ? [matrix.a, matrix.b] : [matrix.c, matrix.d];
+  const nearAcross = Math.abs(across) >= Math.abs(down);
+  return { x: nearAcross, y: !nearAcross };
 }
 
 // A box of text in `node` stretched across its line's leading, half the gap between
@@ -1066,28 +1138,22 @@ export function presented(node) {
 }
 // What this page shows of a sample's frame it holds, in the frame's own viewport
 // coordinates: the frame's `seenRect`, within `within`, the window or what this page's
-// own holder shows of it, or null where the user sees none of it. The sample cannot
-// read this itself: only this page knows the boxes its chrome covers over the frame,
-// which cut it as they cut any of this page's boxes. A page in an ordinary iframe reads
-// only its own window.
+// own holder shows of it, carried into the frame's viewport by the inverse of its frame
+// (element-axes.js, `elementBorderFrame`), or null where the user sees none of it. A
+// turned frame's own viewport shows the box that covers what the user sees. The sample
+// cannot read this itself: only this page knows the boxes its chrome covers over the
+// frame, which cut it as they cut any of this page's boxes. A page in an ordinary
+// iframe reads only its own window.
 /** @param {HTMLIFrameElement} frame @param {Box} within */
 export function frameView(frame, within) {
   const seen = seenRect(frame, new Map());
   const shown = seen && intersect(seen, within);
   if (!shown || !hasArea(shown)) return null;
-  const rect = frame.getBoundingClientRect();
-  const scaleX = rect.width / frame.offsetWidth || 1;
-  const scaleY = rect.height / frame.offsetHeight || 1;
-  /** @param {number} at */
-  const x = (at) => (at - rect.left) / scaleX - frame.clientLeft;
-  /** @param {number} at */
-  const y = (at) => (at - rect.top) / scaleY - frame.clientTop;
-  return {
-    left: x(shown.left),
-    top: y(shown.top),
-    right: x(shown.right),
-    bottom: y(shown.bottom),
-  };
+  const { matrix } = elementBorderFrame(frame);
+  return carriedBox(
+    matrix.translate(frame.clientLeft, frame.clientTop).inverse(),
+    shown,
+  );
 }
 // Everything besides a reader's own boxes that changes what `seenRect` reads, so a
 // reader of what the user sees watches it here rather than keeping its own list: a
@@ -1430,27 +1496,11 @@ function clipWalk(item, clips, held, stop) {
   let containing = null;
   /** @type {ClipCut[]} */
   const cuts = [];
+  clipEntries(item, clips, stop);
   /** @type {Element | null} */
   let a = item;
   for (; a && a !== stop; a = renderedParent(a)) {
-    let c = clips.get(a);
-    if (c === undefined) {
-      clips.set(
-        a,
-        (c = {
-          band: shownBand(a),
-          axes:
-            a === a.ownerDocument.scrollingElement
-              ? { x: true, y: true }
-              : clippingAxes(getComputedStyle(a)),
-          // Read here rather than out of shownBand, whose answer is a band and is the
-          // render gate's too: what clips a box and what a box is positioned against are
-          // two facts.
-          placer: placedBy(a),
-          scrolls: scrollContainer(a),
-        }),
-      );
-    }
+    const c = /** @type {ClipEntry} */ (clips.get(a));
     if (escaped && a === containing) escaped = false;
     if (!escaped && (held || a !== item) && c.band) {
       const covered =
@@ -1478,6 +1528,42 @@ function clipWalk(item, clips, held, stop) {
     }
   }
   return { cuts, fixed: escaped && !containing };
+}
+// Each box's entry from `item` out to `stop`, made from the outside in, so a box's map
+// into the window (element-axes.js, `elementMatrix`) turns the map of the box it stands
+// in, and a pass reads each box's transform once however many walks pass the box.
+/** @param {Element} item @param {ClipCache} clips @param {Element} [stop] */
+function clipEntries(item, clips, stop) {
+  /** @type {Element[]} */
+  const walked = [];
+  for (
+    let a = /** @type {Element | null} */ (item);
+    a && a !== stop;
+    a = renderedParent(a)
+  )
+    walked.push(a);
+  let above = stop ? clips.get(stop)?.matrix : undefined;
+  for (const box of walked.reverse()) {
+    let entry = clips.get(box);
+    if (!entry) {
+      const matrix = elementMatrix(box, above);
+      entry = {
+        matrix,
+        band: shownBand(box, matrix),
+        axes:
+          box === box.ownerDocument.scrollingElement
+            ? { x: true, y: true }
+            : windowAxes(clippingAxes(getComputedStyle(box)), matrix),
+        // Read here rather than out of shownBand, whose answer is a band and is the
+        // render gate's too: what clips a box and what a box is positioned against are
+        // two facts.
+        placer: placedBy(box),
+        scrolls: scrollContainer(box),
+      };
+      clips.set(box, entry);
+    }
+    above = entry.matrix;
+  }
 }
 
 // The element a destination is measured through: itself, or the element holding a

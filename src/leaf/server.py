@@ -24,7 +24,6 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
-from .session_runtime import own_launcher
 from .state import (
     PLUGIN_ROOT,
     STRING,
@@ -252,23 +251,25 @@ def exit_serving_on_signals() -> None:
 
 def stop_when_service_ends(page_dir: Path) -> None:
     """Apply desired state and session ownership from inside the server, exiting
-    as the shutdown operation (`exit_serving`), and follow the installed copy that
-    started the server once its harness puts another copy in its place.
+    as the shutdown operation (`exit_serving`), and follow the copy of Leaf the
+    session holding the page runs, once that is another than the server's.
 
     A pass reads service and ownership at least every two seconds, since a
     claimant that dies without ending its session writes nothing. Maintenance
     uses this timer alone: retained pages must not each hold a native watcher.
 
-    A server outlives the hooks that start it, and Codex and Pi update their one
-    copy in place (`session-lifetime.md`, "Which Leaf runs a session"), deleting
-    the environment this process runs in. A server left running would import each
-    module it loads later from the new copy, beside the old modules it holds, and
-    the browser would load the new copy's runtime from it. So a server holds the
-    copy it loaded (`state.LoadedCopy`), and the first pass that finds another copy
-    in its place, while its service is persistent or a live session holds the page,
-    has that copy restart it (`_follow_copy`). A server whose session has ended
-    retires on the old copy after its grace, which leaves its service enabled for a
-    resumed session's prompt to serve again; a restart would instead disable it
+    A server outlives the hooks that start it, while the session holding its page
+    runs the Leaf its hooks run (`session-lifetime.md`, "Which Leaf runs a
+    session"). Where that is another Leaf, the agent checks the page with one Leaf
+    while the user's tab draws it with another. Where Codex or Pi updated the
+    server's copy in place, the server has lost its environment too: it would import
+    each module it loads later from the new copy, beside the old modules it holds,
+    and the browser would load the new copy's runtime from it. So each pass, while
+    the service is persistent or a live session holds the page, asks which copy
+    should run the server now (`state.LoadedCopy.successor`), and the first that
+    names one has that copy restart it (`_follow_copy`). A server whose session has
+    ended retires on its copy after its grace, which leaves its service enabled for
+    a resumed session's prompt to serve again; a restart would instead disable it
     (`hosting.restarting_server`)."""
 
     copy = LoadedCopy()
@@ -279,12 +280,17 @@ def stop_when_service_ends(page_dir: Path) -> None:
         if not service or not service["enabled"]:
             exit_serving(0)
         persistent = service["lifetime"] == "persistent"
-        claimed = not persistent and claim_is_active(page_claim(page_dir))
-        if not following and (persistent or claimed) and copy.replaced():
-            following = True
-            threading.Thread(
-                target=_follow_copy, args=(page_dir, service["server_id"]), daemon=True
-            ).start()
+        held = page_claim(page_dir)
+        claimed = claim_is_active(held)
+        if not following and (persistent or claimed):
+            root = copy.successor(held["id"] if held is not None and claimed else None)
+            if root is not None:
+                following = True
+                threading.Thread(
+                    target=_follow_copy,
+                    args=(page_dir, service["server_id"], root),
+                    daemon=True,
+                ).start()
         if persistent:
             time.sleep(2.0)
             continue
@@ -312,20 +318,20 @@ def stop_when_service_ends(page_dir: Path) -> None:
         time.sleep(min(2.0, ORPHAN_GRACE_SECS))
 
 
-def _follow_copy(page_dir: Path, server_id: str) -> None:
-    """Hand the restart of this server to the copy now standing at its copy's path
+def _follow_copy(page_dir: Path, server_id: str, root: Path) -> None:
+    """Hand the restart of this server to the copy at `root`
     (`hosting.follow_copy`), and return once that copy runs and has taken it on.
 
-    It runs through that copy's launcher, since this process's environment went
-    with its copy, in a thread of its own, so the lifetime check goes on while the
-    launcher builds the new copy's environment. A launch that fails, as one that
-    can't build the environment does, is tried again on the retry ladder
+    It runs through that copy's launcher, since this process's environment may have
+    gone with its own copy, in a thread of its own, so the lifetime check goes on
+    while the launcher builds the new copy's environment. A launch that fails, as
+    one that can't build the environment does, is tried again on the retry ladder
     (`codex.retry_delay`) for as long as this server serves.
 
     The child's environment names no session, as a server a hook starts runs: a
     command whose environment names a session hands itself to the checkout that
-    session selected (`session_runtime.hand_off_command`), and only the copy at this
-    server's own path may restart it. The child reads the session from the page's
+    session selected (`session_runtime.hand_off_command`), and only the copy this
+    server follows may restart it. The child reads the session from the page's
     claim.
 
     It loads no module the server has not: the server loads `leaf.codex` before it
@@ -346,7 +352,7 @@ def _follow_copy(page_dir: Path, server_id: str) -> None:
                 ],
                 harness=None,
                 what=f"the restart of the server for {page_dir} under the new copy",
-                launcher=own_launcher(),
+                launcher=(root / "bin" / "leaf").resolve(),
             ):
                 return
         except (Refused, OSError) as error:

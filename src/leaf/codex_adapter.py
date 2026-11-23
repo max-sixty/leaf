@@ -62,9 +62,8 @@ As with page servers
 checkout's adapter keeps the modules it loaded and imports any later one from the
 checkout as it stands, since whoever runs a checkout decides when it changes.
 
-Restarting the adapter from the task's prompt hook, as `reconnect.py` restarts a page
-server another copy started, would leave it on its deleted copy until the task's next
-prompt, which can come hours later. Replacing the process with `exec` through the new
+Restarting the adapter from the task's prompt hook would leave it on its deleted copy
+until the task's next prompt, which can come hours later. Replacing the process with `exec` through the new
 copy's launcher would leave nothing to try again when the new adapter fails to start,
 and would carry the start lock across the exec only if the new adapter knew to
 release it.

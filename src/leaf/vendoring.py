@@ -58,8 +58,10 @@ from .service import (
 )
 from .session_runtime import select_checkout
 from .state import (
+    PLUGIN_ROOT,
     SESSION_SUFFIX,
     flocked,
+    hooks_root,
     remove_claim,
     session_file,
     session_record,
@@ -224,20 +226,22 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     """`renew_layer` for a reader acting for `session_id`, the session holding the
     page: a hook that reads the session's pages (`hook_transport.read_plans`), as the
     prompt and Stop hooks do and a tool boundary does with something to carry or a
-    status check due, and the restart of a page server whose copy its harness
-    replaced (`hosting.follow_copy`). The restart's renewal is the one an update
-    that moves the page protocol makes before the session's next hook, so the
+    status check due, and the restart of a page server that follows the session's
+    Leaf (`hosting.follow_copy`). After an update in place that moves the page
+    protocol, the restart's renewal comes before the session's next hook, so the
     successors of the session's watch and of Codex's adapter, which only read the
     page, deliver its input once the renewal lands.
 
     A page another session holds is left alone, and so is one whose session's hooks
-    run another Leaf (`hooks.hooks_run_here`), as a server another harness's copy
+    last ran another Leaf (`state.hooks_root`), as a server another harness's copy
     started can serve a page a session of another harness took since: renewed, the
     page would be one its session's hooks can no longer read."""
-    from .hooks import hooks_run_here
-
     held = page_claim(page_dir)
-    if held is None or held["id"] != session_id or not hooks_run_here(session_id):
+    if (
+        held is None
+        or held["id"] != session_id
+        or hooks_root(session_id) != PLUGIN_ROOT
+    ):
         return None
     return renew_layer(page_dir, claim_harness(held), command=False)
 

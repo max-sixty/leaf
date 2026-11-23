@@ -191,32 +191,49 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
 
 
 CODEX_COPY = ("plugins", "cache", "leaf", "leaf", "local")
+CLAUDE_CODE_COPY = ("plugins", "cache", "leaf", "leaf", "0a0a0a0a0a0a")
 COPIES = {
     "codex": CODEX_COPY,
     "pi": (".pi", "agent", "git", "github.com", "max-sixty", "leaf"),
     "codex, once the session ended": CODEX_COPY,
-    "claude-code": ("plugins", "cache", "leaf", "leaf", "0a0a0a0a0a0a"),
+    "claude-code": CLAUDE_CODE_COPY,
+    "claude-code, once the session loads an update": CLAUDE_CODE_COPY,
+    "claude-code, once the session's hooks run a checkout": CLAUDE_CODE_COPY,
     "checkout": ("checkout",),
+}
+# The copy the session's hooks record from the server's first pass on, where it
+# changes.
+HOOKS_MOVE_TO = {
+    "claude-code, once the session loads an update": (
+        *CLAUDE_CODE_COPY[:-1],
+        "1b1b1b1b1b1b",
+    ),
+    "claude-code, once the session's hooks run a checkout": ("checkout",),
 }
 
 
 @pytest.mark.parametrize("copy", COPIES)
-def test_a_server_has_the_copy_its_harness_puts_in_its_place_restart_it(
+def test_a_server_has_the_copy_its_session_runs_restart_it(
     claimed, tmp_path, monkeypatch, copy
 ):
-    """Codex replaces its installed copy by moving it aside and renaming another
-    into its path, and Pi resets its clone in place and then removes the clone's
-    environment. A server the old copy started has the new copy restart it once a
-    pass finds that copy at its path: it starts `server _follow` once, through the
-    new copy's launcher, naming itself, tries again when that launch fails, and goes on serving until that restart stops it.
-    The child's environment names no harness, so it can't hand itself to a checkout
-    the session selected. A server whose session has ended retires after its grace
-    instead, as does one from Claude Code's copy, which Claude Code deletes rather
-    than updates, and one a checkout started."""
-    follows = copy in ("codex", "pi")
+    """A server follows the copy the session holding its page runs. Claude Code
+    installs an update at a new path, which the session's hooks record once the
+    session loads it. Codex replaces its installed copy by moving it aside and
+    renaming another into its path, and Pi resets its clone in place and then
+    removes the clone's environment. A server the old copy started has the new copy
+    restart it once a pass finds it: it starts `server _follow` once, through the new
+    copy's launcher, naming itself, tries again when that launch fails, and goes on
+    serving until that restart stops it. The child's environment names no harness,
+    so it can't hand itself to a checkout the session selected. A server whose
+    session has ended retires after its grace instead, as does one from Claude
+    Code's copy whose environment Claude Code deleted, one whose session's hooks run
+    a checkout, and one a checkout started."""
+    follows = copy in ("codex", "pi", "claude-code, once the session loads an update")
     codex = COPIES[copy] == CODEX_COPY
     root = tmp_path.joinpath(*COPIES[copy])
-    for directory in (".venv", ".git") if copy != "claude-code" else (".venv",):
+    hooks = tmp_path.joinpath(*HOOKS_MOVE_TO.get(copy, COPIES[copy]))
+    clone = COPIES[copy] != CLAUDE_CODE_COPY
+    for directory in (".venv", ".git") if clone else (".venv",):
         (root / directory).mkdir(parents=True)
     serving(claimed, available_loopback_port(), "session")
     if copy == "codex, once the session ended":
@@ -249,6 +266,11 @@ def test_a_server_has_the_copy_its_harness_puts_in_its_place_restart_it(
         number = next(passes)
         if number == 0 and codex:
             root.rename(tmp_path / "replaced")
+        elif number == 0 and copy in HOOKS_MOVE_TO:
+            (hooks / "bin").mkdir(parents=True)
+            (hooks / "bin" / "leaf").touch(mode=0o755)
+            leases_model.mark_skill("s1", f"{hooks}\nskill")
+            replaced.append(copy)
         elif number == 0:
             (root / ".venv").rmdir()
             replaced.append(copy)
@@ -283,7 +305,7 @@ def test_a_server_has_the_copy_its_harness_puts_in_its_place_restart_it(
     launch = (
         ["server", "_follow", str(claimed), "--server-id", "fixture-server"],
         None,
-        (root / "bin" / "leaf").resolve(),
+        (hooks / "bin" / "leaf").resolve(),
     )
     assert attempts == [launch] * 2
 

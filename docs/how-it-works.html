@@ -1468,23 +1468,26 @@ sequenceDiagram
               through the launcher in the copy they loaded, but each keeps one copy and
               updates it in place, so the session's next hook runs the update. A path
               names no version there, so Leaf tells two copies apart by path and commit.
-              A page server, a Codex delivery adapter or Pi's watch between turns from
-              that copy outlives the hooks, and moves to the update on its own, without
-              waiting for a hook. The server's restart renews a page left at an older
-              page protocol as a hook would, and the adapter and watch then deliver its
+              Each hook records the copy it ran. A page server, a Codex delivery adapter
+              or Pi's watch between turns outlives the hooks that start it, and moves on
+              its own to the copy the session's hooks run, without waiting for a hook: a
+              server once the hooks record another installed copy, as after Claude Code
+              loads an update, and each of the three once Codex or Pi puts a new copy in
+              place of its own. The server's restart renews a page left at an older page
+              protocol as a hook would, and the adapter and watch then deliver its
               input. Leaf never reads a harness's record of the installed copy.
             </p>
             <p id="leaf-copy-outlast">
               Three things outlive the process, so a session can find one that another
-              copy of Leaf wrote. At the session's next hook, Leaf compares each one's
-              record with the hook's own copy, and brings it to that copy:
+              copy of Leaf wrote. Leaf compares each one's record with the session's
+              copy, and brings it to that copy:
             </p>
             <table id="leaf-copy-pieces">
               <thead>
                 <tr>
                   <th scope="col">What outlives the process</th>
                   <th scope="col">Its record</th>
-                  <th scope="col">At the session's next hook</th>
+                  <th scope="col">When it moves to the session's copy</th>
                 </tr>
               </thead>
               <tbody>
@@ -1496,10 +1499,11 @@ sequenceDiagram
                   </td>
                   <td>
                     The first hook that reads the session's pages, as a prompt or Stop
-                    hook does, or the first <code>leaf</code> command that writes to the
-                    page, initializes a page at an older protocol again under the
-                    session's copy, keeping its log. A page at a newer protocol is
-                    refused until the session loads a Leaf that speaks it.
+                    hook does, the first <code>leaf</code> command that writes to the
+                    page, or the restart of its server initializes a page at an older
+                    protocol again under the session's copy, keeping its log. A page at
+                    a newer protocol is refused until the session loads a Leaf that
+                    speaks it.
                   </td>
                 </tr>
                 <tr id="leaf-copy-server">
@@ -1509,11 +1513,10 @@ sequenceDiagram
                     <code>service.json</code>
                   </td>
                   <td>
-                    The next prompt hook restarts a server that another installed copy,
-                    or the same copy at another commit, started under the hook's copy,
-                    at the same address, where the hook runs an installed copy too and
-                    has time before its deadline. Open tabs reload where the browser
-                    runtime changed.
+                    The server checks every two seconds. Once the session's hooks record
+                    another installed copy, or Codex or Pi puts a new copy in place of
+                    the server's own, the server has that copy restart it at the same
+                    address. Open tabs reload where the browser runtime changed.
                   </td>
                 </tr>
                 <tr id="leaf-copy-skill">
@@ -1535,11 +1538,9 @@ sequenceDiagram
               of the checkout, or a command from it that claims or initializes a page
               the session holds, hands the session's hooks, the following of its pages
               and its bare <code>leaf</code> to that checkout, until the session ends,
-              it selects another checkout or the checkout's launcher is gone. The prompt
-              hook restarts a server only where the server and the hook both run
-              installed copies, and only a server from an installed copy follows its
-              update, so a checkout's servers stay as they are, and a session whose
-              hooks run a checkout restarts none.
+              it selects another checkout or the checkout's launcher is gone. Only a
+              server from an installed copy moves, and only to an installed copy, so a
+              checkout's servers stay as they are, and no server moves onto a checkout.
             </p>
             <p id="leaf-copy-contract">
               <a

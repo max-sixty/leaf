@@ -1057,7 +1057,8 @@ const editorInput = (editor) =>
 /** @param {DraftField | null | undefined} input */
 const editorBox = (input) => {
   if (!input) return null;
-  for (const editor of draftEditors) if (editorInput(editor) === input) return editor.box();
+  for (const editor of draftEditors)
+    if (editorInput(editor) === input) return editor.box();
   return null;
 };
 const storeWritingPlace = () =>

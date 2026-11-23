@@ -2739,11 +2739,10 @@ Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
 # "Results do not depend on execution speed"). One that names no deadline
-# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
-# whose own default is five seconds, and every page action, wait and expectation on a
-# page `readable` prepares. A wait that spans a page handover names
-# `HANDOVER_DEADLINE_MS`.
-expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
+# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion
+# on any page, and every page action and wait on a page `readable` prepares. A wait
+# that spans a page handover names `HANDOVER_DEADLINE_MS`.
+render_checks_model.bound_expectations()
 
 
 def readable(page, *, java_script_enabled=True):

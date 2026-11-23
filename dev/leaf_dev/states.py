@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
@@ -1313,7 +1313,11 @@ def card_after_interjection(page: Page) -> None:
     expect(reply).not_to_have_attribute("aria-busy", "true")
     settle(page)
     served = served_page.get()
-    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    delivery = json.loads(
+        served.leaf(
+            "wait", str(served.directory), timeout=SERVED_TIMEOUT_MS / 1000
+        ).stdout
+    )
     sent = reply.get_attribute("data-lf-event")
     reference = next(
         event["answer"]["ref"]

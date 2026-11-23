@@ -8,7 +8,7 @@ import { NOTICE_MS, notice, noticeReading } from "/runtime/notifications.js";
 
 const press = {
   action: "show-changes",
-  command: "changes.toggle",
+  keys: () => ["v"],
   run: () => {},
   stands: () => true,
 };

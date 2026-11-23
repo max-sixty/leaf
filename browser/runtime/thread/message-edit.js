@@ -124,6 +124,7 @@ import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { pressCommand } from "../keyboard/dispatch.js";
+import { commandKeysNow } from "../keyboard/control-keys.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -474,7 +475,7 @@ export class MessageEditor {
       notice("Edit discarded", {
         press: {
           action: "restore-edit",
-          command: RESTORE,
+          keys: () => commandKeysNow(RESTORE),
           run: () => pressCommand(RESTORE),
           stands: () => discarded === thrown,
         },

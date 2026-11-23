@@ -65,6 +65,7 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS, MARGIN_TEXT_LINES
 from browser.threads import append_agent_reply
 from leaf import event_log
 from leaf import thread as thread_model
@@ -681,12 +682,69 @@ def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser,
     assert wide["right"] > sent["right"] + 1, (sent, wide)
 
 
-def test_typing_keeps_the_box_slim_and_send_widens_a_long_comment_s_card(
+def test_a_box_widens_with_its_words_and_send_keeps_their_lines(browser, serve):
+    """By its text the comment box is as wide as its words' longest line, from the
+    card's least width to the measure: a first line widens it away from its start, and
+    words past the measure wrap there. Send opens the card at the box's width, so the
+    comment keeps the lines the box broke it into."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(
+        browser, serve(PAGE), init_script=MARGIN_EDITOR_ROOTS, context=context
+    )
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    measure = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-thread-card'))"
+    )
+
+    def typed():
+        rendered(page)
+        return page.locator(".lf-fab-input").evaluate(
+            "(box, read) => eval(read)(window.marginEditorRoots.get(box)"
+            ".querySelector('.cm-content'))",
+            MARGIN_TEXT_LINES,
+        )
+
+    empty = page.evaluate(RECT, ".lf-fab-bar")
+    assert empty["right"] - empty["left"] == pytest.approx(minimum, abs=0.5), empty
+    page.keyboard.insert_text("Pin the runner to one image so every step builds alike.")
+    assert len(typed()) == 1
+    wider = page.evaluate(RECT, ".lf-fab-bar")
+    assert wider["left"] == pytest.approx(empty["left"], abs=0.5), (empty, wider)
+    assert minimum + 1 < wider["right"] - wider["left"] < measure - 1, wider
+    page.keyboard.insert_text(" Then a failed run leaves nothing behind for the next.")
+    lines = typed()
+    assert len(lines) > 1, lines
+    full = page.evaluate(RECT, ".lf-fab-bar")
+    assert full["left"] == pytest.approx(empty["left"], abs=0.5), (empty, full)
+    assert full["right"] - full["left"] == pytest.approx(measure, abs=0.5), full
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    sides = ("left", "right")
+    assert {side: sent[side] for side in sides} == pytest.approx(
+        {side: full[side] for side in sides}, abs=0.5
+    ), (full, sent)
+    shown = card.locator(".lf-msg-body").first.evaluate(MARGIN_TEXT_LINES)
+    assert len(shown) == len(lines), (lines, shown)
+    for line, was in zip(shown, lines, strict=True):
+        assert line == pytest.approx(was, abs=0.5), (lines, shown)
+
+
+def test_short_lines_keep_the_box_slim_and_send_widens_a_tall_comment_s_card(
     browser, serve
 ):
-    """The comment box keeps the card's least width however many lines are typed in
-    it. Send opens the card at the measure from the box's start where the words stand
-    taller than they are wide there."""
+    """Short lines keep the comment box at the card's least width however many are
+    typed in it. Send opens the card at the measure from the box's start where the
+    words stand taller than they are wide there."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )

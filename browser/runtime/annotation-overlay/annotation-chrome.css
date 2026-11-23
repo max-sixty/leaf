@@ -97,11 +97,13 @@
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and starts where the card will, so the
      card Send opens grows out of the field from that start (box-motion.js, `drawnAt`).
-     The frame stands at the card's least width (`--lf-thread-card-min`) however many
-     lines its words take, so typing never widens it; Send opens the card at the width
-     `size-width` gives its words. Where its start stands away from its text, it takes the card's width, the measure (`--lf-thread-card`) or its
-     room where that is narrower (`data-lf-card-width`; comment-placement.js,
-     `fromSubject`). Only the
+     The frame is as wide as its words' longest line, from the card's least width
+     (`--lf-thread-card-min`) to the measure (`--lf-thread-card`) or its room where that
+     is narrower, and wraps them there, so a first line widens it away from its start,
+     and the card Send opens keeps that width (thread-preview.js, `size-width`). Right
+     to left, its words start at the edge that widening would carry, so it keeps the
+     least width. Where its start stands away from its text, it takes the measure at
+     once (`data-lf-card-width`; comment-placement.js, `fromSubject`). Only the
      field paints; the transparent rows neither take document flow nor intercept
      presses. Its tracks shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
@@ -114,7 +116,8 @@
       var(--lf-float-w, calc(100vw - 16px)),
       var(--lf-thread-card)
     );
-    width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
+    min-width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
+    max-width: var(--lf-comment-frame-max-width);
     grid-template-columns: minmax(0, 1fr);
     --lf-comment-box-h: calc(var(--lf-response-height) + 2 * var(--lf-thread-frame));
     grid-template-rows: minmax(var(--lf-comment-box-h), 1fr);
@@ -123,6 +126,9 @@
     max-height: var(--lf-float-h, calc(100vh - var(--lf-head-room) - 16px));
     padding: var(--lf-comment-frame-top) 0 var(--lf-comment-frame-bottom);
     pointer-events: none;
+  }
+  .lf-fab-bar:dir(rtl):not([data-lf-target-only], [data-lf-presentation="inline"]) {
+    width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
   }
   .lf-fab-bar[data-lf-card-width]:not(
       [data-lf-target-only],

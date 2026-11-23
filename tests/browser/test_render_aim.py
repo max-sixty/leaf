@@ -362,8 +362,9 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate("scrollY") == before_scroll
-    # It opens at the full measure, so it grows only downward as words arrive.
-    assert expanded["width"] == compact["width"]
+    # It widens with its words as far as its room on that side, and grows downward
+    # past that (`test_a_box_widens_with_its_words_and_send_keeps_their_lines`).
+    assert expanded["width"] >= compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
     assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
@@ -875,12 +876,14 @@ def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
     assert box.evaluate(ring) == worn
 
 
-def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
-    """A comment box keeps its width as it takes its first lines and grows downward, so
-    a key that takes it a new line stands it at its new height in the frame the key lands, as a
-    textarea sized to its words does (box-motion.js, "Whose change it is"). A tween
-    each key started would trail the caret, and the field's cut would hide what was
-    just typed until the tween caught up. A line taken at the window's foot is
+@pytest.mark.parametrize("change", ["widens", "takes-a-line"])
+def test_a_key_that_changes_the_comment_box_draws_it_at_once(browser, serve, change):
+    """A comment box widens with its first line's words and grows downward as it takes
+    more lines, and the key that widens it or takes it a new line stands it at its new
+    size in the frame the key lands, as a textarea sized to its words does
+    (box-motion.js, "Whose change it is"). A tween each key started would trail the
+    caret, and the field's cut would hide what was just typed until the tween caught up.
+    A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
         browser,
@@ -892,20 +895,34 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
         ),
     )
     page.emulate_media(reduced_motion="no-preference")
-    # Wide enough for the box to stand right of the passage, at the card's least width.
+    # Wide enough for the box to stand right of the passage, with room to widen.
     resized(page, 1728, 800)
     page.locator("#passage").click(modifiers=["Alt"])
-    open_compact_comment(page, "The first line")
-    rendered(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")
-    tall = box.bounding_box()["height"]
+    if change == "widens":
+        open_compact_comment(page)
+        least = box.bounding_box()["width"]
+        # Words until the box has begun to widen past its least width.
+        for word in "the window is too short for what we see in practice".split():
+            page.keyboard.type(f"{word} ")
+            rendered(page)
+            if box.bounding_box()["width"] > least + 0.5:
+                break
+        else:
+            pytest.fail(f"the box never widened past {least}px")
+        edge, size, keys = "right", "width", ["m"]
+    else:
+        open_compact_comment(page, "The first line")
+        rendered(page)
+        edge, size, keys = "bottom", "height", ["Shift+Enter", "m"]
+    was = box.bounding_box()[size]
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("m")
+    for key in keys:
+        page.keyboard.press(key)
     page.wait_for_function(
-        "tall => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().height > tall + 0.5",
-        arg=tall,
+        """([size, was]) => document.querySelector('.lf-fab-bar .lf-compose-field')
+          .getBoundingClientRect()[size] > was + 0.5""",
+        arg=[size, was],
     )
     # A reading of the box follows its size change before the frame after it paints.
     page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
@@ -916,17 +933,19 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
             .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
             .trim().split(/\s+/).map(Number.parseFloat);
           const host = document.querySelector('.lf-fab-input');
+          const at = ground.getBoundingClientRect();
           return {
-            bottom: ground.getBoundingClientRect().bottom - bottom,
+            right: at.right - right,
+            bottom: at.bottom - bottom,
             cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
           };
         }"""
     )
-    stands = box.bounding_box()
-    assert drawn["bottom"] == pytest.approx(stands["y"] + stands["height"], abs=1.5), (
-        drawn,
-        stands,
+    stands = page.evaluate(
+        "() => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().toJSON()"
     )
+    assert drawn[edge] == pytest.approx(stands[edge], abs=1.5), (drawn, stands)
     assert drawn["cut"] in ("", "none"), drawn
 
 

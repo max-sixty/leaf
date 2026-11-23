@@ -310,12 +310,13 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-sp-2);
     }
-    /* An empty draft's binding badge takes the Add seat while Add is hidden; once the
-    * field has words, the write route's badge takes the inner seat. Both seats are
-    * reserved before either face appears. */
+    /* An empty draft's binding badge stands in the Add seat while Add is hidden, at the
+    * digit column every card's badge shares; once the field has words, the write
+    * route's badge takes the inner seat. Both seats are reserved before either face
+    * appears. */
     & > .lf-another > .lf-key-badge {
       inset-inline-start: auto;
-      inset-inline-end: var(--lf-option-add-badge-inset);
+      inset-inline-end: var(--lf-sp-2);
       top: auto;
       bottom: var(--lf-option-add-badge-end);
       margin: 0;
@@ -671,7 +672,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > lf-option:last-of-type:not(:first-child) {
       border-start-end-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
     }
-    &:not(:has(> lf-option:last-of-type ~ *)) > lf-option:first-of-type:not(:last-child) {
+    &:not(:has(> lf-option:last-of-type ~ *))
+      > lf-option:first-of-type:not(:last-child) {
       border-end-start-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
     }
   }
@@ -835,10 +837,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     --lf-option-add-seat-end: calc(
       var(--lf-option-pad-block) +
         (var(--lf-option-line) - var(--lf-icon-action-face)) / 2
-    );
-    --lf-option-add-badge-inset: calc(
-      var(--lf-option-add-seat-inset) +
-        (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-add-badge-end: calc(
       var(--lf-option-add-seat-end) +

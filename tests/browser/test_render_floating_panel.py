@@ -452,12 +452,10 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's notice of a Resolve and its press name one gesture. A Resolve that
     leaves no thread open says so and, once the log has it, offers the Undo that takes
-    it back. The log refusing that Resolve takes the notice away with it, and its press
-    takes back that Resolve even once another
-    gesture of the user's is the newest, the one ⌘Z would take: a press that ran ⌘Z
-    would take back an earlier gesture once its own was refused. The agent having picked
-    that Resolve up changes nothing: the press still takes that Resolve, not the
-    newest gesture."""
+    it back. The log refusing that Resolve takes the notice away with it. The agent
+    picking that Resolve up leaves the Undo standing, and once another gesture of the
+    user's is the newest, the one ⌘Z would take, the notice keeps its words and offers
+    no Undo: a press showing ⌘Z does what ⌘Z does."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -522,12 +520,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(page.locator(panel_view("threads"))).to_be_visible()
     expect(said).to_have_text("All threads resolved")
     expect(undo).to_contain_text("Undo")
-    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
-    )
-    # The agent picks that Resolve up, and the notice's press still takes it back.
+    # The agent picks that Resolve up, and the notice still offers to take it back.
     (resolved,) = (
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -545,13 +538,15 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
         },
     )
     told(page)
-    with sending(page, "the undo"):
-        undo.click()
-    events = events_model.read_events(serve.page_dir)
-    assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
-        resolved
-    ]
-    expect(title).to_have_text(first)
+    expect(undo).to_contain_text("Undo")
+    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
+    )
+    told(page)
+    expect(undo).to_have_count(0)
+    expect(said).to_have_text("All threads resolved")
 
 
 def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):

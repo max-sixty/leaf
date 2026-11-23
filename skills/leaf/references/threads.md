@@ -133,7 +133,7 @@ answer with the same `ref`, text and flags adds nothing.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf thread reply` instead when the answer needs a question back,
-a to-do, a title, or a moved anchor. To
+a to-do, a title or a moved anchor, or is to reopen a thread the user resolved. To
 have a command hub worker answer, forward it the `answer.ref` as that package's
 coordinator instructions say.
 
@@ -282,10 +282,14 @@ long discussion"): `leaf thread summarize <page> --from <earlier-reply> --throug
 <correction> --text "<the current answer>"`.
 
 An ordinary reply leaves the thread open, or reopens one you resolved, so the user can
-inspect the answer; the user usually resolves it. A thread the user resolved stays
-closed: resolving takes the thread off their lists and takes back nothing they asked
-there, so your answer, or a result you promised, goes into it with nothing on their
-lists to announce it. Only a question to them there, in words or as a pick, reopens it.
+inspect the answer; the user usually resolves it. A thread the user resolved is one
+they are done reading: resolving takes it off their lists and takes back nothing they
+asked there, so your answer, or a result you promised, goes into the closed thread
+with nothing on their lists to announce it. Whether a message brings the thread back
+is your call, made with `--reopen` on the reply. Bring it back for what they would
+want to stop and read, such as a request you could not carry out as they asked, or a
+result that changes something they rely on; leave it closed for the answer or result
+they expected. A question to them there, in words or as a pick, reopens it by itself.
 Resolve a thread yourself only when
 the user asks, when an event's `handling` says to, when its question was settled
 elsewhere (`conversation-loop.md`, "The On lists"), or when no review or follow-up could

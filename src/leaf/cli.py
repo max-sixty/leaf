@@ -1468,6 +1468,11 @@ def thread_create(
     "thread, ended by `leaf task end` with the reply's id",
 )
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
+@click.option(
+    "--reopen",
+    is_flag=True,
+    help="bring a thread the user resolved back to their lists with this reply",
+)
 @_title_option
 @click.option(
     "--obligation",

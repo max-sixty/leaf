@@ -2512,7 +2512,7 @@ _TEXT = {
         _IN_THREAD,
         lambda at, v: (
             "--ephemeral is for progress text; it cannot ask the user, open a to-do, hold"
-            " a widget, report failure, or move the thread"
+            " a widget, report failure, or move or reopen the thread"
         ),
     ),
     "detach-with-target": _refuses(

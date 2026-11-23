@@ -434,8 +434,8 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     """The user's resolve takes the thread off their list and leaves the request
     owed, so the reply the delivery addressed still answers it, in the thread the
-    user closed. The thread stays closed for whatever the agent says in it; only a
-    question to the user reopens it."""
+    user closed. The thread stays closed for what the agent says in it, unless the
+    agent chooses that a message brings it back or asks the user something."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -481,7 +481,12 @@ def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
     )
     assert resolved.exit_code == 0, resolved.output
     assert says() == ("agent", True)
-    assert says("--obligation") == (None, None)
+    for brings_back in ("--reopen", "--obligation"):
+        assert says(brings_back) == (None, None)
+        append_carried_log_record(
+            page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+        )
+    assert says() == ("user", True)
 
 
 def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_dir):

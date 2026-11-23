@@ -381,7 +381,7 @@
       ],
       "resolve": [
         {
-          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it, unless you ask them something there."
+          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it. Add `--reopen` to a reply they would want to stop and read, such as a request you could not carry out as they asked; a question to them there reopens it by itself."
         }
       ],
       "unresolve": [

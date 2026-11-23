@@ -973,17 +973,28 @@ export function outOfWindow({ top, bottom }) {
 // (key-badge-placement.js, `clearPart`).
 /** @param {Box} box @param {Node} item @param {boolean} [rest] */
 export function inFront(box, item, rest = false) {
+  const held = inViewportHeight(box);
+  return held && uncovered(held, item, rest);
+}
+// What of `box` the visible viewport's height holds, or null where it holds none of it.
+/** @param {Box} box */
+function inViewportHeight({ left, top, right, bottom }) {
   const { offsetTop, height } = visualViewport;
-  return uncovered(
-    {
-      left: box.left,
-      top: Math.max(box.top, offsetTop),
-      right: box.right,
-      bottom: Math.min(box.bottom, offsetTop + height),
-    },
-    item,
-    rest,
-  );
+  top = Math.max(top, offsetTop);
+  bottom = Math.min(bottom, offsetTop + height);
+  return bottom > top ? { left, top, right, bottom } : null;
+}
+// Whether the boxes the chrome covers, where they come to rest, are all that keeps the
+// user from seeing `item` at `box`: some of it shows through every box clipping it and
+// within the visible viewport's height, and the covers leave none of that, cut by the
+// rule `seenRect` cuts with.
+/** @param {Element | Range} item @param {Box} box */
+export function hiddenByCovers(item, box) {
+  const holder = placeHolder(item);
+  if (!holder || outOfWindow(box)) return false;
+  const shown = clippedPlace(item, new Map(), box);
+  const held = shown && inViewportHeight(shown);
+  return held ? !uncovered(held, holder, true) : false;
 }
 // The span `top` to `bottom` less what a cover in its columns takes: everything from the
 // cover to the edge of `viewport` it stands nearer, the visible viewport unless the

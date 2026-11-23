@@ -7,7 +7,6 @@ from render_harness import (
     displayed,
     leaf_page,
     open_page,
-    panel_settled,
     resized,
     root_overflow,
     scroll_settled,
@@ -596,8 +595,8 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     though it starts or ends there. Read down an item, the list stays beside it, and the
     next arrow opens the next item at its start. A list shorter than the window stays
     beside its item until the item ends. The stuck list reaches the window's foot, so
-    its last rows stand under the floating panel, where focus is out of sight, until
-    the user folds the panel; the walk stays clear of them until it does."""
+    its last rows stand under the floating panel's row, and the arrow onto the first of
+    them folds the panel to the leaf, where focus would otherwise be out of sight."""
 
     def items(key, count):
         return "".join(
@@ -624,17 +623,12 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     tabs.first.click()
     expect(tabs.first).to_be_focused()
     # Down every tab and round to the first, then up round to the last and on up
-    # through the middle of the list, folding the panel off the list's last rows.
+    # through the middle of the list; the panel folds off the list's last rows.
+    panel = page.locator(".lf-floating-panel")
+    expect(panel).to_have_attribute("data-lf-rest", "row")
     for key, landing in [("ArrowDown", i % 30) for i in range(1, 31)] + [
         ("ArrowUp", i) for i in [29, *range(28, 9, -1)]
     ]:
-        if (key, landing) == ("ArrowDown", 28):
-            page.keyboard.press(".")
-            expect(page.locator(".lf-floating-panel")).to_have_attribute(
-                "data-lf-rest", "mark"
-            )
-            panel_settled(page, open=False)
-            expect(tabs.nth(27)).to_be_focused()
         page.keyboard.press(key)
         tab = tabs.nth(landing)
         expect(tab).to_be_focused()
@@ -644,6 +638,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
         if 0 <= ahead < 30:
             expect(tabs.nth(ahead)).to_be_in_viewport(ratio=0.99)
         page.wait_for_function(item_starts_in_view, arg=f"item-{landing}")
+    expect(panel).to_have_attribute("data-lf-rest", "mark")
     # Read down the open item, then walk on from the list.
     item = page.locator("#item-10").bounding_box()
     assert item is not None

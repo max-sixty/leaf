@@ -24,16 +24,23 @@ answer itself. A view whose own place on the page is that answer, as a board car
 stands in the column of a pick, declares `shows` instead ("Views of an answer"),
 since the server has to place it.
 
-Packages declare no dependency on each other, so two that share a contract each
-declare it in their own `$data.contracts`, word for word; a page composing both keeps
-one copy, and `page check --render` holds what the producer holds to it. What a
-producer of the contract must take as commands goes in the contract's `instructions`,
-under `producer`: `leaf page instructions --use` returns it for a widget on either
-side of the contract.
+One package declares a contract, in its `$data.contracts`. Every other package whose
+widgets read or hold the contract names it in `inputs` or `outputs` without declaring
+it. Packages declare no dependency on each other, so a page using those widgets
+selects the declaring package too. `page init` refuses a selection in which no
+package declares a contract a widget names. It also refuses a selection in which two
+packages declare the same name, since the page would keep one of the two declarations
+and hold both packages' widgets to it. `page check --render` holds what a producer
+holds to the one declaration. What a producer of the contract must take as commands
+goes in the contract's `instructions`, under `producer`:
+`leaf page instructions --use` returns it for a widget on either side of the contract.
 
-`package check` reads one package, so check a pair on a page. Start one in a directory
-outside both packages that selects them by path, write both widgets into its
-`index.html`, and run the render check, which draws the pair:
+`package check` and `package install` read one package beside the bundled `default`,
+so each refuses a package whose widgets name a contract declared by neither that
+package nor `default`. Check such a package on a page that also selects the package
+declaring the contract. Start the page in a directory outside both packages that
+selects them by path, write both widgets into its `index.html`, and run the render
+check, which draws the pair:
 
 ```bash
 leaf page init --package ./shortlist --package ./finalists <page>

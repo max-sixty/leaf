@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    ROOT,
     append_carried_log_record,
     check_findings,
     declare_data_input,
@@ -25,6 +26,7 @@ from leaf import files as files_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
 from leaf.findings import Rejected
+from leaf.layer import layer_inputs
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
@@ -585,3 +587,38 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]
+
+
+def test_one_package_declares_a_contract_and_the_others_name_it(tmp_path):
+    """Two packages written apart share a contract when one declares it and the
+    other's widgets name it, in either order. Apart from the declaring package the
+    name is no contract, and a second declaration of it is refused whatever it says:
+    the merge would hold the first package's widgets to the second's schema."""
+    layer = layer_inputs()
+    shortlist, finalists = (
+        ROOT / "tests" / "fixtures" / "packages" / name
+        for name in ("shortlist", "finalists")
+    )
+    for order in ([shortlist, finalists], [finalists, shortlist]):
+        registry = composition_model.incoming_registry([*layer, *order])
+        assert "shortlist" in registry["$data"]["contracts"]
+
+    alone = registry_refusal(
+        lambda: composition_model.incoming_registry([*layer, finalists])
+    )
+    assert found([alone], "data-contract", "<lf-finalists>", contract="shortlist")
+
+    twin = tmp_path / "twin"
+    twin.mkdir()
+    declared = json.loads((shortlist / "registry.json").read_text())["$data"]
+    (twin / "registry.json").write_text(json.dumps({"$data": declared}))
+    again = registry_refusal(
+        lambda: composition_model.incoming_registry([*layer, shortlist, twin])
+    )
+    assert found(
+        [again],
+        "contract-redeclared",
+        contract="shortlist",
+        registry=str(twin / "registry.json"),
+        other=str(shortlist / "registry.json"),
+    )

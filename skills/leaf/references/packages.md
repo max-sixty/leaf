@@ -197,7 +197,10 @@ builds on, then the selected packages in command order, and a later package wins
 collision. A later package replaces an element or
 idiom entry whole and can't delete one. Shared `$` entries merge by member, and a map
 member merges one level further by key; `null` deletes at either level if the merged
-registry still validates. `page init` records the selected packages in
+registry still validates. A data contract is declared by one package, so a second
+package declaring its name is refused rather than merged
+([package-data.md, "Widgets working together"](package-data.md#widgets-working-together)).
+`page init` records the selected packages in
 `$layer.packages`, and a plain re-init selects them again. Re-initializing with
 `--package` replaces that list, so name every package the page keeps.
 `page init --no-packages PAGE` clears the list and keeps the page's theme, which

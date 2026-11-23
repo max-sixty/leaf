@@ -1,7 +1,8 @@
 """Registry composition and current declaration validation, and what an author's
 own declarations advise.
 
-Composition refuses only what breaks the vocabulary (`registry.validation`). What a
+Composition refuses what breaks the vocabulary (`registry.validation`), and a data
+contract two of its packages declare (`_redeclared_contracts`). What a
 layer's own declarations do that works but may not be what their author meant, such
 as a restated kernel fact or an example a page could not hold, is advice only that
 author can act on: `declaration_advice` reads it, and the commands that check what
@@ -15,6 +16,7 @@ from pathlib import Path
 from leaf.data_contracts import declared_data_bindings
 from leaf.findings import Finding
 from leaf.registry.contract import (
+    RegistryError,
     is_element_name,
     read_registry_declarations,
     registry_finding,
@@ -83,6 +85,42 @@ def _example_advice(tag: str, registry: dict, path) -> list[Finding]:
 
 def incoming_registry(packages: list) -> dict:
     """The merged registry (`registry.layer.merged_registry`) `page init` will vendor,
-    validated and stamped."""
+    validated and stamped, with no data contract two of `packages` declare
+    (`_redeclared_contracts`)."""
     merged, source = merged_registry(packages)
-    return stamp_composition(validate_registry(merged, source))
+    validate_registry(merged, source)
+    if found := _redeclared_contracts(packages):
+        raise RegistryError(found)
+    return stamp_composition(merged)
+
+
+def _redeclared_contracts(packages: list) -> list[Finding]:
+    """Each data contract a registry of `packages` declares that an earlier one
+    declares too, naming both files.
+
+    The merge keeps the later entry whole (`registry.layer.merge_layer_declarations`),
+    so the earlier package's widgets, and each value set for them, would be held to
+    a schema their author never read, and nothing would say so. A package reads or
+    holds another's contract by naming it, so no layer needs a second declaration,
+    and the two are not compared. A `null` entry deletes a contract and declares
+    none. A page's own registry still replaces a layer's contract
+    (`registry.page.compose_page_registry`)."""
+    declared: dict[str, Path] = {}
+    found = []
+    for package in packages:
+        path = package / "registry.json"
+        data = (read_registry_declarations(path) or {}).get("$data", {})
+        # The merge may have replaced one layer's malformed `contracts` with a
+        # later layer's, so a valid merged registry doesn't make this one a map.
+        contracts = data.get("contracts")
+        for name, entry in contracts.items() if isinstance(contracts, dict) else ():
+            if entry is not None and declared.setdefault(name, path) != path:
+                found.append(
+                    registry_finding(
+                        "contract-redeclared",
+                        path,
+                        contract=name,
+                        other=str(declared[name]),
+                    )
+                )
+    return found

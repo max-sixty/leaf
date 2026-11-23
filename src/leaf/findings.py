@@ -526,6 +526,18 @@ def _plain(value) -> str:
     return value if isinstance(value, str) else _json(value)
 
 
+def _undeclared_contract(v: dict) -> str:
+    """What an input or output is told where no registry composed with its own
+    declares the contract it names: what a page that left out the declaring package
+    does, then what the author of a package checked without that package does."""
+    return (
+        f"contract {v['contract']!r}, which no package composed here declares; a"
+        " page selects the package that declares it as well, and a package naming"
+        " another's contract is checked on such a page (package-data.md, \"Widgets"
+        ' working together")'
+    )
+
+
 def _predicate(v: dict, says: str) -> str:
     return f"`{v['key']}` tests `{v['attr']}` {says}"
 
@@ -1499,6 +1511,14 @@ _TEXT = {
             " must be self-contained"
         )
     ),
+    "contract-redeclared": _declared(
+        lambda v: (
+            f"$data contract {v['contract']!r} is also declared in {v['other']};"
+            " one package declares a contract and every other names it, so select"
+            " only one of the two packages, or delete one of the two declarations"
+            ' (package-data.md, "Widgets working together")'
+        )
+    ),
     # Its work role, which `$work.widgets` maps the declaration onto.
     "work-reference": _declared(
         lambda v: (
@@ -1581,12 +1601,10 @@ _TEXT = {
         keeps=None,
     ),
     "data-contract": _declared(
-        lambda v: (
-            f"input `{v['input']}` (`inputs`) names unknown contract {v['contract']!r}"
-        )
+        lambda v: f"input `{v['input']}` (`inputs`) names {_undeclared_contract(v)}"
     ),
     "unknown-output-contract": _declared(
-        lambda v: f"`outputs` `{v['output']}` names unknown contract {v['contract']!r}"
+        lambda v: f"`outputs` `{v['output']}` names {_undeclared_contract(v)}"
     ),
     "data-reference": _declared(
         lambda v: (

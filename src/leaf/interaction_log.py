@@ -144,9 +144,11 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     """Record in each page a harness's watch between turns read when it started,
     the protocol its Leaf speaks, and how it `ended`: `woke` the session,
     `superseded` by a later watch, `server-down`, `no-pages` left to watch,
-    `harness-exited`, or `stopped` by a signal or an error. A watch that held a
-    page it couldn't read shows its older protocol, and one killed outright leaves
-    no record. Dropped where the page can't be written, as `record_command` is."""
+    `harness-exited`, `copy-replaced` by the copy now at its Leaf's path, whose
+    watch goes on in its place (`state.CopyReplaced`), or `stopped` by a signal or
+    an error. A watch that held a page it couldn't read shows its older protocol,
+    and one killed outright leaves no record. Dropped where the page can't be
+    written, as `record_command` is."""
     from .registry.kernel import kernel_protocol
 
     record = {

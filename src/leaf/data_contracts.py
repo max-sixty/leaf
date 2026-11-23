@@ -12,7 +12,6 @@ from urllib.parse import urlsplit
 from .files import latest_revision
 from .findings import Finding, element_at
 from .refusals import Refused
-from .registry.contract import element_declarations
 from .registry.schema import (
     json_validator,
     json_value,
@@ -375,16 +374,6 @@ def data_document_errors(documents: list[tuple[list, str, dict]]) -> list[Findin
     return list(dict.fromkeys(errors))
 
 
-def record_labels(contract: str, registry: dict) -> set[str]:
-    """Fields naming obligations on this contract's records, judged with its data."""
-    return {
-        records["label"]
-        for entry in element_declarations(registry).values()
-        if (records := (entry.get("awaits") or {}).get("records"))
-        and entry["inputs"][records["input"]]["contract"] == contract
-    }
-
-
 def payload_error(producer: str, contract: str, value, registry: dict) -> str | None:
     """Validate one produced value; `producer` is its reader-facing identity.
 
@@ -426,7 +415,6 @@ def payload_error(producer: str, contract: str, value, registry: dict) -> str | 
                 )
             keys = set()
             duplicates = set()
-            labels = record_labels(contract, registry)
             for index, item in enumerate(items):
                 key = item.get(records["key"]) if isinstance(item, dict) else None
                 if not isinstance(key, str) or not key:
@@ -434,9 +422,6 @@ def payload_error(producer: str, contract: str, value, registry: dict) -> str | 
                         f"{producer} contract {contract!r} record "
                         f"{index} needs a non-empty string {records['key']!r}"
                     )
-                for label in labels:
-                    if not isinstance(item.get(label), str) or not item[label].strip():
-                        return f"{producer} contract {contract!r} record {index} needs a non-empty string obligation label {label!r}"
                 if key in keys:
                     duplicates.add(key)
                 keys.add(key)

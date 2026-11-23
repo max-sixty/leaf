@@ -197,7 +197,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 @cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection, a path in it
-    naming a package from the checkout's root, as `./tests/fixtures/packages/records`.
+    naming a package from the checkout's root, as `./tests/fixtures/packages/work`.
 
     Composed from the packages rather than read back out of a page, and
     cached per selection, because every stated page asking for the same packages
@@ -278,10 +278,6 @@ class ModelPage:
         return {
             source: value["contract"] for source, value in self._data["sources"].items()
         }
-
-    def data(self, registry: dict) -> dict:
-        """The supplied validated data readings, empty unless a test names them."""
-        return self._data
 
     @property
     def within(self) -> dict:

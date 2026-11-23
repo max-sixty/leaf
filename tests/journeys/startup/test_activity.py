@@ -11,7 +11,7 @@ from browser.startup.test_activity import (
     thread_row_says,
     workflow_of,
 )
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
@@ -434,9 +434,11 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     expect(work_line).to_have_count(1)
     expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
     # The semantic Target button carries the workflow; the thread card it opens does
-    # not repeat it as a decorative gutter.
+    # not repeat it as a decorative gutter. The card opens beside the passage once the
+    # tab opens threads there again, which the panel's view above chose against.
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    choose_threads_in_panel(page, on=False)
     work_button.click()
     inline = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{held}"]'

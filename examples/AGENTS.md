@@ -47,7 +47,8 @@ The suite fails when the shipped vocabulary, optional bundled packages included,
 widget, idiom, declared attribute or enum value that no corpus page shows. Where an
 attribute or content shape changes what a
 user sees, a page shows that shape. `restated`, `overruled` and `resolves` are exempt,
-since each needs a seeded log a later version contradicts.
+since each needs a seeded log a later version contradicts, and so is `id`, which every
+element takes and no declaration lists.
 
 A shape in the corpus has been rendered, not reviewed. When a sweep finds a defect, an
 absent shape needs a fixture, and a present but unexamined one needs a look or a

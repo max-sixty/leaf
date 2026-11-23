@@ -35,7 +35,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "for": { "type": "string" }
       },
       "required": ["id", "for"],

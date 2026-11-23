@@ -4,7 +4,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" },
         "for": { "type": "string" },
         "aria-label": { "type": "string", "minLength": 1 }

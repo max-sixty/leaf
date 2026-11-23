@@ -1670,7 +1670,8 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
-    holds, which a one-version corpus cannot earn.
+    holds, which a one-version corpus cannot earn — and `id`, which composition
+    gives every element and no declaration lists.
 
     Live samples are example pages too; their child documents contribute the
     attributes the reader can exercise there.
@@ -1698,7 +1699,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry["attributes"].get("properties", {}).items():
-            if attr in {"restated", "overruled", "resolves"}:
+            if attr in {"id", "restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
@@ -1724,7 +1725,6 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],

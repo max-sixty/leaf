@@ -150,15 +150,6 @@ Where nothing answers for the declaration, activity reports the agent `gone`. A 
 with a persistent service spends most of its life unheld, and picks up again when a
 session takes it.
 
-A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
-a user preview selected or one that claimed or re-vendored a page the session holds,
-or else the copy the session loaded, until `/reload-plugins` or a new process of the
-session loads the one Claude Code has installed since (`session_runtime.py`). A page
-server keeps the Leaf that started it, and `server start` from another Leaf restarts
-it under that one at the same address (`hosting.start_page`), as the session's next
-prompt does for a page it holds where both are installed copies ("Serving again at
-the next prompt").
-
 ## Watchers
 
 Each session runs one watcher for all its pages, apart from the page servers. The
@@ -237,8 +228,8 @@ Before it opens its turn or reads a page, the prompt hook serves again, as
 `leaf server start` would, each page the session still means to serve whose ownership
 or server is down, such as a resumed session's (`reconnect.py`, which lists the
 exclusions). Then it restarts at the same address, as `leaf server start` would, each
-held page's server that another installed copy of Leaf started (`reconnect.py` says
-when). The turn hears only of a page that did not start.
+held page's server that another installed Leaf started (`reconnect.py` says when).
+The turn hears only of a page that did not start.
 
 ### Nudging a session with no watcher
 
@@ -283,14 +274,38 @@ without waking the session, leaving the page to the next prompt. A stopped servi
 not lost (`session.Watch`): the wait watches it without reviving it until the page goes
 idle or changes hands.
 
+### Which Leaf runs a session
+
+A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
+a user preview selected or one that claimed or re-vendored a page the session holds
+(`session_runtime.py`), or else the copy of Leaf its harness loaded, whose `bin/leaf`
+its hooks run. Claude Code installs each update as a new copy and keeps a running
+process on the copy it loaded until `/reload-plugins`, or until a new process of the
+session, such as a resume or a background job's wake, loads the update. Codex and Pi
+each keep one copy and update it in place, so the session's next hook runs the update.
+A path names no version there, so Leaf identifies a copy by its path and commit
+(`state.installed_copy`, `layer.payload_provenance`).
+
+At the session's next hook, Leaf brings what outlives a process to the Leaf that hook
+runs. A page at an older protocol is renewed (`layer-registry.md`, "Page protocol"). A
+page server keeps the Leaf that started it, and `server start` from another Leaf
+restarts it under that one at the same address (`hosting.start_page`), as the
+session's next prompt does for a page it holds where both are installed copies
+("Serving again at the next prompt"). Where the hook runs another Leaf than the
+session's previous hook, and that Leaf ships another skill, the agent is told to read
+it again (`hooks.skill_changed` says when an edit counts). Codex's adapter keeps the
+code it started with until its task owns no page or the session selects another Leaf
+(`codex_adapter.run_adapter`), so it runs that code across an in-place update.
+
 ### A session's files
 
 Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
 session lock stay, since the page shows that session's turn from the lifecycle, and
-so does the plugin root its hooks last ran from (`leases.mark_root`), which the
-first hook of a resumed session compares with its own. A
+so does the record of the Leaf its hooks last ran and the skill it ships
+(`leases.mark_skill`), which the first hook of a resumed session compares with its
+own. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one

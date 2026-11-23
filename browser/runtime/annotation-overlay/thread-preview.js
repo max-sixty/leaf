@@ -1162,7 +1162,12 @@ export function createThreadPreview({
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
       const item = previewItemNode(selected, session);
+      const shown = previewList.firstElementChild;
       setChildren(previewList, [item.node]);
+      // The thread the card showed before, gone from the document, gives up the widgets
+      // its messages held, so this drawing of them holds them (thread/messages.js,
+      // `authoredHolders`), as a card reopened on the thread it closed on draws them.
+      if (shown && shown !== item.node) releaseAuthoredUnder(shown);
       // The thread renders before the card shows it, and takes the reply being written
       // in it once it stands in the document (thread/inline.js, `claimSeatReplies`).
       claimSeatReplies(item.body);

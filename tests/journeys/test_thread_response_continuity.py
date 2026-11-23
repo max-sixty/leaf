@@ -584,11 +584,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         consume_browser_errors(page, http_error_console(400), carried_in_panel)
         assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
         restored = pose()
-        assert restored["action"]["press"], "Send stands in the corner of the words"
         for node in pending:
             if node == "action" and not pending[node]["press"]:
                 # The send landed the user on the view, so nothing stood in the
-                # reply's corner for Send to take the place of.
+                # reply's corner, and the words handed back bring no Send until the
+                # user is back in the reply.
                 continue
             # Dictate and Send share an aim, but Send is shorter under a mouse.
             edges = ("left", "centerY") if node == "action" else pending[node]

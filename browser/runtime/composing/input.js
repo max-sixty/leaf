@@ -32,13 +32,12 @@
 // at rest (`enters`) stands only while they don't, so it never stands beside the press
 // in the corner, nor while the box holds a draft, an attachment alone included. A box
 // whose corner stays empty at rest (`cornerAtRest` false), as the floating panel's
-// field is, shows Dictate or Send there only while the user writes or it holds words,
-// and its owner keeps the corner's room exactly while one shows (floating-panel.css).
-// Words that arrive from elsewhere (`sync.load`), such as a draft mirrored from another
-// tab or the words a refused send hands back, bring Send into the corner without the
-// user's move, so Send lets a press through to the words until the pointer moves
-// (`data-lf-send-fresh`, response.css): a pointer resting where the corner was free
-// never sends.
+// field is, shows Dictate or Send there only while the user writes, or while it holds
+// words the user put there (`ownWords`), and its owner keeps the corner's room exactly
+// while one shows (floating-panel.css). Words that arrive in it empty from elsewhere
+// (`sync.load`), such as a draft mirrored from another tab, bring no Send until the
+// user's own move, so no Send arrives under a pointer resting where the corner stood
+// empty (browser/AGENTS.md, "Controls stay where the user aims").
 //
 // An error about a box (errors.js, its `subject`), such as a refused send's whose words
 // came back to it or an image it would not take, stands over the box's words and
@@ -566,6 +565,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       shelfSeen = null;
     };
     hydrate(ta.value);
+    // Whether the box's words are the user's own: those it was made holding, or ones
+    // they wrote in it since it was last empty, not ones loaded into it empty.
+    let ownWords = hasContent(draftValue());
     // Keep the full native placeholder, but paint a copy so only the key can use mono.
     // The accessible name stays independent of that changing hint. The send button's
     // tooltip spells out its keys. A focused box claims the send key, and where Return
@@ -600,9 +602,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     /** @param {PointerEvent & {currentTarget: HTMLElement}} event */
     const point = (event) => {
-      const box = event.currentTarget;
-      keeps(box, "data-lf-send-fresh", null);
       if (event.pointerType === "touch") return;
+      const box = event.currentTarget;
       const send = sendBtn?.getBoundingClientRect();
       const on =
         send &&
@@ -735,7 +736,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
-        ?hidden=${micShown || shut || (!hasWords && !corner)}
+        ?hidden=${micShown || shut || (!corner && !(hasWords && ownWords))}
         aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
         @click=${() => pressed()}
@@ -857,7 +858,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       field.requestUpdate();
     };
     const draftChanged = () => {
-      if (ta.parentElement) keeps(ta.parentElement, "data-lf-send-fresh", null);
+      ownWords = hasContent(draftValue());
       save(draftValue());
       refresh();
     };
@@ -891,11 +892,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // value the box already holds is left where it is — which is what lets another tab's
     // notification, a reopened composer, and a mirrored panel box all say it unconditionally.
     sync.load = /** @param {string} value */ (value) => {
-      if (draftValue() !== value) {
-        hydrate(value);
-        if (value && ta.parentElement)
-          keeps(ta.parentElement, "data-lf-send-fresh", "");
-      }
+      if (draftValue() !== value) hydrate(value);
+      if (!value) ownWords = false;
       refresh();
     };
     ta[INPUT_DRAFT] = sync;

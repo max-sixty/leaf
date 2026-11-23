@@ -164,8 +164,8 @@
       ),
     );
   }
-  // A served page draws the live chrome, the floating panel, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
-  // runtime without them (prepaint.js).
+  // A served page draws the live chrome, the floating panel, over the page from the first
+  // paint (`html[data-lf-live]`). An export runs the runtime without it (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;

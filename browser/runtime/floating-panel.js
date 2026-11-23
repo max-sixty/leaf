@@ -210,7 +210,6 @@ import { actionName } from "./icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
 import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
-import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
@@ -218,7 +217,6 @@ import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
 import {
   advertisesKeys,
   cycledRow,
-  labelOf,
   parsed,
   rowArrows,
   spell,
@@ -301,7 +299,14 @@ import { obligationPlace } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
-import { comparisonBase, comparisonChanges, versionsReading } from "./version.js";
+import {
+  COMPARE_KEY,
+  LATEST_KEY,
+  comparisonBase,
+  comparisonChanges,
+  throughVersions,
+  versionsReading,
+} from "./version.js";
 import { UPGRADE } from "./presentation.js";
 import {
   announce,
@@ -425,7 +430,7 @@ const PAGE_FIELD_NAME = "Comment on the page";
 /** @type {FieldPress} */
 const NEXT_ON_ME = {
   action: "next-on-me",
-  command: "queue.next",
+  keys: () => commandKeysNow("queue.next"),
   run: () => pressCommand("queue.next"),
 };
 
@@ -453,9 +458,6 @@ const ON_DOORS = Object.freeze({
 const FOLD = "panel.floating.fold";
 // The leaf's press by key (`pressLeaf`), which the leaf itself is the finger's route to.
 const LEAF = "panel.floating.leaf";
-// Versions, a destination of the Go-to sequence, whose keys Open latest wears before
-// Versions' own key for the latest (`latestPress`).
-const VERSIONS = "version.open";
 // A thread's row in Threads, which names the thread by its key.
 const THREAD_ROW = ".lf-fp-thread[data-lf-key]";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
@@ -497,8 +499,7 @@ const NO_STANDING = new Set();
 function passingFacts(says) {
   const notice = noticeReading();
   const { goTo, walk } = statusContextReading();
-  const offers =
-    notice.press !== null && commandKeysNow(notice.press.command).length > 0;
+  const offers = notice.press !== null && notice.press.keys().length > 0;
   const said = notice.about !== null && !offers && says.has(notice.about);
   return {
     notice: notice.visible && !said ? notice : null,
@@ -1288,7 +1289,7 @@ export function createFloatingPanel({
   // as the user's own choice stands (field-readings.js, `lead`), each fact with its words
   // in the order they are said (`STANDING_PARTS`): the version the
   // page shows where it is older than the latest (version.js, `shownBehind`), how many
-  // changes the page marks since the version it compares with (`v`, version.js), whose
+  // changes the page marks since the version it compares with (version.js), whose
   // bars say only that a block changed, and that the user hid the annotation layer (`g H`,
   // annotation-layer.js), which a reload keeps, or a page whose marks are hidden would
   // read as one with none. What passes on the page field leaves to these words the
@@ -1717,7 +1718,7 @@ export function createFloatingPanel({
   /** @type {import("./keyboard/bindings.js").Command} */
   const latestRow = {
     id: "panel.floating.versions.latest",
-    keys: ["l"],
+    keys: [LATEST_KEY],
     title: "latest version",
     touch: false,
     when: () => {
@@ -1725,6 +1726,31 @@ export function createFloatingPanel({
       return latest.shown !== null && !latest.disabled;
     },
     run: () => putAwayThen(() => versionPicker.latest()),
+  };
+  // The version the user stands on in Versions: the row holding focus, else the one
+  // Versions opened at (`versionsList`).
+  const standingVersion = () => {
+    const view = shownView();
+    const on = view && currentLocationIn(view) ? focused() : null;
+    return (
+      on?.closest(".lf-fp-version") ??
+      view?.querySelector(".lf-fp-version[data-lf-at]") ??
+      null
+    );
+  };
+  const standingCompare = () =>
+    standingVersion()?.querySelector(":scope > .lf-fp-compare") ?? null;
+  // Versions' key that compares the version the user stands on, by pressing its
+  // Compare, so `g V v` marks what changed since the version Versions offers, and on a
+  // lit Compare takes the marks off. The Compare beside each row is a finger's route.
+  /** @type {import("./keyboard/bindings.js").Command} */
+  const compareRow = {
+    id: "panel.floating.versions.compare",
+    keys: [COMPARE_KEY],
+    title: "compare",
+    touch: false,
+    control: standingCompare,
+    when: () => standingCompare() !== null,
   };
   /** @type {PanelViews} */
   const VIEWS = Object.freeze({
@@ -1797,7 +1823,7 @@ export function createFloatingPanel({
       title: () => "Versions",
       draw: () => versionsList(),
       rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
-      at: ".lf-fp-version[data-lf-current] > .lf-fp-item",
+      at: ".lf-fp-version[data-lf-at] > .lf-fp-item",
       row: { view: "versions" },
       over: ["menu"],
       // Versions is a list for choosing, so while it stands the page's character keys
@@ -1823,6 +1849,7 @@ export function createFloatingPanel({
           },
         },
         latestRow,
+        compareRow,
       ],
       claims: (binding) => {
         const { key, mods } = parsed(binding);
@@ -2148,17 +2175,12 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
-  let writtenBand = 0;
   let bandFrame = 0;
   function followBox() {
-    // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
-    // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
-    // or an On Me row's Show lands what it reaches above an open view rather than
-    // under it. The browser's own reveals read the same padding, and Leaf's landings
-    // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
-    // root's padding from a fixed box in the chrome's shadow tree, so the box states
-    // it, in pixels and never as a custom property (root-state.js).
+    // How far the box reaches up from the window's foot, with the gap above the box and
+    // at least the foot's room (`--lf-foot-band`, base.css): the band Leaf's landings
+    // keep clear of (geometry.js, `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or
+    // an On Me row's Show lands what it reaches above an open view rather than under it.
     const box = card.getBoundingClientRect();
     const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
     const root = document.documentElement;
@@ -2170,15 +2192,12 @@ export function createFloatingPanel({
     const band = atLayoutPrecision(Math.max(rest, reach + clear));
     if (stateFootBand(band)) {
       // This runs in the box's size delivery, which may write only what no one observes
-      // (page-layout.js). The root's style is a page attribute the margin hears, and its
-      // pass places an open thread card in the same delivery, resizing a box shallower
-      // than any the delivery can still reach: a ResizeObserver loop. So the padding and
-      // the news of the room wait for the frame; Leaf's own landings read the band
-      // stated above at once.
-      writtenBand = band;
+      // (page-layout.js). The margin hears the news of the room, and its pass places an
+      // open thread card in the same delivery, resizing a box shallower than any the
+      // delivery can still reach: a ResizeObserver loop. So the news waits for the
+      // frame; Leaf's own landings read the band stated above at once.
       bandFrame ||= nextRender(() => {
         bandFrame = 0;
-        setRuntimeRootStyle(root, "scroll-padding-bottom", `${writtenBand}px`);
         announceRoom();
       });
     }
@@ -2570,8 +2589,8 @@ export function createFloatingPanel({
     // by a pointer, it holds focus itself. The user chose this over leaving focus on
     // the list's view after `g T` from the page, where nothing shows it and
     // Enter goes nowhere seen. A list that declares a row it opens at, such as the
-    // version the page shows in Versions, brings that row into view by either route, and
-    // a key lands on it, as the user reopening the list from there expects to see it.
+    // version Versions offers to compare with, brings that row into view by either
+    // route, a key lands on it, and Tab enters the list there (`rove`).
     // A fold's heading (`settledHeading`) is a row the arrows reach and never a landing:
     // a list holding only what was put away holds focus itself, with no ring
     // (floating-panel.css, `.lf-fp-view:focus`), and ↓ enters the fold. The user asked
@@ -2921,11 +2940,18 @@ export function createFloatingPanel({
   // pointer that can't hover (floating-panel.css). A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
   // the two words line up. Showing stands outside the press, as Compare does, over
-  // the row's end; the press carries it as `aria-current`.
+  // the row's end; the press carries it as `aria-current`. Versions opens at the
+  // version it offers to compare with (version.js, `selection.offered`), else at the
+  // version shown, the row marked `data-lf-at`.
   /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry */
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
+    /** @param {(typeof versions)[number]} entry */
+    const opensAt = (entry) =>
+      selection.offered === null
+        ? entry.current
+        : entry.comparable && entry.revision === selection.offered;
     return html`
       ${
         latest.failed
@@ -2945,6 +2971,7 @@ export function createFloatingPanel({
               class="lf-fp-version"
               role="none"
               ?data-lf-current=${entry.current}
+              ?data-lf-at=${opensAt(entry)}
             >
               ${menuItem(
                 html`${entry.name}${
@@ -5179,6 +5206,7 @@ export function createFloatingPanel({
       fitted = outlet;
     }
     const listed = listRows();
+    const declaredAt = top ? viewOf(top).at : undefined;
     // A notice's landing outranks the focused row, so its paint stands the walk on the
     // landing in one write; `showJoined` then moves focus there where it stood in the
     // list or on the notice.
@@ -5190,6 +5218,7 @@ export function createFloatingPanel({
       }) ??
         listed.find((row) => row === focused()) ??
         listed.find((row) => row.getAttribute("tabindex") === "0") ??
+        (declaredAt ? listed.find((row) => row.matches(declaredAt)) : undefined) ??
         listed[0],
     );
     if (leavesReply && hadEditorFocus && !search) focusDestination(leaf, "return");
@@ -5250,8 +5279,7 @@ export function createFloatingPanel({
       word: "Open latest",
       // Read at each ask, as a notice's press's key is (`pressReading`).
       get keys() {
-        const versions = commandKeysNow(VERSIONS);
-        return versions.length ? [...versions, labelOf(latestRow)] : [];
+        return throughVersions(LATEST_KEY);
       },
       // The press puts nothing away: a revision installed under an open thread hands
       // back the reply being written there (version.js, `restoreEditingContinuity`).

@@ -1,6 +1,5 @@
 /* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
-   of the page. The theme keeps its row's room at the page's foot (base.css,
-   `--lf-foot-room`).
+   of the page, which keeps no room for it (base.css).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its

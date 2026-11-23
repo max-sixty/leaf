@@ -30,6 +30,7 @@ import tempfile
 from pathlib import Path
 
 from leaf.render_checks import (
+    open_render_context,
     open_render_page,
     rendered,
     start_near_work,
@@ -45,7 +46,8 @@ MOST_SCREENS = 8
 
 
 def _open(browser, url: str, viewport: dict, phone: bool):
-    context = browser.new_context(
+    context = open_render_context(
+        browser,
         viewport=viewport,
         color_scheme="light",
         is_mobile=phone,

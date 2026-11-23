@@ -1625,7 +1625,7 @@ def test_a_code_block_no_reading_face_reaches_is_named(browser, serve):
             + "</div>"
             + block.format("unknown", "zzz"),
         ),
-        theme=False,
+        reading=False,
     )
     page = open_page(browser, url)
     expect(page.locator("#faced code")).to_have_attribute("data-lf-syntax", "json")

@@ -10,8 +10,8 @@
  * element rules that keep a guarantee, each saying which. The idioms an author writes
  * are Leaf's too (styles/components/idioms.css, by way of shadow.css). The reading look,
  * the type and ground a document reads in, is the bundled `reading` theme
- * (packages/reading), which a page takes by default; a page that takes none starts
- * from the browser's defaults and these tokens.
+ * (packages/reading), which a page takes by listing it among its packages; a page that
+ * lists no theme starts from the browser's defaults and these tokens.
  *
  * Every surface rides a color token, so the dark palette is exactly one more
  * token block — nothing else in this file (or the runtime, which styles its UI

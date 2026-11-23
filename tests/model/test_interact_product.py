@@ -54,7 +54,6 @@ from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
-from leaf.themes import DEFAULT_THEME
 from leaf.thread_context import logged_fragment, thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
@@ -1815,9 +1814,7 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert sorted(packages) == sorted(
         entry.name
         for entry in schema_model.BUNDLED_PACKAGES.iterdir()
-        if entry.is_dir()
-        and entry != schema_model.DEFAULT_PACKAGE
-        and entry.name != DEFAULT_THEME
+        if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
     )
     resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]

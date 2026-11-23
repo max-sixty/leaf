@@ -33,12 +33,15 @@ Record the work you take on as `references/conversation-loop.md`, "When to write
 says. Choose a page's packages from `leaf package list`, which prints each package
 this machine can select, bundled or installed by the user, with what it adds, such as
 a live preview in which the user compares candidates or tunes a configuration before
-sending it. Initialize the page with each package whose purpose fits it:
-`leaf page init --package diagram --package diff <page>`. Running `page init` again
-with `--package` replaces the page's packages, so name every package the page keeps.
-Personal themes and their author instructions are discoverable with `leaf theme list`;
-`references/package-themes.md`, "Personal themes", covers choosing one and how the
-page captures it.
+sending it. Initialize the page with each package whose purpose fits it, its theme
+first: `leaf page init --package reading --package diagram --package diff <page>`. A
+theme is the package that gives a page its look, and a page that selects none draws in
+the browser's defaults. So select `reading`, Leaf's own, first on every page, except
+where another theme from `leaf package list` takes its place or the page carries a
+design of its own (`references/package-themes.md`, "A page's theme"). Running `page
+init` again with `--package` replaces the page's packages, its theme among them, so
+name every package the page keeps; the command prints the packages the page now
+selects.
 
 Read the applicable references under **Author a version** below. For substantial new
 material, including a new section on an existing page, start an author without

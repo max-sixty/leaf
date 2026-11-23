@@ -11,6 +11,16 @@ taking the page to this Leaf's page protocol, refreshes an active revision from
 valid source before returning, so deliveries use the new vocabulary without needing
 a browser or state read first. Invalid source keeps its last good revision and
 reports its check errors. A page with no active revision stays unactivated.
+
+A page's look is one of the packages it lists, Leaf's own `reading` among them: Leaf
+composes the mandatory layer and then the listed packages in order
+(`layer.layer_inputs`), and adds none of its own. The user chose this over a theme
+selected apart from the packages, and over composing `reading` under every page. One
+list keeps a look an ordinary package, which a page builds on by listing it first and
+replaces by leaving it out; a look Leaf added would be one each such page had to
+decline. A page that lists no look draws in the browser's defaults, so the shipped
+instructions tell an author to list one (`skills/leaf/SKILL.md`, "Author the page"),
+and `page init` returns the selection it recorded.
 """
 
 from __future__ import annotations
@@ -39,7 +49,7 @@ from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
 from .registry.kernel import kernel_protocol
-from .registry.storage import LAYER, layer_record
+from .registry.storage import LAYER, layer_packages, layer_record
 from .schema import (
     HTML_NAME,
     INIT_LOCK,
@@ -64,18 +74,18 @@ from .state import (
     session_file,
     session_record,
 )
-from .themes import ThemeChoice, selected_theme, with_theme
 
 
 def cmd_init(
     page_dir: Path,
     selected: tuple[str, ...] | None = None,
     *,
-    theme: ThemeChoice = None,
     dry_run: bool = False,
 ) -> dict:
     """Create a page, or rewrite an existing one's layer record inside a restart of
-    its service.
+    its service. The result names the page and the packages its record now selects,
+    so whoever chose them reads the whole selection back, as after an init that
+    replaced it.
 
     Everything that can refuse the rewrite is decided first, in a dry run with the
     page still served, so a refused one leaves its server untouched: a restart
@@ -98,20 +108,15 @@ def cmd_init(
             f"{page_dir} does not exist; initialize it before planning a change"
         )
     if made:
-        _refuse_package_target(
-            page_dir,
-            layer_inputs(
-                with_theme(selected or (), selected_theme(page_dir, theme, fresh=True))
-            ),
-        )
+        _refuse_package_target(page_dir, layer_inputs(selected or ()))
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     harness = session_harness()
     if initialized(page_dir):
         if dry_run:
             with page_locked(page_dir):
-                plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
+                plan = _plan_page(page_dir, selected, fresh=False)
             return {"page": str(page_dir), "changed": plan.changed}
-        errors, advice = _reinit(page_dir, selected, harness, theme=theme)
+        errors, advice = _reinit(page_dir, selected, harness)
         if unready := _unready(page_dir, errors):
             note(unready)
     else:
@@ -119,7 +124,7 @@ def cmd_init(
             raise Refused(f"{page_dir} is not initialized")
         with restarting_server(page_dir, harness), page_locked(page_dir):
             try:
-                _, advice = _init_page(page_dir, selected, theme=theme)
+                _, advice = _init_page(page_dir, selected)
             except BaseException:
                 if made and not any(page_dir.iterdir()):
                     page_dir.rmdir()
@@ -128,7 +133,7 @@ def cmd_init(
     note(*advice)
     if harness is not None:
         _deliver_from_here(page_dir, harness)
-    return {"page": str(page_dir)}
+    return {"page": str(page_dir), "packages": layer_packages(page_dir)}
 
 
 def _deliver_from_here(page_dir: Path, harness: Harness) -> None:
@@ -247,8 +252,6 @@ def _reinit(
     selected: tuple[str, ...] | None,
     harness: Harness | None,
     still: Callable[[], bool] = lambda: True,
-    *,
-    theme: ThemeChoice = None,
 ) -> tuple[list[Finding], tuple[Finding, ...]]:
     """Rewrite an initialized page's layer record inside a restart of its service,
     returning the errors that keep its index.html from activating under the new
@@ -269,7 +272,7 @@ def _reinit(
     with page_locked(page_dir):
         if not still():
             return [], ()
-        plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
+        plan = _plan_page(page_dir, selected, fresh=False)
     if not plan.changed:
         return [], plan.advice
     with flocked(page_dir / INIT_LOCK):
@@ -277,7 +280,7 @@ def _reinit(
             if not still():
                 return [], ()
         with restarting_server(page_dir, harness), page_locked(page_dir):
-            return _init_page(page_dir, selected, still, theme=theme)
+            return _init_page(page_dir, selected, still)
 
 
 def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
@@ -295,15 +298,15 @@ def start_throwaway_page(page_dir: Path, package: Path) -> None:
     """Start a page in an empty directory selecting `package` as `page init` would, by
     the name it is installed or bundled under, or else by path, for a reading Leaf
     takes and then deletes, as `package check --render` does with a package's worked
-    examples. The mandatory layer needs no selection, and no theme joins it, so the
-    reading is the same on every machine."""
+    examples. The mandatory layer needs no selection, and the page selects nothing
+    beside the package, so the reading is the same on every machine."""
     if any(paths_same(package, root) for root in layer_inputs()):
         selected = ()
     elif (named := named_package(package.name)) and paths_same(named, package):
         selected = (package.name,)
     else:
         selected = (f"./{os.path.relpath(package)}",)
-    _init_page(page_dir, selected, theme=False)
+    _init_page(page_dir, selected)
 
 
 def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
@@ -320,8 +323,6 @@ def _init_page(
     page_dir: Path,
     selected: tuple[str, ...] | None,
     still: Callable[[], bool] = lambda: True,
-    *,
-    theme: ThemeChoice = None,
 ) -> tuple[list[Finding], tuple[Finding, ...]]:
     """Start or re-select the page under its lock and its service's restart, and
     return what keeps a re-selected index.html from activating, with what its
@@ -341,7 +342,7 @@ def _init_page(
     # `initialized`: it keeps the caller's chosen mode, takes no PageTransaction
     # yet, and a failed validation leaves it untouched.
     if not initialized(page_dir):
-        plan = _plan_page(page_dir, selected, theme=theme, fresh=True)
+        plan = _plan_page(page_dir, selected, fresh=True)
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.
         remove_claim(claim_path(page_dir))
@@ -355,7 +356,7 @@ def _init_page(
     with PageTransaction(page_dir) as page:
         if not still():
             return [], ()
-        plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
+        plan = _plan_page(page_dir, selected, fresh=False)
         if not plan.changed:
             return [], plan.advice
         _write_record(page_dir, plan)
@@ -383,7 +384,6 @@ def _plan_page(
     selected: tuple[str, ...] | None,
     *,
     fresh: bool,
-    theme: ThemeChoice = None,
 ) -> _PagePlan:
     """Compose the selected layer, refusing a selection this Leaf cannot compose,
     before anything is written.
@@ -399,15 +399,12 @@ def _plan_page(
         if (refusal := write_refusal(page_dir)) and refusal.code == "newer-layer":
             raise Refused(str(refusal))
     previous = None if fresh else layer_record(page_dir)
-    captured_theme = selected_theme(page_dir, theme, fresh=fresh)
     # A selection the caller names resolves where they run; the page's own, against
     # the copies it holds.
     named = selected is not None
     if not named:
         selected = tuple(previous["packages"]) if previous else ()
-    inputs = layer_inputs(
-        with_theme(selected, captured_theme), Path.cwd() if named else page_dir
-    )
+    inputs = layer_inputs(selected, Path.cwd() if named else page_dir)
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
@@ -422,7 +419,6 @@ def _plan_page(
             f"./{PACKAGES_DIR}/{copies[value].name}" if value in copies else value
             for value in selected
         ),
-        captured_theme,
         previous,
     )
     copied = {root.name: root for root in copies.values()}
@@ -455,17 +451,11 @@ def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
     return copies
 
 
-def _record(
-    selected: tuple[str, ...], theme: dict | None, previous: dict | None
-) -> dict:
-    """The layer record selecting `selected` and `theme` at this Leaf's protocol,
-    keeping `previous`'s generation where it selects the same: a generation names a
-    change in what an open document runs under, not an invocation."""
-    record = {
-        "packages": list(selected),
-        "theme": theme,
-        "protocol": kernel_protocol(),
-    }
+def _record(selected: tuple[str, ...], previous: dict | None) -> dict:
+    """The layer record selecting `selected` at this Leaf's protocol, keeping
+    `previous`'s generation where it selects the same: a generation names a change in
+    what an open document runs under, not an invocation."""
+    record = {"packages": list(selected), "protocol": kernel_protocol()}
     if previous is not None and all(
         previous.get(key) == value for key, value in record.items()
     ):

@@ -128,7 +128,7 @@ USER_TURN = (
 
 def prepare(arm: Path, state: Path, page: Path) -> None:
     """Prepare the same release-review starting state using the harness's Leaf arm."""
-    run_leaf(arm, state, "page", "init", str(page), check=True)
+    run_leaf(arm, state, "page", "init", "--package", "reading", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     run_leaf(
         arm, state, "page", "stamp", str(page),

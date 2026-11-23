@@ -4416,10 +4416,22 @@ def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault)
         page.evaluate(f"scrollBy(0, -9); place({moved})")
     elif scroll == "twice":
         # A second scroll from another script, as `scrollIntoView` and then `scrollBy`
-        # make: the row can catch up to the first scroll in the reading that finds
-        # the words already moved by the second.
-        page.evaluate("scrollBy(0, -9); place()")
-        page.evaluate(f"scrollBy(0, -40); place({moved})")
+        # make, in the task after the frame that carries the row to the first. A
+        # user-blocking task posted from that frame's callbacks runs ahead of the
+        # delivery of its painted shifts, so the watch's reading of that paint finds
+        # the words moved by the second scroll and the row caught up to the first.
+        page.evaluate(
+            """by => new Promise((done) => {
+              scrollBy(0, -9);
+              place();
+              requestAnimationFrame(() => scheduler.postTask(() => {
+                scrollBy(0, -40);
+                place(by);
+                done();
+              }, {priority: 'user-blocking'}));
+            })""",
+            int(moved),
+        )
     else:
         page.evaluate(
             """by => new Promise((done) => {

@@ -167,9 +167,11 @@ render() {
 A widget bound to a source first draws once the page has read its data, or has gone
 offline without it, so until then it shows its first-paint box. Each delivery is a new
 copy, so a widget tells a new delivery by identity. A rerun with
-the same value delivers a new copy too. An input the markup leaves unbound, such as an
-`lf-diff` showing its inline patch, is left to the widget: Leaf doesn't set its
-property.
+the same value delivers a new copy too. Where the markup binds the input of a widget
+whose body is data (`content: data`) to nothing, as with an `lf-diff` showing its
+inline patch, Leaf sets the input's property once, at setup, to the text of its
+`<pre>`. Any other unbound input is left to the widget (`package-data.md`, "External
+or derived data").
 
 A widget output reads through the same property, as the value its producer published
 with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). The

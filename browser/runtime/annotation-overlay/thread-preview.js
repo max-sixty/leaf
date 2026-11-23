@@ -195,7 +195,7 @@ import { renderedOrder, renderedUnder, under } from "../shadow-tree.js";
 import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { openingPart, threadFocusDestination } from "../thread/focus.js";
-import { claimSeatReplies } from "../thread/inline.js";
+import { claimSeatReplies, pruneThreadSeat } from "../thread/inline.js";
 import { dismissReply, releaseReplies, replyIsEditing } from "../thread/replies.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
 import { errorOver } from "../errors.js";
@@ -297,6 +297,9 @@ export function createThreadPreview({
   const previewActions = el("span", "lf-thread-meta-actions");
   previewHead.append(previewActions);
   const previewList = el("div", "lf-margin-preview-list");
+  // The body of the thread the card shows, whose seat goes when it draws another.
+  /** @type {HTMLElement | null} */
+  let shownBody = null;
   let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
   // about, at the width it was carried at, until its placement chooses afresh.
@@ -1162,10 +1165,16 @@ export function createThreadPreview({
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
       const item = previewItemNode(selected, session);
+      const replaced = shownBody !== item.body ? shownBody : null;
       setChildren(previewList, [item.node]);
+      shownBody = item.body;
       // The thread renders before the card shows it, and takes the reply being written
       // in it once it stands in the document (thread/inline.js, `claimSeatReplies`).
       claimSeatReplies(item.body);
+      // The thread the card showed before goes with its seat (thread/inline.js,
+      // `pruneThreadSeat`), so a card that opens on a thread again, as one closed on a
+      // choice an agent's reply asks and opened by `m`, draws the choice.
+      if (replaced) pruneThreadSeat(replaced);
       // The list holds the one thread the card shows, so a user whose place in a thread
       // the rebuild took lands on that thread; a step button it hid hands them to Close.
       restoreFocus?.(

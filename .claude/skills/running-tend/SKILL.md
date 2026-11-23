@@ -110,16 +110,19 @@ Read back the published body and open its image URLs to verify the evidence.
 When a change turns a test red, merged or still in a pull request, choose the repair
 as `tests/AGENTS.md`, **Failing tests**, says.
 
+The change's intent, read as **Failing tests** says, settles each case it covers. A
+repair that keeps that intent leaves nothing uncertain and needs no issue; ask the
+author only about a case the intent leaves open.
+
 A repair that gives up any of the change's intent, or was chosen where the evidence
 left the choice uncertain, needs an issue so the change can return deliberately.
 Address it to the change's author; when a bot wrote it, to the person who requested
 or merged it, or to the repository's maintainer where no person did. Link the
 originating and repair pull requests, and say what the change intended, what
-conflicted, what the repair gave up and what remains uncertain. Mark the issue as
-awaiting that person's judgment and leave it open until they settle it; later Tend
-runs must not decide on their behalf. The repair's description names each behavior it
-moved. Proceed under **Fixing a CI failure's cause** without waiting for that
-judgment.
+conflicted, what the repair gave up and what remains uncertain. Assign the issue to
+that person and leave it open until they settle it; later Tend runs must not decide
+on their behalf. The repair's description names each behavior it moved. Proceed
+under **Fixing a CI failure's cause** without waiting for that judgment.
 
 Before choosing a fix, read the failing test's record in main's earlier runs: each
 `ci` run uploads its junit results (`gh run download <run> -p 'pytest-results-*'`),
@@ -256,6 +259,17 @@ An issue labelled `backlog` is an item on the maintainer's prioritised backlog
 (`notes/TODO.md` says how it is kept), not a report awaiting triage. When one reaches
 you, whether through triage or an unread notification, take no action, post
 nothing, and acknowledge the notification.
+
+## Nightly: issues waiting on a person
+
+A pull request that answers an issue Tend assigned to a person, under **Reading a red
+suite** or **Fixing a CI failure's cause**, sends Tend no event. So each nightly run
+reads every open issue Tend assigned to a person against main. Close each issue that
+a merged change has settled, with a comment naming the change: a change the person
+wrote or merged answered its question, or any change removed its cause. This
+authorizes the closing that `/tend-ci-runner:nightly`'s **Resolved issues** leaves to
+the repository's instructions, cause issues included. Leave `backlog` issues alone
+(**Leave backlog issues to the maintainer**).
 
 ## Nightly: model and harness releases
 

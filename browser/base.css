@@ -1013,7 +1013,9 @@ lf-suggestion:has(
   display: block;
   & > :is(lf-old, lf-new) {
     display: block;
-    padding: 2px 10px;
+    /* A framed box that starts or ends the slot, such as an options group, stands
+       clear of the tint's edge (`--lf-clear`) rather than nearly meeting it. */
+    padding: var(--lf-clear) 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
     transition: padding var(--lf-motion-fold) ease;
@@ -1099,11 +1101,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-width: 0;
   --lf-block-frame: 1;
 }
+/* The frame clips to its rounding, so a body, header or footer that paints its own
+ * ground to the pane's edges, as a file tree or an editor does, takes the frame's
+ * corners. Clip, not hidden: a hidden box is a scroll container, which would take the
+ * sticky boxes inside a body that doesn't scroll off the window. */
 :where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
+  overflow: clip;
 }
 :where([data-lf-reading-role="pane"]) > header {
   padding: var(--lf-pane-bar-pad);

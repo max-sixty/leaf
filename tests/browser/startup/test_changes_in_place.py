@@ -294,8 +294,8 @@ def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     says how much changed since the version they last saw and marks nothing, offering
     Show changes with `g V v` at the field's end. Versions names that version last seen
     and opens on it, so `g V v` marks those changes, though a newer version
-    stands between. While Versions stands, the news offers no press, since `g V` would
-    put Versions away."""
+    stands between. While Versions stands, the news offers no press, since there `v`
+    compares whichever version the user is on."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -314,7 +314,8 @@ def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_accessible_name(
         re.compile(r"^v1 \(last seen\)")
     )
-    # While Versions stands, `g V` would put it away, so the news offers no keys there.
+    # While Versions stands, its `v` compares the version the user is on, so the news
+    # offers no keys there.
     expect_panel_says(page, "2 changes since v1")
     expect_panel_says(page, "Show changes", says=False)
     page.keyboard.press("v")
@@ -324,6 +325,21 @@ def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     # read once the press has drawn, well before its moment would end.
     rendered(page)
     assert "Show changes" not in (panel_field(page).get_attribute("placeholder") or "")
+
+
+def test_open_latest_says_the_keys_that_reach_it_from_where_the_user_is(browser, serve):
+    """A page pinned to an older version offers Open latest at the field's end with the
+    keys of Versions' own `l`: `g V l` from the page, since `g V` opens Versions, and `l`
+    alone once Versions has focus."""
+    url = serve(PAGE)
+    d = serve.page_dir
+    page = open_page(browser, url, pin=True)
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    expect_panel_says(page, "Open latest g V l")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_count(1)
+    expect_panel_says(page, "Open latest l")
 
 
 def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):

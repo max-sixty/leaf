@@ -256,9 +256,8 @@ export function alongClimb(parentOf) {
 // Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
 // boundary and these readings walk through one, so the climb is the same one
 // `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding a `shadow` widget does not `contains` the words that widget renders, so
-// narrowing a search to that section threw away every candidate inside it and the
-// passage resolved to nothing — the anchor captured, the mark never painted.
+// holding a `shadow` widget does not `contains` the words that widget renders, so a
+// search narrowed to that section by `contains` would find no candidate inside it.
 export const under = alongClimb(composedParentNode).under;
 // Which of two nodes the reader reaches first in the page as rendered, and containment in
 // the rendered tree, which includes slots and their shadow ancestors.
@@ -413,6 +412,38 @@ export const skipper = (element) => {
 };
 /** @param {Element} element */
 export const skipped = (element) => Boolean(skipper(element));
+
+// The closed box that hides `node` until the user opens it: a closed `<details>` holding
+// it outside its summary, or a box `hidden="until-found"` (an unchosen tab's panel, a
+// file a diff filters out), `node` itself or one round it. These are the boxes the
+// browser's find opens, and Leaf's travel too (widget-elements.js, `reveal`), so they
+// are read from the markup, whatever a stylesheet draws in their place: a package may
+// keep a hidden panel's layout and only make it invisible. Where closed boxes nest, it
+// is the outermost, the one the page shows. An off-screen `content-visibility: auto`
+// box is no closed box: it draws what it holds as the window nears it.
+/** @param {Node} node @returns {Element | null} */
+export const closedOver = (node) => {
+  let closed = null;
+  /** @type {Node} */
+  let child = node;
+  for (let at = node instanceof Element ? node : renderedParent(node); at;) {
+    if (
+      untilFound(at) ||
+      (at instanceof HTMLDetailsElement &&
+        !at.open &&
+        child !== at &&
+        !(child instanceof HTMLElement && child.localName === "summary"))
+    )
+      closed = at;
+    child = at;
+    at = renderedParent(at);
+  }
+  return closed;
+};
+// Whether `node` is `hidden="until-found"`, read as the browser reads the attribute.
+/** @param {Node | null} node */
+export const untilFound = (node) =>
+  node instanceof HTMLElement && node.hidden === "until-found";
 
 // Every element the browser draws at or under `root`, through the open shadow trees of
 // the hosts it draws, each tree in its own order, which a reading of the page as drawn

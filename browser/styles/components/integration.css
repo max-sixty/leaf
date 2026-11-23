@@ -30,8 +30,10 @@
   cursor: auto;
 }
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar inside
-   the block's top-right corner, `--lf-block-control-inset` from both edges, taking no
-   room: a patch of the card ground with a hairline ring, its marks (controls.css,
+   the block's top-right corner, `--lf-block-control-inset` from both its outer edges:
+   past the block's 1px hairline and 4px clear of it, the least room that reads as
+   standing clear of an edge rather than nearly meeting it. It takes no room: a patch
+   of the card ground with a hairline ring, its marks (controls.css,
    `.lf-mark-action`) 1px inside it. It casts no shadow: it lies on one surface, which
    the ring alone sets it apart from. Its marks stand a reach apart, so neighbouring
    reaches meet rather than overlap and the finger's wider reach widens only the
@@ -39,7 +41,7 @@
    controls.css); a draft's toolbar (draft.css) stands in the same seat, and its Copy
    is one of its marks. */
 :root {
-  --lf-block-control-inset: 4px;
+  --lf-block-control-inset: 5px;
 }
 .lf-mark-bar,
 .lf-code-copy {

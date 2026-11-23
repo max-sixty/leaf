@@ -57,8 +57,10 @@
    seat's role: the margin's entry (below) and the response bar's choice, whose
    reactions are its toggles (`aria-pressed`). What every reaction shares wherever it
    stands, its glyph laid out and its word held up under a press, keys on the token's
-   own class (`.lf-react`, below), and draws no face. A strip's reactions stand 4px apart, closer than a control's ring reaches,
-   so the ring stands on a reaction's edge (base.css, "Where it stands"). */
+   own class (`.lf-react`, below), and draws no face. A strip's reactions stand 4px
+   apart, closer than a control's ring reaches, and an open list's stand 4px inside
+   its edge, so the ring stands one band inside a reaction's edge, as a press's does
+   (base.css, "Where it stands"). */
 .lf-reaction {
   appearance: none;
   margin: 0;
@@ -67,7 +69,7 @@
   border: 1px solid transparent;
   border-radius: var(--lf-chip-r);
   font: var(--lf-font-chip);
-  --lf-ring-at: 0px;
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 
 .lf-react {
@@ -752,6 +754,17 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   box-shadow: none;
 }
 /* #endregion */
+/* Leaf seats its words and symbols against edges: on a frame's edge or in its corner,
+   hung into a line's margin by their inset (`--lf-word-inset`, `--lf-symbol-inset`), or
+   beside the next press. So each stands its ring, and every mark on it, one band inside
+   its edge (tokens.css, "Where it stands"), where no frame's clip cuts it and no
+   neighbour covers it, and a press looks the same in every seat. At no weight, so a
+   seat that stands it elsewhere, as a diff line's comment press does, says so. A
+   page's own button keeps a control's gap. */
+:where(.lf-btn),
+:where(.lf-icon-action) {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
 /* A native radio or checkbox and its label form one compact target. The mark
  * carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
@@ -884,8 +897,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    beside the 16px icon, plus the 3px margin each glyph keeps inside its icon
    (icon-paths.js). A seat that ends a line with a symbol hangs it into the margin by
    this much, so the glyph ends where the line's words do, as `--lf-word-inset` does
-   for a word, and a scroller holding such a seat keeps this much room at its sides,
-   and a focus ring's beyond it.
+   for a word, and a scroller holding such a seat keeps this much room at its sides.
    Under a finger the box is wider than the face, so the glyph stands inside the edge
    by the difference. The symbol states it again, so a surface that sets its own face
    gets its own inset. */
@@ -1621,6 +1633,12 @@ wa-copy-button.lf-icon-action {
 .lf-mark-action.lf-ui::part(button):hover {
   color: var(--lf-ink);
 }
+/* It declines the wash every generated press takes under the pointer (surfaces.css),
+   since the face the user chose for marks shows the pointer by its ink alone. A
+   corner mark keeps its patch's ring and lift (below). */
+.lf-mark-action:where(:not([data-lf-corner])):hover {
+  box-shadow: none;
+}
 .lf-mark-action.lf-ui::part(lf-focus-visible) {
   outline: var(--lf-focus-ring);
 }
@@ -1636,6 +1654,44 @@ wa-copy-button.lf-icon-action {
   border: 1px solid var(--lf-border);
   border-radius: var(--lf-r);
   background: var(--lf-card);
+}
+/* A toolbar's marks are a joined run (`data-lf-joined`, below) standing 1px inside its
+   hairline (integration.css pads it by 1px), so where they meet its corners they take
+   its rounding less those 2px. */
+.lf-mark-bar {
+  --lf-joined-r: calc(var(--lf-r) - 2px);
+}
+/* A joined run: a holder whose presses join into one control declares
+   `data-lf-joined` (control-faces.js), as a block's toolbar of marks and a question's
+   Done do. Each press is square where it meets the next and stands its ring one band
+   inside its edge, and the first and last press shown take the holder's rounding at
+   the corners they share with it (`--lf-joined-r`, which the holder's owner states; 0
+   where the holder clips its presses to its own corners). The holder clips nothing
+   itself, since a finger's reach (surfaces.css) stands outside a toolbar's box. A
+   press the holder hides (`hidden`), or a word standing before them, as a draft's
+   refused save, is no end of the run. */
+[data-lf-joined] > :where(button).lf-mark-action,
+[data-lf-joined] > .lf-mark-action.lf-ui::part(button),
+[data-lf-joined] > .lf-btn {
+  border-radius: 0;
+}
+/* A word's ring already stands inside it (above); a mark's face states its own. */
+[data-lf-joined] > :where(button).lf-mark-action,
+[data-lf-joined] > .lf-mark-action.lf-ui::part(button) {
+  outline-offset: var(--lf-focus-ring-inset);
+}
+[data-lf-joined] > :where(button).lf-mark-action:nth-child(1 of :not([hidden])),
+[data-lf-joined] > .lf-mark-action.lf-ui:nth-child(1 of :not([hidden]))::part(button),
+[data-lf-joined] > .lf-btn:nth-child(1 of :not([hidden])) {
+  border-start-start-radius: var(--lf-joined-r, 0px);
+  border-end-start-radius: var(--lf-joined-r, 0px);
+}
+[data-lf-joined] > :where(button).lf-mark-action:nth-last-child(1 of :not([hidden])),
+[data-lf-joined]
+  > .lf-mark-action.lf-ui:nth-last-child(1 of :not([hidden]))::part(button),
+[data-lf-joined] > .lf-btn:nth-last-child(1 of :not([hidden])) {
+  border-start-end-radius: var(--lf-joined-r, 0px);
+  border-end-end-radius: var(--lf-joined-r, 0px);
 }
 /* A corner mark stands on a patch of the ground the thing it rides stands on, set off
    by that ground's ring and a lift. Rejected: a dark disc with a light cross for an

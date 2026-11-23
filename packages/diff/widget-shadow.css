@@ -256,10 +256,11 @@
 }
 /* An auxiliary control of the filter field, like its Clear: the field's frame carries
    the focus band for the group, and the press shows it is the one focused by its fill.
-   It is no taller than the count, so the field keeps the height it has without it,
-   and a finger's floor is its reach, as it is every other press's. */
+   Its face stands 4px clear of the field's frame above and below, so the field keeps
+   the height it has without it and the fill stands clear of the frame rather than
+   nearly meeting it, and a finger's floor is its reach, as it is every other press's. */
 .lf-diff-fold-all {
-  --lf-icon-action-face: 24px;
+  --lf-icon-action-face: 22px;
   margin-inline-end: -3px;
 }
 .lf-diff-fold-all[data-lf-focus-visible] {

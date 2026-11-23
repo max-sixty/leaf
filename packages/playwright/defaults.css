@@ -710,10 +710,6 @@ lf-trace-bookmark {
   min-inline-size: var(--lf-trace-control-size);
   block-size: var(--lf-trace-control-size);
 }
-/* These adjacent targets keep the shared ring inside their own allocation. */
-.lf-trace-transport-button {
-  --lf-ring-at: var(--lf-focus-ring-inset);
-}
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);
   min-inline-size: var(--lf-trace-control-size);

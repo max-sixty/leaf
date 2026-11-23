@@ -464,10 +464,14 @@ lf-option > .lf-key-badge {
   inset-inline-start: var(--lf-key-badge-start);
 }
 /* Done completes a multiple-choice obligation; pressed, it wears the commit's settled
- * tone (controls.css). It is the joined control's final cell. */
+ * tone (controls.css). It is the joined control's final cell. Done fills its cell and
+ * takes the cell's corners (`--lf-joined-r`, controls.css): its own rounding where it
+ * stands as a press of its own, and none in a joined group (below), whose clip rounds
+ * the corners Done shares with the group. */
 lf-options > lf-options-done {
   display: grid;
   padding: 0;
+  --lf-joined-r: var(--lf-r);
 }
 /* Done is the group's last row, and a stack keeps no room between its rows for a reach,
  * so its face is the floor's height where that is taller than the line, and it hangs
@@ -632,11 +636,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
-    /* The group clips to its frame, so its controls stand their rings, and every mark
-     * on them, inside their edges (base.css, "Where it stands"), or the clip cuts
-     * them. */
-    & .lf-btn {
-      --lf-ring-at: var(--lf-focus-ring-inset);
+    & > lf-options-done {
+      --lf-joined-r: 0px;
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -785,7 +786,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   .lf-another {
     --lf-ring-at: var(--lf-focus-ring-inset);
-    --lf-option-add-seat-inset: var(--lf-sp-1);
+    /* Add stands 4px clear of the row's edges, the least room that reads as standing
+       clear rather than nearly meeting them, at any density: its face is the row's
+       line and a pixel either side, inside the row's least padding
+       (`--lf-option-pad-min`), and it stands 4px from the row's end. Its hit box is
+       worked out again from its face, for the seats below. */
+    --lf-icon-action-face: calc(var(--lf-option-line) + 2px);
+    --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
+    --lf-option-add-seat-inset: 4px;
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(

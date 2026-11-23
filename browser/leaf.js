@@ -42,7 +42,6 @@ import {
   composerOpen,
   composerQuote,
   fabBar,
-  fabInput,
   pendingAbout,
   pendingAnchor,
   pendingDrawing,
@@ -367,8 +366,8 @@ async function boot() {
     paintKeys,
   });
 
-  // Where the user is in the chrome's views, a margin card or entry and the panel's
-  // thread or list, which a revision carries.
+  // Where the user is in the chrome's thread views, a margin card or entry and the
+  // panel's thread, which a revision carries.
   const captureChrome = () => {
     const margin = app?.overlay?.captureCurrentLocation() ?? null;
     const panel = floatingPanel.captureCurrentLocation();
@@ -377,7 +376,6 @@ async function boot() {
 
   const version = createVersionController({
     initialDocument,
-    compositionInput: fabInput,
     openThread: (id, options) =>
       app.threadDestinations.openPageThread(id, { ...options, travel: false }),
     refreshThread: () => app.refreshThread(),
@@ -862,8 +860,8 @@ async function boot() {
           }),
   });
   // The document's one arrival (history.js, `beginArrival`), whose intent every route
-  // it starts runs under, and which a revision's handoff joins (version.js,
-  // `installArrival`).
+  // it starts runs under, and which the handoff of a reload Leaf asked for joins
+  // (version.js, `installArrival`).
   const restoration = offlineInteractive ? null : beginArrival(threadArrival);
   // The address the document arrives at, read with its entry and before widgets add
   // their display fragment. Authored fragments take precedence, so a copied heading
@@ -871,9 +869,9 @@ async function boot() {
   const arrivalUrl = new URL(location.href);
   const arrivalIntent = restoration?.intent ?? threadArrival;
   const landFragment = version.aimArrival(arrivalIntent);
-  const { landArrival, savedView, restored } = offlineInteractive
-    ? { landArrival: async () => {}, savedView: null, restored: false }
-    : version.installArrival(restoration);
+  const { landArrival, savedView, restored } = restoration
+    ? version.installArrival(restoration)
+    : { landArrival: async () => {}, savedView: null, restored: false };
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
   // The entry's `?thread=` (thread/address.js).
   // The thread view standing open: the panel's, else a margin card's.
@@ -893,11 +891,11 @@ async function boot() {
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
   });
   threadAddress.followOpenThread();
-  // A reload, a revision's among them, or Back or Forward from another document,
+  // A reload, Leaf's own among them, or Back or Forward from another document,
   // arrives at the entry's record, which returns the user where they left it
-  // (history.js, `arrive`); a revision's handoff adds only what the record doesn't
-  // hold (version.js). Only a visit the entry kept no record of travels to the thread
-  // its address names.
+  // (history.js, `arrive`); the handoff of a reload Leaf asked for adds only what the
+  // record doesn't hold (version.js). Only a visit the entry kept no record of travels
+  // to the thread its address names.
   const threadArrive = restoration?.record
     ? null
     : threadAddress.arrive(arrivalUrl, arrivalIntent, { restored });

@@ -134,8 +134,8 @@ import { setScroll } from "./arrivals.js";
 import {
   deepFocus,
   drawn,
+  entryInputCount,
   focusDestination,
-  inputCount,
   readCaret,
   landAtReading,
 } from "./focus.js";
@@ -664,27 +664,32 @@ let draftReturn = null;
 // is one ordered operation under one intent, which its every step and every route it
 // starts runs under: a newer restoration, or any navigation but this document's own
 // rename, aborts it, as the platform aborts a traversal's own (`NavigateEvent.signal`),
-// and the user's own input ends it, for a route that moves no focus as for one that
-// does (`stands`). Until it settles, a departure, the hidden page's checkpoint or a
-// revision's handoff writes the record it owes, rather than a reading of the page it
-// is still putting back (`owes`, `readRecord`, version.js `reloadInto`);
-// so does the handoff a revision's reload brings (`extras`). It settles once every
-// piece of work it runs has (`run`), its fresh thread arrival and last fragment landing
-// among them (leaf.js), so a navigation finds it to abort until the last has run.
+// and the user's own input within the entry ends it, for a route that moves no focus
+// as for one that does (`stands`; focus.js, `entryInputCount`). Until it settles, a
+// departure, the hidden page's checkpoint or the handoff of a reload Leaf asked for
+// writes the record it owes, rather than a reading of the page it is still putting
+// back (`owes`, `readRecord`, version.js `handOff`); so does the handoff such a reload
+// brings (`extras`). It settles once every piece of work it runs has (`run`), its
+// fresh thread arrival and last fragment landing among them (leaf.js), so a navigation
+// finds it to abort until the last has run, and keys held for it wait until then
+// (`settled`, version.js `installArrival`).
 /** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
  * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
- * owes: () => boolean, extras: unknown}} Restoration */
+ * owes: () => boolean, extras: unknown, settled: Promise<void>}} Restoration */
 /** @type {Restoration | null} */
 let restoring = null;
 /** @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent
  * @param {AbortSignal | null} [ended] @param {number} [since] @returns {Restoration} */
-function beginRestoration(record, intent, ended = null, since = inputCount()) {
+function beginRestoration(record, intent, ended = null, since = entryInputCount()) {
   restoring?.abort();
   const controller = new AbortController();
   const signal = ended
     ? AbortSignal.any([ended, controller.signal])
     : controller.signal;
-  const stands = () => !signal.aborted && inputCount() === since;
+  const moved = () => entryInputCount() !== since;
+  const stands = () => !signal.aborted && !moved();
+  /** @type {PromiseWithResolvers<void>} */
+  const settled = Promise.withResolvers();
   /** @type {Restoration} */
   const restoration = {
     record,
@@ -702,12 +707,16 @@ function beginRestoration(record, intent, ended = null, since = inputCount()) {
         if (!held) settle();
       }
     },
-    owes: () => restoring === restoration && Boolean(record) && stands(),
+    // A newer navigation aborting it ends nothing it owes the entry that navigation
+    // leaves.
+    owes: () => restoring === restoration && Boolean(record) && !moved(),
     extras: null,
+    settled: settled.promise,
   };
   let held = 0;
   const settle = () => {
     if (restoring === restoration) restoring = null;
+    settled.resolve();
   };
   restoring = restoration;
   return restoration;

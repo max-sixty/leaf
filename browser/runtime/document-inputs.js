@@ -10,6 +10,9 @@
   // back from someone already using the authored page. focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
+  // The steps Back or Forward among them, which move the user to another entry rather
+  // than within the one they are on (history.js).
+  let steps = 0;
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
   // waits for is not superseded by it (bootstrap.js, `holdEarlyKeys`).
@@ -55,6 +58,9 @@
     get count() {
       return inputs;
     },
+    get steps() {
+      return steps;
+    },
     holdKeys(holds) {
       holdsKey = holds;
     },
@@ -84,11 +90,15 @@
   // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has
   // no such handler, and the `popstate` that follows the step counts. An opaque frame,
   // as a live sample is, has the API with no entries and fires only `popstate`.
+  const step = () => {
+    inputs++;
+    steps++;
+  };
   if (window.navigation?.currentEntry)
     window.navigation.addEventListener("navigate", (event) => {
-      if (event.navigationType === "traverse") inputs++;
+      if (event.navigationType === "traverse") step();
     });
-  else window.addEventListener("popstate", () => inputs++);
+  else window.addEventListener("popstate", step);
 
   Reflect.set(window, key, state);
 })();

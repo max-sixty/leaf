@@ -42,7 +42,7 @@ from browser.threads import PANEL_REPLY, open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import asked_again, wait_until_ready
 from leaf.render_gate.page_code import run_page_code
-from leaf_dev.browser import open_on_me
+from leaf_dev.browser import PANEL_THREAD, open_on_me
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -615,9 +615,10 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
     browser, serve, view, address
 ):
     """Leaf reloads the tab, not the user, so their place rides across the reload, as
-    it does into a revision that needs a fresh document (version.js, `handOff`): the
-    thread they had open, in the margin card or the floating panel they had it in, its
-    reply box with the words they had selected, and a disclosure they opened. The
+    it does into a revision that needs a fresh document, in the entry's record
+    (history.js) and the reload's handoff (version.js, `handOff`): the thread they had
+    open, in the margin card or the floating panel they had it in, its reply box with
+    the words they had selected, and a disclosure they opened. The
     handoff is spent on that reload, so an ordinary one after it keeps only what a
     reload keeps, such as the thread its address names, and not the disclosure."""
     version_url = serve(
@@ -734,8 +735,8 @@ def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
     browser, serve, view
 ):
     """The panel's lists are where the user is too: Threads, with the user on the row
-    they were on, and On Me come back open across the reload (floating-panel.js,
-    `captureCurrentLocation`)."""
+    they were on, and On Me come back open across the reload, as the entry's record
+    has them (history.js)."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -871,6 +872,80 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "resolve"
     ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_typed_through_the_reload_acts_where_the_user_is_put_back(
+    request, serve, engine
+):
+    """A key the user presses on as the tab reloads acts in the thread view the reload
+    puts them back in, as the entry's record has it (history.js): `r` resolves the
+    thread they were on in the panel, not another, though the new document hears it
+    before it has opened the view (keyboard/bindings.js, `placeHandedBack`), and the
+    panel goes on to the next thread, as a resolve there does."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>'
+            '<p id="cost">It cost four hours.</p>',
+        )
+    )
+    for thread, section in [("rows", "result"), ("hours", "cost")]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "id": thread,
+                "text": f"Why {section}?",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    open_panel_thread(page, "rows").focus()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="rows"]')).to_be_focused()
+    replaced = {"document": False}
+    answers = []
+
+    def navigated(frame):
+        if frame == page.main_frame:
+            replaced["document"] = True
+
+    def state_answer(route):
+        if replaced["document"]:
+            answers.append(route)
+        else:
+            route.fallback()
+
+    answer_as_another_runtime(page)
+    page.on("framenavigated", navigated)
+    page.route("**/api/state*", state_answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    page.wait_for_function("() => document.readyState !== 'loading'")
+    page.keyboard.press("r")
+    page.unroute("**/api/state*", state_answer)
+    for route in answers:
+        route.fallback()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+
+    resolved = wait_for(
+        lambda: [
+            event["parent"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "resolve"
+        ],
+        bool,
+        failure="the key typed through the reload resolved no thread",
+    )
+    assert resolved == ["rows"]
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="hours"]')).to_be_focused()
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):

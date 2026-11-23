@@ -1803,7 +1803,6 @@ function revisionDocument(revision) {
  * @template ObligationLocation
  * @param {{
  *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
- *   compositionInput: Element | null,
  *   openThread: Parameters<typeof replyDestination>[1],
  *   refreshThread: () => unknown,
  *   midComposition: ReturnType<typeof import("./composing/engagement.js").createEngagement>["midComposition"],
@@ -1818,7 +1817,6 @@ function revisionDocument(revision) {
  * }} controller */
 export function createVersionController({
   initialDocument,
-  compositionInput,
   openThread,
   refreshThread,
   midComposition,
@@ -2455,15 +2453,10 @@ export function createVersionController({
   // The continuity handoff to the fresh document a reload Leaf asked for loads, written
   // as this document goes (`installArrival`), so it holds the place the user left, keys
   // typed while the reload loaded included. The reload lands at `revision` or a newer
-  // one, at `url`; installArrival consumes the handoff once after upgrade. The reload
-  // returns the user to the entry's record, as every reload does (history.js): the
-  // page's place, the thread view and where they were in it, the panel's list, focus
-  // and the selection. The handoff holds only what the record doesn't, and the focus
-  // and caret of an authored control with the values typed into it, which come back in
-  // the replacement turn, so typing goes on while the page is still held back from
-  // presenting, before the record's return, which follows it. A document going while
-  // its own arrival still returns the user hands over what that arrival owes them, as
-  // the record does (history.js, `beginRestoration`).
+  // one, at `url`; installArrival consumes the handoff once after upgrade. It holds only
+  // what the entry's record doesn't (the header). A document going while its own
+  // arrival still returns the user hands over what that arrival owes them, as the
+  // record does (history.js, `beginRestoration`).
   /** @param {{revision: number, url: string}} landing */
   function handOff({ revision, url }) {
     const live = pageDocument();
@@ -3236,7 +3229,7 @@ export function createVersionController({
     );
   }
 
-  /** @param {import("./history.js").Restoration | null} arrival */
+  /** @param {import("./history.js").Restoration} arrival */
   function installArrival(arrival) {
     installReadingContinuity();
     // A reload and Back or Forward from another document return to the entry's record
@@ -3262,8 +3255,19 @@ export function createVersionController({
         ? value
         : null;
     })();
-    // Printed keys typed while the handoff is restored wait for it (`landArrival`).
-    if (handoff) handingBackPlace(true);
+    // Printed keys typed while the user is put back wait until the arrival has done so
+    // (history.js, `settled`), the entry's record's return and the handoff's restore
+    // (`landArrival`) among its work. Then they run where it put the user, as text in
+    // the box they were writing in. An input of theirs meanwhile ended the arrival, and
+    // their keys, meant for a place they never got back to, go with it.
+    if (handoff) {
+      handingBackPlace(true);
+      void arrival.settled.then(() => {
+        handingBackPlace(false);
+        if (inputCount() === 0) paintKeys();
+        else letHeldKeysGo();
+      });
+    }
     // Unreadable saved JSON means no saved view; it must not prevent page startup.
     const savedView = (() => {
       try {
@@ -3284,9 +3288,8 @@ export function createVersionController({
     // holds it until it settles and whose one intent its every step runs under, the
     // early focus of an authored control among them, so that focus doesn't end the
     // record's return.
-    if (arrival && handoff) arrival.extras = handoff;
-    const currentIntent =
-      arrival?.intent ?? retainUserIntent({ fallback: compositionInput, since: 0 });
+    if (handoff) arrival.extras = handoff;
+    const currentIntent = arrival.intent;
     const restoreCarryScroll =
       handoff && restoreCarry(handoff.carry, new Map(), currentIntent.handoff);
     // The arrival in order, returning to the entry's record where it calls for it
@@ -3320,14 +3323,6 @@ export function createVersionController({
           savedView.revision !== runtime.currentRevision
         )
           restoreView(savedView, currentIntent);
-      }).finally(() => {
-        if (!handoff) return;
-        handingBackPlace(false);
-        // The held keys run where the restore put the user, as text in the box they
-        // were writing in. An input of theirs meanwhile stopped the restore, and their
-        // keys, meant for a place they never got back to, go with it.
-        if (inputCount() === 0) paintKeys();
-        else letHeldKeysGo();
       });
     return {
       landArrival,

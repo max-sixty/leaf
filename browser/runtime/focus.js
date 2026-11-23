@@ -1090,6 +1090,10 @@ addEventListener(
 // it, and each of the user's ways of scrolling begins with one that is.
 
 export const inputCount = () => inputs.count;
+// The user's inputs within the entry they are on: all of them but their steps Back
+// and Forward, which take them to another entry. Returning them to an entry's record
+// (history.js) yields to these alone, since a step ends that return as a navigation.
+export const entryInputCount = () => inputs.count - inputs.steps;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 /** @type {typeof inputs.observe} */

@@ -3131,12 +3131,13 @@ export function createVersionController({
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
-    // The handoff prepaint took from the tab, which only a reload is handed.
+    // The handoff prepaint read for a reload of its address, dropped from the tab as the
+    // document arrives, however it arrived.
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
+      window.lfStorage.handOff(null);
       return currentRevision !== null &&
-        value?.url === location.href &&
-        Number.isInteger(value.revision) &&
+        Number.isInteger(value?.revision) &&
         value.revision <= currentRevision &&
         Number.isInteger(value.view?.revision)
         ? value

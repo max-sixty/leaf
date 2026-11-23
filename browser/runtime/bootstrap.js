@@ -464,9 +464,8 @@
       if (held.length || taken) return printed;
       // Only a printed page key starts a run. One typed into a field is the field's,
       // and Space on its own scrolls, except where the user typing through Leaf's
-      // reload means it as a word space (`typingBack`). The prepaint's `takesLetters` is
-      // also the
-      // runtime's rule, so a checkbox or radio, which takes no letters,
+      // reload means it as a word space (`typingBack`). The prepaint's `takesLetters`
+      // is also the runtime's rule, so a checkbox or radio, which takes no letters,
       // holds the key as the presented page would act on it. `leaf-text` is the
       // runtime's text field; its closed root makes the host the event's origin.
       const origin = event.composedPath()[0];

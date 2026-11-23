@@ -86,7 +86,8 @@ name a datum not yet drawn. Leaf also asks `lfRevealDatum` for the key of a thre
 the widget as it takes the user to that thread on the page, including a thread made
 on an earlier value of the data. Such a key can name a part that has since changed or gone,
 so open what would hold it, as a diff opens the file an earlier line was in, or return
-`null`.
+`null`. Leaf may ask again for a part that already shows, so leave such a part as it is
+rather than selecting or redrawing it again.
 
 A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the

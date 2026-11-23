@@ -265,6 +265,51 @@ def still_named(held: int, path: Path) -> bool:
         return False
 
 
+class LoadedCopy:
+    """The installed copy of Leaf this process loaded, held so that a process that
+    outlives the hooks that start it, such as a page server or Codex's delivery
+    adapter, can tell once its harness has put another copy at that path
+    (`replaced`).
+
+    Codex and Pi each keep one clone and update it in place (`installed_copy`).
+    Codex moves the copy aside, renames a new one into its path and deletes the old
+    one. Pi resets the clone to the new commit and then removes every file Git
+    doesn't track (`git clean -fdx`). Either way the copy's environment, the `.venv`
+    its launcher's `uv run` makes, goes once the code beside it has changed. So the
+    holder keeps a descriptor on that environment, which keeps its inode from
+    passing to another directory, and asks each pass whether the environment at the
+    copy's path is still the one it holds, which takes two stat calls. Asking Git
+    which commit the copy holds would take a process each pass, and would answer
+    between Pi's reset and its clean, when a successor's environment would still be
+    deleted.
+
+    Claude Code installs each update at a new path, as a copy without `.git`, and
+    may delete an old copy while a process still runs it, its environment possibly
+    before its directory. So a process from Claude Code's copy holds nothing, and
+    neither does one from a checkout, which whoever runs it changes when they
+    choose, or one that finds no environment at its copy's path as it starts."""
+
+    def __init__(self) -> None:
+        self._held: int | None = None
+        if installed_copy(PLUGIN_ROOT) and (PLUGIN_ROOT / ".git").exists():
+            with contextlib.suppress(FileNotFoundError):
+                self._held = os.open(PLUGIN_ROOT / ".venv", os.O_RDONLY)
+
+    def replaced(self) -> bool:
+        """Whether another copy now stands at this copy's path. Between the two
+        renames that replace Codex's copy, none does."""
+        return (
+            self._held is not None
+            and not still_named(self._held, PLUGIN_ROOT / ".venv")
+            and PLUGIN_ROOT.is_dir()
+        )
+
+    def close(self) -> None:
+        if self._held is not None:
+            os.close(self._held)
+            self._held = None
+
+
 def now_iso() -> str:
     """Now in Leaf's date-time format, which `registry.schema.aware_instant` reads."""
     return datetime.now().astimezone().isoformat(timespec="milliseconds")

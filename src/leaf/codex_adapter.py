@@ -49,17 +49,15 @@ item notification updates only a fold matching the subscription's epoch. The
 interactive client continues to handle approvals and user-input requests.
 
 An adapter outlives the hooks that start it, and Codex replaces its one installed
-copy in place (`session-lifetime.md`, "Which Leaf runs a session"). Codex moves the
-old copy aside, renames a new copy into its path and deletes the old one, environment
-included, so an adapter left running would load each module it imports later from the
-new copy, beside the old modules it already holds. An adapter from an installed copy
-therefore holds a descriptor on the copy's directory, which keeps that directory's
-inode from passing to another, and checks each pass whether another directory stands
-at the copy's path. Once one does, the adapter hands its task to an adapter from the
-new copy (`_hand_over`). As with page servers (`reconnect.py`), only an installed
-copy follows its replacement. A checkout's adapter keeps the modules it loaded and
-imports any later one from the checkout as it stands, since whoever runs a checkout
-decides when it changes.
+copy in place (`session-lifetime.md`, "Which Leaf runs a session"), deleting the old
+one, environment included, so an adapter left running would load each module it
+imports later from the new copy, beside the old modules it already holds. So an
+adapter holds the copy it loaded (`state.LoadedCopy`) and asks each pass whether
+another copy stands at its path; once one does, the adapter hands its task to an
+adapter from the new copy (`_hand_over`). As with page servers
+(`server.stop_when_service_ends`), only an installed copy follows its replacement. A
+checkout's adapter keeps the modules it loaded and imports any later one from the
+checkout as it stands, since whoever runs a checkout decides when it changes.
 
 Restarting the adapter from the task's prompt hook, as `reconnect.py` restarts a page
 server another copy started, would leave it on its deleted copy until the task's next
@@ -135,18 +133,16 @@ from .refusals import Refused
 from .service import owned_pages
 from .session import Watch, read_watch_pass
 from .state import (
-    PLUGIN_ROOT,
+    LoadedCopy,
     Record,
     described,
     ensure_session,
     flocked,
-    installed_copy,
     object_schema,
     session_file,
     session_record,
     start_session_turn,
     state_home,
-    still_named,
     turn_closed,
 )
 from .thread import delivery_reply_reserved
@@ -973,10 +969,8 @@ def run_adapter(
     with ExitStack() as resources:
         from .session_runtime import own_launcher, selected_launcher
 
-        copy = None
-        if installed_copy(PLUGIN_ROOT):
-            copy = os.open(PLUGIN_ROOT, os.O_RDONLY)
-            resources.callback(os.close, copy)
+        copy = LoadedCopy()
+        resources.callback(copy.close)
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
@@ -1024,13 +1018,7 @@ def run_adapter(
                 # before reading another page. Preparation holds the start lock
                 # until these leases and the connection are released.
                 return 0
-            # Between the two renames that replace Codex's copy, no directory
-            # stands at its path, and the check waits for the next pass.
-            if (
-                copy is not None
-                and not still_named(copy, PLUGIN_ROOT)
-                and PLUGIN_ROOT.is_dir()
-            ):
+            if copy.replaced():
                 return _hand_over(harness, codex_path, app_server, resources)
             try:
                 recovered = codex.recover_codex_receipt(harness.session)

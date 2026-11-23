@@ -804,8 +804,9 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
         if installed
         else tmp_path / "checkout"
     )
-    root.mkdir(parents=True)
-    for module in (codex_adapter_model, session_runtime_model):
+    for directory in (".git", ".venv"):
+        (root / directory).mkdir(parents=True)
+    for module in (cleanup_model, session_runtime_model):
         monkeypatch.setattr(module, "PLUGIN_ROOT", root)
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
@@ -820,7 +821,7 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
                 pytest.fail("the adapter went on after Codex replaced its copy")
             raise _NextPass
         root.rename(tmp_path / "replaced")
-        root.mkdir()
+        (root / ".git").mkdir(parents=True)
         return True
 
     monkeypatch.setattr(codex_model, "recover_codex_receipt", replace_the_copy)

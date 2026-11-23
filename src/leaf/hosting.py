@@ -873,18 +873,53 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     down, for a revival to bring back. The prompt hook restarts the server of a
     page its session holds by the same test, where it and that server both run an
     installed copy (`reconnect`); a watch reviving a page restarts nothing."""
-    from .http import page_endpoint
-
     replacing = other_serving_leaf(page_dir) is not None
     if replacing:
-        with page_locked(page_dir):
-            page_endpoint(page_dir, host_key())
+        check_servable(page_dir)
     with claim_and_start(page_dir, host, persistent) as started:
         pass
     if replacing:
         with restarting_server(page_dir, session_harness()):
             pass
     return started
+
+
+def check_servable(page_dir: Path) -> None:
+    """Refuse a page this Leaf can't serve, as a fresh bind decides it
+    (`http.page_endpoint`), before a restart takes the page from the Leaf serving
+    it, so a refusal leaves that Leaf serving."""
+    from .http import page_endpoint
+
+    with page_locked(page_dir):
+        page_endpoint(page_dir, host_key())
+
+
+def follow_copy(
+    page_dir: Path, server_id: str, harness: Harness | None, handshake: Handshake
+) -> None:
+    """`server _follow`: restart at its address, under this Leaf and for `harness`'s
+    session, the server `server_id` names, which the installed copy this Leaf
+    replaced at the same path started, and which asked
+    (`server.stop_when_service_ends`).
+
+    The answer through `handshake` says only that this copy runs, since only a
+    failed launch is worth the server's trying again. The restart
+    (`restarting_server`) then follows unless the page changed since the server
+    asked: a page this Leaf can't serve stays with the server serving it
+    (`check_servable`), for the session's next hook to renew; a server another start
+    put in place, such as a checkout's, keeps running; and a session service whose
+    session has ended retires after its grace, as it would have on the old copy.
+    These checks come last, so that little time passes between them and the stop."""
+    if not handshake.announce():
+        return
+    check_servable(page_dir)
+    running = running_server(page_dir)
+    if running is None or running["server_id"] != server_id:
+        raise Refused(f"the server that asked to restart no longer serves {page_dir}")
+    if running["lifetime"] == "session" and not claim_is_active(page_claim(page_dir)):
+        raise Refused(f"no live session holds {page_dir} any more")
+    with restarting_server(page_dir, harness):
+        pass
 
 
 class _StopScope(Enum):

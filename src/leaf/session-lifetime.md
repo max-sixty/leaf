@@ -272,18 +272,23 @@ A path names no version there, so Leaf identifies a copy by its path and commit
 
 At the session's next hook, Leaf brings what outlives a process to the Leaf that hook
 runs. A page at an older protocol is renewed (`layer-registry.md`, "Page protocol"). A
-page server keeps the Leaf that started it, and `server start` from another Leaf
-restarts it under that one at the same address (`hosting.start_page`), as the
-session's next prompt does for a page it holds where both are installed copies
-("Serving again at the next prompt"). Where the hook runs another Leaf than the
+page server keeps the Leaf that started it unless that copy is updated in place
+(below), and `server start` from another Leaf restarts it under that one at the same
+address (`hosting.start_page`), as the session's next prompt does for a page it holds
+where both are installed copies ("Serving again at the next prompt"). Where the hook runs another Leaf than the
 session's previous hook, and that Leaf ships another skill, the agent is told to read
-it again (`hooks.skill_changed` says when an edit counts). Codex's adapter follows its
-copy without waiting for a hook. Within a pass of Codex replacing the copy the adapter
-started from, the adapter releases its leases and starts a successor from the new copy.
-It holds the task's start lock until the successor holds its leases and its transport
-answers, so a claim meanwhile waits and then joins the successor (`codex_adapter.py`).
-Until then, a hook that reads the adapter lease without the start lock finds no
-adapter.
+it again (`hooks.skill_changed` says when an edit counts).
+
+A page server and Codex's adapter from a copy that Codex or Pi updates in place
+follow that copy without waiting for a hook, within a pass of the update
+(`state.LoadedCopy`). A server whose service is persistent, or whose page a live
+session holds, has the copy now at its path restart it at the same address, for the
+session holding the page where one does, and serves meanwhile
+(`server.stop_when_service_ends`). The adapter releases
+its leases and starts a successor from the new copy. It holds the task's start lock
+until the successor holds its leases and its transport answers, so a claim meanwhile
+waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
+reads the adapter lease without the start lock finds no adapter.
 
 ### A session's files
 

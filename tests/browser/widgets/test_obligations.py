@@ -660,12 +660,11 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     # the walk could stand them on instead is the measurement that says the two cannot
     # both be.
     position = page.evaluate(
-        """() => {
+        """async () => {
           const box = document.activeElement.getBoundingClientRect();
           const pick = document.querySelector('#storage-options .lf-pick')
             .getBoundingClientRect();
-          const foot = parseFloat(
-            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
+          const foot = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
           return {top: box.top, pick: pick.top, height: innerHeight - foot};
         }"""
     )
@@ -1338,7 +1337,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # for under the row. The window is sized so the sentence fits in the window but not
         # above the panel's band: the arrival lands on the change alone, and the change
         # stays where the user can read it.
-        measure = """() => {
+        measure = """async () => {
           const at = (id) => document.getElementById(id).getBoundingClientRect();
           const style = getComputedStyle(document.scrollingElement);
           return {
@@ -1346,7 +1345,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
             foot: at('sc-sug').bottom,
             view: document.scrollingElement.clientHeight,
             top: parseFloat(style.scrollPaddingTop),
-            bottom: parseFloat(style.scrollPaddingBottom),
+            bottom: (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom,
           };
         }"""
         before = page.evaluate(measure)

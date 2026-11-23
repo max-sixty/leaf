@@ -2506,6 +2506,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
             "}\n"
         )
     if upgrade:
+        (package / "widgets").mkdir(exist_ok=True)
         (package / "widgets" / f"{tag}.js").write_bytes(
             packages_model.starter_widget_module(tag)
         )

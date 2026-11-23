@@ -737,7 +737,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     parent is the shell it is placed in. A column whose box is a child of `main` takes
     the same column, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
-    root workspace fills the window while a child keeps document end room. A `main` the
+    root workspace fills the window. A `main` the
     page narrows, borders or gives scrollbar gutters is the shell the child column
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
@@ -813,8 +813,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     } == {k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")}
     for key in ("box", "regions"):
         assert in_child[key][:3] == on_main[key][:3]
-        assert in_child[key][3] < on_main[key][3]
-    assert on_main["regions"][3] == 800, on_main
+    # The root workspace ends at the window's foot less its 8px end gap.
+    assert on_main["regions"][3] == 792, on_main
 
     narrowed = "<style>main { max-width: 900px; margin-inline: auto; }</style>"
     _, in_child = measured(column_body, "column", 1440, head=narrowed)

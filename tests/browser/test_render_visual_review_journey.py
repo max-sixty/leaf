@@ -31,6 +31,10 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
+# A window narrow enough that the review flows with the page. Wider, the review fills
+# the window, its case's discussion ends under the floating panel's row at the window's
+# foot, and the comment box stands beside the case instead of in that discussion.
+FLOWING = (700, 768)
 
 
 def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
@@ -328,6 +332,7 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
 def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serve):
     """Moving a keyed case retains its comment editor, text selection and focus."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, *FLOWING)
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
     comment_on_target(page, case)
@@ -369,7 +374,7 @@ def test_a_comment_being_written_on_a_visual_case_stays_in_hand_as_the_case_goes
     Before, the case's article took the box out of the document: it blurred once, and
     a dropped case left the user on the next case's title."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 768)
+    resized(page, *FLOWING)
     datum = page.locator("#visual-review-run [data-lf-datum]").first
     case = datum.get_attribute("data-lf-datum")
     # A case with no threads draws no discussion; the box seated there opens it.

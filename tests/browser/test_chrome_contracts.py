@@ -378,9 +378,13 @@ def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     capture = panel_menu(page, "annotate").locator(
         '.lf-fp-item[data-lf-row="command:capture.region.open"]'
     )
-    moves["Capture area in"] = restyled(capture.click)
-    expect(root).to_have_attribute("data-lf-region-capture", "")
+    # Entered from the row by key, with the pointer resting on the words as for each
+    # mode above: a click would leave the pointer wherever the row stood, and over the
+    # section between paragraphs Chromium restyles all it holds (integration.css).
     page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+    capture.focus()
+    moves["Capture area in"] = restyled(lambda: page.keyboard.press("Enter"))
+    expect(root).to_have_attribute("data-lf-region-capture", "")
     expect(words).to_have_css("cursor", "crosshair")
     moves["Capture area out"] = restyled(lambda: page.keyboard.press("Escape"))
     expect(root).not_to_have_attribute("data-lf-region-capture", "")
@@ -608,10 +612,10 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     rendered(page)
     assert page.evaluate("scrollY") == scrolled
     # The band the panel states on the root, which the rule hides from the browser.
-    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+    caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);
-      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      const band = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
       return [caret.getBoundingClientRect().bottom, innerHeight - band];
     }}""")
     assert caret > band_top, (

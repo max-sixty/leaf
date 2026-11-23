@@ -1063,10 +1063,9 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# The room the document leaves at each end for chrome standing over it, beside the
-# floating panel's footprint at the window's foot: from its row's top edge down. The
-# room is in the flow, so the reading is the flow's own: what stands above the page's
-# first block and what is left under its last.
+# The room the document leaves at each end beyond `main`, beside the floating panel's
+# footprint at the window's foot: from its row's top edge down. The reading is the
+# flow's own: what stands above the page's first block and what is left under its last.
 CHROME_ROOM = """() => {
     const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();

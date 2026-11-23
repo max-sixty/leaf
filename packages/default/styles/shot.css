@@ -31,7 +31,8 @@ lf-shot {
    gutter around the frame Slider fits (`fitShotGeometry`, shot-view.js). Delivery
    paints the captures' size on the element (`data-lf-media-width`,
    `data-lf-media-height`), and a frame takes the stage's width at the captures'
-   ratio, but never enlarges them nor stands taller than the screen below the toolbar.
+   ratio, but never enlarges them past their CSS size (their bitmap's, divided by
+   `density`) nor stands taller than the screen below the toolbar.
    A page whose runtime won't run draws no shot, nor does paper, so neither holds room,
    and a browser without typed `attr()` holds only the toolbar and padding. The frame
    stands in a row beside an empty box holding only the stage's scrollbar gutter, so it
@@ -69,7 +70,20 @@ lf-shot {
       aspect-ratio: attr(data-lf-media-width type(<number>)) /
         attr(data-lf-media-height type(<number>));
       max-block-size: min(
-        attr(data-lf-media-height px),
+        attr(data-lf-media-height type(<number>)) / attr(density type(<number>), 1) *
+          1px,
+        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
+          2px
+      );
+    }
+    /* A pair that opens on its focus holds the focus's frame, which `focus-width` and
+       `focus-height` give in CSS pixels. */
+    lf-shot[data-lf-media-width][data-lf-media-height][focus-width][focus-height]:not(
+        :defined
+      )::before {
+      aspect-ratio: attr(focus-width type(<number>)) / attr(focus-height type(<number>));
+      max-block-size: min(
+        attr(focus-height px),
         var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
           2px
       );

@@ -993,6 +993,73 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
     expect(page.locator("#dd output")).to_have_text("two")
 
 
+GRIPPED = """import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/widget-api.js';
+customElements.define('lf-gripped', class extends LeafElement {
+ render() {
+  return html`<button data-lf-carry="grip">Move</button><slot></slot>`;
+ }
+});"""
+
+
+def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser, serve):
+    """A revision that rewrites a widget replaces it, and a user on a control the
+    widget's module drew is on the replacement's control of the same `data-lf-carry`
+    key. The control may stand in the widget's declared shadow root, where focus read
+    only in the page's own tree is the host's and the host would take it back. A board
+    keys each card's grip, so rewording one card leaves the user on the grip of
+    another."""
+
+    def source(words, card="First."):
+        return leaf_page(
+            "Gripped",
+            f'<h1>Gripped</h1><lf-gripped id="held"><p>{words}</p></lf-gripped>'
+            f'<lf-board id="work"><lf-column id="doing" label="Doing">'
+            f'<lf-card id="card-a" label="A"><strong>A</strong> {card}</lf-card>'
+            '<lf-card id="card-b" label="B"><strong>B</strong> Second.</lf-card>'
+            "</lf-column></lf-board>",
+        )
+
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source("One."),
+                layer_registry={
+                    "lf-gripped": {
+                        "description": "Words beside a control its module draws.",
+                        "attributes": {
+                            "type": "object",
+                            "properties": {"id": {"type": "string"}},
+                            "required": ["id"],
+                            "additionalProperties": False,
+                        },
+                        "content": "markup",
+                        "shadow": True,
+                    }
+                },
+                layer_widgets={"lf-gripped.js": GRIPPED},
+            )
+        ),
+    )
+    page.locator("#held button").focus()
+    page.evaluate("() => { window.__held = document.getElementById('held'); }")
+
+    stamp_page(serve.page_dir, source("Two."), "reword")
+    wait_for_revision(page, 2)
+    expect(page.locator("#held p")).to_have_text("Two.")
+    assert page.evaluate("window.__held !== document.getElementById('held')")
+    expect(page.locator("#held button")).to_be_focused()
+
+    page.locator("#card-b > .lf-grip").focus()
+    page.evaluate("() => { window.__card = document.getElementById('card-b'); }")
+    stamp_page(serve.page_dir, source("Two.", "First, reworded."), "reword a card")
+    wait_for_revision(page, 3)
+    expect(page.locator("#card-a")).to_contain_text("First, reworded.")
+    assert page.evaluate("window.__card !== document.getElementById('card-b')")
+    expect(page.locator("#card-b > .lf-grip")).to_be_focused()
+
+
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])
 def test_a_revision_releases_the_served_markup_it_removes(browser, serve, departure):
     """Markup the page was served with leaves memory once a revision removes it. The

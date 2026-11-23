@@ -1,8 +1,8 @@
 // @ts-check
 /* Which of the user's comments a version was saved after: where the page compares a
-   version with the one before it, as `v` does, every change it marks was made by that
-   version's revisions, so one line under each change's count says the messages that
-   waited while the version was saved (../../skills/leaf/SOUL.md, "Changes the user
+   version with the one before it, every change it marks was made by that version's
+   revisions, so one line under each change's count says the messages that waited
+   while the version was saved (../../skills/leaf/SOUL.md, "Changes the user
    requests remain understandable as they happen").
 
    The server says which, with the base's document the comparison asks for

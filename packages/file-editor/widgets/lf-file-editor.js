@@ -310,7 +310,9 @@ customElements.define(
         const of = file;
         if (of.busy) return;
         const operation = of.failure;
-        if (operation?.kind === "save") void flush(of, operation.replace, returnFrom);
+        // A failed save with nothing left to write is settled by reading the file.
+        if (operation?.kind === "save" && unsaved(of, operation.replace))
+          void flush(of, operation.replace, returnFrom);
         else void refresh(of, returnFrom);
       };
       /** @type {ReturnType<typeof createEditor> | null} */
@@ -331,6 +333,10 @@ customElements.define(
         of.base !== null && text(of) !== of.base.text;
       const unsettled = (/** @type {OpenFile} */ of) =>
         dirty(of) || of.latest !== null || of.sent !== null;
+      // Whether a save would write anything: a draft apart from its base, or one the
+      // reader chose to save over a newer disk version.
+      const unsaved = (/** @type {OpenFile} */ of, replace = false) =>
+        dirty(of) || (replace && of.latest !== null);
       // A version written elsewhere that changed other lines than the draft did joins
       // the draft, which then stands over that version and saves on its own.
       /** @param {OpenFile} of @param {FileSnapshot} current */
@@ -595,7 +601,7 @@ customElements.define(
           !of.base ||
           (of.failure && !returnFrom) ||
           (of.latest && !replace) ||
-          (!dirty(of) && !(replace && of.latest))
+          !unsaved(of, replace)
         )
           return;
         const against = replace && of.latest ? of.latest : of.base;

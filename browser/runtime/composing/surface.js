@@ -314,8 +314,7 @@ export function createResponseSurface({
   // editor stays at its home instead. The seat is judged, not the editor moved into it,
   // which measures no width until the outlet renders it; a boxless outlet is judged by
   // the box that lays out what it holds, by the same rule. So an outlet that shows only
-  // while it holds something still lays out where its editor will stand, as a visual
-  // case's discussion does (packages/visual-review/defaults.css).
+  // while it holds something still lays out where its editor will stand.
   //
   // A seat merely scrolled out of the window can take an editor as it opens, as a
   // file's comment below a long hunk: the opening's landing brings it in
@@ -324,8 +323,8 @@ export function createResponseSurface({
   // to the editor, and a resize's restore of the reader's place (version.js,
   // `restoreShifted`) can then scroll back to the place read while the editor stood
   // outside the page, which leaves the editor and the draft in it below the window, as
-  // when a window widened from a phone's width offers a visual case's discussion as the
-  // seat of the box floating beside the case.
+  // when a window widened from a phone's width offers a widget's outlet as the seat of
+  // the box floating beside its datum.
   //
   // The outlet the editor stands in keeps it wherever news, a scroll or a resize
   // carries the outlet, partly under the panel's row included. Sending the editor

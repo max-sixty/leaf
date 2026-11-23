@@ -1906,8 +1906,8 @@ wa-copy-button.lf-icon-action {
   }
 }
 /* The row face: one row of a list or menu, such as the floating panel's Threads, menu
-   and Versions, the command reference, the Page Map, a timeline's steps, a recording's
-   moments and a visual review's cases. Its words are what the reader scans, so they
+   and Versions, the command reference, the Page Map, a timeline's steps and a
+   recording's moments. Its words are what the reader scans, so they
    stand in the ink at the list's own type. Under a hovering pointer or the keys, the
    offer's wash (`--lf-offer-hover`) lies over whatever ground the row has, as an image,
    so a list's own tint shows through it; a listbox's selected option is the keys'
@@ -1918,7 +1918,7 @@ wa-copy-button.lf-icon-action {
    state, as the striped box must be, so a washed row meets the current row beside it
    edge to edge; rounded washes left a notch where they met it. The user chose this
    one over six ways of drawing rows, two hovers and four current rows (weight in
-   Versions, an ink wash and underline in a visual review, accent words on the tint
+   Versions, an ink wash and underline, accent words on the tint
    for a recording's moments). What a list adds is one of
    the row's variants (below): a thread's row lit with its passage under the pointer,
    a step still ahead muted, and a thread on the user's turn tinted. Rows meeting

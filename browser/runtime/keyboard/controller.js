@@ -103,9 +103,12 @@ export function mountKeyboard({
   // in three places.
   //
   // In capture, ahead of every listener of the page's: a key that lets go, which stops
-  // there so every key reads from where the user is, and, while Go-to or reactions are
-  // armed, a key they answer, since they own the keyboard. Any other key disarms them
-  // there and keeps its ordinary meaning, read below.
+  // there so every key reads from where the user is; a key aimed at the page itself,
+  // `body` with nothing focused, since no element of the page's has the user's focus to
+  // answer it, so Leaf's command for it runs first and keeps it from a page listener
+  // whatever that listener prevents; and, while Go-to or reactions are armed, a key they
+  // answer, since they own the keyboard. Any other key disarms them there and keeps its
+  // ordinary meaning, read below.
   document.addEventListener(
     "keydown",
     (ev) => {
@@ -118,7 +121,7 @@ export function mountKeyboard({
       // where the page stands, so the glides under way land first (scrolling.js,
       // `landForKey`), once the let-go has read where they were headed.
       landForKey(ev);
-      if (away) press(ev);
+      if (away || ev.target === document.body) press(ev);
       else if (armed() && !ev.isComposing) {
         if (run(ev)) ev.stopPropagation();
         else if (!MODIFIER_KEYS.includes(ev.key)) disarm();
@@ -135,16 +138,13 @@ export function mountKeyboard({
   // by then is the page's, as role-button-press.js reads a press, so a page widget that
   // answers a letter itself and prevents it keeps it from Leaf's page command. Read
   // again here, it would act at wherever page code had moved focus, such as the trigger
-  // a page's menu hands focus back to. Leaf's chrome stands outside `body`, and a mode
-  // armed over the page with nothing focused reads keys aimed at `body` itself, so those
-  // stay Leaf's whatever a page listener prevents.
+  // a page's menu hands focus back to. Leaf's chrome stands outside `body`, and a key
+  // aimed at `body` itself was read in capture.
   document.documentElement.addEventListener("keydown", (ev) => {
     const { target } = ev;
+    if (target === document.body) return;
     const pages =
-      ev.defaultPrevented &&
-      target instanceof Node &&
-      target !== document.body &&
-      document.body.contains(target);
+      ev.defaultPrevented && target instanceof Node && document.body.contains(target);
     if (!pages) press(ev);
   });
   // A row that `waits` is what Leaf does with a key only once nothing else has taken

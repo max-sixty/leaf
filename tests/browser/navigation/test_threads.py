@@ -650,9 +650,10 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
             if (event.target === document)
               window.lfPageTrip.push(document.scrollingElement.scrollTop);
           }, {capture: true});
-          // Registered after the runtime's own listener on the root element, which
-          // answers the shortcut there, so this reads the press's task once the walk has.
-          document.documentElement.addEventListener('keydown', () => {
+          // Nothing is focused, so the key is aimed at the page itself, and the
+          // runtime answers it in its capture listener on the document. Registered
+          // after that one, this reads the press's task once the walk has.
+          document.addEventListener('keydown', () => {
             window.lfAfterPress = {
               page: document.scrollingElement.scrollTop,
               rail: document.querySelector('#rail').scrollLeft,
@@ -660,7 +661,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
               localXFits: document.querySelector('#local').scrollWidth
                 <= document.querySelector('#local').clientWidth,
             };
-          });
+          }, {capture: true});
         }"""
     )
 

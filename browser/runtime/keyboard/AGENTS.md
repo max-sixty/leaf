@@ -47,12 +47,14 @@ what they can't see (`controller.js`). A key typed into one of Leaf's fields, a
 `leaf-text` or a search box, stops at the field once the field and the dispatcher have
 read it there (`field-keys.js`), so the page never hears it bubble, and any other Leaf
 listener that needs keys typed into a field listens in capture. While Go-to or reactions
-are armed, Leaf reads every key they answer in capture, before the page's listeners.
-Leaf reads every other key, printed letters included, on the root element: after the
-listeners on the focused control and on each element around it, the page's own among
-them, and before the page's listeners on the document and the window, which hear only a
-key Leaf leaves. A key aimed inside `body` whose default is already prevented there is
-the page's, and Leaf takes no step for it. A widget whose ARIA pattern types ahead, such
+are armed, Leaf reads every key they answer in capture, before the page's listeners. It
+also reads in capture a key aimed at `body` itself, with nothing focused: no element of
+the page's has the user's focus to answer it, so Leaf's command runs first, and a page
+listener hears only a key Leaf leaves. Leaf reads every other key, printed letters
+included, on the root element: after the listeners on the focused control and on each
+element around it, the page's own among them, and before the page's listeners on the
+document and the window, which hear only a key Leaf leaves. A key aimed inside `body`
+whose default is already prevented there is the page's, and Leaf takes no step for it. A widget whose ARIA pattern types ahead, such
 as a menu, a tree or a select-only combobox, keeps the letters and digits typed while
 focus is in it, whether or not it prevents them, as a text field and a select keep
 theirs (`text-entry.js`). A row that `waits`, as Escape letting go of a control in the

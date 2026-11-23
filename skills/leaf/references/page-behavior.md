@@ -34,15 +34,17 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   (`module-state.md`, "The widget controller"). State the script keeps itself, in memory or `localStorage`, never
   reaches the log.
 - Leaf reads a key once it has bubbled past the page's elements, letters included. So a
-  listener on an element, `body` included, hears a key before Leaf, and preventing the
-  key's default there keeps Leaf from acting on it, even on a letter Leaf's walks and
-  commands use. A listener on the document or the window hears only a key Leaf has no
-  command for where the user is, except that Escape lets go of a focused control last,
-  and only if no listener prevented it. While Leaf's Go-to or reaction keys are armed,
-  it takes every key they answer first. It leaves letters and digits to a focused field
-  or `select`, and to a focused widget that types ahead: an element whose `role` is a
-  menu, menu item, tree, tree item, listbox, option or combobox, or anything inside
-  `role="application"`. A key typed into a Leaf comment box, draft editor or search box
+  listener on a widget's element, or on `body` delegating for keys aimed inside it,
+  hears a key pressed with focus in that element before Leaf, and preventing the key's
+  default there keeps Leaf from acting on it, even on a letter Leaf's walks and commands
+  use. With nothing focused, a key is aimed at `body` itself, and Leaf's command for it
+  runs first. Put a page-wide shortcut on the document: a listener there or on the
+  window hears only a key Leaf has no command for where the user is, except that Escape
+  lets go of a focused control last, and only if no listener prevented it. While Leaf's
+  Go-to or reaction keys are armed, it takes every key they answer first. It leaves
+  letters and digits to a focused field or `select`, and to a focused widget that types
+  ahead: an element whose `role` is a menu, menu item, tree, tree item, listbox, option
+  or combobox, or anything inside `role="application"`. A key typed into a Leaf comment box, draft editor or search box
   stops at that box, so the page's listeners never hear it bubble. A key the page
   answers this way is missing from Leaf's command reference; declare it as an element's
   `lfCommands` to list it there (`module-input.md`, "Commands and keyboard routes").

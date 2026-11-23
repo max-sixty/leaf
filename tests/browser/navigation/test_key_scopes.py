@@ -782,7 +782,9 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     listener on any element and before the page's on the document and the window. So a
     page widget that answers a letter Leaf's page also uses, as a film plays on `k`,
     keeps it while focus is in the widget, and a letter it leaves unprevented goes on to
-    Leaf's page command. A command declared on a focused element runs before a page-wide
+    Leaf's page command. With nothing focused, a key is aimed at the page itself, and
+    Leaf's command for it runs first, so a listener on `body` that prevents the letter
+    neither hears it nor acts beside Leaf. A command declared on a focused element runs before a page-wide
     shortcut for the same key, which hears only what Leaf leaves; Escape leaves Design
     mode before a page listener that prevents every Escape hears it, from a focused page
     control too, and that listener hears the next Escape. Go-to owns the keyboard while it
@@ -939,6 +941,20 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     assert page.evaluate("() => [window.played, window.ran]") == [1, []]
     page.keyboard.press("j")
     assert page.evaluate("() => [window.played, window.ran]") == [1, ["scroll.down"]]
+
+    # With nothing focused, a listener on `body` that prevents the letter.
+    page.evaluate("""() => {
+      window.heard = 0;
+      document.body.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.heard += 1;
+      });
+      window.ran = [];
+      document.activeElement.blur();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.heard, window.ran]") == [0, ["scroll.up"]]
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(

@@ -30,6 +30,7 @@ import tempfile
 from pathlib import Path
 
 from leaf.render_checks import (
+    asked_again,
     open_render_context,
     open_render_page,
     rendered,
@@ -56,9 +57,9 @@ def _open(browser, url: str, viewport: dict, phone: bool):
     )
     stand_in_other_leaves(context)
     page = open_render_page(context)
-    page.goto(url)
-    wait_until_ready(page)
-    start_near_work(page)
+    page.goto(asked_again(url))
+    wait_until_ready(page, fixed_server=True)
+    start_near_work(page, fixed_server=True)
     rendered(page)
     return context, page
 

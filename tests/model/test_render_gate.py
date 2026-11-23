@@ -344,8 +344,8 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
-        reading = render_gate_model.RenderReading([*failures, *advice], [])
-        return reading, list(notices), complete
+        reading = render_gate_model.RenderReading([*failures, *advice], [], complete)
+        return reading, list(notices)
 
     def policy(*attempts):
         left = list(attempts)
@@ -386,8 +386,12 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
     assert policy(
         attempt([error], [notice]), attempt([failed], complete=False)
     ).findings == [error, failed]
-    # Nor can an attempt that did not finish ask for one.
-    assert policy(attempt([error], [notice], complete=False)).findings == [error]
+    # The reading is still the first attempt's, which read the page through.
+    assert unread.complete
+    # Nor can an attempt that did not finish ask for one, and its reading says the
+    # page was never read through.
+    stopped = policy(attempt([error], [notice], complete=False))
+    assert (stopped.findings, stopped.complete) == ([error], False)
 
 
 def test_output_contract_failures_refuse_page_and_package_checks():

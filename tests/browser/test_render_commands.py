@@ -26,6 +26,7 @@ from render_harness import (
     open_page,
     opened_tab,
     page_declarations,
+    primed,
     refuse,
     resized,
     scroll_settled,
@@ -34,6 +35,8 @@ from render_harness import (
 
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
+from leaf.render_gate import command as render_command_model
+from leaf.validation.command import check_page
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -132,6 +135,59 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         ran(missing, "page", "check", str(d), "--render"),
         "No such file or directory",
     )
+
+
+UNLINKED = {
+    "description": "A widget whose module imports a name the imported module lacks.",
+    "attributes": {
+        "type": "object",
+        "properties": {},
+        "required": ["id"],
+        "additionalProperties": False,
+    },
+    "content": "empty",
+    "example": '<lf-unlinked id="example"></lf-unlinked>',
+}
+UNLINKED_MODULE = """
+import { notExported } from '/runtime/portable-api.js';
+customElements.define('lf-unlinked', class extends HTMLElement {
+  connectedCallback() { this.textContent = notExported; }
+});
+"""
+
+
+def test_a_render_check_names_the_import_a_package_module_fails_to_link(
+    browser, serve, monkeypatch
+):
+    """A package widget's module that imports a name the imported module doesn't
+    export fails to link, so the page says it cannot start. `page check --render`
+    reports the render gate's finding, which quotes the browser's message naming the
+    module and the name. It takes no screens: the page never got ready, and a second
+    page would only wait for it to. The page has no code of its own, so the render
+    gate is the only gate that reads it."""
+    serve(
+        leaf_page("Unlinked", '<lf-unlinked id="unlinked"></lf-unlinked>'),
+        packages=(),
+        layer_registry={"lf-unlinked": UNLINKED},
+        layer_widgets={"lf-unlinked.js": UNLINKED_MODULE},
+    )
+    opened = []
+    # Screens open a context of their own, which this browser doesn't lend.
+    gate = primed(browser.unwatched, opened.append)
+    monkeypatch.setattr(
+        render_command_model,
+        "run_in_browser",
+        lambda read, engine: (read(gate), "the suite's browser"),
+    )
+    report, _ = check_page(serve.page_dir, render=True)
+    assert report["status"] == 1, report
+    assert report["browser"]["asked"] == ["render check"]
+    [failure] = [f for f in report["findings"] if f["severity"] == "error"]
+    assert failure["code"] == "no-runtime", failure
+    assert "/runtime/portable-api.js" in failure["text"], failure
+    assert "notExported" in failure["text"], failure
+    assert "screens" not in report["browser"], report
+    assert len(opened) == 1, opened
 
 
 @pytest.mark.parametrize("touch", [False, True])

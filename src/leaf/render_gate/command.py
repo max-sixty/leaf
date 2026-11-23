@@ -155,8 +155,9 @@ class BrowserCheck:
     the check before the render reading, so `render` is None there as well as where
     it was not asked for, and `ran` names only the gates that read the page.
     `screens` is the directory and each saved screen with what it shows, including
-    when the render gate found failures. `desktop` is the window the render check
-    reads the desktop at, where it was asked for."""
+    when the render gate found failures, and None where its reading stopped early
+    (`browser_check`). `desktop` is the window the render check reads the desktop at,
+    where it was asked for."""
 
     gates: list[str]
     browser: str | None = None
@@ -224,7 +225,10 @@ def browser_check(
     it), then the render invariants at the desktop window `desktop_viewport` chooses,
     saving the screens
     the author reads where `screens` asks, including when there are findings. Page code
-    that fails ends the check before the render reading."""
+    that fails ends the check before the render reading. A render reading that stopped
+    early (`RenderReading.complete`) ends the check before the screens: a screen is
+    taken of a ready page, and what stopped the reading, such as a page that cannot
+    start, would stop that page too."""
     artifact = snapshot.artifact(snapshot.active_revision())
     gates = [
         gate
@@ -254,7 +258,7 @@ def browser_check(
             errors,
             reading,
             save_screens(browser, url, reading, page_dir, desktop.viewport)
-            if screens
+            if screens and reading.complete
             else None,
         )
 
@@ -268,7 +272,7 @@ def browser_check(
             return BrowserCheck(
                 gates,
                 page_code=missed if page_code else None,
-                render=RenderReading(missed, []) if render else None,
+                render=RenderReading(missed, [], complete=False) if render else None,
                 desktop=desktop,
             )
     return BrowserCheck(gates, browser_name, errors, reading, saved, desktop=desktop)

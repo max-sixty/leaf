@@ -108,9 +108,20 @@ def page_instructions(
             parts.setdefault(Path(name).stem, []).append(text)
     for contract in selected_contracts:
         declaration = registry["$data"]["contracts"][contract]
-        for audience, text in sorted(declaration.get("instructions", {}).items()):
+        said = {
+            audience: [text.strip()]
+            for audience, text in declaration.get("instructions", {}).items()
+        }
+        # The page's author writes the buttons that send a holder its commands.
+        if commands := declaration.get("commands"):
+            said.setdefault("author", []).append(
+                "A button whose `commandfor` names a widget holding this contract"
+                " sends one of these as its `command`:\n\n"
+                + "\n".join(f"- `{name}`: {asks}" for name, asks in commands.items())
+            )
+        for audience, texts in sorted(said.items()):
             parts.setdefault(audience, []).append(
-                f"# Data contract `{contract}`\n\n{text.strip()}"
+                f"# Data contract `{contract}`\n\n" + "\n\n".join(texts)
             )
     for name in selected_entries:
         said = [

@@ -2009,6 +2009,90 @@ def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
         ids=["film"],
     )
 
+
+def test_a_custom_command_is_one_its_targets_contracts_list(page_dir):
+    """A contract lists the commands a widget holding it takes, so a button sending
+    that widget any other custom command would do nothing, with no error from the
+    browser. A widget holding two contracts takes what either lists. A widget whose
+    contracts list none says nothing of what it takes, and a widget reading a contract
+    sends its commands and takes none of them, so neither is held to a list."""
+    widget = {
+        "description": "A test widget.",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}, "for": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+    }
+
+    def contract(**members):
+        return {"description": "Test data.", "schema": {"type": "object"}, **members}
+
+    def declare(registry):
+        registry["$data"]["contracts"].update(
+            picks=contract(commands={"--toggle": "The button's value is a key."}),
+            order=contract(commands={"--sort": "The button's value is a field."}),
+            notes=contract(),
+        )
+        registry["lf-test-picker"] = {
+            **widget,
+            "outputs": {"picks": {"contract": "picks"}, "order": {"contract": "order"}},
+        }
+        registry["lf-test-notes"] = {
+            **widget,
+            "outputs": {"notes": {"contract": "notes"}},
+        }
+        registry["lf-test-reader"] = {
+            **widget,
+            "inputs": {"picks": {"contract": "picks", "reference": "for"}},
+            "refers": {"for": {}},
+        }
+
+    declare_on_page(page_dir, declare)
+    source = PAGE.replace(
+        "</main>",
+        '<lf-test-picker id="picker"></lf-test-picker>'
+        '<lf-test-notes id="notes"></lf-test-notes>'
+        '<lf-test-reader id="reader" for="picker"></lf-test-reader>'
+        + "".join(
+            f'<button commandfor="{target}" command="{command}">Go</button>'
+            for target, command in (
+                ("picker", "--toggle"),
+                ("picker", "--sort"),
+                ("picker", "--sek"),
+                ("notes", "--sek"),
+                ("reader", "--sek"),
+            )
+        )
+        + "</main>",
+    )
+    (page_dir / "index.html").write_text(source)
+    unlisted = {"command": "--sek", "target": "picker", "takes": ["--sort", "--toggle"]}
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    (refused,) = [finding for finding in findings if finding.refuses]
+    assert found([refused], "unknown-command", "<button>", **unlisted), refused
+
+    # A message's button reaches the page's widget, and is held to the same list.
+    in_message = message_markup_findings(
+        page_dir,
+        structure_model.SourceDocument(
+            '<button commandfor="picker" command="--sek">Go</button>'
+        ),
+        events_model.read_events(page_dir),
+        read_page_registry(page_dir).registry,
+        structure_model.SourceDocument(source),
+        set(),
+        [],
+        {},
+        None,
+    )
+    assert found(in_message, "unknown-command", **unlisted), in_message
+
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>", '<button commandfor="nowhere" command="seek">Go</button></main>'

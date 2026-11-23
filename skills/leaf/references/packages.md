@@ -221,9 +221,9 @@ leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
 `instructions` to `author`, along with the entries its `example` uses and the
 contracts its `inputs` and `outputs` name, whose instructions join their own
-audiences. It reads the layer the page selects and any `page/registry.json`, so it
-works before the page has markup. `page-authoring.md`, "Read the registry", says when
-an author reads each part.
+audiences and whose `commands` join `author`. It reads the layer the page selects and
+any `page/registry.json`, so it works before the page has markup. `page-authoring.md`,
+"Read the registry", says when an author reads each part.
 
 A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
 colours with the page's status.

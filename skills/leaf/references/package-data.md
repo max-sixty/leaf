@@ -9,11 +9,11 @@ whose authors never met work together on a Leaf page and on a page without Leaf.
 names the other by id in an attribute it declares under `refers`, `for` by
 convention ("References between widgets"), and then:
 
-| To                                               | Use                                                                                                                                                   | `page check` holds                                         |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract |
-| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                   |
-| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                               |
+| To                                               | Use                                                                                                                                                   | `page check` holds                                                                                               |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract                                                       |
+| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element, and sends a command that element's contracts list, where they list any |
+| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                                                                                     |
 
 A recorded answer stays its owner's, and only the owner's module records it
 ("User state"). Another widget shows that answer by reading an output the owner holds,
@@ -26,10 +26,11 @@ since the server has to place it.
 
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
-one copy, and `page check --render` holds what the producer holds to it. What a
-producer of the contract must take as commands goes in the contract's `instructions`,
-under `producer`: `leaf page instructions --use` returns it for a widget on either
-side of the contract.
+one copy, and `page check --render` holds what the producer holds to it. The
+contract's `commands` list the commands its producer must take ("Asking another widget
+to act"), and its `instructions`, under `producer`, say anything else the producer
+must do. `leaf page instructions --use` returns both for a widget on either side of
+the contract.
 
 `package check` reads one package, so check a pair on a page. Start one in a directory
 outside both packages that selects them by path, write both widgets into its
@@ -61,10 +62,28 @@ this.addEventListener("command", (event) => {
 A custom command's name starts with `--`; HTML's own, such as `show-modal` and
 `toggle-popover`, act on dialogs and popovers. An argument rides on the button's
 `value`, and `type="button"` keeps a button inside a form from submitting it
-instead. The target's `description` says which commands it takes and what each
-value means, since nothing else tells a page's author. `page check` refuses an
-authored button whose `commandfor` names no element, or whose `command` is neither
-kind; a custom command the target doesn't handle does nothing, with no error.
+instead. `page check` refuses an authored button whose `commandfor` names no element,
+or whose `command` is neither kind.
+
+A custom command the target doesn't handle does nothing, with no error. So a contract
+lists the commands a widget holding it takes, in `commands`, each with a sentence
+saying what the command asks and what the button's `value` means:
+
+```json
+"merge-frame": {
+  "commands": { "--seek": "Holds the result of the step the button's `value` names." }
+}
+```
+
+A widget holds the contract of each output it declares ("Widget outputs"). Once those
+contracts list a command, `page check` also refuses an authored button that sends the
+widget a custom command none of them lists. So a widget's contracts together list
+every command it takes. Only outputs count: a widget that reads a contract through an
+input sends that contract's commands and takes none of them.
+
+`page check` leaves a custom command unchecked where its target's contracts list none,
+or its target holds no contract. Such a target's `description` says which commands it
+takes and what each value means, since nothing else tells a page's author.
 
 A request no button makes, such as a dragged handle or a typed number, is the same
 event, dispatched by the module with its own element as the source and the argument as

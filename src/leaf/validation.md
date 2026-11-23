@@ -60,8 +60,9 @@ captured copy. A layer's sheets and modules are validated wherever a Leaf compos
 its files (`layer-registry.md` says where).
 
 An authored `commandfor` is checked as a reference is, and its `command` for one the
-browser delivers (`instances.invoker_errors`), since the browser reports nothing for a
-button that reaches no element.
+browser delivers and, at a widget whose contracts list commands, for one they list
+(`instances.invoker_errors`). The browser reports nothing for a button that reaches no
+element, or that sends a command its target ignores.
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening

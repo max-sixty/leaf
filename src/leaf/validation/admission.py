@@ -344,13 +344,14 @@ def _message_stages(
     # A reference reads the message's own document and then the page
     # (`runtime/references.js`), so an id in another message would resolve to nothing.
     ids = page.ids | frag.ids
+    by_id = {**page.by_id, **frag.by_id}
     yield reference_errors(
         frag.lf_elements,
         registry,
         ids,
-        {**page.by_id, **frag.by_id},
+        by_id,
         thread_ids=thread_ids(events),
-    ) + invoker_errors(frag, ids)
+    ) + invoker_errors(frag, registry, ids, by_id)
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.
     looping = sorted(

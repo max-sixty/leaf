@@ -1309,9 +1309,15 @@ _TEXT = {
     "unknown-command": _refuses(
         _REFERS,
         lambda at, v: (
-            f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s'
-            " commands nor a custom command, which starts with --, so the button"
-            " would do nothing"
+            f'{_line(at, v)}: command="{v["command"]}" is '
+            + (
+                f'none of the commands the contracts of "{v["target"]}" list'
+                f" ({', '.join(v['takes'])})"
+                if "takes" in v
+                else "neither one of HTML's commands nor a custom command, which"
+                " starts with --"
+            )
+            + ", so the button would do nothing"
         ),
     ),
     "nested-suggestion": _refuses(

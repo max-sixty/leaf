@@ -92,12 +92,38 @@ from model.interact_contract import declare_vocabulary, vocabulary
             "contract-resource",
             {"contract": "builds", "expression": "images["},
         ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "commands": ["--rerun"],
+                }
+            },
+            "layer-facts",
+            {"keyword": "type", "path": ["$data", "contracts", "builds", "commands"]},
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "commands": {"rerun": "The button's value names a build."},
+                }
+            },
+            "layer-facts",
+            {
+                "keyword": "pattern",
+                "path": ["$data", "contracts", "builds", "commands"],
+            },
+        ),
     ],
 )
 def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, values):
-    """A contract is executable widget vocabulary: its name carries meaning and its
-    schema admits bytes to the browser, so package checking refuses an ambiguous name,
-    an undocumented contract, or a schema no boundary can run."""
+    """A contract is executable widget vocabulary: its name carries meaning, its
+    schema admits bytes to the browser and its commands are what `page check` holds a
+    button to, so package checking refuses an ambiguous name, an undocumented
+    contract, a schema no boundary can run, or a command no button can send."""
     registry = vocabulary(page_dir)
     registry["$data"]["contracts"] = contracts
     declare_vocabulary(page_dir, registry)

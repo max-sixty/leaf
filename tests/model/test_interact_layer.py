@@ -5630,6 +5630,7 @@ def instruction_page(tmp_path: Path, monkeypatch):
                 "description": "Records a widget holds for others to read.",
                 "schema": {"type": "object"},
                 "instructions": {"producer": "Hold the records whole."},
+                "commands": {"--clear": "Drops every record."},
             },
             "instruction-records": {
                 "description": "Records for the selected widget.",
@@ -5691,6 +5692,9 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
         in (holder["producer"])
     )
     assert "instruction-held" not in selected["producer"]
+    # The commands a holder takes reach whoever writes a button that sends one.
+    assert "`--clear`: Drops every record." in holder["author"]
+    assert "--clear" not in holder["producer"] + selected["author"]
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):

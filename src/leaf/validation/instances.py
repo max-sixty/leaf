@@ -328,12 +328,22 @@ def reference_errors(
     return errors
 
 
-def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
+def invoker_errors(
+    parser: SourceDocument, registry: dict, ids: set, by_id: dict
+) -> list[Finding]:
     """Each authored `commandfor` the browser would leave doing nothing, with no error:
-    one naming no element, or whose `command` is neither one of HTML's own nor a custom
-    one, which starts with `--`. `ids` is the namespace `reference_errors` reads for
-    the same document. Whether the target handles a custom command is its module's to
-    say, in its description; no declaration lists them.
+    one naming no element, one whose `command` is neither one of HTML's own nor a
+    custom one, which starts with `--`, and a custom one its target's contracts don't
+    list. `ids` and `by_id` are the namespace `reference_errors` reads for the same
+    document.
+
+    A contract's `commands` list the commands a widget holding it takes, and a widget
+    holds the contract of each output it declares. Once those contracts list a
+    command, the widget takes only the commands they list between them. A widget
+    whose contracts list no command, and a target that is no widget, declare nothing
+    about the commands they take, so a button naming one is checked no further. An
+    input's contract doesn't count, since a widget reading a contract sends its
+    commands and takes none of them.
 
     The browser finds a `commandfor` target in the button's own tree, the first element
     with that id in tree order, where a `refers` reader looks in its message first and
@@ -342,6 +352,7 @@ def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
     checks admit, since `ids-taken` and `ids-taken-by-messages` keep an id to one element
     across the page and its messages. A live sample's document is its own tree, checked
     here on its own ids."""
+    contracts = registry["$data"]["contracts"]
     errors = []
     for rec in parser.authoring.invokers:
         target, command = rec["target"], rec["command"]
@@ -349,8 +360,28 @@ def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
             errors.append(
                 found_at("unknown-reference", rec, attr="commandfor", target=target)
             )
-        elif not command.startswith("--") and command.lower() not in _NATIVE_COMMANDS:
-            errors.append(found_at("unknown-command", rec, command=command))
+        elif not command.startswith("--"):
+            if command.lower() not in _NATIVE_COMMANDS:
+                errors.append(found_at("unknown-command", rec, command=command))
+        else:
+            holder = registry.get(by_id.get(target, {}).get("tag"), {})
+            takes = sorted(
+                {
+                    name
+                    for output in holder.get("outputs", {}).values()
+                    for name in contracts[output["contract"]].get("commands", ())
+                }
+            )
+            if takes and command not in takes:
+                errors.append(
+                    found_at(
+                        "unknown-command",
+                        rec,
+                        command=command,
+                        target=target,
+                        takes=takes,
+                    )
+                )
     return errors
 
 

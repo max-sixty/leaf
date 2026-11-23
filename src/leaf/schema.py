@@ -526,6 +526,13 @@ LAYER_FACTS = {
                             "additionalProperties": False,
                         },
                         "resources": {"type": "array", "items": _NONEMPTY},
+                        # Each custom invoker command a widget holding the contract
+                        # takes, with what it asks (`instances.invoker_errors`).
+                        "commands": {
+                            "type": "object",
+                            "propertyNames": {"pattern": "^--"},
+                            "additionalProperties": _NONEMPTY,
+                        },
                     },
                     "required": ["description", "schema"],
                     "additionalProperties": False,

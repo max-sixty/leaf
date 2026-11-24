@@ -665,35 +665,33 @@ let draftReturn = null;
 // is one ordered operation under one intent, which its every step and every route it
 // starts runs under: a newer restoration, or any navigation but this document's own
 // rename, aborts it, as the platform aborts a traversal's own (`NavigateEvent.signal`),
-// and the user's own input ends it, for a route that moves no focus as for one that
-// does (`stands`), a step Back or Forward among them, which ends a document's arrival
-// before the document handles its traversals (`mountHistory`). Until it settles, a
+// and the user's own input within the entry ends it, for a route that moves no focus
+// as for one that does (`stands`; focus.js, `entryInputCount`). A step Back or Forward
+// is no such input: every restoration begins once the document handles its
+// traversals (`mountHistory`), so a later step is a navigation, which aborts it, and
+// an earlier one brought the user to the entry it returns to. Until it settles, a
 // departure, the hidden page's checkpoint or the handoff of a reload Leaf asked for
 // writes the record it owes, rather than a reading of the page it is still putting
-// back (`owes`, `readRecord`, version.js `handOff`), unless the user's input within the
-// entry has moved them (focus.js, `entryInputCount`): the step that leaves the entry
-// still writes it. So does the handoff such a reload brings (`extras`). It settles once every piece of work it runs has (`run`), its
-// fresh thread arrival and last fragment landing among them (leaf.js), so a navigation
-// finds it to abort until the last has run, and keys held for it wait until then
-// (`settled`, version.js `installArrival`).
+// back (`owes`, `readRecord`, version.js `handOff`), the step that leaves the entry
+// among them. So does the handoff such a reload brings (`extras`). It settles once
+// every piece of work it runs has (`run`), its fresh thread arrival and last fragment
+// landing among them (leaf.js), so a navigation finds it to abort until the last has
+// run, and keys held for it wait until then (`settled`, version.js `installArrival`).
 /** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
  * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
  * owes: () => boolean, extras: unknown, settled: Promise<void>}} Restoration */
 /** @type {Restoration | null} */
 let restoring = null;
 /** @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent
- * @param {AbortSignal | null} [ended] @param {boolean} [fromStart] the document's own
- * arrival, which counts the user's inputs from the document's start
- * @returns {Restoration} */
-function beginRestoration(record, intent, ended = null, fromStart = false) {
+ * @param {AbortSignal | null} [ended] @param {number} [since] @returns {Restoration} */
+function beginRestoration(record, intent, ended = null, since = entryInputCount()) {
   restoring?.abort();
   const controller = new AbortController();
   const signal = ended
     ? AbortSignal.any([ended, controller.signal])
     : controller.signal;
-  const inputs = fromStart ? 0 : inputCount();
-  const withinEntry = fromStart ? 0 : entryInputCount();
-  const stands = () => !signal.aborted && inputCount() === inputs;
+  const moved = () => entryInputCount() !== since;
+  const stands = () => !signal.aborted && !moved();
   /** @type {PromiseWithResolvers<void>} */
   const settled = Promise.withResolvers();
   /** @type {Restoration} */
@@ -713,8 +711,7 @@ function beginRestoration(record, intent, ended = null, fromStart = false) {
         if (!held) settle();
       }
     },
-    owes: () =>
-      restoring === restoration && Boolean(record) && entryInputCount() === withinEntry,
+    owes: () => restoring === restoration && Boolean(record) && !moved(),
     extras: null,
     settled: settled.promise,
   };
@@ -727,19 +724,22 @@ function beginRestoration(record, intent, ended = null, fromStart = false) {
   return restoration;
 }
 
-// The document's arrival at the entry it stands on: the restoration of the record that
-// entry kept, where the document came by a reload or by Back or Forward from another
-// document (the Navigation API's `activation`), and of none for a fresh visit, whose
-// address alone says where to go, under the arrival's intent still.
-/** @param {ReturnType<typeof retainUserIntent>} intent */
-export function beginArrival(intent) {
+// The document's arrival at the entry it stands on as the arrival begins: the
+// restoration of the record that entry kept, where the document came by a reload or by
+// Back or Forward from another document (the Navigation API's `activation`), and of
+// none for a fresh visit, whose address alone says where to go, under the arrival's
+// intent still. Its intent counts the user's inputs from the document's start, as a
+// document arrival's does (user-intent.js), but for the steps Back or Forward taken
+// before Leaf began, which brought the user to the entry it returns to.
+export function beginArrival() {
   const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;
   const record =
     type === "reload" || type === "traverse"
       ? (/** @type {EntryRecord | undefined} */ (entry?.getState()) ?? null)
       : null;
-  return beginRestoration(record, intent, null, true);
+  const steps = inputCount() - entryInputCount();
+  return beginRestoration(record, retainUserIntent({ since: steps }), null, 0);
 }
 // The restoration under way, whose record and extras a departure writes while it owes
 // them.

@@ -403,10 +403,14 @@ def test_a_revision_keeps_a_field_being_typed_in_where_it_stood(request, serve, 
 
 
 @pytest.mark.parametrize("engine", ENGINES)
-def test_back_during_a_revisions_arrival_ends_it(request, serve, engine):
+@pytest.mark.parametrize("when", ["before Leaf starts", "as the arrival waits"])
+def test_back_during_a_revisions_arrival_ends_it(request, serve, engine, when):
     """Back while a revision's reload is still arriving ends that arrival: the page
-    stays at the entry Back reached, rather than going back to where the revision's
-    entry was once the arrival's first reading of the page comes."""
+    stays at the entry Back reached and returns the user to that entry's record, rather
+    than going back to where the revision's entry was once the arrival's first reading
+    of the page comes. So it does whether Back lands before Leaf's modules have started,
+    while only the platform hears it, or once the arrival has begun and waits for the
+    page's state; and Forward then returns to the entry the reload was for."""
     url = live_url(serve(LONG_PAGE))
     first = panel_comment(
         serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
@@ -423,23 +427,44 @@ def test_back_during_a_revisions_arrival_ends_it(request, serve, engine):
     page.keyboard.press("t")
     expect(card).to_have_attribute("data-lf-thread", second)
     scroll_settled(page)
-    assert abs(page.evaluate("scrollY") - at) > 200
+    there = page.evaluate("scrollY")
+    assert abs(there - at) > 200
     page.wait_for_function("navigation.transition === null")
+    # The arriving document's entry module, held so Back lands before Leaf starts.
+    module = []
+    if when == "before Leaf starts":
+        page.route("**/leaf.js", lambda route: module.append(route))
     held = hold_the_next_documents_reading(page)
     try:
         stamp_page(serve.page_dir, executable_revision(LONG_PAGE, "back"), "Revise")
-        holding(page, held, 1, "the arriving document's first reading")
+        if when == "before Leaf starts":
+            holding(page, module, 1, "the arriving document's entry module")
+        else:
+            holding(page, held, 1, "the arriving document's first reading")
+            wait_until_ready(page, through="upgraded")
         page.evaluate("history.back()")
         page.wait_for_function(
             f"new URL(location.href).searchParams.get('thread') === '{first}'"
         )
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+        module.clear()
         release(page, held)
         wait_until_ready(page)
         expect(card).to_have_attribute("data-lf-thread", first)
         scroll_settled(page)
         assert abs(page.evaluate("scrollY") - at) <= 2
         assert new_url_thread(page) == first
+        page.wait_for_function("navigation.transition === null")
+        page.go_forward()
+        expect(card).to_have_attribute("data-lf-thread", second)
+        scroll_settled(page)
+        assert abs(page.evaluate("scrollY") - there) <= 2
     finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
         release(page, held)
 
 

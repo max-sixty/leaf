@@ -39,7 +39,9 @@ const displaced = (source, at) => {
 // Capture before the first asynchronous step. Pass this same predicate into nested
 // reveals; capturing again after a wait gives stale work a newer gesture's authority.
 // Document arrival names count zero: its work began before any module loaded,
-// so a reader already using that document owns it even before this call runs.
+// so a reader already using that document owns it even before this call runs. The
+// return to an entry's record leaves out the steps Back or Forward that brought the
+// document to that entry (history.js, `beginArrival`).
 // The source is held weakly: an intent can be kept long after its gesture, as a reading
 // place keeps one, and a source the document has since dropped can neither hold focus
 // nor be what focus was carried from, so it answers nothing a held node would.

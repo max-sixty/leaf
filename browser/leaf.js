@@ -206,7 +206,6 @@ async function boot() {
   // Automatic recovery belongs to this arrival. A press made while its presentation
   // waits owns the page; recovery must not capture a fresh focus intent after that wait.
   const recoverComposer = retainUserIntent({ since: 0 });
-  const threadArrival = retainUserIntent({ since: 0 });
 
   // This declaration belongs to the executable document lifetime. The revision capture
   // includes it in executable identity, so selecting another presentation retires this
@@ -862,12 +861,12 @@ async function boot() {
   // The document's one arrival (history.js, `beginArrival`), whose intent every route
   // it starts runs under, and which the handoff of a reload Leaf asked for joins
   // (version.js, `installArrival`).
-  const restoration = offlineInteractive ? null : beginArrival(threadArrival);
+  const restoration = offlineInteractive ? null : beginArrival();
   // The address the document arrives at, read with its entry and before widgets add
   // their display fragment. Authored fragments take precedence, so a copied heading
   // still reaches its passage.
   const arrivalUrl = new URL(location.href);
-  const arrivalIntent = restoration?.intent ?? threadArrival;
+  const arrivalIntent = restoration?.intent ?? retainUserIntent({ since: 0 });
   const landFragment = version.aimArrival(arrivalIntent);
   const { landArrival, savedView, restored } = restoration
     ? version.installArrival(restoration)

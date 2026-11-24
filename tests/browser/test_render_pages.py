@@ -7,6 +7,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
@@ -406,6 +407,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     url = serve(TWIN_V1)
     d = serve.page_dir
     monkeypatch.setenv("LEAF_SESSION_ID", "codex")
+    hooks_run_this_tree("codex")
     monkeypatch.setenv("LEAF_AGENT", "Codex")
     assert (
         CliRunner()

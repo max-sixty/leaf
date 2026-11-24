@@ -1010,12 +1010,32 @@ def session_harness() -> Harness | None:
     ranked by how far above this process each one's `process_pid` runs, and the
     order below breaks a tie.
 
-    A Leaf other than the one that session's hooks run, such as a checkout's
-    `bin/leaf` run from the session's shell, finds no harness (`state.runs_session`),
-    and so acts as a command from a bare shell does: it claims nothing, writes none
-    of the session's records, and serves a page unclaimed. The user chose that
-    developing Leaf works as developing any project does, so a checkout's version,
-    page protocol included, never reaches the session."""
+    A Leaf that doesn't act for that session (`state.runs_session`), such as a
+    checkout's `bin/leaf` run from the session's shell, finds no harness, and so acts
+    as a command from a bare shell does: it claims nothing, writes none of the
+    session's records, and serves a page unclaimed. The user chose that developing
+    Leaf works as developing any project does, so a checkout's version, page
+    protocol included, never reaches the session. A command whose result the agent
+    would read as the session's says so (`unserved_session`)."""
+    named = _named_session()
+    if named is None or not runs_session(named[1]):
+        return None
+    harness, session = named
+    return harness(
+        session=session,
+        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
+    )
+
+
+def unserved_session() -> str | None:
+    """The session the environment names where this Leaf doesn't act for it
+    (`session_harness`), or None."""
+    named = _named_session()
+    return named[1] if named is not None and not runs_session(named[1]) else None
+
+
+def _named_session() -> tuple[type[EnvironmentHarness], str] | None:
+    """The nearest harness the environment names, with its session id."""
     implied = [
         (harness, session)
         for harness in _ENVIRONMENT_HARNESSES
@@ -1028,15 +1048,7 @@ def session_harness() -> Harness | None:
     if len(implied) > 1:
         depth = {pid: index for index, (pid, _) in enumerate(ancestry())}
         implied.sort(key=lambda pair: depth.get(pair[0].process_pid(), len(depth)))
-    if not implied:
-        return None
-    harness, session = implied[0]
-    if not runs_session(session):
-        return None
-    return harness(
-        session=session,
-        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
-    )
+    return implied[0] if implied else None
 
 
 def hook_harness(name: str, session: str) -> EnvironmentHarness:

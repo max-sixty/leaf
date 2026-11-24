@@ -804,6 +804,9 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     for directory in (".git", ".venv"):
         (root / directory).mkdir(parents=True)
     monkeypatch.setattr(cleanup_model, "PLUGIN_ROOT", root)
+    if not installed:
+        # A checkout acts for the task only where the task's hooks run it.
+        leases_model.mark_skill("codex-thread", f"{root}\nits skill")
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
         codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]

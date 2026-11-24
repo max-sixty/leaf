@@ -28,7 +28,13 @@ from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
 from .findings import Finding, note, with_held
-from .harness import Harness, claim_harness, harness_argument, session_harness
+from .harness import (
+    Harness,
+    claim_harness,
+    harness_argument,
+    session_harness,
+    unserved_session,
+)
 from .leases import (
     end_if_terminated,
     lock_is_held,
@@ -63,6 +69,7 @@ from .service import (
     refuse_held,
     same_claim,
 )
+from .state import PLUGIN_ROOT
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord
@@ -835,6 +842,18 @@ def claim_and_start(
     if claim is None and not persistent and harness is not None:
         claim = prepare_claim(harness, page_dir)
         delivery = harness.preparing_delivery()
+    elif harness is None and (session := unserved_session()):
+        # The agent would read this start as its session's.
+        note(
+            Finding(
+                "serves-for-no-session",
+                values={
+                    "page": str(page_dir),
+                    "session": session,
+                    "leaf": str(PLUGIN_ROOT),
+                },
+            )
+        )
     with delivery:
         try:
             with _starting_server(
@@ -1112,9 +1131,7 @@ def restarting_server(
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
     """Whether `harness`'s session may restart a session service: its claim is that
-    session's. False when no live session holds it any more; a refusal when
-    another one does (`service.refuse_held`)."""
-    if not claim_is_active(page_claim(page_dir)):
-        return False
+    session's. A refusal where another session may hold it (`service.refuse_held`),
+    and False where no live session does any more."""
     refuse_held(page_dir, harness)
-    return True
+    return claim_is_active(page_claim(page_dir))

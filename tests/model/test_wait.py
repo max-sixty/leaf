@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     HELD_LEASES,
     STATED_TIMEOUT,
@@ -644,6 +645,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     pages rather than the argument, so four leaves cost one command between
     them, and the line that wakes the session says which page spoke."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
+    hooks_run_this_tree("s9")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s9")  # its harness runs Leaf's hooks
     second = tmp_path / "second"
@@ -851,6 +853,7 @@ def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
     )
     (root / "bin" / "leaf").chmod(0o755)
     monkeypatch.setenv("PI_SESSION_ID", "pi-s1")
+    hooks_run_this_tree("pi-s1")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_PI_WATCH", "1")
     service_model.claim_page(page_dir)
@@ -1289,6 +1292,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     watcher holds needs no second command: the claim the serve makes is what
     puts the page in front of the running wait."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s10")
+    hooks_run_this_tree("s10")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s10")  # its harness runs Leaf's hooks
     serving(page_dir, 1)
@@ -1331,6 +1335,7 @@ def test_wait_with_nothing_to_watch_says_so(monkeypatch, snapshot):
     """A no-argument wait in a session that holds no pages has nothing to hold
     open — exit rather than sleep forever on an empty set."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-empty")
+    hooks_run_this_tree("s-empty")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     result = CliRunner().invoke(cli_model.cli, ["wait"])
     assert result.exit_code == 2, result.output
@@ -1402,6 +1407,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, 
     earlier but cannot run now. A permanent capability mark cannot establish
     that the next hook will deliver; no timeout can establish that either."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
+    hooks_run_this_tree("unhooked")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
@@ -1466,6 +1472,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     [stale] = [event["answer"]["ref"] for event in earlier["batches"][0]["events"]]
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
+    hooks_run_this_tree("unhooked")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     claim = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert claim.exit_code == 0, claim.output

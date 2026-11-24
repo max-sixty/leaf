@@ -65,21 +65,12 @@ from .schema import (
 )
 from .service import (
     PageTransaction,
-    claim_is_active,
     claim_path,
-    claimant_matches,
+    held_elsewhere,
     page_claim,
     refuse_held,
 )
-from .state import (
-    PLUGIN_ROOT,
-    SESSION_SUFFIX,
-    flocked,
-    hooks_root,
-    remove_claim,
-    session_file,
-    session_record,
-)
+from .state import flocked, hooks_run_here, remove_claim
 
 
 def cmd_init(
@@ -176,20 +167,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
             return False
-        claim = page_claim(page_dir)
-        # Record.read leaves another Leaf's format alone. Its file still names
-        # an owner we cannot prove ended, so automatic renewal must leave it too.
-        if claim is None and claim_path(page_dir).is_file():
-            return False
-        if claimant_matches(claim, harness):
-            return True
-        if (
-            claim is not None
-            and session_record(claim["id"]) is None
-            and session_file(claim["id"], SESSION_SUFFIX).is_file()
-        ):
-            return False
-        return not claim_is_active(claim)
+        return not held_elsewhere(page_dir, harness)
 
     if not renewable():
         return None
@@ -213,15 +191,11 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     page, deliver its input once the renewal lands.
 
     A page another session holds is left alone, and so is one whose session's hooks
-    last ran another Leaf (`state.hooks_root`), as a server another harness's copy
-    started can serve a page a session of another harness took since: renewed, the
-    page would be one its session's hooks can no longer read."""
+    last ran another Leaf (`state.hooks_run_here`), as a server another harness's
+    copy started can serve a page a session of another harness took since: renewed,
+    the page would be one its session's hooks can no longer read."""
     held = page_claim(page_dir)
-    if (
-        held is None
-        or held["id"] != session_id
-        or hooks_root(session_id) != PLUGIN_ROOT
-    ):
+    if held is None or held["id"] != session_id or not hooks_run_here(session_id):
         return None
     return renew_layer(page_dir, claim_harness(held))
 

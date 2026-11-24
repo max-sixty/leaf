@@ -291,20 +291,24 @@ hook, and that Leaf ships another skill, the agent is told to read it again
 (`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
 restarts a page's server under that one at the same address (`hosting.start_page`).
 
-A command from a Leaf other than the one the session's hooks run, such as a
-checkout's `bin/leaf` run from the session's shell, acts for no session, as a
-command from a bare shell does (`harness.session_harness`). The user chose that
-developing Leaf works as developing any project does, so that Leaf's version, page
-protocol included, never reaches the session: it claims nothing, writes none of the
-session's records, and serves a page unclaimed, which its own `leaf wait` hears. A
-page the session holds it treats as another session's. Where it keeps the session's
-records in another shape (`state.Record`), it reads them as absent, and so takes
-the session's pages for pages no live session holds.
+A command acts for the session its environment names only from a Leaf that runs
+that session: an installed copy, as the copy the session loaded is, or a checkout
+the session's hooks run, as one Claude Code loads in place is (`state.runs_session`).
+Any other Leaf, such as a checkout's `bin/leaf` run from the session's shell, acts
+for no session, as a command from a bare shell does (`harness.session_harness`),
+from the session's first command on. The user chose that developing Leaf works as
+developing any project does, so that Leaf's version, page protocol included, never
+reaches the session: it claims nothing, writes none of the session's records, and
+serves a page unclaimed, which its own `leaf wait` hears, as `leaf server start`
+then says (`serves-for-no-session`). A page the session holds it treats as another
+session's.
 
-Only the session holding a page, through the Leaf its hooks run, serves the page
-or changes its layer record, its server up or down (`service.refuse_held`); another
-session takes the page over first by claiming it. So no other Leaf moves a held page
-to a protocol its session's hooks can't read, whatever the two protocols are.
+Only the session holding a page, through its own Leaf, serves the page or changes
+its layer record, its server up or down (`service.refuse_held`); another session
+takes the page over first by claiming it. A claim or session record another Leaf
+wrote in a shape this Leaf can't read counts as held, since nothing this Leaf reads
+proves its session ended (`service.held_elsewhere`). So no other Leaf moves a held
+page to a protocol its session's hooks can't read, whatever the two protocols are.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):

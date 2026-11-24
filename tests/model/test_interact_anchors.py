@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     DRAFTED,
     FLOW_PAGE,
@@ -1764,6 +1765,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     session's voice — which is the whole of how a user learns a thread they did not
     close was closed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
+    hooks_run_this_tree("s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     published(page_dir)
     root = append_carried_log_record(

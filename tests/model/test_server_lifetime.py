@@ -20,7 +20,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -174,6 +174,7 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
     def taken_after_the_decision(page, harness):
         comes_back = decided(page, harness)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+        hooks_run_this_tree("s2")
         service_model.claim_page(page)
         return comes_back
 
@@ -511,6 +512,7 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     cleanup_model.write_json(job / "state.json", {"sessionId": "the-job"})
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    hooks_run_this_tree("nested")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     claim_record = service_model.page_claim(page_dir)
@@ -540,6 +542,7 @@ def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
     record.parent.mkdir(parents=True)
     cleanup_model.write_json(record, {"cliSessionId": "the-app", "isArchived": False})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    hooks_run_this_tree("nested")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     for host in ("local_one", "local_unrecorded"):
         monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", host)

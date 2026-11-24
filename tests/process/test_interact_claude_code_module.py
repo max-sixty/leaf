@@ -14,6 +14,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -125,7 +126,9 @@ def holding_page(
     session then starts, as one does when the module loads while it holds a
     page. `serve=False` leaves the page served by an earlier session's call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    hooks_run_this_tree(driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
+    hooks_run_this_tree(driven.session)
     service_model.claim_page(page_dir)
     if serve:
         serving(page_dir, 1)
@@ -673,7 +676,9 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
     # The thread's history, written before the follower first reads the page, gets
     # no line fork.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    hooks_run_this_tree(driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
+    hooks_run_this_tree(driven.session)
     service_model.claim_page(page_dir)
     # Ids the fork's answer names as the range it chose.
     opened = admitted(

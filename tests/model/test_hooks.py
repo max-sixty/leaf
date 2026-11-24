@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -608,6 +609,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     def freeze_then_transfer(batches, **kwargs):
         delivery = freeze(batches, **kwargs)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+        hooks_run_this_tree("s2")
         assert service_model.claim_page(moved)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
         return delivery
@@ -2012,6 +2014,7 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
         )[asked["id"]]
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
     fresh = [
         append_carried_log_record(
             claimed, {"kind": "comment", "author": "user", "text": text}
@@ -2313,16 +2316,19 @@ def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
 
 
 @pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])
-def test_a_leaf_other_than_its_sessions_hooks_acts_for_no_session(
-    claimed, tmp_path, ahead
+def test_a_checkout_acts_only_for_a_session_whose_hooks_run_it(
+    claimed, tmp_path, monkeypatch, ahead
 ):
-    """A command from a Leaf other than the one its session's hooks run, as from a
-    checkout's `bin/leaf` in the session's shell, acts as one from a bare shell does,
-    whatever that Leaf's page protocol: it finds no harness, so it claims nothing for
-    the session and writes none of the session's records. The Leaf the hooks run,
-    and any Leaf before a hook has run, acts for the session."""
-    assert harness_model.session_harness() is not None
-    hooks_run_leaf_at(tmp_path, LAYER.since - ahead)
+    """A checkout, as a worktree's `bin/leaf` in a session's shell is, acts for the
+    session only where the session's hooks run it: before any hook has run, or once
+    they run another Leaf at any page protocol, it acts as a command from a bare shell
+    does, finds no harness, claims nothing for the session and writes none of its
+    records. An installed copy acts for the session whatever the hooks last ran, as
+    the copy a process loaded after an update does before its first hook."""
+    # No hook of the session has run yet.
+    cleanup_model.session_file("s1", cleanup_model.SKILL_SUFFIX).unlink()
+    assert harness_model.session_harness() is None
+    hooks_run_leaf_at(tmp_path, LAYER.since + ahead)
     lifecycle = cleanup_model.session_record("s1")
 
     assert harness_model.session_harness() is None
@@ -2330,9 +2336,41 @@ def test_a_leaf_other_than_its_sessions_hooks_acts_for_no_session(
         service_model.cmd_claim(claimed, manual_delivery=True)
     assert cleanup_model.session_record("s1") == lifecycle
 
+    installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    with monkeypatch.context() as patched:
+        patched.setattr(cleanup_model, "PLUGIN_ROOT", installed)
+        harness = harness_model.session_harness()
+        assert harness is not None and harness.session == "s1"
+
     leases_model.mark_skill("s1", hooks_model.skill_mark())
     harness = harness_model.session_harness()
     assert harness is not None and harness.session == "s1"
+
+
+def test_a_page_whose_records_another_leaf_wrote_stays_held(claimed, monkeypatch):
+    """A Leaf that can't read the lifecycle record another Leaf wrote for the page's
+    session counts the page held, as automatic renewal does, since nothing it reads
+    proves that session ended: it neither initializes nor serves the page for anyone
+    else, nor renews it. Another session takes the page over by claiming it."""
+    lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    stored = json.loads(lifecycle.read_text())
+    stored["format"] = "leaf-session/13"
+    lifecycle.write_text(json.dumps(stored))
+    assert cleanup_model.session_record("s1") is None
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+
+    assert service_model.held_elsewhere(claimed, None)
+    with pytest.raises(Refused, match="is held by session s1"):
+        vendoring_model.cmd_init(claimed, ())
+    vendored_at_another_protocol(claimed)
+    assert vendoring_model.renew_layer(claimed, None) is None
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
+    service_model.cmd_claim(claimed, manual_delivery=True)
+    claim = service_model.page_claim(claimed)
+    assert claim is not None and claim["id"] == "s2"
+    assert not service_model.held_elsewhere(claimed, harness_model.session_harness())
 
 
 @pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])
@@ -2405,6 +2443,7 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     vendored_at_another_protocol(claimed)
     recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
     service_model.claim_page(claimed)
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 

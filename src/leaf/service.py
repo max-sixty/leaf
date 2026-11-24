@@ -44,6 +44,7 @@ from leaf.refusals import Refused
 from leaf.schema import STREAM_FILE
 from leaf.state import (
     EVENTS_FILE,
+    SESSION_SUFFIX,
     STRING,
     TIME,
     Record,
@@ -62,6 +63,7 @@ from leaf.state import (
     page_stands,
     remove_claim,
     session_claims,
+    session_file,
     session_live,
     session_lock_path,
     session_record,
@@ -264,22 +266,44 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     )
 
 
-def refuse_held(page_dir: Path, harness: Harness | None) -> None:
-    """Refuse to serve `page_dir` or change its layer record for anyone but the live
-    session holding it, where one does: only `harness` naming that session passes.
-    Another session takes the page over first by claiming it (`leaf server start`).
-    Since only the Leaf a session's hooks run acts for it (`harness.session_harness`),
-    no other Leaf, such as a checkout's or a terminal's, moves a held page to a
-    protocol those hooks can't read, whatever the protocols are."""
+def held_elsewhere(page_dir: Path, harness: Harness | None) -> bool:
+    """Whether a session other than `harness`'s may hold `page_dir`: a live claim
+    another session holds, or a claim or session lifecycle record another Leaf wrote
+    in a shape this Leaf can't read (`state.Record`). The claim carries no lifetime
+    of its own, which comes from that record (`claim_reading`), so such a page names
+    an owner this Leaf can't prove ended. It stays held until a session takes it over
+    by claiming it (`leaf server start`), which needs no reading of the claim before,
+    or until the Leaf that wrote the records, which reads them, finds their session
+    ended."""
     claim = page_claim(page_dir)
-    if not claim_is_active(claim) or claimant_matches(claim, harness):
+    if claim is None:
+        return claim_path(page_dir).is_file()
+    if claimant_matches(claim, harness):
+        return False
+    if (
+        session_record(claim["id"]) is None
+        and session_file(claim["id"], SESSION_SUFFIX).is_file()
+    ):
+        return True
+    return claim_is_active(claim)
+
+
+def refuse_held(page_dir: Path, harness: Harness | None) -> None:
+    """Refuse to serve `page_dir` or change its layer record for anyone but the
+    session holding it (`held_elsewhere`). Another session takes the page over first
+    by claiming it (`leaf server start`). Since only the Leaf a session's hooks run
+    acts for it (`harness.session_harness`), no other Leaf, such as a checkout's or a
+    terminal's, moves a held page to a protocol those hooks can't read, whatever the
+    protocols are."""
+    if not held_elsewhere(page_dir, harness):
         return
-    assert claim is not None
+    claim = page_claim(page_dir)
+    holder = f"session {claim['id']}" if claim else "a session another Leaf recorded"
     raise Refused(
-        f"{page_dir} is held by session {claim['id']}, and only the Leaf that "
-        "session's hooks run serves it or changes its layer; run this with that Leaf, "
-        f"or take the page over first with `leaf server start {page_dir}` from your "
-        "own session"
+        f"{page_dir} is held by {holder}, and only the Leaf that session's hooks run "
+        "serves it or changes its layer. Work on the page through that session, or "
+        f"take it over first by running `leaf server start {page_dir}` in another "
+        "agent session"
     )
 
 

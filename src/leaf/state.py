@@ -276,13 +276,24 @@ def hooks_root(session_id: str) -> Path | None:
     return Path(marked.rpartition("\n")[0])
 
 
+def hooks_run_here(session_id: str) -> bool:
+    """Whether the session's hooks last ran this Leaf (`hooks_root`); no hook having
+    run reads as no."""
+    return hooks_root(session_id) == PLUGIN_ROOT
+
+
 def runs_session(session_id: str) -> bool:
-    """Whether this Leaf may act for the session `session_id`: it is the Leaf the
-    session's hooks last ran (`hooks_root`), or no hook of the session has run.
-    Another Leaf, such as a checkout's `bin/leaf` run from the session's shell, acts
-    for no session (`harness.session_harness`)."""
-    root = hooks_root(session_id)
-    return root is None or root == PLUGIN_ROOT
+    """Whether this Leaf may act for the session `session_id`, judged by facts a
+    process has as it starts: it is a copy a harness installed, as the copy a session
+    loaded is, or a checkout the session's hooks run (`hooks_run_here`), as one
+    Claude Code loads in place (`--plugin-dir`) is. Any other checkout, such as one
+    whose `bin/leaf` runs from the session's shell, acts for no session
+    (`harness.session_harness`), before the session's first hook as after it. An
+    installed copy acts for the session even where its hooks last ran another copy,
+    as a script does that runs `leaf` before the first hook of a process that loaded
+    an update; `LoadedCopy.successor` and `vendoring.renew_held` reconcile the
+    copies."""
+    return installed_copy(PLUGIN_ROOT) or hooks_run_here(session_id)
 
 
 class LoadedCopy:

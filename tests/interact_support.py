@@ -37,7 +37,12 @@ import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from conftest import (
+    CLAUDE_IDENTITY,
+    LEAF_COMMAND,
+    collect_app_server_error,
+    hooks_run_this_tree,
+)
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
@@ -2273,6 +2278,10 @@ def under_codex(spawn, codex_program):
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
+        # The task's hooks run this tree, as a Codex task's first hook records.
+        for variable in harness_model.CodexHarness.session_variables:
+            if env.get(variable):
+                hooks_run_this_tree(env[variable])
         shell_command = f"{command}; exit"
         if finished is not None:
             # Create `finished` once the command has, and keep the fake harness
@@ -2391,7 +2400,9 @@ def managed_server(spawn):
 
 
 def start_server_command(page_dir, *flags, session_id="starter"):
-    """Run `server start` from a harness session and wait for the command to return."""
+    """Run `server start` from a harness session whose hooks run this tree, and wait
+    for the command to return."""
+    hooks_run_this_tree(session_id)
     return subprocess.run(
         [
             *LEAF_COMMAND,

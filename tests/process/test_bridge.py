@@ -12,6 +12,7 @@ import threading
 import time
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import ROOT, STATED_TIMEOUT
 
 from leaf import bridge as bridge_model
@@ -39,6 +40,7 @@ def bridged(monkeypatch):
     """A Claude Code session whose hook before a `leaf` command ran and whose
     shell is sandboxed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bridged")
+    hooks_run_this_tree("bridged")
     before_leaf_command(monkeypatch, "bridged")
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     # The bridge is reached directly here, not through a proxy the host may name.
@@ -147,6 +149,7 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     job.mkdir()
     (job / "state.json").write_text('{"sessionId": "bg-job"}')
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    hooks_run_this_tree("bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     before_leaf_command(monkeypatch, "bg-job")

@@ -9,7 +9,7 @@ from typing import cast
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import STATED_TIMEOUT, fetch, neighbour_page, record_claim
 
 from leaf import cli as cli_model
@@ -346,6 +346,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     from leaf import harness
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
+    hooks_run_this_tree("candidate")
     try:
         expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:

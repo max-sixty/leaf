@@ -12,7 +12,7 @@ import urllib.request
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -348,6 +348,7 @@ def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
     app = {"cliSessionId": "app-session", "isArchived": False}
     cleanup_model.write_json(record, app)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "app-session")
+    hooks_run_this_tree("app-session")
     monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     assert service_model.claim_page(page_dir)
@@ -479,6 +480,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
 
     # A session picks the page up, the way `leaf wait` does.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
+    hooks_run_this_tree("later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
@@ -517,6 +519,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     job.mkdir()
     cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    hooks_run_this_tree("bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page_dir)

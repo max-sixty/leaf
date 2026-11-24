@@ -30,7 +30,7 @@ watchCommandScopes(() => [
   ...[...scopes.values()].flat(),
   { rows: [...commands.values()] },
 ]);
-import { renderedUnder } from "../shadow-tree.js";
+import { renderedUnder } from "../lib/shadow-tree.js";
 import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
@@ -111,6 +111,7 @@ const PAGE_COMMANDS = [
   "thread.unread.first",
   "navigation.panel.threads",
   "navigation.panel.queue",
+  "navigation.panel.agent",
   "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
@@ -121,9 +122,9 @@ const PAGE_COMMANDS = [
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
-  // Beside `o`, so the Annotations list reads its two hides together.
-  "changes.toggle",
   "annotations.toggle",
+  // The panel's two keys together: the leaf's press, and folding to the leaf.
+  "panel.floating.leaf",
   "panel.floating.fold",
   COMMAND_REFERENCE,
   // Real keys the browser owns, and one gesture that is not a key at all.
@@ -228,8 +229,9 @@ function rung() {
 // The page's own Escape, said and run off that one object: each rung states the act, its
 // word, and the sentence the reference lists. The sentence is the rung's for the reason
 // `c`'s is the destination's — the user can see which branch they are in, so a word
-// covering all of them tells them nothing.
-const BACK_OUT = {
+// covering all of them tells them nothing. A mode says it beside its own rows as it
+// begins (`saying`), since the mode's way out is on the ladder rather than in its scope.
+export const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
   title: () => {

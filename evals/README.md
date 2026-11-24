@@ -407,7 +407,7 @@ Each section keeps what its reader needs to judge it:
   rules still govern what follows from it. Link a change to an experiment only where
   one tested it; a grading or report change has none.
 
-The report selects the `diff` and `diagram` packages and keeps any already on the page;
+The report selects the `reading`, `diff` and `diagram` packages and keeps any already on the page;
 select another with `leaf page init PAGE --package NAME` before regenerating it.
 
 `pnpm run eval:view` opens Promptfoo's diagnostic viewer on every run recorded on
@@ -473,8 +473,8 @@ agent would do asks for the commands it would run. They may also ask the arm's L
 what a page's packages tell an author and which packages it could select: Claude Code
 runs `leaf page instructions`, `leaf page vocabulary` and `leaf package list`, and
 Codex runs any `leaf` command through the plugin's `leaf` tool. A case that declares
-`metadata.page`, the packages its page takes beside the defaults (`[]` for none),
-gives its probe that page, initialized, and the prompt names
+`metadata.page`, the packages its page takes after Leaf's `reading` theme (`[]` for
+none), gives its probe that page, initialized, and the prompt names
 it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
@@ -486,9 +486,10 @@ short task name shown in reports (for example, "CSS cascade survey"); the direct
 address remains the case ID used for selection and grouping.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
-Its agent has native file and command tools, an initialized writable page, the
+Its agent has native file and command tools, the path of a page to create, the
 arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory and
-Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
+Leaf state for every sample. The agent initializes the page itself, so the packages it
+selects, its theme among them, are part of what the case scores. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
 `metadata.installed` lists package directories, relative to the repository, that
@@ -523,7 +524,7 @@ source and reading probes for decisions that need no rendered page: those whose 
 the skill's references hold, and, with `metadata.page`, widget markup whose rules an
 author reads through `leaf page instructions --use`. Use complete tasks for
 revisions, user feedback and delivery rounds.
-Authoring adds page initialization, tool turns and a render check to each sample;
+Authoring adds tool turns and a render check to each sample;
 `setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
 costs separately. Each sample has its own temp directory. Native tool permissions
 match the complete-task executors: Codex allows native tools without approval;
@@ -554,8 +555,8 @@ A complete task names `metadata.executor`, a `leaf_dev` Python module, and
 `metadata.scenario`, a case in `workflows/<module-name>.yaml`. That YAML owns the
 authored prompts, scenario inputs and native Promptfoo `assert` blocks, including
 text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
-tasks use one JavaScript assertion to pass the final live judge's verdict through
-the Python provider. Shared request files
+tasks use one Python assertion, `regrade.py:authoring`, which runs the live judge
+with the prompt under `authoring:` in `workflows/regrade.yaml`. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
 A task's pinned assets are copied to the root of the agent's working directory
 (`arms.stage_task_files`), so `evals/<task>/captures/before.png` reaches the agent as

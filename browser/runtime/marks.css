@@ -1,5 +1,5 @@
-/* Shared message delivery and passage marks.
- * The document and every declared shadow stage adopt this sheet. */
+/* Shared message delivery, passage marks and the hang of a code line's wrapped rows.
+ * The document, every declared shadow stage and the composer's root adopt this sheet. */
 
 /* Delivery feedback follows reading content into every declared shadow stage.
    A busy action control keeps its cursor: the document's chrome sheet alone owns its
@@ -52,7 +52,7 @@
    composite the same in either order. A draft sets its words in the accent.
    The words take the mark's ink rather
    than a line under them: Chromium rechecks a highlight's text decoration across the
-   whole page on every click and keystroke. Hiding the annotations (`o`) empties the
+   whole page on every click and keystroke. Hiding the annotations (`g H`) empties the
    durable highlights, `lf-mark` and `lf-react` (anchor-paint.js, `paintDurable`), so no
    rule here depends on it.
 
@@ -83,4 +83,31 @@
 [data-lf-marked-words]::highlight(lf-react) {
   background-color: var(--lf-react);
   color: var(--lf-mark-ink-text);
+}
+/* A line of code in a box of its own, marked `data-lf-pre-line` by its owner: a code
+   block's line (code-lines.js), a draft's code line (field-editor.js) and a file
+   editor's line (the file-editor package). Its wrapped rows start two columns past its
+   indent (`--lf-code-indent`, its leading columns, which the owner states), up to the
+   24 columns lf-code's lines stop at (code.css), and the first of the two holds the
+   mark on each of them (reading.css, `pre`, says why). The hang indents the rows after
+   the first, and so leaves the first row's tab stops where the block's are. The mark
+   stands past the line's own padding, which the owner states as
+   `--lf-pre-line-inset`. It is here because this sheet reaches every root that draws
+   such a line, and in lf-base, so a page's own rules still outrank it. */
+@layer lf-base {
+  [data-lf-pre-line] {
+    display: block;
+    position: relative;
+    --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+    text-indent: var(--lf-code-hang) hanging;
+  }
+  [data-lf-pre-line]::before {
+    content: "";
+    position: absolute;
+    inset-block: 1lh 0;
+    inset-inline-start: calc(var(--lf-pre-line-inset, 0px) + var(--lf-code-hang) - 2ch);
+    inline-size: 1ch;
+    background: var(--lf-code-muted);
+    mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y;
+  }
 }

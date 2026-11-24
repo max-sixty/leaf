@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     open_threads,
     panel_settled,
+    post_event,
     put_preview_away,
     resized,
     sending,
@@ -166,10 +167,10 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page = open_page(browser, serve(source))
     page.evaluate(
         """async () => {
-          const {contributionEntry, presentContributionEntry} =
+          const {presentContributionEntry} =
             await window.__lfWidgetApi();
           presentContributionEntry(document.getElementById('inline'),
-            contributionEntry({key: 'inline', icon: 'dot', label: 'Read inline name'}));
+            {key: 'inline', icon: 'dot', label: 'Read inline name'});
         }"""
     )
     control = page.get_by_role("button", name="Read inline name", exact=True)
@@ -193,11 +194,11 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           registerContribution({key: 'names', target: document.getElementById('target'),
             read: () => ({entries: ['action', 'disclosure'].map(behavior =>
-              contributionEntry({key: behavior, behavior, icon: 'dot',
+              ({key: behavior, behavior, icon: 'dot',
                 label: `Read ${behavior}`}))}), activate: () => {}});
         }"""
     )
@@ -259,8 +260,9 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     """A margin entry's label and status are its preview, which a resting pointer and the
     keyboard read, and a finger holds the entry to read them, with whatever else its
     title says. The preview stands clear of the finger, above the entry, while the press
-    lasts, and a row arriving meanwhile doesn't move it. The release presses nothing and
-    leaves the preview standing until the next touch; a tap presses and shows none."""
+    lasts. A row arriving meanwhile doesn't move it, and a thread arriving leaves the
+    entry held. The release presses nothing and leaves the preview standing until the
+    next touch; a tap presses and shows none."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
         leaf_page(
@@ -274,15 +276,15 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     page = open_page(browser, url, context=context)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           window.pressed = [];
           registerContribution({key: 'held', target: document.getElementById('target'),
             read: () => ({entries: [
-              contributionEntry({key: 'sent', behavior: 'status', icon: 'sent',
-                label: 'Sent', context: '2m ago'}),
-              contributionEntry({key: 'act', icon: 'dot', label: 'Act on it',
-                title: 'Acts at once'}),
+              {key: 'sent', behavior: 'status', icon: 'sent',
+                label: 'Sent', context: '2m ago'},
+              {key: 'act', icon: 'dot', label: 'Act on it',
+                title: 'Acts at once'},
             ]}), activate: (key) => window.pressed.push(key)});
         }"""
     )
@@ -307,7 +309,7 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
         long_press(page, point)
         expect(preview).to_be_visible()
         expect(preview).to_have_text(words)
-        expect(entry).to_have_attribute("data-lf-held", "")
+        expect(entry).to_have_attribute("data-lf-touch-held", "")
         held = preview.bounding_box()
         # Clear of the finger: wholly above the entry.
         assert held["y"] + held["height"] <= box["y"], (held, box)
@@ -315,27 +317,44 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             # A row arriving beside the held one leaves the preview where it is.
             page.evaluate(
                 """async () => {
-                  const {contributionEntry, registerContribution} =
+                  const {registerContribution} =
                     await window.__lfWidgetApi();
                   registerContribution({key: 'arriving',
                     target: document.getElementById('before'),
-                    read: () => ({entries: [contributionEntry({key: 'note',
-                      icon: 'dot', label: 'Arrived'})]}), activate: () => {}});
+                    read: () => ({entries: [{key: 'note',
+                      icon: 'dot', label: 'Arrived'}]}), activate: () => {}});
                 }"""
             )
             expect(entry_keyed("note")).to_be_visible()
             rendered(page)
             assert preview.bounding_box() == held
+            # A thread arriving meanwhile, which redraws the page's threads, leaves the
+            # held entry held.
+            post_event(
+                page,
+                url.rsplit("/versions/", 1)[0] + "/api/event",
+                data={
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Arriving thread.",
+                    "anchor": {"section": "before", "quote": "Just before."},
+                },
+            )
+            page.wait_for_function(
+                "() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0"
+            )
+            rendered(page)
+            expect(entry).to_have_attribute("data-lf-touch-held", "")
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
         rendered(page)
         expect(preview).to_have_text(words)
-        expect(entry).to_have_attribute("data-lf-held", "")
+        expect(entry).to_have_attribute("data-lf-touch-held", "")
     assert page.evaluate("window.pressed") == []
     entry_keyed("act").tap()
     rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
     expect(preview).to_be_hidden()
-    expect(entry_keyed("act")).not_to_have_attribute("data-lf-held", "")
+    expect(entry_keyed("act")).not_to_have_attribute("data-lf-touch-held", "")
 
 
 OBLIGATION_MARKERS_PAGE = leaf_page(
@@ -491,18 +510,18 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let swapped = false;
           let changed = false;
           const registration = registerContribution({
             key: 'retained', target: document.querySelector('#target'),
             read: () => ({entries: [
-              contributionEntry({key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
-                rank: swapped ? 'secondary' : 'primary'}),
-              contributionEntry({key: 'b', glyph: 'B', label: 'Action B',
-                rank: swapped ? 'primary' : 'secondary'}),
-              contributionEntry({key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'}),
+              {key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
+                rank: swapped ? 'secondary' : 'primary'},
+              {key: 'b', glyph: 'B', label: 'Action B',
+                rank: swapped ? 'primary' : 'secondary'},
+              {key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'},
             ]}),
             activate: key => {
               window.lfRetainedMarginClicks.push(key);
@@ -590,7 +609,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     open_threads(page)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let target = document.createElement('span');
           target.id = 'inline-margin-target';
@@ -605,7 +624,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
           const registration = registerContribution({
             key: 'inline-retained', target: () => target,
             read: () => ({entries: (swapped ? ['b', 'a'] : ['a', 'b']).map(key =>
-              contributionEntry({key, glyph: key.toUpperCase(),
+              ({key, glyph: key.toUpperCase(),
                 label: key === 'a' && changed ? 'Inline A now' : `Inline ${key.toUpperCase()}`}))}),
             activate: key => window.lfInlineMarginClicks.push(key),
           });
@@ -698,14 +717,14 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
     rendered(page)
     unplaced = page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           await new Promise(requestAnimationFrame);
           const registration = registerContribution({
             key: 'first-placement', target: document.querySelector('#how-cap'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'act', icon: 'dot', label: 'New margin action'
-            })]}), activate: () => {}
+            }]}), activate: () => {}
           });
           const row = registration.control('act', 'margin')
             .closest('.lf-margin-cluster');
@@ -753,7 +772,7 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
         with subtests.test(target_kind=kind):
             page.evaluate(
                 """async kind => {
-              const {contributionEntry, registerContribution} =
+              const {registerContribution} =
                 await window.__lfWidgetApi();
               const holder = document.getElementById(`holder-${kind}`);
               const target = document.getElementById(`target-${kind}`);
@@ -762,9 +781,9 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
               window.lifetime = {kind, holder, target, anchor, parent: anchor.parentNode,
                 contribution: registerContribution({
                   key: `target-lifetime-${kind}`, target,
-                  read: () => ({entries: [contributionEntry({
+                  read: () => ({entries: [{
                     key: 'action', icon: 'dot', label: `Target action ${kind}`
-                  })]}), activate: () => {}
+                  }]}), activate: () => {}
                 })};
             }""",
                 kind,
@@ -945,7 +964,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     page = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-              const { contributionEntry, registerContribution } =
+              const { registerContribution } =
                 await window.__lfWidgetApi();
           const makeRecord = label => {
             const shell = document.createElement('div');
@@ -977,9 +996,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
           for (const record of records) {
             const {target} = record;
             const margin = registerContribution({key: record.label, target,
-              read: () => ({entries: [contributionEntry({
+              read: () => ({entries: [{
                 key: record.label, glyph: '!', label: `${record.label} controls`
-              })]}), activate: () => {}});
+              }]}), activate: () => {}});
             record.margin = margin;
           }
           await new Promise(done =>
@@ -1161,7 +1180,7 @@ def test_threads_on_two_parts_of_a_picture_stand_an_entry_each_tracing_its_part(
     resized(page, 1440, 900)
     expect(page.locator("#weeks svg[role=img]")).to_be_visible()
     margins_laid_out(page)
-    third_dot = page.locator("#weeks svg[role=img] [data-lf-part=dot] circle").nth(2)
+    third_dot = page.locator("#weeks svg[role=img] [data-lf-plot=dot] circle").nth(2)
     traced = page.locator("[data-lf-traced]")
     for picture, word, names, hovered, part in (
         (
@@ -1215,7 +1234,7 @@ def test_a_draft_on_a_chart_s_point_traces_the_point_after_the_chart_draws_again
     resized(page, 1440, 900)
     chart = page.locator("#weeks")
     expect(chart.locator("svg[role=img]")).to_be_visible()
-    dot = chart.locator("svg[role=img] [data-lf-part=dot] circle").nth(2)
+    dot = chart.locator("svg[role=img] [data-lf-plot=dot] circle").nth(2)
 
     def middle(locator):
         box = locator.bounding_box()
@@ -1275,10 +1294,10 @@ def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     register = """async (id) => {
-      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+      const {registerContribution} = await window.__lfWidgetApi();
       registerContribution({key: id, target: document.getElementById(id),
-        read: () => ({entries: [contributionEntry({key: 'go', label: 'Go',
-          icon: 'check'})]}), activate() {}});
+        read: () => ({entries: [{key: 'go', label: 'Go',
+          icon: 'check'}]}), activate() {}});
     }"""
     page.evaluate(register, "first")
     expect(page.locator('[data-lf-margin-for="first"]')).to_have_count(1)

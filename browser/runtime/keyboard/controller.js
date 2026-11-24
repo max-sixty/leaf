@@ -22,7 +22,7 @@
    they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
-import { quickShortcuts } from "./bindings.js";
+import { placeHandedBack, quickShortcuts } from "./bindings.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import {
   controlNavigationKeys,
@@ -34,11 +34,12 @@ import {
 } from "../focus.js";
 import { focusPlace } from "../user-place.js";
 import { landForKey } from "../scrolling.js";
-import { nextFrame } from "../rendering.js";
+import { nextFrame } from "../lib/frame-pass.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
 import { readLeavingKeys } from "../field-keys.js";
+import { authoredScope } from "../passages.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
 // a server serving another layer, ends bootstrap's hold: nothing in it will run what
 // was held, so those keys are dropped and later ones reach the page as they come.
@@ -61,8 +62,8 @@ export function mountKeyboard({
   /** @param {KeyboardEvent} event @param {boolean} [waiting] */
   const run = (event, waiting = false) => {
     const handled = dispatchKey(event, waiting);
-    // A declared Leaf command wins before a nested widget can interpret the
-    // same key. Native activation is left to the focused control.
+    // A Leaf command that ran keeps its key from the listeners after it, the page's
+    // on the document and the window. Native activation is left to the focused control.
     if (handled && event.defaultPrevented) event.stopPropagation();
     return handled;
   };
@@ -102,11 +103,13 @@ export function mountKeyboard({
   // Outside its own fields, which read their keys themselves (below), Leaf hears a key
   // in three places.
   //
-  // In capture, ahead of every listener of the page's: a printed letter, which Leaf's
-  // page commands take ahead of a nested library's typeahead; a key that lets go, which
-  // stops there so every key reads from where the user is; and, while Go-to or reactions
-  // are armed, a key they answer, since they own the keyboard. Any other key disarms
-  // them there and keeps its ordinary meaning, read below.
+  // In capture, ahead of every listener of the page's: a key that lets go, which stops
+  // there so every key reads from where the user is; a key aimed at the page itself,
+  // `body` with nothing focused, since no element of the page's has the user's focus to
+  // answer it, so Leaf's command for it runs first and keeps it from a page listener
+  // whatever that listener prevents; and, while Go-to or reactions are armed, a key they
+  // answer, since they own the keyboard. Any other key disarms them there and keeps its
+  // ordinary meaning, read below.
   document.addEventListener(
     "keydown",
     (ev) => {
@@ -119,7 +122,7 @@ export function mountKeyboard({
       // where the page stands, so the glides under way land first (scrolling.js,
       // `landForKey`), once the let-go has read where they were headed.
       landForKey(ev);
-      if (away || ev.key.length === 1) press(ev);
+      if (away || ev.target === document.body) press(ev);
       else if (armed() && !ev.isComposing) {
         if (run(ev)) ev.stopPropagation();
         else if (!MODIFIER_KEYS.includes(ev.key)) disarm();
@@ -127,29 +130,29 @@ export function mountKeyboard({
     },
     { capture: true },
   );
-  /** @param {KeyboardEvent} ev */
-  const afterControl = (ev) => {
-    if (ev.key.length !== 1) press(ev);
-  };
-  // On the root element, where every other key is read: after the listeners on the
-  // control and on every element around it, the page's and Leaf's own, and before the
-  // page's listeners on the document and the window, which hear only a key Leaf leaves.
-  // So a key keeps the order a widget's own listener would give it: the focused
-  // element's handling comes first, then Leaf's command there, then a page-wide
-  // shortcut. A key aimed inside `body` whose default is already prevented by then is
-  // the page's, as role-button-press.js reads a press. Read again here, it would act at
-  // wherever page code had moved focus, such as the trigger a page's menu hands focus
-  // back to. Leaf's chrome stands outside `body`, and a mode armed over the page with
-  // nothing focused reads keys aimed at `body` itself, so those stay Leaf's whatever a
-  // page listener prevents.
+  // On the root element, where every other key is read, printed letters among them:
+  // after the listeners on the control and on every element around it, the page's and
+  // Leaf's own, and before the page's listeners on the document and the window, which
+  // hear only a key Leaf leaves. So a key keeps the order a widget's own listener would
+  // give it: the focused element's handling comes first, then Leaf's command there, then
+  // a page-wide shortcut. A key aimed inside an authored document, the page's `body` or
+  // a message's body (`authoredScope`), whose default is already prevented by then is
+  // its author's, as role-button-press.js reads a press, so a widget that answers a
+  // letter itself and prevents it keeps it from Leaf's page command, in the page or in a
+  // message the panel shows. The event's path, fixed as it was dispatched, says where
+  // the key was aimed even where that answer redrew or removed the element. Read again
+  // here, it would act at wherever that code had moved focus, such as the trigger a
+  // page's menu hands focus back to. The rest of Leaf's chrome stands outside both, so
+  // its keys stay Leaf's whatever a page listener prevents, and a key aimed at `body`
+  // itself was read in capture.
   document.documentElement.addEventListener("keydown", (ev) => {
-    const { target } = ev;
-    const pages =
+    if (ev.target === document.body) return;
+    const authored =
       ev.defaultPrevented &&
-      target instanceof Node &&
-      target !== document.body &&
-      document.body.contains(target);
-    if (!pages) afterControl(ev);
+      ev
+        .composedPath()
+        .some((node) => node instanceof Element && authoredScope(node) === node);
+    if (!authored) press(ev);
   });
   // A row that `waits` is what Leaf does with a key only once nothing else has taken
   // it, as Escape lets go of a control in the page (keyboard/page.js), so it is read
@@ -177,7 +180,7 @@ export function mountKeyboard({
   // it there, a waiting row included: no listener past the field is left to take the key.
   readLeavingKeys((ev) => {
     if (ev.type !== "keydown") return;
-    afterControl(ev);
+    press(ev);
     if (ev.key.length !== 1 && !ev.defaultPrevented && !ev.isComposing) run(ev, true);
   });
   document.addEventListener("lf-keyboard-preference", () => {
@@ -192,7 +195,10 @@ export function mountKeyboard({
     if (!pageUpgraded() || pressingHeld) return;
     /** @type {DocumentEventMap["lf-held-keys"]} */
     const taking = new CustomEvent("lf-held-keys", {
-      detail: { ready: keyReady, keep: () => runtime.statePhase === "waiting" },
+      detail: {
+        ready: keyReady,
+        keep: () => runtime.statePhase === "waiting" || !placeHandedBack(),
+      },
     });
     document.dispatchEvent(taking);
     const { keys, pause, release } = taking.detail;
@@ -200,7 +206,16 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      if (!quickShortcuts()) keys.length = 0;
+      // Until a reload's place is handed back, the run waits wherever focus is, even
+      // in a box the page opened before the hand-back put the user back in theirs.
+      if (!placeHandedBack()) {
+        pause();
+        pressingHeld = false;
+        return;
+      }
+      // With single-key commands off, a held key only ever types into a box, as the
+      // words a user typed through a reload do into the box it hands back.
+      if (!quickShortcuts() && !typesText(focused())) keys.length = 0;
       const [key] = keys;
       if (!key) {
         release();

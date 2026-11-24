@@ -5,14 +5,20 @@
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
  * scrollbar happened to paint in the headless browser. It walks only what the browser
- * draws (`drawnElements` in runtime/shadow-tree.js), passing over a hidden tab and
+ * draws (`drawnElements` in runtime/lib/shadow-tree.js), passing over a hidden tab and
  * what an off-screen `content-visibility: auto` box skips, such as a long text
  * document's runs, since asking about those elements makes the browser style them
  * first: the live view's reading of a megabyte of text spent 1.4 s doing that. So it
  * can't see the end of such a document while the reader is away from it. SVG readings
  * use native primitive bounds: stroke/filter extents, clip paths and nested SVG
  * viewport transforms are not reconstructed here. */
-import { drawnElements, renderedParent, userScrollport } from "/runtime/check-api.js";
+import {
+  carriedBox,
+  elementBorderFrame,
+  shownBand,
+  userScrollport,
+} from "/runtime/check-api.js";
+import { drawnElements, renderedParent } from "/runtime/lib/shadow-tree.js";
 import { at, place } from "./locate.js";
 import { drawnPage } from "./open-roots.js";
 
@@ -25,9 +31,6 @@ const visible = (el) =>
   }) && !el.closest("[hidden], script, style");
 const px = (/** @type {string} */ value) => parseFloat(value) || 0;
 const controls = 'button, input, select, textarea, [role="button"], a[href], img';
-/** @param {HTMLElement} el */
-const scaleY = (el) => el.getBoundingClientRect().height / el.offsetHeight;
-
 // A nested clip's hidden words are not paint in the outer scroller. Keep the
 // vertical intersection only: every horizontal position is reachable by scrolling.
 /** @param {Element} el @param {DOMRectReadOnly} rect @param {Element} scroller */
@@ -39,21 +42,12 @@ const paintedBottom = (el, rect, scroller) => {
   for (; node && node !== scroller; node = renderedParent(node)) {
     const style = getComputedStyle(node);
     if (style.position === "fixed") return -Infinity;
-    if (style.overflowY !== "visible") {
-      const bounds = node.getBoundingClientRect();
-      // SVG clips to its viewport and has no HTML offsetHeight/clientTop box.
-      // Dividing by that absent offsetHeight silently discarded all its ink.
-      if (!(node instanceof HTMLElement)) {
-        top = Math.max(top, bounds.top);
-        bottom = Math.min(bottom, bounds.bottom);
-      } else {
-        const scale = scaleY(node);
-        top = Math.max(top, bounds.top + node.clientTop * scale);
-        bottom = Math.min(
-          bottom,
-          bounds.top + (node.clientTop + node.clientHeight) * scale,
-        );
-      }
+    // What the node lets the user see of what it holds (geometry.js, `shownBand`),
+    // an SVG viewport's included.
+    const band = style.overflowY !== "visible" && shownBand(node);
+    if (band) {
+      top = Math.max(top, band.top);
+      bottom = Math.min(bottom, band.bottom);
     }
   }
   return bottom >= top ? bottom : -Infinity;
@@ -86,13 +80,19 @@ export function scrollbarClearance(drawn = drawnPage()) {
       px(style.borderBottomWidth);
     const required = Math.max(0, (px(bar.height) || 15) - allocated);
     if (!required) continue;
+    // How far down the scroller's own border box the content ends, in its own pixels,
+    // carried back from the window through the scroller's frame (element-axes.js).
+    const toBox = elementBorderFrame(box).matrix.inverse();
     let last = -Infinity,
       content = "";
     /** @param {Element} el @param {DOMRectReadOnly} rect @param {string} kind */
     const take = (el, rect, kind) => {
       const bottom = paintedBottom(el, rect, box);
-      if (bottom > last) {
-        last = bottom;
+      if (bottom === -Infinity) return;
+      const { left, right } = rect;
+      const end = carriedBox(toBox, { left, right, top: bottom, bottom }).bottom;
+      if (end > last) {
+        last = end;
         content = kind;
       }
     };
@@ -130,12 +130,7 @@ export function scrollbarClearance(drawn = drawnPage()) {
       )
         take(el, el.getBoundingClientRect(), "controls");
     if (!Number.isFinite(last)) continue;
-    const bounds = box.getBoundingClientRect();
-    const clear =
-      box.scrollHeight +
-      box.clientTop -
-      box.scrollTop -
-      (last - bounds.top) / scaleY(box);
+    const clear = box.scrollHeight + box.clientTop - box.scrollTop - last;
     // scrollHeight rounds to integer CSS pixels; tolerate that rounding alone.
     if (clear < required - 1)
       found.push({

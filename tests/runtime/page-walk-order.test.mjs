@@ -1,5 +1,5 @@
 /* The page walks' one step (`stepFrom`, current-target.js) over the page's rendered
-   order (`renderedOrder`, shadow-tree.js): `t` and `m` step from the same place the same
+   order (`renderedOrder`, lib/shadow-tree.js): `t` and `m` step from the same place the same
    way, a place holding the user's is where they already are, and words a widget renders
    in a shadow tree keep their order among the places beside them. The threads `t` walks
    keep one order (`inPageOrder`, thread/placement.js) whatever surface draws them. */
@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { renderedOrder, renderedOrdering } from "/runtime/shadow-tree.js";
+import { renderedOrder, renderedOrdering } from "/runtime/lib/shadow-tree.js";
 import { stepFrom } from "/runtime/current-target.js";
 import { inPageOrder } from "/runtime/thread/placement.js";
 

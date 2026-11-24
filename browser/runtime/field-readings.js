@@ -36,7 +36,7 @@
  *
  * The field's end offers one press, the one that matters most at that moment (`end`).
  * Where a reading's words come with a press of their own (`press`), the end offers
- * that one: a notice's, such as a Resolve's Next thread and t, or Show changes and v
+ * that one: a notice's, such as a Resolve's Next thread and t, or Show changes and g V v
  * with news of changes (notifications.js, `press`), or an error's, such as Resume
  * writing and g i after a refused send (errors.js). Otherwise it offers, by the
  * reading's `end`:
@@ -74,9 +74,8 @@
  * says a stance's name, where the user stands and the words quoted, since the
  * interface's upright face would read as the agent's (the user's choice). A draft hides
  * whatever the field says, and the live region still hears what passes. */
-import { leafSays, wordsText } from "./voice.js";
+import { leafSays, wordsText, COMMENT_HINT, REPLY_HINT } from "./voice.js";
 import { noticeWords } from "./notifications.js";
-import { COMMENT_HINT, REPLY_HINT } from "./words.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./voice.js").Said} Said
@@ -88,7 +87,8 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * only by the reading that says it, so asking costs only what the field says.
  * @typedef {object} FieldFacts
  * @property {boolean} thread whether the field is an open thread's reply box
- * @property {boolean} writing whether the caret is in the field
+ * @property {boolean} writing whether the user writes in the field: focus in it, or a
+ * dictation running there (composing/input.js, `writesIn`)
  * @property {{message: string, press: BoxPress | null} | null} error the newest error
  * the field can say, with the press that recovers from it
  * @property {string | null} held keys pressed before the page was ready, which wait
@@ -139,9 +139,9 @@ export const FIELD_READINGS = Object.freeze([
   // beside the panel. An error, which says why the page may not get ready, comes
   // first; the mode chip says the keys where it or a draft takes the field's words.
   { says: "held", claims: (f) => (f.held ? leafSays(f.held) : null), end: "none" },
-  // While the caret is in the field, the word every comment box says there
+  // While the user writes in the field, the word every comment box says there
   // (floating-panel.js, `whereTo`). Nothing that passes is said over it, and the field
-  // says what still stands once the caret leaves.
+  // says what still stands once they stop.
   {
     says: "destination",
     claims: (f) => (f.writing && !f.still ? f.destination() : null),

@@ -54,7 +54,7 @@
    domain. */
 import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import {
   isElement,
@@ -62,7 +62,7 @@ import {
   under,
   renderedUnder,
   renderedParent,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { holdReach, reachReadingScroller } from "./reach.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";

@@ -5,7 +5,7 @@
  * imports the thread presenter to request a refresh.
  *
  * `pageScrolled` runs on every scroll event, so each capability it calls writes only
- * what changed (keeps.js). Target paint and the design legend stand in the planes of
+ * what changed (lib/keeps.js). Target paint and the design legend stand in the planes of
  * what carries their targets (target-paint-geometry.js, `paintStand`), where the browser
  * moves them with every scroll, so a scroll finds nothing to write unless it changed
  * what the paint stands over. `pageShifted` answers layout, which moves the legend's
@@ -13,13 +13,14 @@
  */
 
 import { watchScrolls } from "./arrivals.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
-import { keepsOnOne, keepsText } from "./keeps.js";
+import { keepsOnOne, keepsText } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { closestAcross, elementFromPointAcross, leafSurface } from "./passages.js";
+import { elementFromPointAcross, leafSurface } from "./passages.js";
 import { WORKS } from "./control-selectors.js";
+import { closestAcross } from "./lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
 /** @param {{refreshAnchorHover?: (() => unknown) | undefined,

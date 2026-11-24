@@ -52,7 +52,7 @@
    wait out a release's click each its own way, by a timer the next press could outrun
    or a flag held until the next press, and a flag a stopped release left standing.
 
-   And it owns the widget primitives built on these: closing a layer and handing the user
+   And it owns the primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
 
@@ -68,10 +68,11 @@
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
-import { afterScript, nextRender } from "./rendering.js";
+import { afterScript } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
@@ -84,7 +85,7 @@ import {
   renderedParent,
   renderedUnder,
   shadowHost,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
 /** @typedef {"move" | "step" | "return" | "press"} PlacementCause
  * @typedef {PlacementCause | "drop"} CurrentLocationCause
@@ -400,8 +401,9 @@ function landLabelPress() {
 // will land (`standingFor`). Asked in `tree`, a document or shadow root,
 // it is the node standing for that place there, as `tree.activeElement` retargets focus:
 // the host of the shadow tree the user is in, for a reader comparing or containing
-// nodes of that tree. Every reading of focus outside this module asks here, so none
-// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
+// nodes of that tree. Every reading of focus elsewhere in the runtime asks here, so none
+// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`);
+// a package asks the browser.
 // Mechanical focus queries made while rendering stay untracked, so restoring focus
 // cannot subscribe a render to itself. Keyboard reflection follows where the user is
 // through this revision, either explicitly or by reading inside `followingFocus`, where
@@ -601,6 +603,13 @@ export const onFocusVisibility = (read) => {
   visibilityReaders.add(read);
   return () => visibilityReaders.delete(read);
 };
+// The marks the paint writes while the focus is visible, which every rule drawing a
+// focus ring on a box's ::after keys on, so a reader that must see such a ring arrive
+// watches for them (box-motion.js).
+export const VISIBLE_FOCUS_MARKS = [
+  "data-lf-focus-visible",
+  "data-lf-control-focus-visible",
+];
 /** @param {Element} node @param {string} name @param {boolean} present */
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
@@ -1077,8 +1086,8 @@ addEventListener(
   },
   { capture: true, passive: true },
 );
-// The user's inputs, counted: a key, a press, a wheel, a touch, text entered, or the
-// window losing focus, as find-in-page takes it. Delayed work compares the count it
+// The user's inputs, counted: a key, a press, a wheel, a touch, text entered, the
+// window losing focus, as find-in-page takes it, or a step Back or Forward. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
 
@@ -1494,7 +1503,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not lib/shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {

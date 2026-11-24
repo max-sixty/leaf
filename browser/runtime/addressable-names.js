@@ -1,75 +1,19 @@
-/* What the chrome calls an addressable element: the word for its kind
- * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
- * contract gives it (`addressableName`), the element a heading titles by that contract
- * (`titledElement`), the label every surface shows for it away from the page
- * (`addressableLabel`), and the word and label an anchor on it shows (`sectionLabel`).
- * Each reads authored words through the passage reader, so generated chrome never
- * names anything. */
+/* What the chrome calls an addressable element: the words it says
+ * (`addressableSays`), the name the authoring contract gives it (`addressableName`),
+ * the element a heading titles by that contract (`titledElement`), the label every
+ * surface shows for it away from the page (`addressableLabel`), and the word and label
+ * an anchor on it shows (`sectionLabel`). Each reads authored words through the passage
+ * reader, so generated chrome never names anything. The word for an element's kind is
+ * the library's (lib/element-word.js, `addressableWord`). */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, readsElement } from "./passages.js";
 import { keptEach } from "./kept.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
-import { uiInside, upFrom } from "./shadow-tree.js";
-import { excerptWords } from "./words.js";
-
-/** @type {Record<string, string>} */
-const HTML_WORDS = {
-  input: "control",
-  select: "control",
-  button: "control",
-  p: "paragraph",
-  li: "item",
-  tr: "row",
-  td: "cell",
-  th: "cell",
-  figure: "figure",
-  blockquote: "quote",
-  pre: "block",
-  section: "section",
-  article: "section",
-  aside: "aside",
-  ul: "list",
-  ol: "list",
-  dl: "list",
-  table: "table",
-  details: "note",
-  h1: "heading",
-  h2: "heading",
-  h3: "heading",
-  h4: "heading",
-  h5: "heading",
-  h6: "heading",
-};
-
-// A drawing the page holds inline, and each part of it an author gave an id, is a
-// figure to the reader, as a diagram's box is its diagram: SVG's element names, `g`,
-// `path` and `text`, name nothing the reader sees.
-const SVG = "http://www.w3.org/2000/svg";
-
-/** @param {Element | null | undefined} addressable */
-export function addressableWord(addressable) {
-  if (!addressable) return "";
-  if (addressable.namespaceURI === SVG) return "figure";
-  const tag = addressable.tagName.toLowerCase();
-  const word = widgetWord(tag, addressable);
-  if (word) return word;
-  if (tag === "pre")
-    return addressable.querySelector(":scope > code") ? "code" : "block";
-  return HTML_WORDS[tag] ?? tag;
-}
-
-// A widget's word for its kind: its declaration's fixed word (`word`), else what
-// its module answers from `lfWord()` where `element` is drawn and has the method, else
-// its tag without the prefix.
-/** @param {string} tag @param {Element | null} [element] */
-export function widgetWord(tag, element = null) {
-  return (
-    registry[tag]?.word ||
-    element?.lfWord?.() ||
-    (tag.startsWith("lf-") ? tag.slice(3) : "")
-  );
-}
+import { addressableWord } from "./lib/element-word.js";
+import { upFrom } from "./lib/shadow-tree.js";
+import { uiInside } from "./ui-marks.js";
+import { excerptWords } from "./lib/words.js";
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution. Display

@@ -27,6 +27,10 @@ watches (`session.Watch`), and the next prompt tries again where that failed.
 
 Telling the agent to run `leaf server start` instead leaves the user's tab without
 a server until the agent acts, which an agent can put off or never do.
+
+A page whose server still runs in the grace its earlier session left it keeps that
+server, whichever copy started it. Once the page's claim is live again, the server
+itself moves to the Leaf the session's hooks run (`server.stop_when_service_ends`).
 """
 
 import time
@@ -51,36 +55,42 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
     hand over input inline leaves that input to a pointer instead
     (`hook_transport`). A port another process holds refuses at once
     (`hosting.listening_socket`)."""
-    pages = to_serve(harness)
-    if not pages:
-        # Most prompts, which load no page servers.
-        return []
-    from .hook_transport import CONFIRM_WITHIN
-    from .hosting import claim_and_start
-    from .vendoring import renew_layer
-
-    deadline = started + CONFIRM_WITHIN
     found = []
-    for page_dir in pages:
-        if unready := renew_layer(page_dir, harness, command=False):
-            found.append(unready)
-        try:
-            if time.monotonic() >= deadline:
-                raise Refused("the prompt had no time left to start it")
-            prepared = prepare_claim(harness, page_dir)
-            with (
-                harness.preparing_delivery(),
-                claim_and_start(page_dir, prepared_claim=prepared, deadline=deadline),
-            ):
-                pass
-        except Refused as error:
-            found.append(
-                Finding(
-                    "revive-refused",
-                    values={"page": str(page_dir), "error": str(error)},
+    if pages := to_serve(harness):
+        from .hosting import claim_and_start
+        from .vendoring import renew_layer
+
+        deadline = _deadline(started)
+        for page_dir in pages:
+            if unready := renew_layer(page_dir, harness, command=False):
+                found.append(unready)
+            try:
+                if time.monotonic() >= deadline:
+                    raise Refused("the prompt had no time left to start it")
+                prepared = prepare_claim(harness, page_dir)
+                with (
+                    harness.preparing_delivery(),
+                    claim_and_start(
+                        page_dir, prepared_claim=prepared, deadline=deadline
+                    ),
+                ):
+                    pass
+            except Refused as error:
+                found.append(
+                    Finding(
+                        "revive-refused",
+                        values={"page": str(page_dir), "error": str(error)},
+                    )
                 )
-            )
     return found
+
+
+def _deadline(started: float) -> float:
+    """When the prompt hook's starts must be ready and confirmed, given its
+    `time.monotonic()` as it began (`serve_again`)."""
+    from .hook_transport import CONFIRM_WITHIN
+
+    return started + CONFIRM_WITHIN
 
 
 def to_serve(harness: Harness) -> list[Path]:

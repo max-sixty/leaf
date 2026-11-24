@@ -1258,6 +1258,7 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     [
         ("", False, False),
         ("", True, False),
+        ("retimed", False, False),
         ("part_at_once", False, False),
         ("unstanding", False, True),
         ("unstanding", True, True),
@@ -1273,7 +1274,8 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
     parts, may draw the step news's append growth takes as travel: a ResizeObserver
     delivery no input owns begins a carry that draws the standing port's head where it
     was and slides it to where its rise puts it, or draws part of the step at once, as
-    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    news may draw all of it, and a carry re-timed before any frame draws it is the
+    same carry. The step itself is judged as if drawn at once, so a carry
     of a step the port may not take still fails, as does one that draws the head below
     where it was, past where its rise puts it, or past it on the way. A key pressed
     elsewhere while the carry runs changes none of that, though it starts a new run:
@@ -1310,10 +1312,17 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
                 unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
                   { '--carry': '0px 0px' }],
               }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
-              window.carries = [row, port].map((part) => {
+              const carry = () => [row, port].map((part) => {
                 part.style.translate = 'var(--carry)';
                 return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
               });
+              window.carries = carry();
+              // Re-timed from where it is drawn before any frame draws it, as
+              // box-motion.js re-times a carry a second delivery reaches.
+              if (fault === 'retimed') {
+                window.carries.forEach((carry) => carry.cancel());
+                window.carries = carry();
+              }
             }).observe(port);
             </script></body>"""
         )
@@ -1940,7 +1949,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -2049,51 +2058,6 @@ def _far_sample(sample_id, after_id):
         f'<p>Practice</p><div style="height: 100px"></div></template></lf-sample>'
         f'<p><button id="{after_id}">After the sample</button></p>'
     )
-
-
-def test_a_jump_owns_the_fit_of_the_live_sample_it_brings_near(browser, serve):
-    """A link that jumps to a live sample far down starts its page there (`whenNear`),
-    and the frame fits that page as soon as it draws, carrying what follows it: the
-    jump owns that landing, however late it comes. It owns nothing after the landing,
-    so a control that moves once the frame has fitted is reported. A sample a script
-    brings near, with no input, fits as news, and its fit is reported too."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Fit on arrival",
-                '<p><a id="jump" href="#far">Jump to the sample</a></p>'
-                '<div style="height: 400vh"></div>'
-                + _far_sample("far", "after")
-                + '<div style="height: 400vh"></div>'
-                + _far_sample("scripted", "later")
-                + '<div style="height: 100vh"></div>',
-            )
-        ),
-    )
-    fitted = """sample => {
-        const frame = sample.querySelector('iframe');
-        return sample.ready.then(() => frame.clientHeight < 300);
-    }"""
-    page.locator("#jump").click()
-    page.wait_for_function(f"({fitted})(document.querySelector('#far'))")
-    rendered(page)
-    judge_watches()
-    assert page.lf_errors == []
-
-    page.locator("#after").evaluate("node => { node.style.marginTop = '40px'; }")
-    rendered(page)
-    judge_watches()
-    consume_browser_errors(page, moved_within("button#after"))
-
-    page.locator("#scripted").evaluate(
-        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
-    )
-    page.wait_for_function(f"({fitted})(document.querySelector('#scripted'))")
-    rendered(page)
-    judge_watches()
-    moved = consume_browser_errors(page, {"code": "moved-without-input"})
-    assert names_move(moved, "button#later"), moved
 
 
 @pytest.mark.parametrize("retired_at", ["click", "resolve-remove", "remove-resolve"])
@@ -2219,6 +2183,63 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
     assert page.lf_errors == []
 
 
+def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
+    browser, serve
+):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
+    landing draws in, after that frame's tick. The motion is the input's though the
+    server's reading lands after that delivery and before the next tick, as it can
+    when a pasted image lands in an open thread. The growing box stands after the
+    control, so only the carry moves it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></lf-group>'
+                '<button id="control" style="display:block">Control</button>'
+                '<div id="after"></div>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfWidgetApi();
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const control = document.querySelector('#control');
+      const after = document.querySelector('#after');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      new ResizeObserver(() => {
+        if (!after.offsetHeight || window.carry) return;
+        control.style.translate = 'var(--carry)';
+        window.carry = control.animate(
+          [{'--carry': '0px 60px'}, {'--carry': '0px 0px'}], {duration: 300});
+        document.body.setAttribute('data-lf-reading', 'news');
+      }).observe(after);
+      document.querySelector('#press').addEventListener('click', () => {
+        widgetController(widget).present(gate.promise.then(() => {
+          after.style.height = '40px';
+        }));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate("release()")
+    page.wait_for_function("window.carry !== undefined")
+    page.evaluate("carry.finished")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+
 @pytest.mark.parametrize(
     "input_at",
     ["outside", "same-widget", "same-disclosure-attr-node"],
@@ -2251,7 +2272,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {
@@ -4409,6 +4430,84 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         assert errors == [], (before, after, errors)
 
 
+# A row in a carrier anchored to words the document scrolls, as Leaf's margin carries a
+# row whose target scrolls in a box short of the document. As margin-layout.js does,
+# `place` writes the carrier at the window's origin as it measures the anchor, and the
+# row level with the anchor's top, `by` pixels lower.
+CARRIED_ROW = """<!doctype html><body style="margin:0;height:3000px">
+<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>
+<div id="carrier" style="position:fixed;position-anchor:--words;left:0;top:0;width:0;height:0;display:grid;grid-template:0px/0px;position-visibility:always">
+<button id="row" style="grid-area:1/1;align-self:start;justify-self:start;margin-left:260px">Row</button></div>
+<script>function place(by = 0) {
+  const at = anchor.getBoundingClientRect().top;
+  carrier.style.top = `calc(anchor(top) - ${at}px)`;
+  row.style.marginTop = `${at + by}px`;
+}
+scrollTo(0, 600);
+place();</script>"""
+
+
+@pytest.mark.parametrize(
+    ("scroll", "fault"),
+    [
+        ("step", ""),
+        ("step", "row"),
+        ("twice", ""),
+        ("twice", "row"),
+        ("smooth", ""),
+        ("smooth", "row"),
+    ],
+)
+def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault):
+    """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
+    frame callback can read the words moved and the row not yet. A row its script places
+    again in that frame, by the same offset from the words, a row whose words scroll
+    again before it catches up, and a row through a smooth scroll no input makes, are
+    credited; a row placed elsewhere still fails."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CARRIED_ROW))
+    paint(page)
+    paint(page)
+    moved = "5" if fault else "0"
+    if scroll == "step":
+        page.evaluate(f"scrollBy(0, -9); place({moved})")
+    elif scroll == "twice":
+        # A second scroll from another script, as `scrollIntoView` and then `scrollBy`
+        # make, in the task after the frame that carries the row to the first. A
+        # user-blocking task posted from that frame's callbacks runs ahead of the
+        # delivery of its painted shifts, so the watch's reading of that paint finds
+        # the words moved by the second scroll and the row caught up to the first.
+        page.evaluate(
+            """by => new Promise((done) => {
+              scrollBy(0, -9);
+              place();
+              requestAnimationFrame(() => scheduler.postTask(() => {
+                scrollBy(0, -40);
+                place(by);
+                done();
+              }, {priority: 'user-blocking'}));
+            })""",
+            int(moved),
+        )
+    else:
+        page.evaluate(
+            """by => new Promise((done) => {
+              addEventListener('scrollend', done, {once: true});
+              scrollBy({top: -300, behavior: 'smooth'});
+              setTimeout(() => place(by), 80);
+            })""",
+            int(moved),
+        )
+    paint(page)
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "button#row"), errors
+    else:
+        assert errors == [], errors
+
+
 @pytest.mark.parametrize(
     "fault", ["", "passive", "finished", "local", "ancestor_x", "ancestor_y"]
 )
@@ -5243,12 +5342,12 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
-      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
+      owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place(); const first=selected();
       if(!first||first.plane!=='page')throw Error('First placement was not supported page');
       const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
       host.style.removeProperty('transform');plane='window';await place();const second=selected();
       if(!second)throw Error('Supported window placement missing');
-      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
+      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place();const third=selected();
       window.reviewOwner=owner;window.reviewPlace=place;
       return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
     }""")
@@ -5917,7 +6016,7 @@ def test_real_floating_plane_retains_local_motion(
               {placement:'right-start',middleware:[]}, ()=>plane, subject);
             if (placed) {owner.stand(placed); answer = placed;}
           }
-          owner.watch(subject, subject, ui.autoUpdate);
+          owner.watch(subject, subject, ui.autoUpdate, ui.getOverflowAncestors);
           await place();
           holder.style.removeProperty('visibility');
           const original = selection();

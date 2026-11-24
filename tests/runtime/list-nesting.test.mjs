@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { nestItems } from "/runtime/composing/field-editor.js";
-import { loadMarkdown, placedMarkdownTokens } from "/runtime/markdown.js";
+import { loadMarkdown, placedMarkdownTokens } from "/runtime/lib/markdown.js";
 
 // Each draft marks the caret `|`, or a selection `«…»`, with the draft the press leaves:
 // unchanged where the item has nowhere to go, and null where the press is no list's.

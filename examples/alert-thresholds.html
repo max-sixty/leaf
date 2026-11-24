@@ -182,7 +182,8 @@
       }
     </style>
     <script type="module">
-      import { keepsText, whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { keepsText } from "/runtime/lib/keeps.js";
 
       const ALERTS = [
         {
@@ -388,7 +389,7 @@
         <p id="alert-eyebrow">payments-api · alerting</p>
         <h1 id="alert-title">Tune payments-api's alert thresholds</h1>
       </hgroup>
-      <p class="lede" id="alert-lede">
+      <p class="lf-lede" id="alert-lede">
         On-call asked for at most 10 pages a month, every page a real incident, and a
         ticket for anything real but not urgent. Each alert below shows what it would
         have done between 12 September and 11 October at each threshold.
@@ -454,30 +455,30 @@
                   <thead>
                     <tr>
                       <th scope="col">Threshold</th>
-                      <th scope="col" class="num">Fired</th>
-                      <th scope="col" class="num">Real</th>
+                      <th scope="col" class="lf-numeric">Fired</th>
+                      <th scope="col" class="lf-numeric">Real</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr data-threshold="0.5%">
                       <th scope="row">over 0.5%</th>
-                      <td class="num">31</td>
-                      <td class="num">3</td>
+                      <td class="lf-numeric">31</td>
+                      <td class="lf-numeric">3</td>
                     </tr>
                     <tr data-threshold="1%" class="chosen">
-                      <th scope="row">over 1% <span class="tag">today</span></th>
-                      <td class="num">12</td>
-                      <td class="num">3</td>
+                      <th scope="row">over 1% <span class="lf-tag">today</span></th>
+                      <td class="lf-numeric">12</td>
+                      <td class="lf-numeric">3</td>
                     </tr>
                     <tr data-threshold="2%">
                       <th scope="row">over 2%</th>
-                      <td class="num">4</td>
-                      <td class="num">3</td>
+                      <td class="lf-numeric">4</td>
+                      <td class="lf-numeric">3</td>
                     </tr>
                     <tr data-threshold="5%">
                       <th scope="row">over 5%</th>
-                      <td class="num">1</td>
-                      <td class="num">1</td>
+                      <td class="lf-numeric">1</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                   </tbody>
                 </table>
@@ -535,30 +536,30 @@
                   <thead>
                     <tr>
                       <th scope="col">Threshold</th>
-                      <th scope="col" class="num">Fired</th>
-                      <th scope="col" class="num">Real</th>
+                      <th scope="col" class="lf-numeric">Fired</th>
+                      <th scope="col" class="lf-numeric">Real</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr data-threshold="600ms">
                       <th scope="row">over 600 ms</th>
-                      <td class="num">44</td>
-                      <td class="num">2</td>
+                      <td class="lf-numeric">44</td>
+                      <td class="lf-numeric">2</td>
                     </tr>
                     <tr data-threshold="800ms" class="chosen">
-                      <th scope="row">over 800 ms <span class="tag">today</span></th>
-                      <td class="num">19</td>
-                      <td class="num">2</td>
+                      <th scope="row">over 800 ms <span class="lf-tag">today</span></th>
+                      <td class="lf-numeric">19</td>
+                      <td class="lf-numeric">2</td>
                     </tr>
                     <tr data-threshold="1200ms">
                       <th scope="row">over 1,200 ms</th>
-                      <td class="num">5</td>
-                      <td class="num">2</td>
+                      <td class="lf-numeric">5</td>
+                      <td class="lf-numeric">2</td>
                     </tr>
                     <tr data-threshold="2000ms">
                       <th scope="row">over 2,000 ms</th>
-                      <td class="num">0</td>
-                      <td class="num">0</td>
+                      <td class="lf-numeric">0</td>
+                      <td class="lf-numeric">0</td>
                     </tr>
                   </tbody>
                 </table>
@@ -620,25 +621,25 @@
                   <thead>
                     <tr>
                       <th scope="col">Threshold</th>
-                      <th scope="col" class="num">Fired</th>
-                      <th scope="col" class="num">Real</th>
+                      <th scope="col" class="lf-numeric">Fired</th>
+                      <th scope="col" class="lf-numeric">Real</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr data-threshold="1.5x">
                       <th scope="row">over 1.5×</th>
-                      <td class="num">9</td>
-                      <td class="num">1</td>
+                      <td class="lf-numeric">9</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                     <tr data-threshold="2x" class="chosen">
-                      <th scope="row">over 2× <span class="tag">today</span></th>
-                      <td class="num">3</td>
-                      <td class="num">1</td>
+                      <th scope="row">over 2× <span class="lf-tag">today</span></th>
+                      <td class="lf-numeric">3</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                     <tr data-threshold="3x">
                       <th scope="row">over 3×</th>
-                      <td class="num">1</td>
-                      <td class="num">1</td>
+                      <td class="lf-numeric">1</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                   </tbody>
                 </table>
@@ -689,25 +690,25 @@
                   <thead>
                     <tr>
                       <th scope="col">Threshold</th>
-                      <th scope="col" class="num">Fired</th>
-                      <th scope="col" class="num">Real</th>
+                      <th scope="col" class="lf-numeric">Fired</th>
+                      <th scope="col" class="lf-numeric">Real</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr data-threshold="1000">
                       <th scope="row">over 1,000</th>
-                      <td class="num">22</td>
-                      <td class="num">0</td>
+                      <td class="lf-numeric">22</td>
+                      <td class="lf-numeric">0</td>
                     </tr>
                     <tr data-threshold="5000" class="chosen">
-                      <th scope="row">over 5,000 <span class="tag">today</span></th>
-                      <td class="num">6</td>
-                      <td class="num">1</td>
+                      <th scope="row">over 5,000 <span class="lf-tag">today</span></th>
+                      <td class="lf-numeric">6</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                     <tr data-threshold="20000">
                       <th scope="row">over 20,000</th>
-                      <td class="num">1</td>
-                      <td class="num">1</td>
+                      <td class="lf-numeric">1</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                   </tbody>
                 </table>
@@ -765,25 +766,25 @@
                   <thead>
                     <tr>
                       <th scope="col">Threshold</th>
-                      <th scope="col" class="num">Fired</th>
-                      <th scope="col" class="num">Real</th>
+                      <th scope="col" class="lf-numeric">Fired</th>
+                      <th scope="col" class="lf-numeric">Real</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr data-threshold="60min">
                       <th scope="row">over 60 min</th>
-                      <td class="num">14</td>
-                      <td class="num">2</td>
+                      <td class="lf-numeric">14</td>
+                      <td class="lf-numeric">2</td>
                     </tr>
                     <tr data-threshold="90min" class="chosen">
-                      <th scope="row">over 90 min <span class="tag">today</span></th>
-                      <td class="num">7</td>
-                      <td class="num">2</td>
+                      <th scope="row">over 90 min <span class="lf-tag">today</span></th>
+                      <td class="lf-numeric">7</td>
+                      <td class="lf-numeric">2</td>
                     </tr>
                     <tr data-threshold="180min">
                       <th scope="row">over 180 min</th>
-                      <td class="num">2</td>
-                      <td class="num">2</td>
+                      <td class="lf-numeric">2</td>
+                      <td class="lf-numeric">2</td>
                     </tr>
                   </tbody>
                 </table>
@@ -850,25 +851,27 @@
                   <thead>
                     <tr>
                       <th scope="col">Threshold</th>
-                      <th scope="col" class="num">Fired</th>
-                      <th scope="col" class="num">Real</th>
+                      <th scope="col" class="lf-numeric">Fired</th>
+                      <th scope="col" class="lf-numeric">Real</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr data-threshold="30d">
                       <th scope="row">under 30 days</th>
-                      <td class="num">1</td>
-                      <td class="num">1</td>
+                      <td class="lf-numeric">1</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                     <tr data-threshold="14d" class="chosen">
-                      <th scope="row">under 14 days <span class="tag">today</span></th>
-                      <td class="num">1</td>
-                      <td class="num">1</td>
+                      <th scope="row">
+                        under 14 days <span class="lf-tag">today</span>
+                      </th>
+                      <td class="lf-numeric">1</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                     <tr data-threshold="7d">
                       <th scope="row">under 7 days</th>
-                      <td class="num">1</td>
-                      <td class="num">1</td>
+                      <td class="lf-numeric">1</td>
+                      <td class="lf-numeric">1</td>
                     </tr>
                   </tbody>
                 </table>

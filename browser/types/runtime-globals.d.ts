@@ -5,6 +5,7 @@ interface DocumentInputs {
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
   readonly count: number;
+  holdKeys(holds: ((event: KeyboardEvent) => boolean) | null): void;
   observe(read: (event: Event) => void): () => boolean;
 }
 
@@ -109,6 +110,9 @@ interface Window {
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
+    /** The place handed to this document by the reload that loaded it (version.js). */
+    readonly handoff: { readonly url?: unknown; readonly typing?: unknown } | null;
+    handOff(value: unknown): boolean;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };
@@ -143,7 +147,7 @@ interface Element {
   lfElementsFor?(key: string): Iterable<Element> | null;
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
-   * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
+   * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
    * title, rows and options, or a `commandScope()` value. */
   lfCommands?:
     | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
@@ -161,6 +165,9 @@ interface Element {
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
+  /** A visual's parts where its `data-lf-part` marks don't say them, read as each
+   * reading of the visual asks (`visual-parts.js`). */
+  lfParts?: import("../runtime/visual-parts.js").Parts | undefined;
 }
 
 interface HTMLScriptElement {
@@ -170,7 +177,7 @@ interface HTMLScriptElement {
   lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
   lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
   lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
-  lfObserveQueuedWork?: typeof import("../runtime/queued-work.js").observeQueuedWork;
+  lfObserveQueuedWork?: typeof import("../runtime/lib/queued-work.js").observeQueuedWork;
   lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;
   lfNativeLayers?: typeof import("../runtime/keyboard/layer-stack.js").nativeLayers;
   lfFloatingSelections?: typeof import("../runtime/annotation-overlay/floating.js").floatingSelections;
@@ -201,8 +208,14 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `announce`). */
-  "lf-announce": CustomEvent<string>;
+   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or a function returning words read off
+   * the page, such as keys (`saying`), which a listener calls as it says them. */
+  "lf-announce": CustomEvent<
+    import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
+  >;
+  /** A widget's words for something the user did that has not taken, which Leaf keeps
+   * in its Errors list (`errors.js`). */
+  "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -248,6 +261,19 @@ interface DocumentEventMap {
   >;
   /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
+  /** A hold a widget has on its own nodes through a gesture (`widget-upgrade.js`). */
+  "lf-hold": import("../runtime/widget-upgrade.js").HoldEvent;
+  /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
+   * sets `delivery` on each it sends (`widget-controller.js`). */
+  "lf-action": CustomEvent<{
+    verb: string;
+    detail?: Record<string, unknown>;
+    says?: string;
+    attempt?: string;
+  }> & { delivery?: PromiseLike<unknown> };
+  "lf-undo": CustomEvent<{ verb: string; unit?: string }> & {
+    delivery?: PromiseLike<unknown>;
+  };
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
@@ -303,7 +329,8 @@ interface ShadowRoot {
 
 interface Element {
   /** The word a widget's module names its kind by where it depends on the element
-   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
+   * (`lib/element-word.js`, `widgetWord`); a fixed word is the element's
+   * `aria-roledescription`. */
   lfWord?(): string;
   lfSays?(): string;
 }
@@ -377,7 +404,9 @@ interface DocumentEventMap {
 }
 
 interface WindowEventMap {
-  "lf-commands": import("../runtime/widget-upgrade.js").CommandsChangedEvent;
+  /** An element's `lfCommands`, or what its rows read, changed (`keyboard/scopes.js`);
+   * `within` says every scope at or under it reads again. */
+  "lf-commands": CustomEvent<{ within?: boolean } | null>;
 }
 interface Element {
   // render() creates its root part with an inserted marker (lit-html render).

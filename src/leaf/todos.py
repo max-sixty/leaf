@@ -1,6 +1,8 @@
 """To-dos, the work the agent owes, and the item the agent is working on.
 
-A to-do is work the agent owes, on its On <agent> list. Nothing is a to-do on the
+A to-do is work the agent owes, on its On <agent> list: an obligation record whose
+source is the agent's own promise (`source.kind` `todo`), which says where it stands as
+every record does (`standing`). Nothing is a to-do on the
 user: everything On Me is an obligation whose source says how the user answers it,
 a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
 of its own to any of them. The user chose this over a to-do on the user
@@ -25,7 +27,7 @@ outcome, `done`, `failed` or `dropped`, with a detail saying where the result is
 why there is none, or until a stamped version naming its widget with `--completes`
 ends it `done`. A reply, a resolution, another version, or the end of the session
 that opened it leaves it open; that is what a to-do adds over an update, which its
-answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`),
+answer settles. An open to-do keeps its thread the agent's (`standing.leading`),
 counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
@@ -34,9 +36,11 @@ user answered elsewhere or which no longer applies, ends when the agent resolves
 thread (`obligations`).
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
-stamped version that answers it (`workflows.handed_over`). It names the turn
-that wrote it and holds its item only for that turn; once that turn ends with the
-item still running, `activity` shows it stalled. A later start on the same item
+stamped version that answers it (`workflows.handed_over`). It is a lease on the item,
+held by the turn that wrote it: the item reads `running` while that turn runs, and once
+the turn ends with the item still in hand, `blocked` (`activity`). Work that outlives
+the turn is whatever else holds the lease, another session's start or the claimant's
+background work (`standing`). A later start on the same item
 replaces it, which is how the next turn takes the item up again. The `status` event
 that `leaf page open` and `leaf page close` write puts down every earlier start
 (`item_starts`), leaving their to-dos open with nothing running; admission, which
@@ -49,10 +53,10 @@ decided this. Letting only the session that last started a to-do end it would
 make another session start the to-do first, a step that protects nothing.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
+widget the newest revision declares (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
-`TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
-adds their thread and activity readings.
+`TodoReading` reads the log's to-dos, starts and ends, and `served_state.work` serves
+each standing as `activity` reads it.
 
 A plan (`plans`) arranges to-dos and obligations into an outline without owning them, so no
 rule here reads it.
@@ -67,6 +71,7 @@ from pathlib import Path
 
 from .events import note_settlements, taken_back, unshown
 from .findings import Finding, Rejected
+from .standing import ended, is_open, on
 from .thread_context import thread_ids, thread_names
 
 # What `task create` takes for the page as a whole; any other id names a widget or an
@@ -139,16 +144,12 @@ def running(start: dict) -> dict:
     }
 
 
-def _outcome(event: dict, detail: str | None) -> dict:
-    """How an event ended a to-do: which, when, by whom, and the detail it gave."""
+def _end(event: dict, detail: str | None) -> dict:
+    """How an event ended a to-do, as a record's `end`: the detail it gave, and which
+    event, when and by whom."""
     return {
-        "id": event["id"],
-        "seq": event["seq"],
-        "ts": event["ts"],
         "detail": detail,
-        "author": event["author"],
-        "agent": event.get("agent"),
-        "session": event.get("session"),
+        "event": {key: event[key] for key in ("id", "seq", "ts", "author")},
     }
 
 
@@ -172,8 +173,9 @@ class TodoReading:
         """The `todo_end` in force on each to-do it names, by the to-do's id."""
         return {
             event["todo"]: {
-                "state": event["outcome"],
-                **_outcome(event, event.get("detail")),
+                "outcome": event["outcome"],
+                "detail": event.get("detail"),
+                **{key: event[key] for key in ("id", "seq", "ts", "author")},
             }
             for event in self.events
             if event["kind"] == "todo_end" and event["id"] not in self.withdrawn
@@ -185,47 +187,53 @@ class TodoReading:
 
     @property
     def owed(self) -> list[dict]:
-        return [todo for todo in self.todos if todo["state"] == "open"]
+        return [todo for todo in self.todos if is_open(todo)]
 
 
 def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
-    """Every to-do the log opened, with how it ended: by its `todo_end` in force
-    (`ends`) or by the first stamped version whose `--completes` names it, whichever
-    came first."""
+    """Every to-do the log opened, as the obligation record it is: its title as the
+    prompt, the start in force on an open one as its `line`, and how it ended, by its
+    `todo_end` in force (`ends`) or by the first stamped version whose `--completes`
+    names it, whichever came first. Its `thread` is the one it was opened on; a reader
+    holding the thread markup adds a widget's (`served_state.work.work_state`)."""
     todos: dict[str, dict] = {}
     threads = thread_names(events)
     for event in events:
         if opened := todo_reading(event, threads):
+            subject = opened["subject"]
             todos[opened["id"]] = {
                 "id": opened["id"],
-                "subject": opened["subject"],
-                "title": opened["title"],
-                "state": "open",
+                "source": {"kind": "todo", "id": opened["id"], "subject": subject},
+                "thread": subject["id"] if subject["kind"] == "thread" else None,
+                "message": None,
+                "prompt": {"text": opened["title"], "target": subject.get("id")},
+                "answer": None,
+                "end": None,
+                **on("agent"),
+                "line": None,
                 "seq": opened["seq"],
                 "ts": opened["ts"],
                 "agent": opened.get("agent"),
                 "session": opened.get("session"),
                 "revision": opened.get("revision"),
-                "running": None,
-                "outcome": None,
             }
         elif event["kind"] == "note":
             for identity in note_settlements(event, "todo"):
                 todo = todos.get(identity)
-                ended = ends.get(identity)
+                closed = ends.get(identity)
                 if (
                     todo is not None
-                    and todo["state"] == "open"
-                    and (ended is None or ended["seq"] > event["seq"])
+                    and is_open(todo)
+                    and (closed is None or closed["seq"] > event["seq"])
                 ):
-                    todo["state"] = "done"
-                    todo["outcome"] = _outcome(event, f"v{event['version']}")
+                    todo.update(ended("done"))
+                    todo["end"] = _end(event, f"v{event['version']}")
     for todo in todos.values():
-        if todo["state"] == "open" and (ended := ends.get(todo["id"])):
-            todo["state"] = ended["state"]
-            todo["outcome"] = {key: ended[key] for key in ended if key != "state"}
-        if todo["state"] == "open" and todo["id"] in starts:
-            todo["running"] = running(starts[todo["id"]])
+        if is_open(todo) and (closed := ends.get(todo["id"])):
+            todo.update(ended(closed["outcome"]))
+            todo["end"] = _end(closed, closed["detail"])
+        if is_open(todo) and todo["id"] in starts:
+            todo["line"] = running(starts[todo["id"]])
     return list(todos.values())
 
 
@@ -277,11 +285,11 @@ def todo_error(
                 "obligation-end",
                 values={**named, "message": item["message"]},
             )
-        if ended := log.ends.get(identity):
-            return Finding("ended-todo", values={**named, "state": ended["state"]})
+        if closed := log.ends.get(identity):
+            return Finding("ended-todo", values={**named, "state": closed["outcome"]})
         return Finding("unknown-todo", values=named)
-    if todo["state"] != "open":
-        return Finding("ended-todo", values={**named, "state": todo["state"]})
+    if not is_open(todo):
+        return Finding("ended-todo", values={**named, "state": todo["outcome"]})
     return None
 
 

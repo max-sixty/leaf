@@ -19,21 +19,18 @@
  */
 import { render } from "/vendor/lit.js";
 import {
-  PRESS,
   commandScope,
-  focused,
   focusDestination,
-  keeps,
   navigateToDatum,
-  offer,
   LeafElement,
   onCurrentLocation,
-  plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { PRESS } from "/runtime/lib/keys.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 let library;
 const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
@@ -125,7 +122,9 @@ class FileTreeWidget extends LeafElement {
     // reads no rows: what it costs doesn't grow with the tree.
     const modelChanged = () => {
       paintEmpty();
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     };
     const mount = () => {
       if (!tree || mounted || !files.length) return;
@@ -145,12 +144,7 @@ class FileTreeWidget extends LeafElement {
       stopModel = tree.subscribe(modelChanged);
       mounted = true;
     };
-    const focusedRow = () => {
-      const element = focused();
-      return Boolean(
-        element?.getAttribute("role") === "treeitem" && root.contains(element),
-      );
-    };
+    const focusedRow = () => root.activeElement?.getAttribute("role") === "treeitem";
     /** @param {import("@pierre/trees").FileTree} tree @param {string} path */
     const selectOnly = (tree, path) => {
       for (const selected of tree.getSelectedPaths())
@@ -191,14 +185,19 @@ class FileTreeWidget extends LeafElement {
       },
     ]);
     this.lfCommands = fileActions;
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     whileConnected(this, (signal) => {
       mount();
       // Trees scrolls its virtualized list and focuses with preventScroll. The
       // row can still lie outside Leaf's outer reading viewport, so hand that
-      // remaining reveal to the same scrolling owner every widget uses.
+      // remaining reveal to the same scrolling owner every widget uses. A row the
+      // user pressed is where they aimed, so it stays there: focus arrives on the
+      // press's mousedown, and a reveal there would move the row from under the
+      // pointer before the mouseup, which would fall on another row and open neither.
       const stopCurrentLocation = onCurrentLocation(
-        (/** @type {Element | null} */ row) => {
+        (/** @type {Element | null} */ row, cause) => {
           // A route to this navigator lands on its usable entry control.
           if (row === this) {
             const input = root.querySelector("input");
@@ -208,16 +207,22 @@ class FileTreeWidget extends LeafElement {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.
             row.lfCommands = fileActions;
-            commandsChanged(row);
-            scrollIntoView(row, { block: "nearest" });
+            row.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
+            if (cause !== "press") scrollIntoView(row, { block: "nearest" });
           }
         },
       );
       this.addEventListener(
         "click",
         (event) => {
+          // A modified click keeps its usual meaning.
+          const plain =
+            event.button === 0 &&
+            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
           if (
-            plainPress(event) &&
+            plain &&
             event
               .composedPath()
               .some(

@@ -56,7 +56,7 @@ class ResolvedThreads {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    generatedElement(this.node, { says: false });
+    generatedElement(this.node);
     this.node.dataset.lfOffer = "";
     this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     // Native disclosure opens at the attribute checkpoint, before paint.
@@ -435,6 +435,18 @@ export function commitThreadSeats(batch) {
       activeSeats.delete(seat);
       seats.delete(seat.node);
     }
+}
+// A seat whose host has left the document, as a margin card's thread does once the
+// card draws another, goes at once rather than at the next draw's prune
+// (`commitThreadSeats`), so its drawings let go of what they held, a message's widgets
+// among them, which the drawing standing in its place takes (messages.js,
+// `authoredHolders`).
+/** @param {Element} host */
+export function pruneThreadSeat(host) {
+  const seat = seats.get(host);
+  if (!seat?.prune()) return;
+  activeSeats.delete(seat);
+  seats.delete(seat.node);
 }
 /** @param {SeatBatch} batch */
 export function retainThreadSeats(batch) {

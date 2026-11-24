@@ -2,8 +2,8 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { exceptionText } from "./exception.js";
 export { startNearWork } from "./presentation.js";
+export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -17,7 +17,8 @@ export {
   whenApplicationRegionsPresented,
   whenDocumentPresented,
 } from "./semantic-state.js";
-export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
+export { USER_VIEW_RESTORE_CASES, THREADS_IN_PANEL_KEY } from "./restore-state.js";
+export { restoreThreadsInPanel } from "./thread/threads-in-panel.js";
 export {
   ADDRESSABLE,
   anchorForRange,
@@ -38,18 +39,12 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
-  coverBoxes,
 } from "./geometry.js";
-export {
-  drawnElements,
-  skipped,
-  renderedParent,
-  uiInside,
-  upFrom,
-} from "./shadow-tree.js";
+export { uiInside } from "./ui-marks.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { NOTICE_MS, notice } from "./notifications.js";
+export { raiseError } from "./errors.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -62,6 +57,7 @@ export {
   regionScrollBehavior,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
+export { carriersOf } from "./scroll-containers.js";
 export {
   layoutBox,
   pageDocument,
@@ -69,7 +65,6 @@ export {
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
-  closestAcross,
   pageText,
   fencePassageParts,
   findQuote,
@@ -79,7 +74,11 @@ export {
   textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
-export { commandDeclarationsWithin, paintKeys } from "./keyboard/scopes.js";
+export {
+  commandDeclarationsWithin,
+  commandsUnread,
+  paintKeys,
+} from "./keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,
@@ -90,6 +89,8 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  focused,
+  handBack,
   onCurrentLocation,
   releaseFocus,
   ringBox,
@@ -100,7 +101,8 @@ export { selectionAnchor } from "./composing/capture.js";
 // A range's owner's word of where the pointer rests, as a passage mark's is.
 export { PREVIEW_TIMERS, pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
-export { renderingState } from "./rendering.js";
+export { afterScript, renderingState } from "./rendering.js";
+export { pageScroller } from "./scrolling.js";
 export {
   readingBlock,
   blocksOnScreen,
@@ -110,10 +112,21 @@ export {
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
-export { nativeLayers } from "./keyboard/layer-stack.js";
+export {
+  closeNativeLayer,
+  nativeLayers,
+  showNativeLayer,
+} from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
+export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
+export {
+  browserScrolls,
+  holdScroll,
+  scrolling,
+  setScroll,
+  watchScrollEnds,
+} from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -129,21 +142,17 @@ export {
   onFrameVisibility,
   readSampleVisibility,
 } from "./frame-visibility.js";
-export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
-export { flashDuration, agentArrivalDuration } from "./motion.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
-export { alignInlineText, alignText, sentenceUnits } from "./text-alignment.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { TEXT_BOX, WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
-export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
 export { versionPicker } from "./version-picker.js";
 export { colourableAs, colouredAs } from "./syntax.js";

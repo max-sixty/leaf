@@ -1,13 +1,11 @@
-/* This module owns an element's local coordinate frame in the viewport: the composed
- * affine axes of its own layout units, through every transformed ancestor; the frame
- * its content's coordinates live in (CSS border box, intrinsic pixels of replaced
- * content, or SVG user units); and the conversion of a viewport movement into a
- * scroller's own offsets. Drawing records points in these frames, so ink follows a
- * transformed, zoomed or resized target. */
-import { scrollRange } from "./arrivals.js";
+/* This module owns the frame an element's content coordinates live in, in the
+ * viewport: its CSS border box (element-axes.js, `elementBorderFrame`), the intrinsic
+ * pixels of replaced content, or SVG user units; and the conversion of a viewport
+ * movement into a scroller's own offsets. Drawing records points in these frames, so
+ * ink follows a transformed, zoomed or resized target. */
+import { scrollRange } from "./lib/scroll-range.js";
 import { shownBox } from "./geometry.js";
-import { elementAxes, scrollAxes } from "./element-axes.js";
-import { isHTML } from "./shadow-tree.js";
+import { elementBorderFrame, scrollAxes } from "./element-axes.js";
 export { scrollAxes } from "./element-axes.js";
 
 // Resolve the browser's computed two-component <position> in the free space left
@@ -156,53 +154,6 @@ export function elementFrame(source) {
       matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy),
     };
   }
-  return { box, width, height, matrix };
-}
-
-// The element's CSS border box, given the box elementFrame already read. Intrinsic
-// content coordinates are a separate reading elementFrame adds.
-/** @param {Element} source @param {DOMRect} box */
-function elementBorderFrame(source, box) {
-  const style = getComputedStyle(source);
-  if (style.display === "contents")
-    return {
-      box,
-      width: box.width,
-      height: box.height,
-      matrix: new window.DOMMatrix().translate(box.left, box.top),
-    };
-  /** @param {"width" | "height"} side @param {readonly ("Left" | "Right" | "Top" | "Bottom")[]} edges @param {number | undefined} fallback */
-  const borderSize = (side, edges, fallback) => {
-    const size = Number.parseFloat(style[side]);
-    if (!Number.isFinite(size)) return fallback;
-    return style.boxSizing === "border-box"
-      ? size
-      : size +
-          edges.reduce(
-            (sum, edge) =>
-              sum +
-              Number.parseFloat(style[`padding${edge}`]) +
-              Number.parseFloat(style[`border${edge}Width`]),
-            0,
-          );
-  };
-  const width = borderSize(
-    "width",
-    ["Left", "Right"],
-    isHTML(source) ? source.offsetWidth : undefined,
-  );
-  const height = borderSize(
-    "height",
-    ["Top", "Bottom"],
-    isHTML(source) ? source.offsetHeight : undefined,
-  );
-  if (width === undefined || height === undefined) return null;
-  const { x, y } = elementAxes(source);
-  const left =
-    box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
-  const top =
-    box.top - Math.min(0, width * x.y, height * y.y, width * x.y + height * y.y);
-  const matrix = new window.DOMMatrix([x.x, x.y, y.x, y.y, left, top]);
   return { box, width, height, matrix };
 }
 

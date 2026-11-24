@@ -104,13 +104,13 @@ vars:
 
     ---
 
-    Write the page in the initialized Leaf page directory.
+    Write the page in the Leaf page directory.
 assert:
   - type: llm-rubric
     metric: skim-reads-coherently
     value: |
       Read the page's HTML. With its `lf-dial` at Skim, a reader sees the `h1`, the
-      element with class `lede` and the elements with class `gist`, in document order;
+      element with class `lf-lede` and the elements with class `gist`, in document order;
       read only those, as Priya would. Pass only if, read alone in that order, they
       give her a coherent account she can act on: what failed and its cost (including
       the lost payments), why it happened, and the decision she owes between fix A and

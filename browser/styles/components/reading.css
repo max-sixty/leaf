@@ -34,7 +34,7 @@
  * scrolls sideways (base.css) and `page check --render` refuses the page
  * (`page-scrolls`), so its author fixes the overflow in the page's own CSS.
  */
-/* Markup Leaf renders from Markdown, a message's or a widget's body (`markdown.js`,
+/* Markup Leaf renders from Markdown, a message's or a widget's body (`lib/markdown.js`,
    `.lf-markdown-body`), is Leaf's reading of it, so it wears the face whatever theme the
    page takes. */
 :where(.lf-thread-transcript),
@@ -108,7 +108,8 @@
      * break. Each row a line wraps onto starts two columns past the line's own indent,
      * behind a muted ↪, so it reads as the rest of its line, in code as in prose, and a
      * wrapped command doesn't read as the next one. The runtime boxes each line for
-     * that (code-lines.js, which says why); a block it leaves as authored, and a page
+     * that (code-lines.js, which says why), and the box hangs its rows (marks.css,
+     * `[data-lf-pre-line]`); a block it leaves as authored, and a page
      * read without the runtime, hang every wrapped row two columns from the block's
      * edge (`text-indent`), unmarked. A block whose
      * columns must line up past the column, such as a diagram drawn in characters,
@@ -134,26 +135,6 @@
       overflow-wrap: anywhere;
       text-indent: 2ch hanging each-line;
       overflow: auto hidden;
-    }
-    /* A line the runtime boxed. Its wrapped rows start two columns past its indent
-     * (`--lf-code-indent`, its leading columns), up to the 24 columns lf-code's lines
-     * stop at (code.css), and the first of the two holds the mark on each of them. The
-     * hang indents the rows after the first, and so leaves the first row's tab stops
-     * where the block's are. */
-    [data-lf-pre-line] {
-      display: block;
-      position: relative;
-      --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
-      text-indent: var(--lf-code-hang) hanging;
-    }
-    [data-lf-pre-line]::before {
-      content: "";
-      position: absolute;
-      inset-block: 1lh 0;
-      inset-inline-start: calc(var(--lf-code-hang) - 2ch);
-      inline-size: 1ch;
-      background: var(--lf-code-muted);
-      mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y;
     }
     /* A code block and a table keep room under their content for an overlay scrollbar's
        track, as a text scroller does (above). Their own padding already holds part of
@@ -267,37 +248,6 @@
       --lf-ring-at: var(--lf-focus-ring-inset);
     }
   }
-}
-
-/* A list of facts, each label beside its value: every set of labelled values Leaf
- * shows itself (`dl.lf-facts`), such as About's counts and a capture's details. One
- * layout for all of them, so a reader learns where a value stands once. The labels
- * take a column as wide as the longest of them, up to two fifths of the list, and
- * wrap past that, so a long label never leaves its value a ribbon of a few words a
- * line; the values take the rest and line up on one edge. A `div` may hold a label
- * with its value, as HTML allows. Its labels take the interface's small font, as a
- * field's label over its box does. It is a component rather than part of the face, so
- * it holds in a widget's slotted content, which a declared shadow tree keeps out of
- * the face (`:host`, above). It reaches only Leaf's own class: a page's `dl.facts`
- * keeps the layout its author wrote, and the reading theme gives its own the same
- * one (packages/reading/defaults.css). */
-dl.lf-facts {
-  display: grid;
-  grid-template-columns: fit-content(40%) minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--lf-sp-1) var(--lf-sp-3);
-}
-dl.lf-facts > div {
-  display: contents;
-}
-dl.lf-facts dt {
-  color: var(--lf-muted);
-  font: var(--lf-font-small);
-}
-dl.lf-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-variant-numeric: tabular-nums;
 }
 
 @layer lf-reading-face {
@@ -623,6 +573,32 @@ dl.lf-facts dd {
     p {
       margin: 13px 0;
     }
+    /* An eyebrow is the short label above a heading, which HTML writes as a `<p>`
+       before the heading in its `<hgroup>`; a `<p>` after the heading is a subtitle and
+       keeps the body's face. Rejected: an `.eyebrow` class, a name of Leaf's for what
+       the group already says (the user's decision). An eyebrow and its heading are one
+       title: the heading level's large top margin belongs before the group, while the
+       eyebrow's bottom margin owns the small gap inside it. Each rule ends at the group
+       or at a heading's place in it, not at a sibling combinator over every heading,
+       which Gecko answers by restyling every later sibling of an insertion
+       (notes/browser-support.md, "Styling content Firefox skips"). */
+    hgroup > p:first-child {
+      font-size: var(--lf-t-6);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lf-muted);
+      font-weight: 500;
+      margin: 0 0 10px;
+    }
+    hgroup:has(> p:first-child + h2) {
+      margin-top: var(--lf-h2-start);
+    }
+    hgroup:has(> p:first-child + h3) {
+      margin-top: var(--lf-h3-start);
+    }
+    hgroup > :is(h1, h2, h3):not(:first-child) {
+      margin-top: 10px;
+    }
     figure {
       margin: var(--lf-figure-margin-block) 0;
     }
@@ -712,7 +688,8 @@ dl.lf-facts dd {
      * wrong and never do anything. */
     figcaption,
     th:not([scope="row"]),
-    summary {
+    summary,
+    hgroup > p:first-child {
       font-family: var(--lf-sans);
       font-variant-numeric: tabular-nums;
     }
@@ -858,7 +835,7 @@ leaf-text.lf-fab-input,
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching
    where it left none, as a list typed under its first line or an item under the
-   last. The renderer counts those lines (markdown.js, `data-lf-gap`); HTML an agent
+   last. The renderer counts those lines (lib/markdown.js, `data-lf-gap`); HTML an agent
    wrote carries none (below). A fence's count stands
    on its code. A line is the message's, computed where the text starts, since code
    sets a shorter one of its own. */

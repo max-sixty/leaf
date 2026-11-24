@@ -9,7 +9,6 @@
 import { pageRange, selectEnds, selectionBackward } from "../native-selection.js";
 import { COLLAPSE } from "../kernel-facts.js";
 import {
-  closestAcross,
   pageWords,
   pointAt,
   readingHolding,
@@ -17,11 +16,12 @@ import {
   segmentsIn,
   spanIn,
 } from "../passages.js";
-import { sentenceUnits, textUnits } from "../text-alignment.js";
+import { sentenceUnits, textUnits } from "../lib/text-alignment.js";
 import { anchorForRange, anchoringIsReady } from "../anchor-resolution.js";
 import { takesLetters, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { raiseError } from "../errors.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 // Selection and control-context capture use the same durable passage producer.
 /** @param {Selection} sel */

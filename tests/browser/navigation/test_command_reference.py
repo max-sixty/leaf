@@ -142,7 +142,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
-          const {commandScope, contributionEntry, presentContributionEntry} =
+          const {commandScope, presentContributionEntry} =
             await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'projected-only-command';
@@ -154,12 +154,12 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
             line: 'exercise projected command',
             run: () => {},
           }]);
-          presentContributionEntry(control, contributionEntry({
+          presentContributionEntry(control, {
             key: 'projected-only',
             icon: 'question',
             label: 'Projected command',
             scope,
-          }));
+          });
         }"""
     )
     panel_control(page, "keyboard").click()
@@ -452,7 +452,6 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'changing-command-scope';
           control.textContent = 'Changing command scope';
@@ -476,8 +475,8 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
               run: () => { control.dataset.ran = 'second'; },
             },
           ] };
-          commandsChanged(control);
-          commandsChanged(document.body);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+          document.body.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           control.focus();
         }"""
     )
@@ -588,7 +587,8 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
     """Read once for the leaf's menu and once for the open view, the floating panel's
     section would list ↑ ↓ Home End twice under the same words. One walk over the open
-    view's list, the menu's among them, lists each key once."""
+    view's list, the menu's among them, lists each key once, beside the ← → that turn
+    the panel's tabs."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
@@ -613,8 +613,9 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
         ("panel.floating.rows.next", "Next row"),
         ("panel.floating.rows.first", "First row"),
         ("panel.floating.rows.last", "Last row"),
+        ("panel.floating.tabs", "Move through the tabs"),
     ], rows
-    assert [keys for _, keys, _ in rows] == ["↑", "↓", "home", "end"], rows
+    assert [keys for _, keys, _ in rows] == ["↑", "↓", "home", "end", "← →"], rows
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

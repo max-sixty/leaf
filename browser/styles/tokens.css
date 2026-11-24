@@ -9,16 +9,26 @@
  * are those the references name (skills/leaf/references/package-themes.md, "Theme
  * tokens"), and Leaf's examples and instructions use no other; the rest are Leaf's own
  * and change freely. */
+/* The times of motion, registered so each computes to a time a script can read
+   (runtime/lib/motion-timing.js, `motionTime`) as a stylesheet reads it with `var()`. */
+/* How long the tint that marks an arrival or a change lasts. */
 @property --lf-motion-flash {
   syntax: "<time>";
   inherits: true;
   initial-value: 1200ms;
 }
+/* How long room takes to go back. Long enough that the eye can follow a paragraph's
+   worth of page closing, short enough that the act still reads as having happened at
+   the press: a board's own FLIP is 150ms over a card's width, and this is a taller
+   distance travelled by the whole column below it. A decided suggestion's retired
+   slot, a resolved inline thread and a message leaving a thread fold over it, and a
+   picture's zoom (runtime/media.js) takes the same time. */
 @property --lf-motion-fold {
   syntax: "<time>";
   inherits: true;
   initial-value: 220ms;
 }
+/* A retained frame returning from an editor to its shorter reading. */
 @property --lf-motion-return {
   syntax: "<time>";
   inherits: true;
@@ -36,6 +46,8 @@
   inherits: true;
   initial-value: 160ms;
 }
+/* The finite window in which a mark of the agent's work arrives, which independently
+   rendered carriers join part-way through (runtime/contribution-controls.js). */
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
   inherits: true;
@@ -48,34 +60,43 @@
   inherits: true;
   initial-value: 8px;
 }
+/* Registered as a length so it computes to one, which the reach of a mark over a list
+   marker reads back (geometry.js, `markerReach`). */
+@property --lf-list-inset {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 24px;
+}
 :root {
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  /* The room the chrome keeps at the window's head and foot, stated in the
-     render-blocking theme so the initial document and the eventual chrome share one
-     box. At the head the chrome draws nothing, so the room is the window's safe area. At
-     the foot the floating panel's row rests (floating-panel.css), with a gap below and
-     above it, so the end of the page can scroll clear of it. A page that is not live
-     draws no chrome and keeps no room (below).
+  /* The window's head and foot as the chrome sees them, stated in the render-blocking
+     theme so the initial document and the eventual chrome share one box. At the head
+     the chrome draws nothing, and the room is the window's safe area, which the body
+     keeps (base.css). At the foot the floating panel's row rests (floating-panel.css),
+     with a gap below and above it. The page keeps no room for that band: the row stands
+     over the page, and Leaf's landings stop above it (`--lf-foot-band`, base.css). A page
+     that is not live draws no chrome (below).
 
-     The row is its one line (`--lf-line`) and the padding around it. The leaf, each
-     mark and press beside the field, and the field's first line of words are each a line
-     tall, and the row stands them all on its foot, so every one of them is centred on
-     the line the words are written on (floating-panel.css, `.lf-fp-row`). */
-  --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
+     The row is its one line (`--lf-line`) and the panel's padding around it
+     (`--lf-thread-pad`). The leaf, each mark and press beside the field, and the field's
+     first line of words are each a line tall, and the row stands them all on its foot,
+     so every one of them is centred on the line the words are written on
+     (floating-panel.css, `.lf-fp-row`). */
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-thread-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc(
     var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom)
   );
-  /* What a page reads of the chrome, and only where it needs a number: a box that fills
-     the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room and any sticky header under it. Ordinary content never sees either
-     band; the document already keeps clear of both (html[data-lf-live], base.css). */
-  --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
+  /* What a page reads of the window, and only where it needs a number: a box that
+     fills the window takes --lf-view-height, and a box that sticks stops at --lf-top,
+     below the head room and any sticky header under it. Ordinary content never sees
+     either; the document already keeps clear of the head room (html[data-lf-live],
+     base.css). The floating panel takes no room: it stands over the page. */
+  --lf-view-height: calc(100dvh - var(--lf-head-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's
      `--lf-landing-top`, base.css), in two parts: how much of the sticky-header slot it
@@ -201,7 +222,19 @@
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
-  /* The compact label every layer draws a small fact in: .tag here and the
+  /* A box that meets a hairline frame's edge from inside, such as a toolbar's end mark
+     or an option group's corner cell, takes this rounding at the corners they share:
+     the frame's --lf-r less its hairline, so the box's edge, and a ring drawn inside
+     it, follows the frame's inner curve (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). */
+  --lf-r-in: calc(var(--lf-r) - 1px);
+  /* The least room between a box and its frame's edge that reads as standing clear of
+     the edge rather than nearly meeting it (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). A seat that stands a box clear of an
+     edge, such as a card's grip or a block's toolbar, reads it. It is a length of its
+     own rather than --lf-sp-1, which a denser layout narrows below it. */
+  --lf-clear: 4px;
+  /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
      height and one inset; each wearer states only its ground, ink, and where it sits.
@@ -255,6 +288,11 @@
   /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --lf-mark-size: 20px;
+  /* How far a corner mark (controls.css, `data-lf-corner`) stands out past the corner
+     it rides, on an attachment and on the floating panel's box alike. The panel's
+     fold, reach included (surfaces.css), then ends at the foot of the pictures the
+     panel holds `--lf-media-gap` above its box, so a press on a picture opens it. */
+  --lf-mark-overhang: 6px;
   /* A draft's attached pictures (response.css, `.lf-composer-media`): how tall one
      stands at most, enough to tell a pasted screenshot by its content, which 56px was
      not; and how far they stand clear of the edge they meet as it is drawn, wherever a
@@ -284,16 +322,24 @@
       var(--lf-focus-ring-room)
   );
   /* A page thread's card is read as prose, so its preferred measure is the column's,
-     720px at 17px, at the card's 14px face. Beside its words a card stands at the
-     minimum until `size-width` widens it (placement-rules.json). The minimum chooses whether the card and the
+     720px at 17px, at the card's 14px face. Beside its words the comment box and the
+     card start at the minimum and widen by `size-width` (placement-rules.json). The minimum chooses whether the card and the
      comment box before it fit beside their words. Clearing the margin cluster requires
      the full preferred measure, so its controls never cost message width
      (comment-placement.js). */
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
-  /* The room inside a thread card's border, wherever the card stands: over the page
-     in the margin, or in a widget's flow (surfaces.css). */
-  --lf-comment-inset: 12px;
+  /* The padding of every frame a thread stands in, inside its one-pixel edge: a card
+     over the page or in a widget's flow (annotation-chrome.css, surfaces.css), a
+     comment box, which wears the frame of the card it becomes, and the floating panel
+     with its row (floating-panel.css). A box written in at a frame's edge adds it to its
+     line on either side, so every such box is as tall as the panel's row, under a
+     mouse or a finger (below). `--lf-thread-frame` is the
+     edge and the padding together, where a quote's rule, a rewrite's frame and a
+     summary's region stand; a thread's words stand `--lf-thread-text-inset` further in
+     (surfaces.css). */
+  --lf-thread-pad: 6px;
+  --lf-thread-frame: calc(var(--lf-thread-pad) + 1px);
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus
@@ -312,10 +358,11 @@
      which a column page's rail stands; narrower, a thread opens in the floating panel
      rather than a margin card (content-layout.js, `windowHoldsRail`). */
   --lf-rail-room: calc(var(--lf-col) + 2 * var(--lf-rail));
-  /* The room a page Layout leaves above its first block and below its last. A phone's
-     and a block sample's are smaller (base.css). */
+  /* The room a page Layout leaves above its first block and below its last, the latter
+     past the window's safe area at its foot, where a phone draws its home indicator. A
+     phone's and a block sample's are smaller (base.css). */
   --lf-page-pad-start: 72px;
-  --lf-page-pad-end: 96px;
+  --lf-page-pad-end: calc(96px + var(--lf-safe-bottom));
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */
@@ -629,8 +676,10 @@
        and any box that draws a frame round itself stands its rings on the frame (the
        user's choice): a ring a gap off a frame read as a second box round it.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
-       box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing
+       box padded inside a frame it fills, one whose clip leaves no room outside it, or
+       one of Leaf's word and symbol presses, which Leaf seats on frames' edges and in
+       their corners (controls.css, `.lf-btn` and `.lf-icon-action`): one band inside
+       its edge, at --lf-focus-ring-inset. A box that clips a mark standing
        outside its target cuts it, as it cuts the target. A box the page's layout leaves
        less room round than a region's gap, as a full-height workspace's body
        (layouts.css), stands its marks at a control's gap: inside, they would run over
@@ -974,7 +1023,7 @@ html:not([data-lf-live]) {
     --lf-aim-floor: 44px;
     --lf-entry-floor: 16px;
     --lf-line: 34px;
-    --lf-fp-row-pad: 7px;
+    --lf-thread-pad: 7px;
     --lf-rail-hang: calc(var(--lf-col-pad) + 10px);
   }
 }

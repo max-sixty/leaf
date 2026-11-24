@@ -14,7 +14,7 @@
  * cluster; Max chose undo over it. Commands enter only through the
  * constructor.
  */
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./anchor-coordinate.js";
 import { sameAnchor } from "./anchor-coordinate.js";
@@ -38,7 +38,6 @@ import { commandScope } from "./keyboard/scopes.js";
 import {
   authoredScope,
   elementById,
-  inChrome,
   pageDocument,
   pageQueryAll,
   readingElements,
@@ -47,13 +46,14 @@ import { pageUpgraded } from "./page-paint.js";
 import { kept } from "./kept.js";
 import { readPart } from "./semantic-state.js";
 import { tokenEntry } from "./registry.js";
-import { isElement, shadowHost, upFrom } from "./shadow-tree.js";
+import { isElement, shadowHost, upFrom } from "./lib/shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, offeredAction } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
+import { offer, offeredAction } from "./lib/controls.js";
+import { keeps, keepsText } from "./lib/keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 import { raiseError } from "./errors.js";
+import { inChrome } from "./ui-marks.js";
 
 const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';

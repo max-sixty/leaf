@@ -1047,3 +1047,33 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, brows
     for page in arms.pages(cleanup_work):
         assert arms.read_page_state(ROOT, cleanup.state, page)["server"] is None
     shutil.rmtree(cleanup_work)
+
+
+def test_a_finished_page_reads_its_data_under_the_runs_state_home(tmp_path):
+    """A case's fixture package is installed only under the run's state home, so a
+    page that selects it composes its layer there and on no other state home."""
+    from leaf_dev import ROOT
+    from leaf_dev.authoring_eval import bound_sources
+
+    state, page = tmp_path / "state", tmp_path / "page"
+
+    def leaf(*args, said=None):
+        return arms.run_leaf(ROOT, state, *args, input_text=said, check=True).stdout
+
+    leaf("package", "install", "evals/numeric-grid-shows-shape/fixtures/team-charts")
+    leaf("page", "init", "--package", "team-charts", "--package", "diff", str(page))
+    (page / "index.html").write_text(
+        "<!doctype html><html><head><title>Patch</title></head><body><main>"
+        '<h1 id="title">Patch</h1><lf-diff id="view" source="patch"></lf-diff>'
+        "</main></body></html>"
+    )
+    patch = (
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    manifest = leaf("package", "run", "diff", "patch_manifest.py", said=patch)
+    leaf("data", "set", str(page), "patch", said=manifest)
+
+    assert "+new" in json.dumps(bound_sources(page, state)["patch"]["value"])
+    with pytest.raises(RuntimeError, match="unknown package 'team-charts'"):
+        bound_sources(page, tmp_path / "another-state")

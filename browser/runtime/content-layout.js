@@ -2,17 +2,17 @@
  * document owner reads the sticky header height shared with landing geometry and
  * notifies annotation geometry after the document's native layout has changed. */
 import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
-import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
+import { nextFrame, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-upgrade.js";
 import { layoutBox, layoutParts, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
+import { carriedBox } from "./element-axes.js";
 import { layoutWindow, shellRight } from "./geometry.js";
-import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { inChrome } from "./shadow-tree.js";
+import { inChrome } from "./ui-marks.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -89,7 +89,7 @@ export function openDocumentLayout({ onRead }) {
 /** @param {Element} node */
 export const proseMeasure = (node) =>
   parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
-/** @typedef {NonNullable<ReturnType<typeof union>>} ProseBox */
+/** @typedef {ReturnType<typeof carriedBox>} ProseBox */
 /** @overload @param {Element} main @returns {ProseBox} */
 /** @overload @param {Element | null | undefined} [main] @returns {ProseBox | null} */
 /** @param {Element | null | undefined} [main] @returns {ProseBox | null} */
@@ -109,18 +109,12 @@ export function proseRect(main = layoutBox()) {
   );
   const left =
     style.direction === "rtl" ? frame.width - edge("Right") - width : edge("Left");
-  const right = left + width;
-  /** @param {number} x @param {number} y */
-  const corner = (x, y) => {
-    const point = frame.matrix.transformPoint({ x, y });
-    return { left: point.x, right: point.x, top: point.y, bottom: point.y };
-  };
-  return union([
-    corner(left, 0),
-    corner(right, 0),
-    corner(left, frame.height),
-    corner(right, frame.height),
-  ]);
+  return carriedBox(frame.matrix, {
+    left,
+    top: 0,
+    right: left + width,
+    bottom: frame.height,
+  });
 }
 /** @param {Element | null} [main] */
 export const railStands = (main = layoutBox()) => {

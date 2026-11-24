@@ -1,27 +1,27 @@
 /* The screenshot's retained client-side Lit drawing and source-coordinate geometry.
  * Images load before their sources enter the drawing; frames and controls survive
  * capture revisions. ShotView owns inspection state, retained nodes and fitting. */
+import { actionClass } from "/runtime/lib/control-faces.js";
 import {
-  actionClass,
   offerElement,
   offerActionElement,
   offeredAction,
-  generatedElement,
-  keeps,
-} from "/runtime/widget-api.js";
+} from "/runtime/lib/controls.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {import("./image-difference.js").Difference} Difference */
 /** @typedef {import("./image-difference.js").Rectangle} Rectangle */
 /** @typedef {import("./image-difference.js").Side} Side */
-/** @typedef {{pixelRatio?: number, captureWidth?: number, focus?: Rectangle | undefined, labels?: Record<Side, string>}} ShotMetadata */
+/** @typedef {{pixelRatio?: number, focus?: Rectangle | undefined}} ShotMetadata */
 /** @typedef {{available: number, availableHeight?: number | undefined, screenHeight: number, labelHeight: number, sourceWidth?: number | undefined, sourceHeight?: number | undefined, focus?: Rectangle | undefined, full?: boolean, actual?: boolean, view?: string, gap: number}} ShotGeometryInput */
 /** @typedef {NonNullable<ReturnType<typeof fitShotGeometry>>} ShotGeometry */
 const SHOT_VIEWS = {
-  flip: "Slider",
-  compare: "Pair",
+  slider: "Slider",
+  pair: "Pair",
   pixels: "Pixels",
 };
+const LABELS = { before: "Before", after: "After" };
 let nextOptionsId = 0;
 
 /** @param {import("./image-difference.js").OutlineRegion} region @param {Difference} reading */
@@ -74,7 +74,7 @@ function fitShotGeometry({
   focus = undefined,
   full = false,
   actual = false,
-  view = "flip",
+  view = "slider",
   gap,
 }) {
   const crop = focus && !full ? focus : null;
@@ -105,12 +105,12 @@ function fitShotGeometry({
   const stack = fit(1, 2, labelHeight, room);
   const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
-  const fitScale = view === "compare" ? pairScale : fit(1, 1, 0, room);
+  const fitScale = view === "pair" ? pairScale : fit(1, 1, 0, room);
   const scale = actual ? 1 : fitScale;
   // An image's scale and its viewing window are different dimensions. At actual
   // size each window uses its share of the allocation while both remain visible.
-  const columns = view === "compare" && layout === "side" ? 2 : 1;
-  const rows = view === "compare" && layout === "stack" ? 2 : 1;
+  const columns = view === "pair" && layout === "side" ? 2 : 1;
+  const rows = view === "pair" && layout === "stack" ? 2 : 1;
   const captionHeight = rows === 2 ? labelHeight : 0;
   const viewportWidth = Math.min(
     width * scale,
@@ -118,7 +118,7 @@ function fitShotGeometry({
   );
   const viewportHeight =
     availableHeight === undefined
-      ? height * (view === "compare" ? pairScale : scale)
+      ? height * (view === "pair" ? pairScale : scale)
       : Math.min(
           height * scale,
           Math.max(
@@ -154,7 +154,7 @@ function fitShotGeometry({
 /** @param {HTMLElement} host @param {ShotGeometry} geometry */
 function applyShotGeometry(host, geometry) {
   for (const [name, value] of Object.entries(geometry.vars))
-    host.style.setProperty(`--lf-shot-${name}`, `${Math.round(value * 64) / 64}px`);
+    host.style.setProperty(`--lf-shot-${name}`, layoutPx(value));
   keeps(host, "data-lf-shot-layout", geometry.layout);
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);
@@ -163,10 +163,11 @@ function applyShotGeometry(host, geometry) {
 // The third-party comparison owns its frame slots; its shell is generated page
 // drawing, so paper prints its images while dropping the toolbar's offered chrome.
 /** @template {keyof HTMLElementTagNameMap} K @param {K} tag @param {string} cls */
-export const shotBox = (tag, cls) =>
-  generatedElement(Object.assign(document.createElement(tag), { className: cls }), {
-    says: false,
-  });
+export const shotBox = (tag, cls) => {
+  const box = Object.assign(document.createElement(tag), { className: cls });
+  keeps(box, "data-lf-gen", "1");
+  return box;
+};
 
 /** @param {HTMLElement} host */
 function readShotNodes(host) {
@@ -200,7 +201,7 @@ function readShotNodes(host) {
 }
 
 export class ShotView {
-  view = "flip";
+  view = "slider";
   position = 50;
   actual = false;
   full = false;
@@ -286,30 +287,19 @@ export class ShotView {
         if (!node) return;
         offerElement(node, cls, pressable);
       });
-    const box = () =>
-      ref((node) => {
-        if (!node) return;
-        generatedElement(node, { says: false });
-      });
     /** @param {Side} state @param {boolean} [frame] */
     const caption = (state, frame = false) => {
-      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
-        state
-      ];
-      const stacked = this.view === "compare" && this.geometry?.layout === "stack";
+      const label = LABELS[state];
+      const stacked = this.view === "pair" && this.geometry?.layout === "stack";
       return html`<span
-        ${ref(
-          (node) =>
-            node &&
-            generatedElement(offerElement(node, "lf-shotcap lf-label"), {
-              says: frame === stacked || "echo",
-            }),
-        )}
+        ${ref((node) => node && offerElement(node, "lf-shotcap lf-label"))}
+        ?data-lf-said=${frame === stacked}
+        ?data-lf-echo=${frame !== stacked}
         data-lf-state=${state}
         aria-label=${frame ? nothing : `${label} — ${host.getAttribute("alt")}`}
         ?data-lf-shot-hidden=${
           !frame &&
-          this.view === "flip" &&
+          this.view === "slider" &&
           (state === "before" ? this.position === 0 : this.position === 100)
         }
         >${label}</span
@@ -320,27 +310,21 @@ export class ShotView {
     /** @param {Side} state @param {number} index */
     const frame = (state, index) => {
       const alt = host.getAttribute("alt");
-      const label = (this.metadata.labels ?? { before: "Before", after: "After" })[
-        state
-      ];
-      const pair = this.view === "compare";
+      const label = LABELS[state];
+      const pair = this.view === "pair";
       const reading = this.reading;
       const regions = reading?.regions
         .filter((region) => region.side === state)
         .map((region) => differenceMark(region, reading));
-      return html`<div
-        class="lf-shotframe lf-media-frame"
-        data-lf-state=${state}
-        ${box()}
-      >
-        <div class="lf-shot-frame-label" data-lf-state=${state} ${box()}>
+      return html`<div class="lf-shotframe" data-lf-state=${state} data-lf-gen="1">
+        <div class="lf-shot-frame-label" data-lf-state=${state} data-lf-gen="1">
           ${caption(state, true)}
         </div>
         <div
-          class="lf-shotviewport"
+          class="lf-shotviewport lf-media-frame"
           role="region"
           aria-label=${`${label} — ${alt}`}
-          ${box()}
+          data-lf-gen="1"
         >
           <a
             class="lf-shotimage lf-shot-open"
@@ -350,8 +334,8 @@ export class ShotView {
             href=${pair ? this.images[index]?.src || nothing : nothing}
             tabindex=${pair ? nothing : "-1"}
             .lfPreview=${() => (pair ? { name: `Open ${state} image` } : null)}
-            ${box()}
-            ><div class="lf-shotplane" ${box()}>
+            data-lf-gen="1"
+            ><div class="lf-shotplane" data-lf-gen="1">
               <img
                 crossorigin="anonymous"
                 alt=${`${state}: ${alt}`}
@@ -400,7 +384,6 @@ export class ShotView {
                   ${offered(actionClass("word", "lf-shot-view"), true)}
                   appearance="button"
                   value=${value}
-                  ?disabled=${value === "pixels" && this.images.length !== 2}
                   >${text}</wa-radio
                 >`,
             )}
@@ -487,9 +470,9 @@ export class ShotView {
         role="region"
         aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
         aria-description=${this.description ?? nothing}
-        ${box()}
+        data-lf-gen="1"
       >
-        <div class="lf-shotcanvas" ${box()}>
+        <div class="lf-shotcanvas" data-lf-gen="1">
           ${frame("before", 0)}${frame("after", 1)}
           ${
             this.pixels
@@ -497,7 +480,7 @@ export class ShotView {
                   class="lf-shotpixels lf-shotimage lf-media-frame"
                   role="img"
                   aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
-                  ${box()}
+                  data-lf-gen="1"
                 >
                   <div
                     class="lf-shotplane"
@@ -505,7 +488,7 @@ export class ShotView {
                       "--lf-shot-paper": this.paper?.color,
                       "color-scheme": this.paper?.scheme,
                     })}
-                    ${box()}
+                    data-lf-gen="1"
                   >
                     <img alt="" src=${this.images[1]?.src || nothing} />
                     <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
@@ -529,9 +512,7 @@ export class ShotView {
       ...allocation,
       labelHeight: parseFloat(getComputedStyle(this.#nodes.caption).blockSize),
       sourceWidth:
-        (imageWidth && imageWidth / ratio) ||
-        Number(host.dataset.lfMediaWidth) / ratio ||
-        metadata.captureWidth,
+        (imageWidth && imageWidth / ratio) || Number(host.dataset.lfMediaWidth) / ratio,
       sourceHeight:
         Math.max(0, ...images.map((image) => image.naturalHeight)) / ratio ||
         Number(host.dataset.lfMediaHeight) / ratio,

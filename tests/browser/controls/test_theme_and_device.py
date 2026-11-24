@@ -162,7 +162,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     context = browser.new_context(reduced_motion="no-preference")
     page = open_page(browser, serve(source), context=context)
     result = page.evaluate("""async () => {
-      const owner = await window.__lfWidgetApi();
+      const {backgroundFlash} = await window.__lfWidgetApi();
+      const {motionTime} = await import('/runtime/lib/motion-timing.js');
       const chrome = document.querySelector('.lf-chrome');
       const arrival = document.createElement('button');
       arrival.className = 'lf-margin-face';
@@ -170,13 +171,12 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
-      const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
+      const animation = backgroundFlash(document.querySelector('#subject'));
       const played = animation.effect.getTiming().duration;
       animation.finish();
       arrival.remove();
-      return {cssArrival, cssFold, played,
-        fold: owner.foldDuration(), agent: agentArrivalDuration()};
+      return {cssArrival, cssFold, played, fold: motionTime('--lf-motion-fold'),
+        agent: motionTime('--lf-motion-agent-arrival')};
     }""")
     assert result == {
         "cssArrival": "0.91s",
@@ -190,16 +190,15 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
-    reading = """() => window.__lfWidgetApi().then(
-      motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
-    assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
+    assert not page.evaluate(
+        "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
+    ), "the page loaded under reduced motion, so the change below is none"
 
     page.emulate_media(reduced_motion="reduce")
-    assert page.evaluate(reading) == {"reduced": True, "scroll": "instant"}
     step = page.evaluate(
-        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
@@ -210,9 +209,8 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     ), "the navigation factory kept its load-time motion preference"
 
     page.emulate_media(reduced_motion="no-preference")
-    assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
-    # A glide shares a frame the page already asked for (rendering.js), so with none
+    # A glide shares a frame the page already asked for (lib/frame-pass.js), so with none
     # asked for, its frames are the ones held here.
     rendered(page)
     page.evaluate(
@@ -226,6 +224,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     )
     page.keyboard.press("d")
     assert page.evaluate("() => window.__lfFrames.length") > 0
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
+        "the step landed at once after the user asked for motion again"
+    )
     page.emulate_media(reduced_motion="reduce")
     page.evaluate(
         """() => {
@@ -687,7 +688,7 @@ CONTRAST = """([selector, property]) => {
 # `offer`), into the page's `#controls`: Leaf's own controls, which wear their faces
 # with a theme or without one.
 LEAF_CONTROLS = """async () => {
-    const {offerAction, offer} = await window.__lfWidgetApi();
+    const {offerAction, offer} = await import("/runtime/lib/controls.js");
     const press = offerAction('word', '', 'Recompute');
     press.id = 'press';
     const field = offer('input', '', undefined, 'text');
@@ -704,8 +705,8 @@ FACE = (
 )
 
 
-@pytest.mark.parametrize("theme", [None, False])
-def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme):
+@pytest.mark.parametrize("reading", [True, False])
+def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, reading):
     """Where the page's theme turns on markup's reading face, a bare button, a submit
     button, a pressed submit button and a text field the page writes wear the faces of
     Leaf's own word, commit, pressed commit and field (controls.css, "The faces of
@@ -729,12 +730,12 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
                 ' <label id="own-nested"><span><input id="own-mark" type="checkbox">'
                 "</span>Include images</label></p>",
             ),
-            theme=theme,
+            reading=reading,
         ),
     )
     page.evaluate(LEAF_CONTROLS)
     page.evaluate("""async () => {
-      const {offerAction} = await window.__lfWidgetApi();
+      const {offerAction} = await import("/runtime/lib/controls.js");
       const commit = offerAction('commit', '', 'Commit');
       commit.id = 'commit';
       const done = offerAction('commit', '', 'Done');
@@ -753,13 +754,13 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
         for own, leaf in pairs.items()
     }
     for own, (drawn, leaf) in faces.items():
-        if theme is False:
+        if not reading:
             assert drawn["paddingLeft"] != leaf["paddingLeft"], (own, drawn)
         else:
             assert drawn == leaf, own
     mark = page.locator("#own-mark")
     style = "(el, p) => getComputedStyle(el)[p]"
-    if theme is False:
+    if not reading:
         assert mark.evaluate(style, "appearance") == "auto"
         return
     assert mark.evaluate(style, "appearance") == "none"
@@ -774,8 +775,8 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
     assert mark.evaluate(style, "outlineStyle") == "none"
 
 
-@pytest.mark.parametrize("theme", [None, False])
-def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
+@pytest.mark.parametrize("reading", [True, False])
+def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, reading):
     """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
     the neutral colours Leaf draws in step from the one toward the other
     (styles/tokens.css), with a theme or without one. Were each neutral a colour stated
@@ -790,7 +791,7 @@ def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
                 head="<style>:root { color-scheme: dark; --lf-paper: #101828;"
                 " --lf-ink: #e2e8f0; } html { background: var(--lf-paper); }</style>",
             ),
-            theme=theme,
+            reading=reading,
         ),
     )
     page.evaluate(LEAF_CONTROLS)
@@ -952,54 +953,3 @@ RESET = (
     " button, input { background: transparent; border-radius: 0; font: inherit;"
     " color: inherit; } }"
 )
-
-
-def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
-    """A page that brings its own framework takes no theme, and its reset in a layer
-    named `reset` clears the page's own elements and leaves what Leaf draws as it was
-    (layer.py, `PAGE_RESET_LAYER`). Left to rank above every tier of Leaf's, as any
-    layer a page names does, the reset would take the padding, border and ground from
-    Leaf's buttons and fields and the frame from a choice group."""
-    body = (
-        '<h1>Retention</h1><p id="own">Words.</p><p id="controls"></p>'
-        '<lf-group id="window-q" label="How long?">'
-        '<lf-options id="window"><lf-option id="short" label="30 days"><strong>30 days</strong> '
-        ' In budget.</lf-option><lf-option id="long" label="90 days"><strong>90 days</strong> '
-        " Covers the hold.</lf-option></lf-options></lf-group>"
-    )
-    faces = """() => Object.fromEntries(['press', 'field', 'window', 'short'].map((id) => {
-        const style = getComputedStyle(document.getElementById(id));
-        return [id, ['paddingTop', 'paddingLeft', 'borderTopWidth', 'borderTopLeftRadius',
-            'backgroundColor', 'fontFamily'].map((p) => style[p])];
-    }))"""
-    plain = open_page(browser, serve(leaf_page("Retention", body), theme=False))
-    plain.evaluate(LEAF_CONTROLS)
-    expected = plain.evaluate(faces)
-    assert expected["press"][0] != "0px" and expected["window"][2] != "0px", expected
-    reset = open_page(
-        browser,
-        serve(
-            leaf_page("Retention", body, head=f"<style>{RESET}</style>"), theme=False
-        ),
-    )
-    reset.evaluate(LEAF_CONTROLS)
-    assert reset.evaluate(faces) == expected
-    assert (
-        reset.evaluate("getComputedStyle(document.getElementById('own')).marginTop")
-        == "0px"
-    ), "the reset still clears the page's own elements"
-    # Only `reset` ranks low: an author's own layer still outranks the theme's look.
-    themed = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Retention",
-                body,
-                head="<style>@layer base { h1 { font-size: 80px; } }</style>",
-            )
-        ),
-    )
-    assert (
-        themed.evaluate("getComputedStyle(document.querySelector('h1')).fontSize")
-        == "80px"
-    ), "a page's own layer lost to the theme"

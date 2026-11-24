@@ -16,6 +16,7 @@
 // final layout. A widget whose drag moves its own nodes defers its correction.
 
 import { pagePresented } from "./page-paint.js";
+import { motionTime } from "./lib/motion-timing.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
@@ -59,10 +60,10 @@ export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });
 
 // The same door with the runtime's own surfaces' further timing: the one ease unless
-// the caller names its surface's curve (`easing`, read with `motionEasing`), and a
-// `delay` that holds the first frame until the motion starts, so a part fading in after
-// another fades out stays unseen meanwhile. That is the backward half of the fill,
-// which no undelayed motion reaches.
+// the caller names its surface's curve (`easing`, read with lib/motion-timing.js's
+// `motionEasing`), and a `delay` that holds the first frame until the motion starts, so
+// a part fading in after another fades out stays unseen meanwhile. That is the backward
+// half of the fill, which no undelayed motion reaches.
 /** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
  * @param {{duration: number, easing?: string, delay?: number, pseudoElement?: string | null}} options */
 export function playMotion(
@@ -98,36 +99,16 @@ export function playMotion(
   return played;
 }
 
-// CSS owns the durations and curves shared with stylesheet motion: the document-wide
-// ones on the root, and a surface's own on that surface, as the floating panel's are.
-// Registered <time> values resolve variables and calculations before this read; each
-// call reads the live cascade, so a revision or theme override changes CSS and Web
-// Animations together.
-/** @param {string} property @param {Element} on */
-const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
-// A `--lf-motion-*` duration, in milliseconds, as `on` inherits or declares it.
-/** @param {string} property @param {Element} [on] */
-export const motionTime = (property, on = document.documentElement) => {
-  const value = token(property, on);
-  return parseFloat(value) * (value.endsWith("ms") ? 1 : 1000);
-};
-// A `--lf-motion-*` curve, as Web Animations takes it.
-/** @param {string} property @param {Element} [on] */
-export const motionEasing = (property, on = document.documentElement) =>
-  token(property, on);
-
-// How long the tint that marks an arrival or a change lasts (`backgroundFlash`).
-export const flashDuration = () => motionTime("--lf-motion-flash");
-// Independently rendered carriers join the same finite agent-work arrival window.
-export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
-
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
 // so hover, theme changes and transparent surfaces never snap back when it ends. A box
 // drawn inside the element that paints a background of its own, such as an option's
 // row, would cover the element's tint, so it takes the tint too, and the whole element
 // reads as one tinted box. Theirs end with the element's, which is the one returned.
-/** @param {Element} el @param {number} ms */
-export function backgroundFlash(el, ms) {
+// A flash lasts as long as the theme sets (`--lf-motion-flash`), whoever asks for it,
+// so the page marks each arrival and change alike.
+/** @param {Element} el */
+export function backgroundFlash(el) {
+  const ms = motionTime("--lf-motion-flash");
   /** @param {Element} box */
   const tint = (box) =>
     motion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
@@ -147,17 +128,8 @@ export function backgroundFlash(el, ms) {
   return own;
 }
 
-// How long room takes to go back. Long enough that the eye can follow a paragraph's
-// worth of page closing, short enough that the act still reads as having happened at
-// the press: the board's own FLIP is 150ms over a card's width, and this is a taller
-// distance travelled by the whole column below it. A decided suggestion's retired
-// slot, a resolved inline thread and a message leaving a thread fold over it, and a
-// picture's zoom (media.js) takes the same time.
-export const foldDuration = () => motionTime("--lf-motion-fold");
-// A retained frame returns from an editor to its shorter reading.
-export const returnDuration = () => motionTime("--lf-motion-return");
-
-// Give a block's room back from its ordinary CSS shape. Native intrinsic-size
+// Give a block's room back from its ordinary CSS shape, over the time room takes to
+// go back (`--lf-motion-fold`, styles/tokens.css). Native intrinsic-size
 // interpolation supplies the starting height, and the other lengths start at their
 // underlying stylesheet values. No measured box or temporary inline styles survive
 // the effect. `display` keeps an already-retired slot drawn until its pixels finish;
@@ -202,7 +174,7 @@ export function foldBlock(el, allocation = null) {
   const played = motion(
     el,
     frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"),
-    foldDuration(),
+    motionTime("--lf-motion-fold"),
   );
   if (!played || native) return played;
   if (getComputedStyle(el).display === "none") {

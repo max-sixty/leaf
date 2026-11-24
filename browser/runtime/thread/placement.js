@@ -7,12 +7,8 @@
    whole section, the preview names the section and On Me says where that section
    stands: the preview says what a place is, On Me where it is, and they agree wherever
    a place has no name of its own. */
-import {
-  addressableLabel,
-  addressableWord,
-  ownNaming,
-  titlingHeading,
-} from "../addressable-names.js";
+import { addressableLabel, ownNaming, titlingHeading } from "../addressable-names.js";
+import { addressableWord } from "../lib/element-word.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,
@@ -27,7 +23,7 @@ import {
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, overIn, upFrom } from "../shadow-tree.js";
+import { byRenderedOrder, overIn, upFrom } from "../lib/shadow-tree.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 import { kept } from "../kept.js";
@@ -61,7 +57,7 @@ import { kept } from "../kept.js";
 // Where a thread stands, for every reading of the page's order of threads: the list's
 // sort and both walks' steps (`threadPlace` in destination.js). A passage a widget renders into a declared shadow root is
 // placed inside that root, and the page's order is read across those trees
-// (`renderedOrder`, shadow-tree.js), so threads inside one widget keep their order among
+// (`renderedOrder`, lib/shadow-tree.js), so threads inside one widget keep their order among
 // themselves. A place in no tree at all — an element a version activation has replaced —
 // is no place, which is the same answer an anchor that resolves nowhere gets.
 /** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
@@ -234,7 +230,7 @@ const gatherConversations = kept(() => {
       turn:
         threads
           .map((thread) => threadAttention(thread, agent))
-          .find((attention) => attention?.kind === "needs_user") ?? null,
+          .find((attention) => attention?.turn === "user") ?? null,
     };
     for (let at = /** @type {Element | null} */ (element); at; at = upFrom(at))
       add(inside, at, these);

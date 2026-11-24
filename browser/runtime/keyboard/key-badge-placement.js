@@ -1,5 +1,5 @@
 /* Shared visibility for addressable targets and placement for command
-   binding badges. The chrome clips every target's usable box. A binding face hangs off its
+   binding badges. The window bounds every target's usable box. A binding face hangs off its
    control's upper-left corner, and off another of its corners where that one would cover
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
@@ -36,7 +36,7 @@
    (`reserve`, `paint`): a chip can move somewhere legible, so it keeps off every pixel of
    the chrome, the side of a view included, but for the surface holding its control,
    whose own controls' chips stand on it (geometry.js, `coverBoxes`). */
-import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
+import { elementFromPointAcross } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
   coverBoxes,
@@ -47,7 +47,8 @@ import {
   startsAt,
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
-import { renderedUnder } from "../shadow-tree.js";
+import { renderedUnder, closestAcross } from "../lib/shadow-tree.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {NonNullable<ReturnType<typeof rect>>} VisibleBox
@@ -103,11 +104,11 @@ export function keyBadgePlacement() {
     return rect(left, top, right, bottom, sourceTop);
   };
 
-  // Where a member begins, held clear of chrome: the corner a badge hangs off, which for
+  // Where a member begins, held inside the window: the corner a badge hangs off, which for
   // an inline run that wraps is not the middle of its bounds.
   /** @param {Element} item */
   const badgeBox = (item) => clearBox(startsAt(item, clips));
-  // An item's whole box, held clear of chrome, for a member addressed as one block.
+  // An item's whole box, held inside the window, for a member addressed as one block.
   /** @param {Element} item */
   const visibleBounds = (item) => clearBox(shownRect(item, clips));
   // The clip an item's own ancestors put over what it holds, for a box measured from a

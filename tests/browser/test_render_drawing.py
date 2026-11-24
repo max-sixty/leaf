@@ -192,9 +192,8 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     start = native_ink_start(page, "#visuals svg:nth-of-type(2)")
     assert start == pytest.approx([108, 129.2], abs=0.03)
     second.evaluate("""async svg => {
-      const {layoutChanged} = await window.__lfWidgetApi();
       svg.setAttribute('viewBox', '50 50 400 160');
-      await layoutChanged(svg);
+      await svg.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }""")
     assert native_ink_start(page, "#visuals svg:nth-of-type(2)") == pytest.approx(
         start, abs=0.03
@@ -258,9 +257,6 @@ def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, chan
     assert [after[key] for key in ("width", "height")] == pytest.approx(
         [before[key] for key in ("width", "height")], abs=0.03
     )
-    # The floating composer follows its page anchor. Return there before pressing
-    # its control after the viewport change has scrolled the anchor away.
-    page.locator("#title").scroll_into_view_if_needed()
     page.get_by_role("button", name="Remove drawing").click()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
@@ -710,7 +706,8 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 
 def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     """Drawing is a drag, not a new click meaning. A click is swallowed without
-    opening a comment or activating the page, and Escape restores ordinary reading."""
+    opening a comment or activating the page, and Escape restores ordinary reading. A
+    listener hears the keys that leave the mode as it begins."""
     page = open_page(browser, serve(TARGETS_PAGE))
     target = page.locator("#prose")
     target.evaluate(
@@ -720,6 +717,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.move(*point)
     page.keyboard.press("w")
+    expect(page.locator(".lf-live")).to_contain_text("w or Escape exit Draw mode")
 
     page.mouse.click(*point)
 
@@ -1211,10 +1209,9 @@ def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
     )
     transformed.evaluate(
         """async (el, value) => {
-      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transformOrigin = '0 0';
       el.style.transform = value;
-      await layoutChanged(el);
+      await el.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }""",
         transform.removeprefix("ancestor "),
     )
@@ -1251,9 +1248,8 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     assert drawing["box"] == pytest.approx([180, 100], abs=0.02)
     assert drawing["strokes"][0][0] == pytest.approx([180 * 0.22, 100 * 0.62], abs=0.02)
     target.evaluate("""async el => {
-      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transform = 'none';
-      await layoutChanged(el);
+      await el.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }""")
     rendered(page)
     box = target.bounding_box()
@@ -1358,9 +1354,12 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         field, "still a gap here!" if not long else "A line of drawing feedback.\n" * 60
     )
     rendered(page)
+    # Where the field's first line of words stands: inside its padding, which the box
+    # a field running to its frame's edges takes in (browser/AGENTS.md).
     before = field.evaluate(
         "node => ({height:node.clientHeight, scroll:node.scrollTop, "
-        "top:node.getBoundingClientRect().top})"
+        "words:node.getBoundingClientRect().top"
+        " + parseFloat(getComputedStyle(node).paddingTop)})"
     )
     with sending(page, "the drawing comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -1380,7 +1379,12 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
     assert reading["referenceBottom"] <= reading["bodyBottom"] + 1, reading
     text = body.locator(".lf-msg-text")
     if not long:
-        assert text.bounding_box()["y"] == pytest.approx(before["top"], abs=1)
+        words = text.evaluate(
+            "node => { const range = document.createRange();"
+            " range.selectNodeContents(node);"
+            " return range.getClientRects()[0].top; }"
+        )
+        assert words == pytest.approx(before["words"], abs=1)
     transcript = card.locator(".lf-thread-transcript")
     assert (
         transcript.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long

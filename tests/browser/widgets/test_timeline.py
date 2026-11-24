@@ -131,7 +131,7 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     assert next_button.bounding_box() == before
     page.keyboard.press("ArrowRight")
     expect(position).to_have_text("Step 3 of 6 · 1 s")
-    # A key's step is said aloud, which Leaf does for the timeline (`announce`).
+    # A key's step is said aloud, which Leaf does for the timeline (`lf-announce`).
     expect(page.locator(".lf-live")).to_have_text(
         "Step 3 of 6. Job B: Reads balance: 100"
     )

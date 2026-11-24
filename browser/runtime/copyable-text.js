@@ -4,7 +4,7 @@
  * at its render position across paints, rather than making each text's caller own one.
  * Each line stands in a box of its own, as a page's code block's do (code-lines.js), so a
  * row a long line wraps onto hangs from its indent behind the face's mark. */
-import { capitalized } from "./words.js";
+import { capitalized } from "./lib/words.js";
 import { guard, html } from "/runtime/framework.js";
 import { copyControl } from "./copy-control.js";
 import { indentColumns } from "./code-lines.js";

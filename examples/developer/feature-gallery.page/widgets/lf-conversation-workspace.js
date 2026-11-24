@@ -4,18 +4,12 @@ import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
-  keepsHidden,
-  keeps,
-  keepsText,
-  offer,
-  offerAction,
   LeafElement,
   queueActions,
   queueItemKey,
   queueTitle,
   readObligations,
   answerWords,
-  answeredInWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -27,6 +21,8 @@ import {
   threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 customElements.define(
   "lf-conversation-workspace",
@@ -211,7 +207,7 @@ customElements.define(
           row = { node, button };
           this.rows.set(key, row);
         }
-        keepsHidden(row.button, !thread);
+        row.button.toggleAttribute("hidden", !thread);
         if (thread) {
           keepsText(row.button, threadSummary(thread).topic);
           keeps(row.button, "aria-current", key === this.selected ? "true" : null);
@@ -277,16 +273,12 @@ customElements.define(
     }
     paintObligations() {
       const items = readObligations();
-      const answered = items.all.filter((item) => item.status === "answered");
+      // An obligation's own answer stands on it; one the agent ended names its end.
+      const answered = items.all.filter((item) => item.answered);
       // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question asked in a message.
       const labels = items.all
-        .filter(
-          (item) =>
-            item.source.kind === "widget" &&
-            !answeredInWords(item) &&
-            item.status === "answered",
-        )
+        .filter((item) => item.source.kind === "widget" && item.answered)
         .map(answerWords)
         .filter(Boolean);
       keepsText(

@@ -36,15 +36,11 @@ and external data.
 
 ## Revisions and user-owned words
 
-Write new content directly. Rewrite prose the user has already seen as an
-`lf-suggestion`, following its instructions for markup and linking a requested fix
-to its thread. Introduce the first suggestion in prose so the user knows they can
-comment on its new words too.
-
-A suggestion is for wording the user might prefer to keep. A correction is not: when
-the page got a number, a source or a unit wrong, or when work has landed, a decision
-has been made or a finding no longer holds, write the correct text directly and name
-the change in the version note.
+A suggestion is for wording the user has seen and might prefer to keep, such as a
+passage they approved. Write one as an `lf-suggestion`, following its instructions for
+markup and linking a requested fix to its thread, and introduce the first in prose so
+the user knows they can comment on its new words too. Write new content and any other
+rewrite, such as a correction, directly, and name a rewrite in the version note.
 
 Put a passage whose wording belongs to the user in a draft they edit, such as
 `lf-draft`. Their saved words stay in effect across revisions. Follow its registry
@@ -66,7 +62,7 @@ provisional until the stamped revision its `handling` asks for.
 ## Make changes easy to find
 
 Before handing over a changed page, compare it with the last version the user saw and
-mark each significant addition, such as a `.tag` reading "new" beside a new section's
+mark each significant addition, such as a `.lf-tag` reading "new" beside a new section's
 heading. Remove those marks in the next version you hand over.
 
 ## Keep the current page current
@@ -82,9 +78,8 @@ user state follow ids (`page-authoring.md`, "Stable anchors"), so a passage you 
 keeps its id wherever it moves, and moving it needs neither a suggestion nor
 `restated`.
 
-When a revision removes a passage a thread quotes, the thread moves to the surviving
-section, or is detached if the section is gone too. When you know where the subject
-went, name the replacement passage (`threads.md`, "Preserve revised anchors").
+When a revision removes a passage a thread quotes, `threads.md`, "Preserve revised
+anchors", says where the thread goes and how to move it onto the passage's replacement.
 
 A work list shows unfinished items. When an item of a plan, backlog or list of
 problems is done, cut it down to its outcome and move it to the finished work,

@@ -474,7 +474,7 @@ FENCED_CAPTURE_PAGE = leaf_page(
 <lf-board id="gate-board"><lf-column id="gate-milestone" label="active · week-1 · wood · solar"><lf-card id="gate-card" label="Build feeders"><strong>Build feeders</strong> Two classic models.</lf-card></lf-column></lf-board>
 <p id="after-milestone">Ready next.</p>
 <lf-group id="fence-q" label="Which fence?"><lf-options id="fence-options">
-  <lf-option id="fence-option" label="Classic feeder"><small class="tag">effort: low</small><small class="tag">risk: high</small> <strong>Classic feeder</strong>
+  <lf-option id="fence-option" label="Classic feeder"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: high</small> <strong>Classic feeder</strong>
     Easy to clean.
   </lf-option>
 </lf-options></lf-group>
@@ -967,8 +967,11 @@ DATA_PROJECTION_PAGE = leaf_page(
 
 DATA_PROJECTION_MODULE = """
 import { nothing } from '/vendor/lit.js';
-import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
+import { LeafElement, setChildren } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     this.show(this.value);
     return nothing;
@@ -1000,7 +1003,6 @@ def data_projection_page(serve):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],

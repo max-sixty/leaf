@@ -9,7 +9,7 @@
 
 import { ringBox, visibleFocus } from "./focus.js";
 import { lined, shownParts } from "./geometry.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import {
   readingOrder,
   readingPlace,
@@ -18,7 +18,7 @@ import {
   targetSegments,
   targetSurface,
 } from "./resolved-target.js";
-import { closestAcross, elementFromPointAcross, pageWords } from "./passages.js";
+import { elementFromPointAcross, pageWords } from "./passages.js";
 import { presentDocument } from "./semantic-state.js";
 import { WORKS } from "./control-selectors.js";
 import { bareReaction } from "./thread/model.js";
@@ -26,9 +26,14 @@ import { threadNamed } from "./thread/state.js";
 import { threadPreview } from "./thread/messages.js";
 import { declareRanges, pointRange } from "./preview.js";
 import { holds } from "./rect.js";
-import { renderedParent, shadowHost, upFrom } from "./shadow-tree.js";
+import {
+  renderedParent,
+  shadowHost,
+  upFrom,
+  closestAcross,
+} from "./lib/shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
-import { keepsOnOne } from "./keeps.js";
+import { keepsOnOne } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const MARK = "lf-mark";
@@ -173,7 +178,7 @@ export function createAnchorPaint({
   let pointed = false;
 
   // A comment's and a reaction's marks on words are the annotation layer's, and hiding
-  // the layer (`o`) registers their highlights empty, so the words wear whatever the page
+  // the layer (`g H`) registers their highlights empty, so the words wear whatever the page
   // and the highlights under them give them. Restyling them instead fails in Firefox and
   // WebKit, which read a highlight's `color: currentColor` as the element's colour and
   // paint it over a text document's syntax colours. The marks of a gesture (hover, the

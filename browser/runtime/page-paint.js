@@ -13,7 +13,6 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   external: "data-lf-external",
   viewMember: "data-lf-view",
   obligation: "data-lf-obligation",
-  done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
   settlement: "data-lf-state",
@@ -50,6 +49,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traced: "data-lf-traced",
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
+  // On a marked box whose marks reach over a list marker (geometry.js, `markerReach`),
+  // which surfaces.css reads to draw them.
+  besideMarker: "data-lf-beside-marker",
   // The cursor's paint, on the element under the pointer, which the margin likewise does
   // not hear: the hand over a thread's mark (anchor-paint.js,
   // annotation-chrome.css), and the aim's hand where it has an item and the crosshair of

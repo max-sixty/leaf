@@ -2,7 +2,7 @@
 
 from bisect import insort
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from math import inf
 from operator import itemgetter
 from typing import NamedTuple
@@ -212,7 +212,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
-    leave its closure in force. A later resolution closes it again.
+    leave its closure in force, and so does a message the agent sent `unannounced`
+    into a thread the user resolved (`thread.post_reply`). A later resolution closes
+    it again.
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
@@ -226,13 +228,19 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     names the thread; a reopening is an unresolve, a spoken reply, or the user's
     rewrite of a message. Taking one back, an action superseded, or a version
     retracting it (`InForce`) leaves the one before deciding, at the place where
-    that happened. ``closures`` holds each time the thread stood closed, in log order:
-    the seq it ``closed`` at and the seq it ``reopened`` at, or null while it stands,
-    so what a closure ended stayed ended until then (`provenance.saved_after`).
+    that happened. ``closures`` holds each time a closing answered for the thread
+    (`_ClosureHistory.answering`), in log order: the seq it ``closed`` at and the seq
+    it ``reopened`` at, or null while it stands, so what such a closing ended stayed
+    ended until then (`provenance.saved_after`). The user's own resolve begins none:
+    what the agent owes in the thread stays owed across it.
     ``closings`` holds each closing still in force, in log order, however the thread
-    reopened since, which ends every question asked before it (`obligations`). Only
-    the server reads either. ``resolved`` is the closing that stands at the end of
-    the log, or null.
+    reopened since, which ends every question asked before it (`obligations`).
+    ``answered_by`` is the closing that answers for a closed thread
+    (`_ClosureHistory.answering`), or null (`owed_turns`), and ``closed_by_user`` says
+    whether the user's own resolve is among the closings in force since the thread
+    last stood open, whatever closed it after (`thread.post_reply`). Only the server
+    reads these four. ``resolved`` is the closing that stands at the end of the log,
+    or null.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
@@ -344,6 +352,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "closures": [],
                 "closings": [],
                 "resolved": None,
+                "answered_by": None,
+                "closed_by_user": False,
             }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
@@ -395,21 +405,36 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["rewritten_from"] = None
     for thread in threads.values():
         thread["resolved"] = closures.standing(thread)
+        thread["answered_by"] = closures.answering(thread)
+        thread["closed_by_user"] = any(
+            _users_resolve(closing) for closing in closures.since_open(thread)
+        )
         thread["closings"] = closures.closings(thread)
     return threads
 
 
 def _resumes(reply: dict) -> bool:
     """Whether a reply resumes its thread: reactions, failure receipts and progress
-    leave its closure in force."""
-    return (
-        "token" not in reply and "failure" not in reply and not reply.get("ephemeral")
+    leave its closure in force, and so does a message the agent sent into a thread
+    the user resolved without asking them anything (`unannounced`,
+    `thread.post_reply`)."""
+    return not (
+        "token" in reply
+        or "failure" in reply
+        or reply.get("ephemeral")
+        or reply.get("unannounced")
     )
 
 
+def _users_resolve(closing: dict) -> bool:
+    """Whether a closing is the user's own resolve, which takes the thread off their
+    list and answers nothing in it (`owed_turns`)."""
+    return closing["kind"] == "resolve" and closing["author"] == "user"
+
+
 class _ClosureHistory:
-    """Each thread's closings and reopenings in force, in log order, and when it
-    stood closed (`build_threads`, ``closures``). The latest in force decides; one
+    """Each thread's closings and reopenings in force, in log order, and when a
+    closing answered for it (`build_threads`, ``closures``). The latest in force decides; one
     taken out leaves the one before it deciding, wherever it was put in. A step
     costs what its threads hold in force: their spoken messages, rewrites and
     closings."""
@@ -424,6 +449,30 @@ class _ClosureHistory:
         held = self._held.get(thread["id"])
         return held[-1][3] if held and held[-1][2] else None
 
+    def answering(self, thread: dict) -> dict | None:
+        """The newest closing that answers for the thread, of those in force since
+        it last stood open, or None: any closing but the user's own resolve, which
+        takes the thread off their list and settles nothing the agent owes
+        (`owed_turns`). The user resolving a thread the agent already closed leaves
+        the agent's closing answering for it."""
+        return next(
+            (
+                closing
+                for closing in self.since_open(thread)
+                if not _users_resolve(closing)
+            ),
+            None,
+        )
+
+    def since_open(self, thread: dict) -> Iterator[dict]:
+        """The closings in force since the thread last stood open, newest first."""
+        for _place, _identity, closes, event in reversed(
+            self._held.get(thread["id"], ())
+        ):
+            if not closes:
+                return
+            yield event
+
     def closings(self, thread: dict) -> list[dict]:
         """The thread's closings in force, in log order."""
         return [
@@ -432,16 +481,16 @@ class _ClosureHistory:
 
     def step(self, at: float | None, put: list, out: list) -> None:
         """Take out of force each event `out` names, put each `(thread, event,
-        closes)` in `put` into it, and record each thread that closed or reopened
-        at `at`."""
+        closes)` in `put` into it, and record each thread a closing began or stopped
+        answering for at `at`."""
         before = {}
         for identity in out:
             if (thread := self._thread.pop(identity, None)) is not None:
-                before.setdefault(thread["id"], (thread, self.standing(thread)))
+                before.setdefault(thread["id"], (thread, self.answering(thread)))
                 held = self._held[thread["id"]]
                 held[:] = [entry for entry in held if entry[1] != identity]
         for thread, event, closes in put:
-            before.setdefault(thread["id"], (thread, self.standing(thread)))
+            before.setdefault(thread["id"], (thread, self.answering(thread)))
             insort(
                 self._held.setdefault(thread["id"], []),
                 (event.get("seq", inf), event["id"], closes, event),
@@ -449,7 +498,7 @@ class _ClosureHistory:
             )
             self._thread[event["id"]] = thread
         for thread, was in before.values():
-            now = self.standing(thread)
+            now = self.answering(thread)
             if now is not None and was is None:
                 thread["closures"].append({"closed": at, "reopened": None})
             elif was is not None and now is None:
@@ -503,40 +552,26 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. The user rewriting a covered
-    message, or undoing such a rewrite, retires every summary covering it, and so
-    does the user taking back a message its thread held when the summary was
-    written, which its words or label may report wherever the message stood: a
-    summary the agent wrote cannot account for the user's change. The agent's own
-    edit leaves the summary standing, since the agent knows what it changed and
-    says whether the summary still holds (`thread.cmd_edit`). A summary folds no
-    progress: the thread shows only the steps nothing has superseded, as working
-    messages (`progress_completions`).
+    A summary stands until a later one overlapping it replaces it whole, or until a
+    message bounding its range leaves the thread. An edit or a take-back of any other
+    message, the user's or the agent's, leaves it standing as written: the agent hears
+    of the change, judges whether the summary still holds, and summarizes the range
+    again where it doesn't. `thread.cmd_edit` names the summary over a message the
+    agent edits, and the handling of the user's edit in a thread that holds a summary
+    asks the agent to check it (the kernel registry's `edit` clauses). The maintainer
+    chose this. Retiring a summary on the user's change,
+    which a later change might reach for so that no summary hides the user's words,
+    decides for the agent whether the summary still holds, as root `AGENTS.md`'s
+    "Leaf's role" says code doesn't. A summary folds no progress: the thread shows
+    only the steps nothing has superseded, as working messages
+    (`progress_completions`).
     """
-    edits = {}
-    edited = {}
-    said = {}
-    taken = {}
     written = {}
     for event in events:
-        if event["kind"] in kinds_declaring("message"):
-            # The thread a message was said in, and when, whatever became of it since.
-            thread = said[event["parent"]][0] if "parent" in event else event["id"]
-            said[event["id"]] = (thread, event["seq"])
-        elif event["kind"] == "edit" and event["author"] != "agent":
-            edited[event["id"]] = event["message"]
-            edits[event["message"]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in edited:
-            edits[edited[event["undoes"]]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in said:
-            thread, made = said[event["undoes"]]
-            taken.setdefault(thread, []).append((made, event["seq"]))
-        elif event["kind"] == "summary" and event["thread"] in threads:
+        if event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {
-        thread_id: _thread_summaries(
-            thread, written.get(thread_id, []), edits, taken.get(thread_id, [])
-        )
+        thread_id: _thread_summaries(thread, written.get(thread_id, []))
         for thread_id, thread in threads.items()
     }
 
@@ -569,9 +604,7 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
-def _thread_summaries(
-    thread: dict, summaries: list, edits: dict, taken: list
-) -> list[dict]:
+def _thread_summaries(thread: dict, summaries: list) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
     # The summaries in force cover disjoint messages, so each message names the one
@@ -588,10 +621,6 @@ def _thread_summaries(
         for replaced in {holder[identity] for identity in covers if identity in holder}:
             for identity in active.pop(replaced)["covers"]:
                 del holder[identity]
-        if any(edits.get(identity, 0) > event["seq"] for identity in covers) or any(
-            made < event["seq"] < undone for made, undone in taken
-        ):
-            continue
         active[event["id"]] = {
             "id": event["id"],
             "seq": event["seq"],
@@ -624,8 +653,8 @@ def unanswered_turns(thread: dict) -> list[dict]:
     Turns, not marks: a reaction is a mark on a message rather than a word in the
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
-    not enter here; `awaits_agent` adds it. A user's revision is a turn here
-    (`exchange`).
+    not enter here: `owed_turns` says which closings settle these turns. A user's
+    revision is a turn here (`exchange`).
 
     The batches are those of the thread's history (`settled_through`), so taking
     back a turn an answer settled leaves the turns before it settled; only the turns
@@ -704,16 +733,30 @@ def unanswered_agent_turn(thread: dict) -> dict | None:
     return owed[-1] if owed else None
 
 
-def awaits_agent(thread: dict) -> bool:
-    """Whether an open thread's next word is the agent's (`unanswered_turns`).
+def owed_turns(thread: dict) -> list[dict]:
+    """The turns the agent owes an answer now, in a closed thread as in an open one,
+    oldest first (`unanswered_turns`).
+
+    The user's resolve takes a thread off their list and settles nothing the agent
+    owes in it. A request made before it stays owed, and the reply that answers it
+    goes into the thread and leaves it closed unless it asks (`thread.post_reply`,
+    `unannounced`).
+    The user chose
+    this over a resolve that dropped the request, which left nothing on the page
+    saying the agent owed it; cancelling a request takes their words. Every other
+    closing answers for the thread: the
+    agent's own resolve, which says the thread wants no answer, and the user's
+    answer on a widget whose `resolves` names the thread, the decision the agent
+    offered them there. From such a closing until the thread reopens it owes
+    nothing (``answered_by``), and reopening it puts the turns back.
 
     This reading says nothing about whether the user owes a word: an ordinary agent
-    message may leave the open thread awaiting nobody, while one holding a widget
-    that asks, such as an `lf-options`, awaits the user. The browser
-    does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and obligations open on the thread, so the panel, its filters and the
-    margin read one answer to whose turn it is."""
-    return bool(not thread["resolved"] and unanswered_turns(thread))
+    message may leave the thread awaiting nobody, while one holding a widget that
+    asks, such as an `lf-options`, awaits the user. The browser does not receive it:
+    each browser Thread's `attention` aggregates this turn with the workflows and
+    obligations open on the thread, so the panel, its filters and the margin read
+    one answer to whose turn it is."""
+    return [] if thread["answered_by"] else unanswered_turns(thread)
 
 
 def seat_root(thread: dict) -> str | None:

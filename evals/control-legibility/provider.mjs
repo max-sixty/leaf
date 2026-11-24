@@ -1,53 +1,12 @@
 /**
  * The reader: a model shown one view, asked what each numbered control does. It sees
  * only the picture and a line about the app, never the controls' names, so its answer
- * is a first-time user's reading before hovering. `ask` is also the judge's transport
- * (grade.mjs).
- *
- * Claude runs through the installed Agent SDK with no tools, no settings, hooks or
- * memory, and no ambient API key, so it reads the picture on the host's login alone.
+ * is a first-time user's reading before hovering. `ask` gives it no tools and nothing
+ * of the host's settings (`dev/leaf_dev/claude_ask.mjs`).
  */
 import { readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import { MODELS } from "../../dev/leaf_dev/arms.mjs";
-
-export async function ask({ model, system, content }) {
-  const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
-  delete env.CLAUDE_CONFIG_DIR;
-  async function* input() {
-    yield {
-      type: "user",
-      session_id: "",
-      parent_tool_use_id: null,
-      message: { role: "user", content },
-    };
-  }
-  const run = query({
-    prompt: input(),
-    options: {
-      model,
-      cwd: tmpdir(),
-      env,
-      tools: [],
-      allowedTools: [],
-      settingSources: [],
-      settings: { autoMemoryEnabled: false, disableAllHooks: true },
-      persistSession: false,
-      permissionMode: "dontAsk",
-      systemPrompt: system,
-      maxTurns: 1,
-    },
-  });
-  for await (const message of run) {
-    if (message.type !== "result") continue;
-    if (message.subtype !== "success" || message.is_error)
-      throw new Error(`Claude did not complete: ${message.subtype}`);
-    return { text: message.result, usage: message.usage };
-  }
-  throw new Error("Claude returned no result");
-}
+import { ask } from "../../dev/leaf_dev/claude_ask.mjs";
 
 /** The JSON array a model's answer holds, whatever prose or fence surrounds it. */
 export function answerArray(text) {

@@ -32,31 +32,23 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
 // the focused scope. If one of them reached a painter or an application service, every
-// caller would acquire that owner's initialization graph.
+// caller would acquire that owner's initialization graph. A module of the library of
+// shared web code (`lib/`) is no owner, and lint keeps each clear of every owner
+// (`eslint.config.mjs`), so a root may reach one without naming it here.
+const library = `^${runtime}lib/`;
 const exactClosures = {
-  "queued-work.js": [],
+  "ui-marks.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
-  "shadow-tree.js": [],
-  "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
-  "margin-model.js": [
-    "contribution-model.js",
-    "icon-paths.js",
-    "words.js",
-    "kernel-facts.js",
-    "thread/workflow.js",
-    "voice.js",
-  ],
+  "contribution-model.js": [],
+  "margin-model.js": ["contribution-model.js", "thread/workflow.js", "voice.js"],
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
-    "icon-paths.js",
-    "words.js",
-    "kernel-facts.js",
     "thread/workflow.js",
     "voice.js",
   ],
   "projection/model.js": ["kernel-facts.js", "kept.js"],
-  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
+  "projection/state.js": ["semantic-state.js", "version-signal.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "kept.js",
@@ -67,7 +59,6 @@ const exactClosures = {
   "thread/state.js": [
     "semantic-state.js",
     "version-signal.js",
-    "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
     "kept.js",
@@ -77,30 +68,24 @@ const exactClosures = {
   ],
   "thread/workflow.js": ["voice.js"],
   "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
-  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
+  "pending/state.js": ["semantic-state.js", "version-signal.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
     "version-signal.js",
-    "queued-work.js",
     "focus.js",
     "dom-move.js",
     "control-selectors.js",
     "inputs.js",
     "document-inputs.js",
-    "control-keys.js",
+    "ui-marks.js",
     "language-paths.js",
-    "syntax-languages.js",
-    "shadow-tree.js",
     "scroll-containers.js",
-    "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",
-    "role-button-press.js",
-    "keeps.js",
     "pointer.js",
     "user-intent.js",
     "registry.js",
@@ -114,7 +99,6 @@ const exactClosures = {
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",
-    "exception.js",
     "page-paint.js",
     "kept.js",
   ],
@@ -220,7 +204,7 @@ export default {
       comment: `${root} reaches only: ${allowed.join(", ") || "itself"}.`,
       severity: "error",
       from: { path: isModule(root) },
-      to: { reachable: true, pathNot: isOneOf([root, ...allowed]) },
+      to: { reachable: true, pathNot: [isOneOf([root, ...allowed]), library] },
     })),
     ...Object.entries(forbiddenClosures).map(([root, forbidden]) => ({
       name: `no-reach-from-${root}`,

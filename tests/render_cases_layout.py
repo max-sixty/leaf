@@ -487,7 +487,7 @@ DRAWING_CONTROL_LAYER = {
         "description": "A native offered control inside a drawing viewport.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -497,7 +497,8 @@ DRAWING_CONTROL_LAYER = {
 }
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
-import { once, offer } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -1221,7 +1222,7 @@ UNBREAKABLE_PAGE = leaf_page(
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-token" class="metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
+  <dl id="m-token" class="lf-metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>

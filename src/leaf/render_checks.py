@@ -71,14 +71,44 @@ _RENDERING_SETTLED = """facts => {
 }"""
 
 
+# Every context and page Leaf's code opens outside the suite, a developer tool's
+# included, comes from one of these two openers
+# (`test_the_pages_leaf_opens_take_the_served_deadline`). Each sets the default on the
+# context, which its pages and its `request` calls inherit, so every Playwright wait
+# that names no deadline takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
+# which a page's `load` overruns on a starved host. A default a caller then sets on
+# the page itself wins over the context's.
+
+
+def open_render_context(browser, **options):
+    """A new context from `browser`, opened with Playwright's `new_context` `options`,
+    whose waits take `SERVED_TIMEOUT_MS`, and `expect`'s too (`bound_expectations`)."""
+    context = browser.new_context(**options)
+    context.set_default_timeout(SERVED_TIMEOUT_MS)
+    bound_expectations()
+    return context
+
+
 def open_render_page(opener, **options):
     """A new page from `opener`, a browser or a context, opened with Playwright's
-    `new_page` `options`, whose every Playwright wait that names no deadline, its
-    navigations included, takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
-    which a page's `load` overruns on a starved host."""
+    `new_page` `options`, in a context whose waits take `SERVED_TIMEOUT_MS`, and
+    `expect`'s too (`bound_expectations`)."""
     page = opener.new_page(**options)
-    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    page.context.set_default_timeout(SERVED_TIMEOUT_MS)
+    bound_expectations()
     return page
+
+
+def bound_expectations() -> None:
+    """Give every Playwright `expect` in this process that names no deadline
+    `SERVED_TIMEOUT_MS` in place of Playwright's own five seconds, which an
+    expectation on a starved host overruns. Playwright keeps this default for the
+    whole process, not for a page or a context. The suite sets it once
+    (`render_harness`); Leaf's tools share no entry point but the openers above, so
+    each opener sets it."""
+    from playwright.sync_api import expect
+
+    expect.set_options(timeout=SERVED_TIMEOUT_MS)
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
@@ -382,6 +412,11 @@ class HandoverProgress:
         return True
 
 
+# The query marks `runtime/bootstrap.js` takes off a document's address before the user
+# sees it: a revision mark, startup recovery's mark (`asked_again`) and the host key.
+ADDRESS_MARKS = frozenset({"_leaf-revision", "_leaf-recovered", "t"})
+
+
 def asked_again(url: str) -> str:
     """`url` as the document startup recovery asks the server for once more
     (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for
@@ -478,7 +513,7 @@ def _refuse_unstarted(page) -> None:
 
 
 # Every box holding `frame` in its document, across shadow roots as `renderedParent`
-# walks them (shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
+# walks them (lib/shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
 # Written out here since it runs in each sample's own document, which no probe reaches.
 _HOLDERS = """frame => {
   const held = [];
@@ -510,10 +545,10 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     `wait_until_ready` waits with `state` and `ready`. A check reads every document the
     page can show, not only those near the window it opened at.
 
-    A sample's page gets no rendering while its frame is off screen, so its host counts
-    what that page draws only while the frame shows, and marks the frame
-    `data-lf-unseen` meanwhile (sample.js). The page holding a hidden frame counts none
-    of the work that frame's page starts after loading, its own samples included, so
+    A sample's page may get no rendering while its frame is off screen, so its host
+    stops counting what that page draws there, at once or after a deadline (sample.js),
+    and marks the frame `data-lf-unseen`. The page holding a marked frame counts none
+    of the work that frame's page does after loading, its own samples included, so
     each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`
     frame is then scrolled into view and its holder waited for, and every box the
     scroll moved goes back. One no scroll can show, in a closed disclosure, a shut tab

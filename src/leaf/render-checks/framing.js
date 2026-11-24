@@ -1,5 +1,6 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
-import { servedElements, upFrom } from "/runtime/check-api.js";
+import { servedElements } from "/runtime/check-api.js";
+import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -50,7 +51,7 @@ const moduleOwnsBox = (el) => {
 //
 // A content box that holds draws its frame by holding, since the box ends where it
 // does. The document shell's padding instead spaces content from the viewport: Leaf's
-// panel clearance and the author's page gutters do not make paragraph margins wrong.
+// head room and the author's page gutters do not make paragraph margins wrong.
 // Only a border or an explicit frame declaration makes html/body a content frame.
 //
 // Two exclusions, both about what a margin means where it stands. A flex or grid

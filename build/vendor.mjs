@@ -378,13 +378,12 @@ const bundles = {
 
   // One CodeMirror 6 core for runtime composers and optional file editors.
   //
-  // One bundle holds the editor core and the GFM Markdown language, exporting the
-  // names composers and the file-editor adapter import. Optional autocomplete and
-  // merge live in the file-editor package and import this same state/view/language
-  // implementation. The runtime owns the live-preview decorations and reads a draft
-  // with markdown-it alone; only the file editor highlights with the language. It
-  // comes without `markdown()`, whose HTML-block support would carry the HTML, CSS
-  // and JavaScript grammars into the bundle for syntax a file never highlights.
+  // One bundle holds the editor core, exporting the names composers and the
+  // file-editor adapter import. Optional autocomplete and merge live in the
+  // file-editor package and import this same state/view/language implementation.
+  // The runtime owns the live-preview decorations and reads a draft with markdown-it
+  // alone, and the file editor colours every language with the syntax module, so the
+  // core carries no language of its own.
   codemirror: () => ({
     out: `${assets}/vendor/codemirror.esm.js`,
     entryPoints: [input("entries/codemirror/entry.mjs")],
@@ -461,20 +460,14 @@ const bundles = {
     ],
   }),
 
-  // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package, and each language the editor
-  // highlights beyond the core's Markdown in a module of its own, loaded when a file
-  // of it opens (file-editor's editor.js). Their state/view/language and Lezer
-  // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities: a second Lezer tree would read none of the core's node
-  // props, and a language parsed with it would highlight nothing.
+  // File editing extensions sharing the runtime's CodeMirror implementation: merge
+  // and autocomplete, which live in this optional package. The editor colours every
+  // language with the syntax module (file-editor's editor.js). Their
+  // state/view/language and Lezer imports bind to the core Leaf's composers use, so
+  // extensions never mix CodeMirror identities.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: {
-      "extensions.esm": input("entries/file-editor/entry.mjs"),
-      "codemirror-yaml.esm": input("entries/file-editor/yaml.mjs"),
-    },
-    outdir: packageVendor("file-editor"),
+    entryPoints: [input("entries/file-editor/entry.mjs")],
     platform: "browser",
     target: "es2022",
     plugins: [
@@ -960,13 +953,15 @@ async function bundle(spec) {
 }
 
 /**
- * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
- * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a `language-…` class names, read here so that identifying a
- * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
- * names too, as the one line of JSON `syntaxLanguageNames` is written on
- * (`leaf.validation.markup.COLOURED_LANGUAGES`).
+ * The table of the grammars `syntax` bundles, a library module
+ * (`runtime/lib/syntax-languages.js`): a literal import for each, so an export binds
+ * it, and each name and alias Shiki gives a grammar, which a `language-…` class names,
+ * read here so that identifying a block loads no grammar. Both come from this build,
+ * which a page's grammars need anyway, so the browser doesn't read `$languages.names`
+ * itself. `page check` reads the names too, as the one line of JSON
+ * `syntaxLanguageNames` is written on (`leaf.validation.markup.COLOURED_LANGUAGES`).
+ * Beside them stands the shipped extension table, which `language-paths.js` starts
+ * from until a page installs its composed one.
  */
 async function syntaxLoaders() {
   const names = languages();
@@ -988,18 +983,19 @@ async function syntaxLoaders() {
         .join("") +
       "};\n" +
       `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n` +
-      `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
+      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s, in the package API.\n" +
+      ` * @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
   );
 }
 
-/** Every bundle's outputs, and the runtime's syntax table, keyed by repository path. */
+/** Every bundle's outputs, and the library's syntax table, keyed by repository path. */
 export async function vendorOutputs() {
   const built = await Promise.all(
     Object.values(bundles).map(async (spec) => bundle(await spec())),
   );
   return new Map([
     ...built.flatMap((outputs) => [...outputs]),
-    [`${assets}/runtime/syntax-languages.js`, await syntaxLoaders()],
+    [`${assets}/runtime/lib/syntax-languages.js`, await syntaxLoaders()],
   ]);
 }
 

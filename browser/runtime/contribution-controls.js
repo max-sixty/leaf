@@ -12,7 +12,8 @@ import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
-import { motionTime, reducedMotion } from "./lib/motion-timing.js";
+import { reducedMotion } from "./motion.js";
+import { motionTime } from "./lib/motion-timing.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,

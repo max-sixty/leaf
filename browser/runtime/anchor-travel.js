@@ -60,7 +60,7 @@ import {
   awaitsDrawing,
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
-import { scrollBehavior } from "./lib/motion-timing.js";
+import { scrollBehavior } from "./motion.js";
 import { renderedParent, under } from "./lib/shadow-tree.js";
 import { nextFrame } from "./lib/frame-pass.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";

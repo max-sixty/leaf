@@ -15,25 +15,28 @@
 // measure once around that composition and show one FLIP from the current layout to the
 // final layout. A widget whose drag moves its own nodes defers its correction.
 
-//
-// The user's motion preference and the times the stylesheet sets are the browser's and
-// the stylesheet's to say, so the library reads them (lib/motion-timing.js). This
-// module plays the motion, and holds it until the page has presented.
-
 import { pagePresented } from "./page-paint.js";
-import {
-  motionTime,
-  onMotionPreferenceChange,
-  reducedMotion,
-} from "./lib/motion-timing.js";
+import { motionTime } from "./lib/motion-timing.js";
 
+// The theme's reduced-motion guard covers CSS animation and transitions; motion
+// driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
+// this instead.
+const preference = matchMedia("(prefers-reduced-motion: reduce)");
 /** @type {Set<Animation>} */
 const active = new Set();
-onMotionPreferenceChange((reduced) => {
+export const reducedMotion = () => preference.matches;
+export const scrollBehavior = () => (preference.matches ? "instant" : "smooth");
+/** @param {(reduced: boolean) => void} listener */
+export function onMotionPreferenceChange(listener) {
+  const changed = (/** @type {MediaQueryListEvent} */ event) => listener(event.matches);
+  preference.addEventListener("change", changed);
+  return () => preference.removeEventListener("change", changed);
+}
+preference.addEventListener("change", (event) => {
   // Preference changes apply to motion already under the user as well as the next
   // gesture. Finishing reaches each caller's ordinary cleanup path; cancelling here
   // would reject `finished` and strand folds whose end state is installed there.
-  if (reduced) for (const played of [...active]) played.finish();
+  if (event.matches) for (const played of [...active]) played.finish();
 });
 
 // Whether motion plays now, which `playMotion` asks before every animation. First replay
@@ -57,10 +60,10 @@ export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });
 
 // The same door with the runtime's own surfaces' further timing: the one ease unless
-// the caller names its surface's curve (`easing`, read with `motionEasing`), and a
-// `delay` that holds the first frame until the motion starts, so a part fading in after
-// another fades out stays unseen meanwhile. That is the backward half of the fill,
-// which no undelayed motion reaches.
+// the caller names its surface's curve (`easing`, read with lib/motion-timing.js's
+// `motionEasing`), and a `delay` that holds the first frame until the motion starts, so
+// a part fading in after another fades out stays unseen meanwhile. That is the backward
+// half of the fill, which no undelayed motion reaches.
 /** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
  * @param {{duration: number, easing?: string, delay?: number, pseudoElement?: string | null}} options */
 export function playMotion(

@@ -11,7 +11,7 @@ import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
 import { randomId } from "./ids.js";
 import { layerHeaders, sessionIsActive } from "./layer-client.js";
-import { onMotionPreferenceChange, reducedMotion } from "./lib/motion-timing.js";
+import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
 import { coarsePointer } from "./pointer.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";

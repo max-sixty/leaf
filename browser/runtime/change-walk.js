@@ -39,7 +39,7 @@ import { cycledRow } from "./keyboard/bindings.js";
 import { currentLocationOrigin, stepFrom, walkOrigin } from "./current-target.js";
 import { focusDestination } from "./focus.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
-import { scrollBehavior } from "./lib/motion-timing.js";
+import { scrollBehavior } from "./motion.js";
 import { renderedUnder } from "./lib/shadow-tree.js";
 import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";

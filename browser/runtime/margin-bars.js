@@ -78,7 +78,7 @@ import { onCurrentLocation } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { inkedBox, scrollContainer } from "./geometry.js";
 import { union } from "./rect.js";
-import { scrollBehavior } from "./lib/motion-timing.js";
+import { scrollBehavior } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";

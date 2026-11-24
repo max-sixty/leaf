@@ -39,7 +39,7 @@ import {
   stuckBox,
   userScrollport,
 } from "../geometry.js";
-import { scrollBehavior } from "../lib/motion-timing.js";
+import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor } from "../reading-regions.js";
 import { edgeAt, returnTo } from "../scroll-containers.js";

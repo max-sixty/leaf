@@ -26,6 +26,7 @@ from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
     AuthoredOrders,
+    container_owner,
     generated_children,
     projected_action_holders,
     record_members,
@@ -238,7 +239,7 @@ def position_record_error(
     # destination belongs there too.
     if (
         not inside(target, current)
-        or recorded_owner(target_id, record, by_id, registry, holders=projected_holders)
+        or container_owner(target_id, by_id, registry, holders=projected_holders)
         != owner
     ):
         return Finding("outside-destination", values=named)

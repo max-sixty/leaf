@@ -444,20 +444,120 @@ def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     )
 
 
-def test_a_position_record_s_container_stands_inside_the_widget(page_dir):
-    """The browser finds a position's containers among the widget's descendants, so a
-    record naming the widget's own tag as its container passes nothing a drop can
-    find, and the check refuses it before a drop throws."""
+def test_a_widget_orders_its_own_members():
+    """A list the user reorders is its own position container, so it needs no
+    element between it and its members: the check takes `within` naming the
+    widget's own tag, admission places a move in the widget, the fold reads the
+    widget's own children, and the move's words name the list once, as the widget."""
+    from leaf.projection import AuthoredOrders, folded_positions, page_reading
+
+    registry = deepcopy(model_layer())
+    for tag in ("lf-audit-list", "lf-audit-entry"):
+        with_modules(registry, tag)[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("example", None)
+    record = {"kind": "position", "within": "lf-audit-list"}
+    registry["lf-audit-list"] |= {
+        "content": "members",
+        "verbs": {"move": {"unit": "unit", "record": record}},
+    }
+    registry["lf-audit-entry"]["owners"] = ["lf-audit-list"]
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "own container")
+    )
+    page = ModelPage(
+        '<lf-audit-list id="list"><lf-audit-entry id="a">A</lf-audit-entry>'
+        '<lf-audit-entry id="b">B</lf-audit-entry></lf-audit-list>'
+        '<lf-activity id="feed"></lf-activity>',
+        registry=registry,
+    )
+    reading = page.reading(1, page.registry(1))
+    move = {
+        "kind": "action",
+        "widget": "list",
+        "action": "move",
+        "detail": {"unit": "a", "value": "list", "rank": "3"},
+    }
+    served = model.served_reading(
+        reading.document.html, [move], registry=reading.registry
+    )
+    events = served["events"]
+
+    assert [row["gesture"] for row in served["browser"]["history"]] == [
+        {"form": "move", "unit": "A"}
+    ]
+    assert folded_positions(
+        "list",
+        "move",
+        record,
+        AuthoredOrders.read(reading),
+        page_reading(reading, events, 1).projection,
+    ) == {"list": ["b", "a"]}
+
+
+def test_a_position_record_names_a_declared_container(page_dir):
+    """A container the layer doesn't declare is one no reader can find, so the check
+    refuses it."""
     registry = vocabulary(page_dir)
-    registry["lf-board"]["verbs"]["move"]["record"]["within"] = "lf-board"
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = "lf-nowhere"
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
     assert status != 0
     assert found(
-        findings, "record-within", "<lf-board>", verb="move", within="lf-board"
+        findings, "record-within", "<lf-board>", verb="move", within="lf-nowhere"
     )
+
+
+def test_a_container_belongs_to_the_nearest_widget_recording_positions():
+    """A zone inside a lane that records positions belongs to the lane, as the cards
+    in it do, though the lane orders its zones rather than cards, so the board can't
+    drop its own card there: a container and its units never answer to two
+    widgets."""
+    registry = deepcopy(model_layer())
+    tags = ("lf-audit-board", "lf-audit-lane", "lf-audit-zone", "lf-audit-card")
+    for tag in tags:
+        with_modules(registry, tag)[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("example", None)
+    board, lane, zone, card = (registry[tag] for tag in tags)
+    position = {
+        "unit": "unit",
+        "record": {"kind": "position", "within": "lf-audit-zone"},
+    }
+    board |= {"content": "members", "verbs": {"move": position}}
+    lane |= {"content": "members", "owners": ["lf-audit-board"]}
+    # The lane orders its own zones, a different container from the board's.
+    lane["verbs"] = {
+        "sort": {**position, "record": {"kind": "position", "within": "lf-audit-lane"}}
+    }
+    zone |= {"content": "members", "owners": ["lf-audit-board", "lf-audit-lane"]}
+    card["owners"] = ["lf-audit-zone"]
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "nested recorders")
+    )
+    page = ModelPage(
+        '<lf-audit-board id="board"><lf-audit-zone id="near">'
+        '<lf-audit-card id="card">Card</lf-audit-card></lf-audit-zone>'
+        '<lf-audit-lane id="lane"><lf-audit-zone id="far"></lf-audit-zone>'
+        "</lf-audit-lane></lf-audit-board>",
+        registry=registry,
+    )
+    with pytest.raises(events_model.EventRefused) as refused:
+        event_contracts_model.admitted_event(
+            page,
+            [],
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "board",
+                "action": "move",
+                "detail": {"unit": "card", "value": "far", "rank": "1"},
+            },
+        )
+    assert refused_on(refused.value).code == "outside-destination"
 
 
 def _column_records_positions(registry):
@@ -466,61 +566,72 @@ def _column_records_positions(registry):
     }
 
 
+def _card_records_positions(registry):
+    with_modules(registry, "lf-card")["lf-card"]["verbs"] = {
+        "sort": {"unit": "unit", "record": {"kind": "position", "within": "lf-column"}}
+    }
+
+
 @pytest.mark.parametrize(
-    ("within", "change", "containers", "says"),
+    ("tag", "within", "change", "containers", "says"),
     [
         # A holder the board's structure never reaches: an <lf-options> could stand
         # only in a card's markup, so the board's own drops all fail.
         (
+            "lf-board",
             "lf-options",
             None,
-            ["lf-column"],
-            "set `verbs.move.record.within` to <lf-column>",
+            ["lf-board", "lf-column"],
+            "set `verbs.move.record.within` to <lf-board> or <lf-column>",
         ),
         # The moved units' tag, which holds no members.
         (
+            "lf-board",
             "lf-card",
             None,
-            ["lf-column"],
-            "set `verbs.move.record.within` to <lf-column>",
+            ["lf-board", "lf-column"],
+            "set `verbs.move.record.within` to <lf-board> or <lf-column>",
         ),
         # A column that records positions itself is the nearer owner of its cards.
         (
+            "lf-board",
             "lf-column",
             _column_records_positions,
+            ["lf-board"],
+            "set `verbs.move.record.within` to <lf-board>",
+        ),
+        # A widget no declaration gives members.
+        (
+            "lf-card",
+            "lf-column",
+            _card_records_positions,
             [],
-            "declare a container tag of your own whose `owners` names this widget,"
-            " name that tag in place of this widget in the `owners` of <lf-column>,"
-            " and set `verbs.move.record.within` to it",
+            "set `verbs.sort.record.within` to this widget's own tag, and give the"
+            " elements it reorders `owners` naming this widget",
         ),
     ],
 )
 def test_a_position_container_the_declarations_never_place_is_advice(
-    within, change, containers, says
+    tag, within, change, containers, says
 ):
-    """A `within` that no declared membership places inside the widget leaves a drop
-    of the widget's own members refused at admission, where nothing tells the agent.
-    Another package could still declare the membership, so the registry advises,
-    saying what to write instead."""
+    """A `within` that no declared membership places at or inside the widget leaves
+    a drop of the widget's own members refused at admission, where nothing tells the
+    agent. Another package could still declare the membership, so the registry
+    advises, saying what to write instead."""
     registry = deepcopy(model_layer())
     registry["lf-board"]["verbs"]["move"]["record"]["within"] = within
     if change:
         change(registry)
     registry_validation.validate_registry(registry, "test registry")
     [said] = composition_model.declaration_advice(
-        {"lf-board": registry["lf-board"]}, registry, "test"
+        {tag: registry[tag]}, registry, "test"
     )
+    verb = next(iter(registry[tag]["verbs"]))
     assert (said.code, said.at, said.severity, said.values) == (
         "position-container",
-        "<lf-board>",
+        f"<{tag}>",
         "advice",
-        {
-            "verb": "move",
-            "within": within,
-            "containers": containers,
-            "members": ["lf-column"],
-            "registry": "test",
-        },
+        {"verb": verb, "within": within, "containers": containers, "registry": "test"},
     )
     assert said.said.endswith(says)
 

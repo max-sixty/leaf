@@ -140,11 +140,10 @@ def validate_widget_record_contracts(
             raise registry_error(
                 "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
             )
-        # A container is a declared element inside the widget, among whose
-        # descendants the browser finds it, so never the widget itself.
-        if kind == "position" and (
-            record["within"] == tag or record["within"] not in declarations
-        ):
+        # A container is a declared element, which may be the widget itself; whether
+        # the declarations place one at or inside the widget is advice
+        # (`widgets.widget_advice`).
+        if kind == "position" and record["within"] not in declarations:
             raise registry_error(
                 "record-within", path, tag, verb=verb, within=record["within"]
             )
@@ -231,7 +230,7 @@ def validate_answered_conditions(
     # their more fundamental structural errors. Each answering verb's condition reads
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
     # verb recording positions, the emptiness of one of its own containers (`within`,
-    # which the record gate has found declared) inside the widget.
+    # which the record gate has found declared) at or inside the widget.
     for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
         spec = entry["verbs"][verb]
         empty = condition.get("empty")

@@ -166,7 +166,7 @@ function actionWords(event, gesture) {
     case "choice":
       return `chose ${gesture.chosen.map((words) => quoted(words)).join(", ") || "nothing"} in ${widget}`;
     case "move":
-      return `moved ${quoted(gesture.unit)} to ${quoted(gesture.to)} in ${widget}`;
+      return `moved ${quoted(gesture.unit)}${gesture.to ? ` to ${quoted(gesture.to)}` : ""} in ${widget}`;
     case "edit":
       return `edited ${widget}`;
     case "add":

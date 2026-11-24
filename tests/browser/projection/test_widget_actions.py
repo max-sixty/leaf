@@ -22,18 +22,20 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import unfolded_button
-from render_cases_navigation import composer_quote, painted
+from render_cases_navigation import actions, composer_quote, painted
 from render_harness import (
     EXAMPLE_PACKAGES,
     consume_browser_errors,
     expect_obligations_answered,
     leaf_page,
+    navigate,
     open_page,
     panel_settled,
     panel_view,
     post_event,
     resized,
     round_trip,
+    sending,
     show_done,
     stamp_page,
     suggestion_control,
@@ -47,9 +49,62 @@ from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
+from leaf.schema import PLUGIN_ROOT
 from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# `lf-test-list` orders its own `lf-test-entry` members: no element stands between.
+SORTABLE = PLUGIN_ROOT / "tests" / "fixtures" / "packages" / "sortable"
+STEPS = """
+<h1 id="title">Release steps</h1>
+<lf-test-list id="steps">
+  <lf-test-entry id="tag">Tag the release</lf-test-entry>
+  <lf-test-entry id="notes">Write the notes</lf-test-entry>
+  <lf-test-entry id="ship">Ship it</lf-test-entry>
+</lf-test-list>
+"""
+
+
+def expect_steps(page, ids):
+    for index, identity in enumerate(ids):
+        expect(page.locator("#steps > lf-test-entry").nth(index)).to_have_id(identity)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_list_that_is_its_own_container_keeps_the_order_the_user_gives_it(
+    engine, serve, request
+):
+    """A list whose entries stand directly in it records a drag and a keyboard move
+    with itself as the container, shows both after a reload, and Undo takes the
+    last one back, naming the list once."""
+    url = live_url(serve(leaf_page("Release steps", STEPS), packages=(SORTABLE,)))
+    page = open_page(request.getfixturevalue(engine), url)
+    expect_steps(page, ["tag", "notes", "ship"])
+
+    with sending(page, "the drag"):
+        page.locator("#ship").drag_to(
+            page.locator("#tag"), target_position={"x": 8, "y": 2}
+        )
+    expect_steps(page, ["ship", "tag", "notes"])
+
+    page.locator("#notes").focus()
+    with sending(page, "the key move"):
+        page.keyboard.press("Alt+ArrowUp")
+    expect_steps(page, ["ship", "notes", "tag"])
+    assert [
+        (event["detail"]["unit"], event["detail"]["value"])
+        for event in actions(serve.page_dir)
+    ] == [("ship", "steps"), ("notes", "steps")]
+
+    navigate(page, url)
+    expect_steps(page, ["ship", "notes", "tag"])
+
+    undo(page)
+    expect_steps(page, ["ship", "tag", "notes"])
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Undone: moved “Write the notes” in the test-list"
+    )
 
 
 def thread_head(page, page_dir, skipping=None):

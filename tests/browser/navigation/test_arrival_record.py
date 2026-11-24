@@ -613,6 +613,78 @@ def test_back_during_a_revisions_arrival_ends_it(request, serve, engine, when):
         release(page, held)
 
 
+def two_thread_entries(browser, serve):
+    """The page, opened at its second thread's entry with the reply being written there
+    after an entry at its first thread; returns it, the two threads' ids and the
+    margin's card."""
+    url = live_url(serve(LONG_PAGE))
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    second = panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", second)
+    write(card.locator(".lf-thread-reply leaf-text"), "Hold")
+    page.wait_for_function("navigation.transition === null")
+    return page, first, second, card
+
+
+def leaf_reloads_with_its_module_held(page, serve, module):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, whose
+    document's entry module waits in `module`."""
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, module, 1, "the arriving document's entry module")
+    page.wait_for_function("document.readyState !== 'loading'")
+
+
+def start_leaf(page, module):
+    page.unroute("**/leaf.js")
+    for route in module:
+        try:
+            route.continue_()
+        except Exception:
+            pass
+    module.clear()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+
+
+def test_a_key_before_back_taken_before_leaf_starts_leaves_the_entry_its_record(
+    browser, serve
+):
+    """A key the user presses at the entry a reload Leaf asks for brings back, then Back
+    to another entry before Leaf starts: the key acted at the entry the user left, so the
+    entry Back reached gets its record back, the thread open there."""
+    page, first, _, card = two_thread_entries(browser, serve)
+    module = []
+    try:
+        leaf_reloads_with_its_module_held(page, serve, module)
+        # A key the hold doesn't keep acts at once, here scrolling the page.
+        page.keyboard.press("ArrowDown")
+        page.wait_for_function("scrollY > 0")
+        page.evaluate("history.back()")
+        page.wait_for_function(
+            f"new URL(location.href).searchParams.get('thread') === '{first}'"
+        )
+    finally:
+        start_leaf(page, module)
+    expect(card).to_have_attribute("data-lf-thread", first)
+    expect(card).to_be_focused()
+
+
 @pytest.mark.parametrize("engine", ENGINES)
 def test_back_before_leaf_starts_leaves_the_reload_s_place_to_its_entry(
     request, serve, engine

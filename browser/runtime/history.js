@@ -730,8 +730,9 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
 // restoration of the record that entry kept, where the document came by a reload or by
 // Back or Forward from another document (the Navigation API's `activation`), and of
 // none for a fresh visit, whose address alone says where to go, under the arrival's
-// intent still. Its intent counts the user's inputs within the entry from the
-// document's start, as a document arrival's does (user-intent.js).
+// intent still. Its intent counts the user's inputs within that entry, since the
+// document started or the user stepped to it, as a document arrival's does
+// (user-intent.js; focus.js, `entryInputCount`).
 export function beginArrival() {
   const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;

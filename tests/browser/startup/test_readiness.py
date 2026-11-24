@@ -23,6 +23,7 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
+    expect_panel_says,
     holding,
     leaf_page,
     open_page,
@@ -1699,9 +1700,9 @@ def test_words_typed_through_a_reload_stay_in_the_reply_when_the_user_moves_on(
     """Words the user types on as a reload Leaf asked for comes are words for the reply
     they were writing in. Moving on before the reload has put them back there, by
     scrolling, pressing the page or pressing a key that prints nothing, ends the
-    return, not the user's wish for the words, so they go into the reply's draft, and
-    Resume writing takes the user back to their end (SOUL.md, "Preserve the user's
-    attention and work")."""
+    return, not the user's wish for the words, so they go into the reply's draft, the
+    panel says the draft is kept where the keys stood, and Resume writing takes the
+    user back to their end (SOUL.md, "Preserve the user's attention and work")."""
     page, _ = writing_a_reply(request.getfixturevalue(engine), serve)
     release = reload_with_its_answers_held(page, serve)
     page.keyboard.type(" more")
@@ -1712,6 +1713,7 @@ def test_words_typed_through_a_reload_stay_in_the_reply_when_the_user_moves_on(
         page.locator("h1").click()
     else:
         page.keyboard.press(ending)
+    expect_panel_says(page, "Draft kept")
     release(False)
     wait_for(
         lambda: reply_draft(serve),

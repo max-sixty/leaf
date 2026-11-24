@@ -1609,7 +1609,8 @@ export function mirrorDraft(
 // draft still holds the words it held then, else after its words, as more of what the
 // user was writing. A box with no draft, such as a field of the page's own, leaves
 // them nowhere else to stand, so they join the page's draft, as words whose box is
-// gone do (`moveToPage`). Resume writing goes to their end.
+// gone do (`moveToPage`). The words vanish from where the keys stood, so the panel
+// says the draft is kept, with Resume writing, which goes to their end.
 const HELD_WORDS = "lf-held-words";
 function takeHeldWords() {
   const left = tabStore.get(HELD_WORDS);
@@ -1635,6 +1636,7 @@ function takeHeldWords() {
     const at = start + lead.length + typed.length;
     keepWritingPlace({ context, selection: [at, at], generation: randomId() });
   }
+  noticeDraftKept();
 }
 
 // The drafts start from the copies the page this tab reloaded left waiting

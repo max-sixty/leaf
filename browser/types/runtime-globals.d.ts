@@ -212,7 +212,7 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `announce`): the words, or a function returning words read off
+   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or a function returning words read off
    * the page, such as keys (`saying`), which a listener calls as it says them. */
   "lf-announce": CustomEvent<
     import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
@@ -262,6 +262,16 @@ interface DocumentEventMap {
   >;
   /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
+  /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
+   * sets `delivery` on each it sends (`widget-controller.js`). */
+  "lf-action": CustomEvent<{
+    verb: string;
+    detail?: Record<string, unknown>;
+    says?: string;
+  }> & { delivery?: PromiseLike<unknown> };
+  "lf-undo": CustomEvent<{ verb: string; unit?: string }> & {
+    delivery?: PromiseLike<unknown>;
+  };
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
@@ -317,7 +327,8 @@ interface ShadowRoot {
 
 interface Element {
   /** The word a widget's module names its kind by where it depends on the element
-   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
+   * (`addressable-names.widgetWord`); a fixed word is the element's
+   * `aria-roledescription`. */
   lfWord?(): string;
   lfSays?(): string;
 }

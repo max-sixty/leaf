@@ -118,7 +118,8 @@ To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, wh
 region, the box that scrolls it as the user reads, and every other box that scrolls
 it, inside or around that region, reveals it at the nearest edge, so a start landing in
 a bounded pane aligns it in the pane and moves the page only to show it; `block`
-defaults to `start`. Sideways, each box reveals it at the nearest edge. A `nearest`
+defaults to `start`. A `smooth` landing glides, and lands at once for a user who asked
+for less motion. Sideways, each box reveals it at the nearest edge. A `nearest`
 landing moves nothing where the target is already shown: the user sees all of it where
 it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
@@ -146,7 +147,6 @@ available from `portable-api.js`. It defaults to `instant` and updates Leaf's sc
 readers before that position paints, including writes during resize delivery. Smooth
 scrolling reports its positions through the browser's scroll events.
 
-`atScrollEnd(box)` says whether a box is scrolled as far down as it goes.
 `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
@@ -266,10 +266,10 @@ page doesn't show once the handler finishes, Leaf reveals that place and lands t
 Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can animate
 its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
 for less motion, and before `body[data-lf-presented]`; treat that as a finished
-animation. Where a module must branch on the preference itself, as for a scroll's
-`behavior`, it reads the `prefers-reduced-motion` media query. Animate only to help the
-eye follow a box from where it was to where it is, and draw a result the module already
-has during the gesture, not after a delay.
+animation. Where a module must branch on the preference itself, as for the `behavior`
+of a smooth `setScroll`, it reads the `prefers-reduced-motion` media query.
+Animate only to help the eye follow a box from where it was to where it is, and draw a
+result the module already has during the gesture, not after a delay.
 
 A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter
@@ -281,11 +281,12 @@ It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 
 ## Notices and spoken words
 
-`announce(message)` announces words already on screen: it dispatches an `lf-announce`
-event on the window carrying `message` as its `detail`, which Leaf says in its live
-region and a page without Leaf leaves unsaid. A `message` that reads the page, as one
-naming keys with `saying(rows)` does, is a function returning the words, which Leaf
-reads as it says them.
+To announce words already on screen, dispatch an `lf-announce` event on the window
+with the words as its `detail`:
+`window.dispatchEvent(new CustomEvent("lf-announce", { detail: words }))`. Leaf says
+them in its live region, and a page without Leaf leaves them unsaid. Words that read
+the page, as ones naming keys with `saying(rows)` do, are a function returning the
+words, which Leaf reads as it says them.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

@@ -16,20 +16,17 @@
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
 import {
-  announce,
   nameAction,
   el,
   generated,
   generatedElement,
-  keeps,
-  keepsText,
   LeafElement,
   navigateToDatum,
   offerAction,
   setChildLists,
   setChildren,
-  focused,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
@@ -142,7 +139,11 @@ function buildToolbar(owner) {
     const open = groups.some((group) => !group.open);
     for (const group of groups) if (group.open !== open) group.open = open;
     updateDisclosureControl(owner);
-    announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", {
+        detail: `${open ? "Expanded" : "Collapsed"} all call-tree roots`,
+      }),
+    );
   });
   toolbar.append(summary, button);
   return { element: toolbar, summary };
@@ -341,7 +342,8 @@ customElements.define(
           children: children.map((record) => draw(record, () => buildLine())),
         };
       });
-      const currentLocation = focused(this.getRootNode());
+      const currentLocation = /** @type {Document | ShadowRoot} */ (this.getRootNode())
+        .activeElement;
       for (const { group, body, children } of placements)
         if (
           children.some(

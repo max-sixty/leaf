@@ -1,11 +1,23 @@
 {
   "$public-modules": {
-    "description": "The module paths a page or package may import. Admission, linting and bundling read this list; module-authoring.md describes their capabilities.",
+    "description": "The module paths a page or package may import. Admission, linting and bundling read this list. module-authoring.md describes the capabilities of Leaf's own modules. The paths under `/runtime/lib/` are the library of shared web code, every module of that directory, each described in its own header (browser/AGENTS.md, \"The library of shared web code\").",
     "paths": [
       "/vendor/lit.js",
       "/runtime/widget-api.js",
       "/runtime/portable-api.js",
-      "/vendor/floating-ui.esm.js"
+      "/vendor/floating-ui.esm.js",
+      "/runtime/lib/canvas.js",
+      "/runtime/lib/exception.js",
+      "/runtime/lib/icon-paths.js",
+      "/runtime/lib/icons.js",
+      "/runtime/lib/keeps.js",
+      "/runtime/lib/keys.js",
+      "/runtime/lib/obligation-tally.js",
+      "/runtime/lib/shadow-tree.js",
+      "/runtime/lib/syntax-languages.js",
+      "/runtime/lib/syntax-tokens.js",
+      "/runtime/lib/text-width.js",
+      "/runtime/lib/time-axis.js"
     ]
   },
   "$authored": {

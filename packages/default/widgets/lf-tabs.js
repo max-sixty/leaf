@@ -89,14 +89,10 @@ import {
   addressableLabel,
   authoredTitle,
   setScroll,
-  actionTemplate,
   agentName,
-  PRESS,
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
-  tally,
-  under,
   backgroundFlash,
   beginWalk,
   capturePlace,
@@ -104,7 +100,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   keepView,
-  keeps,
   layoutChanged,
   listWalkPosition,
   whileConnected,
@@ -123,16 +118,18 @@ import {
   tabStore,
   focusDestination,
   fragmentTarget,
-  rowArrows,
   scrollIntoView,
-  focused,
   fitsWhole,
   landingInsets,
-  layoutPx,
   signal,
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { actionTemplate } from "/runtime/lib/icons.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
+import { under } from "/runtime/lib/shadow-tree.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
+import { tally } from "/runtime/lib/obligation-tally.js";
 
 const PLACE_KEY = "lf-tabs-place:";
 // The document's own scroller, which scrolls a page-flow set's views.
@@ -260,7 +257,10 @@ export class TabSet extends LeafElement {
     // at the ends. The strip takes no tab stop of its own, so focus inside it, which is
     // the whole of when this scope holds, is always one of these buttons.
     const tabs = () => [...this.#buttons.values()];
-    const focusedTab = () => tabs().find((button) => button === focused());
+    // The element focus is on, in the tree the strip stands in.
+    const here = () =>
+      /** @type {Document | ShadowRoot} */ (strip.getRootNode()).activeElement;
+    const focusedTab = () => tabs().find((button) => button === here());
     /** @param {HTMLElement | undefined} next */
     const walk = (next) => {
       if (!next) return;
@@ -274,7 +274,7 @@ export class TabSet extends LeafElement {
       focusDestination(next, "move");
       next.click();
       queueMicrotask(() => this.#showTab(next, null));
-      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()), {
+      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), here()), {
         list: () => [tabs()[0], tabs().at(-1)],
       });
     };
@@ -292,7 +292,7 @@ export class TabSet extends LeafElement {
 
           // The tab already open has nothing for this press to do, so the line does not
           // name it there; the walk beside it is what moves.
-          when: () => focused() !== this.#currentButton(),
+          when: () => here() !== this.#currentButton(),
           run: () => {
             focusedTab()?.click();
           },

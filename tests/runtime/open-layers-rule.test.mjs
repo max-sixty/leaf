@@ -1,6 +1,6 @@
 /* What `architecture/open-layers` refuses (eslint.config.mjs).
 
-   Whether a node is an open native layer, or stands in one, is shadow-tree.js's
+   Whether a node is an open native layer, or stands in one, is lib/shadow-tree.js's
    question, so a selector naming the open state is refused wherever it is asked, and
    a selector about anything else passes. */
 
@@ -16,7 +16,7 @@ const at = (path) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
 const reports = (code, file = "browser/runtime/probe.js") =>
   ruleReports(openLayersRule, code, {
     filename: at(file),
-    options: [["browser/runtime/shadow-tree.js"]],
+    options: [["browser/runtime/lib/shadow-tree.js"]],
   }).length;
 
 test("a selector asking for the open state is refused", () => {
@@ -40,5 +40,8 @@ test("other selectors, and the owner, pass", () => {
     "isNativeLayer(menu);",
   ])
     assert.equal(reports(code), 0, code);
-  assert.equal(reports('node.matches(":modal");', "browser/runtime/shadow-tree.js"), 0);
+  assert.equal(
+    reports('node.matches(":modal");', "browser/runtime/lib/shadow-tree.js"),
+    0,
+  );
 });

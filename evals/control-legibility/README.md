@@ -35,7 +35,7 @@ would settle them.
   icon an action shows, drawn alone through the runtime's `offerAction`; an icon
   several actions share stands for all of them.
 - `actions.json` says what pressing each action does, the truth the judge reads. It
-  names exactly the actions `ACTIONS` in `browser/runtime/icon-paths.js` holds, and
+  names exactly the actions `ACTIONS` in `browser/runtime/lib/icon-paths.js` holds, and
   the capture refuses to run until a new action has its line.
 - `provider.mjs` is the reader, given only the picture and a line about the app;
   `grade.mjs` is the judge. `MODELS` and `JUDGE_MODELS` in `dev/leaf_dev/arms.py` pin

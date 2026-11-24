@@ -64,17 +64,14 @@ import { render } from "/vendor/lit.js";
 import {
   setScroll,
   afterPresentation,
-  announce,
   once,
   offer,
   failSoft,
   frameFor,
   placesFailure,
   focusDestination,
-  closeNativeLayer,
   nextFrame,
   layoutChanged,
-  keeps,
   scopedMediaUrl,
   widgetController,
   move,
@@ -84,6 +81,8 @@ import {
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
+import { canvas2D } from "/runtime/lib/canvas.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -193,7 +192,7 @@ export class Shot extends HTMLElement {
     drawing.chooseScale = (scale) => {
       this.#drawing.actual = scale === "actual";
       this.#fit();
-      closeNativeLayer(drawing.options);
+      drawing.options.hidePopover();
       focusDestination(drawing.scaleTrigger, "move");
     };
     drawing.optionsToggled = (event) => {
@@ -387,7 +386,9 @@ export class Shot extends HTMLElement {
       this.#drawing.view = view;
       this.#fit();
     }
-    announce(`Showing ${label.toLowerCase()}`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", { detail: `Showing ${label.toLowerCase()}` }),
+    );
   }
 
   #syncComparison() {
@@ -534,9 +535,7 @@ export class Shot extends HTMLElement {
   async #pixelMask(images) {
     const { width, height, data } = compareImagePixels(...images);
     const canvas = new OffscreenCanvas(width, height);
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("The browser could not create a 2D canvas context");
-    context.putImageData(new ImageData(data, width, height), 0, 0);
+    canvas2D(canvas).putImageData(new ImageData(data, width, height), 0, 0);
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));
     try {
       const image = document.createElement("img");

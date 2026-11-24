@@ -1085,7 +1085,7 @@ summary {
   position: relative;
   border-radius: var(--lf-r);
 }
-.lf-primary-part[data-lf-part="reply"] {
+.lf-primary-part[data-lf-kind="reply"] {
   padding-block-start: 28px;
 }
 .lf-primary-news {

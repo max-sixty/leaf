@@ -19,11 +19,8 @@
  */
 import { render } from "/vendor/lit.js";
 import {
-  PRESS,
   commandScope,
-  focused,
   focusDestination,
-  keeps,
   navigateToDatum,
   offer,
   LeafElement,
@@ -33,6 +30,8 @@ import {
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { PRESS } from "/runtime/lib/keys.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 let library;
 const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
@@ -144,12 +143,7 @@ class FileTreeWidget extends LeafElement {
       stopModel = tree.subscribe(modelChanged);
       mounted = true;
     };
-    const focusedRow = () => {
-      const element = focused();
-      return Boolean(
-        element?.getAttribute("role") === "treeitem" && root.contains(element),
-      );
-    };
+    const focusedRow = () => root.activeElement?.getAttribute("role") === "treeitem";
     /** @param {import("@pierre/trees").FileTree} tree @param {string} path */
     const selectOnly = (tree, path) => {
       for (const selected of tree.getSelectedPaths())

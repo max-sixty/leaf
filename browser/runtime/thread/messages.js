@@ -83,7 +83,7 @@ import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
@@ -830,7 +830,7 @@ export class MessageView {
     // closed editor goes with its subscription and keys.
     const editing = model.editable && holdsMessageEdit(model.id, this);
     const editor = editing
-      ? (this.#editor ??= new MessageEditor(model.id, this, {
+      ? (this.#editor ??= new MessageEditor(model.id, {
           wireInput: this.#commands.reply.wireInput,
           said: () => presentation.model.body.text,
           base: () => presentation.model.base,

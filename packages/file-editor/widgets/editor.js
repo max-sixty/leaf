@@ -6,8 +6,8 @@ import {
   langForPath,
   leafEditorView,
   sizeObserver,
-  syntaxNow,
 } from "/runtime/widget-api.js";
+import { syntaxNow } from "/runtime/lib/syntax-tokens.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   Annotation,

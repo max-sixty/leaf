@@ -14,9 +14,7 @@ import {
   el,
   generatedElement,
   keepView,
-  keeps,
   layoutChanged,
-  layoutPx,
   nextRender,
   once,
   offer,
@@ -26,6 +24,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import "./lf-trace.js";
 
 /** @typedef {{index: number, view: Element, recording: import("./lf-trace.js").Trace}} TraceMember */

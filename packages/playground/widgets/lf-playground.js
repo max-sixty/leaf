@@ -65,7 +65,6 @@ import { createPlayground } from "./playground-view.js";
 import { render } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
-  closeNativeLayer,
   copyControl,
   focusDestination,
   holdFocus,
@@ -79,11 +78,10 @@ import {
   sizeObserver,
   wear,
   whileConnected,
-  focused,
-  under,
   worksInside,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
 
 /** @typedef {null | string | number | boolean | readonly JSONSnapshot[] | {readonly [name: string]: JSONSnapshot}} JSONSnapshot */
@@ -238,7 +236,7 @@ customElements.define(
         let width = innerWidth;
         const putAway = () => {
           const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction) closeNativeLayer(instruction);
+          if (innerWidth !== width && instruction) instruction.hidePopover();
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
@@ -482,7 +480,7 @@ customElements.define(
         );
       }
       return (/** @type {Event} */ _end, /** @type {boolean} */ completed) => {
-        if (completed) restore(focused());
+        if (completed) restore(document.activeElement);
         else close();
         return close;
       };
@@ -499,7 +497,7 @@ customElements.define(
     // can demonstrate any focused element, including an input, so its element type
     // cannot tell an editor from a candidate whose focus is being compared.
     #previewLocation() {
-      let at = focused(document);
+      let at = document.activeElement;
       if (
         !under(at, this.#preview) ||
         this.#view.isField(at) ||

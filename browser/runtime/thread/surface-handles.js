@@ -6,7 +6,7 @@
    A plain host has no Leaf placement owner to register a surface.
    Releasing outlets is synchronous: a widget must return the host's composer before
    removing the DOM that holds it. Composed containment includes shadow stages. */
-import { under } from "../shadow-tree.js";
+import { under } from "../lib/shadow-tree.js";
 import { signal } from "/vendor/signals-core.js";
 import { tick } from "../version-signal.js";
 

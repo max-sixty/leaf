@@ -30,9 +30,9 @@ import {
 import { chromeRoot } from "./chrome.js";
 import { focusDestination } from "./focus.js";
 import { move } from "./dom-move.js";
-import { keepsHidden, layoutPx } from "./keeps.js";
+import { keepsHidden, layoutPx } from "./lib/keeps.js";
 import { nextRender } from "./rendering.js";
-import { skipped } from "./shadow-tree.js";
+import { skipped } from "./lib/shadow-tree.js";
 
 const home = document.createElement("div");
 home.className = "lf-block-controls";

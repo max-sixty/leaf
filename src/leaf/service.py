@@ -35,9 +35,10 @@ from leaf.event_log import (
     _matching_attempt,
     initialized,
     read_events,
+    session_context,
 )
 from leaf.files import read_json, unfinished_publications
-from leaf.interaction_log import append_interactions, session_context
+from leaf.interaction_log import append_interactions
 from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STREAM_FILE

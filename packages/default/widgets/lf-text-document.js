@@ -30,18 +30,13 @@
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
 import {
-  codeLanguage,
   failSoft,
-  ensureSyntaxLanguage,
-  keeps,
   LeafElement,
   whileConnected,
-  keepsText,
   setRenderedChildren,
   setChildLists,
   setChildren,
   focusDestination,
-  keepsHidden,
   generatedElement,
   offer,
   offerAction,
@@ -49,13 +44,17 @@ import {
   renderMarkdown,
   reportFailure,
   sizeObserver,
-  layoutPx,
-  syntax,
-  textWidth,
   nextFrame,
   MAX_EDIT_LENGTH,
   afterPresentation,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import {
+  codeLanguage,
+  ensureSyntaxLanguage,
+  syntax,
+} from "/runtime/lib/syntax-tokens.js";
+import { textWidth } from "/runtime/lib/text-width.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 // A Markdown preview of text written in the page, whose rendering sets the box both
@@ -866,9 +865,9 @@ class TextDocument extends LeafElement {
   measureCut() {
     if (!this.cut) return;
     const { panel, box } = this.cut;
-    keepsHidden(
-      box,
-      panel.hidden ||
+    box.toggleAttribute(
+      "hidden",
+      panel.hasAttribute("hidden") ||
         panel.hasAttribute("data-lf-all") ||
         panel.scrollHeight <= panel.clientHeight + 1,
     );
@@ -1201,7 +1200,7 @@ class TextDocument extends LeafElement {
       // The press goes once it has shown the lines, so focus moves to the listing.
       press.addEventListener("click", () => {
         literal.toggleAttribute("data-lf-all", true);
-        keepsHidden(box, true);
+        box.toggleAttribute("hidden", true);
         if (this.sourceView) focusDestination(this.sourceView.pre, "return");
       });
       box.append(press);

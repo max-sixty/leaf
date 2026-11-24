@@ -2,19 +2,20 @@
  * the result on its own face, a check or a cross where its copy icon stood, and Leaf
  * says the same words in its status line, since focus need not be on the control to
  * have pressed it. Every copy Leaf offers is this one control, so a code block and the
- * floating panel's About rows look and answer alike. Its icons are Leaf's (icons.js),
- * its action's at rest and the check or cross for the result, since Web Awesome's glyphs fill
- * their box and stood larger than the icons beside them at one size.
+ * floating panel's About rows look and answer alike. Its icons are Leaf's
+ * (icon-paths.js), its action's at rest and the check or cross for the result, since Web
+ * Awesome's glyphs fill their box and stood larger than the icons beside them at one
+ * size.
  * A control around a trigger of its own (`trigger`) draws nothing itself: Web Awesome
  * hides its button for it, and the trigger, a press built by its role, is the face. A
  * failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
 import { offer, offerActionElement } from "./widget-elements.js";
-import { actionElement, iconElement } from "./icons.js";
+import { actionElement, iconElement } from "./lib/icon-paths.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
 import { focused, focusDestination } from "./focus.js";
-import { nativeLayerHolding } from "./shadow-tree.js";
+import { nativeLayerHolding } from "./lib/shadow-tree.js";
 
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the

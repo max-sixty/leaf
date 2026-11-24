@@ -61,7 +61,7 @@ import {
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { renderedParent, under } from "./shadow-tree.js";
+import { renderedParent, under } from "./lib/shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";

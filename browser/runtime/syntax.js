@@ -2,19 +2,22 @@
    to the page. Portable language-paths.js owns a filename's language reading. */
 import { reportPageError } from "./layer-client.js";
 import { marks } from "./kernel-facts.js";
-import { codeLanguage, synNodes, syntax } from "./syntax-tokens.js";
+import { DATA_CONTENT } from "./registry.js";
+import { codeLanguage, synNodes, syntax } from "./lib/syntax-tokens.js";
 
 // The page's own code blocks: <pre><code class="language-python">, in the language
 // syntax-tokens.js reads off the class (`codeLanguage`). A widget whose body is data,
 // such as a code walkthrough, reads its `<pre>` the same way and draws it itself, so
 // that body (`DATA_BODY`, read off the widget's painted declaration) is no block of
-// the page's.
+// the page's, nor is a Markdown body, which Leaf draws (registry.js, `DATA_CONTENT`).
 //
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
 const BLOCK = "pre > code[class]";
-export const DATA_BODY = `[${marks.content.attribute}="data"] > pre`;
+export const DATA_BODY = `:is(${DATA_CONTENT.map(
+  (value) => `[${marks.content.attribute}="${value}"]`,
+).join(", ")}) > pre`;
 // The language a block declares that Leaf can colour, or none: one the registry
 // colours, in a block of the page's that holds text and inline annotations.
 //

@@ -1,5 +1,5 @@
 export { searchField } from "./control-labels.js";
-import { offer, offerAction } from "./element-markers.js";
+import { offerAction } from "./element-markers.js";
 export {
   generatedElement,
   offer,
@@ -55,11 +55,11 @@ export {
 import { pageRange, selectionBackward } from "./native-selection.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { actionTemplate } from "./icons.js";
+import { actionTemplate } from "./lib/icons.js";
 import {
   closestAcross,
   isElement,
@@ -67,9 +67,9 @@ import {
   renderedUnder,
   renderedParent,
   untilFound,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
 
 // A scroll target can sit inside a collapsed container: a closed <details> or popover,
@@ -235,8 +235,8 @@ export function worksInside(node, container) {
  *   shows, as a link, a titled button or an option's mark;
  * - an element that declares its own preview (`lfPreview`), as a card that says what
  *   it holds, or a gloss;
- * - a registered widget that draws its content itself (`content` `data` or `empty`),
- *   as code, a diff or a draft does, with all it draws.
+ * - a registered widget that draws its content itself (`content` `data`, `markdown`
+ *   or `empty`), as code, a diff or a draft does, with all it draws.
  * A plain tab stop or scrolling box takes nothing, and neither does what a widget
  * holds of the author's markup, as a pane's words, an option's beside its mark, a
  * suggestion's old and new words or a playground's preview: the verbs a widget
@@ -262,8 +262,7 @@ export function aimableAt(node) {
 }
 // Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
-const drawsItsContent = (entry) =>
-  entry?.content === "data" || entry?.content === "empty";
+const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empty";
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which
@@ -350,7 +349,7 @@ export const closeControl = ({ name, className = "" }) =>
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape. A reaction shows its glyph,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
-// a control already wears writes nothing (keeps.js).
+// a control already wears writes nothing (lib/keeps.js).
 /** @template {HTMLElement} T @param {T} control
  * @param {{glyph?: string | null, action?: string | null, label: string, behavior?: string, collapse?: boolean}} options @returns {T} */
 export function responseAction(
@@ -378,14 +377,4 @@ export function responseAction(
     control,
   );
   return control;
-}
-
-// Motion carries the card's label, never a second live widget tree. Native chrome
-// avoids copied form groups, widget lifetimes and iframe browsing contexts.
-/** @param {string} label */
-export function motionPreview(label) {
-  const preview = offer("div", "lf-motion-preview", label);
-  preview.inert = true;
-  preview.setAttribute("aria-hidden", "true");
-  return preview;
 }

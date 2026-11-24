@@ -135,7 +135,7 @@ export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
     Object.entries(declarations)
-      .filter(([tag, entry]) => entry.inline)
+      .filter(([, entry]) => entry.inline)
       .map(([tag]) => tag),
   );
   return [...document.querySelectorAll("*")]

@@ -79,7 +79,6 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  setScroll,
   elementById,
   LeafElement,
   move,
@@ -87,31 +86,24 @@ import {
   offerAction,
   generatedElement,
   quoted,
-  announce,
   labelOf,
   layoutChanged,
-  previewChanged,
   saying,
   dragging,
   motion,
-  motionPreview,
   scrollerFor,
-  PRESS,
-  rowArrows,
   rankAt,
-  keeps,
-  keepsHidden,
-  keepsText,
   focusDestination,
   scrollIntoView,
   whileConnected,
-  focused,
   declarationFor,
   authoredScope,
   widgetController,
   commandsChanged,
   reportFailure,
 } from "/runtime/widget-api.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -349,8 +341,8 @@ customElements.define(
             ":scope > .lf-board-destinations > .lf-board-destination",
           );
           for (const button of destinations)
-            keepsHidden(
-              button,
+            button.toggleAttribute(
+              "hidden",
               button.getAttribute("data-lf-board-target") === col.id ||
                 !this.#takes(
                   card,
@@ -358,8 +350,8 @@ customElements.define(
                 ),
             );
           // With no button to show, the group's "Move to" would name no destination.
-          keepsHidden(
-            card.querySelector(":scope > .lf-board-destinations"),
+          card.querySelector(":scope > .lf-board-destinations")?.toggleAttribute(
+            "hidden",
             [...destinations].every((button) => button.hidden),
           );
         }
@@ -587,11 +579,14 @@ customElements.define(
       grip.setAttribute("data-lf-carry", "grip");
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
-      // focus, so only a real departure still lacks focus when this settles.
+      // focus, so only a real departure still lacks focus when this settles. The window
+      // losing system focus blurs the grip but leaves it its tree's active element, so
+      // that is no departure.
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
-          if (this.#grabbed?.grip === grip && focused() !== grip)
+          const root = /** @type {Document | ShadowRoot} */ (grip.getRootNode());
+          if (this.#grabbed?.grip === grip && root.activeElement !== grip)
             this.#cancel(this.#grabbed);
         });
       });
@@ -648,13 +643,19 @@ customElements.define(
       this.#grabbed = { card, grip, from, index };
       this.#beginGesture();
       card.classList.add("lf-lift");
-      previewChanged(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+      );
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
       const grabbed = `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
         index + 1
       } of ${cards.length}`;
-      announce(() => [grabbed, saying(rows)].filter(Boolean).join(" — "));
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: () => [grabbed, saying(rows)].filter(Boolean).join(" — "),
+        }),
+      );
     }
 
     /** @param {BoardCard} card @param {HTMLElement} grip @param {number} dCol @param {number} dRow */
@@ -695,10 +696,12 @@ customElements.define(
       this.#place(card, target, index, grip);
       const now = card.parentElement;
       const cards = this.#cards(now);
-      announce(
-        `${this.#title(card)} — ${now.getAttribute("label")}, position ${
-          cards.indexOf(card) + 1
-        } of ${cards.length}`,
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${this.#title(card)} — ${now.getAttribute("label")}, position ${
+            cards.indexOf(card) + 1
+          } of ${cards.length}`,
+        }),
       );
     }
 
@@ -725,7 +728,11 @@ customElements.define(
       // without taking the viewport from the control the user deliberately entered.
       this.#place(card, from, index, refocus ? grip : null);
       this.#finishGesture();
-      announce(`${this.#title(card)} — move cancelled`);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${this.#title(card)} — move cancelled`,
+        }),
+      );
     }
 
     #beginGesture() {
@@ -745,34 +752,25 @@ customElements.define(
     #release(grab) {
       grab.card.classList.remove("lf-lift");
       this.#grabbed = null;
-      previewChanged(grab.grip);
+      grab.grip.dispatchEvent(
+        new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+      );
     }
 
     // Arrow steps and a cancelled grab place through one writer. Start from the
     // current paint before cancelling a superseded FLIP, so a reversal continues
-    // where the user sees the card. Cancel smooth reveal before measuring, too.
-    // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
-    // back at the old box; native scrolling and the card's motion then run together.
+    // where the user sees the card. Keyboard placement refocuses and reveals the final
+    // box before FLIP puts its paint back at the old box; the reveal's glide and the
+    // card's motion then run together.
     /** @param {Element} card @param {Element} col @param {number} index @param {HTMLElement | null} [grip] */
     #place(card, col, index, grip = null) {
-      for (const box of [this, scrollerFor(this)])
-        setScroll(box, {
-          left: box.scrollLeft,
-          top: box.scrollTop,
-          behavior: "instant",
-        });
       const first = card.getBoundingClientRect();
       for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        scrollIntoView(card, {
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "instant"
-            : "smooth",
-          block: "nearest",
-        });
+        scrollIntoView(card, { behavior: "smooth", block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
@@ -864,7 +862,14 @@ customElements.define(
         // that product boundary from the board alone.
         scroll: scroller instanceof HTMLElement ? scroller : false,
         forceFallback: true, // pointer-driven label preview, including touch
-        cloneElement: (card) => motionPreview(this.#title(card)),
+        // The image under the pointer carries the card's label, never a second live
+        // widget tree: no copied form groups, widget lifetimes or iframes.
+        cloneElement: (card) => {
+          const preview = offer("div", "lf-motion-preview", this.#title(card));
+          preview.inert = true;
+          preview.setAttribute("aria-hidden", "true");
+          return preview;
+        },
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
@@ -917,7 +922,11 @@ customElements.define(
           ) {
             this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));
             this.#finishGesture();
-            announce(`${this.#title(card)} — move cancelled`);
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", {
+                detail: `${this.#title(card)} — move cancelled`,
+              }),
+            );
             return;
           }
           if (from === to && oldIndex === newIndex) {

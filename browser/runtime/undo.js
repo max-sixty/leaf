@@ -114,7 +114,7 @@ import { reactionPlace } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
 import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById } from "./passages.js";
 import { placeBox, placeHolder } from "./geometry.js";
 import { seenLanded } from "./scroll-containers.js";
 import { messageHolding, threadName } from "./thread/messages.js";
@@ -129,6 +129,7 @@ import { backgroundFlash } from "./motion.js";
 import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
+import { inChrome } from "./ui-marks.js";
 
 /** @template E
  * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields

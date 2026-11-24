@@ -3,9 +3,9 @@
  * without Leaf's runtime; a host without Leaf simply does not interpret its markers.
  * Templates own content, attributes and handlers that these writers do not name. */
 import { Directive, PartType, directive, nothing } from "/vendor/lit.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { actionClass } from "./control-faces.js";
-import { actionOffers } from "./icon-paths.js";
+import { actionName, showAction } from "./lib/icon-paths.js";
 import "./role-button-press.js";
 
 // Whether this document runs without Leaf's runtime, where a symbol's `title` is the only
@@ -161,8 +161,8 @@ export function elementDirective(name, write) {
           throw new TypeError(`${name} belongs in a template's element part`);
       }
       // The values the template passes, which `update` writes.
-      /** @param {A} args */
-      render(...args) {
+      /** @param {A} _args */
+      render(..._args) {
         return nothing;
       }
       /** @param {import("/vendor/lit.js").ElementPart} part @param {A} args */
@@ -185,13 +185,45 @@ export const offered = elementDirective("offered", offerElement);
 // `control-faces.js` lists the roles; `className`
 // places the control and never restyles its face. A symbol or mark names its `action`
 // (icon-paths.js, `ACTIONS`), whose symbol it shows and whose name it says as its
-// accessible name and preview unless `label` says more.
-const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
-  offerAction: buildAction,
-  offerActionElement: roleElement,
-});
-export { offerAction, offeredActionElement as offerActionElement };
-export const offeredAction = elementDirective("offeredAction", offeredActionElement);
+// accessible name and preview unless `label` says more. Whether a page's own press is a
+// word or a symbol stays its author's call, so a page's "Done" may stay a word.
+/** @param {LeafActionRole} role @param {string | undefined} label @param {string | undefined} action */
+function actionFace(role, label, action) {
+  if (role !== "symbol" && role !== "mark") {
+    if (action !== undefined)
+      throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+    return { label, action: undefined };
+  }
+  if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);
+  // Asked first, so an unknown action throws before the control is touched.
+  const name = actionName(action);
+  return { label: label ?? name, action };
+}
+/** @param {Element} node @param {LeafActionRole} role @param {string} action */
+const drawAction = (node, role, action) =>
+  showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+/**
+ * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
+ * @param {{action?: string}} [options]
+ */
+export function offerAction(role, className, label, { action } = {}) {
+  const face = actionFace(role, label, action);
+  const node = buildAction(role, className, face.label);
+  if (face.action !== undefined) drawAction(node, role, face.action);
+  return node;
+}
+/**
+ * @template {Element} T
+ * @param {T} node @param {LeafActionRole} role @param {string} [className]
+ * @param {string} [label] @param {{action?: string}} [options]
+ */
+export function offerActionElement(node, role, className, label, { action } = {}) {
+  const face = actionFace(role, label, action);
+  roleElement(node, role, className, face.label);
+  if (face.action !== undefined) drawAction(node, role, face.action);
+  return node;
+}
+export const offeredAction = elementDirective("offeredAction", offerActionElement);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. WebKit begins no text selection inside a form control, whatever its

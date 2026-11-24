@@ -86,17 +86,16 @@ import {
   isHTML,
   skipped,
   skipper,
-  inUi,
   renderedOrder,
   renderedParent,
   under,
   upFrom,
-} from "./shadow-tree.js";
+  closestAcross,
+} from "./lib/shadow-tree.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   blockAt,
-  closestAcross,
   HEADING,
-  inChrome,
   pageDocument,
   readsDocument,
   pageRuns,
@@ -146,6 +145,7 @@ import {
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 import { keptEach } from "./kept.js";
+import { objectIds } from "./ids.js";
 
 /** @typedef {import("./passages.js").Segment} Segment
  * @typedef {import("./passages.js").BlockRun} BlockRun
@@ -288,15 +288,7 @@ const keptWithPage = keptEach((/** @type {Element} */ page) => {
   return /** @type {Kept} */ ({ frames: new WeakMap(), shown: null, index: null });
 });
 const kept = () => keptWithPage(pageDocument());
-/** @type {WeakMap<object, number>} */
-const ids = new WeakMap();
-let lastId = 0;
-/** @param {object} thing */
-const idOf = (thing) => {
-  let id = ids.get(thing);
-  if (id === undefined) ids.set(thing, (id = ++lastId));
-  return id;
-};
+const idOf = objectIds();
 // How a box frames what it holds wherever it is placed (`frameOf` adds a box placed from
 // outside): `sticky` in the block it moves within, `flow` where it scrolls what it holds
 // or may skip it, as a disclosure or a box with `content-visibility` does (`skipper`);

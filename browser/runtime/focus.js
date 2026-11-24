@@ -52,7 +52,7 @@
    wait out a release's click each its own way, by a timer the next press could outrun
    or a flag held until the next press, and a flag a stopped release left standing.
 
-   And it owns the widget primitives built on these: closing a layer and handing the user
+   And it owns the primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
 
@@ -71,7 +71,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
@@ -84,7 +84,7 @@ import {
   renderedParent,
   renderedUnder,
   shadowHost,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
 /** @typedef {"move" | "step" | "return" | "press"} PlacementCause
  * @typedef {PlacementCause | "drop"} CurrentLocationCause
@@ -400,8 +400,9 @@ function landLabelPress() {
 // will land (`standingFor`). Asked in `tree`, a document or shadow root,
 // it is the node standing for that place there, as `tree.activeElement` retargets focus:
 // the host of the shadow tree the user is in, for a reader comparing or containing
-// nodes of that tree. Every reading of focus outside this module asks here, so none
-// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
+// nodes of that tree. Every reading of focus elsewhere in the runtime asks here, so none
+// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`);
+// a package asks the browser.
 // Mechanical focus queries made while rendering stay untracked, so restoring focus
 // cannot subscribe a render to itself. Keyboard reflection follows where the user is
 // through this revision, either explicitly or by reading inside `followingFocus`, where
@@ -1512,7 +1513,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not lib/shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {

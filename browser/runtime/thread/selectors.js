@@ -1,6 +1,5 @@
 /* Stable DOM relations shared by thread views and focus recovery. */
-import { closestAcross } from "../passages.js";
-import { upFrom } from "../shadow-tree.js";
+import { upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 // A drawn thread: a thread on the page, in the margin or on a seat, or a chrome's view
 // of one thread (`data-lf-thread-view`, as the floating panel's thread view and its head

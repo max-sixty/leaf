@@ -113,7 +113,7 @@ import { tabStore } from "./tab-store.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { nameIn, namedIn } from "./carry.js";
-import { renderedUnder } from "./shadow-tree.js";
+import { renderedUnder } from "./lib/shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";

@@ -6,6 +6,7 @@ from leaf.findings import Finding
 from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
 
 from .contract import (
+    body_is_data,
     deciding_outcomes,
     deciding_verb,
     fact_condition,
@@ -48,8 +49,6 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         raise registry_error(
             "attributes-schema", path, tag, **schema_reading(error)
         ) from error
-    if entry.get("text-format") == "markdown" and entry.get("content") != "data":
-        raise registry_error("markdown-needs-data", path, tag)
     # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
     # the element's words or its recorded state. Its other inputs leave the <pre> alone.
@@ -58,11 +57,11 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         for spec in entry.get("inputs", {}).values()
         if spec.get("property") == "value"
     ]
-    if entry.get("content") == "data" and inputs:
+    if body_is_data(entry) and inputs:
+        if entry["content"] == "markdown":
+            raise registry_error("data-input", path, tag, reason="words")
         if len(inputs) > 1:
             raise registry_error("data-input", path, tag, reason="inputs")
-        if entry.get("text-format") == "markdown":
-            raise registry_error("data-input", path, tag, reason="words")
         if any(
             spec.get("record", {}).get("kind") == "body"
             for _, spec in state_specs(entry)

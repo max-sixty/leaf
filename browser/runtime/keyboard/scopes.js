@@ -38,7 +38,12 @@
    name another button while out of the page, with no write reported, and is put back
    and pressed in one task, is found by the frame after its arrival, not by that press:
    the gap a getter that queries the document has wherever its writer reports nothing. */
-import { focusDestination, focusRevision, followingFocus } from "../focus.js";
+import {
+  focusDestination,
+  focusRevision,
+  followingFocus,
+  onCurrentLocation,
+} from "../focus.js";
 import {
   AsyncDirective,
   PartType,
@@ -73,10 +78,10 @@ import {
   isElement,
   composedParentNode,
   renderedParent,
-} from "../shadow-tree.js";
+} from "../lib/shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
@@ -1068,9 +1073,39 @@ export function reflectFirstScopes() {
 // every element, and `paintKeysWithin(root)` the ones a renderer's paint touched. A
 // publication that moves nothing an element read, and no renderer whose output it reads,
 // leaves its reflection as it is.
+//
+// A package's rows ask the browser where focus is, as a tree's `activeElement`, which
+// no signal tracks. So each change in where the user is also marks the scoped elements
+// around the node they left and around the one they reached (`markAroundMove`): the
+// scopes on those paths, never the page's. The scopes around a node are also kept from
+// when the user arrived on it, since a change that takes the node out of the page, as a
+// drop does, takes the climb to them with it.
 let keysDirty = true;
 /** @type {Set<Element>} */
 const dirtyElements = new Set();
+/** @param {Node | null} node */
+function scopesAround(node) {
+  /** @type {Element[]} */
+  const found = [];
+  for (let at = node; at; at = renderedParent(at))
+    if (isElement(at) && scopeRefFor.has(at)) found.push(at);
+  return found;
+}
+/** @type {WeakRef<Element>[]} */
+let aroundArrival = [];
+/** @param {Element | null} node @param {unknown} _cause @param {Element | null} left */
+function markAroundMove(node, _cause, left) {
+  const around = scopesAround(node);
+  const marks = [
+    ...aroundArrival.map((ref) => ref.deref()),
+    ...scopesAround(left),
+    ...around,
+  ];
+  aroundArrival = around.map((scoped) => new WeakRef(scoped));
+  for (const scoped of marks) if (scoped) mark(scoped);
+  if (marks.length) repaint();
+}
+onCurrentLocation(markAroundMove);
 /** @type {WeakMap<Element, () => void>} */
 const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. A command may name a

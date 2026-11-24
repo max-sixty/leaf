@@ -164,8 +164,6 @@
       import {
         frameFor,
         generatedElement,
-        keeps,
-        keepsText,
         layoutChanged,
         offer,
         offerAction,
@@ -174,6 +172,7 @@
         whileConnected,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const DEFAULT_COMPARISON = {
         candidateA: { density: "compact", wrap: false },

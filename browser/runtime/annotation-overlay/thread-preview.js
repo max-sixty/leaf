@@ -160,7 +160,7 @@ import {
 import { focusPlace, standingAt } from "../user-place.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offerAction } from "../widget-elements.js";
-import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
+import { keeps, keepsHidden, keepsText, layoutPx } from "../lib/keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
 import { registerReadingRegion, scrollerFor } from "../reading-regions.js";
@@ -168,7 +168,6 @@ import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
 import { paintKeysWithin } from "../keyboard/scopes.js";
-import { closestAcross } from "../passages.js";
 import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
 import { threadKey } from "../thread/model.js";
@@ -195,7 +194,12 @@ import { markRoom } from "../mark-room.js";
 import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi, floatingGeometry } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
-import { renderedOrder, renderedUnder, under } from "../shadow-tree.js";
+import {
+  renderedOrder,
+  renderedUnder,
+  under,
+  closestAcross,
+} from "../lib/shadow-tree.js";
 import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { openingPart, threadFocusDestination } from "../thread/focus.js";

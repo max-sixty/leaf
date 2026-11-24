@@ -18,7 +18,8 @@ from leaf.structure import SourceDocument
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
+import { layerFact, LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
@@ -578,10 +579,10 @@ CHART_MARKS = """(id) => {
     });
     probe.remove();
     const marks = {};
-    for (const g of svg.querySelectorAll('g[data-lf-part]')) {
+    for (const g of svg.querySelectorAll('g[data-lf-plot]')) {
         const shapes = [...g.querySelectorAll('rect, path, circle')];
         if (!shapes.length) continue;
-        const part = g.dataset.lfPart;
+        const part = g.dataset.lfPlot;
         (marks[part] ??= []).push(...shapes.map((shape) => {
             const paint = getComputedStyle(shape);
             return [shape.tagName.toLowerCase(), paint.fill, paint.stroke];

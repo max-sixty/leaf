@@ -6,12 +6,8 @@
    browser's scroll anchoring keeps the reader's place in the body, which a pane
    replaced whole would lose. A revision that replaces the body re-registers the region
    under the same id. */
-import {
-  keeps,
-  once,
-  registerReadingRegion,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { once, registerReadingRegion, whileConnected } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 /** @param {HTMLElement} pane */
 const bodyOf = (pane) =>

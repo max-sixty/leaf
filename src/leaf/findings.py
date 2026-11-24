@@ -327,10 +327,7 @@ def _explained(console: list[dict]) -> str:
 
 
 def _visual_problem(problem: dict) -> str:
-    kind = problem["kind"]
-    if kind == "unregistered":
-        return "did not call registerVisualParts"
-    return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
+    return f"named parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
 def _verbatim(at: str, v: dict) -> str:
@@ -1532,18 +1529,16 @@ _TEXT = {
         lambda v: f"`example` is invalid: {Finding.loads(v['finding']).said}",
         keeps=None,
     ),
-    "markdown-needs-data": _declared(lambda v: "block Markdown requires content: data"),
     "data-input": _declared(
-        lambda v: (
-            "its <pre> is the text of its `value` input when the markup binds"
-            " none, so content: data takes "
-            + {
-                "inputs": "at most one `value` input",
-                "words": "no `value` input with `text-format`: markdown, whose <pre>"
-                " is its words",
-                "state": "no `value` input with a body record, whose <pre> is its state",
-            }[v["reason"]]
-        )
+        lambda v: {
+            "inputs": "its <pre> is the text of its `value` input when the markup"
+            " binds none, so content: data takes at most one `value` input",
+            "words": "content: markdown takes no `value` input, since its <pre> is"
+            " its words",
+            "state": "its <pre> is the text of its `value` input when the markup"
+            " binds none, so content: data takes no `value` input with a body"
+            " record, whose <pre> is its state",
+        }[v["reason"]]
     ),
     "requires": _declared(
         lambda v: f"`{v['key']}` requires {v['needs']}: {_plain(v['value'])}"
@@ -1740,7 +1735,7 @@ _TEXT = {
     "body-content": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records its body, so content must be"
-            " data; projection states text rather than a prose subtree"
+            " data or markdown; projection states text rather than a prose subtree"
         )
     ),
     "body-nested": _declared(

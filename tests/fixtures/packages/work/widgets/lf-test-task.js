@@ -2,9 +2,6 @@
 import { nothing } from "/vendor/lit.js";
 import {
   generatedElement,
-  keeps,
-  keepsHidden,
-  keepsText,
   LeafElement,
   offer,
   offerAction,
@@ -12,6 +9,7 @@ import {
   threadSurface,
   workAncestor,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-task",
   class extends LeafElement {
@@ -57,7 +55,10 @@ customElements.define(
         workAncestor(this, "scope") ?? this.parentElement,
       ).goals.find((row) => row.element === this);
       keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
-      keepsHidden(this.comment, this.writing || !threadSurface(this).open);
+      this.comment?.toggleAttribute(
+        "hidden",
+        this.writing || !threadSurface(this).open,
+      );
       return nothing;
     }
   },

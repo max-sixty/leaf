@@ -19,7 +19,8 @@ import {
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { declaredRoot, queryAllUnder } from "./shadow.js";
-import { inUi, shadowHost, under, upFrom } from "./shadow-tree.js";
+import { shadowHost, under, upFrom, closestAcross } from "./lib/shadow-tree.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -30,10 +31,10 @@ import {
   focusedVisualPart,
   visualPartFocus,
   visualPartAdmission,
+  declaredVisuals,
 } from "./visual-parts.js";
 import {
   blockAt,
-  closestAcross,
   AROUND,
   contextAround,
   pageText,
@@ -51,7 +52,6 @@ import {
   excerpt,
   findQuote,
   fileModelsPassage,
-  inChrome,
   leafSurface,
   pageQueryAll,
   settledAway,
@@ -216,6 +216,9 @@ export const standsIn = (anchor, placement) =>
 export const awaitsDrawing = (anchor, placement) =>
   standsIn(anchor, placement) && placement?.status === "fallback";
 
+// Which elements are visuals of their own, for the reader of a visual's marks.
+declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
+
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
@@ -379,9 +382,7 @@ function addressableAt(node) {
 // addressable element.
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring((entry) => entry["text-format"] === "markdown").join(
-    ",",
-  );
+  const formatted = tagsDeclaring((entry) => entry.content === "markdown").join(",");
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );

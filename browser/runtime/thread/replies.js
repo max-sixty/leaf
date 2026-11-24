@@ -62,7 +62,6 @@ import {
   onPressAway,
 } from "../focus.js";
 import { threadKey } from "./model.js";
-import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
 import { el, offer } from "../widget-elements.js";
@@ -71,6 +70,7 @@ import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { tick } from "../version-signal.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},

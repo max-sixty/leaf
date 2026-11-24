@@ -23,11 +23,7 @@ import {
   compoundReadingRegionId,
   generatedElement,
   holdFocus,
-  keeps,
-  keepsHidden,
-  keepsText,
   layoutChanged,
-  layoutPx,
   offer,
   once,
   preserveReadingRegions,
@@ -38,6 +34,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
@@ -308,13 +305,13 @@ customElements.define(
       for (const p of parts)
         p.element.classList.toggle("film-picked", p.id === this.#inspected);
       if (!part) {
-        keepsHidden(this.inspector, true);
+        this.inspector.toggleAttribute("hidden", true);
         if (this.#inspected) this.#inspect(null);
         return;
       }
       keepsText(this.inspectorTitle, part.label);
       keepsText(this.inspectorBody, part.info);
-      keepsHidden(this.inspector, false);
+      this.inspector.toggleAttribute("hidden", false);
       const { x, y } = await computePosition(part.element, this.inspector, {
         placement: "right-start",
         middleware: [

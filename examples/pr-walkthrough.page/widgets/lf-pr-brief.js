@@ -4,12 +4,12 @@ import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   ago,
   dressCode,
-  keeps,
   LeafElement,
   loadMarkdown,
   markdownReady,
   renderMarkdown,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 // A check's state is a status, drawn as the page's other statuses are (`.lf-tag`), toned
 // where the forge's word says how it went.

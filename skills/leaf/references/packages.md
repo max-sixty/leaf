@@ -134,8 +134,8 @@ state of its own.
 
 Leaf's chrome and comment marks are unlayered, so change their colours and type
 through the theme inputs below, and restyle the chrome's surfaces by part in
-`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
-`inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
+`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in
+`@layer lf-base { … }` (`module-authoring.md`, "Shadow stages and styles").
 
 Leaf places each sheet in its tier and changes none of its rules but `chrome.css`'s,
 which it nests in the chrome, so a sheet names
@@ -181,8 +181,9 @@ control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
 Import Leaf behavior through `/runtime/widget-api.js`, or its portable part
-`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf").
-Both are files of the install: `leaf --root` prints its directory, which holds them in
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
+and shared web code from the library under `/runtime/lib/` (module-authoring.md,
+"Shared web code"). All are files of the install: `leaf --root` prints its directory, which holds them in
 `browser/runtime/` and Leaf's `/vendor/` modules in `browser/vendor/`. A link from
 these references to a file under `browser/` or `src/` leads into that directory.
 Package `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,

@@ -18,14 +18,14 @@
    holds hear. And the keys an element binds are data on it, `lfCommands`, which the
    widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
-   key and advertises none. Words for a listener are `lf-announce` (`announce`), which a
+   key and advertises none. Words for a listener are `lf-announce` on the window, which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
-   when that changes with `lf-preview` (`previewChanged`), as the user's aim moves from
+   when that changes with `lf-preview`, as the user's aim moves from
    one of a chart's points to the next, or a grip's words stop being true once its card
    is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
-import { describeFailure, exceptionError } from "./exception.js";
+import { describeFailure, exceptionError } from "./lib/exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { version } from "./kept.js";
 
@@ -100,24 +100,12 @@ export const layoutChanged = (el) => {
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
 
-// That an element's `lfCommands`, or anything its rows read, changed. An element out of
-// the document, such as a control built before it is placed, has no way out to the
-// window, so its event is dispatched there directly, carrying the element, as a failure's
-// is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
-// it, since a listener's exception never reaches the dispatcher.
-// That what pointing at an element reads, its `lfPreview`, changed.
+// That what pointing at an element reads, its `lfPreview`, changed: a composed
+// CustomEvent the widget dispatches at the element. `detail.aim` true says the user
+// aimed at something new inside the element, as a chart's pointer or key reaching
+// another point, which shows its preview whatever put the last one away, on the side a
+// standing one stood, where a redraw of the same reading shows nothing new.
 export const PREVIEW = "lf-preview";
-/** @param {Element} el */
-// `aim: true` says the user aimed at something new inside the element, as a chart's
-// pointer or key reaching another point, which shows its preview whatever put the last
-// one away, on the side a standing one stood, where a redraw of the same reading shows
-// nothing new.
-/** @param {Element} el @param {{aim?: boolean}} [options] */
-export const previewChanged = (el, { aim = false } = {}) => {
-  el.dispatchEvent(
-    new CustomEvent(PREVIEW, { bubbles: true, composed: true, detail: { aim } }),
-  );
-};
 // That the preview Leaf showed of an element has gone, a `CustomEvent` dispatched at
 // that element alone whose `detail.declared` is what its `lfPreview` returned for the
 // reading that ended (preview.js): a mark the widget drew for that reading, as a chart's
@@ -127,6 +115,11 @@ export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");
 /** @typedef {Event & {[CHANGED]: Element, [REFUSED]?: unknown}} CommandsChangedEvent */
+// That an element's `lfCommands`, or anything its rows read, changed. An element out of
+// the document, such as a control built before it is placed, has no way out to the
+// window, so its event is dispatched there directly, carrying the element, as a failure's
+// is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
+// it, since a listener's exception never reaches the dispatcher.
 /** @param {Element} el */
 export function commandsChanged(el) {
   /** @type {CommandsChangedEvent} */
@@ -136,13 +129,11 @@ export function commandsChanged(el) {
   (el.isConnected ? el : window).dispatchEvent(event);
   if (event[REFUSED]) throw event[REFUSED];
 }
-// Words a listener should hear now, such as where a step put the reader: an
-// `lf-announce` event on the window carrying them as its `detail`. Leaf says them in the
-// page's live region; a page without Leaf hears nothing unless it listens.
+// Words a listener should hear now, such as where a step put the reader: a widget
+// dispatches an `lf-announce` CustomEvent on the window carrying them as its `detail`.
+// Leaf says them in the page's live region; a page without Leaf hears nothing unless it
+// listens.
 export const ANNOUNCE = "lf-announce";
-/** @param {import("./voice.js").Words | (() => import("./voice.js").Words)} words */
-export const announce = (words) =>
-  window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
 
 // The element a `commandsChanged` event names, and the refusal its reader hands back.
 /** @param {CommandsChangedEvent} event */
@@ -239,6 +230,10 @@ const widgetOf = (el) => {
 const placers = new WeakMap();
 /** @param {Element} el @param {(box: HTMLDivElement) => boolean} place */
 export const placesFailure = (el, place) => placers.set(el, place);
+// Whether an owner places `el`'s box already, which a host that would place it for an
+// element it drives asks first, so the element's own placer stands (element-integration.js).
+/** @param {Element} el */
+export const failurePlaced = (el) => placers.has(el);
 /** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
 const stages = new WeakMap();
 /** @param {Element} host @param {(box: HTMLDivElement) => boolean} place */

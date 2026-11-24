@@ -22,15 +22,17 @@ import {
   frameFor,
   sizeObserver,
   whileConnected,
-  layoutPx,
+} from "/runtime/widget-api.js";
+import { layoutPx } from "/runtime/lib/keeps.js";
+import { textWidth as measure } from "/runtime/lib/text-width.js";
+import {
   assignRows,
   axisTicks,
-  textWidth as measure,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_CHROME as LABEL_CHROME,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_TICK_SPACING as TICK_SPACING,
-} from "/runtime/widget-api.js";
+} from "/runtime/lib/time-axis.js";
 
 /** @typedef {{name: string, detail: string[]}} Tip */
 /** @typedef {{id: string, label: string, tip: Tip, current: boolean}} NamedMark */

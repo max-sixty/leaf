@@ -1,5 +1,6 @@
 // Exercise generated Leaf source through the same disposable-page host as templates.
-import { keepsText, mountSample, quoted, whileConnected } from "/runtime/widget-api.js";
+import { mountSample, quoted, whileConnected } from "/runtime/widget-api.js";
+import { keepsText } from "/runtime/lib/keeps.js";
 
 const section = document.getElementById("bg-generated-sample-section");
 const create = section.querySelector("#bg-create-sample");

@@ -3879,6 +3879,39 @@ def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
     ], findings
 
 
+def test_a_clipped_box_a_module_built_is_marked_as_the_modules(browser, serve):
+    """A box the page's source didn't write is marked `built`, since the page's markup
+    can't reach it and its fix is the widget's package's; the page's own box beside it,
+    cut off the same way, is not."""
+    row = "lint → build → unit tests → integration tests → package → release"
+    source = leaf_page(
+        "Built row",
+        f"""<h1>Built row</h1>
+<stage-row id="stages"></stage-row>
+<div id="own" class="cut">{row}</div>""",
+        head=f"""<style>.cut {{ overflow: hidden; white-space: nowrap; font-size: 2rem }}
+stage-row {{ display: block }}</style>
+<script type="module">
+customElements.define('stage-row', class extends HTMLElement {{
+  connectedCallback() {{
+    const built = document.createElement('div');
+    built.className = 'cut';
+    built.textContent = {row!r};
+    this.replaceChildren(built);
+  }}
+}});
+</script>""",
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 400, "height": 800})
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted(
+        (f["at"], f.get("built", False))
+        for f in findings
+        if f["code"] == "clipped-content"
+    ) == [("<div id=own>", False), ("<div> in <stage-row id=stages>", True)], findings
+
+
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
     sized past the actual page edge remain render-gate findings: each is past the

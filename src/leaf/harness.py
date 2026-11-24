@@ -482,9 +482,26 @@ class ClaudeCodeHarness(EnvironmentHarness):
         `prompt_id` (found in each npm release's hook input), so their turns are
         Leaf's, and a resubmitted prompt renews the dropped one's; receipt then stops
         short of its handover (`delivery.confirm_entered`), which is input again once
-        the turn ends."""
+        the turn ends.
+
+        Claude Code can also run a new turn under the previous turn's prompt. When
+        another session's message, such as a background agent's hand-back, opens a
+        turn as a Stop ends, that turn's tool boundaries name the previous turn's
+        `prompt_id`, and so does the prompt hook of each wake that joins it (read
+        from a 2.1.330 transcript's `promptId`s). Claude Code runs a session's hooks
+        in order, so a hook that names a prompt whose turn Leaf holds closed starts
+        such a turn. Leaf names it by the prompt and an ordinal
+        (`claude_code_turn`): a turn id Leaf holds closed never reopens
+        (`state.advance_turn`), and what an earlier turn under the prompt was
+        handed must not read as handed into this one
+        (`delivery.handed_into_turn`)."""
         prompt = payload.get("prompt_id")
-        return {**payload, "turn_id": prompt} if prompt else payload
+        if not prompt:
+            return payload
+        from .state import session_record
+
+        record = session_record(payload.get("session_id") or "")
+        return {**payload, "turn_id": claude_code_turn(prompt, record)}
 
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """Claude Code runs some turns under a prompt no prompt hook named: a prompt
@@ -526,7 +543,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
         """Whether the transcript the payload names holds no record of the prompt
         `turn` names (`claude_code_prompt_dropped`)."""
         path = payload.get("transcript_path")
-        return bool(path) and claude_code_prompt_dropped(Path(path), turn)
+        return bool(path) and claude_code_prompt_dropped(
+            Path(path), claude_code_prompt(turn)
+        )
 
     def escape_sandbox(self) -> None:
         """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
@@ -1080,6 +1099,32 @@ def message_identity() -> dict:
     if harness is None:
         return {}
     return {"agent": harness.agent, "session": harness.session}
+
+
+# Between a Claude Code prompt id and the ordinal of a later turn run under it.
+PROMPT_TURN_MARK = "#"
+
+
+def claude_code_prompt(turn: str) -> str:
+    """The Claude Code prompt id that Leaf's turn `turn` runs under
+    (`claude_code_turn`)."""
+    return turn.partition(PROMPT_TURN_MARK)[0]
+
+
+def claude_code_turn(prompt: str, record: dict | None) -> str:
+    """Leaf's name for the turn a Claude Code hook naming `prompt` runs in, given the
+    session's record: the latest turn run under `prompt` while it is open, and once
+    it has closed, a later one under the same prompt, named by the next ordinal
+    (`ClaudeCodeHarness.hook_payload`)."""
+    from .state import turn_closed
+
+    turn = record["turn"] if record else None
+    if turn is None or claude_code_prompt(turn) != prompt:
+        return prompt
+    if not turn_closed(record):
+        return turn
+    _, _, ordinal = turn.partition(PROMPT_TURN_MARK)
+    return f"{prompt}{PROMPT_TURN_MARK}{int(ordinal or 1) + 1}"
 
 
 def claude_code_entered(transcript: Path) -> set[str]:

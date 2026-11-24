@@ -1,4 +1,4 @@
-import { generatedElement, titledElement, viewDocument } from "/runtime/widget-api.js";
+import { generatedElement, titledElement } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
@@ -49,13 +49,15 @@ const markView = (marks) =>
     ? nothing
     : html`<span class="lf-toc-mark" aria-hidden="true"></span>`;
 
-// The outline belongs to the document holding it (`viewDocument`), or for contents
-// standing beside the page's main, that main. Scope follows document ownership, not
-// visibility: closed disclosures still contribute headings that a native fragment link
-// can reveal.
+// The outline belongs to the document holding it: the view member holding it, such as
+// a tab's panel, or else the `main` holding it. For contents standing beside the page's
+// main, it is that main. Scope follows document ownership, not visibility: closed
+// disclosures still contribute headings that a native fragment link can reveal.
 /** @param {HTMLElement} host */
 const outlineDocument = (host) =>
-  viewDocument(host) ?? host.closest("body")?.querySelector(":scope > main") ?? null;
+  host.closest("[data-lf-views] > *, main") ??
+  host.closest("body")?.querySelector(":scope > main") ??
+  null;
 
 // The template keeps its native disclosure and keyed links. Geometry readers collect
 // the nodes only after it renders.

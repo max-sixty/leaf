@@ -329,17 +329,10 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > .lf-another:has(.lf-option-add:not([data-lf-empty])) > .lf-key-badge {
       inset-inline-end: var(--lf-option-write-badge-inset);
     }
-    /* A card's digit draws in its mark's seat. While the digit shows, the mark turns
-     * transparent and stays above it, so a press on the seat lands on the mark. A press
-     * on the mark is itself what draws the digit: it focuses the mark, and the group's
-     * digits draw on the next frame, while a press a hand makes is still down. A digit
-     * above the mark would take that press's release, and the browser would send the
-     * click to the card. Only the marks of the group the user is in are positioned, and
-     * only while its digits show. */
+    /* A card's digit draws in its mark's seat, over the mark, which turns transparent.
+     * The mark still takes a press there, since the digit takes no pointer
+     * (surfaces.css, `.lf-binding-seat`). */
     & > lf-option:has(> .lf-key-badge[data-lf-binding-badge]) > .lf-pick {
-      position: relative;
-      inset: auto;
-      z-index: 2;
       opacity: 0;
     }
     /* Add stands in the field's end corner by the field's own grid, sharing the words'

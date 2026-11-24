@@ -518,6 +518,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         " .lf-msg-body"
     )
     expect(body).to_have_count(1)
+    # The answer is drawn while it stands below the window's foot, so its layout has
+    # its own frame before the scroll brings it into view.
+    rendered(page)
     # The answer's foot 20px under the open view's top edge, or 20px above it.
     page.evaluate(
         """([body, card, under]) => scrollBy(0, body.getBoundingClientRect().bottom

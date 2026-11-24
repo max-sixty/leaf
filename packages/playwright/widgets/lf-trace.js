@@ -1335,43 +1335,33 @@ export class Trace extends LeafElement {
 
   #indexTargets() {
     this.#targets.clear();
-    for (const action of this.#recording.actions) {
-      const firstPhase = this.#phases(action)[0];
-      const pageId = action.pageId;
-      const firstPageId = checkpointOf(action, firstPhase)?.pageId ?? pageId;
-      const scope = this.#targetScope(action.stream, firstPageId);
-      this.#targets.set(this.#id("action", action.id), {
-        action,
-        scope,
-        pageId: firstPageId,
-        phase: firstPhase,
-        label: action.title,
-      });
-      for (const phase of this.#phases(action)) {
-        this.#targets.set(this.#phaseId(action, phase), {
+    for (const action of this.#recording.actions)
+      for (const [index, phase] of this.#phases(action).entries()) {
+        const checkpoint = checkpointOf(action, phase);
+        const pageId = checkpoint?.pageId ?? action.pageId;
+        const at = {
           action,
-          pageId: checkpointOf(action, phase)?.pageId ?? pageId,
-          scope: this.#targetScope(
-            action.stream,
-            checkpointOf(action, phase)?.pageId ?? pageId,
-          ),
+          pageId,
+          scope: this.#targetScope(action.stream, pageId),
           phase,
+        };
+        // An action's own target takes its first phase's page and scope.
+        if (index === 0)
+          this.#targets.set(this.#id("action", action.id), {
+            ...at,
+            label: action.title,
+          });
+        this.#targets.set(this.#phaseId(action, phase), {
+          ...at,
           label: `${action.title} · ${PHASES[phase]}`,
         });
-        for (const node of checkpointOf(action, phase)?.tree?.nodes ?? [])
+        for (const node of checkpoint?.tree?.nodes ?? [])
           this.#targets.set(this.#nodeId(action, phase, node), {
-            action,
-            pageId: checkpointOf(action, phase)?.pageId ?? pageId,
-            scope: this.#targetScope(
-              action.stream,
-              checkpointOf(action, phase)?.pageId ?? pageId,
-            ),
-            phase,
+            ...at,
             node,
             label: `${action.title} · ${PHASES[phase]} · ${nodeName(node)} · path ${node.path}`,
           });
       }
-    }
     for (const image of this.#recording.images)
       this.#targets.set(this.#id("image", image.id), {
         image,

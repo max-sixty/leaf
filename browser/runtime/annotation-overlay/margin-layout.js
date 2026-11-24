@@ -128,6 +128,7 @@ import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
+import { objectIds } from "../ids.js";
 import { offerActionElement } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { registry } from "../registry.js";
@@ -389,10 +390,7 @@ const isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
 // Each run of rows the same headers cut stands in one chain of frames cut where those
 // headers stand (`headerLevels`), keyed by the lane and the cuts, its innermost frame
 // holding the run's carriers.
-const ids = new WeakMap();
-let idCount = 0;
-/** @param {object} node */
-const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+const idOf = objectIds();
 /** @type {Map<string, HTMLElement[]>} */
 const cutFramesByKey = new Map(); // lane id + cut key → innermost frame of each run
 /** @type {WeakMap<HTMLElement, {level: HeaderLevel, frame: HTMLElement}[]>} */

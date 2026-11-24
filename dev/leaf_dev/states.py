@@ -933,11 +933,10 @@ def card_next_unread(page: Page) -> None:
     settle(page)
 
 
-def card_new_reply(page: Page) -> None:
-    """A margin card after the user's own turn, read back up its transcript, with the
-    agent's answer arrived past the transcript's foot behind New reply."""
-    long_reply("7b3e0a41")
-    open_card(page, page.locator(RESYNC_MARKER))
+def own_turn_in_card(page: Page) -> tuple[Locator, int]:
+    """The card `card_next_unread` opens after the user's own turn in it: the card's
+    messages, and how many."""
+    card_next_unread(page)
     card = page.locator(".lf-margin-preview")
     messages = card.locator(".lf-msg")
     sent = messages.count() + 1
@@ -946,7 +945,14 @@ def card_new_reply(page: Page) -> None:
     page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(sent)
     settle(page)
-    card.locator(".lf-thread-transcript").hover()
+    return messages, sent
+
+
+def card_new_reply(page: Page) -> None:
+    """A margin card after the user's own turn, read back up its transcript, with the
+    agent's answer arrived past the transcript's foot behind New reply."""
+    messages, sent = own_turn_in_card(page)
+    page.locator(".lf-margin-preview .lf-thread-transcript").hover()
     page.mouse.wheel(0, -3000)
     page.wait_for_function(
         "() => document.querySelector('.lf-margin-preview .lf-thread-transcript')"
@@ -1009,16 +1015,7 @@ def card_next_unread_cluster(page: Page) -> None:
 def card_answer_at_cap(page: Page) -> None:
     """A margin card at its cap, the user at its end after their own turn, with an answer
     too long to show arrived: their turn stays in sight above New reply."""
-    long_reply("7b3e0a41")
-    open_card(page, page.locator(RESYNC_MARKER))
-    card = page.locator(".lf-margin-preview")
-    messages = card.locator(".lf-msg")
-    sent = messages.count() + 1
-    card.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.insert_text("And over the weekend?")
-    page.keyboard.press("ControlOrMeta+Enter")
-    expect(messages).to_have_count(sent)
-    settle(page)
+    messages, sent = own_turn_in_card(page)
     answer_the_turn()
     expect(messages).to_have_count(sent + 1)
     settle(page)

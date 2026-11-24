@@ -584,6 +584,19 @@ customElements.define(
         if (connected && of.api.writable && !of.latest && !of.failure && dirty(of))
           of.timer = setTimeout(() => void flush(of), delay);
       }
+      // Runs once a read or save of `of` ends. The open file paints, and hands the reader
+      // back to the editor if the control they retried from went away; another file
+      // announces its news. Then the file's own saves resume, and a read it owes runs.
+      /** @param {OpenFile} of @param {HTMLElement | null} returnFrom */
+      function ended(of, returnFrom) {
+        const returning = connected && returnFrom && focused() === returnFrom;
+        if (of === file) {
+          paint();
+          if (returning && returnFrom.hidden) returnToEditor();
+        } else tell(of);
+        schedule(of, 0);
+        if (of.owed) void refresh(of);
+      }
       // Each request settles the file it was made for, whichever file is open by then;
       // only the open one paints.
       /** @param {OpenFile} of @param {boolean} [replace] @param {HTMLElement | null} [returnFrom] */
@@ -652,13 +665,7 @@ customElements.define(
             if (of.slowTimer !== null) clearTimeout(of.slowTimer);
             of.slowTimer = null;
           }
-          const returning = connected && returnFrom && focused() === returnFrom;
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       // Settles once a first read has waited a second, which is when the page stops
@@ -722,13 +729,7 @@ customElements.define(
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);
-          const returning = connected && returnFrom && focused() === returnFrom;
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       /** @param {BeforeUnloadEvent} event */

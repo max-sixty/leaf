@@ -329,8 +329,9 @@ const ownerBoundary = {
 };
 
 // What a module of the library (browser/runtime/lib/) may import: a /vendor/ bundle or
-// a module beside it in that flat directory, by a path that climbs out of neither.
-const librarySpecifier = "(?:/vendor/(?!.*\\.\\.)|\\./[^/\\\\]+$)";
+// a module beside it in that flat directory, by a path with no `..`, written or
+// percent-encoded, to climb out of either.
+const librarySpecifier = "(?:/vendor/(?!.*(?:\\.\\.|%))|\\./[^/\\\\%]+$)";
 const LIBRARY_MESSAGE =
   "The library imports only /vendor/ bundles and its own modules (browser/AGENTS.md, “The library of shared web code”): code that needs the runtime is not library code.";
 
@@ -1623,7 +1624,7 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$|lib/[^/]+$)",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$|lib/[^/\\\\%]+$)",
               message:
                 "Render checks use the public API, the library or the diagnostic adapter.",
             },
@@ -1826,7 +1827,7 @@ export default [
         {
           patterns: [
             {
-              regex: `^(?!/vendor/|\\.\\.?/lib/[^/]+$|\\.\\.?/(?:${runtimePrimitives
+              regex: `^(?!/vendor/|\\.\\.?/lib/[^/\\\\%]+$|\\.\\.?/(?:${runtimePrimitives
                 .map((name) => name.replaceAll(".", "\\."))
                 .join("|")})$)`,
               message:
@@ -1849,10 +1850,11 @@ export default [
     // The library of shared web code holds none of the page's state and reaches none
     // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
     // it names only a /vendor/ bundle and the modules beside it, whether it imports
-    // statically or lazily. That keeps out the runtime, the framework's facade
-    // (/runtime/framework.js) and the kernel registry, which the import graph's check
-    // leaves out of its graph, and lets each module load in a document Leaf did not
-    // compose. A module holds one concern, so none gathers the others' exports.
+    // statically or lazily. That keeps out the runtime, and with it the framework's
+    // facade (/runtime/framework.js) and the kernel registry, neither of which is in
+    // the graph the import graph's check reads. So each module loads in a document
+    // Leaf did not compose. A module holds one concern, so none gathers the others'
+    // exports.
     files: ["browser/runtime/lib/**/*.js"],
     rules: {
       "no-restricted-imports": [

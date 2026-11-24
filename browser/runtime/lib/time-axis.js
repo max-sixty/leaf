@@ -2,8 +2,8 @@
  * milliseconds from the axis origin; positions are pixels along the drawn span, which
  * starts and ends AXIS_EDGE inside the drawing. Nothing here touches the DOM, so a
  * widget can call it while drawing, before its upgrade as well as after. The
- * stylesheet's `.lf-axis-…` rules (`styles/components/controls.css`) say how a drawing
- * marks up its ruler, gridlines and marks, and give them their look.
+ * stylesheet's `.lf-axis-…` rules (`browser/styles/components/controls.css`) say how a
+ * drawing marks up its ruler, gridlines and marks, and give them their look.
  *
  * Ruler ticks fall on 1, 2 and 5 × 10^k milliseconds, the smallest step that keeps
  * major ticks AXIS_TICK_SPACING apart, with four or five minor ticks between them. A

@@ -401,10 +401,10 @@ and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, stands the floating panel's row from
 the first paint, holds keys pressed before upgrade and shows a startup failure.
 
-Of the runtime, content modules import `runtime/widget-api.js`, the public helper
+Of the runtime, content modules import only `runtime/widget-api.js`, the public helper
 surface, and the modules of the library ("The library of shared web code"). A widget
-that also runs off Leaf imports the library and, in place of `widget-api.js`, the part
-of it any document loads, `runtime/portable-api.js`.
+that also runs off Leaf imports, in place of `widget-api.js`, only the part of it any
+document loads, `runtime/portable-api.js`.
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
@@ -476,14 +476,18 @@ Leaf composes into a page is not library code, and stays in its owner behind
   loads in a document Leaf didn't compose (lint, the library's block in
   `../eslint.config.mjs`). Where it needs a stateless helper of the runtime's, the
   helper's module joins the library, and the runtime imports the helper from there.
-- The runtime imports a library module by relative path, and a package, page or render
-  check by its served path, `/runtime/lib/<module>.js`. `$public-modules` in
-  `runtime/kernel-registry.json` admits that import, and lists every module of the
-  directory (`../tests/runtime/widget-api.test.mjs`).
+- The runtime imports a library module by relative path. A package, a page and a
+  render check import it by its served path, `/runtime/lib/<module>.js`.
+  `$public-modules` in `runtime/kernel-registry.json` admits a package's or a page's
+  import, and lists every module of the directory
+  (`../tests/runtime/widget-api.test.mjs`).
 - A module holds one concern, and each importer names the module that holds what it
-  needs. Nothing re-exports a library module, inside the library or outside it, so
-  neither `widget-api.js` nor `check-api.js` passes the library on (lint, the same
-  block and `ownerRuntimeSyntax`).
+  needs. Nothing in the runtime re-exports a library module, so neither `widget-api.js`
+  nor `check-api.js` passes the library on (lint, the same block and
+  `ownerRuntimeSyntax`).
+- A prepared installation compiles the whole library into the chunk every page loads
+  (`portableHomes` in `../build/runtime-bundle.mjs`). So a library module imports
+  lazily any `/vendor/` bundle the page's boot doesn't already load.
 - A module's header and JSDoc are its whole documentation. The package references say
   where the library is and describe none of its functions.
 

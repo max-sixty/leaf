@@ -101,7 +101,7 @@ def _render_version_attempt(
     def desktop_sweep(page, registry):
         open_tags = open_widgets(registry)
         # Read the desktop viewport before the sweep changes it.
-        advice.extend(drawn_height_advice(page))
+        advice.extend(drawn_height_advice(page, registry))
         samples.extend(sweep(page, [desktop["width"]], open_tags))
         widths = sweep(page, steps, open_tags)
         samples.extend(widths)

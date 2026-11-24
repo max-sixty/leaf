@@ -11,7 +11,7 @@ from leaf.files import read_json
 from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
-from .kernel import kernel_marks, verb_writers
+from .kernel import verb_writers
 
 
 def same_state_definition(recorded, current) -> bool:
@@ -76,16 +76,13 @@ def authored_inert(
 ) -> str | None:
     """Why an occurrence's authored override of the mark `key` means nothing on its
     element, or None where it holds. A width means nothing on an element that takes
-    none of its own (`flow`, where its `flow` holds); otherwise the override
-    holds where its `authored_on` says, and the condition it fails is the reason
-    (`content`, a block in the page's flow, which `main`, `body` and `html` aren't;
-    `declared`, a tag declaring the mark). Delivery paints only an override that holds
-    (`revision_delivery.mark_declared`), and `page check` names the rest."""
+    none of its own (`flow`, where its `flow` holds); otherwise the override holds on
+    a block in the page's flow, which `main`, `body` and `html` aren't (`content`).
+    Delivery paints only an override that holds (`revision_delivery.mark_declared`),
+    and `page check` names the rest."""
     if key == "space" and holds_for(attrs, declaration.get("flow")):
         return "flow"
-    condition = kernel_marks()[key]["authored_on"]
-    holds = content if condition == "content" else bool(declaration.get(key))
-    return None if holds else condition
+    return None if content else "content"
 
 
 def is_element_name(name: str) -> bool:

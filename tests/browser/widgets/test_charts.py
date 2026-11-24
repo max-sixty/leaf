@@ -348,7 +348,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
 
 def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
-    """The page lays a chart's box out before Plot draws (`height`), so the drawing fills
+    """The chart's sheet lays its box out before Plot draws, so the drawing fills
     that box rather than sizing it: with a legend Plot sets above it, the legend and the
     drawing together end at the box's foot, and the box keeps the height it had at first
     paint. Drawn at the options' own height instead, the legend overhangs the box."""
@@ -609,8 +609,8 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
 
 
 def test_a_chart_first_laid_out_on_paper_draws_at_its_stated_height(browser, serve):
-    """Paper prints a shut tab's panel open, where the theme holds no undrawn box at its
-    stated height and the box is its source's. A chart there still waits for the user to
+    """Paper prints a shut tab's panel open, where the chart's sheet holds no undrawn box
+    at its stated height and the box is its source's. A chart there still waits for the user to
     open the tab (`measure`), so it takes the stated height once they do. Drawn for the
     box paper gave it, it would keep the source's height, and a source shorter than
     Plot's margins would draw bars of negative height."""

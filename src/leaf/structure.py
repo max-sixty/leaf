@@ -85,25 +85,19 @@ AUTHORED_CLASSES = frozenset(
     for name in re.findall(r"\.(lf-[\w-]+)", key)
 )
 # The allocations a page occurrence may state, each attribute with the values it takes:
-# a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (`height`), and
-# the page-wide ones. Delivery honours a width, bound or height only where it means
-# something (`authored_on` in the kernel registry's `$marks`), and paints it for the
-# runtime to read.
+# a block's width in the page's flow, whether it bounds its own height, and the
+# page-wide ones. Delivery honours a width or bound only on a block in the page's flow
+# (`registry.contract.authored_inert`), and paints it for the runtime to read.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
-    "data-height": re.compile("[1-9][0-9]*"),
     **{attr: tuple(values) for attr, values in PAGE_ALLOCATIONS.items()},
 }
 
 
 def allocation_valid(attr: str, value: str) -> bool:
     """Whether an authored allocation's value is one of the values `attr` takes."""
-    values = AUTHORED_ALLOCATIONS[attr]
-    if isinstance(values, re.Pattern):
-        return values.fullmatch(value) is not None
-    return value in values
+    return value in AUTHORED_ALLOCATIONS[attr]
 
 
 # The script types a browser runs as JavaScript, per the HTML standard: no type, or a

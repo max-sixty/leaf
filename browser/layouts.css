@@ -907,19 +907,6 @@
       }
     }
   }
-  @media screen {
-    html[data-lf-interactive]
-      [data-lf-height]:not(
-        [data-lf-height=""],
-        .lf-rendered,
-        :has(> .lf-error),
-        [data-lf-failed]
-      ) {
-      box-sizing: border-box;
-      block-size: attr(data-lf-height px);
-      overflow: clip;
-    }
-  }
   /* Tiles: equal cells, as many to a row as fit at 9rem, each row's cells one height.
    * How a row wraps is the page's to judge (page-checkpoints.md). */
   .layout-tiles {

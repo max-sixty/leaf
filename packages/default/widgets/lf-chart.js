@@ -14,9 +14,9 @@
  * the room it has and drawn again when that room changes, since a drawing scaled into a
  * new box takes its labels below legibility with it: the width is the host's, and the
  * body reads it to fit its ticks to the room. The height is the box's too: on a Leaf
- * page it is stated (`height`, or the occurrence's data-height), and the theme
- * holds the box at it before the drawing arrives, so the drawing and any legend Plot
- * sets beside it are drawn to fill it and move nothing below it. Its type and ink are
+ * page its stylesheet (chart.css) holds the box at the height the occurrence states
+ * (data-height), or its default, before the drawing arrives, so the drawing and any
+ * legend Plot sets beside it fill it and move nothing below it. Its type and ink are
  * the theme's, and so are its series colours, because Plot takes `var(--lf-series-N)`
  * wherever it takes a colour. A user who cannot see it hears Plot's `ariaLabel` in its
  * place. A comment takes the whole chart, or the point the reader is on (below) as a
@@ -398,8 +398,8 @@ customElements.define(
         // inside the drawing, whose height is fixed, so it moves no box the browser
         // watches. Everything else the chart writes waits for Leaf's next rendering
         // pass, since a box that moves above one the browser just delivered is a
-        // ResizeObserver loop error. The first drawing lets go of the box the theme
-        // held (`height`), which a row may stretch, and the page presents itself as
+        // ResizeObserver loop error. The first drawing lets go of the box its stylesheet
+        // held (chart.css), which a row may stretch, and the page presents itself as
         // the drawing settles, so the room's first delivery is heard in that pass, as
         // the legend's measurement is (`paint`) and a refusal is written there. The
         // drawing follows there, or once Plot has loaded if that comes later. A width

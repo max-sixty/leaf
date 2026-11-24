@@ -430,7 +430,7 @@ def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """A page's allocations that mean nothing where they stand
     (`registry.contract.authored_inert`), which delivery leaves unpainted, so nothing on
-    the page shows the author the width or height they asked for is missing. Advice,
+    the page shows the author the width or bound they asked for is missing. Advice,
     since the page works as it is; the words say where the allocation would hold. A
     message has its own rule for the room (`$marks`, `message`), so this reads only
     a page's documents."""

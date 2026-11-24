@@ -16,6 +16,19 @@ lf-call-diff {
 lf-diff {
   contain: inline-size;
 }
+/* Where the runtime runs, a diff or call diff holds the height the page states for it
+ * (`data-height`) from the first paint until it draws, so a drawing whose patch or
+ * calls arrive with the page's data moves nothing below it. One that can't draw lets
+ * go of the box: the diff says why in its shadow stage, the call diff in a child. */
+@media screen {
+  html[data-lf-interactive] lf-diff[data-height]:not(.lf-rendered, [data-lf-failed]),
+  html[data-lf-interactive]
+    lf-call-diff[data-height]:not(.lf-rendered, :has(> .lf-error)) {
+    box-sizing: border-box;
+    block-size: attr(data-height px);
+    overflow: clip;
+  }
+}
 lf-diff.lf-rendered {
   font-family: var(--lf-mono);
   font-size: var(--lf-code-size);

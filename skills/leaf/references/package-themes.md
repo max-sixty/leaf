@@ -116,8 +116,8 @@ edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` t
 the trim, which would otherwise take its first item's margin and not its neighbours'.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
-writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
-`[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
+writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-exhibit]`
+and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
 largest width and height among its images, so a widget can size its frame before they
 decode, as `lf-shot` does.

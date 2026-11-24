@@ -127,9 +127,13 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 
 
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
-# its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
-# diagram package's does.
-SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
+# its renderer loads. Its attributes take a stated height, which page CSS holds before
+# the drawing and keeps where it is larger than the drawing, as the diagram package's
+# does.
+SKETCH_DECLARATION = element_declaration("lf-sketch")
+SKETCH_DECLARATION["attributes"]["properties"] = {
+    "data-height": {"type": "string", "pattern": "^[1-9][0-9]*$"}
+}
 SKETCH_WIDGET = """
 import {PendingTaskEvent, once} from '/runtime/portable-api.js';
 customElements.define('lf-sketch', class extends HTMLElement {
@@ -153,7 +157,9 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
 
     The boxes before drawing: nothing stated, a stated height too small and one too
     large, beside a stated height that matches and an authored body that already
-    takes the drawing's height, as an inline diff's source text can.
+    takes the drawing's height, as an inline diff's source text can. A widget whose
+    attributes take no `data-height` draws the same way and gets no advice, since
+    stating one would hold nothing.
     """
     findings = []
     _, _, completed = render_gate_scheme._render_page(
@@ -168,19 +174,28 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
 <lf-sketch id="tall" data-height="400"></lf-sketch>
 <lf-sketch id="exact" data-height="240"></lf-sketch>
 <lf-sketch id="authored"><div style="block-size: 240px"></div></lf-sketch>
+<lf-doodle id="untaken"></lf-doodle>
 """,
-                head="<style>lf-sketch { display: block }"
+                head="<style>lf-sketch, lf-doodle { display: block }"
+                " lf-sketch[data-height]:not(.lf-rendered)"
+                " { block-size: attr(data-height px); overflow: clip }"
                 " lf-sketch.lf-rendered"
-                " { min-block-size: attr(data-lf-height px, 0px) }</style>",
+                " { min-block-size: attr(data-height px, 0px) }</style>",
             ),
-            layer_registry={"lf-sketch": SKETCH_DECLARATION},
-            layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
+            layer_registry={
+                "lf-sketch": SKETCH_DECLARATION,
+                "lf-doodle": element_declaration("lf-doodle"),
+            },
+            layer_widgets={
+                "lf-sketch.js": SKETCH_WIDGET,
+                "lf-doodle.js": SKETCH_WIDGET.replace("lf-sketch", "lf-doodle"),
+            },
         ),
         {"width": 1200, "height": 900},
         3_000,
         [],
-        then=lambda page, _: findings.extend(
-            render_gate_readings.drawn_height_advice(page)
+        then=lambda page, registry: findings.extend(
+            render_gate_readings.drawn_height_advice(page, registry)
         ),
     )
     assert completed, findings
@@ -3124,7 +3139,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
       const svg=box.querySelector('svg');
       const natural=svg.getBoundingClientRect().height;
       return ['', String(natural - 16), String(natural + 100)].map(height=>{
-        box.setAttribute('data-lf-height',height);
+        box.setAttribute('data-height',height);
         const bounds=box.getBoundingClientRect(), ink=svg.getBBox({stroke:true});
         const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
         return {height:bounds.height,svg:svg.getBoundingClientRect().height,

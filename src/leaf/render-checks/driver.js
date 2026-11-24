@@ -11,10 +11,10 @@
   /** @type {{route: string, probes: Record<string, (...args: unknown[]) => unknown> | null, error: {reason: unknown} | null} | null} */
   let loading = null;
 
-  // The block size each element whose tag declares `height` first shows before its
-  // module marks it drawn (`lf-rendered`), read as the page arrives without holding it.
-  // Delivery paints `height` as `data-lf-height` on each such element, empty where
-  // the page states no height, so every one arrives with the parse. A ResizeObserver
+  // The block size each custom element first shows before its module marks it drawn
+  // (`lf-rendered`), read as the page arrives without holding it. No module has loaded
+  // while the document parses, so every such element arrives undefined, and which of
+  // them take a stated height is the reader's to say (`drawnHeights`). A ResizeObserver
   // delivers a box after the layout of the frame that paints it. An element first shown
   // already drawn gets no reading, since it never showed a box before drawing.
   /** @type {Map<Element, number>} */
@@ -33,8 +33,8 @@
     for (const { addedNodes } of records)
       for (const node of addedNodes)
         if (node instanceof Element)
-          for (const element of [node, ...node.querySelectorAll("[data-lf-height]")])
-            if (element.hasAttribute("data-lf-height")) shownUndrawn.observe(element);
+          for (const element of [node, ...node.querySelectorAll(":not(:defined)")])
+            if (element.matches(":not(:defined)")) shownUndrawn.observe(element);
   };
   // A driver evaluated into a page already parsed (`_ensure_driver`) saw no arrival.
   if (document.readyState === "loading") {

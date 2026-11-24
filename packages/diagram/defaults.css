@@ -18,6 +18,16 @@ lf-diagram {
   --pele-font: var(--lf-sans);
   --pele-font-mono: var(--lf-mono);
 }
+/* Where the runtime runs, a diagram holds the height the page states for it
+ * (`data-height`) from the first paint until it draws, so its drawing moves nothing
+ * below it. One that can't draw lets go of the box and says why over its source. */
+@media screen {
+  html[data-lf-interactive]
+    lf-diagram[data-height]:not(.lf-rendered, :has(> .lf-error)) {
+    block-size: attr(data-height px);
+    overflow: clip;
+  }
+}
 /* The drawing is laid out for the box the page grants it (lf-diagram.js) and
  * centered there. One that still does not fit keeps its size, and safe alignment
  * keeps its start reachable by scrolling. */
@@ -34,11 +44,11 @@ lf-diagram.lf-rendered > * {
  * minimum: overlay tracks cover the blank bottom padding, and a negative SVG margin
  * lets native classic tracks consume that padding, leaving 1px for strokes. A wider
  * classic track grows the box through native layout instead of clipping the drawing.
- * A declared reservation may hold more room without stretching the SVG. The renderer
+ * A stated height may hold more room without stretching the SVG. The renderer
  * supplies its dimensions; no measurement or later scroll-state query sizes the box. */
 @media screen {
   lf-diagram.lf-rendered {
-    min-block-size: max(var(--lf-diagram-height), attr(data-lf-height px, 0px));
+    min-block-size: max(var(--lf-diagram-height), attr(data-height px, 0px));
   }
   /* `:last-child` outranks the layer's trim of a frame's last margin, which the
    * drawing is. */

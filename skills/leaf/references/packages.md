@@ -302,7 +302,6 @@ role on the page:
 | `reading-role` | `lf-pane`                                                                            |
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
 | `bound`        | `lf-activity`                                                                        |
-| `height`       | `lf-chart`                                                                           |
 | `history`      | `lf-activity`                                                                        |
 | `views`        | `lf-tabs`                                                                            |
 
@@ -336,13 +335,15 @@ The presentation checks:
   "First paint"). Reserve the room of what the module adds in `defaults.css`, from the
   theme's tokens (`package-themes.md`, "Theme tokens"): an empty `::before` block on
   `lf-rating:not(:defined)` with `block-size: var(--lf-line)` holds one row of
-  controls. A drawing the markup can't size declares `height`: a number where the
-  module draws at any height, or `true` to reserve the `data-height` each occurrence
-  states in CSS pixels, with no entry in `attributes`. Where that height follows the
-  data, the widget's `instructions` say how the author works it out. A widget
-  containing others is named only for the change left once its changed children are
-  back at their first sizes. The advice may stand where the size follows content no
-  rule can know, such as words drawn from bound data.
+  controls. A drawing the markup can't size takes its height from the page: the widget
+  declares `data-height`, a whole number of CSS pixels, in its `attributes`, and its
+  sheet holds the box at that height until the module adds the class `lf-rendered`.
+  `lf-chart`'s rule in the default package's `styles/chart.css` is the worked example.
+  `page check --render` then gives a page's author the `data-height` that holds each
+  such drawing. Where that height follows the data, the widget's `instructions` say
+  how the author works it out. A widget containing others is named only for the change
+  left once its changed children are back at their first sizes. The advice may stand
+  where the size follows content no rule can know, such as words drawn from bound data.
 - `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside
   it, where a widget in normal flow should grow with its content (`page-layout.md`,
   "Bounds and widths"). The check also finds a fixed height while the widget is empty,

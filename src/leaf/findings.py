@@ -1071,11 +1071,7 @@ _TEXT = {
         _LAYS_OUT,
         lambda at, v: (
             f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
-            + (
-                "a whole number of CSS pixels"
-                if v["allowed"] is None
-                else f"one of {', '.join(v['allowed'])}"
-            )
+            f"one of {', '.join(v['allowed'])}"
         ),
     ),
     "unnamed-card": lambda at, v: (
@@ -1090,8 +1086,6 @@ _TEXT = {
             " inside that needs the room",
             "content": "only a block inside body, other than main, takes it, so put"
             " it on the block that needs it",
-            "declared": "only a widget that draws into a box of a stated height"
-            " takes it",
         }[v["holds"]]
     ),
     "css-syntax": _refuses(

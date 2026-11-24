@@ -10,8 +10,18 @@ lf-chart .lf-chart-drawing {
   font: var(--lf-font-fine);
   color: var(--lf-muted);
 }
-/* Where the runtime runs, the chart's box is laid out before it draws (`height`), and the source
- * waiting in it is code for the drawing rather than words for the reader. */
+/* Where the runtime runs, the chart holds the box it will draw into from the first
+ * paint, at the height the page states for it (`data-height`) or 400px, so the drawing
+ * moves nothing below it. A chart that can't draw lets go of the box and says why over
+ * its source. The source waiting in the box is code for the drawing rather than words
+ * for the reader. */
+@media screen {
+  html[data-lf-interactive] lf-chart:not(.lf-rendered, :has(> .lf-error)) {
+    box-sizing: border-box;
+    block-size: attr(data-height px, 400px);
+    overflow: clip;
+  }
+}
 @scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {
     visibility: hidden;

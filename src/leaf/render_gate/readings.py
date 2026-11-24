@@ -593,10 +593,26 @@ def shrunk_label_advice(readings) -> list[Finding]:
     )
 
 
-def drawn_height_advice(page) -> list[Finding]:
+# The attribute a page states a drawing's height in, in CSS pixels, on a widget whose
+# sheet holds its box at that height before it draws.
+STATED_HEIGHT = "data-height"
+
+
+def drawn_height_advice(page, registry: dict) -> list[Finding]:
     """Each drawing whose height differs from the box it showed before drawing
     (`drawnHeights`), as advice read at the desktop viewport, the user's window
-    (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
-    is, has another height at another width, and the one `data-height` that holds it
-    still holds it at one width, so it is read only as the page loaded."""
-    return [Finding.read(height) for height in evaluate_probe(page, "drawnHeights")]
+    (`desktop_viewport` in command.py). The advice names the `data-height` that would
+    hold the drawing, so it reads the widgets whose `attributes` declare one. A drawing
+    laid out for its width, as a diagram is, has another height at another width, and
+    the one `data-height` that holds it still holds it at one width, so it is read only
+    as the page loaded."""
+    tags = sorted(
+        tag
+        for tag, entry in registry.items()
+        if is_element_name(tag)
+        and STATED_HEIGHT in entry["attributes"].get("properties", {})
+    )
+    return [
+        Finding.read(height)
+        for height in evaluate_probe(page, "drawnHeights", tags, STATED_HEIGHT)
+    ]

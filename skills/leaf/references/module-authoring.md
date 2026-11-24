@@ -270,8 +270,9 @@ behavior or reading; native disclosures, links and authored content need no such
 - Size the widget in the package theme, including its initial authored drawing.
   A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
+- Where the markup can't say how tall the drawing will be, add the class `lf-rendered`
+  once drawn, and hold the box until then in the package's sheet (`packages.md`,
+  "Seeing it", `keeps-first-box`).
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as

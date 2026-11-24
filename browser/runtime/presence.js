@@ -59,11 +59,16 @@ export const observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();
 };
 // How long ago a server timestamp was, rounded to its nearest unit, in the one wording
-// the page and every package use: `ago` for a sentence, `shortAgo` where a seat has
-// room for the figure alone, so two seats never give one moment two different ages.
+// every age on the page has: `ago` for a sentence, which is also what an author's
+// `lf-age` draws (age.js), and `shortAgo` where a seat has room for the figure alone, so
+// two seats never give one moment two different ages. A timestamp that names no moment
+// has no age.
 /** @param {string | null | undefined} ts @param {boolean} compact */
 const age = (ts, compact) =>
-  clockValue((now) => (ts ? ageWords(elapsed(Date.parse(ts), now), compact) : ""));
+  clockValue((now) => {
+    const then = Date.parse(ts ?? "");
+    return Number.isNaN(then) ? "" : ageWords(elapsed(then, now), compact);
+  });
 /** @param {string | null | undefined} ts */
 export const ago = (ts) => age(ts, false);
 /** @param {string | null | undefined} ts */
@@ -149,8 +154,9 @@ export function saidAt(ts) {
   return { day, time: timeOfDay(at) };
 }
 // What an age or a time previews (preview.js): the clock time, day and zone of the
-// instant its `<time>` holds, so every one the page draws declares one function and
-// holds its instant once, in `datetime`, where the platform keeps it.
+// instant its element holds, a `<time>` or an `lf-age`, so every one the page draws
+// declares one function and holds its instant once, in `datetime`, where the platform
+// keeps it.
 /** @this {Element} @returns {import("./preview.js").Preview | null} */
 export function agePreview() {
   const at = clockTime(this.getAttribute("datetime"));

@@ -28,6 +28,7 @@ from render_cases_interaction import (
     TABLE_REPLY,
     live_url,
 )
+from render_cases_layout import mark_edges, token_colour
 from render_cases_navigation import (
     TWICE_PAGE,
 )
@@ -2030,6 +2031,101 @@ def test_a_tap_beside_an_options_selected_words_picks_it(engine, request, serve)
     assert page.evaluate("() => getSelection().toString()").strip()
     option.locator("strong").tap()
     expect(option).to_have_attribute("selected", re.compile(".*"))
+
+
+ROW_OPTIONS_PAGE = leaf_page(
+    "row options",
+    """
+<h1 id="h">The run</h1>
+<lf-group id="when-decision" label="When should it run?"><h2 id="when-decision-h">When should it run?</h2>
+<lf-options id="when">
+  <lf-option id="wh-night">At night, while the deploy queue is empty</lf-option>
+  <lf-option id="wh-day">During the day, when someone is watching it</lf-option>
+</lf-options></lf-group>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_on_a_rows_digit_is_a_press_on_its_control(engine, request, serve):
+    """A row's digit stands in a column of its own, before the control it labels, and
+    takes no pointer. A press where it stands is the control's, as a press on a card's
+    digit is its mark's. On an option's digit it picks the row and leaves the user on the
+    row's mark, in the group whose digits they were reading. On the add field's digit it
+    puts the user in the field.
+
+    The row's words stand selected for the pick. A press that landed on the row rather
+    than its mark would be refused in Chromium, which keeps a selection through a press
+    before a line the selection starts, so the row reads the click as the selection's.
+    In both engines such a press would take the user out of the group, and its digits
+    with them."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    night = page.locator("#wh-night")
+    mark = night.locator(":scope > .lf-pick")
+    digit = night.locator(":scope > .lf-key-badge")
+
+    # The keyboard puts the user in the group, on the other row, and its digits show.
+    page.locator("#wh-day > .lf-pick").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+
+    def press(face):
+        seat = face.bounding_box()
+        page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
+
+    night.evaluate(
+        """el => {
+          const words = document.createRange();
+          words.selectNodeContents(
+            [...el.childNodes].find((node) => node.nodeType === 3 && node.data.trim()),
+          );
+          getSelection().removeAllRanges();
+          getSelection().addRange(words);
+        }"""
+    )
+    assert page.evaluate("() => getSelection().toString()").strip()
+    press(digit)
+    expect(night).to_have_attribute("selected", re.compile(".*"))
+    expect(mark).to_be_focused()
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+
+    add = page.locator("#when > .lf-another > .lf-key-badge")
+    expect(add).to_have_attribute("data-lf-binding-badge", "")
+    press(add)
+    expect(page.locator("#when > .lf-another leaf-text")).to_be_focused()
+
+    round_trip(page)
+    assert [
+        e["detail"]["value"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [["wh-night"]], "the press on the row's digit picked it other than once"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
+    engine, request, serve
+):
+    """The row whose mark the keyboard is on wears the focus ring one band inside its
+    edge, all four sides of it. A row is a positioned table, and Firefox paints such a
+    box's own ground over an outline standing inside its edge, so a ring drawn as the
+    row's own outline would show nowhere there."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    page.locator("#wh-day > .lf-pick").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(page.locator("#wh-day")).to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+    rendered(page)
+    accent = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    )
+    edges = mark_edges(page, "wh-day", accent)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):

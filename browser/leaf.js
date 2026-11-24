@@ -121,6 +121,9 @@ import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
+// Defined before any widget's module loads, so a template that draws an age needs no
+// import.
+import "./runtime/age.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { mountPreviews } from "./runtime/preview.js";
@@ -277,7 +280,6 @@ async function boot() {
     targetPaint: createVisualMarkPaint(),
     pointer: pointerAt,
     currentLocationThreadId,
-    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -451,7 +453,6 @@ async function boot() {
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
     annotationCommands: {
-      currentLocationObligation: () => items.currentLocationIn(),
       designModeActive: designMode.active,
       pointerModeActive: () =>
         designMode.active() || drawing.drawModeActive() || regionCapture.active(),

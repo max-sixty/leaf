@@ -1517,6 +1517,7 @@ export default [
   {
     files: [
       "examples/**/*.js",
+      "docs/**/*.js",
       "evals/**/fixtures/**/*.js",
       "tests/fixtures/**/*.js",
       "tests/*_watch.js",

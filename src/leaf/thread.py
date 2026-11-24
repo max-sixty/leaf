@@ -314,7 +314,6 @@ def cmd_comment(
     if markup := drawn_markup(body):
         from leaf.render_gate.command import message_check
 
-        # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         return open_thread(
@@ -593,7 +592,6 @@ def post_reply(
     if markup := drawn_markup(text):
         from leaf.render_gate.command import message_check
 
-        # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
@@ -1328,7 +1326,6 @@ def cmd_edit(
     if markup:
         from leaf.render_gate.command import message_check
 
-        # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "edit", markup)
     answered = []
     with PageTransaction(page_dir) as page:

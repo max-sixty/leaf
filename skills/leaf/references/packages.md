@@ -12,6 +12,8 @@ This file covers what every package follows and how to declare a widget.
 [package-themes.md](package-themes.md) covers packages that change the theme, and
 [package-data.md](package-data.md) the state a widget records, references between
 widgets, and external data.
+[module-authoring.md, "The interface"](module-authoring.md#the-interface) maps each
+kind of thing a package leans on Leaf for to the reference that describes it.
 
 ## Package reach
 
@@ -167,12 +169,12 @@ control.
 
 Custom properties come in four kinds:
 
-| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Theme tokens        | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "A page's theme"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                     |
-| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                           |
-| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
+| Kind                 | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme tokens         | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "A page's theme"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
+| Facts about a box    | The box that allocates space sets them for what it holds, and a rule inside reads them: `--lf-full-height` and `--lf-density`, as `package-themes.md`, "A theme change", describes, and a Layout's facts below. Leaf also writes values it measures, such as `--lf-root-headers` and anchor geometry. Read those; don't set them.                                                                                                                                        |
+| Declarations to Leaf | A rule sets them on its own box for Leaf to read, such as `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                 |
+| Vendor bridges       | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
 
 A Layout declares further facts about the boxes it arranges. A rule reads one with a
 style query on a container of the element it styles, or with `var()` where it is a
@@ -322,19 +324,21 @@ both out of each. An attribute schema may write `"additionalProperties": true` t
 attributes it doesn't name, as a widget that passes them to an inner element does. A
 `detail` schema that writes any other value for either keyword is refused. A
 declaration with nothing to say about its element's attributes leaves `attributes` out,
-and the element then takes only an optional `id`. The attributes any element takes
-(`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand
-outside the schema unless it names one.
+and the element then takes only the attributes composition writes for it, such as an
+optional `id`. The attributes any element takes (`class`, `style`, `title`, `lang`,
+`dir`, `aria-*` and the page's own `data-*`) stand outside the schema unless it names
+one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element
-requires one, by listing `id` in `required`.
+requires one, by listing `id` in `required`. Composition writes the attributes an input
+binds by into `properties` too, as the registry's `$keys.inputs` defines.
 
 Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
-attribute (`inputs`) and a verb's `contract` attribute. Declare each of the last two as
-`{"type": "string"}`; composition writes each one's `pattern` into the merged registry,
-replacing any the declaration gives. A `refers` attribute needs no pattern either, since
-`page check` requires its value to name an element the page holds.
+attribute (`inputs`) and a verb's `contract` attribute. Declare a verb's `contract`
+attribute as `{"type": "string"}`; composition writes each name's `pattern` into the
+merged registry, replacing any the declaration gives. A `refers` attribute needs no
+pattern either, since `page check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

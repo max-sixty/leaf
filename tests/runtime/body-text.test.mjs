@@ -490,3 +490,24 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
     delete registry["lf-seat-contract"];
   }
 });
+
+test("a table cell's words stand in its own row, inside quotes and items", async () => {
+  const { loadMarkdown, placedMarkdownTokens } =
+    await import("/runtime/lib/markdown.js");
+  await loadMarkdown();
+  for (const source of [
+    ">\n| a |\n| - |\n| Total |",
+    "> | a |\n> | - |\n> | Total |",
+    "- x\n\n  | a |\n  | - |\n  | Total |",
+    "```\nTotal\n```\n\n> | a |\n> | - |\n> | Total |",
+  ]) {
+    const words = placedMarkdownTokens(source, false).filter(
+      ({ token }) => token.type === "text" && token.content === "Total",
+    );
+    assert.deepEqual(
+      words.map(({ from }) => from),
+      [source.lastIndexOf("Total")],
+      source,
+    );
+  }
+});

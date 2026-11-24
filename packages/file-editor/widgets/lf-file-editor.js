@@ -76,7 +76,6 @@
 import { html, nothing, render } from "/vendor/lit.js";
 import {
   allButCommandReference,
-  announce,
   boundFile,
   RequestError,
   commandsOn,
@@ -84,11 +83,11 @@ import {
   el,
   focusDestination,
   iconTemplate,
+  keeps,
   LeafElement,
   offered,
   offeredAction,
   onCurrentLocation,
-  rove,
   rowWalk,
   shadowStage,
   tabStore,
@@ -256,6 +255,11 @@ customElements.define(
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
+      // The menu's one Tab stop is `stop`; the arrows reach the other rows.
+      /** @param {Element | null | undefined} stop */
+      const roveTo = (stop) => {
+        for (const row of choiceRows()) keeps(row, "tabindex", row === stop ? 0 : -1);
+      };
       const putChoicesAway = () => {
         choices().hidePopover();
         focusDestination(conflictControl(), "return");
@@ -273,7 +277,7 @@ customElements.define(
       /** @param {ToggleEvent} event */
       const choiceOpened = (event) => {
         if (event.newState !== "open") return;
-        rove(choiceRows(), controls.first);
+        roveTo(controls.first);
         focusDestination(controls.first, "move");
       };
       const choiceKeys = [
@@ -284,7 +288,7 @@ customElements.define(
           rows: choiceRows,
           // A menu names its rows' places to a screen reader itself.
           position: () => null,
-          landed: (row) => rove(choiceRows(), row),
+          landed: roveTo,
         }),
         {
           id: "file.choice.close",
@@ -366,7 +370,9 @@ customElements.define(
         if (!of.slow) return;
         of.slow = false;
         if (of === file && !of.failure && !of.latest && !dirty(of))
-          announce("Changes saved.");
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", { detail: "Changes saved." }),
+          );
       }
       // A failure or conflict arriving on a file the reader has left is news once, as
       // the open file's is (`#drawn`), and the file names itself.
@@ -375,10 +381,12 @@ customElements.define(
         const news = of.failure ?? of.latest;
         if (of === file || !news || news === of.spoken) return;
         of.spoken = news;
-        announce(
-          of.failure
-            ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
-            : `${label(of)} changed on disk. The draft is kept.`,
+        window.dispatchEvent(
+          new CustomEvent("lf-announce", {
+            detail: of.failure
+              ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
+              : `${label(of)} changed on disk. The draft is kept.`,
+          }),
         );
       }
       // A paint draws now, since what follows it reads the controls it drew.
@@ -429,10 +437,12 @@ customElements.define(
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)
-          announce(
-            of.failure
-              ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
-              : "The file changed on disk. The draft is kept.",
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", {
+              detail: of.failure
+                ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
+                : "The file changed on disk. The draft is kept.",
+            }),
           );
         of.spoken = news;
         if (of.comparing && of.latest) {
@@ -633,7 +643,9 @@ customElements.define(
             of.slow = true;
             of.slowTimer = null;
             if (of !== file) return;
-            announce("Saving changes.");
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", { detail: "Saving changes." }),
+            );
             paint();
           }, 1000);
         if (of === file) paint();

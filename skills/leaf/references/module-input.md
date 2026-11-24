@@ -245,8 +245,8 @@ obligation; a module asks it whether the user is on its content from either.
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
-of controls the user moves through with arrow keys offers one Tab stop with
-`rove(items, stop)`.
+of controls the user moves through with arrow keys offers one Tab stop: the control
+the arrows last reached has `tabindex="0"` and the others `-1`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
 events. `begin(pointerdown, path)`, a passive listener, may return
@@ -330,7 +330,6 @@ Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;
 meanwhile the page applies no revision or undo. A widget whose drag moves its own nodes
 holds its drawing with `defer()` (`module-state.md`, "The widget controller").
-`motionPreview(label)` makes the image that follows the pointer.
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each

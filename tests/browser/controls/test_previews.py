@@ -1517,7 +1517,7 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     engine, request, serve
 ):
     """An element whose aim moves inside it, as a chart's point does, says its preview
-    changed (`previewChanged`): the preview standing for it reads the element again and
+    changed (`lf-preview`): the preview standing for it reads the element again and
     draws the new words where it stands, still open, for a resting pointer and for the
     keyboard's focus."""
     page = open_page(
@@ -1540,9 +1540,8 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     value = page.locator("#value")
     tip = page.locator(PREVIEW)
     moved = """async () => {
-      const {previewChanged} = await window.__lfWidgetApi();
       window.lfPoint += 1;
-      previewChanged(document.getElementById('value'));
+      document.getElementById('value').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
     }"""
 
     page.mouse.move(2, 2)
@@ -2175,8 +2174,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
         }"""
     )
     changed = """async (id) => {
-      const {previewChanged} = await window.__lfWidgetApi();
-      previewChanged(document.getElementById(id));
+      document.getElementById(id).dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
     }"""
     tip = page.locator(PREVIEW)
     page.locator("#before").focus()
@@ -2192,9 +2190,8 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     # A new point aimed at inside it is a new target, which shows again.
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           window.lf.point = 3;
-          previewChanged(document.getElementById('chart'), {aim: true});
+          document.getElementById('chart').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {aim: true}}));
         }"""
     )
     expect(tip).to_have_text("Point 3")
@@ -2766,11 +2763,10 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
     assert not short["meets"], short
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           const aim = document.getElementById('aim');
           aim.lfPreview = () => ({name: 'Preview words', detail: [1, 2, 3, 4]
             .map((n) => `Additional detail on line ${n}`)});
-          previewChanged(aim);
+          aim.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     expect(tip.locator(".lf-preview-detail")).to_have_count(4)
@@ -2791,7 +2787,6 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
     expect(tip).to_be_hidden()
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           for (const id of ['aim', 'next']) document.getElementById(id).remove();
           const chart = document.createElement('div');
           chart.id = 'chart';
@@ -2807,7 +2802,7 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
             if (event.key !== 'F10') return;
             window.pointX = 700;
             Object.assign(at, {left: 700, right: 710});
-            previewChanged(chart);
+            chart.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
           });
           const toChart = document.createElement('button');
           toChart.id = 'to-chart';
@@ -3029,8 +3024,7 @@ def test_a_line_that_ends_in_an_ellipsis_keeps_to_its_room(engine, request, serv
           probe.remove();
           if (!fills) throw new Error('no line fills the face');
           window.lfDetail = [text, 'And the paragraph after it.'];
-          const {previewChanged} = await window.__lfWidgetApi();
-          previewChanged(document.getElementById('aim'));
+          document.getElementById('aim').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     expect(tip.locator(".lf-preview-detail").nth(1)).to_have_text(
@@ -3055,7 +3049,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     engine, request, serve
 ):
     """A widget that declares its preview while a control inside it holds focus says
-    the user aimed at something new (`previewChanged` with `aim`): the preview reads
+    the user aimed at something new (`lf-preview` with `aim`): the preview reads
     the widget again, and after Escape put it away the next aim shows it again."""
     page = open_page(
         request.getfixturevalue(engine),
@@ -3076,7 +3070,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     tip = page.locator(PREVIEW)
     aim = """(words) => {
       window.label = words;
-      window.lfApi.previewChanged(document.getElementById('host'), {aim: true});
+      document.getElementById('host').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {aim: true}}));
     }"""
     page.keyboard.press("Shift")
     page.evaluate(
@@ -3241,7 +3235,7 @@ def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
     page.evaluate(
         """() => {
           window.lfSays = false;
-          window.lfApi.previewChanged(document.getElementById('pointed'));
+          document.getElementById('pointed').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     dwelt(page)
@@ -3354,9 +3348,8 @@ def test_words_that_grow_keep_a_place_that_held_exactly_one_line(
     assert (before["x"], before["y"]) == (first["x"], first["y"]), (first, before)
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           window.lfLong = true;
-          previewChanged(document.getElementById('aim'));
+          document.getElementById('aim').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     expect(tip.locator(".lf-preview-word")).to_contain_text("growing")
@@ -3488,7 +3481,7 @@ def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serv
           // The point under the pointer, 10 px above it, as a chart's is.
           drawing.addEventListener('pointermove', (event) => {
             window.at = event.clientY - 10;
-            api.previewChanged(drawing, {aim: true});
+            drawing.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {aim: true}}));
           });
         }"""
     )
@@ -4080,8 +4073,7 @@ def test_a_standing_preview_redrawn_over_a_control_that_arrived_moves_clear(
             + ' height: 30px; padding: 0';
           next.onclick = () => { window.pressed += 1; };
           document.body.append(next);
-          const {previewChanged} = await window.__lfWidgetApi();
-          previewChanged(document.getElementById('aim'));
+          document.getElementById('aim').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }""",
         [box["x"] + 10, box["y"] + box["height"] / 2],
     )

@@ -27,8 +27,9 @@ within `root`, or the whole document, including the shadow trees `getElementById
 misses. `under(node, root)` says whether `node` is in `root` across shadow boundaries,
 and `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread
 reply is. A widget that acts on the document around it, as a contents list does, reads
-it with `viewDocument(node)`: the view member holding the node (`views`,
-`module-authoring.md`), else the `main` holding it, else null.
+it with `node.closest("[data-lf-views] > *, main")`: the view member holding the node
+(`views`, `module-authoring.md`), whose holder Leaf marks `data-lf-views`, else the
+`main` holding it, else null.
 
 ### Naming elements
 
@@ -247,7 +248,7 @@ arrives. Each `source.kind` adds its own facts:
 
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
+  settling reaction). Once its
   thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's

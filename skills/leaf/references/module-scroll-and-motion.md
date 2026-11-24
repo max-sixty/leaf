@@ -279,11 +279,12 @@ It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 
 ## Notices and spoken words
 
-`announce(message)` announces words already on screen: it dispatches an `lf-announce`
-event on the window carrying `message` as its `detail`, which Leaf says in its live
-region and a page without Leaf leaves unsaid. A `message` that reads the page, as one
-naming keys with `saying(rows)` does, is a function returning the words, which Leaf
-reads as it says them.
+To announce words already on screen, dispatch an `lf-announce` event on the window
+with the words as its `detail`:
+`window.dispatchEvent(new CustomEvent("lf-announce", { detail: words }))`. Leaf says
+them in its live region, and a page without Leaf leaves them unsaid. Words that read
+the page, as ones naming keys with `saying(rows)` do, are a function returning the
+words, which Leaf reads as it says them.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

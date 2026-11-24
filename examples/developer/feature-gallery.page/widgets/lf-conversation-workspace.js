@@ -14,7 +14,6 @@ import {
   queueTitle,
   readObligations,
   answerWords,
-  answeredInWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -281,10 +280,7 @@ customElements.define(
       // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question asked in a message.
       const labels = items.all
-        .filter(
-          (item) =>
-            item.source.kind === "widget" && !answeredInWords(item) && item.answered,
-        )
+        .filter((item) => item.source.kind === "widget" && item.answered)
         .map(answerWords)
         .filter(Boolean);
       keepsText(

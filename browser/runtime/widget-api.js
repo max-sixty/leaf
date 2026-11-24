@@ -56,13 +56,13 @@ export { registerRootHeader } from "./root-headers.js";
 export { holdPlace, readingAt } from "./user-place.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; hearing each move of their current location with its cause; running something
-// once they move off an element, or once a press lands away from it (`onPressAway`); and
-// a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the
-// user to write Markdown in.
-export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
+// list; hearing each move of their current location with its cause; and running
+// something once they move off an element, or once a press lands away from it
+// (`onPressAway`). TEXT_FIELD is the tag of the box a widget offers for the user to write
+// Markdown in.
+export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
-export { answeredInWords, readObligations } from "./obligations/model.js";
+export { readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them
 // reads, and which regions hold a widget that asks the user something, including one
 // whose obligation the inventory hasn't listed yet or lists as withdrawn.
@@ -152,17 +152,11 @@ export {
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
+export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
-export {
-  dragging,
-  el,
-  motionPreview,
-  reachedForWords,
-  worksInside,
-} from "./widget-elements.js";
+export { dragging, el, reachedForWords, worksInside } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

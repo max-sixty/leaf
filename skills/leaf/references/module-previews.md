@@ -58,17 +58,18 @@ come back the same leave the preview as it is. It returns:
 
 What it throws is reported, and nothing shows. Where what an element previews changes
 while the user's aim stays on it, as a chart's pointer, key or finger reaches another
-point, or a grip's words stop being true once its card is grabbed, the widget calls
-`previewChanged(element)`, from `portable-api.js` (`widget-api.js` re-exports it): Leaf
-calls `lfPreview` again and redraws a standing preview where it stands, or shows the
-new one to a pointer resting on the element or a finger holding it, and off Leaf the
-call does nothing. It never brings back a preview the user put away, nor opens one on
+point, or a grip's words stop being true once its card is grabbed, the widget
+dispatches a composed `lf-preview` event at the element,
+`element.dispatchEvent(new CustomEvent("lf-preview", { bubbles: true, composed: true }))`:
+Leaf calls `lfPreview` again and redraws a standing preview where it stands, or shows
+the new one to a pointer resting on the element or a finger holding it, and off Leaf
+nothing hears it. It never brings back a preview the user put away, nor opens one on
 focus: only the user aiming again does. Where the user aimed at something new inside the
-element, as a chart's pointer or arrow key reaching another point, the widget says so,
-`previewChanged(element, {aim: true})`, and the new target shows its preview whatever
+element, as a chart's pointer or arrow key reaching another point, the widget says so
+with `detail: { aim: true }` on the event, and the new target shows its preview whatever
 put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
 reads, as a chart's ring on the point it names, comes off when Leaf dispatches
-`PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
+`PREVIEW_ENDED` (`"lf-preview-ended"`, from `portable-api.js`) at the element, a
 `CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
 reading that ended, as the preview goes for any reason: the pointer or focus leaving,
 the pointer leaving the window, the next touch after a finger's hold, Escape, or

@@ -95,7 +95,6 @@ import {
   holdFocus,
   actionTemplate,
   iconTemplate,
-  inBaseLayer,
   offered,
   offeredAction,
   keeps,
@@ -129,7 +128,7 @@ import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 if (!document.querySelector("#lf-trace-library-styles")) {
   const styles = document.createElement("style");
   styles.id = "lf-trace-library-styles";
-  styles.textContent = inBaseLayer(`@scope (lf-trace) { ${imageCss} }`);
+  styles.textContent = `@layer lf-base {\n@scope (lf-trace) { ${imageCss} }\n}`;
   document.head.append(styles);
 }
 

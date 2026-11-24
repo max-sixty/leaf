@@ -399,23 +399,37 @@ def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
 
 def test_a_goal_counts_only_the_steps_that_ended_done(task_log):
     """A to-do that failed ended, but finished nothing, so its goal reads none done
-    and failed."""
+    and failed, as it does where the failed to-do stands deeper under a step that
+    finished."""
     append, log = task_log
     todo = append("todo", subject={"kind": "page"}, title="Rebuild the chart")
     append("todo_end", todo=todo["id"], outcome="failed", detail="The data is gone")
-    append(
-        "plan",
-        steps=[
-            {"depth": 0, "title": "Chart the year"},
-            {"depth": 1, "item": todo["id"]},
-        ],
+    published = append("todo", subject={"kind": "page"}, title="Publish the chart")
+    append("todo_end", todo=published["id"], outcome="done", detail="On the site")
+
+    def goal_of(steps):
+        append("plan", steps=steps)
+        reading = plans_model.plan_reading(
+            log, set(), todos_model.TodoReading(log).todos
+        )
+        assert reading is not None
+        [goal] = reading["steps"]
+        return goal
+
+    goal = goal_of(
+        [{"depth": 0, "title": "Chart the year"}, {"depth": 1, "item": todo["id"]}]
     )
-    reading = plans_model.plan_reading(log, set(), todos_model.TodoReading(log).todos)
-    assert reading is not None
-    [goal] = reading["steps"]
     [step] = goal["steps"]
     assert (step["state"], step["outcome"]) == ("done", "failed")
     assert (goal["outcome"], goal["done"], goal["total"]) == ("failed", 0, 1)
+    goal = goal_of(
+        [
+            {"depth": 0, "title": "Chart the year"},
+            {"depth": 1, "item": published["id"]},
+            {"depth": 2, "item": todo["id"]},
+        ]
+    )
+    assert (goal["outcome"], goal["done"], goal["total"]) == ("failed", 1, 1)
 
 
 def test_a_plan_step_reads_its_todo_stopped_once_the_turn_that_started_it_ends(

@@ -13,15 +13,16 @@ No step's standing is written into the plan. A step naming an item reads the ite
 standing as the page serves it, a to-do's start as activity has aged it
 (`WorkReading.plan`), and a heading reads the records its steps name as any place
 holding several records does (`standing.leading`), and once none is open, done, or
-failed where one failed. So the plan stays true after the agent stops: a start that
-outlived its turn reads blocked (`activity`), and the steps read what was finished and
-what is still owed. A standing the plan's writer sets, the alternative, holds until the
-next rewrite, so a step the agent left reads under way long after its turn ended, and
-the step has no end that could say where its result is. Each step of work is therefore a record with an end of its own: the agent's a
-to-do, which `leaf task end` ends with where its result is (`detail`), the user's an
-obligation. `leaf task plan` opens a to-do for each step written as `todo` and names it
-in the plan by its id (`cmd_plan`), so an outline of new work is one command, and a
-later rewrite names that step by the id the plan printed.
+failed where one of them failed, however deep. So the plan stays true after the agent
+stops: a start that outlived its turn reads blocked (`activity`), and the steps read
+what was finished and what is still owed. A standing the plan's writer sets, the
+alternative, holds until the next rewrite, so a step the agent left reads under way long
+after its turn ended, and the step has no end that could say where its result is. Each
+step of work is therefore a record with an end of its own: the agent's a to-do, which
+`leaf task end` ends with where its result is (`detail`), the user's an obligation.
+`leaf task plan` opens a to-do for each step written as `todo` and names it in the plan
+by its id (`cmd_plan`), so an outline of new work is one command, and a later rewrite
+names that step by the id the plan printed.
 
 The plan keeps the breakdown apart from what is owed. A to-do or an obligation keeps its
 own owner, rules and end (`todos`, `obligations`); a plan only arranges them under
@@ -178,24 +179,25 @@ def _settle(node: dict, by_id: dict[str, dict]) -> list[dict]:
     beneath: list[dict] = []
     for child in node["steps"]:
         beneath.extend(_settle(child, by_id))
-    kept = [child for child in node["steps"] if child["outcome"] != "dropped"]
     if node["item"] is None:
-        node.update(_heading_standing(beneath, kept))
+        node.update(_heading_standing(beneath))
+    kept = [child for child in node["steps"] if child["outcome"] != "dropped"]
     node["done"] = sum(child["outcome"] == "done" for child in kept)
     node["total"] = len(kept)
     own = by_id.get(node["item"]["id"]) if node["item"] else None
     return [*beneath, own] if own else beneath
 
 
-def _heading_standing(beneath: list[dict], kept: list[dict]) -> dict:
-    """A heading's standing: that of the open record `leading` picks among `beneath`,
-    the records its steps name; once none is open, dropped with no step kept, failed
-    where one of `kept`, its steps not dropped, failed, and done otherwise."""
+def _heading_standing(beneath: list[dict]) -> dict:
+    """A heading's standing from `beneath`, the records its steps name at any depth:
+    that of the open record `leading` picks, and once none is open, dropped where every
+    one was dropped, failed where one failed, and done otherwise."""
     if lead := leading(beneath):
         return {key: lead[key] for key in _STANDING}
+    kept = [record for record in beneath if record["outcome"] != "dropped"]
     if not kept:
         return ended("dropped")
-    failed = any(step["outcome"] == "failed" for step in kept)
+    failed = any(record["outcome"] == "failed" for record in kept)
     return ended("failed" if failed else "done")
 
 

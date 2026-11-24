@@ -10,7 +10,7 @@ module owes.
 A pane widget declares `reading-role: pane` and `content: markup`, and holds one
 body element, with an optional native `header` before it and `footer` after. Whether a
 pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
-module's, and either way the module registers the body as a reading region, below.
+module's, and either way the module marks the body as a reading region, below.
 
 While the workspace fills the window, the Layout sets `--lf-full-height: 1` on `main` and
 on a grid of panes, telling their children they have a definite height to fill. A
@@ -35,27 +35,32 @@ beside its preview. Mark it `data-lf-track`, and the Layout keeps it visible whi
 window scrolls the taller content beside it, as with a sidebar page's track. When the
 module stacks the track with the content, as on a phone, it declares
 `--lf-track-scroll-behavior: flow` on the track's parent, and the track scrolls with
-the page. Register the track as a reading region, since it may scroll.
+the page. Mark the track as a reading region, since it may scroll.
 
 A horizontal scroll surface a module builds wears `data-lf-scroll` on its actual
 viewport and declares overflow in its CSS; the page's own markup says the same with
 `class="lf-scroll"` (`page-authoring.md`), a name the module leaves to the page, so the
 page's CSS for it reaches only the page's own boxes. The mark supplies containment. Leaf adds keyboard
 access and continuation cues, inspecting these surfaces for overflow instead of reading
-every descendant's styles. A reading region's body receives the mark when it
-registers; its CSS still decides whether the region scrolls or flows.
+every descendant's styles. A reading region's body wears the mark with a name, below;
+its CSS still decides whether the region scrolls or flows.
 Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
 keyboard focus counts the header's own inset as visible.
 
-Register the pane's body, and any other box the widget may scroll, with
-`registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
-function it gives back as the cleanup. `body` is the box that may scroll, and `host` the
-pane around it, so focus in the pane's header counts as being in the pane. Leaf then
-keeps the user's place in the box. Registering an id that another live region holds
-throws, so a widget whose parts scroll independently registers each with an id from
-`compoundReadingRegionId(owner, localName)`.
+Mark the pane's body, and any other box the widget may scroll,
+`data-lf-scroll="NAME"`. A box that wears the mark with a name is a reading region for
+as long as it stands in the page, and Leaf keeps the user's place in it. Where focus
+beside the box should count as being in the region, as in a pane's header, mark the box
+around both `data-lf-scroll-host="NAME"`. The module registers nothing and cleans
+nothing up: Leaf knows the region in the task that marks the box, and a box that
+replaces a marked one takes over its region. Leaf keeps the place across revisions
+under the name and the id of the nearest element that has one, starting from the host
+or, without one, from the box. So a name need only differ from the others under that
+element, and Leaf reports a second box that takes a name already in use there as the
+page's error. Leaf reads the marks in a shadow root whose host has said `lf-connect`
+(`module-plain-elements.md`).
 
-Give `body` a scrolling overflow (`auto` or `scroll`) only on an axis where its
+Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of
 a comment on its contents, so a body sized to show everything it holds, as a
 screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where it
@@ -68,8 +73,8 @@ When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
 regions shown once `change`'s promise resolves. A region that shows one subject of
 several at a time, as a trace's saved tree shows one checkpoint, replaces its body's
-contents inside `showReadingSubject(id, subject, render)`, and the user returns to their
-place in each subject.
+contents inside `showReadingSubject(body, subject, render)`, and the user returns to
+their place in each subject.
 
 ### Holding the reader's place
 

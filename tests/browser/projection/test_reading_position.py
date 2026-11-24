@@ -850,16 +850,11 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "</lf-owned-scroll>",
     }
     module = """
-import {registerReadingRegion} from '/runtime/widget-api.js';
 customElements.define('lf-owned-scroll', class extends HTMLElement {
-  #stop = null;
   connectedCallback() {
-    const body = this.querySelector(':scope > [data-scroll-body]');
-    this.#stop = registerReadingRegion({id: this.id, host: this, body});
-  }
-  disconnectedCallback() {
-    this.#stop?.();
-    this.#stop = null;
+    this.setAttribute('data-lf-scroll-host', 'body');
+    this.querySelector(':scope > [data-scroll-body]')
+      .setAttribute('data-lf-scroll', 'body');
   }
 });
 """

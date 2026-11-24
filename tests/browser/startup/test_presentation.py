@@ -12,7 +12,9 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    said,
     stamp_page,
+    take_browser_errors,
     wait_for_revision,
     watched,
 )
@@ -457,9 +459,10 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
 def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a_shift(
     browser, serve
 ):
-    """A region is bounded exactly when the stylesheet makes its body scroll, a flowing
-    region is carried by the one containing it, and a scroller change is announced once
-    the new geometry exists. Nothing is told the scroll behavior: a class stands in for the
+    """A box marked `data-lf-scroll="name"` is a region from the task that marks it. It
+    is bounded exactly when the stylesheet makes its body scroll, a flowing region is
+    carried by the one containing it, and a scroller change is announced once the new
+    geometry exists. Nothing is told the scroll behavior: a class stands in for the
     container query that decides it on a page."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
@@ -470,11 +473,14 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           const main = document.querySelector('main');
           const outer = document.createElement('section');
           outer.id = 'outer-host';
+          outer.setAttribute('data-lf-scroll-host', 'pane');
           outer.innerHTML = `
             <header><button id="pane-heading">Pane heading</button></header>
-            <div id="outer-body"><section id="preview-host">
-              <div id="preview-body">${'<p>Preview body</p>'.repeat(20)}</div>
-            </section>${'<p>Outer body</p>'.repeat(20)}</div>`;
+            <div id="outer-body" data-lf-scroll="pane">
+              <section id="preview-host" data-lf-scroll-host="preview">
+                <div id="preview-body" data-lf-scroll="preview">
+                  ${'<p>Preview body</p>'.repeat(20)}</div>
+              </section>${'<p>Outer body</p>'.repeat(20)}</div>`;
           main.append(outer);
           const outerBody = outer.querySelector('#outer-body');
           const previewHost = outer.querySelector('#preview-host');
@@ -486,7 +492,6 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
             .held.preview-flows #preview-body { height: auto; overflow: visible; }`;
           document.head.append(style);
 
-          const previewId = leaf.compoundReadingRegionId(outer, 'preview');
           const scrollerName = (scroller) =>
             scroller === document.scrollingElement ? 'document' : scroller.id;
           const shifts = [];
@@ -498,13 +503,13 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
             shifted();
           });
           const nextShift = () => new Promise(resolve => { shifted = resolve; });
-          const stopOuter = leaf.registerReadingRegion(
-            {id: 'outer-pane', host: outer, body: outerBody});
-          const stopPreview = leaf.registerReadingRegion(
-            {id: previewId, host: previewHost, body: previewBody});
+          // Each region is known in the task that put its marked box in the page, and
+          // is named after its host.
+          const outerId = leaf.readingRegionFor(outerBody).id;
+          const previewId = leaf.readingRegionFor(previewBody).id;
           await frames();
           const flow = {
-            outer: scrollerName(leaf.effectiveScroller('outer-pane')),
+            outer: scrollerName(leaf.effectiveScroller(outerId)),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
             scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
@@ -516,7 +521,7 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           await shift;
           await frames();
           const held = {
-            outer: scrollerName(leaf.effectiveScroller('outer-pane')),
+            outer: scrollerName(leaf.effectiveScroller(outerId)),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
             scroll_behavior: leaf.regionScrollBehavior(previewId),
             focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
@@ -536,22 +541,33 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           const { shownRegionBounds } = await window.__lfCheckApi();
           const hiddenBounds = shownRegionBounds(previewId);
 
-          let refused;
-          try {
-            leaf.registerReadingRegion({id: previewId, host: outer, body: outerBody});
-          } catch (error) {
-            refused = error.message;
-          }
+          // A second box the same host names alike is no region: the first keeps it.
+          const twin = document.createElement('div');
+          twin.setAttribute('data-lf-scroll', 'pane');
+          outer.querySelector('header').append(twin);
+          const kept = leaf.readingRegion(outerId).body === outerBody
+            && leaf.readingRegions().every(({body}) => body !== twin);
+          twin.remove();
+
+          // A box that replaces another takes the id the other held, in one task.
           previewHost.remove();
           const replacement = document.createElement('section');
-          replacement.innerHTML = '<div>Replacement</div>';
+          replacement.id = 'preview-host';
+          replacement.setAttribute('data-lf-scroll-host', 'preview');
+          replacement.innerHTML = '<div data-lf-scroll="preview">Replacement</div>';
           outerBody.append(replacement);
-          const reclaim = leaf.registerReadingRegion({
-            id: previewId,
-            host: replacement,
-            body: replacement.firstElementChild,
-          });
           const reclaimed = leaf.readingRegion(previewId).host === replacement;
+
+          // A host marked after its body's region was read becomes that region's host.
+          const late = document.createElement('section');
+          late.id = 'late-host';
+          late.innerHTML = '<header><button>Late heading</button></header>'
+            + '<div data-lf-scroll="late">Late body</div>';
+          main.append(late);
+          const unhosted = leaf.readingRegionFor(late.querySelector('button'))?.id;
+          late.setAttribute('data-lf-scroll-host', 'late');
+          const hosted = leaf.readingRegionFor(late.querySelector('button'))?.id;
+          late.remove();
 
           // A second composition change supersedes an unfinished first: both announce
           // their start, and only the newer one reports where it ended.
@@ -568,16 +584,16 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           await first;
 
           unwatchPhases();
-          reclaim();
-          stopPreview();
-          stopOuter();
           unwatch();
           outer.remove();
           style.remove();
-          return {flow, held, previewFlows, shifts, hiddenBounds, refused, reclaimed,
-                  phases};
+          return {outerId, previewId, flow, held, previewFlows, shifts, hiddenBounds,
+                  kept, reclaimed, unhosted, hosted, phases,
+                  left: leaf.readingRegion(outerId) === undefined};
         }"""
     )
+    outer, preview = "lf-region:outer-host:pane", "lf-region:preview-host:preview"
+    assert (readings["outerId"], readings["previewId"]) == (outer, preview)
     assert readings["flow"] == {
         "outer": "document",
         "preview": "document",
@@ -587,23 +603,38 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
         "outer": "outer-body",
         "preview": "preview-body",
         "scroll_behavior": "bounded",
-        "focusRegion": "outer-pane",
+        "focusRegion": outer,
     }
     assert readings["previewFlows"] == {
         "preview": "outer-body",
         "scroll_behavior": "flow",
     }
-    preview = "lf-region:outer-host:preview"
     assert readings["shifts"] == [
         [
+            [outer, "document", "outer-body"],
             [preview, "document", "preview-body"],
-            ["outer-pane", "document", "outer-body"],
         ],
         [[preview, "preview-body", "outer-body"]],
     ]
     assert readings["hiddenBounds"] is None
-    assert readings["refused"] == f"leaf: reading region {preview} is already live"
+    assert readings["kept"] is True
+    # The page hears of the twin twice, as an uncaught error and in Leaf's report of it.
+    for _ in range(200):
+        if len(page.lf_errors) == 2:
+            break
+        page.wait_for_timeout(25)
+    refusals = [said(error) for error in take_browser_errors(page)]
+    assert len(refusals) == 2, refusals
+    assert all(
+        f"leaf: reading region {outer} is already live" in refusal
+        for refusal in refusals
+    ), refusals
     assert readings["reclaimed"] is True
+    assert (readings["unhosted"], readings["hosted"]) == (
+        None,
+        "lf-region:late-host:late",
+    )
+    assert readings["left"] is True
     assert readings["phases"] == [
         ["before", False],
         ["before", True],
@@ -612,9 +643,10 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
 
 
 def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, serve):
-    """A pane's region is its one body element: replacing the body re-registers the same
-    id, leaving the document retires it, and returning restores it with the user's
-    draft untouched, since no wrapper is built around what the author wrote."""
+    """A pane's region is its one body element, named after the pane: a body that
+    replaces it takes the same id, leaving the document retires it, and returning
+    restores it with the user's draft untouched, since no wrapper is built around what
+    the author wrote."""
     page = open_page(
         browser,
         serve(
@@ -632,7 +664,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
           const leaf = await Promise.all([window.__lfWidgetApi(),window.__lfCheckApi()]).then(parts=>Object.assign({},...parts));
           const main = document.querySelector('main');
           const pane = document.querySelector('#moving-pane');
-          const first = leaf.readingRegion('moving-pane')?.body.id;
+          const first = leaf.readingRegion('lf-region:moving-pane:body')?.body.id;
           const authored = [...pane.childNodes];
 
           const next = document.createElement('div');
@@ -640,13 +672,13 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
           next.innerHTML = '<input value="Authored">';
           pane.querySelector('#first-body').replaceWith(next);
           await new Promise(resolve => setTimeout(resolve));
-          const replaced = leaf.readingRegion('moving-pane')?.body.id;
+          const replaced = leaf.readingRegion('lf-region:moving-pane:body')?.body.id;
 
           pane.querySelector('input').value = 'User draft';
           pane.remove();
-          const retired = leaf.readingRegion('moving-pane') === undefined;
+          const retired = leaf.readingRegion('lf-region:moving-pane:body') === undefined;
           main.append(pane);
-          const restored = leaf.readingRegion('moving-pane')?.body.id;
+          const restored = leaf.readingRegion('lf-region:moving-pane:body')?.body.id;
           const value = pane.querySelector('input').value;
           const label = pane.getAttribute('aria-label');
           pane.remove();

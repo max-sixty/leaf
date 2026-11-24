@@ -82,9 +82,7 @@ export { scopedMediaUrl } from "./media.js";
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
-  compoundReadingRegionId,
   preserveReadingRegions,
-  registerReadingRegion,
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";

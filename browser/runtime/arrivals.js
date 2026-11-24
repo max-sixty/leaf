@@ -24,7 +24,8 @@
    one batch; an explicit offer is a batch of one. `watchArrivals` returns `offer(el)`,
    which decides one element at once rather than at the next mutation delivery. It
    first reads the mutations already made as a batch, so a decision made now never
-   runs ahead of a departure made before it.
+   runs ahead of a departure made before it. Called with no element it only reads
+   them, for an owner whose readers ask what stands now (reading-regions.js).
 
    An element's connection lifetime is one such watch over the elements a subscription
    stands on, which can be any element: `watchOwner(owner, {connect, disconnect})`
@@ -317,9 +318,11 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   const watch = { kind, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
-  return (/** @type {Element} */ el) => {
-    read(observer.takeRecords());
-    offer(el);
+  /** @param {Element} [el] */
+  return (el) => {
+    const made = observer.takeRecords();
+    if (made.length) read(made);
+    if (el) offer(el);
   };
 }
 

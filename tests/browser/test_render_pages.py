@@ -3320,11 +3320,9 @@ def test_document_reading_survives_width_reflow(browser, serve, local_region):
             )
     page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
     if local_region:
-        page.evaluate("""async () => {
-          const {registerReadingRegion} = await window.__lfWidgetApi();
-          const body = document.querySelector('#local-region');
-          registerReadingRegion({id: body.id, host: body, body});
-        }""")
+        page.locator("#local-region").evaluate(
+            "body => body.setAttribute('data-lf-scroll', 'local')"
+        )
     resized(page, 1440, 900)
     page.get_by_role("link", name="Read phase 3", exact=True).click()
     page.keyboard.press("Escape")

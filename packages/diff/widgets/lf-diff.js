@@ -35,8 +35,6 @@ import {
   beginWalk,
   failSoft,
   focusDestination,
-  generated,
-  generatedElement,
   holdFocus,
   inChrome,
   nameAction,
@@ -239,7 +237,7 @@ function lineNumber(line, canComment) {
   // Two cells, the old file's number and the new file's, as a unified diff reads: one
   // column holding whichever number a row has would mix the two files' counts, which
   // drift apart once a hunk adds or removes lines.
-  generatedElement(number, { says: "echo" });
+  number.toggleAttribute("data-lf-echo", true);
   number.replaceChildren(
     ...[
       line.side === "new" ? "" : line.oldLine,
@@ -416,7 +414,7 @@ function paintSummary(view, record, verified = true) {
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
-        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
             ><span class="lf-diff-additions">+${additions}</span>${" "}<span
               class="lf-diff-deletions"
               >−${deletions}</span
@@ -638,7 +636,7 @@ function diffTools(host) {
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
-  generatedElement(progress, { says: false });
+  keeps(progress, "data-lf-gen", "1");
   progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
@@ -701,7 +699,7 @@ function paintFileDetails(view, record) {
   if (!evidence) {
     evidence = document.createElement("div");
     evidence.className = "lf-diff-evidence";
-    generatedElement(evidence, { says: false });
+    keeps(evidence, "data-lf-gen", "1");
     header.after(evidence);
   }
   keepsText(evidence, words);
@@ -711,7 +709,7 @@ function paintFileDetails(view, record) {
 function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
-  generatedElement(row, { says: false });
+  keeps(row, "data-lf-gen", "1");
   render(
     html`${filePathTemplate(record)}<span class="lf-diff-stat"
         >${metadataWords(record)}</span
@@ -959,7 +957,7 @@ function fileError(view, error) {
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
-  generatedElement(box, { says: false });
+  keeps(box, "data-lf-gen", "1");
   box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
   restore?.(header);
@@ -1288,7 +1286,7 @@ customElements.define(
               refused: false,
               loading: null,
             });
-            generatedElement(entry.node, { says: false });
+            keeps(entry.node, "data-lf-gen", "1");
             if (entry.kind === "metadata") {
               entry.rendered = null;
               entry.renderKey = null;
@@ -1517,7 +1515,7 @@ customElements.define(
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
         }`;
-        generatedElement(outlet, { says: false });
+        keeps(outlet, "data-lf-gen", "1");
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",

@@ -2450,7 +2450,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     One reply holds both: the question wires up and its pick reaches the log,
     the exhibit beside it does neither, and the gutter marking it renders in the
     panel's narrower column as it does in the document. The theme's sample
-    rules and quoted()'s closest() both have to reach outside <main>, and
+    rules and the widgets' read of the exhibit mark both have to reach outside <main>, and
     nothing else in the suite renders a sample there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir

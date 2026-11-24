@@ -21,7 +21,6 @@ import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
-export { quoted } from "./widget-descriptors.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 
@@ -49,7 +48,6 @@ export { navigateToDatum } from "./application.js";
 // user sees, as scroll anchoring and the chrome leave it; `whenNone` hears when such a
 // reading stops holding.
 export { growthIsSeen, landingInsets, shownWindow, whenNone } from "./geometry.js";
-export { registerRootHeader } from "./root-headers.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
@@ -100,15 +98,7 @@ export {
   presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
-export {
-  inlineMarkdownFragment,
-  loadMarkdown,
-  markdownReady,
-  markdownWords,
-  markdownSourceOffset,
-  paintMarkdown,
-  renderMarkdown,
-} from "./markdown.js";
+export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
 export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
@@ -122,7 +112,6 @@ export {
   showReadingSubject,
 } from "./reading-regions.js";
 export { raiseError } from "./errors.js";
-export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";

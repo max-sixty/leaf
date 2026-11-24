@@ -1,13 +1,34 @@
-// One safe Markdown reading for every runtime and package surface. The parser stays
-// lazy because most pages contain no Markdown supplied at runtime; callers can paint
-// escaped source immediately and await this only when their own rendering needs it.
-import { opensElsewhere } from "./declared-words.js";
-import { describeFailure } from "./lib/exception.js";
-import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-import { declaredElements } from "./registry.js";
+/* Leaf's Markdown dialect: one reading of Markdown to HTML, in a message's reading and
+   a file's (`renderMarkdown`), the words a rendering shows (`markdownWords`), and the
+   source offset under a caret in a rendering (`markdownSourceOffset`). Python reads the
+   same dialect (`leaf.passages.markdown_dialect`), and the shared case files
+   (`tests/*markdown*_cases.json`, `tests/message_html_cases.json`) hold the two to the
+   same words.
+
+   A renderer returns an HTML string, such as for Lit's `unsafeHTML`;
+   `inlineMarkdownFragment` returns a fragment and `paintMarkdown` writes into an
+   element. Each is safe for any source, since it shows a tag as the words that spell it,
+   except `renderAuthoredMarkdown`, which keeps raw HTML. A destination the reading
+   doesn't admit leaves its words and no link. The caller passes `links`
+   (`MarkdownLinks`), which say how to write each link and picture the reading admits:
+   `{}` writes each as the source wrote it, and a Leaf page's are `pageLinks`, from
+   `/runtime/widget-api.js`.
+
+   The parser stays lazy, since most pages hold no Markdown supplied at runtime. Until
+   it loads, each renderer returns the escaped source; `loadMarkdown()` resolves once it
+   has, and `markdownReady()` says whether it has, so a widget showing changing prose
+   paints again then. */
 import { alignText } from "./text-alignment.js";
-import { dataBody } from "./widget-upgrade.js";
-import { offerContentElement } from "./element-markers.js";
+
+/** How a host writes the links and pictures a reading admits. `link(href)` gives
+ * attributes for a link's opening tag, an `href` among them taking the written one's
+ * place. `picture(image)` gives the node to write for an image the reading built: the
+ * image, changed or not, or an element holding it. The image stands in an inert
+ * document, where the browser fetches nothing, so `picture` makes any element it adds
+ * in `image.ownerDocument`: one from the live `document` would adopt the image there and
+ * fetch its source. Only the markup of what `picture` returns is kept.
+ * @typedef {{link?: (href: string) => Record<string, string> | undefined,
+ *   picture?: (image: HTMLImageElement) => Element}} MarkdownLinks */
 
 /** @typedef {import("markdown-it").Token} NativeToken
  * @typedef {import("markdown-it").MarkdownIt} MarkdownIt
@@ -32,11 +53,11 @@ const escapeHtml = (text) =>
 
 /** @param {string} text */
 const escapedSource = (text) => escapeHtml(text);
-/** @type {(text: string, message?: boolean) => string} */
+/** @type {(text: string, links: MarkdownLinks, message: boolean) => string} */
 let render = escapedSource;
-/** @type {(text: string, message?: boolean) => string} */
+/** @type {(text: string, links: MarkdownLinks, message: boolean) => string} */
 let renderInline = escapedSource;
-/** @type {(text: string) => string} */
+/** @type {(text: string, links: MarkdownLinks) => string} */
 let renderAuthored = escapedSource;
 /** @type {((source: string, message: boolean) => NativeToken[]) | null} */
 let tokenize = null;
@@ -53,17 +74,19 @@ let ready;
 // rather than its reader, four spaces after a blank line open code, and a line of `=`
 // or `-` underlines a heading. A Markdown body (`paintMarkdown`), such as a draft,
 // reads as a file.
-/** @param {string} text @param {boolean} [message] */
-export const renderMarkdown = (text, message = true) => render(text, message);
+/** @param {string} text @param {MarkdownLinks} links @param {boolean} [message] */
+export const renderMarkdown = (text, links, message = true) =>
+  render(text, links, message);
 // An agent's message holding HTML (`html` on its served message) reads as a message
-// that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`).
-// Every other reading shows a tag as the words that spell it, since what the user
-// types is no markup Leaf checked. The HTML reads by CommonMark's rules, as GitHub
-// reads a comment's, which agents already write to. Rejected: a widget's block running
-// past blank lines to its closing tag, and a `<code>` holding its words as written,
-// since no author knows either rule from Markdown.
-/** @param {string} text */
-export const renderAuthoredMarkdown = (text) => renderAuthored(text);
+// that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`),
+// so it is for markup its caller has already checked. Every other reading shows a tag
+// as the words that spell it, since what the user types is no markup Leaf checked. The
+// HTML reads by CommonMark's rules, as GitHub reads a comment's, which agents already
+// write to. Rejected: a widget's block running past blank lines to its closing tag,
+// and a `<code>` holding its words as written, since no author knows either rule from
+// Markdown.
+/** @param {string} text @param {MarkdownLinks} links */
+export const renderAuthoredMarkdown = (text, links) => renderAuthored(text, links);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 // With `imageAlt`, an image counts as the words its control is named by, its alt text,
@@ -86,78 +109,36 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt || "Image"));
   return fragment.textContent;
 }
+// A host's `links` change where a link or picture leads, never its words, so the words
+// take none.
 /** @param {string} text @param {boolean} [message] the reading (`renderMarkdown`) */
 export const markdownWords = (text, message = true) =>
-  renderedWords(renderMarkdown(text, message));
-/** @param {string} text @param {boolean} [message] */
-export const renderInlineMarkdown = (text, message = true) =>
-  renderInline(text, message);
+  renderedWords(renderMarkdown(text, {}, message));
+/** @param {string} text @param {MarkdownLinks} links @param {boolean} [message] */
+export const renderInlineMarkdown = (text, links, message = true) =>
+  renderInline(text, links, message);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
-/** @param {string} text @param {boolean} [message] */
-export function inlineMarkdownFragment(text, message = true) {
+/** @param {string} text @param {MarkdownLinks} links @param {boolean} [message] */
+export function inlineMarkdownFragment(text, links, message = true) {
   const parsed = document.createElement("template");
-  parsed.innerHTML = renderInlineMarkdown(text, message);
+  parsed.innerHTML = renderInlineMarkdown(text, links, message);
   return parsed.content;
 }
 
-// A declaration whose data body is Markdown words (`content: markdown`).
-/** @param {import("../types/contract.js").WidgetDeclaration} entry */
-const wordsAreMarkdown = (entry) => entry.content === "markdown";
-
-// A Markdown body (`content: markdown`) is the layer's to render, so a package
-// declaration cannot make file-side passages read words the browser leaves as raw
-// Markdown.
-/** @param {Element | Document | DocumentFragment} scope */
-export async function loadDeclaredMarkdown(scope) {
-  if (!declaredElements(scope, wordsAreMarkdown).length) return;
-  /** @type {unknown} */
-  let failure;
-  if (!(await loadMarkdown((error) => (failure = error))))
-    throw new Error(
-      `leaf: Markdown renderer failed to load: ${describeFailure(failure)}`,
-    );
-}
-
-// Each element declaring `content: markdown` shows its data body's rendering in place
-// of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
-// for typed state, revision patching and provenance; arrivals call this after capture,
-// before connection. Their import preparation has already made the parser ready, so
-// this step is synchronous.
-/** @param {Element | Document | DocumentFragment} scope */
-export function formatDeclaredMarkdown(scope) {
-  const elements = declaredElements(scope, wordsAreMarkdown);
-  if (!elements.length) return;
-  if (!tokenize)
-    throw new Error("leaf: Markdown formatting requires its loaded renderer");
-  for (const element of elements) {
-    const pre = element.querySelector(":scope > pre");
-    if (!pre) continue;
-    const body =
-      element.querySelector(":scope > .lf-markdown-body") ??
-      document.createElement("div");
-    if (body.className !== "lf-markdown-body") body.className = "lf-markdown-body";
-    paintMarkdown(body, dataBody(element));
-    body.removeAttribute("data-lf-prepaint");
-    body.removeAttribute("data-lf-gen");
-    pre.replaceWith(body);
-  }
-}
-
-// Keep the exact source on its reading surface. Passage capture reads the rendered
-// children; revision comparison reads source, so formatting never becomes state. The
-// body reads as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
+// Keep the exact source on its reading surface, as `data-lf-source-words`, which
+// `markdownSourceOffset` reads. Passage capture reads the rendered children; revision
+// comparison reads source, so formatting never becomes state. An element stamped with
+// this source already holds its rendering and is left as it is; a paint before the
+// parser loads leaves the element unstamped, so the next paint renders. The body reads
+// as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
 // (`leaf.passages.markdown_markup`) and the field editing it in place reads it
 // (composing/field-editor.js, `read`).
-/** @param {Element} element @param {string} source */
-export function paintMarkdown(element, source) {
-  if (
-    element.getAttribute("data-lf-source-words") === source &&
-    !element.hasAttribute("data-lf-prepaint")
-  )
-    return;
-  const markup = renderMarkdown(source, false);
-  if (element.getAttribute("data-lf-source-words") !== source)
-    element.setAttribute("data-lf-source-words", source);
+/** @param {Element} element @param {string} source @param {MarkdownLinks} links */
+export function paintMarkdown(element, source, links) {
+  if (element.getAttribute("data-lf-source-words") === source) return;
+  const markup = renderMarkdown(source, links, false);
+  if (markdownReady()) element.setAttribute("data-lf-source-words", source);
+  else element.removeAttribute("data-lf-source-words");
   if (element.innerHTML !== markup) element.innerHTML = markup;
 }
 
@@ -326,6 +307,7 @@ export function placedMarkdownTokens(source, message = true) {
                           parserItem(positions, a),
                           parserItem(positions, b),
                         ),
+                        {},
                       ),
                     )
                 : child.type === "html_inline"
@@ -672,6 +654,12 @@ function sourcePositions(markdown) {
   });
 }
 
+// A render's `links` ride in the parser's per-render `env`, which markdown-it hands
+// every rule, the nested renders of an image's label included.
+/** @param {unknown} env @returns {MarkdownLinks | undefined} */
+const linksOf = (env) =>
+  /** @type {{links?: MarkdownLinks} | undefined} */ (env)?.links;
+
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
@@ -758,15 +746,12 @@ export function makeMarkdown(module, message, html = false) {
   // pass. Entities and escapes are text there, just as they are in document prose.
   markdown.renderer.rules.text_special = (tokens, at) =>
     markdown.utils.escapeHtml(parserItem(tokens, at).content);
-  // Markdown can't say where a link opens, so this renderer, which writes the link's
-  // HTML, sends a link that leaves the page to a new tab. The page, and the thread the
-  // reader followed the link from, stay open where they were.
-  markdown.renderer.rules.link_open = (tokens, at, options, _env, renderer) => {
+  markdown.renderer.rules.link_open = (tokens, at, options, env, renderer) => {
     const token = parserItem(tokens, at);
     const href = token.lfSource?.url;
     if (href === null || href === undefined) return "";
-    if (isCanonicalMediaUrl(href)) token.attrSet("href", scopedMediaUrl(href));
-    else if (opensElsewhere(href)) token.attrSet("target", "_blank");
+    for (const [name, value] of Object.entries(linksOf(env)?.link?.(href) ?? {}))
+      token.attrSet(name, value);
     return renderer.renderToken(tokens, at, options);
   };
   markdown.renderer.rules.link_close = (tokens, at, options, _env, renderer) => {
@@ -786,23 +771,13 @@ export function makeMarkdown(module, message, html = false) {
     token.attrSet("alt", alt);
     if (href === null) return escapeHtml(alt);
     const markup = renderer.renderToken(tokens, at, options);
-    if (!isCanonicalMediaUrl(href)) return markup;
-    const image = renderedElement(markup, "img");
-    const source = scopedMediaUrl(href);
-    image.setAttribute("src", source);
-    // Only this button's markup is kept. `image` belongs to the parser's inert template
-    // document, and a button from the live `document` would adopt it there, where the
-    // browser fetches its source for an element nobody sees.
-    const button = offerContentElement(
-      image.ownerDocument.createElement("button"),
-      "picture",
-      "lf-media-open lf-message-media",
-    );
-    button.setAttribute("data-lf-said", "");
-    button.setAttribute("data-lf-media-url", source);
-    button.setAttribute("aria-label", `View ${alt || "Image"}`);
-    button.append(image);
-    return button.outerHTML;
+    const picture = linksOf(env)?.picture;
+    // The image stands in the parser's inert template document, where its source
+    // isn't fetched, and only the markup of what `picture` returns is kept.
+    return picture
+      ? picture(/** @type {HTMLImageElement} */ (renderedElement(markup, "img")))
+          .outerHTML
+      : markup;
   };
   return markdown;
 }
@@ -816,12 +791,13 @@ export function loadMarkdown(onError = null) {
     /** @param {boolean | undefined} message */
     const dialect = (message) =>
       message ? markdown : (file ??= makeMarkdown(module, false));
-    render = (text, message) => dialect(message).render(text);
-    renderInline = (text, message) => dialect(message).renderInline(text);
+    render = (text, links, message) => dialect(message).render(text, { links });
+    renderInline = (text, links, message) =>
+      dialect(message).renderInline(text, { links });
     /** @type {MarkdownIt | undefined} */
     let authored;
-    renderAuthored = (text) =>
-      (authored ??= makeMarkdown(module, true, true)).render(text);
+    renderAuthored = (text, links) =>
+      (authored ??= makeMarkdown(module, true, true)).render(text, { links });
     /** @type {Map<boolean, MarkdownIt>} */
     const positioned = new Map();
     tokenize = (text, message) => {

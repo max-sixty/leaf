@@ -3,7 +3,7 @@
  * pixels of replaced content, or SVG user units; and the conversion of a viewport
  * movement into a scroller's own offsets. Drawing records points in these frames, so
  * ink follows a transformed, zoomed or resized target. */
-import { scrollRange } from "./arrivals.js";
+import { scrollRange } from "./lib/scroll-range.js";
 import { shownBox } from "./geometry.js";
 import { elementBorderFrame, scrollAxes } from "./element-axes.js";
 export { scrollAxes } from "./element-axes.js";

@@ -6,7 +6,7 @@ import {
   waitedWords,
 } from "/runtime/change-provenance.js";
 import { runtime } from "/runtime/context.js";
-import { loadMarkdown } from "/runtime/markdown.js";
+import { loadMarkdown } from "/runtime/lib/markdown.js";
 import { wordsText } from "/runtime/voice.js";
 
 const said = (provenance) => provenance.lines.map((line) => wordsText(line));

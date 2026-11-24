@@ -80,7 +80,6 @@ import {
   LeafElement,
   offer,
   TEXT_FIELD,
-  quoted,
   sendDraft,
   raiseError,
   saveDraft,
@@ -89,10 +88,7 @@ import {
   watchDraft,
   whileConnected,
   reachedForWords,
-  paintMarkdown,
   dressCode,
-  markdownSourceOffset,
-  markdownWords,
   focusDestination,
   nextRender,
   retainUserIntent,
@@ -100,7 +96,13 @@ import {
   onPressAway,
   worksInside,
   commandsChanged,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import {
+  paintMarkdown,
+  markdownSourceOffset,
+  markdownWords,
+} from "/runtime/lib/markdown.js";
 
 // Each control's key and the action whose mark it shows.
 /** @type {[string, string][]} */
@@ -190,7 +192,7 @@ customElements.define(
       // A quoted draft is an exhibit: the same formatted text, none of the doors —
       // no controls, box press or editing shortcuts. Quoting
       // gates the action channel, not presentation.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
       // Capture only the pointer Discard's old allocation. The command still owns
@@ -279,7 +281,7 @@ customElements.define(
     }
 
     #watchDraft() {
-      if (quoted(this) || !this.#tools) return;
+      if (this.matches("[data-lf-exhibit] *") || !this.#tools) return;
       return watchDraft(
         ctx(this.id),
         (text) => {
@@ -302,7 +304,7 @@ customElements.define(
     }
 
     #offerControls() {
-      if (quoted(this) || this.#tools) return;
+      if (this.matches("[data-lf-exhibit] *") || this.#tools) return;
       this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
       // Its marks join into one toolbar (controls.css, `data-lf-joined`).
@@ -560,8 +562,8 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      paintMarkdown(this.#body, this.#savedText);
-      if (quoted(this)) return nothing;
+      paintMarkdown(this.#body, this.#savedText, pageLinks);
+      if (this.matches("[data-lf-exhibit] *")) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();

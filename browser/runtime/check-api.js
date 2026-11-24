@@ -115,7 +115,13 @@ export {
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
+export {
+  browserScrolls,
+  holdScroll,
+  scrolling,
+  setScroll,
+  watchScrollEnds,
+} from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -138,7 +144,6 @@ export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
-export { alignInlineText, alignText, sentenceUnits } from "./text-alignment.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";

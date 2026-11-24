@@ -7,7 +7,7 @@ const { foldThreads, lastMovedAt, moved, readThreadRecords } =
 const { threadAttention } = await import("/runtime/thread/workflow.js");
 const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
   await import("/runtime/thread/messages.js");
-const { loadMarkdown } = await import("/runtime/markdown.js");
+const { loadMarkdown } = await import("/runtime/lib/markdown.js");
 const { createThreadDestinations } = await import("/runtime/thread/destination.js");
 
 test("Thread destinations without a page preview retain canonical targets and shadow-held identity", async () => {
@@ -654,7 +654,7 @@ test("a step its turn ended above the user's message is news a seat can hold", a
 
 test("Copy gives an authored message's Markdown, its HTML included, after the public thread reading", async () => {
   const { adoptRegistry } = await import("/runtime/registry.js");
-  const { loadMarkdown } = await import("/runtime/markdown.js");
+  const { loadMarkdown } = await import("/runtime/lib/markdown.js");
   adoptRegistry({ $layer: { generation: "authored-copy" } });
   assert.equal(await loadMarkdown(), true);
   const text = "Agent **words**\n\n<p>A <strong>captured</strong> answer.</p>";

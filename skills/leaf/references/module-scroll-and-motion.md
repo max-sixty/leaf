@@ -142,10 +142,15 @@ control's ring shows. `fitsWhole(target)` says whether the target and those marg
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
-To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
-available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
-readers before that position paints, including writes during resize delivery. Smooth
-scrolling reports its positions through the browser's scroll events.
+To set a box's scroll position, call the browser's own
+`box.scrollTo({top, left, behavior: "instant"})`. Leaf hears that write as it is made,
+and updates its scroll readers before the position paints, including a write during
+resize delivery. Say the `behavior`: left out, the box's `scroll-behavior` decides,
+which a page may set to smooth, and a smooth scroll reports its positions only through
+the browser's scroll events. A write of the position a box already holds stops a scroll
+the browser is driving there, so a module that may write one, as it restores an offset
+or keeps one box beside another, first asks whether the write would move the box
+(`/runtime/lib/scroll-range.js`).
 
 `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
@@ -198,12 +203,13 @@ an `overflow: hidden` box scrolls away with the page.
 
 ### Headers over the document
 
-`registerRootHeader(header)` contributes the actual border-box height of a header the
-package places over the document. Independent contributions add, and resizing,
-disconnecting and reconnecting the element update the total. Call its returned stop
-when the header becomes local navigation. Only a header over the document belongs
-here: a nested scroller uses the local sticky and landing inputs above. Packages own
-where their headers are positioned; Leaf owns the aggregate root landing inset.
+Mark a header the package places over the document `data-lf-root-header`, and Leaf
+adds its actual border-box height to the root's landing inset while it stands in the
+page with the mark. Independent headers add, and resizing the element, removing it or
+taking its mark off updates the total, so take the mark off when the header becomes
+local navigation. Only a header over the document belongs here: a nested scroller uses
+the local sticky and landing inputs above. Packages own where their headers are
+positioned; Leaf owns the aggregate root landing inset.
 
 ### Sideways scrollers and container queries
 
@@ -265,7 +271,7 @@ Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can 
 its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
 for less motion, and before `body[data-lf-presented]`; treat that as a finished
 animation. Where a module must branch on the preference itself, as for the `behavior`
-of a smooth `setScroll`, it reads the `prefers-reduced-motion` media query.
+of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
 

@@ -34,7 +34,7 @@
  * them, not a script's call, because this drawing is the first paint: a bar drawn here
  * and withdrawn once a script handed over its own would move the page as it loads.
  */
-import { offeredAction, generatedElement } from "/runtime/widget-api.js";
+import { offeredAction } from "/runtime/widget-api.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 import { html, nothing, render } from "/vendor/lit.js";
@@ -372,7 +372,8 @@ export function createPlayground(host) {
   const slots = [...outputs].filter(member).map((slot) => {
     const name = requiredAttribute(slot, "for").trim();
     if (!fields.has(name)) throw new Error(`<output for="${name}"> names no field`);
-    generatedElement(slot, { says: true });
+    keeps(slot, "data-lf-gen", "1");
+    slot.toggleAttribute("data-lf-said", true);
     return { slot, name };
   });
   const presetWords = new Map(
@@ -586,7 +587,8 @@ export function createPlayground(host) {
       } else {
         if (!output.hasAttribute("data-lf-gen")) {
           output.replaceChildren();
-          generatedElement(output, { says: true });
+          keeps(output, "data-lf-gen", "1");
+          output.toggleAttribute("data-lf-said", true);
         }
         render(html`${instruction}`, output);
       }

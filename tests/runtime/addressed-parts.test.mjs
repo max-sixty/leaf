@@ -33,7 +33,7 @@ import {
 } from "/runtime/anchor-resolution.js";
 import { targetElement } from "/runtime/resolved-target.js";
 import { registry } from "/runtime/registry.js";
-import { registerVisualParts, visualPartProblems } from "/runtime/visual-parts.js";
+import { visualPartProblems } from "/runtime/visual-parts.js";
 import { layoutChanged } from "/runtime/widget-upgrade.js";
 import { kept } from "/runtime/kept.js";
 import { focusDestination, handBack } from "/runtime/focus.js";
@@ -60,17 +60,16 @@ const film = () => {
     element.firstChild.dataset.frame = id.replace("frame:", "");
   };
   draw("one");
-  registerVisualParts(
-    element,
-    () => [
+  element.lfParts = {
+    read: () => [
       {
         id: `frame:${element.firstChild.dataset.frame}`,
         element: element.firstChild,
         label: "a frame",
       },
     ],
-    { reveal: draw },
-  );
+    reveal: draw,
+  };
   return element;
 };
 
@@ -133,16 +132,13 @@ test("travel settles a visible part before a pending replacement can retire it",
   const surface = document.createElement("span");
   source.append(surface);
   document.querySelector("main").append(source);
-  registerVisualParts(
-    source,
-    () => [{ id: `frame:${shown}`, element: surface, label: "a frame" }],
-    {
-      reveal: (id) => {
-        replacing = false;
-        shown = id.replace("frame:", "");
-      },
+  source.lfParts = {
+    read: () => [{ id: `frame:${shown}`, element: surface, label: "a frame" }],
+    reveal: (id) => {
+      replacing = false;
+      shown = id.replace("frame:", "");
     },
-  );
+  };
   const replacement = Promise.resolve().then(() => {
     if (replacing) shown = "two";
   });
@@ -159,7 +155,7 @@ test("a package inventory rejects bad ids instead of recovering or rewriting the
   const element = document.createElement("span");
   source.append(element);
   document.querySelector("main").append(source);
-  registerVisualParts(source, () => [{ id, element, label: "a frame" }]);
+  source.lfParts = { read: () => [{ id, element, label: "a frame" }] };
 
   assert.equal(visualParts(source)[0].id, id);
   for (id of [" frame:one", "frame:one ", "frame:two parts", "", 7, null])
@@ -220,7 +216,8 @@ const plot = () => {
   /** @type {Map<string, any>} */
   const marks = new Map();
   const state = { aimed: null, asked: [], settled: [] };
-  registerVisualParts(element, () => [...marks.values()], {
+  element.lfParts = {
+    read: () => [...marks.values()],
     find: (id) => {
       state.asked.push(id);
       const point = id.replace("point:", "");
@@ -241,7 +238,7 @@ const plot = () => {
       state.settled.push(id);
       state.aimed = id;
     },
-  });
+  };
   return { element, line, ring, marks, state };
 };
 
@@ -326,7 +323,7 @@ test("a visual settles on its part as focus is placed there, and at no other tim
   });
 });
 
-test("a visual that registers nothing is read by the parts it marks", () => {
+test("a visual whose lfParts reads nothing is read by the parts it marks", () => {
   document.body.innerHTML = "<main></main>";
   const source = document.createElement("lf-film");
   source.id = "marked";

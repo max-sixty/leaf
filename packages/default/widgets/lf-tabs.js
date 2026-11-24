@@ -88,7 +88,6 @@ import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   authoredTitle,
-  setScroll,
   agentName,
   obligationsByRegion,
   regionsAwaiting,
@@ -129,6 +128,7 @@ import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
 const PLACE_KEY = "lf-tabs-place:";
 // The document's own scroller, which scrolls a page-flow set's views.
@@ -703,10 +703,8 @@ export class TabSet extends LeafElement {
         @click=${() => {
           const strip = this.#strip;
           const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
-          setScroll(strip, {
-            left:
-              strip.scrollLeft +
-              ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
+          strip.scrollBy({
+            left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
             behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
               ? "instant"
               : "smooth",
@@ -876,10 +874,10 @@ export class TabSet extends LeafElement {
     } catch {
       // An unreadable place is no place.
     }
-    setScroll(pageScroller, {
-      top: place ? start : Math.min(from, start),
-      behavior: "instant",
-    });
+    // A view that keeps the header where the user has it mostly finds the page there.
+    const top = place ? start : Math.min(from, start);
+    if (scrollMoves(pageScroller, { top }))
+      pageScroller.scrollTo({ top, behavior: "instant" });
     if (place) restorePlace(place);
   }
 

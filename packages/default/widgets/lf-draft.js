@@ -87,17 +87,20 @@ import {
   watchDraft,
   whileConnected,
   reachedForWords,
-  paintMarkdown,
   dressCode,
-  markdownSourceOffset,
-  markdownWords,
   focusDestination,
   nextRender,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
   worksInside,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import {
+  paintMarkdown,
+  markdownSourceOffset,
+  markdownWords,
+} from "/runtime/lib/markdown.js";
 
 // Each control's key and the action whose mark it shows.
 /** @type {[string, string][]} */
@@ -572,7 +575,7 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      paintMarkdown(this.#body, this.#savedText);
+      paintMarkdown(this.#body, this.#savedText, pageLinks);
       if (this.matches("[data-lf-exhibit] *")) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.

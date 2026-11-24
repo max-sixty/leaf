@@ -6107,7 +6107,9 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     # The renderer the draft is read by loads lazily, and its arrival redraws a field
     # already holding words; load it first, so the list is drawn as it is typed.
-    page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
+    page.evaluate(
+        "async () => (await import('/runtime/lib/markdown.js')).loadMarkdown()"
+    )
     field(page).click()
     # The first item wraps to two lines both in the field and in the sent message's
     # wider column, so the two hold the same lines.

@@ -100,15 +100,7 @@ export {
   presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
-export {
-  inlineMarkdownFragment,
-  loadMarkdown,
-  markdownReady,
-  markdownWords,
-  markdownSourceOffset,
-  paintMarkdown,
-  renderMarkdown,
-} from "./markdown.js";
+export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
 export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
@@ -121,7 +113,6 @@ export {
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";
-export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";

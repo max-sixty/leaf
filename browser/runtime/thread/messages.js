@@ -31,7 +31,8 @@ import {
   renderAuthoredMarkdown,
   renderMarkdown,
   renderedWords,
-} from "../markdown.js";
+} from "../lib/markdown.js";
+import { pageLinks } from "../page-markdown.js";
 import { reportPageError } from "../layer-client.js";
 import {
   deleted,
@@ -144,8 +145,8 @@ function proseReading(message) {
     reading.markdown !== markdown
   ) {
     const pasted = readAttachedMedia(text);
-    const html = renderMarkdown(pasted.text);
-    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
+    const html = renderMarkdown(pasted.text, pageLinks);
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths), pageLinks);
     reading = Object.freeze({
       id: message.id,
       edited,
@@ -498,11 +499,11 @@ export function prepareAuthoredMessage(message, thread) {
     // stands in with until it loads.
     if (!markdownReady())
       throw new Error("leaf: an authored message needs its loaded Markdown renderer");
-    const markup = renderAuthoredMarkdown(source);
+    const markup = renderAuthoredMarkdown(source, pageLinks);
     const template = document.createElement("template");
     template.innerHTML = markup;
     // A page's media at the address the page answers at, as the message's Markdown
-    // images take it (markdown.js, `scopedMediaUrl`): any attribute naming it.
+    // images take it (page-markdown.js, `pageLinks`): any attribute naming it.
     for (const element of template.content.querySelectorAll("*"))
       for (const { name, value } of element.attributes)
         if (isCanonicalMediaUrl(value))

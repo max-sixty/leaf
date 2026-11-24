@@ -45,9 +45,6 @@ import {
   elementById,
   fragmentTarget,
   layerFact,
-  loadMarkdown,
-  markdownReady,
-  markdownWords,
   LeafElement,
   threadActions,
   readThreads,
@@ -56,6 +53,7 @@ import {
   whileConnected,
   excerptWords,
 } from "/runtime/widget-api.js";
+import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdown.js";
 
 const NAME = 60;
 

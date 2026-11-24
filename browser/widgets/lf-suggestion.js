@@ -29,7 +29,7 @@ import {
 import { keeps } from "/runtime/lib/keeps.js";
 import { foldBlock } from "../runtime/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
-import { alignText } from "../runtime/text-alignment.js";
+import { alignText } from "/runtime/lib/text-alignment.js";
 import { shownParts } from "../runtime/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */

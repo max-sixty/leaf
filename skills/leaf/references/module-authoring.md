@@ -48,7 +48,8 @@ argument.
 ### Shared web code
 
 `/runtime/lib/` is a library of web code that Leaf's runtime and its bundled packages
-share, such as the ticks of a time axis and the words for a thrown value. It is not
+share, such as code's syntax colours, Leaf's icons, the ticks of a time axis and the
+words for a thrown value. It is not
 part of Leaf's interface: a library module keeps none of the page's state and calls
 nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
 module works off Leaf too. Like `widget-api.js`, the library can change in any update.

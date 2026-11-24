@@ -93,8 +93,6 @@ import {
   el,
   focusDestination,
   holdFocus,
-  actionTemplate,
-  iconTemplate,
   offered,
   offeredAction,
   LeafElement,
@@ -113,6 +111,7 @@ import {
   commandsChanged,
   actionClass,
 } from "/runtime/widget-api.js";
+import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";
 

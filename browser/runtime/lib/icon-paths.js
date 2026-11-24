@@ -1,6 +1,11 @@
-/* The layer's icons: one table of 16px strokes, the actions that show them, and a
-   plain DOM drawing of one. It imports nothing, so delivery templates and browser
-   renderers share the same symbols; icons.js adds their Lit templates. */
+/* Leaf's icons: one table of 16px strokes (`ICONS`, keyed by icon name), the actions
+   that show them (`ACTIONS`, keyed by action name, each with its symbol and the words
+   its press says), and a plain DOM drawing of one. It imports nothing, so a pure model
+   such as the margin's names a symbol without loading Lit; icons.js adds their Lit
+   templates. A press that shows a symbol names its action rather than an icon
+   (`offerAction` and `nameAction` in the package API), so each action looks the same
+   wherever it is offered; an icon an action doesn't name marks what something is or
+   holds, such as a kind or a state. */
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -192,23 +197,6 @@ export const actionName = (action) => namedAction(action).name;
 export const actionElement = (action, className) =>
   iconElement(actionIcon(action), className);
 
-const SYMBOLIC = new Set(["symbol", "mark"]);
-
-// The name a control of `role` says. A symbol or mark shows its action's symbol and
-// says its name unless `label` says more. Whether a page's own press is a word or a
-// symbol stays its author's call, so a page's "Done" may stay a word.
-/** @param {LeafActionRole} role @param {string | undefined} label @param {string | undefined} action */
-function actionFace(role, label, action) {
-  if (!SYMBOLIC.has(role)) {
-    if (action !== undefined)
-      throw new TypeError(`A ${role} says its label and shows no action's symbol`);
-    return { label, action: undefined };
-  }
-  if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);
-  const name = actionName(action);
-  return { label: label ?? name, action };
-}
-
 /**
  * Draws `action`'s symbol as `control`'s first child, and leaves one that already
  * shows it, so a template's later renders write nothing and a control whose action
@@ -222,44 +210,4 @@ export function showAction(control, action, className = "lf-action-icon") {
   const symbol = iconElement(icon, className);
   if (drawn) drawn.replaceWith(symbol);
   else control.prepend(symbol);
-}
-
-/** @param {Element} node @param {LeafActionRole} role @param {string} action */
-const drawAction = (node, role, action) =>
-  showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
-
-/**
- * The role constructors (`control-faces.js`, `ACTION_FACES`) with each symbol and mark
- * drawn from its action: `offerAction(role, className, label, {action})`, and
- * `offerActionElement(node, …)` for a template's element. The runtime builds its own
- * from these (widget-elements.js).
- * @param {{
- * offerAction: (role: LeafActionRole, className?: string, label?: string) => HTMLButtonElement,
- * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string) => T
- * }} base
- */
-export function actionOffers(base) {
-  return {
-    /**
-     * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
-     * @param {{action?: string}} [options]
-     */
-    offerAction(role, className, label, { action } = {}) {
-      const face = actionFace(role, label, action);
-      const node = base.offerAction(role, className, face.label);
-      if (face.action !== undefined) drawAction(node, role, face.action);
-      return node;
-    },
-    /**
-     * @template {Element} T
-     * @param {T} node @param {LeafActionRole} role @param {string} [className]
-     * @param {string} [label] @param {{action?: string}} [options]
-     */
-    offerActionElement(node, role, className, label, { action } = {}) {
-      const face = actionFace(role, label, action);
-      base.offerActionElement(node, role, className, face.label);
-      if (face.action !== undefined) drawAction(node, role, face.action);
-      return node;
-    },
-  };
 }

@@ -36,6 +36,7 @@ from render_harness import (
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
+from leaf.render_gate.screens import screens_dir
 from leaf.validation.command import check_page
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -209,7 +210,8 @@ def test_a_render_check_fails_a_page_that_cannot_start_for_its_phone_screens(
     the desktop window, where the render gate reads it, and unable to start as the
     phone the check opens for its phone screens. `page check --render` reports that
     as a failure in the page's own words, saying which screens the page was opened
-    for, and saves no screens."""
+    for, and saves no screens: the desktop screens it had taken by then leave the
+    state home with the directory they were written to."""
     serve(
         leaf_page("Touch only", '<lf-touch-only id="touch-only"></lf-touch-only>'),
         packages=(),
@@ -233,6 +235,8 @@ def test_a_render_check_fails_a_page_that_cannot_start_for_its_phone_screens(
     assert "This module refuses touch" in error, error
     assert report["browser"]["ran"] == ["render check"], report
     assert "screens" not in report["browser"], report
+    kept = screens_dir(serve.page_dir).parent
+    assert list(kept.iterdir()) == [], list(kept.iterdir())
 
 
 @pytest.mark.parametrize("touch", [False, True])

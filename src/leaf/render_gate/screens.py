@@ -157,56 +157,61 @@ def save_screens(
     ready when opened for a screen (`_open`)."""
     final = screens_dir(page_dir)
     final.parent.mkdir(exist_ok=True)
-    into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
-    saved = []
+    # A raise while taking the screens removes this directory as the block ends.
+    # After the rename below, the block finds no directory here and removes nothing.
+    with tempfile.TemporaryDirectory(
+        dir=final.parent, prefix=f".{final.name}-"
+    ) as fresh:
+        into = Path(fresh)
+        saved = []
 
-    def whole(page, name, label):
-        width = page.viewport_size["width"]
-        shots, total = _down_the_page(page, into, f"{name}-{width}px")
-        if total > len(shots):
-            label = f"{label}, the first {len(shots)} of the page's {total} screens"
-        saved.extend((shot, label) for shot in shots)
+        def whole(page, name, label):
+            width = page.viewport_size["width"]
+            shots, total = _down_the_page(page, into, f"{name}-{width}px")
+            if total > len(shots):
+                label = f"{label}, the first {len(shots)} of the page's {total} screens"
+            saved.extend((shot, label) for shot in shots)
 
-    context, page = _open(browser, url, desktop, False)
-    try:
-        obligation_shots, more = _obligations_in_turn(page, into)
-        obligation_label = (
-            "desktop, each press of `m` from the top, at the next open obligation"
-        )
-        if more:
+        context, page = _open(browser, url, desktop, False)
+        try:
+            obligation_shots, more = _obligations_in_turn(page, into)
             obligation_label = (
-                f"{obligation_label}, the first {len(obligation_shots)}"
-                " of the page's open obligations"
+                "desktop, each press of `m` from the top, at the next open obligation"
             )
-    finally:
-        context.close()
-    context, page = _open(browser, url, desktop, False)
-    try:
-        whole(page, "desktop", "desktop")
-        saved.extend((shot, obligation_label) for shot in obligation_shots)
-        # A desktop already at the widest window has those screens; a second pass
-        # would only repeat them.
-        if desktop["width"] != max(SWEEP_WIDTHS):
-            settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
-            whole(page, "widest", "resized desktop, the widest window")
-        for width, selector, said in reading.arrangement:
-            settle_at(page, width, desktop["height"])
-            page.evaluate(
-                "(s) => document.querySelector(s)?.scrollIntoView({block: 'start'})",
-                selector,
-            )
-            rendered(page)
-            shot = into / f"{width}px-arrangement.png"
-            page.screenshot(path=shot)
-            saved.append((shot, f"resized desktop, the tightest before {said}"))
-    finally:
-        context.close()
-    context, page = _open(browser, url, PHONE, True)
-    try:
-        whole(page, "phone", "phone")
-    finally:
-        context.close()
-    if final.exists():
-        shutil.rmtree(final)
-    into.rename(final)
+            if more:
+                obligation_label = (
+                    f"{obligation_label}, the first {len(obligation_shots)}"
+                    " of the page's open obligations"
+                )
+        finally:
+            context.close()
+        context, page = _open(browser, url, desktop, False)
+        try:
+            whole(page, "desktop", "desktop")
+            saved.extend((shot, obligation_label) for shot in obligation_shots)
+            # A desktop already at the widest window has those screens; a second pass
+            # would only repeat them.
+            if desktop["width"] != max(SWEEP_WIDTHS):
+                settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
+                whole(page, "widest", "resized desktop, the widest window")
+            for width, selector, said in reading.arrangement:
+                settle_at(page, width, desktop["height"])
+                page.evaluate(
+                    "(s) => document.querySelector(s)?.scrollIntoView({block: 'start'})",
+                    selector,
+                )
+                rendered(page)
+                shot = into / f"{width}px-arrangement.png"
+                page.screenshot(path=shot)
+                saved.append((shot, f"resized desktop, the tightest before {said}"))
+        finally:
+            context.close()
+        context, page = _open(browser, url, PHONE, True)
+        try:
+            whole(page, "phone", "phone")
+        finally:
+            context.close()
+        if final.exists():
+            shutil.rmtree(final)
+        into.rename(final)
     return final, [(final / shot.name, label) for shot, label in saved]

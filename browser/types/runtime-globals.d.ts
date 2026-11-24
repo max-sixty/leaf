@@ -148,13 +148,12 @@ interface Element {
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
    * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
-   * title, rows and options, or a `commandScope()` value. */
+   * title, rows and options. */
   lfCommands?:
     | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
         title: string | null;
         rows: readonly import("../runtime/keyboard/bindings.js").Command[];
       })
-    | import("../runtime/keyboard/scopes.js").CommandCapability
     | null
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */

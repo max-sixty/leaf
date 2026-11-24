@@ -77,7 +77,6 @@ import { html, nothing, render } from "/vendor/lit.js";
 import {
   afterPresentation,
   boundFile,
-  commandsOn,
   el,
   focusDestination,
   LeafElement,
@@ -514,7 +513,6 @@ customElements.define(
             role="menu"
             aria-label="The file changed on disk"
             @toggle=${choiceOpened}
-            ${commandsOn("In the file's conflict menu", choiceKeys)}
           >
             <button
               ${offeredAction("word")}
@@ -568,6 +566,13 @@ customElements.define(
         menu: choicesMenu,
         first: firstChoice,
       };
+      choicesMenu.lfCommands = {
+        title: "In the file's conflict menu",
+        rows: choiceKeys,
+      };
+      choicesMenu.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       // A draft this tab kept, as across a reload, stands over the file until a read
       // settles it. Drafts come back before the editor exists, so it starts as editable
       // as the file it shows rather than switching within the same task.

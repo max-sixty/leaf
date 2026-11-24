@@ -77,7 +77,6 @@ import {
   readObligations,
   readQueues,
   scrollIntoView,
-  signal,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
@@ -126,8 +125,8 @@ customElements.define(
     /** @type {HTMLElement[]} */
     #cards = [];
     // The open card, or null once the pass is over.
-    /** @type {import("@preact/signals-core").Signal<HTMLElement | null>} */
-    #open = signal(null);
+    /** @type {HTMLElement | null} */
+    #open = null;
     // Whether the open card waited on the user at the last reading, so the reading
     // that ends its wait is the one that can send it on.
     /** @type {boolean | null} */
@@ -228,14 +227,15 @@ customElements.define(
     #show(card = null) {
       // Arriving at the open card, as `m` does at the card a motion is bringing up,
       // leaves that motion to finish.
-      if (card === this.#open.value) return;
+      if (card === this.#open) return;
       this.#landing?.();
       keepView(this, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
       }
       this.#end.toggleAttribute("hidden", Boolean(card));
-      this.#open.value = card;
+      this.#open = card;
+      this.requestUpdate();
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
@@ -254,7 +254,7 @@ customElements.define(
     /** @param {HTMLElement | null} next @param {string} side @param {{from?: string, answered?: boolean}} [options] */
     #go(next = null, side, { from = "none", answered = false } = {}) {
       this.#landing?.(next);
-      const card = this.#open.value;
+      const card = this.#open;
       if (next === card) return this.#show(next);
       // Once the pass is over the forward control goes too, the end frame's step back in
       // standing for it.
@@ -343,7 +343,8 @@ customElements.define(
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
       }
       this.#end.toggleAttribute("hidden", Boolean(next));
-      this.#open.value = next;
+      this.#open = next;
+      this.requestUpdate();
       // The end frame holds its words and its record of the pass before the deck
       // measures the height it grows to.
       if (!next) this.#drawEnd(this.#readings());
@@ -367,14 +368,14 @@ customElements.define(
       // that card shown and the deck in flight for it, rather than undo them only for the
       // next motion to write them back.
       let departing = moving ? card : null;
-      const putAway = (upcoming = this.#open.value) => {
+      const putAway = (upcoming = this.#open) => {
         const leaving = departing;
         if (!leaving) return;
         departing = null;
         keeps(leaving, "data-lf-deck-leaving", null);
         keeps(leaving, "inert", null);
         leaving.style.removeProperty("--lf-deck-leave-top");
-        keepView(this, this.#open.value, leaving === upcoming ? leaving : null);
+        keepView(this, this.#open, leaving === upcoming ? leaving : null);
       };
       const land = (
         /** @type {HTMLElement | null | undefined} */ upcoming = undefined,
@@ -397,7 +398,7 @@ customElements.define(
       // edges in view.
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
-        if (above || !next || this.#open.value !== next) return;
+        if (above || !next || this.#open !== next) return;
         scrollIntoView(next, { block: "nearest", behavior: "smooth" });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
@@ -442,12 +443,12 @@ customElements.define(
     // The user sends the open card toward `side`, from where a drag left it.
     /** @param {string} side @param {string} [from] */
     #onward(side, from = "none") {
-      const card = this.#open.value;
+      const card = this.#open;
       if (card) this.#go(this.#after(card, this.#readings(), true), side, { from });
     }
 
     #index() {
-      const card = this.#open.value;
+      const card = this.#open;
       return card ? this.#cards.indexOf(card) : this.#cards.length;
     }
 
@@ -514,7 +515,7 @@ customElements.define(
     // card, Later or Next; once the pass is over, back to its start.
     #forwardWord() {
       const readings = this.#readings();
-      const card = this.#open.value;
+      const card = this.#open;
       const waits = (/** @type {HTMLElement} */ each) =>
         Boolean(readings && waitsOn(readings(each)));
       if (card) return waits(card) ? "Later" : "Next";
@@ -524,7 +525,7 @@ customElements.define(
 
     /** @param {DeckReadings | null} readings */
     #forwardPress(readings) {
-      const card = this.#open.value;
+      const card = this.#open;
       if (card)
         return this.#onward(readings && waitsOn(readings(card)) ? "left" : "right");
       const waiting = readings && this.#cards.find((each) => waitsOn(readings(each)));
@@ -534,7 +535,7 @@ customElements.define(
     // A touch drag on the open card, begun anywhere but on a control inside it.
     /** @param {PointerEvent} event */
     #press(event) {
-      const card = this.#open.value;
+      const card = this.#open;
       if (!(event.target instanceof Element) || !card?.contains(event.target)) return;
       this.#pressed = card;
       if (event.pointerType !== "touch") return;
@@ -559,7 +560,7 @@ customElements.define(
     /** @param {PointerEvent} event */
     #follow(event) {
       const drag = this.#drag;
-      const card = this.#open.value;
+      const card = this.#open;
       if (drag?.id !== event.pointerId || !card) return;
       drag.dx = event.clientX - drag.x;
       if (!drag.moving) {
@@ -588,7 +589,7 @@ customElements.define(
       if (drag?.id !== event.pointerId) return;
       if (!drag.moving) return (this.#drag = null);
       const readings = this.#readings();
-      const card = this.#open.value;
+      const card = this.#open;
       const from = `translateX(${drag.dx}px) rotate(${drag.dx / 30}deg)`;
       this.#settle();
       if (drag.dx <= -SWIPE) this.#onward("left", from);
@@ -597,7 +598,7 @@ customElements.define(
     }
 
     #settle() {
-      const card = this.#open.value;
+      const card = this.#open;
       this.#drag?.held?.resolve();
       this.#drag = null;
       if (!card?.style.translate) return;
@@ -608,7 +609,7 @@ customElements.define(
     render() {
       if (!this.#cards.length) return nothing;
       const readings = this.#readings();
-      const card = this.#open.value;
+      const card = this.#open;
       const count = readings
         ? tallyWords(tally(readObligations(this).all), agentName())
         : "";
@@ -701,13 +702,13 @@ customElements.define(
     updated() {
       if (!this.#cards.length) return;
       const word = this.#forwardWord();
-      nameAction(this.#forward, this.#open.value ? "next" : "start", { label: word });
+      nameAction(this.#forward, this.#open ? "next" : "start", { label: word });
       // Once the pass is over the end frame's button is the step back in.
-      keeps(this.#forward, "hidden", this.#open.value ? null : "");
+      keeps(this.#forward, "hidden", this.#open ? null : "");
       const readings = this.#readings();
-      this.#end.toggleAttribute("hidden", Boolean(this.#open.value));
+      this.#end.toggleAttribute("hidden", Boolean(this.#open));
       if (!readings || this.#drag) return;
-      const card = this.#open.value;
+      const card = this.#open;
       const waiting = this.#cards.filter((each) => waitsOn(readings(each)));
       // The edges under the open card are the cards still waiting after it.
       const behind = card

@@ -47,8 +47,10 @@ holds rather than what it does). `behavior`, `tone`, `rank` and
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
 defaults to its key. An entry for one of the widget's declared commands instead sets
-`scope` to its `commandScope` and `activation` to the command's id, and Leaf disables it
-with the command and runs the command's own `run`. A command the widget adds for one of
+`scope` to the object that declares the command, the one the widget holds as
+`lfCommands` (`module-input.md`, "Commands and keyboard routes"), and `activation` to
+the command's id, and Leaf disables it with the command and runs the command's own
+`run`. A command the widget adds for one of
 these entries calls `this.actions.activate(key)`, so a key and a press do the same
 thing.
 

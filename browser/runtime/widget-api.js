@@ -19,7 +19,6 @@
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
-export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
@@ -77,7 +76,6 @@ export { turns as threadTurns } from "./thread/model.js";
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { labelOf } from "./keyboard/bindings.js";
-export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
 export { presentContributionEntry } from "./contribution-controls.js";

@@ -142,18 +142,17 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
-          const {commandScope, presentContributionEntry} =
-            await window.__lfWidgetApi();
+          const {presentContributionEntry} = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'projected-only-command';
           document.querySelector('main').append(control);
-          const scope = commandScope('On a projected-only control', [{
+          const scope = {title: 'On a projected-only control', rows: [{
             id: 'test.projected-only',
             keys: ['Mod+Alt+0'],
             title: 'Exercise the generated command scope',
             line: 'exercise projected command',
             run: () => {},
-          }]);
+          }]};
           presentContributionEntry(control, {
             key: 'projected-only',
             icon: 'question',

@@ -615,7 +615,7 @@ def test_an_ordinary_page_is_drawn_as_written(
     plain.wait_for_function(f"document.fonts.status === 'loaded' && {LOADED}")
     alone = Arm(plain, standalone=True)
 
-    page_dir = site_of(source, initialized_page(tmp_path / "page", (), theme=False))
+    page_dir = site_of(source, initialized_page(tmp_path / "page", (), reading=False))
     with checked(browser.unwatched, page_dir) as (found, url):
         if url is not None:
             page = browser.unwatched.new_page(viewport=VIEWPORT, color_scheme="light")

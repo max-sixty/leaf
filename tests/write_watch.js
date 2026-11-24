@@ -240,6 +240,12 @@
       what === "class" &&
       is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's Tile.sync writes a line's style whenever any of the line's attributes
+    // change, as its class does when the caret arrives or a write from elsewhere marks
+    // it, and its style is the same: a code line states its indent there (marks.css,
+    // `[data-lf-pre-line]`).
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces the children of a line, or of a mark in a
     // line, with equal nodes it reuses from elsewhere in the same update, in either
     // editor host. A line can get another line's break, and as the caret moves between
@@ -507,10 +513,19 @@
   // end at every scroll's end. A write is the page's when a frame of the page's own
   // scripts made it; one the test makes through Playwright's evaluate is the test's
   // setup. A smooth write moves the box later, so only an instant one is judged.
+  //
+  // On a Leaf page every write passes through the runtime's hearing of it (arrivals.js,
+  // `heardWrite`), the test's own included, and the runtime's own through their door
+  // past it (`unheardWrite`). Neither frame made the write, so neither is one of the
+  // page's.
+  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/arrivals\.js:/;
   const pageFrames = () =>
     new Error().stack
       .split("\n")
-      .filter((line) => /\b(?:https?|file|blob):\/\/|\bdata:/.test(line))
+      .filter(
+        (line) =>
+          /\b(?:https?|file|blob):\/\/|\bdata:/.test(line) && !HEARING.test(line),
+      )
       .slice(0, 4)
       .map((line) =>
         line

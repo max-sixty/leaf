@@ -57,7 +57,7 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
             "./" + os.path.relpath(page_dir / value)
             if value.startswith("./")
             else value
-            for value in layer_packages(page_dir)
+            for value in layer_packages(page_dir) or ()
         )
         vendoring_model.cmd_init(page_dir, (*held, "./" + os.path.relpath(newer)))
         revised = revisioning_model.activate_source(page_dir)

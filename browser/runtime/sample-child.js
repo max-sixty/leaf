@@ -8,10 +8,10 @@ import {
   onCurrentLocation,
   onUserInput,
 } from "./focus.js";
-import { exceptionRecord } from "./exception.js";
+import { exceptionRecord } from "./lib/exception.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { startNearWork, whenArrived } from "./presentation.js";
-import { sizeObserver } from "./rendering.js";
+import { sizeObserver } from "./lib/frame-pass.js";
 const child = document.documentElement.lfSample;
 /** @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
  * @typedef {import("./sample-protocol.js").SampleMethod} SampleMethod
@@ -73,7 +73,7 @@ if (child) {
   });
   // The reader's own input here goes to the containing page by its event type, for its
   // focus (focus.js, `inputInFrame`) and for whether the frame is theirs to move
-  // (lf-sample.js, `#release`). The inputs are the document's one reading of them
+  // (sample.js, `claim`). The inputs are the document's one reading of them
   // (focus.js, `onUserInput`). A click is input of its own, since by pointer or by
   // Enter or Space it lands after the press that began it.
   /** @param {Event} event */

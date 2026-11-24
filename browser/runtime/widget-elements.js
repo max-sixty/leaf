@@ -1,65 +1,47 @@
 export { searchField } from "./control-labels.js";
-import { offer, offerAction } from "./element-markers.js";
-export {
-  generatedElement,
-  offer,
-  offerAction,
-  offerActionElement,
-  elementDirective,
-  offered,
-  offeredAction,
-} from "./element-markers.js";
-/* The chrome a widget injects and the words it labels.
+import { offerAction } from "./lib/controls.js";
+export { generatedElement } from "./element-markers.js";
+/* The chrome a widget injects and the words it labels, as the runtime reads them.
 
-   A behavior module builds injected controls with `offer`, a press wearing one of
-   Leaf's control faces with `offerAction` by its role, marks words it writes that
-   should stand apart from the author's with `generatedElement`. A Lit template reaches
-   the same writers through element directives built by `elementDirective`. A behavior module
-   reads a box from inside `measure` (shown-box.js). A label
-   whose words change holds one room for all of them with `data-lf-room`, which the
-   theme sizes without script and which cuts words past it (controls.css). A module that
-   rearranges what it holds inside an unchanged box says so with `layoutChanged`
-   (widget-upgrade.js).
+   A module builds the chrome it injects with the library's control constructors
+   (lib/controls.js), which write the marks read here, and marks words it writes apart
+   from the author's with `data-lf-gen` (the runtime's own with `generatedElement`). A
+   behavior module reads a box from inside `measure` (lib/shown-box.js). A label whose
+   words change holds one room for all of them with `data-lf-room`, which the theme
+   sizes without script and which cuts words past it (controls.css). A module that
+   rearranges what it holds inside an unchanged box says so with `lf-layout`
+   (lib/widget-events.js).
 
-   A control is built so the browser does as much of it as it can. `offer` builds the
-   corresponding native element, so activation, disabled state, focus, and
-   accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, so `selectableOffer` (element-markers.js)
-   builds it as a span with the role. One with a button's role takes a button's Enter and Space from
-   role-button-press.js, on any page; for another role its widget supplies the keyboard
-   pattern the native element would have. A `<button>` would not do:
-   Chromium and Firefox begin a selection inside one styled `user-select: text`, but
-   WebKit, so Safari and every iOS browser, begins none inside a form control whatever
-   its style (notes/browser-support.md, "Selecting words inside a button in WebKit").
-   Both constructors mark generated chrome consistently. The shared drag guard
-   (`reachedForWords`) distinguishes a click from the mouseup ending an active text
-   selection by comparing the selection's focus end with the release. It does not
-   suppress a press merely because an older selection contains the control or because
-   the pointer landed beside selected text.
+   The shared drag guard (`reachedForWords`) distinguishes a click from the mouseup
+   ending an active text selection by comparing the selection's focus end with the
+   release. It does not suppress a press merely because an older selection contains the
+   control or because the pointer landed beside selected text.
 
    Paint that promises a gesture — the pointer hand above all — hangs on how a press is
-   spelled, never on a control class alone. The layer's own
-   spelling is the value `offer` writes into `data-lf-offer`: the tag or input type for
-   a native press, the tag for a custom host that opts into its own press contract, the
-   role for a selectable one, and the empty string for the rest of the chrome a widget
-   makes. The theme's one pressable rule reads that value.
+   spelled, the value the constructors write into `data-lf-offer`, never on a control
+   class alone. The theme's one pressable rule reads that value, and `PRESSABLE` reads
+   it for the passes written in JavaScript.
 
-   `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements, inside the container or pressed around it, as their
-   own controls and uses `owners` to distinguish a container's declared member widgets
-   from nested widgets that own their own interaction. What it cannot know is which of the controls it finds the
-   container's own module put there — an option's pick mark, a gloss's own mark — so the
-   caller names that apparatus, which is the container's to press. The answer otherwise
-   fails closed: declining one ambiguous container gesture is safer than recording a
-   choice while the user operates nested evidence. */
+   `aimedAt` answers what a click on a container that takes a gesture on its whole box
+   was for: the container, something working inside it or pressed around it, or the
+   selection of words the click ended. It treats platform interactive elements, inside
+   the container or pressed around it, as their own controls and uses `owners` to
+   distinguish a container's declared member widgets from nested widgets that own their
+   own interaction (`worksInside`). What it cannot know is which of the controls it
+   finds the container's own module put there — an option's pick mark, a gloss's own
+   mark — so the caller names that apparatus, which is the container's to press. The
+   answer otherwise fails closed: declining one ambiguous container gesture is safer
+   than recording a choice while the user operates nested evidence. */
 import { pageRange, selectionBackward } from "./native-selection.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
+import { HOLD } from "./lib/widget-events.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { actionTemplate } from "./icons.js";
+import { onPress, pressRecords } from "./focus.js";
+import { actionTemplate } from "./lib/icons.js";
 import {
   closestAcross,
   isElement,
@@ -67,9 +49,9 @@ import {
   renderedUnder,
   renderedParent,
   untilFound,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
 
 // A scroll target can sit inside a collapsed container: a closed <details> or popover,
@@ -121,50 +103,50 @@ export function reveal(el, mayReveal) {
   return { ready, replacedView };
 }
 
-// The one way the layer makes an element: a tag, its classes, and the words it starts
-// with.
-/** @template {keyof HTMLElementTagNameMap} K
- * @overload @param {K} tag @param {string} [cls] @param {string | null} [text]
- * @returns {HTMLElementTagNameMap[K]} */
-/** @overload @param {string} tag @param {string} [cls] @param {string | null} [text]
- * @returns {HTMLElement} */
-/** @param {string} tag @param {string} [cls] @param {string | null} [text] */
-export function el(tag, cls, text) {
-  const node = document.createElement(tag);
-  if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-// The user's hand on a widget, in the layer's own word: a drag the log has not taken
-// yet. This module holds it, and everything that has to wait for the hand asks here:
-// `dragHeld` is whether any widget holds one. The widget calls `dragging` as it takes
-// the hand up and puts it down, and puts it down in `disconnectedCallback` too, since a
-// widget that leaves with the hand up would hold every waiter for the rest of the
-// page's life. The hand holds back what would replace or take back the nodes under it,
-// a new revision and an undo (`unaccountedGesture`, composing/engagement.js, and the
-// undo of an action still in the ledger, undo.js's `travelling`); the
-// widget holds its own drawing through its controller's `defer()`, and every other
-// widget goes on drawing.
+// The user's hand on a widget, in the layer's own word: a drag, a keyboard grab or a
+// scrub the log has not taken yet. The element says it with an `lf-hold` event whose
+// promise settles as the hand comes off (`HOLD`, lib/widget-events.js), and settles it
+// as the element leaves the page too, since one that left with the hand up would hold
+// every waiter for the rest of the page's life. This module holds each one, and
+// everything that has to wait for the hand asks here: `dragHeld` is whether any stands.
+// The hand holds back what would replace or take back the nodes under it, a new
+// revision and an undo (`unaccountedGesture`, composing/engagement.js, and the undo of
+// an action still in the ledger, undo.js's `travelling`). What the element draws
+// meanwhile is its own to hold (`lf-defer`, which `LeafElement.defer()` says), and
+// every other widget goes on drawing. An element that holds only its own drawing, as
+// while an editor stands in place of its words, says no `lf-hold`: what a revision
+// waits for under a text field in use is another rule (composing/engagement.js).
+//
+// Holding while a pointer is down anywhere would need no declaration, and is not done.
+// A grab by keyboard has no pointer; a press whose release the window never hears
+// stays down until the next press (focus.js, `pressing`), which would hold every
+// revision on a page the user is only reading; and Undo's availability follows these
+// hands as a signal, so a pointer's would drop its chip at every press.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's ⌘Z row — a row no widget declares. The hands are a
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
-/** @type {import("@preact/signals-core").Signal<Set<Element>>} */
+/** @type {import("@preact/signals-core").Signal<Set<Event>>} */
 const hands = signal(new Set());
 
 export const dragHeld = () => hands.value.size > 0;
 
-/** @param {Element} el @param {boolean} on */
-export const dragging = (el, on) => {
-  const held = new Set(hands.peek());
-  if (on) held.add(el);
-  else held.delete(el);
-  hands.value = held;
-  paintKeysWithin(el);
-};
+document.addEventListener(HOLD, (event) => {
+  const [origin] = event.composedPath();
+  /** @param {boolean} on */
+  const move = (on) => {
+    const held = new Set(hands.peek());
+    if (on) held.add(event);
+    else held.delete(event);
+    hands.value = held;
+    if (origin instanceof Element) paintKeysWithin(origin);
+  };
+  move(true);
+  const ended = () => move(false);
+  Promise.resolve(event.complete).then(ended, ended);
+});
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds or what holds it. This is the second: the nearest thing
@@ -227,6 +209,24 @@ export function worksInside(node, container) {
   return closestAcross(container.parentNode, PRESSES);
 }
 
+// What a click on such a container was for, asked once so that no caller holds two
+// checks and their order. A click that landed on something working inside or around
+// the container is that thing's (`worksInside`); where that is a control, the click
+// guard below has already asked whether the click ended a selection. A click elsewhere
+// in the container that ended a selection of its words is the selection's, and the
+// answer is null (`reachedForWords`); a click made with Enter or Space never ends one.
+// Any other click is the container's. Asking about the selection first would deaden an
+// option's own pick mark whenever words in the option were selected.
+/** @param {MouseEvent} event @param {Element} container @returns {Element | null} */
+export function aimedAt(event, container) {
+  const { target } = event;
+  if (!isElement(target)) return null;
+  const inner = worksInside(target, container);
+  if (inner) return inner;
+  if (!pressIsKeyboardActivation(event) && reachedForWords(container)) return null;
+  return container;
+}
+
 /** What else the user could aim at, at `node`, at any point on the page, marked words
  * or not: the nearest element around it, as the page renders it (`renderedParent`, so
  * through the slot that draws it), that takes the pointer itself, or null where nothing
@@ -235,8 +235,8 @@ export function worksInside(node, container) {
  *   shows, as a link, a titled button or an option's mark;
  * - an element that declares its own preview (`lfPreview`), as a card that says what
  *   it holds, or a gloss;
- * - a registered widget that draws its content itself (`content` `data` or `empty`),
- *   as code, a diff or a draft does, with all it draws.
+ * - a registered widget that draws its content itself (`content` `data`, `markdown`
+ *   or `empty`), as code, a diff or a draft does, with all it draws.
  * A plain tab stop or scrolling box takes nothing, and neither does what a widget
  * holds of the author's markup, as a pane's words, an option's beside its mark, a
  * suggestion's old and new words or a playground's preview: the verbs a widget
@@ -262,15 +262,14 @@ export function aimableAt(node) {
 }
 // Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
-const drawsItsContent = (entry) =>
-  entry?.content === "data" || entry?.content === "empty";
+const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empty";
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which
 // anchoring reads where no label speaks nearer; `data-lf-gen` for words the author
 // didn't write; `data-lf-offer` for a thing to work, which paper drops because there is
 // nothing there to press.
-// DOM writers and template directives share these markers through element-markers.js.
+// DOM writers and template directives share these markers through lib/controls.js.
 //
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a
@@ -294,24 +293,49 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // then reaches for Accept would press a control that has gone dead — and stays dead,
 // because a press that refuses a drag (`user-select: none`) never collapses the
 // selection that deadened it either.
-// Which is a reading rather than this listener's own business, because the same press
-// reaches things `offer` never made: the panel's quote, whose press travels the page to
-// the passage, and the list's landing, which moves the card the words are on. Each is
-// the same complaint in its own place — the user draws across the words to take them
-// and the page goes somewhere.
+// Which is a reading rather than this listener's own business, because a container that
+// takes a click on its whole box asks it of its words too (`aimedAt`).
 // It asks only where the selection stopped, and not whether a press happened at all:
-// which presses can be a drag is each caller's own question. A click carries the answer
-// in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
-// read.
-/** @param {Element} el */
-export function reachedForWords(el) {
+// which presses can be a drag is each caller's own question, which both ask of the
+// click's `detail` (`pressIsKeyboardActivation`).
+//
+// It reads the selection as the press's `mouseup` arrives, not as its click does. A
+// mouse press on words already selected leaves them selected until its `mouseup` in
+// every engine; Firefox collapses them before the click and Chromium only after it.
+// Read at the click, the same press would be the selection's in Chromium and the
+// container's in Firefox, where a press on a comment's mark inside an option's
+// selected words would pick the option rather than open the thread. Not as early as
+// `pointerup`: a tap's `mousedown`, which collapses the selection it landed beside,
+// comes after its `pointerup`. A click that no pointer press began, such as one a
+// script dispatches with a click count, reads the selection as it stands.
+/** @type {import("./focus.js").PressRecords<{focus?: Node | null}>} */
+const releases = pressRecords();
+onPress((start) => {
+  releases.keep(start, {});
+});
+addEventListener(
+  "mouseup",
+  () => {
+    const release = releases.kept();
+    if (release) release.focus = selectionFocus();
+  },
+  { capture: true, passive: true },
+);
+
+// The node the selection's focus end stands in, or null where no words are selected.
+function selectionFocus() {
   const sel = getSelection();
-  if (!sel?.rangeCount) return false;
+  if (!sel?.rangeCount) return null;
   const range = pageRange(sel);
-  const focus = selectionBackward(sel, range)
-    ? range.startContainer
-    : range.endContainer;
-  return !range.collapsed && renderedUnder(focus, el);
+  if (range.collapsed) return null;
+  return selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+}
+
+/** @param {Element} el */
+function reachedForWords(el) {
+  const released = releases.kept()?.focus;
+  const focus = released === undefined ? selectionFocus() : released;
+  return focus !== null && renderedUnder(focus, el);
 }
 
 document.addEventListener(
@@ -350,7 +374,7 @@ export const closeControl = ({ name, className = "" }) =>
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape. A reaction shows its glyph,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
-// a control already wears writes nothing (keeps.js).
+// a control already wears writes nothing (lib/keeps.js).
 /** @template {HTMLElement} T @param {T} control
  * @param {{glyph?: string | null, action?: string | null, label: string, behavior?: string, collapse?: boolean}} options @returns {T} */
 export function responseAction(
@@ -378,14 +402,4 @@ export function responseAction(
     control,
   );
   return control;
-}
-
-// Motion carries the card's label, never a second live widget tree. Native chrome
-// avoids copied form groups, widget lifetimes and iframe browsing contexts.
-/** @param {string} label */
-export function motionPreview(label) {
-  const preview = offer("div", "lf-motion-preview", label);
-  preview.inert = true;
-  preview.setAttribute("aria-hidden", "true");
-  return preview;
 }

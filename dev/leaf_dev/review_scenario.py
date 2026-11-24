@@ -128,7 +128,7 @@ USER_TURN = (
 
 def prepare(arm: Path, state: Path, page: Path) -> None:
     """Prepare the same release-review starting state using the harness's Leaf arm."""
-    run_leaf(arm, state, "page", "init", str(page), check=True)
+    run_leaf(arm, state, "page", "init", "--package", "reading", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     run_leaf(
         arm, state, "page", "stamp", str(page),
@@ -183,9 +183,11 @@ def claimed(page: Path) -> dict:
     return require(page_claim(page), "the page has no claim")
 
 
-def activity(page: Path) -> str:
-    """What the page's status reads: its activity's kind (`leaf.activity`)."""
-    return cmd_page_state(page)["activity"]["kind"]
+def activity(page: Path) -> tuple[str, str]:
+    """What the page's status reads (`leaf.activity`): whether anyone is there to
+    take input, and where the agent's work stands."""
+    reading = cmd_page_state(page)["activity"]
+    return reading["presence"], reading["state"]
 
 
 def settled(page: Path, session: str, sent: dict[str, str]) -> dict:

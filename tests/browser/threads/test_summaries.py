@@ -483,13 +483,13 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     """A summary arriving over messages the user is reading, closed and opened again,
-    then retracted, leaves them where they stand: a frame in one keeps the document it
-    loaded, and words the user selected in another stay selected. Moving a message
-    would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
-    in every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
-    words stay selected. Standing on that toggle, the user is in the thread, so their
-    rewrite of a folded message, which retracts the summary, draws at once."""
+    leaves them where they stand: a frame in one keeps the document it loaded, and
+    words the user selected in another stay selected. Moving a message would reload its
+    frame in WebKit, which lacks `moveBefore`, and lose the selection in every engine.
+    The checkpoint groups its messages for assistive technology by `aria-owns`, since
+    it doesn't contain them. Its toggle takes a press while those words stay selected.
+    Standing on that toggle, the user is in the thread, so their rewrite of a folded
+    message draws at once, and the summary stands over it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -575,9 +575,9 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         },
     )
     told(page)
-    expect(checkpoint).to_have_count(0)
-    expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(covered[2]).to_contain_text("The camera takes three.")
+    expect(checkpoint).to_have_count(1)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     kept()
 
 
@@ -632,8 +632,8 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
 
     It stands under the actions at the card's width, its press whole on one line, with
     a mouse and under a finger.
-    An edit that retracts the checkpoint waits behind the card's notice while the user
-    reads it, and drawn once they show it, leaves them on Resolve."""
+    A summary that replaces the checkpoint waits behind the card's notice while the
+    user reads it, and drawn once they show it, leaves them on Resolve."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -694,17 +694,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     resolve = card.get_by_role("button", name="Resolve thread")
     resolve.focus()
 
-    def edit_root(text):
-        append_carried_log_record(
-            serve.page_dir,
-            {"kind": "edit", "author": "user", "message": root, "text": text},
-        )
-        told(page)
-
-    edit_root("Start with the corrected measured constraint.")
+    summarize_thread(serve.page_dir, root, end, "The constraint was confirmed again.")
+    told(page)
     expect_preview_words(
-        card.get_by_role("button", name="2 new", exact=True),
-        "1 message edited · 1 summary changed",
+        card.get_by_role("button", name="1 new", exact=True), "1 summary changed"
     )
     expect(checkpoint).to_have_count(1)
     expect(resolve).to_be_focused()
@@ -713,19 +706,16 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     expect(checkpoint).to_have_count(0)
     expect(resolve).to_be_focused()
 
-    with sending(page, "resolve after the root summary is retracted"):
+    with sending(page, "resolve after the root summary is replaced"):
         activate(resolve)
     expect(card).to_be_hidden()
 
 
-def test_a_later_summary_replaces_its_overlap_and_a_rewrite_restores_originals(
-    browser, serve
-):
+def test_a_later_summary_replaces_its_overlap(browser, serve):
     """The browser follows the canonical summary fold as the transcript changes.
 
     Each change to the fold of a card the user is reading waits behind its notice, with
-    the words it would change; shown, a summary opens around the messages being read.
-    The user's rewrite of a folded message retires the summary, so the originals show."""
+    the words it would change; shown, a summary opens around the messages being read."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -772,25 +762,6 @@ def test_a_later_summary_replaces_its_overlap_and_a_rewrite_restores_originals(
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "All three constraints now form one decision."
     )
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "user",
-            "message": second["id"],
-            "text": "The corrected second constraint.",
-        },
-    )
-    told(page)
-    expect(checkpoint).to_be_visible()
-    card.get_by_role("button", name="2 new", exact=True).click()
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
-    expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')).to_contain_text(
-        "The corrected second constraint."
-    )
-    expect(card.locator(f'.lf-msg[data-lf-event="{third["id"]}"]')).to_be_visible()
 
 
 def test_expanding_a_summary_keeps_completed_progress_hidden(browser, serve):

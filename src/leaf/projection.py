@@ -537,6 +537,26 @@ def recorded_owner(
     return None
 
 
+def container_owner(
+    container: str, byid: dict, registry: dict, *, holders: dict | None = None
+):
+    """The widget whose position record places units in `container`: the nearest
+    element at or above it that records positions, which is the container itself
+    where a widget orders its own members. Each unit the container holds has the
+    same owner (`recorded_owner`), and the browser reads containers by the same rule
+    (`projection/authored.js`, `initialState`)."""
+    node = byid.get(container)
+    if node is not None and any(
+        spec["record"]["kind"] == "position"
+        for _, spec in state_specs(registry.get(node["tag"], {}))
+        if spec.get("record")
+    ):
+        return container
+    return recorded_owner(
+        container, {"kind": "position"}, byid, registry, holders=holders
+    )
+
+
 def attribute_marks(byid: dict, spk: dict, registry: dict) -> dict[str, dict]:
     """What one version's markup shows for every attribute record at once: attribute
     → owner id → the ids inside the owner that carry the attribute and whose nearest
@@ -590,17 +610,13 @@ def markup_value(unit: str, spec: dict, byid: dict, marks: dict):
     return rec["body"] if rec else ""  # "body"
 
 
-_POSITION = {"kind": "position"}
-
-
 class AuthoredOrders:
     """Where one version's markup puts every position owner's units, read in one
     pass over the document, so a reading that asks about many owners, such as a page
     of boards, reads the page once rather than once per owner.
 
-    A container belongs to its nearest ancestor recording positions
-    (`recorded_owner`). Every caller reads the lists `of` returns and none changes
-    them."""
+    A container belongs to the widget `container_owner` names. Every caller reads
+    the lists `of` returns and none changes them."""
 
     def __init__(self, byid: dict, registry: dict):
         within = {
@@ -612,9 +628,7 @@ class AuthoredOrders:
         }
         containers = {}
         for cid, rec in byid.items():
-            if rec["tag"] in within and (
-                owner := recorded_owner(cid, _POSITION, byid, registry)
-            ):
+            if rec["tag"] in within and (owner := container_owner(cid, byid, registry)):
                 containers[cid] = (rec, owner)
         self._orders: dict[tuple[str, str], dict[str, list[str]]] = {}
         for cid, (rec, owner) in containers.items():
@@ -781,32 +795,23 @@ def folded_value(e: dict, spec: dict):
 
 
 def obligation_value(
-    owner, verb, spec, byid, marks, orders, projection, *, answered=False, unit=None
+    owner, verb, spec, byid, marks, orders, projection, *, answered=False
 ):
     """Read an obligation's typed value and presence from the canonical state fold.
     `marks` and `orders` are the document's `attribute_marks` and `AuthoredOrders`.
 
     Widget units use their declared record or custom action detail. Member units
-    form one mapping, or the exact member when `unit` is supplied; positions retain
-    every container, including empty ones.
+    form one mapping; positions retain every container, including empty ones.
     Empty authored values need completion to count as an answer; a value
     action in force counts even while completion is outstanding. Null never holds a value.
     """
     record = spec.get("record")
-    # The owner's coordinates of this verb, or the one member's when `unit` names it.
-    if unit is None:
-        actions = {
-            coordinate: held
-            for coordinate, held in projection.actions_by_owner.get(owner, {}).items()
-            if coordinate[2] == verb
-        }
-    else:
-        held = projection.actions.get((owner, unit, verb))
-        actions = {} if held is None else {(owner, unit, verb): held}
-    if unit is not None:
-        held = actions.get((owner, unit, verb))
-        value = (folded_value(*held) if record else held[0]["detail"]) if held else None
-    elif spec["unit"] == "widget":
+    actions = {
+        coordinate: held
+        for coordinate, held in projection.actions_by_owner.get(owner, {}).items()
+        if coordinate[2] == verb
+    }
+    if spec["unit"] == "widget":
         held = actions.get((owner, owner, verb))
         value = (
             (folded_value(*held) if record else held[0]["detail"])

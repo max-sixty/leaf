@@ -97,6 +97,7 @@ import {
   commandEntries,
   commandRoutes,
   commandReady,
+  placeHandedBack,
   scopeAvailable,
   live,
   routedCommand,
@@ -114,7 +115,11 @@ import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { runLanding, scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeModes } from "./layer-stack.js";
-import { composedParentNode, renderedUnder, excludedByInert } from "../shadow-tree.js";
+import {
+  composedParentNode,
+  renderedUnder,
+  excludedByInert,
+} from "../lib/shadow-tree.js";
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandEntry} CommandEntry
@@ -518,7 +523,7 @@ function resolveKey(ev) {
   return null;
 }
 /** @param {KeyboardEvent} ev */
-export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+export const keyReady = (ev) => placeHandedBack() && resolveKey(ev) !== INPUT_PENDING;
 // What a press of `binding` would do now, resolved as the press itself would be with no
 // key behind it, or null: the one reading of whether a key works where the user is.
 // Escape's is what the platform's close request asks for (close-requests.js), and

@@ -17,8 +17,8 @@
  * stretch ink; text that reflows moves under a mark and can leave its circle.
  */
 
-import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
-import { el } from "../widget-elements.js";
+import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
+import { el } from "../lib/elements.js";
 import { paintSet } from "../target-paint-geometry.js";
 import { drawingGeometry } from "./drawing-geometry.js";
 

@@ -30,16 +30,12 @@
  * name, else the browser's sans-serif. What Leaf adds it reads from outside: the drawing
  * under way as a `pending-task` event and the named boxes as the visual parts this
  * module registers, which only Leaf's Comment reads. */
-import {
-  PendingTaskEvent,
-  bodyText,
-  once,
-  failSoft,
-  frameFor,
-  registerVisualParts,
-  sizeObserver,
-  whileConnected,
-} from "/runtime/portable-api.js";
+import { frameFor, whileConnected } from "/runtime/portable-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { bodyText } from "/runtime/lib/data-body.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 
 // Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
 // classic track consume this same padding, retaining 1px around the marks.
@@ -125,9 +121,9 @@ customElements.define(
   class extends HTMLElement {
     /** @type {Map<string, {element: Element, label: string}>} */
     visualParts = new Map();
-    visualPartRegistration = registerVisualParts(this, () =>
-      [...this.visualParts].map(([id, part]) => ({ id, ...part })),
-    );
+    lfParts = {
+      read: () => [...this.visualParts].map(([id, part]) => ({ id, ...part })),
+    };
     // The content width the box last laid out at, 0 where it shows no box, and none
     // before the first observation; the width the drawing showing was drawn for, its
     // own width, and its markup; and the draw, once the renderer has read the source.
@@ -257,7 +253,9 @@ customElements.define(
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);
       this.toggleAttribute("data-lf-scroll", true);
-      this.visualPartRegistration.update();
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

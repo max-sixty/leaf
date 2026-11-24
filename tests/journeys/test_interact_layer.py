@@ -668,7 +668,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
     from leaf.service import claim_path
 
     publish(claimed)
-    vendored = vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed)
     record = (
         claim_path(claimed)
         if unreadable == "claim"
@@ -697,9 +697,6 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    layer_3 = registry_storage.layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == vendored
     assert vendoring_model.renew_layer(claimed, None, command=True) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
@@ -795,7 +792,10 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    assert (package / "defaults.css").read_bytes() == theme
+    # The package keeps the rules it had, and the starter's rule follows them.
+    styles = (package / "defaults.css").read_bytes()
+    assert styles.startswith(theme.rstrip())
+    assert styles.endswith(packages_model.starter_widget_styles("lf-added-note"))
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
@@ -922,9 +922,9 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     package under a name of its own beside the bundled ones, described by the first
     paragraph of its author instructions and its entries' descriptions, and an
     installed package in place of the bundled one whose name it takes. `default`, on
-    every page already, and the theme `theme list` offers are not listed."""
+    every page already, is not listed."""
     team = tmp_path / "src" / "team-charts"
-    packages_model.cmd_package_init(team, "lf-trend")
+    packages_model.cmd_package_init(team, ("lf-trend",))
     (team / "instructions").mkdir(exist_ok=True)
     (team / "instructions" / "author.md").write_text(
         "## When to select it\n\n"
@@ -960,4 +960,3 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     assert packages["playwright"]["installed"] is False
     assert "lf-trace" in packages["playwright"]["entries"]
     assert "default" not in packages
-    assert "reading" not in packages

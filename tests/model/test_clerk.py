@@ -287,7 +287,7 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
             "text": "Before I pick, how stale can a result get?",
         },
     )
-    assert choice()["status"] == "open"
+    assert choice()["state"] == "waiting"
 
 
 def test_a_choice_leaf_refuses_is_handed_to_the_agent(claimed, capsys):
@@ -355,10 +355,10 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     records = {o["message"]: o for o in state["obligations"]}
-    assert records[first["id"]]["status"] == "answered"
-    assert (records[again["id"]]["source"]["kind"], records[again["id"]]["status"]) == (
+    assert records[first["id"]]["answered"]
+    assert (records[again["id"]]["source"]["kind"], records[again["id"]]["state"]) == (
         "widget",
-        "open",
+        "waiting",
     )
     assert (
         f"On Me again, with your message {again['id']} in the thread of {question} "
@@ -399,7 +399,7 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, 
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     [record] = [o for o in state["obligations"] if o["message"] == again["id"]]
-    assert (record["status"], record["next_actor"]) == ("open", "user")
+    assert (record["state"], record["next_actor"]) == ("waiting", "user")
     # The agent hears the id the question now stands under: the reply's own where it
     # asks the choice's question anew in words.
     assert (

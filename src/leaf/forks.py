@@ -63,13 +63,13 @@ its thread or speaks for a round a later turn joined. A line that fails it drops
 the page's diagnostics say so.
 
 While the line stands, the waiting messages before it read On it, as they do before
-any progress message of the agent's (`served_state.work`, which serves it as their
-workflows' `at_work`, so every surface showing whether the agent is at work agrees), as
-the user chose. That word is all the line changes: as a receipt's progress it takes
-nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds a turn
-reads the message's delivery. A start would read as the session's turn, renewing it
-after an interrupt and holding the message at Working before the session had taken it
-in, which would hide it from the nudge and the overdue count.
+any progress message of the agent's (`served_state.work.lined`, which `activity` reads
+as a waiting update `running`, so every surface showing whether the agent is at work
+agrees), as the user chose. That word is all the line changes: as a receipt's progress
+it takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds
+a turn reads the message's delivery. A start would read as the session's turn, renewing
+it after an interrupt and holding the message as started before the session had taken
+it in, which would hide it from the nudge.
 
 The line fork thinks at the session's own effort, and its prompt asks it to reply
 straight away without thinking it over, since its line is worth most in the seconds
@@ -293,9 +293,7 @@ def step(session_id: str, payload: dict) -> dict | None:
             basis,
             answer=payload.get("answer"),
             failed=payload.get("failed"),
-            usage=payload.get("usage"),
-            elapsed_ms=payload.get("elapsed_ms"),
-            request=payload.get("resent"),
+            run=run_facts(payload),
         )
         duty, thread = basis["duty"], basis["thread"]
         log = f"the {duty} fork for thread {thread}: {outcome['outcome']}"
@@ -330,13 +328,11 @@ def step(session_id: str, payload: dict) -> dict | None:
         thread,
         answer=payload.get("answer"),
         failed=payload.get("failed"),
-        usage=payload.get("usage"),
-        elapsed_ms=payload.get("elapsed_ms"),
         # The calls the line fork's prompt named, which a failed report lacks.
         running=basis["running"]
         if "running" in basis
         else payload.get("running") or [],
-        request=payload.get("resent"),
+        run=run_facts(payload),
     )
     log = f"the line fork for thread {thread['thread']}: {outcome['outcome']}"
     return {**outcome, "log": log}
@@ -464,15 +460,13 @@ def route(
     *,
     answer: str | None,
     failed: str | None,
-    usage: dict | None = None,
-    elapsed_ms: float | None = None,
     running: list[dict] | None = None,
-    request: dict | None = None,
+    run: dict | None = None,
 ) -> dict:
     """Post the line fork's answer as the agent's working line on the round `basis`
     names (`_line`), or say why there is none: the line fork failed (`failed`, its
     reason), or its answer doesn't fit `ANSWER`. What came of it is recorded in the
-    page's diagnostics."""
+    page's diagnostics, with what `run_facts` read of the fork's run (`run`)."""
     from .clerk import read_answer
     from .refusals import Refused
 
@@ -493,9 +487,7 @@ def route(
         {
             **outcome,
             "running": running or [],
-            **({"usage": usage} if usage else {}),
-            **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
-            **({"request": request} if request else {}),
+            **(run or {}),
         },
     )
     return outcome
@@ -513,6 +505,18 @@ def _record(session_id: str, basis: dict, outcome: dict) -> None:
             **outcome,
         },
     )
+
+
+def run_facts(payload: dict) -> dict:
+    """What a page's diagnostics note of a fork's run, from the module's report of it
+    (`carrier.fork`): its `usage`, its time (`elapsedMs`) and what it resent of the
+    main thread's conversation (`request`), each where the report gives it."""
+    facts = {
+        "usage": payload.get("usage"),
+        "elapsedMs": payload.get("elapsed_ms"),
+        "request": payload.get("resent"),
+    }
+    return {name: value for name, value in facts.items() if value is not None}
 
 
 def note(page_dir: Path, record: dict) -> None:

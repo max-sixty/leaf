@@ -49,6 +49,7 @@ from interact_support import (
     lock_contention,
     model_layer,
     obligations_on_user,
+    open_todos,
     publish,
     read_page_data,
     refused_on,
@@ -897,9 +898,8 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     registry: dict[str, dict] = with_modules(
         {
             "lf-draft": {
-                "content": "data",
+                "content": "markdown",
                 "verbatim": True,
-                "text-format": "markdown",
             }
         },
         "lf-draft",
@@ -1019,7 +1019,7 @@ RANK_CASES = json.loads((Path(__file__).parents[1] / "rank_cases.json").read_tex
 
 def test_rank_rules_match_the_browser_cases():
     """`tests/runtime/board-order.test.mjs` reads the same cases against
-    `projection/model.js`, so the two runtimes rank authored units alike and the
+    `lib/rank.js`, so the two runtimes rank authored units alike and the
     append door admits what a widget computes."""
     assert RANK == RANK_CASES["pattern"]
     for index, rank in RANK_CASES["authored"]:
@@ -1669,7 +1669,8 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
-    holds, which a one-version corpus cannot earn.
+    holds, which a one-version corpus cannot earn — and `id`, which composition
+    gives every element and no declaration lists.
 
     Live samples are example pages too; their child documents contribute the
     attributes the reader can exercise there.
@@ -1697,7 +1698,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry["attributes"].get("properties", {}).items():
-            if attr in {"restated", "overruled", "resolves"}:
+            if attr in {"id", "restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
@@ -1721,13 +1722,10 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     zone = {
         "description": "A project package's differently named pane.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "reading-role": "pane",
@@ -2486,8 +2484,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         "thread", "reply", "t-store", "--text", "Weighing it.", "--todo", "Weigh"
     )
     assert promised.exit_code == 0, promised.output
-    [task] = json.loads(run("page", "state").output)["todos"]
-    assert (task["id"], task["subject"]) == (
+    [task] = open_todos(json.loads(run("page", "state").output))
+    assert (task["id"], task["source"]["subject"]) == (
         json.loads(promised.output)["id"],
         {"kind": "thread", "id": opened["id"]},
     )
@@ -3364,11 +3362,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "resolved": None,
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.
-            "attention": {
-                "kind": "waiting",
-                "reason": "workflow",
-                "workflow": opened["id"],
-            },
+            "attention": f"update:{opened['id']}",
         }
     ]
     history = CliRunner().invoke(
@@ -4040,10 +4034,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     def declare(registry):
         registry["lf-label"] = {
             "description": "An inline label.",
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "markup",
             "owners": ["lf-column"],
         }
@@ -4267,7 +4258,9 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     )
     with fresh_process():
         state = agent_state_model.cmd_page_state(page_dir)
-    assert [item["status"] for item in state["obligations"]] == ["withdrawn"]
+    assert [(item["state"], item["outcome"]) for item in state["obligations"]] == [
+        ("done", "dropped")
+    ]
     assert set(authored) == {active.read_text()}
 
 
@@ -4323,7 +4316,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     with fresh_process():
         initial = read()
         assert len(parsed) == 4
-        assert initial["all"][0]["status"] == "withdrawn"
+        assert initial["all"][0]["outcome"] == "dropped"
         parsed.clear()
         assert read() == initial
         assert len(parsed) <= 1  # the first read's history parses evicted the active
@@ -4666,8 +4659,7 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     )
     registry: dict[str, dict] = {
         "lf-draft": {
-            "content": "data",
-            "text-format": "markdown",
+            "content": "markdown",
             "verbatim": True,
         }
     }
@@ -4694,7 +4686,7 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
-    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # A <br> parts the words around it, as Leaf reads them (lib/markdown.js,
     # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):
@@ -4840,7 +4832,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     [item] = [
         item for item in reading["obligations"] if item["source"]["kind"] == "widget"
     ]
-    assert item["status"] == "answered"
+    assert (item["state"], item["outcome"], item["end"]) == ("done", "done", None)
     assert item["answer"]["event"]["id"] == picked["id"]
 
 

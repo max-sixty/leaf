@@ -3,11 +3,13 @@
 from jsonschema.exceptions import SchemaError
 
 from leaf.findings import Finding
-from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
+from leaf.schema import DECLARATION_SCHEMA
 
 from .contract import (
+    body_is_data,
     deciding_outcomes,
     deciding_verb,
+    element_declarations,
     fact_condition,
     gathering,
     registry_error,
@@ -48,8 +50,6 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         raise registry_error(
             "attributes-schema", path, tag, **schema_reading(error)
         ) from error
-    if entry.get("text-format") == "markdown" and entry.get("content") != "data":
-        raise registry_error("markdown-needs-data", path, tag)
     # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
     # the element's words or its recorded state. Its other inputs leave the <pre> alone.
@@ -58,11 +58,11 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         for spec in entry.get("inputs", {}).values()
         if spec.get("property") == "value"
     ]
-    if entry.get("content") == "data" and inputs:
+    if body_is_data(entry) and inputs:
+        if entry["content"] == "markdown":
+            raise registry_error("data-input", path, tag, reason="words")
         if len(inputs) > 1:
             raise registry_error("data-input", path, tag, reason="inputs")
-        if entry.get("text-format") == "markdown":
-            raise registry_error("data-input", path, tag, reason="words")
         if any(
             spec.get("record", {}).get("kind") == "body"
             for _, spec in state_specs(entry)
@@ -101,14 +101,14 @@ def _validate_widget_relations(
         tag, entry, registry, declarations, data, path
     )
     awaits = _validate_widget_predicates(tag, entry, properties, path)
-    _validate_widget_interactions(tag, entry, registry, properties, awaits, path)
+    _validate_widget_interactions(tag, entry, registry, awaits, path)
     validate_widget_state_relations(tag, entry, declarations, path)
     validate_widget_record_contracts(
         tag, entry, properties, registry, declarations, path
     )
     validate_deciding_verb(tag, entry, path)
     validate_widget_retirement(tag, entry, declarations, path)
-    validate_answered_conditions(tag, entry, data, declarations, path)
+    validate_answered_conditions(tag, entry, declarations, path)
 
 
 def _typed(properties: dict, attr: str, kind: str) -> bool:
@@ -123,14 +123,33 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     """What the element declaration of `tag` in `registry`, read with its defaults
     written in, advises its author, each finding naming the file `path`: a data
     input's source attribute not declared a string, which `leaf data`'s own grammar
-    still checks; a measured input whose source or run receipt an instance may leave
-    out, so that instance is never compared with its source's latest run; and a
-    widget that asks with no string `id` declared, which each instance's own check
-    still requires."""
+    still checks; a measured input whose source or run receipt an instance may
+    leave out, so that instance is never compared with its source's latest run; and
+    a position record whose `within` names no container the declarations place
+    at or inside the widget (`_containers`), so a drop of the widget's own members is
+    refused at admission. The last is advice, not a refusal, because it can still
+    work: a container outside the declared membership may stand in a member's
+    markup, and another package may declare the membership that places it."""
     entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
     found = []
+    members = _members(registry)
+    for verb, spec in state_specs(entry):
+        record = spec.get("record") or {}
+        if record.get("kind") != "position":
+            continue
+        if record["within"] not in (containers := _containers(tag, registry, members)):
+            found.append(
+                registry_finding(
+                    "position-container",
+                    path,
+                    tag,
+                    verb=verb,
+                    within=record["within"],
+                    containers=containers,
+                )
+            )
     for input_name, spec in entry.get("inputs", {}).items():
         source_attr = spec.get("source")
         if source_attr and not _typed(properties, source_attr, "string"):
@@ -159,9 +178,37 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
                     "measured-run", path, tag, input=input_name, attr=run_attr
                 )
             )
-    if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
-        found.append(registry_finding("addressable-id", path, tag, key="awaits"))
     return found
+
+
+def _members(registry: dict) -> dict[str, set[str]]:
+    """Each tag some declaration names in `owners` → the tags that name it."""
+    members: dict[str, set[str]] = {}
+    for name, entry in element_declarations(registry).items():
+        for owner in entry.get("owners", []):
+            members.setdefault(owner, set()).add(name)
+    return members
+
+
+def _containers(tag: str, registry: dict, members: dict) -> list[str]:
+    """`tag` and the tags the declarations place inside it through `owners`, at any
+    depth, that hold members of their own: where a position record of `tag` can put
+    its units. A member that records positions itself is the nearer owner of every
+    place beneath it (`projection.recorded_owner`), so the search neither counts nor
+    passes it."""
+    inside, frontier = set(), [tag]
+    while frontier:
+        for member in members.get(frontier.pop(), ()):
+            if member == tag or member in inside:
+                continue
+            if any(
+                (spec.get("record") or {}).get("kind") == "position"
+                for _verb, spec in state_specs(registry[member])
+            ):
+                continue
+            inside.add(member)
+            frontier.append(member)
+    return sorted(name for name in inside | {tag} if name in members)
 
 
 def _validate_widget_structure(
@@ -185,7 +232,7 @@ def _validate_widget_structure(
                 needs="content",
                 value="markup",
             )
-        if "id" not in required or not _typed(properties, "id", "string"):
+        if "id" not in required:
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if "label" not in required or not _typed(properties, "label", "string"):
             raise registry_error(
@@ -213,15 +260,14 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
             )
-    for key in ATTRIBUTE_FACTS:
-        declared = entry.get(key) or ()
-        named = {declared} if isinstance(declared, str) else set(declared)
-        if unknown := sorted(named - set(properties)):
-            raise registry_error(
-                "undeclared-attributes", path, tag, key=key, names=unknown
-            )
+    # A `refers` attribute the widget hasn't got leaves the widget out of every pass
+    # that reads it, with no error anywhere, so the door refuses it.
+    if unknown := sorted(set(entry.get("refers", {})) - set(properties)):
+        raise registry_error(
+            "undeclared-attributes", path, tag, key="refers", names=unknown
+        )
     if isinstance(entry.get("visual"), dict):
-        if not ("id" in required and _typed(properties, "id", "string")):
+        if "id" not in required:
             raise registry_error("visual-id", path, tag)
         part_attribute = entry["visual"].get("parts")
         if part_attribute and part_attribute not in properties:
@@ -292,12 +338,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
 
 
 def _validate_widget_interactions(
-    tag: str,
-    entry: dict,
-    registry: dict,
-    properties: dict,
-    awaits: dict,
-    path,
+    tag: str, entry: dict, registry: dict, awaits: dict, path
 ) -> None:
     answered = awaits.get("answered", {})
     # The user answers their own obligation, so only a verb the user writes can answer it.
@@ -318,17 +359,3 @@ def _validate_widget_interactions(
     ):
         raise registry_error("awaits-blanket", path, tag, outcome=blanket)
     require_module(tag, entry, registry, path)
-    # A version overrules a report in force with `overruled` on the element,
-    # so a widget with an agent-written verb that doesn't declare the attribute
-    # is one whose every report contradiction is unpublishable.
-    agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
-    if agent_verbs and not _typed(properties, "overruled", "boolean"):
-        raise registry_error("unoverruled", path, tag, verbs=agent_verbs)
-    # A user decision folded on the widget needs an explicit withdrawal route:
-    # `restated` names that intent; ordinary source edits leave the decision in
-    # force. Child-folding verbs place it on elements this declaration does not name.
-    folds_whole = any(
-        spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
-    )
-    if folds_whole and not _typed(properties, "restated", "boolean"):
-        raise registry_error("unrestated", path, tag)

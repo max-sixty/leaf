@@ -19,14 +19,13 @@
    widgets the group holds, since it is a fact about the markup, not about which
    obligation is open. */
 import { focused } from "../focus.js";
-import { inChrome } from "../passages.js";
 import { aimTargetAt, focusTargetAt } from "../anchor-resolution.js";
 import { placeOf } from "../current-target.js";
 import { heldThread } from "../thread/focus.js";
-import { under } from "../shadow-tree.js";
-import { readObligations } from "../obligations/model.js";
-import { obligationPlace } from "../obligations/place.js";
+import { under } from "../lib/shadow-tree.js";
+import { obligationPlace, readObligations } from "../obligations/place.js";
 import { OBLIGATION_CONTROL } from "../obligations/view-elements.js";
+import { inChrome } from "../ui-marks.js";
 
 // The innermost question group holding `node` (`obligationPlace`'s context), or null
 // where none does or `node` is in one of that group's answer widgets.

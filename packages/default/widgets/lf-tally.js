@@ -2,14 +2,14 @@ import { render as tallyTemplate } from "./tally-view.js";
 /* lf-tally: how many of a region's obligations are still open, whose turn each is, and the
  * way to the next one waiting on the user.
  *
- * The region is the element `for` names, and which obligations it holds is `obligationsIn`
- * (runtime/obligations/place.js), the rule a side list's rows read too, so the total
+ * The region is the element `for` names, and which obligations it holds is
+ * `readObligations(region)`, the rule a side list's rows read too, so the total
  * counts the obligations whose marks the queue shows. An obligation stays open until the
  * page adopts the reading that admits its answer, never on a guess. The count splits the
  * open ones by the server's next actor, in the words `tally` and `tallyWords`
- * (runtime/obligations/tally.js) give, which say why they split as they do. Until the
- * page's first reading is in, the tally says nothing rather than a count of an inventory
- * it has not seen.
+ * (runtime/lib/obligation-tally.js) give, which say why they split as they do. Until
+ * the page's first reading is in, the tally says nothing rather than a count of an
+ * inventory it has not seen.
  *
  * With `next`, a Next On Me control steps to the next obligation waiting on the user inside
  * the region (`obligationActions.next`), from where the user is, so a press keeps
@@ -25,33 +25,32 @@ import { render as tallyTemplate } from "./tally-view.js";
  * beside them or what follows. A longer count or agent name widens the room once. */
 import {
   agentName,
-  obligationsIn,
   elementById,
-  LeafElement,
   obligationActions,
   readObligations,
-  tally,
-  tallyWords,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 customElements.define(
   "lf-tally",
   class extends LeafElement {
+    static shadow = true;
     #next = () => {
       const region = this.#region();
       if (region) obligationActions.next({ within: region });
     };
 
     #region() {
-      return elementById(this.getAttribute("for"));
+      return elementById(this.getAttribute("for"), this);
     }
 
     render() {
-      const items = readObligations();
       const region = this.#region();
-      const ready = items.phase === "ready" && Boolean(region);
-      const held =
-        items.phase === "ready" && region ? obligationsIn(region, items.all) : [];
+      // The page's reading is read with no region yet too, so the reading that brings
+      // the region draws the tally again.
+      const ready = readObligations().phase === "ready" && Boolean(region);
+      const held = ready && region ? readObligations(region).all : [];
       const count = tally(held);
       // The drawing's two rooms hold the widest words, one calling the agent "the
       // agent" and one by its name; a longer count widens them once.

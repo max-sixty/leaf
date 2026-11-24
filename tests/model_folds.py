@@ -240,7 +240,7 @@ def _fold(
     # the same packages the page would install, without writing an installation.
     registry = {
         **(registry or model_layer()),
-        "$layer": {"generation": "0" * 32, "packages": [], "theme": None},
+        "$layer": {"generation": "0" * 32, "packages": []},
     }
     data = data or {"version": "0" * 16, "sources": {}}
     door = ModelPage(documents=parsed, registry=registry, data=data)

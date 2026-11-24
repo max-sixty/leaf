@@ -21,7 +21,6 @@ function marked(markup, { threads = [], onMe = [], changes = [], toc = "" } = {}
   const host = /** @type {HTMLElement} */ (document.querySelector("lf-toc"));
   const reading = {
     label: (/** @type {Element} */ heading) => heading.textContent ?? "",
-    chrome: () => false,
   };
   const drawing = drawToc(host, reading);
   render(drawing.render(reading), host, { host });

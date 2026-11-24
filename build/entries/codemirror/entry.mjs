@@ -32,6 +32,7 @@ export {
   MapMode,
   RangeValue,
   CharCategory,
+  countColumn,
 } from "@codemirror/state";
 export {
   drawSelection,

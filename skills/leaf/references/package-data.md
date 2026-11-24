@@ -20,7 +20,11 @@ A recorded answer stays its owner's, and only the owner's module records it
 and changes it by asking the owner with a command the owner turns into its own verb. The
 log then holds one answer whichever widget the user changed it in, Undo takes back
 that one action, and the same two modules work off Leaf, where the owner keeps the
-answer itself.
+answer itself. A view whose own place on the page is that answer, as a board card
+stands in the column of a pick, names the owner in a `refers` attribute too, as
+`lf-card` does in `shows`, but its module reads the owner's state and records the
+owner's verb through `widgetController(owner)`
+([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
 
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
@@ -34,7 +38,7 @@ outside both packages that selects them by path, write both widgets into its
 `index.html`, and run the render check, which draws the pair:
 
 ```bash
-leaf page init --package ./shortlist --package ./finalists <page>
+leaf page init --package reading --package ./shortlist --package ./finalists <page>
 leaf page check <page> --render
 ```
 
@@ -131,8 +135,7 @@ moving a card again replaces that card's position while other cards keep theirs.
 new version may change the authored markup freely; the user's decisions still apply
 over it until a `restated` event takes one back. A version takes a decision back by
 setting the boolean `restated` attribute on the element it rests on, and stamping that
-version records the retraction (the registry's `$restated`). A widget with a user verb
-whose `unit` is `"widget"` declares that attribute. The `$keys` entries in
+version records the retraction (the registry's `$restated`). The `$keys` entries in
 `browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
@@ -142,12 +145,15 @@ The record kind fixes the event's payload, a closed object with every field requ
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
-  attribute holds no other JSON type, so a number is recorded as its digits.
-- `position` sends `{unit, value, rank}`: the moved element, the destination container,
-  and its rank. A container is an element of the tag `record.within` names, a declared
-  one, inside the widget and with an id of its own, and its members are its children
-  that have ids. The widget is never its own container, so a widget with one list of
-  members still holds them in a container element.
+  attribute holds no other JSON type, so a number is recorded as its digits. The
+  record may also name the element's property that holds the value, so that Leaf
+  records it with no module code (`module-plain-elements.md`,
+  "`record.property`").
+- `position` sends `{unit, value, rank}`: the moved element's id, the destination
+  container's id, and the element's rank there. A container is an element of the tag `record.within` names, a declared
+  one, with an id of its own, and its members are its children that have ids. It is
+  the widget itself where `within` names the widget's own tag, as for a list the user
+  reorders, or an element inside the widget, as each column of a board is.
 
 `leaf page state` lists each move in force with its container and rank, not the order
 that results. Authored members rank `1`, `2`, `3` and on in authored order, in base
@@ -158,12 +164,14 @@ log but no longer place their members: that version's author writes each moved m
 where the user left it, and those moves can no longer be undone.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
-detail field holding the moved element. A verb with no record declares its own closed
+detail field holding the moved element. A verb with no record declares its own
 `detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
 naming what the verb's state is about, by element id or by data key, as a playground's
-submitted settings do. That schema itself holds only `type: "object"`, `properties`,
-`required` and `additionalProperties: false`, so a rule across fields, such as
-`if`/`then`, is refused; each property takes any schema.
+submitted settings do. That schema holds only `properties`, which names its fields, and
+`required`, so a rule across fields, such as `if`/`then`, is refused; each property
+takes any schema. Leaf writes the schema's `type` and `additionalProperties`
+(`packages.md`, "A widget"), so an action's detail holds only the fields `properties`
+names.
 
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$verbs.attention` in the registry). Changes to
@@ -184,13 +192,13 @@ does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail
 holding the new child's id, which must be one no page or Thread markup holds, created
 members included, and `words` the field holding its text; its detail schema has just
 those two fields. Leaf reads that text as inline Markdown the user typed, so the parent
-draws it with `inlineMarkdownFragment(text)` (`module-reading.md`, "Markdown"). Each
+draws it in that reading (`module-reading.md`, "Markdown"). Each
 added child is its own key, so undoing the add removes it. The child's tag lists the
 widget in `owners`, requires only an `id`, and has `content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
 presentation, but `package check` refuses one that declares state, obligations,
-history, data or visual parts of its own; the parent's controller records and presents
+history, data or visual parts of its own; the parent records and draws
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions
 or services belongs in authored markup.
@@ -200,21 +208,27 @@ A verb the agent writes, such as the task `status` on the Atlas example page, de
 it with `leaf page report`; the page shows it at once, and it stays until a new version
 answers it. `text: true` requires each report to carry short news for a person in
 `detail.text`. Each verb has one writer, so no key holds both a user's action and an
-agent's report. A widget with such a verb also declares a boolean `overruled` attribute,
-which a version sets to keep its authored state over the report.
+agent's report. A widget with such a verb takes a boolean `overruled` attribute, which a
+version sets to keep its authored state over the report. A widget whose user verb has
+`unit: "widget"` takes a boolean `restated` the same way, which a version sets to take
+the user's decision back. Leaf writes both into the composed declaration, so the
+package's own lists neither. An element that another widget's verb names by id, as
+`lf-board`'s `move` names an `lf-card`, lists `restated` itself.
 
-`awaits` puts a widget's obligations on the user's list, On Me. Its `value` names
+`awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
 `awaits.answered` separately says when the obligation is complete: `{}` once the
-verb has a state, `when` for instances with matching attributes, and `empty` while the
-named container has no members. A page-owned queue can declare:
+verb has a state, which a starting value the page's markup writes gives it too, `when`
+for instances with matching attributes, and `empty` while the one container of the
+verb's position record (`within`) whose attributes match its `when` has no members. A
+page-owned queue can declare:
 
 ```json
 {
   "value": "move",
   "answered": {
-    "move": { "empty": { "within": "lf-queue-column", "when": { "queued": [true] } } }
+    "move": { "empty": { "when": { "queued": [true] } } }
   }
 }
 ```
@@ -222,25 +236,13 @@ named container has no members. A page-owned queue can declare:
 The obligation is answered once the marked column is empty, and returning a card reopens it. If
 the widget's `when` stops holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
-A widget whose bound data contains independently answered records declares `records:
-{"input": "run", "label": "title"}` in `awaits`. The input binds to a stored
-source, which the server can read; widget outputs remain browser-local. The input's
-contract supplies `records.items` and `records.key`; each record's key identifies its
-obligation and its answering action's unit. The named label field supplies the prompt.
-For example, `value: "review"` with `answered: {"review": {"detail": {"approved":
-true}}}` completes each record's obligation while that unit's latest review approves it.
-Clearing or undoing approval reopens it. Source reordering preserves these identities;
-removing a record removes its obligation. The widget marks those same keys as its drawn
-data ([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so
-Leaf's On Me navigation can reveal each record.
-
 `awaits.retired` names the attribute an author sets to close an obligation but
 keep its widget on the page, such as a decided question collapsed with its options;
 `when` must require it to be absent. The group the author names round a widget is its
 obligation's question, its region and its words (`authoring-on-me.md`, "On the page"),
 so a widget needs no prompt of its own.
 
-The module reads and records this state through `widgetController(owner)`
+The module reads this state as `this.state` and records it with `record()`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
@@ -367,13 +369,10 @@ contract").
 {
   "lf-builds": {
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
-      "required": ["id", "source"],
-      "additionalProperties": false
+      "required": ["id", "source"]
     },
     "content": "empty",
     "inputs": {
@@ -445,9 +444,9 @@ element itself: a control inside the element says a bubbling `change` of its own
 which Leaf doesn't count, and which a module listening on its own element tells apart
 by `event.target`.
 
-A consumer draws after the producer's `change`, in the same frame, not inside it. A
-producer that goes on to act on the page as its consumers leave it, such as scrolling
-to a place, does that in the next frame (`frameFor`).
+Leaf sets the consumer's property before the producer's `dispatchEvent` returns. A
+consumer that draws in its setter has drawn by then; a consumer that extends
+`LeafElement` draws after the dispatch returns, in the same frame.
 
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
@@ -511,7 +510,6 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key. `data set` refuses a value in which two rows share a key, or a row's key is
-missing, empty or not a string, and an `awaits.records` input ([User
-state](#user-state)) keys each row's obligation by it. `lf-diff`'s contract, whose value
+missing, empty or not a string. `lf-diff`'s contract, whose value
 has a `files` array of `{path, patch}` objects, declares `{ "records": { "items":
 "files", "key": "path" } }`.

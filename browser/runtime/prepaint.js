@@ -267,16 +267,12 @@
   // links. CSS draws the mark; no generated child can change a link's line breaks.
   /** @type {Window["lfLinks"]["opensElsewhere"]} */
   const opensElsewhere = (href) => {
-    try {
-      const url = href === null ? null : new URL(href, document.baseURI);
-      return (
-        url !== null &&
-        ["http:", "https:"].includes(url.protocol) &&
-        url.origin !== location.origin
-      );
-    } catch {
-      return false;
-    }
+    const url = href === null ? null : URL.parse(href, document.baseURI);
+    return (
+      url !== null &&
+      ["http:", "https:"].includes(url.protocol) &&
+      url.origin !== location.origin
+    );
   };
   /** @type {Window["lfLinks"]["markExternalLink"]} */
   const markExternalLink = (link) => {
@@ -325,17 +321,113 @@
       for (const node of record.addedNodes) if (node instanceof Element) visit(node);
   });
   earlyContent.observe(document, { childList: true, subtree: true });
+  // The handoff a reload hands the document it loads (version.js, `captureHandoff`):
+  // what the document carried, the values typed into the page's form, its disclosures,
+  // the comparison and the pointer, and where the user was, which belongs to the entry
+  // it was read on. Prepaint alone writes it to the tab and reads it back. The tab
+  // holds it only while a document would hand it on and isn't standing in view: from
+  // its departure, or its page going hidden, since a tab the browser discards while
+  // hidden goes with no `pagehide`, to the next document's first script. That script
+  // removes it and takes it only where its document stands at the entry it names
+  // (`entryId`): a reload, a discarded tab's return and Back to a document the browser
+  // didn't keep all keep the entry's id. A document that starts hidden, as a background
+  // tab's reload does, writes back what it hands on as a hide does, and a page shown
+  // again removes it. A frame showing the same page shares the tab's key, so its first
+  // script, its return to view and its departure can still remove the page's handoff or
+  // put the frame's own over it, which the page's next document drops as another
+  // entry's.
+  //
+  // It puts the user back where they were only while the document stands at the entry
+  // that place was read at (`placesUser`, by the entry's key, which a replace keeps):
+  // elsewhere, as after Back taken before Leaf starts, and where it holds no place, it
+  // carries what it holds of the document alone. The bootstrap's key hold and the
+  // arrival both ask (bootstrap.js, `holdEarlyKeys`; version.js, `installArrival`).
+  //
+  // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
+  // that is what it owes of the document, none of which has reached the page yet: the
+  // handoff it was handed, if any, with the state of each control the user has changed
+  // since (document-inputs.js, `edited`), and without where they were once they have
+  // acted within the entry, steps Back or Forward and leaving the window aside
+  // (`away`). From then on it is what the arrival says (`handOnWith`; version.js,
+  // `installArrival`). A document's own departure fires its `pagehide` before the hide
+  // that follows it, which writes nothing over it; one put into the back/forward cache
+  // may come back, so its hide writes, and its return removes what it wrote.
+  const HANDOFF_KEY = "lf-revision-handoff";
+  const entryId = () => window.navigation?.currentEntry?.id ?? null;
+  /** @type {{carry?: {id: string}[], entry?: unknown, typing?: unknown} | null} */
+  const handoff = (() => {
+    const stored = tabStore.get(HANDOFF_KEY);
+    tabStore.set(HANDOFF_KEY, null);
+    try {
+      const value = JSON.parse(stored || "null");
+      return value && value.entryId === (entryId() ?? false) ? value : null;
+    } catch {
+      return null;
+    }
+  })();
+  const placesUser = () =>
+    handoff?.entry != null && handoff.entry === window.navigation?.currentEntry?.key;
+  // A changed control's state as a carry record holds it (carry.js, `captureCarry`).
+  /** @param {Element} node */
+  const changedState = (node) => ({
+    id: node.id,
+    name: node.localName,
+    ...(inputs.holdsOpen(node) && { open: node.open }),
+    ...(inputs.holdsValue(node) && { value: node.value }),
+    ...(inputs.holdsTick(node) && { checked: node.checked }),
+  });
+  /** @type {() => object | null} */
+  let handingOn = () => {
+    const changed = [...document.querySelectorAll("[id]")].filter((node) =>
+      inputs.edited(node),
+    );
+    if (!handoff && !changed.length) return null;
+    return {
+      ...handoff,
+      carry: [
+        ...(handoff?.carry ?? []).filter(({ id }) => {
+          const node = document.getElementById(id);
+          return !node || !inputs.edited(node);
+        }),
+        ...changed.map(changedState),
+      ],
+      ...(inputs.count !== inputs.away && { entry: null, typing: false }),
+    };
+  };
+  /** @param {object | null} value */
+  const handOn = (value) =>
+    tabStore.set(
+      HANDOFF_KEY,
+      value ? JSON.stringify({ ...value, entryId: entryId() }) : null,
+    );
+  let gone = false;
+  addEventListener("pagehide", (event) => {
+    gone = !event.persisted;
+    handOn(handingOn());
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") handOn(null);
+    else if (!gone) handOn(handingOn());
+  });
+  addEventListener("pageshow", (event) => {
+    if (event.persisted) handOn(null);
+  });
+  if (document.visibilityState === "hidden") handOn(handingOn());
   window.lfStorage = {
     stored,
     tabStore,
     userStore,
+    handoff,
+    placesUser,
+    handOnWith: (next) => {
+      handingOn = next;
+    },
     keepDisclosure,
     finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.
     // The source baseline reads this parser-time default, never the later live value.
     initialDisclosureOpen: (node) => disclosures.get(node),
   };
-
   // View selection is tab-local browser state from parsing through later switches.
   // Delivery carries the registry's member selector; only the browser evaluates it.
   // Readers leave the DOM alone. Showing a choice paints membership and native hidden.

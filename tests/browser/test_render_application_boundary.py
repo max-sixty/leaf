@@ -51,15 +51,16 @@ from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { LeafElement, readThreads, threadSummary, threadTurns } from '/runtime/widget-api.js';
+import { nameOf, readThreads } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
-    this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+    this.topic = collection.threads[0] && nameOf(collection.threads[0]);
     return html`<pre>${collection.threads.map(thread =>
-      threadTurns(thread).map(message => message.body.text).join('\n')
+      thread.turns.map(message => message.body.text).join('\n')
     ).join('\n')}</pre>`;
   }
 });
@@ -68,10 +69,8 @@ customElements.define('lf-thread-reader', class extends LeafElement {
 THREAD_READER_DECLARATION = {
     "description": "A read-only package thread view.",
     "attributes": {
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
@@ -79,21 +78,22 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { LeafElement, signal, threadActions, readThreads, threadSummary } from '/runtime/widget-api.js';
+import { nameOf, threadActions, readThreads } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
-  query = signal('');
-  setup() { this.query.value = this.getAttribute('filter') ?? ''; }
+  static properties = { query: { state: true } };
+  setup() { this.query = this.getAttribute('filter') ?? ''; }
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
     this.updates = (this.updates ?? 0) + 1;
     const shown = collection.threads.filter(thread =>
-      threadSummary(thread).topic.toLowerCase().includes(this.query.value.toLowerCase()));
-    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
-      @input=${event => { this.query.value = event.target.value; }}>
+      nameOf(thread).toLowerCase().includes(this.query.toLowerCase()));
+    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query}
+      @input=${event => { this.query = event.target.value; }}>
       <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
-        @click=${() => threadActions.open(thread.key)}>${threadSummary(thread).topic}</button></li>`)}</ul>`;
+        @click=${() => threadActions.open(thread.key)}>${nameOf(thread)}</button></li>`)}</ul>`;
   }
 });
 """
@@ -101,13 +101,10 @@ customElements.define('lf-thread-filter', class extends LeafElement {
 THREAD_FILTER_DECLARATION = {
     "description": "An instance-local filter over Leaf's shared Thread reading.",
     "attributes": {
-        "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "filter": {"type": "string"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-filter id="example"></lf-thread-filter>',
@@ -259,10 +256,12 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
 
     # Unrelated preparation prevents global presentation proof, while the reply's
     # own rendered words are already visible. Feedback telemetry must not wait on it.
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       const held = Promise.withResolvers();
       window.releaseTimingPreparation = held.resolve;
-      document.querySelector('#timing-local').controller.present(held.promise);
+      document.querySelector('#timing-local').shadowRoot
+        .dispatchEvent(new PendingTaskEvent(held.promise));
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
         view = open_panel_thread(page, question["id"])
@@ -500,7 +499,7 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     """\
     if (!this.dataset.startupInvalidated) {
       this.dataset.startupInvalidated = "1";
-      this.controller.defer()();
+      this.defer()();
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 )
@@ -704,7 +703,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.route("**/api/event", lambda route: held.append(route))
     deferred_at = page.evaluate(
         "window.pageLocal = document.querySelector('#page-local'); "
-        "window.resumeLocal = pageLocal.controller.defer(); "
+        "window.resumeLocal = pageLocal.defer(); "
         "Number(pageLocal.dataset.readings)"
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
@@ -733,12 +732,17 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.unroute("**/api/event")
 
     assert page.evaluate(
-        "pageLocal = document.querySelector('#page-local'); "
-        "pageLocal.controller.dispatch({kind: 'undo', target: 'not-a-candidate'}) === null"
+        """async () => {
+          window.localController = (await window.__lfWidgetApi()).widgetController;
+          window.pageLocal = document.querySelector('#page-local');
+          return localController(pageLocal)
+            .dispatch({kind: 'undo', target: 'not-a-candidate'}) === null;
+        }"""
     )
     # A verb the widget does not send throws rather than vanishing without a word.
     assert 'cannot dispatch "chose"' in page.evaluate(
-        "(() => { try { pageLocal.controller.dispatch({kind: 'action', verb: 'chose'});"
+        "(() => { try {"
+        " localController(pageLocal).dispatch({kind: 'action', verb: 'chose'});"
         " return ''; } catch (error) { return error.message; } })()"
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
@@ -748,7 +752,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     drifted = page.evaluate(
         """() => {
           pageLocal.id = 'drifted-local';
-          const reading = pageLocal.controller.read();
+          const reading = localController(pageLocal).read();
           return {
             available: reading.actions.choose.available,
             undo: reading.actions.choose.undo.length,
@@ -762,7 +766,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.route("**/api/event", lambda route: undo.append(route))
     stale_refused = page.evaluate(
         """() => {
-          const controller = pageLocal.controller;
+          const controller = localController(pageLocal);
           const candidate = controller.read().actions.choose.undo[0];
           const objectTarget = controller.dispatch({
             kind: 'undo',
@@ -835,10 +839,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             "lf-controller-stage": {
                 "description": "A declared shadow stage for the controller lifetime.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "shadow": True,
@@ -846,7 +848,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             },
         }
         modules["widgets/lf-controller-stage.js"] = """\
-import { once, shadowStage } from '/runtime/widget-api.js';
+import { shadowStage } from '/runtime/widget-api.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-controller-stage', class extends HTMLElement {
   connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
 });
@@ -884,28 +887,24 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
 
-    # Several children prepared by one owner are one requirement. A later call for the
-    # same reading includes the earlier promise rather than superseding it.
-    returned = page.evaluate(
-        """() => {
+    # Several children prepared inside one owner are one requirement. A later one for
+    # the same reading joins the earlier promise rather than superseding it.
+    pending = page.evaluate(
+        """async () => {
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          // Said from inside the widget, the work is its preparation.
+          window.prepareLocal = promise =>
+            pageLocal.shadowRoot.dispatchEvent(new PendingTaskEvent(promise));
           window.firstPreparation = heldPreparation();
           window.secondPreparation = heldPreparation();
-          const first = pageLocal.controller.present(firstPreparation.promise);
-          const second = pageLocal.controller.present(secondPreparation.promise);
+          prepareLocal(firstPreparation.promise);
+          prepareLocal(secondPreparation.promise);
           window.preparationReady = false;
           whenLeafPresented().then(() => { preparationReady = true; });
-          return {
-            first: first === firstPreparation.promise,
-            second: second === secondPreparation.promise,
-            pending: readLeafPresentation().pending,
-          };
+          return readLeafPresentation().pending;
         }"""
     )
-    assert returned == {
-        "first": True,
-        "second": True,
-        "pending": ["widget:page-local:preparation"],
-    }
+    assert pending == ["widget:page-local:preparation"]
     page.evaluate("firstPreparation.release('first')")
     assert page.evaluate("preparationReady") is False
     page.evaluate("secondPreparation.release('second')")
@@ -917,7 +916,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     before = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate("() => { window.resumeLocal = pageLocal.controller.defer(); }")
+    page.evaluate("() => { window.resumeLocal = pageLocal.defer(); }")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
@@ -984,9 +983,9 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     page.evaluate(
         """() => {
           window.beforeDetachedReading = Number(pageLocal.dataset.readings);
-          window.resumeDetached = pageLocal.controller.defer();
+          window.resumeDetached = pageLocal.defer();
           window.reconnectPreparation = heldPreparation();
-          pageLocal.controller.present(reconnectPreparation.promise);
+          prepareLocal(reconnectPreparation.promise);
           window.beforeRemovalReady = false;
           whenLeafPresented().then(() => { beforeRemovalReady = true; });
           localLifetimeOwner.remove();
@@ -1083,11 +1082,12 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     reported_browser_errors(page, failure)
 
 
-@pytest.mark.parametrize(
-    "mode", ["siblings", "superseded", "reconnected", "registered-detached"]
-)
+@pytest.mark.parametrize("mode", ["siblings", "superseded", "reconnected"])
 def test_preparation_waits_for_all_capable_work(browser, serve, mode):
-    """Failures and reconnects retain every producer that can still commit DOM."""
+    """Failures and reconnects retain every producer that can still commit DOM. A
+    widget says its preparation with `pending-task`, which is heard only while the
+    widget stands in the page, so work said there is held through the widget's leaving
+    and return."""
     page = open_page(
         browser,
         serve(
@@ -1101,45 +1101,31 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
             },
         ),
     )
-    page.locator("#page-local").evaluate("""owner => {
+    page.locator("#page-local").evaluate("""async owner => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      // Said from inside the widget, the work is its preparation.
+      window.prepare = promise =>
+        owner.shadowRoot.dispatchEvent(new PendingTaskEvent(promise));
       window.preparationOwner = owner;
       window.preparationParent = owner.parentNode;
     }""")
-    if mode == "registered-detached":
-        page.evaluate("preparationOwner.remove()")
     page.evaluate("""() => {
       const owner = preparationOwner;
       const first = new Promise((done, fail) => {
         window.finishPreparation = done;
         window.rejectPreparation = fail;
       });
-      owner.controller.present(first.then(() => { owner.dataset.late = 'committed'; }));
+      prepare(first.then(() => { owner.dataset.late = 'committed'; }));
     }""")
-    if mode == "registered-detached":
-        append_command(
-            serve.page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "page-local",
-                "action": "choose",
-                "detail": {"value": "chosen"},
-            },
-        )
-        told(page)
-    elif mode != "siblings":
+    if mode != "siblings":
         page.get_by_role("button", name="Choose", exact=True).click()
         expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     page.evaluate("""() => {
-      const owner = preparationOwner;
-      const second = new Promise(done => { window.releaseSibling = done; });
-      owner.controller.present(second);
+      prepare(new Promise(done => { window.releaseSibling = done; }));
     }""")
-    if mode in {"reconnected", "registered-detached"}:
-        if mode == "reconnected":
-            page.get_by_role("heading", name="Preparation", exact=True).click()
-            page.evaluate("preparationOwner.remove()")
+    if mode == "reconnected":
+        page.get_by_role("heading", name="Preparation", exact=True).click()
+        page.evaluate("preparationOwner.remove()")
         rendered(page)
         page.evaluate("preparationParent.append(preparationOwner)")
     if mode != "siblings":
@@ -1153,7 +1139,7 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
     assert not page.evaluate(
         "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
     )
-    if mode in {"reconnected", "registered-detached"}:
+    if mode == "reconnected":
         page.evaluate("finishPreparation()")
         rendered(page)
         expect(page.locator("#page-local")).to_have_attribute("data-late", "committed")
@@ -1214,7 +1200,9 @@ def arrived(page, thread_id):
 
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
-import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
+import { readThreads, threadActions } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
@@ -1244,10 +1232,8 @@ customElements.define('lf-thread-actions', class extends LeafElement {
 THREAD_ACTIONS_DECLARATION = {
     "description": "A package's own Thread action controls.",
     "attributes": {
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
@@ -1303,7 +1289,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
 ):
     """A message-only primary materializes the widget's turn, though it draws another."""
     module = """
-    import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
+    import {registerThreadPresentation} from '/runtime/widget-api.js';
     customElements.define('lf-message-reader', class extends HTMLElement {
       connectedCallback() {
         this.outlet = document.createElement('section');
@@ -1312,7 +1298,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
           render: (collection, parts) => {
             const thread = collection.threads[0];
             if (!thread) return;
-            const message = threadTurns(thread).find(message =>
+            const message = thread.turns.find(message =>
               message.key === (this.message ?? thread.root.key));
             parts.message(thread.key, message.key, this.outlet);
           },
@@ -1449,9 +1435,10 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On Me's route and Threads' row each take the user to the primary reader that
-    owns the thread's widget. The panel opens no view of the thread, and the widget
-    arrives as the same native node."""
+    """Opening the widget's On Me row by its id, which arrives where the row's own Show
+    does, and Threads' row each take the user to the primary reader that owns the
+    thread's widget. The panel opens no view of the thread, and the widget arrives as
+    the same native node."""
     page = open_page(browser, package_workspace(serve))
     page.set_viewport_size({"width": 693, "height": 900})
     workspace = page.locator("#workspace")
@@ -1465,7 +1452,7 @@ def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
 
     other_thread.click()
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.obligationActions.open(item.id); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(
@@ -1571,10 +1558,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
             "lf-keyed-slot-list": {
                 "description": "A keyed shadow row with a native slotted editor.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "shadow": True,
@@ -1804,11 +1789,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "empty",
         "shadow": True,
     }
@@ -1895,9 +1876,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     expect(
         workspace.locator('.lf-msg[data-lf-event="nested-question"]')
     ).to_be_focused()
-    assert page.evaluate(
-        "api.currentLocationIn(document.querySelector('#workspace').reader)"
-    )
     assert page.evaluate(
         "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )
@@ -2084,7 +2062,7 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
       const workspace = document.querySelector('#workspace');
       const present = (collection, parts) => {
         const messages = collection.threads.flatMap(thread =>
-          api.threadTurns(thread).map(message => [thread, message]));
+          thread.turns.map(message => [thread, message]));
         if (workspace.reversed) messages.reverse();
         for (const [thread, message] of messages)
           parts.message(thread.key, message.key, workspace.reader);

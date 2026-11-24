@@ -265,7 +265,7 @@
 // VERIFY = 1, which checks every frame.
 //
 // Skipped content. The browser draws nothing in the content it skips (`skipped`,
-// shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
+// lib/shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
 // an off-screen `content-visibility: auto` box. Nothing there can move on screen, and
 // asking any box there for its style or rect makes the browser style and lay out the
 // whole skipped subtree first. So a complete reading leaves skipped content out, as

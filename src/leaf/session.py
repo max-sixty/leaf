@@ -41,6 +41,8 @@ from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
     SESSION_SUFFIX,
+    CopyReplaced,
+    LoadedCopy,
     claims_home,
     session_claims,
     session_file,
@@ -120,7 +122,9 @@ def cmd_idle(page_dir: Path) -> dict:
         # A to-do is work the agent still owes, which closing the page would leave
         # open on a page nobody holds.
         if todos := work.durable.log.owed:
-            named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
+            named = "; ".join(
+                f"{todo['id']} ({todo['prompt']['text']})" for todo in todos
+            )
             raise Refused(
                 f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before closing with "
@@ -718,7 +722,10 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     competing-watch decisions. The newest watch takes the lease from any holder, and
     a watch superseded that way ends without a word: the newest runs the Leaf its
     harness runs now, while an older one may run a Leaf the session has since left,
-    one that cannot read a page the session now holds.
+    one that cannot read a page the session now holds. Nor does a watch read a page
+    once its harness has put another copy in place of the installed copy it loaded:
+    it ends at its next pass, which comes within `REVIVAL_CHECK_S`, by raising
+    `CopyReplaced`, and that copy's watch goes on in its place.
     """
     interrupted = payload.get("hook_event_name") == "Interrupt"
     at_prompt = payload.get("hook_event_name") == "UserPromptSubmit"
@@ -727,6 +734,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     began = int(time.time() * 1000) / 1000
     # The concurrent Stop hook has its timeout to close the turn.
     settled = time.monotonic() + HOOK_TIMEOUT_S
+    copy = LoadedCopy()
     watch = Watch(harness)
     watch.acquire(supersede=True)
     # The turn this watch follows, none for a prompt's watch, and when it first saw
@@ -782,8 +790,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             len(page.events),
             claim and claim["turn"],
             claim and claim["turn_closed"],
-            live.get("state"),
-            live.get("since"),
+            tuple(sorted(live.items())),
         )
         if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
             owed[page.page_dir] = kept = (key, left_owed(page))
@@ -832,6 +839,9 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     ended = "stopped"
     try:
         while harness.process_runs():
+            if copy.replaced():
+                ended = "copy-replaced"
+                raise CopyReplaced
             mark = watch.mark()
             reading = read_watch_pass(
                 watch,
@@ -859,6 +869,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             watch.await_news(mark)
         ended = "harness-exited"
     finally:
+        copy.close()
         watch.release()
         record_watch(watch.watched, harness.session, began, ended)
     # Input admitted while this watch held the lease was not nudged, so now the

@@ -494,9 +494,7 @@ def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serv
     # A tab the view doesn't show names the door that opens its list from anywhere.
     page.mouse.move(2, 2)
     page.locator(".lf-fp-tab", has_text=agent).hover()
-    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(
-        re.compile(r"^\s*g\s*A\s*$")
-    )
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys kbd")).to_have_text(["g", "A"])
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(tab).to_contain_text(agent)
@@ -762,12 +760,12 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
           const item = reading.all.find(q => q.id === 'widget:only');
           return {
             value: item.answer.value,
-            status: item.status,
+            state: item.state,
             unanswered: reading.unanswered.some(q => q.id === item.id),
           };
         }"""
     )
-    assert pending == {"value": ["first"], "status": "open", "unanswered": True}
+    assert pending == {"value": ["first"], "state": "waiting", "unanswered": True}
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -793,7 +791,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
             source: item.source,
             prompt: item.prompt,
             value: item.answer.value,
-            status: item.status,
+            answered: item.answered,
           };
         }"""
     )
@@ -802,7 +800,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         "source": {"kind": "widget", "id": "only", "tag": "lf-options"},
         "prompt": {"text": "Pick one", "target": "only-decision"},
         "value": ["first"],
-        "status": "answered",
+        "answered": True,
     }
 
     page.keyboard.press("g")

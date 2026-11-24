@@ -12,12 +12,16 @@
  * Every box states the room its marks take (base.css, `:where(*)`) whether or not
  * Leaf ever marks it, so the walk skips a box nothing can name, such as a padded
  * wrapper, which never wears a mark and would otherwise push the surface out.
+ * A margin seat stands for the element it marks (`[data-lf-margin-for]`, whose
+ * `lfTarget` names it) and stands at that element's edge, wherever the seat sits in
+ * the tree, so the walk goes on from that element: a preview of a decision's margin
+ * marker that reaches back over the decision stands past the decision's ring.
  *
  * The design label is no such surface: it names the aim's ring and stands on it
  * (target-paint.js, `labelAim`). */
 
 import { markedBox } from "./geometry.js";
-import { renderedParent } from "./shadow-tree.js";
+import { closestAcross, renderedParent } from "./lib/shadow-tree.js";
 import { isAddressable } from "./anchor-resolution.js";
 
 /** @typedef {import("./rect.js").Box} Box */
@@ -42,8 +46,9 @@ export function markRoom(subject, box, gap) {
   const own = markedBox(subject);
   if (!own) return { left: 0, top: 0, right: 0, bottom: 0 };
   const room = reachPast(own, box);
+  const marks = closestAcross(subject, "[data-lf-margin-for]")?.lfTarget;
   for (
-    let at = renderedParent(subject);
+    let at = marks?.isConnected ? marks : renderedParent(subject);
     at && at !== document.body;
     at = renderedParent(at)
   ) {

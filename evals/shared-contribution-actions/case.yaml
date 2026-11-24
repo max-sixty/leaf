@@ -24,23 +24,31 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the integration registers through `registerContribution` and builds
-      its entries with `contributionEntry`, both imported from /runtime/widget-api.js
-      (their earlier names `registerMarginContribution` and `marginEntry` also pass),
-      returns the current
-      Edit or Save/Cancel reading from one producer, routes effects through its sole
-      activation callback, updates that registration after editing state changes,
-      and unregisters on disconnect. It leaves editing state and words with the existing widget. It
-      must not create a second Page Map action directory, manually place page-edge
-      controls, import a private runtime owner, or post raw events.
+      Pass only if the integration registers through `registerContribution`, imported
+      from /runtime/widget-api.js, writes its entries as plain objects, returns the
+      current Edit or Save/Cancel reading from one producer, gives each action one
+      route to its effect, updates that registration after the editing or disabled
+      state changes, and unregisters on disconnect, in `disconnectedCallback` or in
+      the cleanup of `whileConnected`, which the same module exports. An action's
+      route to its effect is one of two, and both pass. The first is the `activate`
+      callback the answer passes to `registerContribution`. The second is a command
+      the widget declares: an entry names it by setting `scope` to the object the
+      widget holds as `lfCommands` and `activation` to the command's id, and Leaf
+      then runs the command's own `run` and disables the entry with the command. It
+      leaves editing state and words with the existing widget. It must not create a
+      second Page Map action directory, manually place page-edge controls, import a
+      private runtime owner, send events to the server itself, or dispatch synthetic
+      clicks or key events.
       Judge the JavaScript integration, including explicit instructions to call
       its update method from existing state setters. The task supplies the editor
       and effect methods; they need not be reimplemented. Its environment cannot
       execute runtime checks, so saying it could not run them is not a failure.
-      Every constructed entry must have a nonempty key and label and exactly one
-      nonempty glyph or icon. Check spread objects too: the Edit entry needs its
-      own glyph or icon. Entry options do not accept kind; that field belongs to
-      the whole reading. The accepted entry options are key, glyph, action, icon,
+      Every entry must have a nonempty key and label and exactly one of a nonempty
+      glyph, an action or an icon. An action names one of Leaf's actions, such as
+      edit, save, cancel and discard; Leaf has others, so do not fail an answer for
+      an action this list leaves out. Check spread objects too: the Edit entry needs
+      its own glyph, action or icon. Entry options do not accept kind; that field
+      belongs to the whole reading. The accepted entry options are key, glyph, action, icon,
       label, voice, accessibleLabel, context, description, behavior, tone, rank,
       state, visible, disabled, count, pressed, workflowReceipt, relation,
       activation, title and scope. The accepted entry behaviors are action, disclosure,
@@ -49,5 +57,18 @@ assert:
       required field, an unknown option, or a guessed enum value is a failure,
       even when the ownership architecture otherwise looks correct. Do not
       reward an agent for admitting such assumptions. A native keyboard route
-      through Leaf controls and Page Map is sufficient; custom bindings are
-      optional, and if supplied they must invoke the same registration.
+      through Leaf controls and Page Map is sufficient, and keys of the widget's own
+      are optional. An answer that declares commands, for keys or for entries to
+      name, must set a plain object it writes as the element's `lfCommands` and
+      dispatch an `lf-commands` event on the element, unless its element extends
+      `LeafElement`, which dispatches the event after each draw. Where a row has a
+      `when` or a computed field that reads the widget's state, the answer must
+      dispatch the event again after that state changes. That event is Leaf's public
+      interface, and dispatching it is not a failure. Importing a function that
+      builds the scope is a failure, since /runtime/widget-api.js exports none. This
+      case grades no other field of a command scope or of its rows. A key and a press
+      on an entry must take the same route to the effect: the entry names the key's
+      command as above, or the command's `run` calls `activate(key)` on the
+      registration that `registerContribution` returned. A command's `run` and the
+      `activate` callback that each call the effect method themselves are two routes,
+      and fail.

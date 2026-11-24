@@ -21,13 +21,11 @@ from functools import cache, cached_property, lru_cache
 from pathlib import Path
 
 from .files import file_stamp
-from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
 from .page_memory import Stamped, memo, once
 from .refusals import Refused
 from .registry.contract import MODULES, is_element_name
-from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -45,7 +43,7 @@ from .schema import (
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
 )
-from .state import PLUGIN_ROOT, plugin_cache_copy
+from .state import PLUGIN_ROOT, installed_copy
 
 
 def named_package(name: str) -> Path | None:
@@ -688,9 +686,9 @@ class LayerComposition:
 
 def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages`, its theme's among them (`themes.with_theme`): its core and
-    bundled packages, the user's installed ones, as this process first read them,
-    and the copies the page holds of packages it selects by path.
+    `packages`, in the order it lists them: its core and bundled packages, the
+    user's installed ones, as this process first read them, and the copies the page
+    holds of packages it selects by path.
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
@@ -832,55 +830,6 @@ def payload_server_inputs(root: Path) -> list[Path]:
     ]
 
 
-def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
-    """Why this Leaf can neither serve a page nor write its log, given the page's
-    layer record (`registry.storage.LAYER`); None when it may. The record names the
-    page protocol a Leaf last initialized the page at, and this Leaf serves and
-    writes only a page at its own (`registry.kernel.kernel_protocol`).
-
-    The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
-    the protocol covers only what a page keeps across Leaf versions: its event log
-    and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
-    at a higher number is refused as `newer-layer` (`newer_layer`), as is one whose
-    layer record a newer Leaf wrote at a later shape, before this reading
-    (`registry.storage.layer_record`), since its repair is a newer Leaf: this one
-    does not take it down (`vendoring._plan_page`). For a page at an
-    older number, the holding session's prompt and Stop hooks, and each of its
-    commands that names the page, take it to this Leaf's number first
-    (`vendoring.renew_layer`). Every server of the page's files, the website's
-    included (`http.page_endpoint`, `leaf_website.page_binding`), the one append
-    door and the writers that ask it first (`event_contracts.write_refusal`), and
-    `page check` refuse on this one reading, each naming its repair."""
-    recorded = record.get("protocol")
-    if type(recorded) is int and recorded == kernel_protocol():
-        return None
-    if type(recorded) is int and recorded > kernel_protocol():
-        return newer_layer(page_dir)
-    return Finding(
-        "foreign-layer",
-        values={
-            "page": str(page_dir),
-            "recorded": recorded if recorded is not None else "none",
-            "leaf": str(PLUGIN_ROOT),
-            "protocol": kernel_protocol(),
-        },
-    )
-
-
-def newer_layer(page_dir: Path) -> Finding:
-    """The refusal of a page a newer Leaf initialized, at a higher page protocol or
-    a later shape of its layer record (`registry.storage.layer_record`). Its repair
-    is that newer Leaf, since this one does not take the page down."""
-    return Finding(
-        "newer-layer",
-        values={
-            "page": str(page_dir),
-            "leaf": str(PLUGIN_ROOT),
-            "protocol": kernel_protocol(),
-        },
-    )
-
-
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:
     """Describe the Leaf payload that is running this command, when its source can.
 
@@ -900,9 +849,10 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
-    # version unset, so that component is the source commit SHA. The default root
-    # follows this module: a newer sibling cannot change the running copy's identity.
-    if plugin_cache_copy(root):
+    # version unset, so that component is the source commit SHA. Codex's and Pi's
+    # copies are clones, which Git reads below. The default root follows this module: a newer
+    # sibling cannot change the running copy's identity.
+    if installed_copy(root) and not (root / ".git").exists():
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
@@ -940,17 +890,16 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         text=True,
         check=True,
     ).stdout.strip()
+    if installed_copy(root):
+        # Nobody edits a harness's clone, but Codex's lacks what it strips on
+        # install, such as the `.agents/skills` link, and adds its own record,
+        # which Git would count as changes; and a status costs a hook that asks
+        # which Leaf it runs (`server.other_serving_leaf`) most of its reading.
+        provenance["dirty"] = False
+        return provenance
     try:
         dirty = subprocess.run(
-            [
-                *git,
-                "status",
-                "--porcelain",
-                "--untracked-files=all",
-                "--",
-                ".",
-                ":(top,exclude).codex-marketplace-install.json",
-            ],
+            [*git, "status", "--porcelain", "--untracked-files=all", "--", "."],
             capture_output=True,
             text=True,
             check=False,

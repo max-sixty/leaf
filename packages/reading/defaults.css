@@ -1,9 +1,10 @@
-/* Leaf's reading look, the bundled `reading` theme a page takes unless it names
- * another or none (`leaf page init --theme`, `--no-theme`). It holds the body's type
+/* Leaf's reading look, the bundled `reading` theme, which a page wears by listing
+ * this package (`leaf page init --package reading`). It holds the body's type
  * and colour, the page's ground, and a wide page's and a page of parts' title; the
  * idioms an author writes, such as a tag or a callout, are Leaf's own and draw on every
- * page (browser/styles/components/idioms.css). A theme may build on this one by naming
- * it as its base, or stand alone (src/leaf/themes.py). As the package's `defaults.css`,
+ * page (browser/styles/components/idioms.css). A theme builds on this one where the
+ * page lists it after this package, and stands alone where the page lists it without
+ * (src/leaf/vendoring.py). As the package's `defaults.css`,
  * its rules stand in `lf-base` beside widgets' defaults and below Layouts, so a Layout
  * and the page's sheet outrank them as they outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's

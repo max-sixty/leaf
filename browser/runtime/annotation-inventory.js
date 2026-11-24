@@ -15,7 +15,7 @@
 import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
-import { excerptWords, labelWords } from "./words.js";
+import { excerptWords, labelWords } from "./lib/words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginEntry, threadMarks } from "./margin-model.js";
 import { agentName, readPart } from "./semantic-state.js";
@@ -26,13 +26,13 @@ import {
   elementById,
   findEach,
   GENERATED,
-  inChrome,
   quoteFrom,
   readsElement,
   textNodesUnder,
 } from "./passages.js";
 import { keptEach } from "./kept.js";
-import { addressableLabel, addressableWord } from "./addressable-names.js";
+import { addressableLabel } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import {
@@ -60,7 +60,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { renderedOrdering, shadowHost, under } from "./shadow-tree.js";
+import { renderedOrdering, shadowHost, under } from "./lib/shadow-tree.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";
@@ -73,6 +73,7 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
+import { inChrome } from "./ui-marks.js";
 
 // The words of every obligation's row, one reading for all of them, so a collection
 // finds each row's words unchanged by identity rather than by reading them
@@ -98,7 +99,7 @@ const inProgress = readPart(
  * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("./anchor-placement.js").Placement} Placement
  * @typedef {import("./passages.js").Segment} Segment
- * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
+ * @typedef {{activate: (route?: {travel?: boolean}) => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
  * @typedef {AnnotationItem & ItemSource} LiveItem
  * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, name: string | null, surface?: Element | null}} Pointed
  * @typedef {{key: string, target: Element, point: Element | null, passage: Placement | null,
@@ -121,10 +122,9 @@ export const annotationSelection = (root) => ({
   obligations: root.effective.obligations,
   workflows: root.effective.workflows,
   revision: root.document.revision,
-  todos: root.authoritative?.browser.todos ?? null,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/place.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
@@ -438,7 +438,7 @@ export function createAnnotationInventory({
   // so one reading of a receipt never names a different stage than its text does. Its
   // line says when, in the interface's words, and what the agent said of it.
   /** @param {Workflow | null | undefined} receipt
-   * @returns {{kind: "waiting" | "activity" | "pickup" | "queued" | "sent", word: import("./voice.js").Said, context: import("./voice.js").Words | null} | null} */
+   * @returns {{kind: "waiting" | "activity" | "pickup" | "sent", word: import("./voice.js").Said, context: import("./voice.js").Words | null} | null} */
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
     const word = workflowWord(receipt, agentName());
@@ -447,16 +447,14 @@ export function createAnnotationInventory({
     const said = receipt.detail ? [agentSays(receipt.detail)] : [];
     return {
       kind:
-        // A receipt handed back to the user always carries its failure.
-        receipt.condition
+        // A receipt handed back to the user is blocked by its failure.
+        receipt.state === "blocked"
           ? "waiting"
-          : receipt.at_work
+          : receipt.state === "running"
             ? "activity"
-            : receipt.stage === "picked_up"
+            : receipt.seen
               ? "pickup"
-              : receipt.stage === "queued"
-                ? "queued"
-                : "sent",
+              : "sent",
       word,
       context:
         when || said.length
@@ -592,7 +590,7 @@ export function createAnnotationInventory({
       // drafts list publishes no keystroke, so words copied here would go stale.
       text: `${draftSends(draft)} draft`,
       context: leafSays(draftSends(draft)),
-      activate: () => resumeDraft(draft.context),
+      activate: (route) => resumeDraft(draft.context, route),
     });
     /** @type {Map<string, LiveItem[]>} */
     const threadDrafts = new Map();
@@ -851,37 +849,38 @@ export function createAnnotationInventory({
     // with the line of the start running on it, or as an open to-do under its title.
     // A thread's to-do is its thread's attention (above); the page's is the floating
     // panel's.
-    for (const todo of runtime.todos) {
+    for (const todo of readObligations().all) {
+      if (todo.source.kind !== "todo" || todo.state === "done") continue;
+      const { subject } = todo.source;
       if (
-        todo.state !== "open" ||
-        (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
+        (subject.kind !== "widget" && subject.kind !== "element") ||
         Number(todo.revision) > Number(runtime.currentRevision)
       )
         continue;
-      if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
-      const target = elementById(todo.subject.id);
-      const { running } = todo;
-      const word = todoWord(running);
-      const account = [todo.agent, running?.text ?? todo.title]
-        .filter(Boolean)
-        .join(" · ");
+      if (activityAlreadyShown.has(`widget:${subject.id}`)) continue;
+      const target = elementById(subject.id);
+      // The line of the start on it, standing or stopped.
+      const line = todo.line ?? null;
+      const title = todo.prompt.text ?? "";
+      const word = todoWord(todo);
+      const account = [todo.agent, line?.text ?? title].filter(Boolean).join(" · ");
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
         // A start running on it is the agent at work there (margin-bars.js).
-        atWork: Boolean(running),
+        atWork: todo.state === "running",
         text: labelWords(account),
         words: [
           ...(todo.agent ? [`${todo.agent} · `] : []),
-          agentSays(labelWords(running?.text ?? todo.title)),
+          agentSays(labelWords(line?.text ?? title)),
         ],
         workflowFace: Object.freeze({
           ...KINDS.activity,
           label: word.text,
           voice: word.voice,
         }),
-        context: running
-          ? [leafSays(`Checked in ${ago(running.ts)} · `), agentSays(todo.title)]
+        context: line
+          ? [leafSays(`Checked in ${ago(line.ts)} · `), agentSays(title)]
           : null,
         activate: () => revealTarget(target, account, scrollToElement),
       });
@@ -1016,7 +1015,7 @@ export function createAnnotationInventory({
     targetPath,
     threadItem: marginThreadItem,
     threadIdsAt,
-    /** @param {AnnotationItem} item */
-    activate: (item) => sourceItem(item)?.activate(),
+    /** @param {AnnotationItem} item @param {{travel?: boolean}} [route] */
+    activate: (item, route) => sourceItem(item)?.activate(route),
   });
 }

@@ -15,8 +15,9 @@
    untouched.
 
    `authoredTitle()` is what other readers of "this page's title" use, packages through
-   widget-api.js; `document.title` now says the tab's. A revision replaces the authored title node (version.js, `activateHead`), which
-   the head observer follows: its work is one head's, not the page's size. */
+   `nameOf(document)` (names.js); `document.title` now says the tab's. A revision
+   replaces the authored title node (version.js, `activateHead`), which the head observer
+   follows: its work is one head's, not the page's size. */
 
 const TAB = document.createElement("title");
 TAB.dataset.lfRuntime = "";
@@ -24,10 +25,8 @@ TAB.dataset.lfRuntime = "";
 /** @param {string} text */
 const squash = (text) => text.replace(/\s+/g, " ").trim();
 
-export const authoredTitle = () =>
-  squash(
-    document.head.querySelector("title:not([data-lf-runtime])")?.textContent ?? "",
-  );
+export const authoredTitle = (page = document) =>
+  squash(page.head.querySelector("title:not([data-lf-runtime])")?.textContent ?? "");
 
 let counted = 0;
 /** @type {MutationObserver | null} */

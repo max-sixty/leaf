@@ -16,7 +16,7 @@ Which goals Leaf should also check on other authors' pages is still being settle
   onto it or holding a press on it shows its whole word and a preview of what pressing
   it opens, or of the fact it stands for, over the page and moving nothing. The
   keyboard and a finger read the same, so no fact is said to hover alone; a widget
-  declares its preview as `lfPreview` (`module-input.md`, "Previews"). A preview says
+  declares its preview as `lfPreview` (`module-previews.md`). A preview says
   only what the user can't read where they aim, never the words a face, caption or
   heading already shows, and a figure or drawing in view needs no name of its own. A
   `title`, an SVG `<title>` among them, shows as the browser's tooltip over everything

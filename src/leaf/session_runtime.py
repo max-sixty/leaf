@@ -1,10 +1,12 @@
 """The Leaf that runs a harness session's delivery.
 
-A harness session keeps running the plugin copy it loaded: Claude Code installs an
-update into a new cache directory and leaves every running session on the old one
-until `/reload-plugins`, or until a new process of the session, such as a background
-job's wake or a resume, loads the update. The user chose that the session's
-hooks, its watch, its pages follower and its bare `leaf` commands run that copy too.
+A harness session runs the plugin copy its harness loaded (`session-lifetime.md`,
+"Which Leaf runs a session"): Claude Code installs an update into a new cache
+directory and leaves every running session on the old one until `/reload-plugins`,
+or until a new process of the session, such as a background job's wake or a resume,
+loads the update, while Codex replaces its one copy in place. The user chose that the
+session's hooks, its watch, its pages follower and its bare `leaf` commands run that
+copy too.
 Handing them to the copy Claude Code has installed since would leave the session's
 hooks module and skills, which Claude Code reads only as it loads the plugin, on
 another Leaf than its Python. So a page a newer Leaf initialized is one the session
@@ -32,20 +34,22 @@ working line; the session gets the thread's messages either way. The user chose 
 over checking that the loaded module is this Leaf's own, which turns forks off in
 every session whose hooks run a checkout that changed the module after the session
 loaded it.
-A running adapter keeps the modules it loaded until it retires, which it does once
-its task owns no page. The selection lives in the session lifecycle record and
-ends with its generation. Page servers retain their own runtime, so choosing
+A running adapter from an installed copy hands its task to an adapter from the copy
+that replaces it (`codex_adapter.py`); one from a checkout keeps the modules it loaded
+until it retires, which it does once its task owns no page. The selection lives in the
+session lifecycle record and ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 
 import os
 from pathlib import Path
+from typing import NoReturn
 
 from .refusals import Refused
 from .state import (
     PLUGIN_ROOT,
     flocked,
-    plugin_cache_copy,
+    installed_copy,
     session_live,
     session_lock_path,
     session_record,
@@ -88,10 +92,10 @@ def select_launcher(session_id: str, launcher: Path) -> bool:
 
 def hand_off_command(argv: list[str]) -> None:
     """Run this `leaf` command under the checkout the session selected, replacing
-    this process, where this Leaf is a copy Claude Code installed. A checkout's
+    this process, where this Leaf is a copy a harness installed. A checkout's
     launcher is one someone chose to run, so it runs as it is; a hook hands itself
     off with its payload's session (`hooks.main`)."""
-    if not plugin_cache_copy(PLUGIN_ROOT) or argv[:1] == ["hook"]:
+    if not installed_copy(PLUGIN_ROOT) or argv[:1] == ["hook"]:
         return
     from .harness import session_harness
 
@@ -102,6 +106,13 @@ def hand_off_command(argv: list[str]) -> None:
     launcher = delivering_launcher(harness.session if harness else "")
     if launcher == own_launcher():
         return
+    run_under(launcher, argv)
+
+
+def run_under(launcher: Path, argv: list[str]) -> NoReturn:
+    """Replace this process with `launcher` running `leaf` with `argv`. Its
+    environment drops the host's choice of launcher (`LEAF_HOST_LAUNCHER`, which
+    `bin/leaf` reads), since that would send the call back to the host's."""
     environment = dict(os.environ)
     environment.pop("LEAF_HOST_LAUNCHER", None)
     os.execve(launcher, [str(launcher), *argv], environment)
@@ -122,7 +133,7 @@ def select_checkout(session_id: str) -> bool:
     adapter about to leave. Only a command selects: a hook runs the delivering Leaf
     already, and a write to the lifecycle record would change the snapshot its own
     readings compare against."""
-    return not plugin_cache_copy(PLUGIN_ROOT) and select_launcher(
+    return not installed_copy(PLUGIN_ROOT) and select_launcher(
         session_id, own_launcher()
     )
 

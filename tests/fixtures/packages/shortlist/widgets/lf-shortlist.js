@@ -1,68 +1,81 @@
 // <lf-shortlist>: candidates the user picks from, each pick its own recorded action.
 //
 // Every change comes in one way, a `--toggle` command whose button's value names a
-// candidate: the authored buttons here send it, and so may any other widget. On a Leaf
-// page the pick is recorded through the widget's controller, so Undo takes one pick
-// back; on a page without Leaf the element keeps the picks itself. Either way it holds
-// the list and its picks as its `shortlist` output and says `change`, which is all
-// another widget reads.
-
-import { nothing } from "/vendor/lit.js";
-import { LeafElement, keeps } from "/runtime/portable-api.js";
+// candidate: the authored buttons here send it, and so may any other widget. The
+// element imports nothing. On a Leaf page, Leaf sets its `state` and the pick is an
+// `lf-action` event Leaf records, so Undo takes one pick back; on a page without Leaf
+// nobody sets `state` and the element keeps the picks itself. Either way it holds the
+// list and its picks as its `shortlist` output and says `change`, which is all another
+// widget reads.
 
 customElements.define(
   "lf-shortlist",
-  class extends LeafElement {
-    static properties = { kept: { state: true } };
+  class extends HTMLElement {
+    // The reading a Leaf page sets; a plain host sets none.
+    #state = null;
+    #kept = new Set();
+    /** @type {HTMLButtonElement[] | null} */
+    #buttons = null;
 
-    setup() {
-      this.kept = new Set();
-      this.buttons = [...this.querySelectorAll("button[value]")];
+    get state() {
+      return this.#state;
+    }
+    set state(next) {
+      this.#state = next;
+      this.#draw();
+    }
+
+    connectedCallback() {
+      if (this.#buttons) return;
+      this.#buttons = [...this.querySelectorAll("button[value]")];
       this.addEventListener("command", (event) => {
         if (event.command === "--toggle") this.toggle(event.source?.value);
       });
+      this.#draw();
     }
 
-    // Leaf hands a recorded widget its reading; a plain host hands it none.
     picked(key) {
-      return this.reading
-        ? Boolean(this.state.pick.units[key]?.detail.picked)
-        : this.kept.has(key);
+      return this.#state
+        ? Boolean(this.#state.pick.units[key]?.detail.picked)
+        : this.#kept.has(key);
     }
 
     toggle(key) {
-      const button = this.buttons.find((candidate) => candidate.value === key);
+      const button = this.#buttons.find((candidate) => candidate.value === key);
       if (!button) return;
       const picked = !this.picked(key);
-      if (this.reading)
-        this.controller.dispatch({
-          kind: "action",
-          verb: "pick",
-          detail: { candidate: key, picked },
-          says: `${picked ? "Picked" : "Dropped"} ${button.textContent.trim()}`,
-        });
+      if (this.#state)
+        this.dispatchEvent(
+          new CustomEvent("lf-action", {
+            bubbles: true,
+            composed: true,
+            detail: {
+              verb: "pick",
+              detail: { candidate: key, picked },
+              says: `${picked ? "Picked" : "Dropped"} ${button.textContent.trim()}`,
+            },
+          }),
+        );
       else {
-        const kept = new Set(this.kept);
-        if (picked) kept.add(key);
-        else kept.delete(key);
-        this.kept = kept;
+        if (picked) this.#kept.add(key);
+        else this.#kept.delete(key);
+        this.#draw();
       }
     }
 
-    render() {
-      this.candidates = this.buttons.map((button) => ({
+    #draw() {
+      if (!this.#buttons) return;
+      const candidates = this.#buttons.map((button) => ({
         key: button.value,
         name: button.textContent.trim(),
         picked: this.picked(button.value),
       }));
-      return nothing;
-    }
-
-    updated(changed) {
-      super.updated(changed);
-      for (const [index, button] of this.buttons.entries())
-        keeps(button, "aria-pressed", String(this.candidates[index].picked));
-      this.shortlist = { candidates: this.candidates };
+      for (const [index, button] of this.#buttons.entries()) {
+        const pressed = String(candidates[index].picked);
+        if (button.getAttribute("aria-pressed") !== pressed)
+          button.setAttribute("aria-pressed", pressed);
+      }
+      this.shortlist = { candidates };
       this.dispatchEvent(new Event("change"));
     }
   },

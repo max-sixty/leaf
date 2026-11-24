@@ -356,10 +356,8 @@ def test_revendoring_can_change_thread_widget_vocabulary(
     options["verbs"]["decide"] = {
         "decides": True,
         "detail": {
-            "type": "object",
             "properties": {"outcome": {"enum": ["keep"]}},
             "required": ["outcome"],
-            "additionalProperties": False,
         },
         "unit": "widget",
     }

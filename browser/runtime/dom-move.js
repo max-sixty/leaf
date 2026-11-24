@@ -16,7 +16,7 @@
  * already placed node is left alone. Text, comments and fragments, which Lit inserts
  * for every new row, hold no one. An iframe still reloads there. The return value
  * matches insertBefore, including when inserting a fragment. */
-import { isElement } from "./shadow-tree.js";
+import { isElement } from "./lib/shadow-tree.js";
 
 // Leaf installs its focus accounting; native placement also works without a runtime.
 /** @typedef {{hold: typeof import("./focus.js").holdFocus, watch: typeof import("./focus.js").watchCurrentLocationIn}} MoveFocus */

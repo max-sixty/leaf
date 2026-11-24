@@ -6,7 +6,6 @@ import { registerContribution } from "/runtime/contributions.js";
 import { resolvedElement, resolvedPassage } from "/runtime/resolved-target.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { clearDraft, commentContext, saveDraft } from "/runtime/drafts.js";
-import { registerVisualParts } from "/runtime/visual-parts.js";
 import { registry } from "/runtime/registry.js";
 import { applicationState } from "/runtime/semantic-state.js";
 import { servedState, servedThread } from "../served.mjs";
@@ -21,7 +20,7 @@ const obligation = (id) => ({
 
 const inventoryOf = (user = []) =>
   createAnnotationInventory({
-    readObligations: () => ({ user }),
+    readObligations: () => ({ all: user, user }),
     placedAt: () => null,
     openThread() {},
     goToObligation() {},
@@ -120,7 +119,7 @@ test("a quoted passage is keyed once while its target's words are unchanged", ()
     point: null,
   };
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: () => placement,
     openThread() {},
     goToObligation() {},
@@ -200,19 +199,16 @@ test("a part's thread is at its picture where focus there stands on the part", (
   /** @type {string | null} */
   let standsOn = null;
   let reads = 0;
-  registerVisualParts(
-    plot,
-    () => {
+  plot.lfParts = {
+    read: () => {
       reads += 1;
       return [];
     },
-    {
-      at: (node) =>
-        node === plot && standsOn
-          ? { id: standsOn, element: part("p"), label: "a point" }
-          : null,
-    },
-  );
+    at: (node) =>
+      node === plot && standsOn
+        ? { id: standsOn, element: part("p"), label: "a point" }
+        : null,
+  };
   const inventory = createAnnotationInventory({
     readObligations: () => ({ user: [] }),
     placedAt: (/** @type {keyof typeof elements} */ id) => ({
@@ -258,10 +254,11 @@ function partsPage() {
     "point:p": { element: element("p") },
     "point:q": { element: element("q"), surface: element("q-shape") },
   };
-  registerVisualParts(element("plot"), () => [], {
+  element("plot").lfParts = {
+    read: () => [],
     find: (id) => (drawn[id] ? { id, ...drawn[id], label: names[id] } : null),
     label: (id) => names[id] ?? null,
-  });
+  };
   return { element };
 }
 
@@ -317,7 +314,7 @@ test("each part of a picture threads are about stands its own entry, named and m
     }),
   );
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: (/** @type {keyof typeof anchors} */ id) =>
       id === "pointed"
         ? {
@@ -369,7 +366,7 @@ test("a saved draft on a part stands its own entry, named and marked by the part
   const anchor = { section: "plot", visual: "point:q" };
   saveDraft(context, "Why here?", { anchor });
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: () => null,
     savedAt: (/** @type {string} */ saved) =>
       saved === context ? placed(anchor) : null,

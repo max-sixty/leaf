@@ -313,7 +313,8 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement, clockValue} = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           window.clockVersion = 0;
           const probes = [];
@@ -568,16 +569,15 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
     entry = {
         "description": "Late shadow words.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,
         "example": '<lf-probe id="probe"></lf-probe>',
     }
-    widget = """import {once, shadowStage} from '/runtime/widget-api.js';
+    widget = """import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     held = []
@@ -734,7 +734,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     page.evaluate(
         """async () => {
-          const {nextFrame} = await window.__lfWidgetApi();
+          const {nextFrame} = await window.__lfLibImport('frame-pass.js');
           await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
         }"""
     )

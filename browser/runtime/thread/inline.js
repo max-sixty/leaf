@@ -56,7 +56,7 @@ class ResolvedThreads {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    generatedElement(this.node, { says: false });
+    generatedElement(this.node);
     this.node.dataset.lfOffer = "";
     this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     // Native disclosure opens at the attribute checkpoint, before paint.
@@ -69,9 +69,7 @@ class ResolvedThreads {
   present(threads, nodes) {
     // A name that is a sentence keeps its words but not its full stop, which a list
     // of names would read as two marks in a row.
-    const names = threads
-      .map((thread) => thread.summary.topic.replace(/\.$/, ""))
-      .join(", ");
+    const names = threads.map((thread) => thread.name.replace(/\.$/, "")).join(", ");
     const count = threads.length > 1 ? `${threads.length} · ` : "";
     render(html`Resolved · ${count}${names}`, this.summary);
     setChildren(this.node, [this.summary, ...nodes]);

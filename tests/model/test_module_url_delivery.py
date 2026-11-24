@@ -468,7 +468,7 @@ def test_document_resource_collection_preserves_external_and_layer_resources(
     from leaf.runtime_selection import executing
     from leaf.structure import SourceDocument
 
-    vocabulary = {"$layer": {"generation": "g", "packages": [], "theme": None}}
+    vocabulary = {"$layer": {"generation": "g", "packages": []}}
     artifact = capture_artifact(
         tmp_path, SourceDocument(f'<img src="{reference}">'), vocabulary
     )

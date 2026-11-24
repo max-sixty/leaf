@@ -182,7 +182,6 @@ def _layout_passes_batch_without_refolding_controls(page):
         before = metrics()
         page.evaluate(
             """async () => {
-              const {layoutChanged} = await window.__lfWidgetApi();
               const rows = [...document.querySelectorAll('.lf-margin-cluster')];
               const boxes = () => rows.map(row => {
                 const {x, y, width, height} = row.getBoundingClientRect();
@@ -205,7 +204,7 @@ def _layout_passes_batch_without_refolding_controls(page):
               };
               for (let i = 0; i < 5; i++) await new Promise(done => {
                 document.addEventListener('lf-margin-layout', done, {once: true});
-                layoutChanged(document.body);
+                document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
               });
             }"""
         )
@@ -1039,11 +1038,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "example": "<lf-piece>Example</lf-piece>",
     }
@@ -1088,7 +1083,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/widget-api.js";\n'
+            'import { once } from "/runtime/lib/once.js";\n'
             f'customElements.define("{tag}", class extends HTMLElement {{\n'
             + body
             + "});\n"
@@ -1716,7 +1711,8 @@ def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A provider registers its inventory and declares which generated ids it admits."""
+    """A visual's parts carry ids its declaration admits. One that offers no part, as a
+    callout that neither registers nor marks any, is a picture commented on whole."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1752,9 +1748,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
             for problem in f.values["problems"]
         ]
 
-    assert {problem["kind"] for _, problem in problems("lf-callout")} == {
-        "unregistered"
-    }, failures
+    assert problems("lf-callout") == [], failures
     assert problems("lf-test-visual-prefixed") == [
         (
             "<lf-test-visual-prefixed id=prefixed>",
@@ -1982,9 +1976,9 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # Fifteen arrivals a step apart: one and a half bounds in all.
     page.evaluate(
         """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
+          const {afterPresentation} = await window.__lfWidgetApi();
           for (let i = 1; i <= 15; i++)
-            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+            afterPresentation(() => new Promise(resolve => setTimeout(resolve, i * step)));
         }""",
         step_ms,
     )
@@ -1994,10 +1988,10 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # has taken its place, so the arrivals left swing between two and three.
     page.evaluate(
         """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          deferredArrival(new Promise(() => {}));
+          const {afterPresentation} = await window.__lfWidgetApi();
+          afterPresentation(() => new Promise(() => {}));
           window.churn = setInterval(() => {
-            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+            afterPresentation(() => new Promise(resolve => setTimeout(resolve, step * 1.5)));
           }, step);
         }""",
         step_ms,

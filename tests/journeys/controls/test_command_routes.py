@@ -31,7 +31,7 @@ def test_native_disclosure_inherits_the_offered_control_target(browser, serve, t
 <details id="comparison"><p>Inspection controls.</p></details>
 <details id="wrapped-comparison" style="width: 160px"><p>Wrapped controls.</p></details>
 <script type="module">
-import {offer} from '/runtime/widget-api.js';
+import {offer} from '/runtime/lib/controls.js';
 const summary = offer('summary', '', 'Inspect comparison');
 summary.id = 'inspect';
 document.querySelector('#comparison').prepend(summary);
@@ -86,7 +86,7 @@ def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):
 <details id="comparison"><p>Inspection controls.</p></details>
 <p id="destination">Destination evidence.</p>
 <script type="module">
-import {offer} from '/runtime/widget-api.js';
+import {offer} from '/runtime/lib/controls.js';
 const summary = offer('summary', '', 'Inspect comparison');
 summary.id = 'inspect';
 document.querySelector('#comparison').prepend(summary);

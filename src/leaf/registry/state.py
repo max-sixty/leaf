@@ -1,6 +1,7 @@
 """Widget state, record, and retirement contract validation."""
 
 from .contract import (
+    body_is_data,
     deciding_outcomes,
     deciding_verb,
     deciding_verbs,
@@ -54,15 +55,11 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-content", path, tag, verb=verb, child=child_tag
                 )
+            # Composition gives the child's id the same grammar
+            # (`contract.stamp_grammars`).
             if set(child["attributes"].get("required", [])) != {"id"}:
                 raise registry_error(
                     "creates-required", path, tag, verb=verb, child=child_tag
-                )
-            # Composition gives the child's id the same grammar
-            # (`contract.stamp_grammars`).
-            if not declares_string(child["attributes"].get("properties", {}).get("id")):
-                raise registry_error(
-                    "creates-id", path, tag, verb=verb, child=child_tag
                 )
             # A creates verb owns id-and-words members, not independent widget
             # owners. Capabilities read from the authored owner inventory cannot
@@ -143,16 +140,15 @@ def validate_widget_record_contracts(
             raise registry_error(
                 "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
             )
-        # A container is a declared element inside the widget, among whose
-        # descendants the browser finds it, so never the widget itself.
-        if kind == "position" and (
-            record["within"] == tag or record["within"] not in declarations
-        ):
+        # A container is a declared element, which may be the widget itself; whether
+        # the declarations place one at or inside the widget is advice
+        # (`widgets.widget_advice`).
+        if kind == "position" and record["within"] not in declarations:
             raise registry_error(
                 "record-within", path, tag, verb=verb, within=record["within"]
             )
         if kind == "body":
-            if entry.get("content") != "data":
+            if not body_is_data(entry):
                 raise registry_error("body-content", path, tag, verb=verb)
             nested = sorted(
                 child
@@ -228,34 +224,18 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
 
 
 def validate_answered_conditions(
-    tag: str, entry: dict, data: dict, declarations: dict, path
+    tag: str, entry: dict, declarations: dict, path
 ) -> None:
     # Asked only after the declaration's record and retirement gates have reported
     # their more fundamental structural errors. Each answering verb's condition reads
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
-    # verb recording positions, the emptiness of one member container inside the
-    # widget.
-    awaits = entry.get("awaits") or {}
-    records = awaits.get("records")
-    if records:
-        binding = entry.get("inputs", {}).get(records["input"])
-        if (
-            not binding
-            or not binding.get("source")
-            or binding.get("reference")
-            or not data["contracts"][binding["contract"]].get("records")
-        ):
-            raise registry_error("awaits-records", path, tag)
+    # verb recording positions, the emptiness of one of its own containers (`within`,
+    # which the record gate has found declared) at or inside the widget.
     for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
         spec = entry["verbs"][verb]
         empty = condition.get("empty")
         record = spec.get("record") or {}
-        if records:
-            if spec["unit"] == "widget" or empty is not None or record:
-                raise registry_error("answering-record", path, tag, verb=verb)
-            if spec["unit"] != entry["verbs"][awaits["value"]]["unit"]:
-                raise registry_error("answering-record", path, tag, verb=verb)
-        elif empty is None:
+        if empty is None:
             if spec["unit"] != "widget":
                 raise registry_error("answering-part", path, tag, verb=verb)
             if "detail" not in condition:
@@ -273,12 +253,8 @@ def validate_answered_conditions(
             continue
         if record.get("kind") != "position":
             raise registry_error("answering-position", path, tag, verb=verb)
-        within = empty["within"]
-        container = declarations.get(within)
-        if container is None:
-            raise registry_error(
-                "answering-container", path, tag, verb=verb, within=within
-            )
+        within = record["within"]
+        container = declarations[within]
         if container.get("content") != "members":
             raise registry_error(
                 "answering-members", path, tag, verb=verb, within=within

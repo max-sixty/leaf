@@ -142,8 +142,8 @@
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is
               narrower than the card, it overlaps the text's edge. Threads, a thread
-              opened from it, the On view and All pages open as views above the panel's
-              row, one at a time.
+              opened in the panel, the On view and All pages open as views above the
+              panel's row, one at a time.
             </p>
 
             <div class="panels" id="chrome-figure">
@@ -532,8 +532,16 @@
             <p id="panel-route">
               The <strong>Threads</strong> tab of Leaf's On view, which the panel's On
               Me mark opens, lists the threads above the panel's row. Select a thread to
-              read its messages and reply in the panel's comment field. Its passage link
-              returns to the anchor on the page.
+              open it: a thread about a passage opens in its card beside the passage,
+              and a thread about the whole page in the panel, where you read its
+              messages and reply in the panel's comment field. A card's
+              <em>Open in panel</em> (<kbd>p</kbd>) moves its thread into the panel, and
+              the threads you open after it, by <kbd>t</kbd>, Threads or a press on
+              their words, open there too, until the panel's <em>Show on page</em>
+              (<kbd>p</kbd>) puts threads back beside their passages. A walk or a row of
+              Threads brings the thread's passage into view above the panel. The choice
+              lasts while the tab stays open. On a window too narrow for cards, every
+              thread opens in the panel.
             </p>
             <p id="reactions">
               A reaction records brief feedback on a passage or agent reply without
@@ -622,8 +630,8 @@
                 <tr id="reading-workflow">
                   <td>
                     <a href="/how-it-works/#stages">How far the agent has got</a> with
-                    an update: Queued for Claude, Up next, Replying, Not answered, Gone
-                    quiet
+                    an update: Queued for Claude, Delivered, Replying, Not answered,
+                    Gone quiet
                   </td>
                   <td>the message itself; the margin and Page Map entries</td>
                 </tr>
@@ -653,8 +661,12 @@
             <p id="resolving-agent">
               The agent resolves a thread only when the user asks, or when no review
               could change the outcome; the thread then reads “Resolved by” and the
-              agent's name. A new message from either side reopens a resolved thread. A
-              reaction, a progress message or a failure notice does not.
+              agent's name. The user's new message reopens a resolved thread, and so
+              does the agent's in a thread the agent resolved. In a thread the user
+              resolved, the agent's message goes in without reopening it, unless it asks
+              them a question; the agent reopens the thread itself where it judges they
+              would want to stop and read what it said. A reaction, a progress message
+              or a failure notice reopens nothing.
             </p>
             <p id="withdrawing">
               Outside a text box, <kbd>⌘Z</kbd> takes back the user's latest action, a

@@ -1,4 +1,5 @@
-import { keeps, once } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-plan",
   class extends HTMLElement {

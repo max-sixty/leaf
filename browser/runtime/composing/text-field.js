@@ -170,9 +170,11 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { inputs } from "../inputs.js";
-import { holdRendering, sizeObserver } from "../rendering.js";
-import { contentsRects } from "../shown-box.js";
+import { holdRendering } from "../rendering.js";
+import { sizeObserver } from "../lib/frame-pass.js";
+import { contentsRects } from "../lib/shown-box.js";
 import { keepFieldKeys } from "../field-keys.js";
+import { marksSheet } from "../stylesheets.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -264,7 +266,7 @@ sheet.replaceSync(`
      of the words around it. A block is drawn line by line, so a code block's frame is
      each line's sides, closed above its first line and below its last, and each code
      line hangs the rows it wraps onto from its indent behind the mark, as the sent
-     block's lines do (reading.css, \`pre\`).
+     block's lines do (marks.css, \`[data-lf-pre-line]\`).
      Syntax that holds its room while the caret is away, as a rule's or a code fence's
      line does, is there unseen and unspoken. Its glyphs go unfilled while its colour
      stays the words', because the caret can stand at the end of unseen text, as just
@@ -305,13 +307,7 @@ sheet.replaceSync(`
     font-size: var(--lf-code-size);
     line-height: var(--lf-code-line); color: var(--lf-code-ink); background: var(--lf-pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
-    padding-inline: var(--lf-pre-inset); position: relative;
-    --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
-    text-indent: var(--lf-code-hang) hanging; }
-  .lf-md-code-block::before { content: ""; position: absolute; inset-block: 1lh 0;
-    inset-inline-start: calc(var(--lf-pre-inset) + var(--lf-code-hang) - 2ch);
-    inline-size: 1ch; background: var(--lf-code-muted);
-    mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y; }
+    padding-inline: var(--lf-pre-inset); --lf-pre-line-inset: var(--lf-pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--lf-code-border);
     border-start-start-radius: var(--lf-r); border-start-end-radius: var(--lf-r); }
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--lf-code-border);
@@ -817,7 +813,7 @@ class LeafText extends HTMLElement {
     // A tab stop, as a textarea is: delegation already stops Tab in the words, and a
     // host reading -1 is one every stop-counting walk would miss.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
-    this.#root.adoptedStyleSheets = [sheet, this.#faces];
+    this.#root.adoptedStyleSheets = [sheet, this.#faces, marksSheet];
     if (this.#length) this.#build();
     else this.#describe();
     this.#paintEmpty();

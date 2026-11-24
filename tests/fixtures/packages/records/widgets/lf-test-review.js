@@ -1,13 +1,11 @@
-/* A run's cases, one shown at a time, each owed the user an answer
- * (`awaits.records`): the fixture for obligations owed per record of a bound source,
- * and for threads seated on a datum that keeps its identity across new values.
- * Each case is a datum the user's Looks right answers. A case not shown is
+/* A run's cases, one shown at a time: the fixture for threads seated on a datum
+ * that keeps its identity across new values. A case not shown is
  * `hidden="until-found"`, and opens on `beforematch`, as Leaf's travel and the
  * browser's find open it, hiding the case it leaves before the handler returns.
  * The shown case seats the threads on it, and the comment box, in its own outlet;
  * a hidden case seats none, so its threads stay in the margin. */
-import { html, live, nothing, repeat } from "/vendor/lit.js";
-import { LeafElement, threadSurface } from "/runtime/widget-api.js";
+import { html, nothing, repeat } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define(
   "lf-test-review",
@@ -26,30 +24,14 @@ customElements.define(
     #drawn;
 
     /** @param {string} id */
-    #approved(id) {
-      const review = this.state?.review;
-      return Boolean(
-        review && "units" in review && review.units[id]?.detail.approved === true,
-      );
-    }
-
-    /** @param {string} id */
     #show(id) {
       if (id === this.#shown) return;
       this.#shown = id;
       this.requestUpdate();
       this.performUpdate();
-      threadSurface(this).update();
-    }
-
-    /** @param {string} id @param {boolean} approved */
-    #review(id, approved) {
-      this.controller.dispatch({
-        kind: "action",
-        verb: "review",
-        detail: { case: id, approved },
-        says: approved ? "Looks right" : "Approval removed",
-      });
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets */
@@ -65,7 +47,6 @@ customElements.define(
       const cases = this.value?.cases ?? [];
       if (!cases.some(({ id }) => id === this.#shown))
         this.#shown = cases[0]?.id ?? null;
-      const available = Boolean(this.reading?.actions.review?.available);
       return html`${repeat(
         cases,
         ({ id }) => id,
@@ -82,16 +63,6 @@ customElements.define(
             }}
           >
             <h3>${title}</h3>
-            <label
-              ><input
-                type="checkbox"
-                ?disabled=${!available}
-                .checked=${live(this.#approved(id))}
-                @change=${(/** @type {Event} */ event) =>
-                  event.currentTarget instanceof HTMLInputElement &&
-                  this.#review(id, event.currentTarget.checked)}
-              />Looks right</label
-            >
             <div class="test-threads lf-ui" data-lf-gen="1"></div>
           </article>`,
       )}`;

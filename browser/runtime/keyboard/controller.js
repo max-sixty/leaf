@@ -22,7 +22,7 @@
    they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
-import { quickShortcuts } from "./bindings.js";
+import { placeHandedBack, quickShortcuts } from "./bindings.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import {
   controlNavigationKeys,
@@ -34,7 +34,7 @@ import {
 } from "../focus.js";
 import { focusPlace } from "../user-place.js";
 import { landForKey } from "../scrolling.js";
-import { nextFrame } from "../rendering.js";
+import { nextFrame } from "../lib/frame-pass.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
@@ -191,21 +191,30 @@ export function mountKeyboard({
   // Upgrade opens commands about the shown document. A command needing private
   // history keeps its key and every printed key behind it in the same queue until
   // the saved reading. New ready keys otherwise pass straight through bootstrap.
+  // Until a reload's place is handed back, the run waits wherever focus is, even in a
+  // box the page opened before the hand-back put the user back in theirs, and the hold
+  // lets it go at any other input (bootstrap.js, `holdEarlyKeys`); the hand-back begins
+  // before the page upgrades (version.js, `installArrival`).
   const takeHeldKeys = () => {
-    if (!pageUpgraded() || pressingHeld) return;
+    if (!pageUpgraded() || pressingHeld || !placeHandedBack()) return;
     /** @type {DocumentEventMap["lf-held-keys"]} */
     const taking = new CustomEvent("lf-held-keys", {
-      detail: { ready: keyReady, keep: () => runtime.statePhase === "waiting" },
+      detail: {
+        ready: keyReady,
+        keep: () => runtime.statePhase === "waiting",
+      },
     });
     document.dispatchEvent(taking);
-    const { keys, pause, release } = taking.detail;
+    const { keys, pressed, pause, release } = taking.detail;
     // An empty or ended hold has nothing to hand over.
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      if (!quickShortcuts()) keys.length = 0;
+      // With single-key commands off, a held key only ever types into a box, as the
+      // words a user typed through a reload do into the box it hands back; the release
+      // lets go of the rest.
       const [key] = keys;
-      if (!key) {
+      if (!key || (!quickShortcuts() && !typesText(focused()))) {
         release();
         pressingHeld = false;
         return;
@@ -215,7 +224,7 @@ export function mountKeyboard({
         pressingHeld = false;
         return;
       }
-      keys.shift();
+      pressed();
       // The hold prevented each key's own insertion, so one whose turn comes in a box
       // an earlier key opened is typed into it here, as the browser would have.
       if (key.key.length === 1 && typesText(focused()))

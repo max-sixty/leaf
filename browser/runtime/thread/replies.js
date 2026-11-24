@@ -39,7 +39,7 @@
    thread is still in the margin, and a hidden panel, keep their rows, since the user
    goes on there when they open again. Every view draws whichever row it holds, a
    primary reader's reply part (primary-reader.js) as a card does. */
-import { REPLY_HINT } from "../words.js";
+import { REPLY_HINT } from "../voice.js";
 import {
   captureDraftEditing,
   loadDraft,
@@ -62,15 +62,16 @@ import {
   onPressAway,
 } from "../focus.js";
 import { threadKey } from "./model.js";
-import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
-import { el, offer } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
+import { offer } from "../lib/controls.js";
 import { signal } from "/runtime/framework.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { tick } from "../version-signal.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
@@ -557,10 +558,13 @@ export const replyIsEditing = (key) => {
 // exact generation. A fresh document has not materialized its native owner yet: the
 // session stands through that route's awaited landing, then either has an owner or
 // retires. Ordinary reload carries no editing capability and never enters this path.
+// A session that no longer stands, as one whose words another tab sent or cleared,
+// keeps nothing open, and `land` runs all the same, since it carries more of the
+// arrival than the session (version.js, `keepReplySession`).
 /** @param {ReturnType<typeof captureDraftEditing>} editing
  * @param {() => Promise<Element | null>} land */
 export async function restoreReplyEditing(editing, land) {
-  if (!editing?.mirrored || !draftEditingStands(editing)) return null;
+  if (!editing?.mirrored || !draftEditingStands(editing)) return land();
   const context = editing.context;
   let session = compositions.get(context);
   if (!session) session = openSession(context, { owner: null });

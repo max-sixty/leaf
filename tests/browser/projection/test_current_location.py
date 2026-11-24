@@ -44,7 +44,12 @@ from render_harness import (
     write,
 )
 
-from browser.threads import PANEL_REPLY, open_panel_thread, thread_row
+from browser.threads import (
+    PANEL_REPLY,
+    choose_threads_in_panel,
+    open_panel_thread,
+    thread_row,
+)
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -784,8 +789,8 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     digits answer it from the view. Opening either thread focuses its reply; Escape
     leaves the reply for the view. A digit typed in the reply stays reply text.
 
-    A thread the keyboard opens from Threads shows in the panel alone, and Escape from
-    its reply leaves it so. Its view stands at the ask the thread is about, and a margin
+    A thread the keyboard opens from Threads, with the panel chosen for threads, shows
+    in the panel alone, and Escape from its reply leaves it so. Its view stands at the ask the thread is about, and a margin
     that read the keyboard arriving there as an arrival at the ask would open the
     thread's card beside the ask as well: the same thread twice, the card left standing
     after the panel closed.
@@ -798,6 +803,7 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     ask = page.locator("#store-ask")
     card = page.locator(".lf-margin-preview")
 
+    choose_threads_in_panel(page)
     row = thread_row(page, "t-open")
     row.focus()
     page.keyboard.press("Enter")
@@ -859,7 +865,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
-    card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
+    card = page.locator(".lf-fp-on-item[data-lf-key='widget:store']")
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")

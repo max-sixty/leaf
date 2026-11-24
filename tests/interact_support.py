@@ -62,10 +62,10 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
-from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
+from leaf import rows as rows_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -197,7 +197,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 @cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection, a path in it
-    naming a package from the checkout's root, as `./tests/fixtures/packages/records`.
+    naming a package from the checkout's root, as `./tests/fixtures/packages/work`.
 
     Composed from the packages rather than read back out of a page, and
     cached per selection, because every stated page asking for the same packages
@@ -217,9 +217,7 @@ def queue_board_registry(registry: dict) -> dict:
     registry = deepcopy(registry)
     registry["lf-board"]["awaits"] = {
         "value": "move",
-        "answered": {
-            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
-        },
+        "answered": {"move": {"empty": {"when": {"label": ["Queued"]}}}},
     }
     return registry
 
@@ -278,10 +276,6 @@ class ModelPage:
         return {
             source: value["contract"] for source, value in self._data["sources"].items()
         }
-
-    def data(self, registry: dict) -> dict:
-        """The supplied validated data readings, empty unless a test names them."""
-        return self._data
 
     @property
     def within(self) -> dict:
@@ -524,11 +518,12 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
-    """Record another page protocol in the page's layer record, and return it.
+    """Write the page's layer record at another page protocol's format, and return
+    that protocol.
 
     The state a breaking Leaf update leaves a page in: an earlier `page init`
-    recorded an older number this Leaf no longer speaks, or with `newer`, a later
-    Leaf recorded a higher one. The file is replaced rather than written through,
+    wrote an older format this Leaf no longer speaks, or with `newer`, a later
+    Leaf wrote a higher one. The file is replaced rather than written through,
     as every file a lent page may share with its template has to be.
     """
     from leaf.registry.storage import LAYER, layer_record
@@ -536,9 +531,9 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     path = page_dir / schema_model.LAYER_FILE
     record = layer_record(page_dir)
     assert record is not None
-    foreign = record["protocol"] + (1 if newer else -1)
+    foreign = LAYER.since + (1 if newer else -1)
     path.unlink()
-    LAYER.write(path, {**record, "protocol": foreign})
+    cleanup_model.write_json(path, {"format": f"leaf-layer/{foreign}", **record})
     return foreign
 
 
@@ -760,13 +755,10 @@ def declare_data_input(
     entry = {
         "description": "A test widget with one external-data input.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {input_name: {"contract": contract, "source": "source"}},
@@ -935,13 +927,14 @@ def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the threads' obligations, or
     with `page` the document's obligations. The records the user's updates publish
-    are `served_updates`."""
+    are `served_updates`, and the agent's to-dos `served_todos`."""
     [view] = browser["views"].values()
     return collection(
         [
             item
             for item in view["obligations"]
-            if item["source"]["kind"] != "update" and (item["thread"] is None) == page
+            if item["source"]["kind"] not in {"update", "todo"}
+            and (item["thread"] is None) == page
         ]
     )
 
@@ -951,6 +944,23 @@ def served_updates(browser: dict) -> list[dict]:
     `browser` serves."""
     [view] = browser["views"].values()
     return [item for item in view["obligations"] if item["source"]["kind"] == "update"]
+
+
+def served_todos(browser: dict) -> list[dict]:
+    """The agent's to-dos, open and ended, as the obligation records the one view
+    `browser` serves them in (`todos`)."""
+    [view] = browser["views"].values()
+    return [item for item in view["obligations"] if item["source"]["kind"] == "todo"]
+
+
+def open_todos(state: dict) -> list[dict]:
+    """The to-dos the agent still owes among an agent-facing state's `obligations`, as
+    `page state` prints them for the page, a thread or a widget."""
+    return [
+        item
+        for item in state["obligations"]
+        if item["source"]["kind"] == "todo" and item["state"] != "done"
+    ]
 
 
 @pytest.fixture
@@ -1023,9 +1033,9 @@ def write_record(path, value):
 def write_row(path, page):
     """Publish a neighbor row for `page` at `path` with every field a serving
     page's producer writes, none of them saying anything."""
-    activity = dict.fromkeys(server_rows_model.ACTIVITY_FIELDS)
-    activity["counts"] = dict.fromkeys(server_rows_model.COUNT_FIELDS, 0)
-    server_rows_model.ROW.write(
+    activity = dict.fromkeys(rows_model.ACTIVITY_FIELDS)
+    activity["counts"] = dict.fromkeys(rows_model.COUNT_FIELDS, 0)
+    rows_model.ROW.write(
         path,
         {
             "page": str(page),
@@ -1284,7 +1294,7 @@ def owed(state):
     its record names, with the record's id as `obligation` and the owed `answer`.
 
     `activity.obligations` names each by its record's id beside its answer, so this
-    is the join an agent makes to reach a move's stage or subject.
+    is the join an agent makes to reach where a move stands or its subject.
     """
     records = {item["id"]: item for item in state["obligations"]}
     by_input = {item["input"]: item for item in state["workflows"]}
@@ -1435,10 +1445,6 @@ def _report_authored_detail(registry):
     }
 
 
-def _report_without_overruled(registry):
-    del registry["lf-test-task"]["attributes"]["properties"]["overruled"]
-
-
 def _report_without_module(registry):
     registry["lf-test-bare"] = {
         **deepcopy(registry["lf-test-task"]),
@@ -1452,14 +1458,9 @@ def _user_verb_text(registry):
 
 def _agent_verb_answers(registry):
     registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
-    registry["lf-options"]["attributes"]["properties"]["overruled"] = {
-        "type": "boolean"
-    }
 
 
 def _body_record_with_prose(registry):
-    # Isolate the body-record contract from the Markdown/data-content contract.
-    del registry["lf-draft"]["text-format"]
     registry["lf-draft"]["content"] = "markup"
 
 
@@ -1492,10 +1493,8 @@ def deciding_verb(outcomes):
     return {
         "decides": True,
         "detail": {
-            "type": "object",
             "properties": {"outcome": {"enum": outcomes}},
             "required": ["outcome"],
-            "additionalProperties": False,
         },
         "unit": "widget",
     }
@@ -1509,8 +1508,8 @@ def trial_family(root: Path) -> None:
     """Declare the trial family in the project package at `root / ".leaf"`.
 
     Registry declarations relate its owners and slots, and each owner's module is the
-    product's starter, which renders nothing of its own: anything a test sees settle is
-    the layer's doing, and the holders' bodies are the authored words
+    wrapper's (`add_test_widget`), which renders nothing of its own: anything a test
+    sees settle is the layer's doing, and the holders' bodies are the authored words
     (`verbatim`).
     Only <lf-proposed> names two owners, for the selector case that needs one."""
     package = root / ".leaf"
@@ -1532,7 +1531,6 @@ def trial_family(root: Path) -> None:
             "verbs": {"decide": deciding_verb(outcomes)},
             "example": example,
         }
-        declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
@@ -1680,13 +1678,16 @@ HELD_LEASES = []
 
 
 def fixture_service(directory, port: int, lifetime: str = "persistent") -> dict:
-    """Record the desired service of a `server run` on `port`, as it records its own."""
+    """Record the desired service of a `server run` on `port`, as it records its own,
+    naming this Leaf as the one serving it."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "runtime": {"path": str(cleanup_model.PLUGIN_ROOT)}
+        | layer_model.running_leaf(),
         "server_id": "fixture-server",
     }
     write_record(directory / "service.json", service)
@@ -1960,7 +1961,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 (
                     task["id"]
                     for task in TodoReading(events_model.read_events(page_dir)).owed
-                    if task["subject"] == {"kind": "page"}
+                    if task["source"]["subject"] == {"kind": "page"}
                 ),
                 None,
             )
@@ -1994,7 +1995,7 @@ def end_work(page_dir):
     from leaf.todos import TodoReading
 
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == {"kind": "page"}:
+        if task["source"]["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
                 {
@@ -2013,7 +2014,7 @@ def end_work_on(page_dir, subject):
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == named:
+        if task["source"]["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
             )
@@ -2056,7 +2057,7 @@ def working(page_dir, line, subject="page"):
         (
             task
             for task in TodoReading(log_model.read_events(page_dir)).owed
-            if task["subject"] == named
+            if task["source"]["subject"] == named
         ),
         None,
     )
@@ -2494,10 +2495,11 @@ def suggested(page_dir):
 def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     """Author one widget in a package, creating the package first if it is missing.
 
-    What a package author gets from `package init --widget`: the product's starter
-    declaration and, for an upgraded widget, its starter module, plus a framed block in
-    the theme. A test specializes the declaration in `registry.json` and rewrites the
-    module where its subject needs behavior of its own."""
+    The widget is a wrapper round authored content: its declaration
+    (`element_declaration`), a framed block in the theme and, for an upgraded widget,
+    a `LeafElement` module that draws nothing of its own. A test specializes the
+    declaration in `registry.json` and rewrites the module where its subject needs
+    behavior of its own."""
     created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
@@ -2519,8 +2521,12 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         )
     if upgrade:
         (package / "widgets").mkdir(exist_ok=True)
-        (package / "widgets" / f"{tag}.js").write_bytes(
-            packages_model.starter_widget_module(tag)
+        (package / "widgets" / f"{tag}.js").write_text(
+            'import { LeafElement } from "/runtime/lib/leaf-element.js";\n\n'
+            "customElements.define(\n"
+            f'  "{tag}",\n'
+            "  class extends LeafElement {},\n"
+            ");\n"
         )
     return declaration
 
@@ -2535,14 +2541,25 @@ def with_modules(registry: dict, *tags: str) -> dict:
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag` as a composed vocabulary holds it,
-    its defaults written in, or, without `upgrade`, the same markup block with no
-    module behind it."""
-    declaration = packages_model.starter_element_declaration(tag)
-    declaration["content"] = "markup"
-    if not upgrade:
-        del declaration["verbatim"]
-    return declaration
+    """A wrapper's declaration for `tag` as a composed vocabulary holds it, its defaults
+    written in: with `upgrade`, a block whose module keeps its authored words
+    (`verbatim`), and without, the same markup block with no module behind it."""
+    name = tag.removeprefix("lf-")
+    return {
+        "description": f"A dedicated block for {name.replace('-', ' ')} content. Use "
+        "it to keep one technical point with its supporting evidence or rationale. "
+        "Give the block a stable id.",
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        **({"verbatim": True} if upgrade else {}),
+        "example": f'<{tag} id="{name}"><p>The retry budget is three attempts '
+        f"before manual review.</p></{tag}>",
+        "content": "markup",
+    }
 
 
 class YamlDocument(str):

@@ -15,6 +15,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
+from leaf.registry.layer import stamp_composition
 from leaf.registry.schema import check_schema
 from leaf.registry.storage import load_registry
 from leaf.schema import DEFAULT_PACKAGE
@@ -127,10 +128,12 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     select_one_result = tree.select_one("#callout-registry")
     assert select_one_result is not None
     entry = json.loads(select_one_result.text)
-    # As composing the tutorial's package writes each declaration's defaults in.
+    # As composing the tutorial's package completes each declaration.
     registry = complete_declarations(load_registry(page_dir) | entry)
 
-    registry_validation.validate_registry(registry, "package tutorial")
+    stamp_composition(
+        registry_validation.validate_registry(registry, "package tutorial")
+    )
     assert (
         validation_model.declaration_advice(entry, registry, "package tutorial") == []
     )
@@ -142,7 +145,7 @@ EVENT_LOG = named_source("how-it-works")
 
 def code_block(page: SourceDocument, block_id: str) -> str:
     """The text of one authored `lf-code`'s `<pre>`, as the widget reads it
-    (widget-upgrade.js, `bodyText`): leading blank lines, such as the one after the
+    (lib/data-body.js, `bodyText`): leading blank lines, such as the one after the
     `<code>` naming its language, are the block's layout."""
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
@@ -346,10 +349,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
 
 
 def test_the_event_log_page_quotes_the_registry():
-    """The declaration the page annotates is `lf-options`' own."""
+    """The declaration the page annotates is `lf-options`' own, and each note stands
+    at the line it explains."""
     source = SourceDocument(EVENT_LOG.read_text())
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
-    shown = json.loads("{" + code_block(source, "options-verbs") + "}")
+    block = code_block(source, "options-verbs")
+    shown = json.loads("{" + block + "}")
     assert shown == {
         "verbs": entry["verbs"],
         "awaits": {
@@ -357,6 +362,25 @@ def test_the_event_log_page_quotes_the_registry():
             "answered": entry["awaits"]["answered"],
         },
     }
+    lines = block.splitlines()
+    noted = []
+    for note in source.tree.select("lf-code#options-verbs > lf-note"):
+        position = note.attrs["at"]
+        assert isinstance(position, str)
+        noted.append(lines[int(position) - 1].strip())
+    explained = [
+        '"choose": ',
+        '"unit": "widget"',
+        '"record": ',
+        '"unit": "option"',
+        '"creates": ',
+        '"answer": ',
+        '"value": ',
+        '"answered": ',
+    ]
+    assert [line[: len(key)] for line, key in zip(noted, explained, strict=True)] == (
+        explained
+    ), noted
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

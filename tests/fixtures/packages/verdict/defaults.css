@@ -1,0 +1,6 @@
+lf-verdict {
+  display: flex;
+  gap: var(--lf-sp-2);
+  /* Hold the row of choices before the module draws it. */
+  min-block-size: var(--lf-line);
+}

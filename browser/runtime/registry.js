@@ -101,14 +101,30 @@ const indexedState = perVocabulary(() => {
   return { recordSelectors, specs };
 });
 
+// Whether two verbs' records read their state from markup the same way. A value
+// record's `property` and `event` say how the element keeps the value on the page
+// (element-integration.js, "Recorded properties"), so two records that differ only
+// there are one, as Python's `registry.contract.recorded` reads them.
+/** @param {import("../types/domain.js").StateRecord | undefined} record */
+const markupRecord = (record) =>
+  record?.kind === "value"
+    ? { kind: record.kind, attr: record.attr }
+    : (record ?? null);
+/** @param {import("../types/domain.js").StateRecord | undefined} one
+ * @param {import("../types/domain.js").StateRecord | undefined} other */
+export const sameRecord = (one, other) =>
+  JSON.stringify(markupRecord(one)) === JSON.stringify(markupRecord(other));
+
 export const stateSpecs = () => indexedState().specs;
 /** @param {import("../types/domain.js").StateRecord} record */
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 
-// Shared `$` declarations belong to the layer rather than to one widget. Each is frozen
-// on adoption, so a package module reads its cross-widget vocabulary without a registry
-// write path, and a reader called per element copies nothing.
+// The registry's entry under a name, the one reader a package module has: a widget's
+// declaration under its tag, or a shared `$` declaration, which belongs to the layer
+// rather than to one widget. Each `$` one is frozen on adoption, so a package module
+// reads its cross-widget vocabulary without a registry write path, and a reader called
+// per element copies nothing.
 /** @param {string} name */
 export const layerFact = (name) => registry[name];
 
@@ -159,11 +175,19 @@ export const tagsDeclaring = (holds) =>
 /** @param {string} tag @returns {boolean} */
 export const upgrades = (tag) => Object.hasOwn(registry.$modules ?? {}, tag);
 
+// The `content` values whose body is one `<pre>` holding text: in the notation the
+// element's module reads (`data`), or in Markdown, which Leaf reads (`markdown`).
+// Python asks `registry.contract.body_is_data`.
+/** @type {readonly WidgetDeclaration["content"][]} */
+export const DATA_CONTENT = ["data", "markdown"];
+/** @param {WidgetDeclaration | undefined} entry */
+export const bodyIsData = (entry) => DATA_CONTENT.includes(entry?.content);
+
 // Every declared attribute holds one of the admitted values. A boolean asks whether a
 // flag is present; other values compare with the attribute's text. The lint holds each
 // value to the attribute's schema.
 /** @param {Element} el @param {Record<string, readonly (string | boolean)[]> | null | undefined} when */
-export const matchesWhen = (el, when) =>
+const matchesWhen = (el, when) =>
   Object.entries(when ?? {}).every(([attr, values]) =>
     values.some((value) =>
       typeof value === "boolean"

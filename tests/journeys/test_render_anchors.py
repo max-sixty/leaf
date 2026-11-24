@@ -106,7 +106,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const {TEXT_BLOCK} = await window.__lfCheckApi();
         const {anchorForRange, resolveAnchor} =
             await window.__lfCheckApi();
-        const {nextRender} = await window.__lfWidgetApi();
+        const {nextRender} = await window.__lfLibImport('frame-pass.js');
         const {renderingState} = await window.__lfCheckApi();
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
@@ -806,9 +806,9 @@ diff --git a/README.md b/README.md
     write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate(
-        """async () => {
-          const {threadSurface} = await window.__lfWidgetApi();
-          threadSurface(document.querySelector('#patch')).update();
+        """() => {
+          document.querySelector('#patch').dispatchEvent(
+            new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
     expect(input_).to_be_focused()

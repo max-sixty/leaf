@@ -19,24 +19,17 @@ import {
  * `/runtime/` and `/vendor/` draws it too, and steps it by its buttons, rows and marks,
  * which are the widget's own presses, by pointer or by Enter and Space. What Leaf adds
  * it reads from outside: the keys as `lfCommands`, the step a key reached as words for
- * a listener (`announce`), where a key from a row of the step list leaves the user
+ * a listener (`lf-announce`), where a key from a row of the step list leaves the user
  * (`lands`), and the events as visual parts.
  * The element draws the drawing's template itself, in the task that changes the step or
  * the layout, so nothing waits on it, and a failure shows where it happened
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
  * a reply shares. */
 import { render } from "/vendor/lit.js";
-import {
-  announce,
-  commandsChanged,
-  failSoft,
-  once,
-  registerVisualParts,
-  reportFailure,
-  sizeObserver,
-  tabStore,
-  whileConnected,
-} from "/runtime/portable-api.js";
+import { tabStore, whileConnected } from "/runtime/portable-api.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 
 /** @param {HTMLElement} host */
 function drawingFor(host) {
@@ -79,8 +72,6 @@ class Timeline extends HTMLElement {
   }
   /** @type {ReturnType<typeof timelineLayout> | undefined} */
   #layout;
-  /** @type {ReturnType<typeof registerVisualParts> | undefined} */
-  #parts;
   // Labels are laid out against the ruler's width, so they follow it in the same
   // frame: a timeline first shown in a closed tab places them before it paints.
   // The ruler's own size doesn't change with the layout, so this never loops.
@@ -94,7 +85,9 @@ class Timeline extends HTMLElement {
         `600 ${style.fontSize} ${style.fontFamily}`,
       );
       this.#draw();
-      this.#parts?.update();
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   };
 
@@ -136,7 +129,14 @@ class Timeline extends HTMLElement {
       throw new Error("Timeline did not draw its controls");
     for (const authored of this.querySelectorAll(":scope > :is(lf-lane, lf-run)"))
       authored.setAttribute("hidden", "");
-    for (const problem of model.problems) reportFailure(this, new Error(problem));
+    for (const problem of model.problems)
+      this.dispatchEvent(
+        new ErrorEvent("error", {
+          error: new Error(problem),
+          bubbles: true,
+          composed: true,
+        }),
+      );
     const steps = model.steps.length;
     // A key pressed on a row of the step list carries the user to the step's row.
     const lands = (/** @type {Element | null} */ from) =>
@@ -183,16 +183,17 @@ class Timeline extends HTMLElement {
         },
       ],
     };
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     previous.addEventListener("click", () => this.#go(drawing.current - 1, true));
     next.addEventListener("click", () => this.#go(drawing.current + 1, true));
     const events = new Map(model.events.map((event) => [event.id, event]));
     const describe = (
       /** @type {import("./timeline-view.js").TimelineEvent} */ event,
     ) => `${event.lane.name}: ${event.label}`;
-    this.#parts = registerVisualParts(
-      this,
-      () =>
+    this.lfParts = {
+      read: () =>
         model.events.flatMap((event) => {
           const element = drawing.eventElement(event.id);
           if (!element) return [];
@@ -204,17 +205,15 @@ class Timeline extends HTMLElement {
             { id: `event:${event.id}`, element, surface, label: describe(event) },
           ];
         }),
-      {
-        label: (/** @type {string} */ id) => {
-          const event = events.get(id.slice("event:".length));
-          return event ? describe(event) : null;
-        },
-        reveal: (/** @type {string} */ id) => {
-          const event = events.get(id.slice("event:".length));
-          if (event) this.#go(event.step, false);
-        },
+      label: (/** @type {string} */ id) => {
+        const event = events.get(id.slice("event:".length));
+        return event ? describe(event) : null;
       },
-    );
+      reveal: (/** @type {string} */ id) => {
+        const event = events.get(id.slice("event:".length));
+        if (event) this.#go(event.step, false);
+      },
+    };
     whileConnected(this, (signal) => {
       const pick = (/** @type {Event} */ event) => {
         if (!(event.target instanceof Element)) return;
@@ -250,14 +249,20 @@ class Timeline extends HTMLElement {
     const selected = drawing.model.steps[step];
     if (!selected) throw new Error(`Timeline has no step ${step}`);
     tabStore.set(`timeline:${this.id}`, String(selected.time));
-    this.#parts?.update();
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     if (!keyed) return;
     const { model } = drawing;
     const events = selected.events
       .map((event) => `${event.lane.name}: ${event.label}`)
       .join("; ");
-    announce(`Step ${step + 1} of ${model.steps.length}. ${events}`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", {
+        detail: `Step ${step + 1} of ${model.steps.length}. ${events}`,
+      }),
+    );
   }
 }
 

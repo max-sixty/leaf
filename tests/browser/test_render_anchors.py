@@ -56,6 +56,7 @@ from render_harness import (
     PANEL,
     SAID_PAGE,
     _traffic,
+    available_commands,
     compare_with,
     comparison_view,
     consume_browser_errors,
@@ -82,7 +83,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread, thread_row
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -106,7 +107,10 @@ def comment_ids(page_dir):
 def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
-    where they stand."""
+    where they stand. The tab chooses the panel for threads, and the thread opens by
+    its route without travel (`threadActions.open`), so reading its head moves and
+    reveals nothing on the page, as a row of Threads, which travels to the passage,
+    would."""
     page.evaluate(
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
@@ -114,8 +118,19 @@ def thread_head(page, thread_id):
         "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
-    open_panel_thread(page, thread_id)
-    return page.locator(PANEL_THREAD).locator(".lf-thread-quote-head")
+    choose_threads_in_panel(page)
+    page.evaluate(
+        """async (id) => {
+          const api = window.__lfThreadsApi;
+          const thread = api.readThreads().threads.find((t) => t.id === id);
+          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+        }""",
+        thread_id,
+    )
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
+    expect(view).to_be_visible()
+    panel_settled(page, view="thread")
+    return view.locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -1535,7 +1550,7 @@ def test_a_box_off_the_reading_face_keeps_its_own_tables_code_and_comments(
     browser, serve
 ):
     """Content with its own design inside a themed page sits in a box that turns the
-    reading face off (`package-themes.md`, "Personal themes"). Its full-width table
+    reading face off (`package-themes.md`, "A page's theme"). Its full-width table
     stays a native table, its code keeps the spans and colours its author gave it with
     no clearance under the block, a plain block there stays uncoloured, and a comment
     still anchors on a word inside it. The code block outside keeps the face."""
@@ -1939,7 +1954,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await window.__lfWidgetApi();
+          const { syntax } = await window.__lfLibImport('syntax-tokens.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -1994,7 +2009,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
 
     heredoc = page.evaluate("""async () => {
-      const { syntax } = await window.__lfWidgetApi();
+      const { syntax } = await window.__lfLibImport('syntax-tokens.js');
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
@@ -2602,29 +2617,20 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")
     assert not details.evaluate("el => el.open")
-    # The line is one of two surfaces naming this row's keys, and a listener reads the
-    # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
-    # and the repaint that keeps them together is the document's disclosure watch rather
-    # than anything this widget does, which is what leaves a widget free to declare a
-    # disclosure row and nothing else. Read once, by the same clock as the line: the
-    # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
-    # budget whether or not the watch painted anything.
-    rendered(page)
-    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    # The widget declares no row for its file's disclosure: the page's disclosure scope
+    # names its keys, reading which way the staged disclosure stands as it is asked.
+    offered = available_commands(page)["disclosure.toggle"]
+    assert "ArrowRight" in offered and "ArrowLeft" not in offered, offered
 
-    # The row also names an arrow, which no browser answers, so unlike the pair above it is
-    # only ever as good as the scope that runs it — and that scope has to find a staged
-    # disclosure the same way this declaration had to reach a staged control. Read off the
-    # document alone it finds none here, the page's only <details> being the ones the
-    # widget put in a shadow root. The press is what says so, not the chip: this widget's
-    # own row is the nearer of the two naming these keys, so it prints them either way.
+    # The arrow is a key no browser answers, so it is only ever as good as the scope that
+    # runs it, and that scope has to find a staged disclosure. Read off the document
+    # alone it finds none here, the page's only <details> being the ones the widget put
+    # in a shadow root.
     page.keyboard.press("ArrowRight")
     assert details.evaluate("el => el.open")
-    # And the keys turn over inside the press, read once so a poll cannot answer for it.
-    # A toggle from a staged root is not composed, so no document listener hears it: this
-    # is the watch `shadowStage` hands each root.
-    rendered(page)
-    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
+    # And the offer has turned over once the press returns.
+    offered = available_commands(page)["disclosure.toggle"]
+    assert "ArrowLeft" in offered and "ArrowRight" not in offered, offered
 
 
 def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_location(
@@ -3696,10 +3702,8 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-decoration id="decoration"></lf-decoration>',
@@ -3707,7 +3711,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         },
         layer_widgets={
             "lf-decoration.js": """
-                import {once} from '/runtime/widget-api.js';
+                import {once} from '/runtime/lib/once.js';
                 customElements.define('lf-decoration', class extends HTMLElement {
                   connectedCallback() {
                     if (!once(this)) return;
@@ -4481,8 +4485,8 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     if superseded:
         expect(search).to_be_focused()
-        thread_head(page, thread)
-        show_on_page(page)
+        # Its file now seats the thread, so the thread's row opens it there.
+        thread_row(page, thread).click()
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
@@ -5211,10 +5215,8 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
 LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "shadow": True,
@@ -5615,7 +5617,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.set_viewport_size({"width": 900, "height": 600})
-    # A draft written on the passage, which the page opens again as it loads.
+    # A draft written on the passage, which the page opens again on a visit.
     page.evaluate(
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
@@ -5631,7 +5633,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         }"""
     )
     page.add_init_script(script=HEARD_AS_IT_STARTS)
-    page.reload()
+    page.goto(page.url)
     try:
         expect(page.locator(".lf-composer")).to_be_visible()
     except AssertionError as closed:

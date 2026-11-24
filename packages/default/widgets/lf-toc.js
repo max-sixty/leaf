@@ -57,30 +57,19 @@ import { sectionMarks } from "./toc-marks.js";
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
 import {
-  atLayoutPrecision,
-  atScrollEnd,
   comparisonChanges,
   frameFor,
   holdFocus,
-  inChrome,
-  keeps,
   landingInsets,
-  LAYOUT,
-  layoutPx,
-  LeafElement,
-  obligationsIn,
-  PAGE_INTERFACE,
-  PRESENTATION,
   readObligations,
   readThreads,
   scrollerFor,
-  scrollLimit,
-  sizeObserver,
   whileConnected,
   named,
-  focused,
-  currentLocationIn,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -94,16 +83,17 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, {
-        label: named,
-        chrome: inChrome,
-      }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named }));
     }
     get #nav() {
       return this.#drawing.nav;
     }
     get #rows() {
       return this.#drawing.track;
+    }
+    // The element focus is on, in the tree this map stands in.
+    get #focused() {
+      return /** @type {Document | ShadowRoot} */ (this.getRootNode()).activeElement;
     }
     get #lens() {
       return this.#drawing.lens;
@@ -166,7 +156,7 @@ customElements.define(
     // changing a row.
     #reconcile() {
       const previous = this.#sections.map(({ destination }) => destination);
-      const held = this.#sections.find(({ link }) => link === focused());
+      const held = this.#sections.find(({ link }) => link === this.#focused);
       const restore = held && holdFocus(this.#nav);
       render(this.#drawing.render(), this, { host: this });
       this.#sections = this.#drawing.sections();
@@ -200,7 +190,7 @@ customElements.define(
         main
           ? sectionMarks(main, standing, {
               threads: readThreads().threads,
-              onMe: obligationsIn(main, readObligations().user),
+              onMe: readObligations(main).user,
               changes: comparisonChanges(main),
             })
           : new Map(),
@@ -250,9 +240,9 @@ customElements.define(
           capture: true,
           signal,
         });
-      this.#main.addEventListener(LAYOUT, this.#scheduleMeasure, { signal });
-      document.addEventListener(PRESENTATION, this.#onPresentation, { signal });
-      document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
+      this.#main.addEventListener("lf-layout", this.#scheduleMeasure, { signal });
+      document.addEventListener("lf-presentation", this.#onPresentation, { signal });
+      document.addEventListener("lf-page-interface", this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
       matchMedia("print").addEventListener("change", this.#onPresentation, {
         signal,
@@ -279,7 +269,7 @@ customElements.define(
         this.#flowOpen ??= disclosure.open;
         if (!disclosure.open) disclosure.open = true;
       } else if (this.#flowOpen !== undefined) {
-        const open = this.#flowOpen || currentLocationIn(this.#rows);
+        const open = this.#flowOpen || this.#rows.contains(this.#focused);
         if (disclosure.open !== open) disclosure.open = open;
         this.#flowOpen = undefined;
       }
@@ -586,7 +576,11 @@ customElements.define(
       this.#standLens(clear, this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      const end = atScrollEnd(this.#scroller);
+      // At the scroller's end the last section shown is current, though its heading
+      // stands below the threshold. Fractional layout and scaled displays can leave a
+      // scroll a pixel or so short of the end, so within two pixels counts as there.
+      const { scrollHeight, clientHeight, scrollTop } = this.#scroller;
+      const end = scrollHeight - clientHeight - scrollTop <= 2;
       for (const measured of this.#measured)
         if (measured.shown && (end || measured.position <= threshold))
           current = measured;
@@ -609,7 +603,7 @@ customElements.define(
     // length or landing band has changed; a scroll alone reaches the early return.
     /** @param {{top: number, bottom: number}} clear @param {Element} scroller */
     #standLens(clear, scroller) {
-      const reach = scrollLimit(scroller);
+      const reach = scroller.scrollHeight - scroller.clientHeight;
       const band = scroller.clientHeight - clear.top - clear.bottom;
       const inputs = `${reach} ${band} ${clear.top}`;
       if (inputs === this.#lensInputs) return;
@@ -622,6 +616,7 @@ customElements.define(
           size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
         };
       };
+      // Both at layout's 1/64px, so a measure that jitters below it writes nothing new.
       const transform = (
         /** @type {{start: number, size: number}} */ { start, size },
       ) =>

@@ -3,11 +3,11 @@
    (application.js, `attachPresentation`). */
 import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
-import { under, renderedUnder, shadowHost } from "../shadow-tree.js";
+import { under, renderedUnder, shadowHost } from "../lib/shadow-tree.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { HOLDS, MessageView, messageReading } from "./messages.js";
 import { createReplyView } from "./replies.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 import { generatedElement } from "../widget-elements.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
@@ -438,10 +438,10 @@ export function createPrimaryReader(
         } else {
           const node = document.createElement("div");
           node.className = "lf-page-thread lf-ring-overlay lf-ui lf-primary-part";
-          node.dataset.lfPart = item.kind;
+          node.dataset.lfKind = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          generatedElement(node, { says: false });
+          generatedElement(node);
           node.dataset.lfOffer = "";
           const notice = newsNotice();
           notice.node.classList.add("lf-primary-news");
@@ -460,7 +460,9 @@ export function createPrimaryReader(
             declareThreadParts(node, {
               reply: () => replyOf(item.key),
               settlement: () => null,
+              move: () => null,
               whole: (part) => part,
+              controls: () => null,
             });
             /** @type {MessagePart} */
             const part = {
@@ -555,8 +557,7 @@ export function createPrimaryReader(
           // Only what a nomination may ask of its thread (module-annotations.md), so
           // nothing else it passed reaches the view, as a margin card's own head line
           // would move the package's element into the thread (thread-card.js,
-          // `CardOutlets`). A nomination that lands the user elsewhere is where taking
-          // back the settlement opens the thread again (`ViewOutlets`, `reader`).
+          // `CardOutlets`).
           const { head, reply, quote, scroller, landing } = item.options;
           view.setOutlets({
             ...(head && {
@@ -569,7 +570,7 @@ export function createPrimaryReader(
             ...(reply && { reply }),
             ...(quote && { quote }),
             ...(scroller && { scroller }),
-            ...(landing && { landing, reader: /** @type {const} */ ("primary") }),
+            ...(landing && { landing }),
           });
         }
         view.present(reading);

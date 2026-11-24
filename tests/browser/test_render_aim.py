@@ -362,8 +362,9 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate("scrollY") == before_scroll
-    # It opens at the full measure, so it grows only downward as words arrive.
-    assert expanded["width"] == compact["width"]
+    # It widens with its words as far as its room on that side, and grows downward
+    # past that (`test_a_box_widens_with_its_words_and_send_keeps_their_lines`).
+    assert expanded["width"] >= compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
     assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
@@ -382,7 +383,8 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
 def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
     """The stable vertical choice reads both the visible band and scroll travel. Growing
     past the room shown above, the box slides over its passage rather than scrolling the
-    page, and a scroll then carries it with the passage."""
+    page, and a scroll then holds it inside the window, as it holds the card, until the
+    paragraph it stands over leaves (comment-placement.js)."""
     passage = (
         "A passage near the end of its page has more reachable room above it. "
         + "Its full block must keep the same room while the viewport clips it. " * 5
@@ -431,9 +433,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-start")
     assert page.evaluate("scrollY") == before_scroll
-    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top
-      - document.getElementById('passage').getBoundingClientRect().top"""
-    grown = page.evaluate(offset)
+    grown = bar.bounding_box()["y"]
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -448,9 +448,12 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         assert moved > last_scroll
         expect(bar).to_be_visible()
         last_scroll = moved
-    assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-plane", "page")
-    assert page.evaluate(offset) == pytest.approx(grown, abs=1)
+    assert paragraph.evaluate(
+        "node => node.getBoundingClientRect().top < 48"
+        " && node.getBoundingClientRect().bottom > 0"
+    )
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    assert bar.bounding_box()["y"] == pytest.approx(grown, abs=1)
     expect(field).to_be_focused()
 
 
@@ -875,12 +878,14 @@ def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
     assert box.evaluate(ring) == worn
 
 
-def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
-    """A comment box keeps its width as it takes its first lines and grows downward, so
-    a key that takes it a new line stands it at its new height in the frame the key lands, as a
-    textarea sized to its words does (box-motion.js, "Whose change it is"). A tween
-    each key started would trail the caret, and the field's cut would hide what was
-    just typed until the tween caught up. A line taken at the window's foot is
+@pytest.mark.parametrize("change", ["widens", "takes-a-line"])
+def test_a_key_that_changes_the_comment_box_draws_it_at_once(browser, serve, change):
+    """A comment box widens with its first line's words and grows downward as it takes
+    more lines, and the key that widens it or takes it a new line stands it at its new
+    size in the frame the key lands, as a textarea sized to its words does
+    (box-motion.js, "Whose change it is"). A tween each key started would trail the
+    caret, and the field's cut would hide what was just typed until the tween caught up.
+    A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
         browser,
@@ -892,20 +897,34 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
         ),
     )
     page.emulate_media(reduced_motion="no-preference")
-    # Wide enough for the box to stand right of the passage, at the card's least width.
+    # Wide enough for the box to stand right of the passage, with room to widen.
     resized(page, 1728, 800)
     page.locator("#passage").click(modifiers=["Alt"])
-    open_compact_comment(page, "The first line")
-    rendered(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")
-    tall = box.bounding_box()["height"]
+    if change == "widens":
+        open_compact_comment(page)
+        least = box.bounding_box()["width"]
+        # Words until the box has begun to widen past its least width.
+        for word in "the window is too short for what we see in practice".split():
+            page.keyboard.type(f"{word} ")
+            rendered(page)
+            if box.bounding_box()["width"] > least + 0.5:
+                break
+        else:
+            pytest.fail(f"the box never widened past {least}px")
+        edge, size, keys = "right", "width", ["m"]
+    else:
+        open_compact_comment(page, "The first line")
+        rendered(page)
+        edge, size, keys = "bottom", "height", ["Shift+Enter", "m"]
+    was = box.bounding_box()[size]
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("m")
+    for key in keys:
+        page.keyboard.press(key)
     page.wait_for_function(
-        "tall => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().height > tall + 0.5",
-        arg=tall,
+        """([size, was]) => document.querySelector('.lf-fab-bar .lf-compose-field')
+          .getBoundingClientRect()[size] > was + 0.5""",
+        arg=[size, was],
     )
     # A reading of the box follows its size change before the frame after it paints.
     page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
@@ -916,17 +935,19 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
             .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
             .trim().split(/\s+/).map(Number.parseFloat);
           const host = document.querySelector('.lf-fab-input');
+          const at = ground.getBoundingClientRect();
           return {
-            bottom: ground.getBoundingClientRect().bottom - bottom,
+            right: at.right - right,
+            bottom: at.bottom - bottom,
             cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
           };
         }"""
     )
-    stands = box.bounding_box()
-    assert drawn["bottom"] == pytest.approx(stands["y"] + stands["height"], abs=1.5), (
-        drawn,
-        stands,
+    stands = page.evaluate(
+        "() => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().toJSON()"
     )
+    assert drawn[edge] == pytest.approx(stands[edge], abs=1.5), (drawn, stands)
     assert drawn["cut"] in ("", "none"), drawn
 
 
@@ -2473,7 +2494,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     )
     if generated:
         page.evaluate("""async () => {
-          const {offer} = await window.__lfWidgetApi();
+          const {offer} = await import("/runtime/lib/controls.js");
           for (const row of document.querySelectorAll('#rows p')) {
             const button = offer('button', '', 'Remove');
             button.setAttribute('aria-label', 'Delete row');
@@ -4359,6 +4380,10 @@ def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
     if reopen == "reload":
         page.reload()
         wait_until_ready(page)
+        # The reload leaves the box the user put away shut; Resume writing opens it.
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
     elif reopen == "comment":
         page.keyboard.press("c")
     else:

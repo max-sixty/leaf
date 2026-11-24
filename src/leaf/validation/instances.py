@@ -9,6 +9,7 @@ from leaf.obligations import group_tags, shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     authored_inert,
+    body_is_data,
     is_element_name,
     matches_when,
     retirement_slots,
@@ -118,9 +119,9 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
         # Tags that name this declaration in `owners` are its admissible members
-        # under any content model. "data" takes one <pre>, or none where the markup
-        # binds the input (`inputs`) whose property is `value`, which is then the text;
-        # "members" takes element members only, and "empty" takes nothing at all.
+        # under any content model. "data" and "markdown" take one <pre>, or none where
+        # the markup binds the input (`inputs`) whose property is `value`, which is then
+        # the text; "members" takes element members only, and "empty" takes nothing.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
@@ -132,7 +133,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         )
         if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(found_at("content-empty", rec))
-        elif content == "data":
+        elif body_is_data(entry):
             others = [c for c in stray if c != "pre"]
             pres = rec["children"].count("pre")
             if pres != (0 if bound else 1) or others:
@@ -219,11 +220,9 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     as where neither the widget nor a group round it has a label that isn't blank, is
     refused (`unnamed-question`). Where the widget's own label alone names it, On Me
     selects and rings only the widget, so a premise written outside the widget is out
-    of view (`ungrouped-question`, advice). A widget with words of its own needs no group: one
-    set among words (`inline`) is named by them, and one asking about each record of
-    its data (`awaits.records`) by each record's label. A message's widget needs none
-    either, since the message names what it asks, so only a page's documents are
-    checked."""
+    of view (`ungrouped-question`, advice). A widget set among words (`inline`) is
+    named by them, so it needs no group. A message's widget needs none either, since
+    the message names what it asks, so only a page's documents are checked."""
     # A widget inside SVG keeps its exact source rather than a node, and so is no
     # widget the walk reads.
     groups = {
@@ -237,7 +236,6 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         if (
             awaits is None
             or entry.get("inline")
-            or "records" in awaits
             or not matches_when(rec["attrs"], awaits.get("when"))
             or shown_in(rec, registry)
             or (walked := groups.get(id(document.authoring.node_of(rec)))) is None

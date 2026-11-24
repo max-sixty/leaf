@@ -37,7 +37,6 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  generatedElement,
   offer,
   offerAction,
   loadMarkdown,
@@ -1172,7 +1171,7 @@ class TextDocument extends LeafElement {
     const tabs = document.createElement("lf-tabs");
     tabs.id = `${this.id}--views`;
     // Its members are this document's data readings, not authored page content.
-    generatedElement(tabs, { says: false });
+    keeps(tabs, "data-lf-gen", "1");
     const bound = this.getAttribute("data-lf-bound") ?? "start";
     const rendered = document.createElement("lf-tab");
     rendered.id = `${this.id}--preview`;

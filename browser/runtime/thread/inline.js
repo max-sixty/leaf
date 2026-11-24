@@ -56,7 +56,7 @@ class ResolvedThreads {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    generatedElement(this.node, { says: false });
+    generatedElement(this.node);
     this.node.dataset.lfOffer = "";
     this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     // Native disclosure opens at the attribute checkpoint, before paint.

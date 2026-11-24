@@ -21,7 +21,6 @@
 
 import {
   compoundReadingRegionId,
-  generatedElement,
   holdFocus,
   layoutChanged,
   offer,
@@ -209,9 +208,11 @@ customElements.define(
       this.settings.append(settingsTitle, flags);
       // The caption and the drawing are the film's words, which a reader can point
       // at; the settings label the run's controls.
-      generatedElement(this.caption, { says: true });
-      generatedElement(stage, { says: true });
-      generatedElement(this.settings, { says: false });
+      for (const words of [this.caption, stage]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
+      keeps(this.settings, "data-lf-gen", "1");
       this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;

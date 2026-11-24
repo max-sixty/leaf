@@ -1415,7 +1415,7 @@ PAGE_ACTIONS_PAGE = leaf_page(
   <lf-playground-output>Keep the tile size.</lf-playground-output>
 </lf-playground></lf-group>
 <script type="module">
-import {generatedElement, once, whileInterfaceConnected} from "/runtime/widget-api.js";
+import {once, whileInterfaceConnected} from "/runtime/widget-api.js";
 customElements.define("tile-tool", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -1427,7 +1427,9 @@ customElements.define("tile-tool", class extends HTMLElement {
     };
     const grow = button("Grow");
     const save = this.querySelector(".tile-save"), reset = this.querySelector('[type="reset"]');
-    const tools = generatedElement(document.createElement("div"), {says: true});
+    const tools = document.createElement("div");
+    tools.setAttribute("data-lf-gen", "1");
+    tools.toggleAttribute("data-lf-said", true);
     tools.append(grow, save, reset);
     this.append(tools);
     const playground = this.closest("lf-playground");

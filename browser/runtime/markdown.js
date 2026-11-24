@@ -170,7 +170,7 @@ export function prepaintDeclaredFiles(scope) {
   if (files.length && !tokenize)
     throw new Error("leaf: Markdown prepaint requires its loaded renderer");
   for (const file of files) {
-    const body = generatedElement(document.createElement("div"), { says: false });
+    const body = generatedElement(document.createElement("div"));
     body.className = "lf-markdown-body";
     body.setAttribute("data-lf-prepaint", "");
     body.innerHTML = renderMarkdown(dataBody(file), false);

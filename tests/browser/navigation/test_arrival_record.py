@@ -15,6 +15,7 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     compare_with,
+    consume_browser_errors,
     holding,
     leaf_page,
     open_latest,
@@ -361,6 +362,13 @@ def test_a_reload_keeps_focus_on_a_control_of_a_thread_view(
     expect(button).to_be_focused()
     reload(page)
     expect(button).to_be_focused()
+    # The row's press put the user in the thread's reply, building its CodeMirror
+    # editor, which measures inside its scroll listeners, on the window and every scroll
+    # ancestor, while it is in view (@codemirror/view, `DOMObserver.onScrollChanged`).
+    # Firefox reports that as a scroll-linked positioning effect of the page the reload
+    # left, and the report reaches the test once the reload has run.
+    if engine == "firefox_browser":
+        consume_browser_errors(page, "scroll-linked positioning effect")
 
 
 @pytest.mark.parametrize("engine", ENGINES)

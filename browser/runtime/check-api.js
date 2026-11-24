@@ -111,7 +111,7 @@ export {
   placeNode,
 } from "./reading-place.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
-export { walkPosition } from "./walk-position.js";
+export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
 export {
   closeNativeLayer,

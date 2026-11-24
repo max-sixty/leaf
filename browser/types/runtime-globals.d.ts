@@ -229,11 +229,18 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or a function returning words read off
-   * the page, such as keys (`saying`), which a listener calls as it says them. */
+   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or the words and the command rows whose
+   * keys Leaf names after them (`notifications.js`). */
   "lf-announce": CustomEvent<
-    import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
+    | import("../runtime/voice.js").Words
+    | {
+        words: string;
+        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+      }
   >;
+  /** Where a step of a widget's own walk landed, which Leaf's panel says
+   * (`widget-upgrade.js`, `WALK`; `walk-position.js`). */
+  "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace>;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
    * in its Errors list (`errors.js`). */
   "lf-error": CustomEvent<string>;

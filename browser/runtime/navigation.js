@@ -122,7 +122,7 @@ function currentStop({ keys, drafts }, origin) {
 
 // What a position names its list: by its stops' noun where they are all of one kind,
 // "Thread 2 of 5" or "Draft 1 of 2", and by both kinds where it holds threads and
-// drafts, "2 of 5 threads and drafts" (walk-declaration.js, `beginWalk`).
+// drafts, "2 of 5 threads and drafts" (walk-position.js, `beginWalk`).
 /** @param {Stops} stops */
 const listNames = ({ keys, drafts }) =>
   !drafts.size
@@ -185,7 +185,7 @@ function stepThread(dir, { destinations, placedAt, savedAt, showDraft }) {
   // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
   const { noun, qualifier } = listNames(stops);
-  /** @returns {import("./walk-declaration.js").WalkPosition | null} */
+  /** @returns {import("./walk-position.js").WalkPosition | null} */
   const position = () => {
     const now = walkStops(placedAt, savedAt);
     return listWalkPosition(now.keys, currentStop(now, currentLocationOrigin()), {

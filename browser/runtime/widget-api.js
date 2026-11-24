@@ -43,9 +43,9 @@ export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
-// What stands at the reading line, and holding a place across one change the
-// browser's scroll anchoring can't keep still, such as one hiding what it anchors.
-export { holdPlace, readingAt } from "./user-place.js";
+// Holding what the reader reads across one change the browser's scroll anchoring
+// can't keep still, such as one hiding what it anchors.
+export { holdPlace } from "./user-place.js";
 // Hearing each move of the user's current location with its cause
 // (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
 // a press that lands away from a surface (`onPressAway`).
@@ -69,8 +69,6 @@ export { readThreads } from "./thread/state.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { labelOf } from "./keyboard/bindings.js";
-export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
 export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";

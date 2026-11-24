@@ -44,6 +44,8 @@ from browser.threads import append_agent_reply
 from browser.widgets import (
     _bound_diff,
     expect_walk_says,
+    hear_walks,
+    walks_said,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -1431,6 +1433,7 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     )
     page.evaluate("() => window.scrollTo(0, 0)")
 
+    hear_walks(page)
     page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     first = page.evaluate(DIFF_LANDING)
@@ -1454,6 +1457,13 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect_walk_says(page, "File 2 of 2")
     page.keyboard.press("{")
     expect_walk_says(page, "File 1 of 2")
+    # Each step said its place to the page too, from inside the diff's shadow tree.
+    assert walks_said(page) == [
+        "Hunk 1 of 3",
+        "Hunk 2 of 3",
+        "File 2 of 2",
+        "File 1 of 2",
+    ]
 
 
 def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve):

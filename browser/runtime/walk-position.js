@@ -1,53 +1,185 @@
-/* Leaf's presentation of a declared keyboard walk, and the walk over a flat list
-   of focusable rows (`rowWalk`). Walk owners keep their list and motion; the portable
-   declaration holds their live position reader. Native focus traversal and gestures
-   that rearrange state are not walks through a named list. */
+/* Where a keyboard walk stands, what Leaf's panel says of it, and the walk over a flat
+   list of focusable rows (`rowWalk`). Walk owners keep their list and motion. Native
+   focus traversal and gestures that rearrange state are not walks through a named list.
+
+   The owner says facts, and the panel decides what to show: what one stop is (`noun`),
+   where the walk stands, the stops that bound a list on screen (`list`), and, for a
+   list of Leaf's own, the fact where the user stands whose list it walks (`about`), as
+   a comparison's changes are the comparison's. Leaf's panel then says only what the
+   screen doesn't, each surface by the words it already shows (`walkWords`), and a
+   listener hears the whole position, which the owner announces, since a listener sees
+   no list. The user asked for this over each owner choosing what the panel shows, which
+   no owner could choose right where the panel's own words already named the list. A
+   position names its list wherever it says one, a list on screen's included, "Tab 2 of
+   14": the panel stands apart from the list, beside words of the page's own such as "1
+   of 31 pages real", so a bare "2 of 14" doesn't say what it counts.
+
+   A walk of Leaf's own gives a reader of its live position (`beginWalk`), which stays
+   authoritative as its list changes, and a different current target retires it. So
+   the walk stands where it landed after its step's moment, as On Me's ring and the
+   place before an open thread's Reply show.
+
+   A package widget's walk says each step's place with an `lf-walk` event (`WALK`,
+   widget-upgrade.js) on the stop the step landed on, so a widget calls nothing of
+   Leaf's and a page without Leaf hears nothing. The event carries a place and no
+   reader, so nothing says when a list that changed, or a reading the widget moved
+   without a step, has made the place wrong. The place therefore stands for its step's
+   moment alone (notifications.js, `answerStep`), which is as long as the page's field
+   says any step, and ends sooner when its stop leaves the page, as when a redraw
+   replaces it, or the user steps again. So a widget's place before an open thread's
+   Reply goes with the moment, where a walk of Leaf's own stands. Rejected: the place
+   standing while focus stays on the stop, which a chart, whose points take no focus,
+   would have to end by a second event each time its pointer or a redraw moved its
+   reading. */
+import { effect, untracked } from "/runtime/framework.js";
 import { capitalized } from "./lib/words.js";
+import { watchOwner } from "./arrivals.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
-import { answerStep, gesture } from "./notifications.js";
+import { answerStep, answeringStep, gesture } from "./notifications.js";
 import { afterScript } from "./rendering.js";
 import { repaint } from "./repaint.js";
 import { focusDestination, focused } from "./focus.js";
+import { WALK } from "./widget-upgrade.js";
 
-import { WALK, beginWalk, listWalkPosition } from "./walk-declaration.js";
-export {
-  beginWalk,
-  listWalkPosition,
-  walkPosition,
-  walkPositionLabel,
-} from "./walk-declaration.js";
+/** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
+ * @typedef {readonly (Element | null | undefined)[]} WalkEnds
+ * @typedef {{list?: (() => WalkEnds) | null, about?: string | null}} WalkFacts
+ * @typedef {{key: string, noun: string | null, read: () => WalkPosition | null,
+ *   target: unknown, about: string | null}} Walking
+ * @typedef {{noun: string, position: number, total: number, list?: WalkEnds}} SaidPlace */
+/** @type {Walking | null} */
+let walking = null;
 
-// A gesture's new position takes the panel's seat for a notice's moment
-// (notifications.js, `answerStep`), and the panel's leaf answers the step, one landing
-// where the last did included. Reading the same declaration on an ordinary repaint does
-// neither again. A step within a list standing whole in view is declined: the ring
-// shows its place among stops the user sees, so the seat would only repeat it, and the
-// walk the user came by goes on standing (walk-declaration.js, `beginWalk`). Whole is
-// measured at the step, before a landing that scrolls, so a list running past the
-// window's edge says its place even where the landing brings the rest into view, and
-// by each end's own box, since whether the user sees it doesn't hang on the room its
-// ring would take.
-window.addEventListener(WALK, (event) => {
-  /** @type {import("./walk-declaration.js").WalkFacts["list"]} */
-  const declared = /** @type {CustomEvent} */ (event).detail;
-  const list = declared?.();
-  if (
-    list?.length &&
-    list.every((stop) => stop && alreadyShown(stop, { ringed: false }))
-  )
-    return event.preventDefault();
+// "Thread 2 of 5"; for a walk over several kinds, which names its list in the
+// qualifier, "2 of 5 waiting on me".
+/** @param {string | null} noun @param {number} position @param {number} total @param {string} [qualifier] */
+export function walkPositionLabel(noun, position, total, qualifier = "") {
+  return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
+}
+
+// The common reading for a DOM or model list. `identity` is the owner's stable key;
+// the current item may be a fresh projection of the same destination on a later paint.
+/** @template T @param {readonly T[]} items @param {T | null | undefined} current
+ * @param {{identity?: (item: T) => unknown, qualifier?: string}} [options]
+ * @returns {WalkPosition | null} */
+export function listWalkPosition(
+  items,
+  current,
+  { identity = (item) => item, qualifier = "" } = {},
+) {
+  if (!current) return null;
+  const target = identity(current);
+  const index = items.findIndex((item) => identity(item) === target);
+  if (index < 0) return null;
+  return { target, position: index + 1, total: items.length, qualifier };
+}
+
+export function walkPosition() {
+  if (!walking) return null;
+  const position = walking.read();
+  if (!position || position.target !== walking.target) {
+    walking = null;
+    return null;
+  }
+  return {
+    kind: walking.key,
+    target: position.target,
+    position: position.position,
+    total: position.total,
+    text: walkPositionLabel(
+      walking.noun,
+      position.position,
+      position.total,
+      position.qualifier,
+    ),
+    place: walkPositionLabel(null, position.position, position.total),
+    about: walking.about,
+  };
+}
+
+// The place a widget's latest step said (the `WALK` listener), while it stands, with
+// what stops the watch on its stop.
+/** @type {{walk: Walking, unwatch: () => void} | null} */
+let said = null;
+function endSaid() {
+  const ended = said;
+  if (!ended) return;
+  said = null;
+  ended.unwatch();
+  if (walking !== ended.walk) return;
+  walking = null;
+  repaint();
+}
+
+// A step's walk takes the panel's seat for a notice's moment (notifications.js,
+// `answerStep`), and the panel's leaf answers the step, one landing where the last did
+// included. Reading the same walk on an ordinary repaint does neither again. A step
+// within a list standing whole in view (`ends`, its first and last stops) is declined:
+// the ring shows its place among stops the user sees, so the seat would only repeat it,
+// and the walk the user came by, such as On Me's, goes on standing. A place a widget
+// said doesn't: it was the last step's, which this step has left. Whole is measured
+// at the step, before a landing that scrolls, so a list running past the window's edge
+// says its place even where the landing brings the rest into view, and by each end's
+// own box, since whether the user sees it doesn't hang on the room its ring would take.
+/** @param {Walking} walk @param {WalkEnds | null | undefined} ends */
+function stepTo(walk, ends) {
+  endSaid();
+  if (ends?.length && ends.every((end) => end && alreadyShown(end, { ringed: false })))
+    return;
+  walking = walk;
   answerStep();
   gesture("walk");
   repaint();
+}
+
+// A keyboard walk of Leaf's own has arrived. The caller still owns and announces the
+// motion; this records the owner's live reading so every such walk says its position
+// the same way, and returns the whole position for the owner's announcement, "Change 2
+// of 5 since v2". `noun` names one stop, or is null for a list of several kinds, which
+// the reading's qualifier names, as "2 of 5 waiting on me" does; such a walk never
+// names the kind of the stop the user stands on, which is in front of them. A walk
+// within a list on screen, such as a list's rows, gives `list`, its first and last
+// stops, so a step within a list standing whole in view is declined (`stepTo`); a list
+// whose stops all stand in view whenever it can be walked, as Go-to's hints do,
+// declares no walk. `about` names the fact where the user stands whose list the walk
+// is over (floating-panel.js, `standing`), as "comparison" does for its changes.
+/** @param {string} key @param {string | null} noun @param {() => WalkPosition | null} read
+ * @param {WalkFacts} [facts] */
+export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
+  const position = read();
+  if (!position) {
+    walking = null;
+    return null;
+  }
+  stepTo({ key, noun, read, about, target: position.target }, list?.());
+  return walkPositionLabel(noun, position.position, position.total, position.qualifier);
+}
+
+// A widget's step says where it landed (the header), on the stop it landed on. The
+// place has no reader to retire it, so three events end it: the moment its step began
+// ending, its stop leaving the page, since a redraw that replaces the stop may have
+// changed the list, and the next step of any walk (`stepTo`).
+addEventListener(WALK, (event) => {
+  const [stop] = event.composedPath();
+  if (!(stop instanceof Element)) return;
+  const { noun, position, total, list } = event.detail;
+  const place = { target: stop, position, total, qualifier: "" };
+  const walk = { key: "said", noun, read: () => place, about: null, target: stop };
+  stepTo(walk, list);
+  if (walking === walk)
+    said = { walk, unwatch: watchOwner(stop, { disconnect: endSaid }) };
+});
+effect(() => {
+  if (!answeringStep()) untracked(endSaid);
 });
 
 // What a surface of the panel says of a walk's step, which the walk's owner declared
-// (walk-declaration.js, `beginWalk`): its place alone where the surface's own words say
-// the fact the list is about (`says`), as the page field's "5 changes since v2 · 1 of 5"
-// does, and else the whole position, "Thread 2 of 5", "Tab 2 of 14", since the panel
-// stands apart from the list it counts.
-/** @param {NonNullable<ReturnType<typeof import("./walk-declaration.js").walkPosition>>} walk
+// (`beginWalk`): its place alone where the surface's own words say the fact the list
+// is about (`says`), as the page field's "5 changes since v2 · 1 of 5" does, and else
+// the whole position, "Thread 2 of 5", "Tab 2 of 14", since the panel stands apart from
+// the list it counts.
+/** @param {NonNullable<ReturnType<typeof walkPosition>>} walk
  * @param {ReadonlySet<string>} says */
 export const walkWords = (walk, says) =>
   walk.about !== null && says.has(walk.about) ? walk.place : walk.text;
@@ -59,15 +191,15 @@ export const walkWords = (walk, says) =>
 // prefix of each route, and `noun` names its steps ("Next entry"). `steps` names the
 // four routes and their words, in the order ArrowUp, ArrowDown, Home, End, for a list
 // whose ends have a meaning of their own. The rows are a list on screen, which its
-// first and last rows bound (walk-declaration.js, `beginWalk`), so a landing shows its
-// position, "Entry 3 of 14", or nothing where the whole list stands in view. `position`
-// reads where a landing stands, by default its place among the rows. A list passes
-// its own where the items it counts are narrower than the stops the walk lands on, as
-// a fold's door between items is a stop and not an item, or where another walk over
-// the same items already reports their position, so both say the same. A reader
-// returns null for a landing it counts no item at, which shows no position and ends
-// any walk standing, as a list in the panel's own view does, whose rows name their
-// places to a screen reader themselves.
+// first and last rows bound (`beginWalk`), so a landing shows its position, "Entry 3 of
+// 14", or nothing where the whole list stands in view. `position` reads where a landing
+// stands, by default its place among the rows. A list passes its own where the items
+// it counts are narrower than the stops the walk lands on, as a fold's door between
+// items is a stop and not an item, or where another walk over the same items already
+// reports their position, so both say the same. A reader returns null for a landing it
+// counts no item at, which shows no position and ends any walk standing, as a list in
+// the panel's own view does, whose rows name their places to a screen reader
+// themselves.
 // `landed(row)` runs after a press that moved focus to another row. `scroll: false`
 // holds the page still for a list read off what is in view, such as the margin's
 // visible markers, where scrolling to the landed row would change the list the walk

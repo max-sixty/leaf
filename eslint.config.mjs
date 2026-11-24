@@ -1147,7 +1147,7 @@ export const spelledKeysRule = {
         context.report({
           node,
           message:
-            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/scopes.js), rather than spelling it in the words: both name a key only while it would work.",
+            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/control-keys.js), which a package's `lf-announce` reaches by giving its rows (`{words, rows}`), rather than spelling it in the words: both name a key only while it would work.",
         });
     };
     return {

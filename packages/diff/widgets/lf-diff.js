@@ -32,11 +32,9 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
-  beginWalk,
   focusDestination,
   holdFocus,
   langForPath,
-  listWalkPosition,
   move,
   LeafElement,
   threadSurface,
@@ -173,6 +171,8 @@ const hunkHeads = (entry) =>
   (entry.rendered?.lines ?? []).filter(
     (line, index, lines) => line.hunk !== lines[index - 1]?.hunk,
   );
+/** @template {Element} T @param {{node: T}} holder */
+const nodeOf = ({ node }) => node;
 
 const LINE_KEY = "data-lf-line";
 
@@ -1924,33 +1924,25 @@ customElements.define(
       );
     }
 
-    // A file's hunks, and the diff's files, are lists on screen, which their first and
-    // last heads bound (walk-declaration.js, `beginWalk`). Each returns the position a
-    // listener hears, "Hunk 2 of 5", before the file it is in.
-    markHunkWalk() {
-      const heads = () => {
-        const entry = this.entryAroundFocus();
-        return entry ? hunkHeads(entry).map(({ node }) => node) : [];
-      };
-      return beginWalk(
-        "diff-hunk",
-        "Hunk",
-        () => {
-          const nodes = heads();
-          return nodes.length ? listWalkPosition(nodes, this.hereNode()) : null;
-        },
-        { list: () => [heads()[0], heads().at(-1)] },
+    // Where a step along a file's hunks or the diff's files landed, said for Leaf's
+    // panel on the stop it landed on (`lf-walk`, module-input.md, "Walks"): each is a
+    // list on screen, which its first and last stops bound. Returns the place a listener
+    // hears, "Hunk 2 of 5", before the file it is in. A step with nowhere further to go
+    // says the stop the user is still on, and none where they stand on no stop of the
+    // list.
+    /** @param {string} noun @param {readonly Element[]} stops @param {Element | null | undefined} stop */
+    sayStep(noun, stops, stop) {
+      const position = stop ? stops.indexOf(stop) + 1 : 0;
+      if (!stop || !position) return null;
+      const total = stops.length;
+      stop.dispatchEvent(
+        new CustomEvent("lf-walk", {
+          bubbles: true,
+          composed: true,
+          detail: { noun, position, total, list: [stops[0], stops.at(-1)] },
+        }),
       );
-    }
-
-    markFileWalk() {
-      const files = () => this.navigationEntries().map(({ node }) => node);
-      return beginWalk(
-        "diff-file",
-        "File",
-        () => listWalkPosition(files(), this.entryAroundFocus()?.node),
-        { list: () => [files()[0], files().at(-1)] },
-      );
+      return `${noun} ${position} of ${total}`;
     }
 
     /** @param {FileEntry} entry */
@@ -1983,13 +1975,18 @@ customElements.define(
         );
         if (!head) continue;
         this.land(head.node);
-        const said = this.markHunkWalk() ?? `Hunk ${head.hunk + 1} of ${heads.length}`;
+        const said = this.sayStep("Hunk", heads.map(nodeOf), head.node);
         window.dispatchEvent(
           new CustomEvent("lf-announce", { detail: `${said}: ${entry.record.path}` }),
         );
         return;
       }
-      this.markHunkWalk();
+      const around = this.entryAroundFocus();
+      this.sayStep(
+        "Hunk",
+        around ? hunkHeads(around).map(nodeOf) : [],
+        this.hereNode(),
+      );
     }
 
     /** @param {boolean} back */
@@ -2005,7 +2002,8 @@ customElements.define(
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
       const entry = order[currentLocation + 1];
-      if (!entry) return this.markFileWalk();
+      const files = entries.map(nodeOf);
+      if (!entry) return this.sayStep("File", files, this.entryAroundFocus()?.node);
       this.fileCursor = entry;
       if (this.singleFile) {
         this.selectFile(entry);
@@ -2017,11 +2015,9 @@ customElements.define(
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
-      const said = this.markFileWalk();
+      const said = this.sayStep("File", files, entry.node);
       window.dispatchEvent(
-        new CustomEvent("lf-announce", {
-          detail: said ? `${said}: ${entry.record.path}` : entry.record.path,
-        }),
+        new CustomEvent("lf-announce", { detail: `${said}: ${entry.record.path}` }),
       );
     }
 

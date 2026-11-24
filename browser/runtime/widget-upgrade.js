@@ -15,6 +15,8 @@
    (keyboard/scopes.js), and a plain page, reading nothing, binds no key and advertises
    none. Words for a listener are `lf-announce` on the window, which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
+   Where a step of a walk of the widget's own landed is `lf-walk` (`WALK`), which a Leaf
+   page's panel says (walk-position.js).
    Words telling the user that something they did has not taken are `lf-error` on the
    window, which a Leaf page keeps in its Errors list (errors.js).
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
@@ -97,3 +99,8 @@ export const COMMANDS = "lf-commands";
 // Leaf says them in the page's live region; a page without Leaf hears nothing unless it
 // listens.
 export const ANNOUNCE = "lf-announce";
+// Where a step of a widget's own walk landed, as a diff's step to its next hunk: a
+// bubbling, composed CustomEvent the widget dispatches on the stop the step landed on,
+// whose `detail` is the place, `{noun, position, total, list}`. Leaf's panel says it
+// for the step's moment where the list runs out of view (walk-position.js).
+export const WALK = "lf-walk";

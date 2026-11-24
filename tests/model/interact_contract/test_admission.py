@@ -979,3 +979,18 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
                 ],
             )
         assert refused_on(refused.value).code == "created-exists"
+
+
+def test_several_events_land_together_or_not_at_all(page_dir):
+    """`append_all_admitted` admits each event after the ones before it and writes
+    none of them where any is refused, a retry naming another payload included."""
+    from leaf.service import PageTransaction
+
+    publish(page_dir)
+    before = events_model.read_events(page_dir)
+    asked = {"kind": "comment", "author": "user", "revision": 1, "attempt": "a" * 16}
+    with PageTransaction(page_dir) as page, pytest.raises(events_model.AttemptConflict):
+        event_contracts_model.append_all_admitted(
+            page, [{**asked, "text": "One"}, {**asked, "text": "Two"}]
+        )
+    assert events_model.read_events(page_dir) == before

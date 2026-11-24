@@ -574,21 +574,41 @@ def answer_the_turn() -> None:
     )
 
 
-def plan_head(page: Page) -> None:
-    """On the agent's tab with the agent's plan disclosed from its head at the view's
-    foot, one of its steps waiting on the user."""
-    as_agent(
+def on_agent_plan(page: Page) -> None:
+    """On the agent's tab, headed by the agent's plan: one step done with what its end
+    said, one under way with its running line, one waiting on the user, one ahead."""
+    served = served_page.get()
+    made = served.leaf(
         "task",
         "plan",
+        str(served.directory),
         "--text",
-        '[{"depth": 0, "title": "Ship the resend", "state": "working"},'
-        ' {"depth": 1, "title": "Reproduce the stall", "state": "done"},'
+        '[{"depth": 0, "title": "Ship the resend"},'
+        ' {"depth": 1, "todo": "Reproduce the stall"},'
+        ' {"depth": 1, "todo": "Patch the retry loop"},'
         ' {"depth": 1, "item": "widget:off-release"},'
-        ' {"depth": 1, "title": "Write the release note", "state": "open"}]',
+        ' {"depth": 1, "todo": "Write the release note"}]',
     )
-    wait_until_ready(page, PageClient(served_page.get().address).state())
+    _, reproduce, patch, _, _ = json.loads(made.stdout.strip().splitlines()[-1])[
+        "steps"
+    ]
+    as_agent(
+        "task",
+        "end",
+        reproduce["item"],
+        "done",
+        "--text",
+        "Reproduced in tests/test_resend.py",
+    )
+    as_agent(
+        "task",
+        "start",
+        patch["item"],
+        "--text",
+        "Backing off the resend on a stalled socket",
+    )
+    wait_until_ready(page, PageClient(served.address).state())
     on_agent(page)
-    page.locator(".lf-fp-plan-head").click()
     expect(page.locator(".lf-fp-plan")).to_be_visible()
 
 
@@ -2257,6 +2277,18 @@ def gloss_open(page: Page) -> None:
     expect(gloss.locator(".lf-gloss-popover")).to_be_visible()
 
 
+def gallery_age(page: Page) -> None:
+    """An age the page's markup writes, drawn in place of the time its author wrote."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-age").scroll_into_view_if_needed()
+
+
+def brief_observed(page: Page) -> None:
+    """The captured pull request's last line, the age a page's own widget draws of when
+    its facts were observed."""
+    page.locator("#pr-reviewed-request .pr-observed").scroll_into_view_if_needed()
+
+
 def settled_option(page: Page) -> None:
     """A settled decision collapsed to its one line."""
     page.locator("#bg-outcome").scroll_into_view_if_needed()
@@ -3054,6 +3086,15 @@ def draft_long_edit(page: Page) -> None:
     expect(page.locator("#rn-cli .lf-draft-edit")).to_be_focused()
 
 
+def draft_typing(page: Page) -> None:
+    """Words being typed into a question's draft, the pointer resting where the click
+    opened it: the draft's frame alone rings it, and its toolbar is away."""
+    page.locator("#ledger-cargo .lf-draft-body").click()
+    page.keyboard.press("End")
+    page.keyboard.type(" Pasted.")
+    settle(page)
+
+
 def draft_hover(page: Page) -> None:
     """A draft under the pointer, which shows its toolbar of marks on its border."""
     page.locator("#rn-cli .lf-draft-body").hover()
@@ -3383,7 +3424,7 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
-    State("plan-head", "ship-review", plan_head, region=PANEL),
+    State("on-agent-plan", "ship-review", on_agent_plan, region=PANEL),
     State(
         "playground-choice",
         "notification-playground",
@@ -3593,6 +3634,13 @@ STATES = (
         "feature-gallery",
         gloss_open,
         region="#bg-gloss .lf-gloss-popover",
+    ),
+    State("gallery-age", "feature-gallery", gallery_age, region="#bg-age"),
+    State(
+        "walkthrough-observed",
+        "pr-walkthrough",
+        brief_observed,
+        region="#pr-reviewed-request .pr-observed",
     ),
     State(
         "settled-option",
@@ -4168,6 +4216,7 @@ STATES = (
     State("hub-choice-answered", "command-hub", on_me_choice_answered),
     State("hub-on-agent", "command-hub", on_agent),
     State("hub-workers", "command-hub", hub_workers),
+    State("hub-draft-typing", "command-hub", draft_typing),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
     # Each page the corpus composes, as it loads, named after its file.

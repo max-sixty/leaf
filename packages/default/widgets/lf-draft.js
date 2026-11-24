@@ -12,10 +12,12 @@
  * so the box is the same size with its controls as without them, and opening the
  * editor adds no row of buttons under it; a refused save's status joins the toolbar.
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
- * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
- * box or a key stands in it, and the open editor, a draft that asks for an edit and a
- * finger always, since a pencil that shows only under the pointer left a `required` draft
- * with no sign of how to answer it; clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * the pencil gives the box back unchanged. When the toolbar shows and takes presses is
+ * draft.css's, which reads two custom states this module keeps: `typing`, from a
+ * keystroke in the editor until the pointer has rested on the toolbar (`restArming`) or
+ * focus leaves the editor, and `pointed`, while the pointer is on the toolbar meanwhile.
+ * Clicking the prose still opens the editor at that spot. Rejected: a resting row under
+ * the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
  * and changed the box's size as the editor opened. The same
@@ -31,7 +33,9 @@
  * The editor opens where the prose stood and in its faces: its field takes each
  * block's type and the gaps between blocks from the draft's place on the page, and
  * draws a picture as the picture, under its source once the caret reaches it
- * (`facesOf`, composing/text-field.js), so no word moves as it opens. Rejected:
+ * (`facesOf`, composing/text-field.js), so no word moves as it opens. It draws each
+ * blank line typed between blocks, and saving writes each run of them as the one gap
+ * the prose draws (`valueToSave`). Rejected:
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user.
  *
@@ -73,16 +77,13 @@ import {
   aimedAt,
   nameOf,
   motion,
-  sendDraft,
-  saveDraft,
-  loadDraft,
-  clearDraft,
-  watchDraft,
+  draft,
   whileConnected,
   dressCode,
   focusDestination,
   retainUserIntent,
   scrollIntoView,
+  onCurrentLocation,
   onPressAway,
   pageLinks,
 } from "/runtime/widget-api.js";
@@ -90,6 +91,7 @@ import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
+import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import {
   paintMarkdown,
@@ -104,20 +106,6 @@ const TOOLS = [
   ["save", "save"],
   ["cancel", "discard"],
 ];
-
-// The store key for a draft's unsent edit. The page's port is its own origin, so
-// the id alone is unambiguous — the same scoping every composer draft relies on.
-// Presence and content are different for this widget, because deleting every character is
-// an unsent edit — and that is the shared store's own rule, so the text goes in bare and
-// the store's null is "nothing pending".
-/** @param {string} id */
-const ctx = (id) => "edit:" + id;
-/** @param {string} id @param {string} text */
-const saveEdit = (id, text) => saveDraft(ctx(id), text);
-/** @param {string} id */
-const clearEdit = (id) => clearDraft(ctx(id));
-/** @param {string} id */
-const loadEdit = (id) => loadDraft(ctx(id))?.text ?? null;
 
 // Carry a rendered caret into source; a padding press has no caret to transfer.
 /** @param {HTMLElement} body @param {number} x @param {number} y @returns {[number, number] | null} */
@@ -145,6 +133,12 @@ customElements.define(
       if (typeof value !== "string")
         throw new Error("A draft reading must contain its Markdown text");
       return value;
+    }
+
+    // The unsent edit, kept under the draft's id. Deleting every character is an
+    // unsent edit too, so only a missing record means none is pending.
+    get #edit() {
+      return draft("edit:" + this.id);
     }
 
     /** @type {HTMLElement | undefined} */
@@ -176,6 +170,14 @@ customElements.define(
     #stopPressAway = null;
     /** @type {Promise<void> | undefined} */
     #dressing;
+    #states = this.attachInternals().states;
+    // The toolbar shows again, after typing put it away, while the pointer is on it, and
+    // takes presses once the pointer has rested there.
+    #arming = restArming(() => this.#tools, {
+      point: () => this.#states.add("pointed"),
+      arm: () => this.#keepTools(),
+      unpoint: () => this.#states.delete("pointed"),
+    });
 
     setup() {
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
@@ -188,6 +190,14 @@ customElements.define(
       if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
+      // The pointer coming to the toolbar brings it back after typing put it away, and
+      // resting there gives it its presses back.
+      /** @param {PointerEvent} event */
+      const point = (event) => {
+        if (this.#states.has("typing")) this.#arming.move(event);
+      };
+      this.addEventListener("pointermove", point);
+      this.addEventListener("pointerleave", point);
       // Capture only the pointer Discard's old allocation. The command still owns
       // closing, discarding and focus; its new reading is true before this effect.
       this.addEventListener(
@@ -231,6 +241,11 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
+        // Typing lasts while the caret does: a box the user has left shows Save and
+        // Discard, so it never reads as saved while it still holds their words.
+        const stopLocation = onCurrentLocation((node) => {
+          if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
+        });
         // An editor a refused save reopened while the draft was out of the page says
         // its keys as the draft returns.
         this.#editor?.dispatchEvent(
@@ -243,6 +258,7 @@ customElements.define(
           this.#stopPressAway?.();
           this.#stopPressAway = null;
           stopDraft?.();
+          stopLocation();
           this.#resumeProjection?.();
           this.#resumeProjection = null;
         };
@@ -268,14 +284,13 @@ customElements.define(
       // holds reopen that editor. They are not compared with the current text: this
       // first reading can precede the log's, and words walking a saved edit back to the
       // authored text are an edit all the same.
-      const pending = loadEdit(this.id);
-      if (pending !== null) this.#open(pending, undefined, false);
+      const pending = this.#edit.read();
+      if (pending) this.#open(pending.text, undefined, false);
     }
 
     #watchDraft() {
       if (this.matches("[data-lf-exhibit] *") || !this.#tools) return;
-      return watchDraft(
-        ctx(this.id),
+      return this.#edit.watch(
         (text) => {
           if (text === null) this.#close(false);
           else if (this.#editor && this.#editor.value !== text)
@@ -354,6 +369,12 @@ customElements.define(
       );
     }
 
+    // The toolbar stands and takes presses as it does before any typing.
+    #keepTools() {
+      this.#arming.reset();
+      this.#states.delete("typing");
+    }
+
     /** @param {string} key @returns {HTMLButtonElement | null} */
     #control(key) {
       return this.#tools?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
@@ -428,10 +449,12 @@ customElements.define(
       // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
       const effective = this.#savedText;
-      editor.value = seed ?? loadEdit(this.id) ?? effective;
+      editor.value = seed ?? this.#edit.read()?.text ?? effective;
       editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
-        saveEdit(this.id, editor.value);
+        this.#states.add("typing");
+        this.#arming.reset();
+        this.#edit.save(editor.value);
         if (this.#failed) {
           this.#failed = false;
           this.#paintTools();
@@ -479,7 +502,7 @@ customElements.define(
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
           motionTime("--lf-motion-return"),
         );
-      if (discard) clearEdit(this.id);
+      if (discard) this.#edit.clear();
       this.#stopPressAway?.();
       this.#stopPressAway = null;
       // Only where the user was in it. A close this tab's own gesture made
@@ -491,6 +514,7 @@ customElements.define(
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
       this.#editor = null;
+      this.#keepTools();
       this.#failed = false;
       this.#paintTools();
       if (stood) {
@@ -513,7 +537,12 @@ customElements.define(
     async #commit() {
       if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
-      const text = this.#editor.value;
+      // Saved as the prose reads it, with one blank line for each gap. Opening and
+      // leaving a draft written with more saves nothing.
+      const text =
+        this.#editor.value === this.#savedText
+          ? this.#savedText
+          : this.#editor.valueToSave;
       if (text === this.#savedText) {
         this.#close(true);
         return;
@@ -521,8 +550,7 @@ customElements.define(
       this.#sending = true;
       this.#close(false);
       this.setAttribute("aria-busy", "true");
-      const ok = await sendDraft(
-        ctx(this.id),
+      const ok = await this.#edit.send(
         () => true,
         (attempt) => this.#dispatch(text, attempt),
       );
@@ -530,7 +558,7 @@ customElements.define(
       this.removeAttribute("aria-busy");
       this.#paintTools();
       if (!ok) {
-        const stored = loadEdit(this.id);
+        const stored = this.#edit.read();
         // Null means the same shared generation was settled by the other tab while
         // this one waited to send. Its action will replay this body, so do
         // not resurrect the editor as if a network failure had occurred. A stored
@@ -538,13 +566,13 @@ customElements.define(
         // editable. The outbox has already projected the authoritative body before
         // resolving this call, so opening the saved generation must not overwrite it
         // with the stale pre-send snapshot.
-        if (stored !== null) {
+        if (stored) {
           this.#failed = true;
           // A press away may have taken the user on to another place, such as the
           // next draft's editor, which keeps the focus.
           const here = document.activeElement;
           this.#open(
-            stored,
+            stored.text,
             undefined,
             !here || here === document.body || this.contains(here),
           );

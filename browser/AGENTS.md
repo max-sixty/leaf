@@ -739,6 +739,7 @@ block names what a package answers with the browser's own call instead.
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                                |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                                |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                              |
+| Which member a widget shows of several, its name in the address, and the user's place in each         | `views.js` `keepView`, `entryView`                                                     |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                           |
 | The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                    |
@@ -761,7 +762,7 @@ block names what a package answers with the browser's own call instead.
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
 | Holding what the reader reads across a module's own change that hides it                              | `user-place.js` `holdPlace`                                                            |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
-| Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
+| Whether a press is a plain primary-button press with no modifier                                      | `lib/keys.js` `plainPress`                                                             |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                        |
 | Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                            |
@@ -813,6 +814,7 @@ block names what a package answers with the browser's own call instead.
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                    |
+| The attributes that bind a widget's input, which `data.js` asks to tell whether markup sets one       | `registry.js` `bindingAttributes`                                                      |
 | Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                             |
 | Paint on the next frame, or watch a size                                                              | `lib/frame-pass.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                 |
 | Write a DOM value only when it changed; a style property needs no guard (`lib/keeps.js` header)       | `lib/keeps.js` `keeps`                                                                 |
@@ -831,7 +833,8 @@ block names what a package answers with the browser's own call instead.
 | What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                              |
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                       |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                                   |
-| The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                                |
+| The clock time behind an age, and what an age previews                                                | `presence.js` `clockTime`, `agePreview`                                                |
+| An age kept current in a page, a message or a widget's template: the `lf-age` element                 | `age.js`                                                                               |
 | When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                                 |
 | A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                              |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |

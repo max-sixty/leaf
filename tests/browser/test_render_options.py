@@ -1929,7 +1929,9 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     gestures land in the same box, and neither is a pick: the drag's own click ended a
     selection, and the press inside the words it took is the mark's. A press on an
     option's own pick mark still picks it, on a card too, whose digit draws in the
-    mark's seat while the button is down.
+    mark's seat while the button is down. A digit takes no pointer, so a press where
+    one stands lands on what is under it, as one on the Add field's digit puts the user
+    in the field.
 
     In both engines, because they part between a press's release and its click: Firefox
     collapses the words the press landed in before the click, Chromium after it. Read at
@@ -1970,6 +1972,14 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     )
     page.mouse.up()
     expect(stop).to_have_attribute("selected", re.compile(".*"))
+
+    # The group's digits show now, the Add field's in the field's end corner. A press
+    # there is the field's, which a digit that took the press would leave unfocused.
+    digit = page.locator("#retry > .lf-another > .lf-key-badge")
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+    seat = digit.bounding_box()
+    page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
+    expect(page.locator("#retry > .lf-another leaf-text")).to_be_focused()
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
@@ -2020,6 +2030,77 @@ def test_a_tap_beside_an_options_selected_words_picks_it(engine, request, serve)
     assert page.evaluate("() => getSelection().toString()").strip()
     option.locator("strong").tap()
     expect(option).to_have_attribute("selected", re.compile(".*"))
+
+
+ROW_OPTIONS_PAGE = leaf_page(
+    "row options",
+    """
+<h1 id="h">The run</h1>
+<lf-group id="when-decision" label="When should it run?"><h2 id="when-decision-h">When should it run?</h2>
+<lf-options id="when">
+  <lf-option id="wh-night">At night, while the deploy queue is empty</lf-option>
+  <lf-option id="wh-day">During the day, when someone is watching it</lf-option>
+</lf-options></lf-group>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_on_a_rows_digit_is_a_press_on_its_control(engine, request, serve):
+    """A row's digit stands in a column of its own, before the control it labels, and
+    takes no pointer. A press where it stands is the control's, as a press on a card's
+    digit is its mark's. On an option's digit it picks the row and leaves the user on the
+    row's mark, in the group whose digits they were reading. On the add field's digit it
+    puts the user in the field.
+
+    The row's words stand selected for the pick. A press that landed on the row rather
+    than its mark would be refused in Chromium, which keeps a selection through a press
+    before a line the selection starts, so the row reads the click as the selection's.
+    In both engines such a press would take the user out of the group, and its digits
+    with them."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    night = page.locator("#wh-night")
+    mark = night.locator(":scope > .lf-pick")
+    digit = night.locator(":scope > .lf-key-badge")
+
+    # The keyboard puts the user in the group, on the other row, and its digits show.
+    page.locator("#wh-day > .lf-pick").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+
+    def press(face):
+        seat = face.bounding_box()
+        page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
+
+    night.evaluate(
+        """el => {
+          const words = document.createRange();
+          words.selectNodeContents(
+            [...el.childNodes].find((node) => node.nodeType === 3 && node.data.trim()),
+          );
+          getSelection().removeAllRanges();
+          getSelection().addRange(words);
+        }"""
+    )
+    assert page.evaluate("() => getSelection().toString()").strip()
+    press(digit)
+    expect(night).to_have_attribute("selected", re.compile(".*"))
+    expect(mark).to_be_focused()
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+
+    add = page.locator("#when > .lf-another > .lf-key-badge")
+    expect(add).to_have_attribute("data-lf-binding-badge", "")
+    press(add)
+    expect(page.locator("#when > .lf-another leaf-text")).to_be_focused()
+
+    round_trip(page)
+    assert [
+        e["detail"]["value"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [["wh-night"]], "the press on the row's digit picked it other than once"
 
 
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):

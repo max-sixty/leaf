@@ -25,15 +25,21 @@
    reader, so Leaf can't tell when a list that changed has made the place wrong. The
    place therefore stands for its step's moment alone (notifications.js, `answerStep`),
    which is as long as the page's field says any step. So a widget's place before an
-   open thread's Reply goes with the moment, where a walk of Leaf's own stands. The
-   place ends sooner when its stop leaves the page, as when a redraw replaces it, and
-   when the user steps again. It also ends when the widget says the user has left the
-   stop without stepping, with an `lf-walk` on the same stop that carries no place. A
-   chart's points take no focus, so only the chart knows that its pointer has taken the
-   reader to another point. Rejected: the place standing while focus stays on the stop.
-   A chart keeps focus while its reading moves, so its place would stand until the
-   chart ended it, and one the chart failed to end would stand wrong for as long as the
-   chart kept focus. The moment bounds such a place. */
+   open thread's Reply goes with the moment, where a walk of Leaf's own stands. Within
+   the moment, the place ends as soon as the user is no longer at it:
+
+   - when the user steps again;
+   - when its stop leaves the page, as when a redraw replaces it;
+   - when focus leaves the stop, once the stop or something inside it has held focus,
+     as a tab holds it, and a diff's hunk;
+   - when the widget says the user has left the stop without stepping, with an
+     `lf-walk` on the same stop that carries no place. A chart's points take no focus,
+     so only the chart knows that its pointer has taken the reader to another point.
+
+   Each of these ends the place sooner, and none keeps it past the moment. Rejected:
+   the place standing while focus stays on the stop. Leaf can't tell when the list has
+   changed under a place, and a chart keeps focus while its reading moves, so such a
+   place could stand wrong for as long as the user stayed. The moment bounds it. */
 import { effect, untracked } from "/runtime/framework.js";
 import { capitalized } from "./lib/words.js";
 import { watchOwner } from "./arrivals.js";
@@ -42,7 +48,13 @@ import { clampedRow } from "./keyboard/bindings.js";
 import { answerStep, answeringStep, gesture } from "./notifications.js";
 import { afterScript } from "./rendering.js";
 import { repaint } from "./repaint.js";
-import { focusDestination, focused } from "./focus.js";
+import {
+  currentLocationIn,
+  focusDestination,
+  focused,
+  onCurrentLocation,
+} from "./focus.js";
+import { renderedUnder } from "./lib/shadow-tree.js";
 import { WALK } from "./lib/widget-events.js";
 
 /** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
@@ -101,9 +113,10 @@ export function walkPosition() {
   };
 }
 
-// The place a widget's latest step said (the `WALK` listener), while it stands, with
-// what stops the watch on its stop.
-/** @type {{walk: Walking, unwatch: () => void} | null} */
+// The place a widget's latest step said (the `WALK` listener), while it stands: the
+// stop it was said on, whether the user's focus has been on that stop or inside it
+// since, and what stops the watch on the stop.
+/** @type {{walk: Walking, stop: Element, held: boolean, unwatch: () => void} | null} */
 let said = null;
 function endSaid() {
   const ended = said;
@@ -159,17 +172,14 @@ export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
   return walkPositionLabel(noun, position.position, position.total, position.qualifier);
 }
 
-// A widget's step says where it landed (the header), on the stop it landed on. The
-// place has no reader to retire it, so it ends at the moment its step began ending;
-// when its stop leaves the page, since a redraw that replaces the stop may have changed
-// the list; at the next step of any walk (`stepTo`); and when the widget says, on the
-// same stop and with no place, that the user has left it. A widget that says so on any
-// other stop ends nothing, since the place it speaks of has already gone.
+// A widget's step says where it landed, on the stop it landed on. The place has no
+// reader to retire it, so what ends it is the header's list. A widget that says the user
+// has left some other stop ends nothing, since the place it speaks of has already gone.
 addEventListener(WALK, (event) => {
   const [stop] = event.composedPath();
   if (!(stop instanceof Element)) return;
   if (!event.detail) {
-    if (said?.walk.target === stop) endSaid();
+    if (said?.stop === stop) endSaid();
     return;
   }
   const { noun, position, total, list } = event.detail;
@@ -177,7 +187,23 @@ addEventListener(WALK, (event) => {
   const walk = { key: "said", noun, read: () => place, about: null, target: stop };
   stepTo(walk, list);
   if (walking === walk)
-    said = { walk, unwatch: watchOwner(stop, { disconnect: endSaid }) };
+    said = {
+      walk,
+      stop,
+      held: currentLocationIn(stop),
+      unwatch: watchOwner(stop, { disconnect: endSaid }),
+    };
+});
+// Focus leaving a stop that has held it is the user leaving the place said there. A
+// widget may say its place before it moves focus to the stop, so the stop counts as
+// holding focus from whenever focus reaches it. A stop that never holds focus, as a
+// chart's drawing never does, is its widget's to end. A drop is a change taking the
+// focused node away, not the user leaving it, so it ends nothing here. A stop the
+// change removed ends its place through the watch on the stop.
+onCurrentLocation((node, cause) => {
+  if (!said || cause === "drop") return;
+  if (renderedUnder(node, said.stop)) said.held = true;
+  else if (said.held) endSaid();
 });
 effect(() => {
   if (!answeringStep()) untracked(endSaid);

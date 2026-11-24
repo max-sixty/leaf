@@ -7,6 +7,7 @@ import {
   inPage,
   readingRegions,
   regionScrollBehavior,
+  servedElements,
   shownBand,
   shownRegionBounds,
   TEXT_BOX,
@@ -538,16 +539,23 @@ export function misplacedBoxes() {
   // (locate.js) beside its code, so a reader that takes this pass at several widths
   // (the gate's sweep) can tell one fault met again from a new one by those two,
   // whatever pixel count the width gives it.
-  /** @typedef {{past: number, item?: string, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number}} Misplacement */
+  /** @typedef {{past: number, item?: string, built?: boolean, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number, built?: boolean}} Misplacement */
   /** @type {(Misplacement & {code: string, at: string, place: ReturnType<typeof place>})[]} */
   const found = [];
   /** @param {Element} el @param {string} code @param {Misplacement} values */
   const report = (el, code, values) =>
     found.push({ code, at: at(el), place: place(el), ...values });
+  // A box the page's source didn't write is a module's, so the remedy for it is the
+  // package's (`built`): the page's own scroll class names the page's boxes only. With
+  // no version source to read, every box counts as the page's.
+  const served = servedElements();
+  /** @param {Element} el */
+  const built = (el) =>
+    served.size && el !== pageScroller && !served.has(el) ? { built: true } : {};
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
     if (host) report(el, "outside-part", { past, host: at(host) });
-    else if (!wide) report(el, "past-column", { past, ...asItem(el) });
+    else if (!wide) report(el, "past-column", { past, ...asItem(el), ...built(el) });
     else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
     else report(el, "past-room", { past });
   }
@@ -709,7 +717,7 @@ export function misplacedBoxes() {
       sealed.down && s.webkitLineClamp === "none"
         ? cut(el.scrollHeight, el.clientHeight)
         : 0;
-    if (across || down) report(el, "clipped-content", { across, down });
+    if (across || down) report(el, "clipped-content", { across, down, ...built(el) });
   }
   // One finding per fault where two elements share a name, as their words would be.
   const seen = new Set();

@@ -103,8 +103,8 @@ this.dispatchEvent(hold);
 - **`lf-action`.** The element, or a node inside it, records a gesture by dispatching
   a `CustomEvent`. Its `detail` holds the `verb`, `detail`, `says`
   and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller");
-  `attempt` is the id `sendDraft` hands its `send` (`module-input.md`, "Text entry and
-  drafts"), so a refusal returns the words to their draft. Leaf has
+  `attempt` is the id a draft's `send` hands its `deliver` (`module-input.md`, "Text
+  entry and drafts"), so a refusal returns the words to their draft. Leaf has
   set the resulting `state` by the time `dispatchEvent` returns. On an event it sends,
   Leaf sets the event's `delivery` property, a promise of the event the server
   admitted, or of `null` where the server refuses it and Leaf sets the server's state
@@ -132,7 +132,9 @@ this.dispatchEvent(hold);
   own. The `state` Leaf sets is how the element learns the user may not act: Leaf
   neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
-  the action in Leaf's own words (`module-state.md`, "The widget controller").
+  the action in Leaf's own words (`module-state.md`, "The widget controller"). The
+  tag may also declare the property an output for other widgets to read, and the
+  element needs no code for that either (`package-data.md`, "Widget outputs").
 - **A third-party component.** A component from a third-party library keeps its own
   tag, since the library's styles and the component's own children find it by that
   tag. The page writes it inside the element the registry declares, as in
@@ -224,6 +226,16 @@ this.dispatchEvent(hold);
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
   with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
   regions").
+- **The page's views.** An element whose members (`views`) are the page's own views,
+  as the first tab set in `main` is, wears `data-lf-page-views` for as long as it is.
+  Leaf then names the member it shows in the address, by the member's id. A member
+  the element shows itself (`keepView`, `module-state.md`, "State only this tab
+  keeps") is the user's step, as a followed link is: Leaf adds a history entry for it,
+  and the entry the user leaves keeps where they were. A member something reveals
+  renames the entry the user is on, unless that entry's fragment already names a place
+  inside the member, and arriving at an address with no fragment renames its entry too.
+  Back or Forward to an entry whose fragment names a place inside another member
+  reveals that member, and returns the user to where they were on the entry.
 - **Previews, spoken words and a Copy control.** `lfPreview()` (`module-previews.md`),
   `lf-announce` and `data-lf-quiet` (`module-scroll-and-motion.md`, "Notices and spoken
   words"), and `data-lf-copy` (`module-reading.md`, "Code").

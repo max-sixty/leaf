@@ -10,7 +10,7 @@ code of its own. Choose by what the state is:
 | State                                                                                      | Kept through                                                                                                  | Who sees it                                                                                                         | How the widget hears of a change                                                         |
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `verbs` ([package-data.md, "User state"](package-data.md#user-state)), recorded with `lf-action` | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | Leaf sets `state` again, whether this tab, another one, Undo or a new version changed it |
-| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                   | every tab in this browser, until sent                                                                               | `watchDraft`                                                                             |
+| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                   | every tab and device showing the page, until sent                                                                   | the draft's `watch`                                                                      |
 | How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                      | this tab                                                                                                            | only this tab writes it; read it as the widget builds                                    |
 | Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                               | everyone                                                                                                            | Leaf sets the property                                                                   |
 | What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                               | the widgets on this page that name it, in this tab                                                                  | the widget sets it, and Leaf sets a reader's bound property                              |
@@ -89,6 +89,27 @@ During an exit animation, `keepView(holder, member, leaving)` keeps one outgoing
 visible too; call it again without that member when the animation ends. Only the
 selected member is saved. Pass `null` as a second argument to get null where neither
 the address nor the tab names a member, and choose then.
+
+Show each member with `keepView` rather than by writing `hidden`, so that Leaf hears of
+a switch before the member the user leaves is hidden, while the page can still say
+where they were in it. Leaf shows a member too, as the browser's find, a fragment or
+travel reveals it and as Back or Forward returns to it. The member gets a `beforematch`
+event then (`module-scroll-and-motion.md`, "Travel and history"). In its listener the
+widget shows the member with `keepView`, as it does for a press, and redraws what marks
+its open member: where Leaf has already shown the member, as it has for one the page's
+own tree holds, the call changes nothing. From `keepView` and those reveals Leaf keeps
+two things for the widget:
+
+- **The address**, where the widget says its members are the page's views
+  (`data-lf-page-views`, `module-plain-elements.md`).
+- **The user's place in each member**, where the members stand in the page's flow,
+  because the widget declares `flow` or is the page's parts, and each member has an
+  id. A member the widget shows opens where the user last read it in this tab. One
+  they never read past its start leaves the page where it stands, unless the page is
+  scrolled past that start, and then it opens at its start, under the headers stuck
+  over it (`module-scroll-and-motion.md`, "Sticky headers"). A member something
+  reveals is placed by whatever revealed it. A member of any other widget is a box in
+  the page, and showing it scrolls nothing.
 
 ## Declared widget state
 
@@ -202,17 +223,17 @@ mean nothing.
 
 ### Time readings
 
-`ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
-ago", "2h ago", "2d ago". `ago` and `clockValue` are page readings (`module-reading.md`,
-"Page readings"). Draw an age
-in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
-(`module-previews.md`), so pointing at it says when, in the reader's zone and
-as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 PM PT".
+To say how long ago a server timestamp was, a template draws Leaf's `lf-age` element,
+as a page's markup does: `<lf-age datetime=${ts}></lf-age>`. It needs no import, in a
+shadow tree too. It words the age as the page does everywhere, "just now", then "2m
+ago", "2h ago", "2d ago", and keeps it current. Pointing at it says when, in the
+reader's zone and as their browser writes a date: "Sat, Aug 15, 2026, 2:02 PM PT".
 
 `clockValue((now) => …)` states any other condition on the time, such as whether a
-timestamp is older than a limit or which day a date falls in. `now` is the server's
-time in milliseconds, the clock `ago` reads, so the answer never disagrees with an age
-beside it; keep no clock of your own. Return the answer rather than the time, as in
+timestamp is older than a limit or which day a date falls in. It is a page reading
+(`module-reading.md`, "Page readings"). `now` is the server's time in milliseconds,
+the clock an age reads, so the answer never disagrees with an age beside it; keep no
+clock of your own. Return the answer rather than the time, as in
 `clockValue((now) => now - Date.parse(collected) > STALE_MS)`: the render that read it
 runs again only when that answer changes.
 

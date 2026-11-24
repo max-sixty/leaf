@@ -16,7 +16,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
-    draft_control,
     heard_draft,
     holding,
     leaf_page,
@@ -24,6 +23,7 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_settled,
+    press_draft_control,
     refuse,
     round_trip,
     sending,
@@ -71,7 +71,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     write(first_draft.locator("leaf-text"), edited)
     expect(second_draft.locator("leaf-text")).to_have_js_property("value", edited)
 
-    draft_control(first, "save", "draft-ops").click()
+    press_draft_control(first, "save", "draft-ops")
     round_trip(first)
     expect(second_draft.locator("leaf-text")).to_have_count(0)
     # The body the other tab is left looking at is the log's, which is what closing the
@@ -303,7 +303,7 @@ def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
           };
         }"""
     )
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     # A 503 cannot say whether the server appended before its answer was lost. Keep
     # the one saved gesture visibly pending and its draft recoverable; reopening the
     # editor would invite a second gesture while this attempt is still retrying.

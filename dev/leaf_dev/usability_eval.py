@@ -539,9 +539,15 @@ def build_plan_resume(run: Run, page: Path) -> None:
     run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(html)
     run.leaf("page", "stamp", str(page), "--text", inputs["stamp"], check=True)
-    run.leaf(
+    planned = run.leaf(
         "task", "plan", str(page), input_text=json.dumps(inputs["plan"]), check=True
     )
+    # The latency table, refreshed in the stamped version, is the step already done.
+    refreshed = json.loads(planned.stdout.splitlines()[-1])["steps"][1]["item"]
+    run.leaf(
+        "task", "end", str(page), refreshed, "done", "--text", inputs["refreshed"],
+        check=True,
+    )  # fmt: skip
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
         "detail": {"value": [inputs["choice"]]},

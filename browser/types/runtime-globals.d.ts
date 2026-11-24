@@ -119,6 +119,8 @@ interface Window {
       selector?: string,
     ): Element | null | undefined;
     keep(holder: Element, member: Element | null, leaving?: Element | null): void;
+    /** The runtime's showing of a member something reveals, once it loads (views.js). */
+    reveal?: (holder: Element, member: Element) => void;
   };
   lfLinks: {
     opensElsewhere(href: string | null): boolean;

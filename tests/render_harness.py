@@ -1450,11 +1450,11 @@ def stored_draft_text(page, ctx: str) -> str | None:
 
 def heard_draft(page, ctx: str, text: str | None) -> None:
     """Wait until this tab holds `text` as the words of the draft at `ctx`, None for
-    none: until it has heard another tab's write or send there (`loadDraft`)."""
-    load = page.evaluate_handle("async () => (await window.__lfWidgetApi()).loadDraft")
+    none: until it has heard another tab's write or send there (`draft`)."""
+    draft = page.evaluate_handle("async () => (await window.__lfWidgetApi()).draft")
     page.wait_for_function(
-        "([load, ctx, text]) => (load(ctx)?.text ?? null) === text",
-        arg=[load, ctx, text],
+        "([draft, ctx, text]) => (draft(ctx).read()?.text ?? null) === text",
+        arg=[draft, ctx, text],
     )
 
 
@@ -3027,6 +3027,21 @@ def draft_control(scope, key: str, draft_id: str, *, visible=True):
         f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'
         + (":visible" if visible else "")
     )
+
+
+def press_draft_control(scope, key: str, draft_id: str):
+    """Press a draft's toolbar control as a pointer reaches it: the pointer comes to the
+    control and rests there, which brings back a toolbar typing put away and gives it
+    its presses (draft.css), and then presses."""
+    page = getattr(scope, "page", scope)
+    control = draft_control(scope, key, draft_id)
+    control.scroll_into_view_if_needed()
+    box = control.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(scope.locator(f'lf-draft[id="{draft_id}"] .lf-draft-tools')).to_have_css(
+        "pointer-events", "auto"
+    )
+    control.click()
 
 
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):

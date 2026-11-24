@@ -1,11 +1,7 @@
 /* Browser state has one backing policy, selected by prepaint and shared
  * by bootstrap and the runtime. Isolated samples keep stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
-import { registry } from "./registry.js";
-import { keeps } from "./lib/keeps.js";
 import { version } from "./kept.js";
-import { marks } from "./kernel-facts.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 // ---------- which page the stores are scoped to ----------
 // Prepaint declares the page scope once; widget state and chrome use that same prefix.
@@ -46,34 +42,10 @@ const { stored } = window.lfStorage;
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while where they were writing here belongs to this page. tabStore is the only one on the helper
 // surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
-// collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
+// collapsed group) — a module reaches its drafts through `draft`, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for. tab-store.js owns the portable widget store.
-// Delivery carries the member selector into prepaint; generated holders use the
-// registry's same declaration. Only the browser evaluates it. Reading members or
-// the opening choice changes no DOM; keeping a choice owns its presentation.
-/** @param {Element} holder */
-const memberSelector = (holder) => registry[holder.localName]?.views?.members;
-/** @param {Element} holder */
-export function viewMembers(holder) {
-  return window.lfViews.members(holder, memberSelector(holder));
-}
-/** @param {Element} holder @param {Element | null} [fallback] */
-export function openingView(holder, fallback = undefined) {
-  return window.lfViews.opening(holder, fallback, memberSelector(holder));
-}
-/** @param {Element} holder */
-export function markViews(holder) {
-  const declaration = registry[holder.localName]?.views;
-  if (!declaration) return;
-  keeps(holder, marks.views.attribute, declaration.parts ? "parts" : "");
-  keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
-}
-/** @param {Element} holder @param {Element | null} member @param {Element | null} [leaving] */
-export function keepView(holder, member, leaving = null) {
-  markViews(holder);
-  return window.lfViews.keep(holder, member, leaving);
-}
+// nobody asked for. tab-store.js owns the portable widget store, and views.js keeps
+// which member a widget shows.
 export const writingStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

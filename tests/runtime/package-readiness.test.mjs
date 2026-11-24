@@ -38,7 +38,7 @@ for (const phase of ["waiting", "offline"])
 
 test("view reads leave generated holders untouched and keeping a choice paints them", async () => {
   const { openingView, keepView, viewMembers } =
-    await import("../../browser/runtime/storage.js");
+    await import("../../browser/runtime/views.js");
   adoptRegistry({
     "lf-package-views": {
       views: { members: ".view", parts: true },

@@ -13,3 +13,8 @@ lf-level {
   /* Hold the range's line before the module builds it. */
   min-block-size: var(--lf-line);
 }
+lf-chosen {
+  display: block;
+  /* Hold the words' line while the choice is none. */
+  min-block-size: var(--lf-line);
+}

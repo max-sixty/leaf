@@ -306,10 +306,12 @@ customElements.define(
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `aimedAt` is the whole of that
         // question, and what it cannot answer is which of the controls in here this
-        // module put there: the mark is the pick's own control, and the digit stands in
-        // the column beside it, so a press on either is aimed at this option after all.
+        // module put there: the mark is the pick's own control, so a press on it is
+        // aimed at this option after all. The digit takes no pointer, and the mark
+        // stands under it on a card and reaches over it on a row (options.css), so a
+        // press on the digit lands on the mark.
         const at = aimedAt(e, option);
-        if (at !== option && !at?.matches(".lf-pick, .lf-key-badge")) return;
+        if (at !== option && !at?.matches(".lf-pick")) return;
         if (!this.#available("choose")) return;
         e.preventDefault();
         const was = this.#picked();

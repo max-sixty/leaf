@@ -163,6 +163,7 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import {
+  bindingAttributes,
   bodyIsData,
   registry,
   sameRecord,
@@ -857,13 +858,9 @@ function diffBlocks(root) {
     const entry = registry[w.localName] ?? {};
     // A data binding is authored semantics even though the body it fills is
     // opaque to comparison.
-    /** @type {Set<string>} */
-    const bindingAttrs = new Set();
-    for (const input of Object.values(entry.inputs ?? {})) {
-      if (input.source) bindingAttrs.add(input.source);
-      if (input.reference) bindingAttrs.add(input.reference);
-    }
-    const binding = [...bindingAttrs]
+    const binding = [
+      ...new Set(Object.values(entry.inputs ?? {}).flatMap(bindingAttributes)),
+    ]
       .sort()
       .map((attr) => [attr, w.getAttribute(attr)]);
     pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
@@ -3389,9 +3386,9 @@ export function createVersionController({
   // the page presents, and after declared deferred arrivals settle. Each landing is
   // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
-  // where it is. The fragment is read before widgets upgrade, since a widget may write
-  // its own view into the URL (a root tab set names its open panel), and that is
-  // display state, not a destination. A reload or history traversal returns to its
+  // where it is. The fragment is read before widgets upgrade, since the page's open
+  // view is then named in the URL (views.js, as a root tab set's open panel), and that
+  // is display state, not a destination. A reload or history traversal returns to its
   // entry's record instead (history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade

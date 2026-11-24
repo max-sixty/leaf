@@ -17,6 +17,7 @@ from leaf.registry.contract import (
 )
 from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
+from leaf.schema import INPUT_BINDINGS
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import (
@@ -108,9 +109,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                     )
                 )
         for input_name, spec in entry.get("inputs", {}).items():
-            if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
-                spec.get("reference")
-            ):
+            bound_by = [k for k in INPUT_BINDINGS if rec["attrs"].get(spec.get(k))]
+            if len(bound_by) > 1:
                 errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
         # A member stands directly in an owner.
         want_owners = entry.get("owners", [])
@@ -129,7 +129,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             rec["attrs"].get(spec.get(key))
             for spec in entry.get("inputs", {}).values()
             if spec.get("property") == "value"
-            for key in ("source", "reference")
+            for key in INPUT_BINDINGS
         )
         if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(found_at("content-empty", rec))

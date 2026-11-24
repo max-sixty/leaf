@@ -21,12 +21,14 @@ import {
   markdownReady,
   placedMarkdownTokens,
   isBlockPlacement,
+  renderMarkdown,
 } from "../lib/markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
 
 /** @typedef {import("@codemirror/state").EditorState} EditorState
  * @typedef {import("@codemirror/view").EditorView} EditorView
  * @typedef {import("@codemirror/view").Decoration} Decoration
+ * @typedef {{state: EditorState, dispatch: (tr: import("@codemirror/state").Transaction) => void}} StateTarget
  * @typedef {ReturnType<typeof placedMarkdownTokens>} PlacedTokens
  * @typedef {{type: string, start: number, end: number, padStart: number, padEnd: number, inset: string, indent: string}} BlockFace
  * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
@@ -435,8 +437,6 @@ export function readFaces(field, display) {
   }
   rules.push(
     `.lf-face-gap { line-height: ${GAP} }`,
-    `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`,
-    `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
     `.lf-face-gap-above { padding-block-start: ${GAP} }`,
     `.lf-face-code { padding-inline: ${pre.inset} }`,
     `.lf-face-quote { margin-inline-start: ${quote.indent}; --lf-quote-inset: ${quote.inset} }`,
@@ -470,18 +470,59 @@ function eachLine(doc, from, to, each) {
 // leaves none there, but a list's first and last items keep theirs.
 /** @param {import("markdown-it").Token} token */
 const blockTag = (token) => (isCode(token) ? "pre" : token.tag);
+const CONTAINER = /^(blockquote|bullet_list|ordered_list|list_item)_open$/;
+
+// Whether a line, by its number, is blank where it stands: it holds nothing but spaces,
+// tabs and the `>` of the quotes around it, no block opens on it, and no paragraph,
+// heading, table or code block covers it. So a blank line inside code is not blank, nor
+// a `>` that code shows, nor a link's definition, which the parser keeps for itself.
+/** @param {import("@codemirror/state").Text} doc @param {PlacedTokens} placed */
+function blankLines(doc, placed) {
+  /** @type {Set<number>} */
+  const taken = new Set();
+  /** @type {Map<number, number>} */
+  const quotes = new Map();
+  for (const { token, from, to } of placed) {
+    if (!token.block) continue;
+    const first = doc.lineAt(from).number;
+    const last = doc.lineAt(Math.max(from, to - 1)).number;
+    taken.add(first);
+    if (token.type === "blockquote_open")
+      for (let n = first; n <= last; n++) quotes.set(n, (quotes.get(n) ?? 0) + 1);
+    if (CONTAINER.test(token.type)) continue;
+    for (let n = first + 1; n <= last; n++) taken.add(n);
+  }
+  /** @param {number} n */
+  return (n) => {
+    if (taken.has(n)) return false;
+    let text = doc.line(n).text;
+    for (let quote = quotes.get(n) ?? 0; quote > 0; quote--)
+      text = text.replace(/^[ \t]*>/, "");
+    return /^[ \t]*$/.test(text);
+  };
+}
 /** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line */
 function standBlocks(state, blocks, out, line) {
   /** @param {number} from @param {string} cls */
   const named = (from, cls) => out.push(line(cls).range(from));
-  // A run of blank lines stands as one gap, shared among them.
-  /** @param {number} from @param {number} to @param {string} gap */
-  const gapLines = (from, to, gap) => {
-    const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
-    const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
-    eachLine(state.doc, from, to, (each) =>
-      named(each.from, `lf-face-gap${share} ${gap}`),
-    );
+  // One blank line stands as the gap. In a run of them, the first and last lines stand
+  // as the gaps the prose leaves above and below a paragraph, and each line between as
+  // one of its lines, so every Return shows a line. Words typed on the one line between
+  // two gaps move nothing. In a longer run, the lines beside the new paragraph become its
+  // gaps, so the words below it rise by a line less a gap. The display draws the run as
+  // one gap, and saving writes it as one blank line (`oneLinePerGap`).
+  /** @param {number} from @param {number} to @param {string} prior @param {string} next */
+  const gapLines = (from, to, prior, next) => {
+    const first = state.doc.lineAt(from);
+    const last = state.doc.lineAt(to - 1);
+    if (first.number === last.number) {
+      named(first.from, `lf-face-gap lf-ends-${prior} lf-starts-${next}`);
+      return;
+    }
+    named(first.from, `lf-face-gap lf-ends-${prior} lf-starts-p`);
+    for (let n = first.number + 1; n < last.number; n++)
+      named(state.doc.line(n).from, "lf-face-p");
+    named(last.from, `lf-face-gap lf-ends-p lf-starts-${next}`);
   };
   // The block before the one being read in each container still open, by level: the
   // draft itself and each quote. A list's items stand apart by their own gap.
@@ -491,8 +532,7 @@ function standBlocks(state, blocks, out, line) {
   const open = [];
   /** @type {{to: number} | null} */
   let item = null;
-  /** @param {number} at */
-  const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
+  const blank = blankLines(state.doc, blocks);
   for (const { token, from, to } of blocks) {
     if (!token.block) continue;
     const tag = blockTag(token);
@@ -510,10 +550,8 @@ function standBlocks(state, blocks, out, line) {
       if (item?.to === from) named(from, "lf-face-item");
       item = { to };
     }
-    const container = /^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(
-      token.type,
-    );
-    if (container) open.push({ type: token.type, to, level: token.level });
+    if (CONTAINER.test(token.type))
+      open.push({ type: token.type, to, level: token.level });
     if (token.type === "list_item_open" || within === "list_item_open") continue;
     const level = token.level;
     if (!Object.hasOwn(FACE_ELEMENTS, tag)) {
@@ -525,12 +563,13 @@ function standBlocks(state, blocks, out, line) {
     if (list && to >= state.doc.length)
       named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
     const prior = before[level];
-    const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
-    if (prior && prior.to < from) gapLines(prior.to, from, gap);
-    else if (prior) named(from, `lf-face-gap-above ${gap}`);
+    if (prior && prior.to < from) gapLines(prior.to, from, prior.tag, tag);
+    else if (prior)
+      named(from, `lf-face-gap-above lf-ends-${prior.tag} lf-starts-${tag}`);
     // A block's reading can take in the blank lines after it, which part it from the next.
     let end = to;
-    while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+    while (end > from && blank(state.doc.lineAt(end - 1).number))
+      end = state.doc.lineAt(end - 1).from;
     before[level] = { tag, to: end };
     before.length = level + 1;
     if (token.type === "paragraph_open" && level === 0)
@@ -599,10 +638,15 @@ function fieldEditor(
       class: `lf-md-marker lf-md-${kind}-marker lf-md-unseen`,
       attributes: { "aria-hidden": "true" },
     }),
-    shown: Decoration.mark({ class: `lf-md-marker lf-md-${kind}-marker lf-md-mark` }),
+    shown: Decoration.mark({
+      class: `lf-md-marker lf-md-${kind}-marker lf-md-mark`,
+    }),
   });
   const markerFaces = { quote: markerFace("quote"), item: markerFace("item") };
-  const markerRun = Decoration.mark({ class: "lf-md-markers", inclusiveEnd: true });
+  const markerRun = Decoration.mark({
+    class: "lf-md-markers",
+    inclusiveEnd: true,
+  });
   // The room a container's marker takes in a run, for a container whose marker the line
   // doesn't hold, as a quote's lazy line and an item's later line don't, so the markers
   // before it stand in their own containers' insets.
@@ -703,7 +747,10 @@ function fieldEditor(
       return mark;
     }
   }
-  const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
+  const externalMark = Decoration.widget({
+    widget: new ExternalMark(),
+    side: -1,
+  });
   // The character an entity names, where the message shows it.
   class Spelled extends WidgetType {
     /** @param {string} shown */
@@ -916,7 +963,13 @@ function fieldEditor(
         held.push({ from, to, level: token.level, kind: "quote" });
         for (const [a, b] of placement.markers) {
           const line = state.doc.lineAt(a).from;
-          opening.push({ from: a, to: b, kind: "quote", level: token.level, line });
+          opening.push({
+            from: a,
+            to: b,
+            kind: "quote",
+            level: token.level,
+            line,
+          });
           leads.push([line, token.level]);
         }
       } else if (item) {
@@ -1035,8 +1088,8 @@ function fieldEditor(
 
   // Up and Down step to the next line, however short the preview draws it. CodeMirror's
   // vertical motion aims half a line of text past the caret's line, so it passes over a
-  // line shorter than that, as a blank line is where several share the gap a field
-  // that edits in place stands between two blocks (`standBlocks`). Where its step
+  // line shorter than that, as a blank line can be where it stands as the gap a field
+  // that edits in place draws between two blocks (`standBlocks`). Where its step
   // passes over the line beside the caret's, the caret goes to that line instead, at
   // the goal column CodeMirror aimed for, found in its own map of line heights.
   // Without Shift, a selection collapses to its end that way, as CodeMirror's own step
@@ -1081,12 +1134,24 @@ function fieldEditor(
       )
     )
       return false;
-    view.dispatch({ selection: moved, scrollIntoView: true, userEvent: "select" });
+    view.dispatch({
+      selection: moved,
+      scrollIntoView: true,
+      userEvent: "select",
+    });
     return true;
   };
   const LINE_STEPS = [
-    { key: "ArrowUp", run: lineStep(false, false), shift: lineStep(false, true) },
-    { key: "ArrowDown", run: lineStep(true, false), shift: lineStep(true, true) },
+    {
+      key: "ArrowUp",
+      run: lineStep(false, false),
+      shift: lineStep(false, true),
+    },
+    {
+      key: "ArrowDown",
+      run: lineStep(true, false),
+      shift: lineStep(true, true),
+    },
   ];
 
   // Whether the field's words read as a message (`field.message()`), or as the Markdown
@@ -1214,7 +1279,11 @@ function fieldEditor(
   // container it continues the container as Shift+Enter does, leaving it on a bare line,
   // and elsewhere, as after a heading, it is a plain line. Shift+Enter does the same
   // here, since a line it continued in a container would join the paragraph above.
-  /** @param {EditorView} view */
+  // A paragraph's words are what it shows. Where the caret has them on one side only,
+  // with markup between, as after a bold first word's `**`, Return acts past that
+  // markup, so the markup stays with its words, and Undo puts the caret back where it
+  // stood.
+  /** @param {StateTarget} view */
   function newLine(view) {
     const { state } = view;
     if (state.readOnly) return false;
@@ -1225,7 +1294,7 @@ function fieldEditor(
       ({ token, from: a, to: b }) =>
         token.type === "paragraph_open" && a <= from && to <= b,
     );
-    const words = paragraph
+    const inline = paragraph
       ? placed.filter(
           ({ token, from: a, to: b }) =>
             !token.block &&
@@ -1234,12 +1303,78 @@ function fieldEditor(
             b <= paragraph.to,
         )
       : [];
-    const before = words.some(({ from: a }) => a < from);
-    const after = words.some(({ to: b }) => b > to);
+    const before = inline.some(({ from: a }) => a < from);
+    const after = inline.some(({ to: b }) => b > to);
+    if (from === to && (before || after)) {
+      // A delimiter the parser kept as text, as each `*` of `**`, shows nothing, and
+      // code shows what stands between its backticks.
+      const words = inline.flatMap(({ token, from: a, to: b }) =>
+        token.nesting !== 0 ||
+        token.type === "hardbreak" ||
+        (token.content === "" && token.type !== "image")
+          ? []
+          : token.type === "code_inline"
+            ? [{ a: a + token.markup.length, b: b - token.markup.length }]
+            : [{ a, b }],
+      );
+      const shownBefore = words.some(({ a }) => a < from);
+      const shownAfter = words.some(({ b }) => b > to);
+      const edge =
+        before && !shownBefore && shownAfter
+          ? Math.min(...inline.map(({ from: a }) => a))
+          : after && shownBefore && !shownAfter
+            ? Math.max(...inline.map(({ to: b }) => b))
+            : from;
+      if (edge !== from)
+        return newLine({
+          state: state.update({ selection: { anchor: edge } }).state,
+          dispatch: (tr) =>
+            view.dispatch(
+              state.update({
+                changes: tr.changes,
+                selection: tr.newSelection,
+                scrollIntoView: true,
+                userEvent: "input",
+              }),
+            ),
+        });
+    }
     const line = state.doc.lineAt(from);
     const holds = holding(placed, line);
     const containers = placed.filter(container).filter(holds);
     const inner = containers.at(-1);
+    // On a blank line between blocks it leaves the caret on a blank line with a blank
+    // line on each side, where the next words make a paragraph of their own: words on
+    // a line beside a paragraph would join it.
+    /** @param {number} n */
+    const blankLine = (n) => /^[ \t]*$/.test(state.doc.line(n).text);
+    const inCode = placed.some(
+      ({ token, from: a, to: b }) => isCode(token) && a <= line.from && line.from < b,
+    );
+    // Before a paragraph's first words it opens a paragraph above, the caret in it, as
+    // after its last words it opens one below.
+    if (from === to && !inner && paragraph && !before && after) {
+      view.dispatch(
+        state.update(
+          { changes: { from, insert: "\n\n" }, selection: { anchor: from } },
+          { scrollIntoView: true, userEvent: "input" },
+        ),
+      );
+      return true;
+    }
+    if (from === to && !inner && !inCode && blankLine(line.number)) {
+      const above = line.number > 1 && !blankLine(line.number - 1);
+      const below = line.number < state.doc.lines && !blankLine(line.number + 1);
+      const insert = above && below ? "\n\n" : "\n";
+      const anchor = !above && below ? from : from + 1;
+      view.dispatch(
+        state.update(
+          { changes: { from, insert }, selection: { anchor } },
+          { scrollIntoView: true, userEvent: "input" },
+        ),
+      );
+      return true;
+    }
     if (inner && (!before || (!after && item(inner))) && continueBlocks(view, true))
       return true;
     if (!before) return insertNewline(view);
@@ -1276,7 +1411,10 @@ function fieldEditor(
             ]
           : { from: a, to: b, insert },
       );
-      spec = { changes, selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) } };
+      spec = {
+        changes,
+        selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) },
+      };
     } else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
     view.dispatch(state.update(spec, { scrollIntoView: true, userEvent: "input" }));
     return true;
@@ -1345,7 +1483,7 @@ function fieldEditor(
   // beside the renderer's, read the whole draft again on every key, ended a quote or
   // item at a fence inside it, and took three presses to leave a list.
   const CHECKBOX = "[ ] ";
-  /** @param {EditorView} view @param {boolean} [nextItem] */
+  /** @param {StateTarget} view @param {boolean} [nextItem] */
   function continueBlocks(view, nextItem = false) {
     const { state } = view;
     const { placed } = state.field(reading);
@@ -1476,7 +1614,11 @@ function fieldEditor(
       last = state.doc.line(last.number - 1);
     const change = closing
       ? { from: line.to, insert: begin }
-      : { from: last.to, to: line.to, insert: begin + fence.token.markup + begin };
+      : {
+          from: last.to,
+          to: line.to,
+          insert: begin + fence.token.markup + begin,
+        };
     view.dispatch(
       state.update({
         changes: change,
@@ -1649,7 +1791,11 @@ function fieldEditor(
               at !== -1;
               at = text.indexOf("\n", at + 1)
             )
-              breaks.push({ from: fromB + at, to: fromB + at + 1, insert: " " });
+              breaks.push({
+                from: fromB + at,
+                to: fromB + at + 1,
+                insert: " ",
+              });
           });
           return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
         }),
@@ -1709,7 +1855,10 @@ function fieldEditor(
         ),
         keymap.of([
           // A one-line field takes no line break (`field.oneLine`).
-          { key: "Shift-Enter", run: (view) => field.oneLine() || view.state.readOnly },
+          {
+            key: "Shift-Enter",
+            run: (view) => field.oneLine() || view.state.readOnly,
+          },
           { key: "Enter", run: (view) => field.returned() && newLine(view) },
           {
             key: "Shift-Enter",
@@ -1741,7 +1890,10 @@ function fieldEditor(
             ),
           },
           // Down reaches here only where the caret has no line below (`lineStep`).
-          { key: "ArrowDown", run: (view) => !field.oneLine() && leaveCode(view) },
+          {
+            key: "ArrowDown",
+            run: (view) => !field.oneLine() && leaveCode(view),
+          },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
           ),
@@ -1774,6 +1926,46 @@ function fieldEditor(
     return state;
   }
 
+  // The words as a field that edits in place saves them: each run of blank lines
+  // between two lines that hold words or markup written as its last line, the one blank
+  // line the display draws as the gap there (`standBlocks`), so the words reopen where
+  // the display shows them. A run inside a quote or a list goes the same way. Blank
+  // lines at the start or end, and those code holds, stay. So does a run without whose
+  // lines the display would draw the words otherwise, as it starts a second list after
+  // an empty item and two blank lines. Only the renderer knows each such rule, so saving
+  // draws the words both ways and compares them, run by run where dropping every run at
+  // once draws them otherwise.
+  /** @param {EditorState} state */
+  const oneLinePerGap = (state) => {
+    const { doc } = state;
+    const reading = state.facet(message);
+    const source = doc.toString();
+    const blank = blankLines(doc, placedMarkdownTokens(source, reading));
+    /** @type {{from: number, to: number}[]} */
+    const runs = [];
+    let run = 0;
+    for (let n = 1; n <= doc.lines; n++) {
+      if (blank(n)) {
+        run ||= n;
+        continue;
+      }
+      if (run > 1 && n - run > 1)
+        runs.push({ from: doc.line(run).from, to: doc.line(n - 1).from });
+      run = 0;
+    }
+    if (!runs.length) return source;
+    const shown = renderMarkdown(source, {}, reading);
+    /** @param {{from: number, to: number}[]} dropped */
+    const saved = (dropped) => state.changes(dropped).apply(doc).toString();
+    if (renderMarkdown(saved(runs), {}, reading) === shown) return saved(runs);
+    /** @type {{from: number, to: number}[]} */
+    const spare = [];
+    for (const drop of runs)
+      if (renderMarkdown(saved([...spare, drop]), {}, reading) === shown)
+        spare.push(drop);
+    return saved(spare);
+  };
+
   /** @param {boolean} on */
   const readOnly = (on) => ({
     effects: editable.reconfigure(EditorState.readOnly.of(on)),
@@ -1805,6 +1997,7 @@ function fieldEditor(
   return {
     LeafEditorView,
     fieldState,
+    oneLinePerGap,
     readOnly,
     contentAttributes,
     record,

@@ -6,14 +6,14 @@ Read with [packages.md](packages.md), which holds the package contract and a wid
 
 A widget shares what it has the way its element would in plain HTML, so two widgets
 whose authors never met work together on a Leaf page and on a page without Leaf. One
-names the other by id in an attribute it declares under `refers`, `for` by
+names the other by id in an attribute its declaration says names an element, `for` by
 convention ("References between widgets"), and then:
 
-| To                                               | Use                                                                                                                                                   | `page check` holds                                         |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract |
-| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                   |
-| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                               |
+| To                                               | Use                                                                                                                                                   | `page check` holds                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract        |
+| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                          |
+| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the `refers` attribute names an element; a link is unchecked |
 
 A recorded answer stays its owner's, and only the owner's module records it
 ("User state"). Another widget shows that answer by reading an output the owner holds,
@@ -21,16 +21,22 @@ and changes it by asking the owner with a command the owner turns into its own v
 log then holds one answer whichever widget the user changed it in, Undo takes back
 that one action, and the same two modules work off Leaf, where the owner keeps the
 answer itself. A view whose own place on the page is that answer, as a board card
-stands in the column of a pick, declares `shows` instead: its module reads the
-owner's state and records the owner's verb through `widgetController(owner)`
+stands in the column of a pick, names the owner in a `refers` attribute too, as
+`lf-card` does in `shows`, but its module reads the owner's state and records the
+owner's verb through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
 
-Packages declare no dependency on each other, so two that share a contract each
-declare it in their own `$data.contracts`, word for word; a page composing both keeps
-one copy, and `page check --render` holds what the producer holds to it. What a
-producer of the contract must take as commands goes in the contract's `instructions`,
-under `producer`: `leaf page instructions --use` returns it for a widget on either
-side of the contract.
+Packages declare no dependency on each other. A widget that holds a value names a
+contract that its own package or Leaf's `default` package declares in
+`$data.contracts`. So does a widget whose input takes a `source`, since `leaf data
+set` validates a source's value against the contract. A widget whose input binds only
+by `reference` names the producer's contract, and its package doesn't declare it:
+`page check` matches the input to the output by the contract's name, and `page check
+--render` holds what the producer holds to the contract. Two packages that both
+declare a contract declare it word for word, and a page composing both keeps one copy.
+What a producer of the contract must take as commands goes in the contract's
+`instructions`, under `producer`: on a page that selects a package declaring the
+contract, `leaf page instructions --use` returns it for a widget on either side.
 
 `package check` reads one package, so check a pair on a page. Start one in a directory
 outside both packages that selects them by path, write both widgets into its
@@ -154,13 +160,15 @@ The record kind fixes the event's payload, a closed object with every field requ
   the widget itself where `within` names the widget's own tag, as for a list the user
   reorders, or an element inside the widget, as each column of a board is.
 
-`leaf page state` lists each move in force with its container and rank, not the order
-that results. Authored members rank `1`, `2`, `3` and on in authored order, in base
-36, a move gives its member the rank it names, and each container lists its members by
-rank, compared as strings (the registry's `$verbs.record`). Once a version changes
-which members a container holds, or their order, the moves made before it stay in the
-log but no longer place their members: that version's author writes each moved member
-where the user left it, and those moves can no longer be undone.
+`leaf page state` lists each move in force with its container and rank, and gives the
+order that results on the widget's entry in `elements`: `order` maps each position verb
+to each container's member ids in the order the page draws them. Authored members rank
+`1`, `2`, `3` and on in authored order, in base 36, a move gives its member the rank it
+names, and each container lists its members by rank, compared as strings (the
+registry's `$verbs.record`). Once a version changes which members a container holds, or
+their order, the moves made before it stay in the log but no longer place their
+members: that version's author writes each container's members in the `order` the
+active version showed, and those moves can no longer be undone.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
 detail field holding the moved element. A verb with no record declares its own
@@ -220,8 +228,11 @@ the verb whose state is the answer: the recorded value, or a recordless verb's l
 `awaits.answered` separately says when the obligation is complete: `{}` once the
 verb has a state, which a starting value the page's markup writes gives it too, `when`
 for instances with matching attributes, and `empty` while the one container of the
-verb's position record (`within`) whose attributes match its `when` has no members. A
-page-owned queue can declare:
+verb's position record (`within`) whose attributes match its `when` has no members.
+`every: {member}` holds once each `member` element in the widget has an action of a
+verb kept per member, so a checklist the user decides step by step asks until its
+last step is decided, and asks again when a version adds a step; `detail` beside it
+asks each step's action for the named values. A page-owned queue can declare:
 
 ```json
 {
@@ -272,8 +283,9 @@ and its schema.
 ## References between widgets
 
 When an attribute names another element, declare it in `refers`, mapping the
-attribute to `{}`, which accepts any element id. `page check` refuses an id that names
-no element.
+attribute to `{}`, which accepts any element id. The attribute an input names as its
+`reference` ("Widget outputs") needs no entry, as the registry's `$keys.inputs`
+defines. `page check` refuses an id that names no element.
 
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
@@ -353,11 +365,12 @@ timezone-aware instant, `uri` an absolute URL, and `package check` lists the res
 
 A widget declares the inputs it can show under `inputs`, each naming its contract,
 the attribute that carries the page's source id, and the element `property` Leaf sets to
-the value. Make that attribute required when the widget can't work without the input. A
-widget with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text
-is: where the markup binds the input whose `property` is `value` to nothing, Leaf sets
-`value` to the `<pre>`'s text, a string, so the widget reads one property either way,
-as `lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
+the value. Naming the attribute there declares it, as the registry's `$keys.inputs`
+defines; list it in `required` when the widget can't work without the input. A widget
+with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text is:
+where the markup binds the input whose `property` is `value` to nothing, Leaf sets
+`value` to the `<pre>`'s text, a string, so the widget reads one property either way, as
+`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
 `page check` refuses a `<pre>` on an element binding it. Its other inputs leave the
 `<pre>` alone, as `lf-code`'s `playhead` does. Leaf leaves the property of any other
 unbound input to the widget. Tell page authors how to bind it in `instructions`, and
@@ -367,10 +380,8 @@ contract").
 ```json
 {
   "lf-builds": {
+    "description": "The current build result of each branch.",
     "attributes": {
-      "properties": {
-        "source": { "type": "string" }
-      },
       "required": ["id", "source"]
     },
     "content": "empty",
@@ -418,18 +429,15 @@ of input, declaring `source`, `reference` or both:
     "reference": "for",
     "property": "value"
   }
-},
-"refers": { "for": {} }
+}
 ```
 
-The input's `reference` names its ordinary element relation, and the consumer
-declares each attribute the input names in `attributes`. A page binds either
-`source="project-files"` or `for="review"`, where `review` is a widget holding a
-`file-list`. The input binds by contract: it reads the one output of its contract the
-named widget declares, whatever that widget calls it, so a consumer never names a
-producer's tag or its output and works beside any producer of the contract. `page
-check` refuses a `for` naming a widget with no output of the contract, or with more
-than one.
+A page binds either `source="project-files"` or `for="review"`, where `review` is a
+widget holding a `file-list`. The input binds by contract: it reads the one output of
+its contract the named widget declares, whatever that widget calls it, so a consumer
+never names a producer's tag or its output and works beside any producer of the
+contract. `page check` refuses a `for` naming a widget with no output of the contract,
+or with more than one.
 
 Leaf reads the property when the consumer first draws, again each time the producer
 says `change`, and from the new element when a revision replaces the producer, so a
@@ -441,16 +449,23 @@ its readers nothing while another output changes. Hold what changes often, such 
 selection, as a small output of its own beside the large one. Dispatch it on the
 element itself: a control inside the element says a bubbling `change` of its own,
 which Leaf doesn't count, and which a module listening on its own element tells apart
-by `event.target`.
+by `event.target`. Where a verb also records the property (`module-plain-elements.md`,
+"`record.property`"), its `record` names the event that reports a change, so Leaf
+also reads the property again at that event, even from a control inside the element,
+and after Leaf sets the recorded value.
 
-A consumer draws after the producer's `change`, in the same frame, not inside it.
+Leaf sets the consumer's property before the producer's `dispatchEvent` returns. A
+consumer that draws in its setter has drawn by then; a consumer that extends
+`LeafElement` draws after the dispatch returns, in the same frame.
 
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
 
-`page check --render` and `package check --render` validate every value an output
-holds as it says `change` during their render, including values later withdrawn or
-replaced and values from contained samples whose frames are later disposed. A
+`page check --render` and `package check --render` validate the value an output
+holds each time its element says `change` during their render, including values later
+withdrawn or replaced and values from contained samples whose frames are later
+disposed. They listen at the window, so they check a producer inside another widget's
+shadow tree only where its `change` is composed, which `new Event("change")` is not. A
 mismatch is an error naming the producer, output, contract and value path. Captured
 provenance names the implementation owner and, when different, the output declaration
 and data contract owners: a page can change each independently. These checks cover
@@ -478,8 +493,8 @@ value at once. `leaf data clear` removes the value, and each bound widget receiv
 `null`. A value that stops fitting a later contract shows users an error for that
 source, and `page check` and `page state` report it. A stamped version keeps the
 contract it was stamped with, so a value written for a changed contract shows there as
-a source error. `leaf page state PAGE` lists every binding under `data_bindings`, so a
-producer needn't parse markup. Every value goes to every user of the page, so never put
+a source error. `leaf page state PAGE` lists each bound source under `data_bindings`, so
+a producer needn't parse markup. Every value goes to every user of the page, so never put
 credentials or private host state in one.
 
 Leaf keeps no old values: every document bound to a source, stamped versions and

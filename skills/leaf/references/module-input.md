@@ -436,7 +436,11 @@ the draft kept under `ctx`, a string unique on the page such as `option:` and it
   `deliver(attempt, payload)` if the box still shows the stored draft and `owns()` is
   true, and resolves to what `deliver` returns. One `attempt` stands for one version of
   the words, so a resend after a reload reuses it.
-- `clear()` drops the draft, as Discard does.
+- `clear()` drops the draft, as a box closed with nothing changed does.
+- `discard()` drops the draft as Discard and Escape do: ⌘Z, the press of the notice
+  "Edit discarded", puts its words back in the draft and opens the box on them through
+  `watch`'s `resume`. Call it only where the box's words differ from what its subject
+  already says.
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 

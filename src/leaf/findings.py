@@ -2348,9 +2348,9 @@ _TEXT = {
                 else f"those hooks couldn't read {v['page']} at this Leaf's protocol."
                 " Serve the page without claiming it, as `server start --lifetime"
                 f" persistent` does, and hear it with `{v['leaf']}/bin/leaf wait"
-                f" {v['page']}`; run `{v['hooks']}/bin/leaf` on a page the session"
-                " already holds. In Claude Code, /reload-plugins moves the session to"
-                " the installed copy, if that has caught up."
+                f" {v['page']}`. To work on a page the session already holds, run"
+                f" `{v['hooks']}/bin/leaf`. In Claude Code, /reload-plugins moves the"
+                " session to the installed copy, if that has caught up."
             )
         ),
     ),

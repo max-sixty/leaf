@@ -13,11 +13,18 @@ change also needs the sections on proving, handing off and reviewing it. Where r
 `AGENTS.md` requires a task, it names the task's section. The last section lists
 the tasks whose steps are in a file of their own.
 
-## Run `leaf` from this checkout
+## Run `leaf`
 
-Resolve the repository root three directories above this `SKILL.md`, check that
-`<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
-absolute launcher; a bare `leaf` may run the installed plugin instead.
+A command goes to the Leaf that owns what it acts on (`src/leaf/session-lifetime.md`,
+"Which Leaf runs a session"):
+
+- **A page the session holds**, such as the page it talks to the user on: the
+  session's own `leaf`, the copy its hooks run, which is the bare `leaf` on `PATH`
+  in a session started normally.
+- **This checkout's runtime**: `<root>/bin/leaf` for a preview, a fixture or another
+  page the session doesn't hold, and `uv run` from `<root>` for the tests and
+  `leaf-dev`. `<root>` is the repository root three directories above this
+  `SKILL.md`, which `<root>/bin/leaf --root` prints.
 
 ## Read the owning contract
 
@@ -36,27 +43,26 @@ jq 'select(has("lf-shot"))."lf-shot"' \
 
 Every authored Leaf source is a page: a site page under `docs/`, a shipped example or
 fixture, a playground, or a page for this conversation. Before writing its content,
-read `<root>/skills/leaf/SKILL.md` completely and follow its authoring, validation,
-handoff and conversation-loop routes, using the checkout launcher and resolving its
-references from `<root>/skills/leaf/`. Read it again after a compaction, before the
-page's next revision or handoff. A brief for a subagent that writes the page names the
-content and the decisions to put to the user, and leaves how to pose them to those
-instructions.
+read completely the leaf skill of the Leaf that runs the page ("Run `leaf`"): the
+session's own for a page the session holds, `<root>/skills/leaf/SKILL.md` for this
+checkout's. Follow its authoring, validation, handoff and conversation-loop routes
+through that Leaf's `leaf`, resolving its references beside the skill. Read it again
+after a compaction, before the page's next revision or handoff. A brief for a
+subagent that writes the page names the content and the decisions to put to the user,
+and leaves how to pose them to those instructions.
 
-A page runs the runtime of the Leaf serving it, so serve a page with the checkout
-launcher to show it with this checkout's runtime. The session's hooks, its pages
-follower and the hooks module run the installed plugin whichever launcher you use, and
-read a page the session holds only at that plugin's page protocol, so the checkout
-won't claim a page for the session at another protocol. A checkout behind the
-plugin's protocol needs main merged in first. From one ahead, serve the page
-unclaimed, with `leaf-dev preview` without `--user` or `server start --lifetime
-persistent`, and hear it with the checkout's `bin/leaf wait PAGE`. To try a change to the hooks or the
-hooks module, run the agent journey ("Run the agent journey") or `uv run leaf-dev
-journey session`, whose Claude Code loads this checkout as its plugin. A page built
-in another checkout, such as a subagent's worktree, was checked against that
-checkout's Leaf, and markup and layout contracts change between commits with no
-protocol change. Serve it with that checkout's launcher, and judge it against that
-checkout's instructions.
+A page runs the runtime of the Leaf serving it. The session's hooks, its pages
+follower and the hooks module run the session's own copy whichever launcher you use,
+and read a page the session holds only at that copy's page protocol, so the checkout
+claims a page for the session only at that protocol. Behind it, merge main first;
+ahead of it, serve the page unclaimed, with `leaf-dev preview` without `--user` or
+`server start --lifetime persistent`, and hear it with `<root>/bin/leaf wait PAGE`.
+To try a change to the hooks or the hooks module, run the agent journey ("Run the
+agent journey") or `uv run leaf-dev journey session`, whose Claude Code loads this
+checkout as its plugin. A page built in another checkout, such as a subagent's
+worktree, was checked against that checkout's Leaf, and markup and layout contracts
+change between commits with no protocol change. Serve it with that checkout's
+launcher, and judge it against that checkout's instructions.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the

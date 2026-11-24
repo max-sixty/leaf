@@ -21,7 +21,7 @@
  * (target-paint.js, `labelAim`). */
 
 import { markedBox } from "./geometry.js";
-import { closestAcross, renderedParent } from "./shadow-tree.js";
+import { closestAcross, renderedParent } from "./lib/shadow-tree.js";
 import { isAddressable } from "./anchor-resolution.js";
 
 /** @typedef {import("./rect.js").Box} Box */

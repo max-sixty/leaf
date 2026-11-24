@@ -339,7 +339,7 @@ def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, ser
     a closed disclosure and a box out of view under `content-visibility: auto`, it asks
     no more than each child whether it is drawn. Asking about what they hold would make
     the browser style it first, and a page of long documents in tabs is almost all such
-    content (`drawnElements` in runtime/shadow-tree.js)."""
+    content (`drawnElements` in runtime/lib/shadow-tree.js)."""
     held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
     source = leaf_page(
         "Skipped content",
@@ -1799,7 +1799,7 @@ def other_pages(page):
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
   const {focused} = await window.__lfCheckApi();
-  const {closestAcross} = await window.__lfCheckApi();
+  const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
   const {seenRect} = await window.__lfCheckApi();
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
@@ -2073,7 +2073,8 @@ def into_the_page(page):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
             const {focused} = await window.__lfCheckApi();
-            const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
+            const {availableCommandRoutes} = await window.__lfCheckApi();
+            const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
             const at = focused();
             if (!at || !closestAcross(at, 'main')) return false;
             for (const [row, keys] of availableCommandRoutes())

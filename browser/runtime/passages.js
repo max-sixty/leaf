@@ -93,7 +93,7 @@
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow-tree.js),
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -114,19 +114,14 @@
 import {
   isNode,
   closestAcross,
-  inChrome,
-  SAID,
-  UI_MARKS,
-  inUi,
   overIn,
   shadowHost,
-  uiInside,
   under,
   upFrom,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
+import { inChrome, SAID, UI_MARKS, inUi, uiInside } from "./ui-marks.js";
 import { keptEach, unkept, version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
-export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   declaredRoot,
   refuseShadowRoot,
@@ -144,7 +139,7 @@ import {
   isHTML,
   renderedParent,
   skipper,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
@@ -519,7 +514,7 @@ const NO_CONTEXT = Object.freeze({
   cells: null,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
-// (shadow-tree.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// (ui-marks.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
 // the walk asks each of one element with `matches`, so a marker added to a selector
 // reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
 // only a class or an id is settled by one match.
@@ -1368,7 +1363,7 @@ const drawnHere = () => {
  * closed disclosure's body are), and, with `visibility`, `element` inherits
  * `visibility: visible`. What a `content-visibility: auto` box skips off screen is drawn
  * once scrolled to, by the same rules, so it is asked as it is, which styles what is
- * asked; what `hidden` skips is answered without styling it (shadow-tree.js, `skipper`).
+ * asked; what `hidden` skips is answered without styling it (lib/shadow-tree.js, `skipper`).
  * @param {Element} element @param {boolean} [visibility] */
 export function drawsWithin(element, visibility = true) {
   for (

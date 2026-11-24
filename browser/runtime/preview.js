@@ -322,7 +322,7 @@ import {
   renderedParent,
   renderedUnder,
   under,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";

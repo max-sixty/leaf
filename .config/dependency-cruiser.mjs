@@ -38,8 +38,8 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 const library = `^${runtime}lib/`;
 const exactClosures = {
   "queued-work.js": [],
+  "ui-marks.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
-  "shadow-tree.js": [],
   "contribution-model.js": ["words.js", "kernel-facts.js"],
   "margin-model.js": [
     "contribution-model.js",
@@ -90,8 +90,8 @@ const exactClosures = {
     "inputs.js",
     "document-inputs.js",
     "control-keys.js",
+    "ui-marks.js",
     "language-paths.js",
-    "shadow-tree.js",
     "scroll-containers.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",

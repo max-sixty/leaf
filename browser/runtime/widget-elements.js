@@ -67,7 +67,7 @@ import {
   renderedUnder,
   renderedParent,
   untilFound,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
 import { keeps } from "./lib/keeps.js";
 import { html, render, signal } from "/runtime/framework.js";

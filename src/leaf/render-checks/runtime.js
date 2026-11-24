@@ -1,4 +1,5 @@
-import { USER_VIEW_RESTORE_CASES, scrolling, upFrom } from "/runtime/check-api.js";
+import { USER_VIEW_RESTORE_CASES, scrolling } from "/runtime/check-api.js";
+import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { exceptionText } from "/runtime/lib/exception.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";

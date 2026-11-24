@@ -107,12 +107,13 @@ import {
   renderedParent,
   renderedUnder,
   upFrom,
-} from "../shadow-tree.js";
+  closestAcross,
+} from "../lib/shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
-import { closestAcross, layoutBox, pageDocument } from "../passages.js";
+import { layoutBox, pageDocument } from "../passages.js";
 import {
   Footprints,
   arrivals,
@@ -132,7 +133,6 @@ import { objectIds } from "../ids.js";
 import { offerActionElement } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { registry } from "../registry.js";
-import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
   anchorBox,
@@ -147,6 +147,7 @@ import {
   scrollMisplacesAnchors,
   scrollsWith,
 } from "../css-anchors.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {import("../resolved-target.js").ResolvedTarget} ResolvedTarget
@@ -1581,7 +1582,7 @@ function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
 }
-// What the page shows in place of `node` while a closed box hides it (shadow-tree.js,
+// What the page shows in place of `node` while a closed box hides it (lib/shadow-tree.js,
 // `closedOver`): a closed disclosure's summary, or else the nearest box round the
 // closed one that draws one of its own, as a tab set does round a panel it hasn't
 // chosen. A row stands by it level with its top, since the line and words it would
@@ -1609,7 +1610,7 @@ export function closedFaceOver(node) {
 }
 
 // Whether a row with no face stands where the page doesn't show its target until the
-// target is drawn (`skippedUntilDrawn`) or the closed box round it opens (shadow-tree.js,
+// target is drawn (`skippedUntilDrawn`) or the closed box round it opens (lib/shadow-tree.js,
 // `closedOver`), which a stylesheet may lay out unseen. Opening the box changes its
 // `hidden` or `open`, which the page's observer hears (`heardPage`).
 /** @param {Element} target */

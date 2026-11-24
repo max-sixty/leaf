@@ -26,7 +26,6 @@ import {
   elementById,
   findEach,
   GENERATED,
-  inChrome,
   quoteFrom,
   readsElement,
   textNodesUnder,
@@ -60,7 +59,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { renderedOrdering, shadowHost, under } from "./shadow-tree.js";
+import { renderedOrdering, shadowHost, under } from "./lib/shadow-tree.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";
@@ -73,6 +72,7 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
+import { inChrome } from "./ui-marks.js";
 
 // The words of every obligation's row, one reading for all of them, so a collection
 // finds each row's words unchanged by identity rather than by reading them

@@ -94,7 +94,6 @@ import {
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
-  under,
   backgroundFlash,
   beginWalk,
   capturePlace,
@@ -129,6 +128,7 @@ import {
   commandsChanged,
 } from "/runtime/widget-api.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
 

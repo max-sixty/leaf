@@ -121,7 +121,7 @@ import {
 } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { cancelRender, nextRender } from "./rendering.js";
-import { renderedParent, renderedUnder } from "./shadow-tree.js";
+import { renderedParent, renderedUnder } from "./lib/shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 
 /** @typedef {Element | Range} Destination

@@ -461,14 +461,18 @@ const writeWaiting = () => {
 // close. The prompt a reload Leaf asks for raises asks nothing (layer-client.js,
 // `takeLeafUnload`): it is no close, and after a server restarted under another Leaf,
 // which refuses this document's writes, every word typed since would otherwise put the
-// prompt in front of a reload the user never asked for.
+// prompt in front of a reload the user never asked for. Words the early key hold keeps
+// for their box, typed through a reload, are such work too (bootstrap.js, `letGo`).
 addEventListener("beforeunload", (event) => {
   if (takeLeafUnload()) return;
   const stranded = [...draftCache].some(
     ([ctx, { durable }]) =>
       !durable && !writing.has(ctx) && holdsWork(activeDraftRecord(ctx)),
   );
-  if (stranded) event.preventDefault();
+  /** @type {DocumentEventMap["lf-held-writing"]} */
+  const asking = new CustomEvent("lf-held-writing", { detail: { held: false } });
+  document.dispatchEvent(asking);
+  if (stranded || asking.detail.held) event.preventDefault();
 });
 const WAITING_DRAFTS = "lf-drafts-waiting";
 addEventListener("pagehide", () => {

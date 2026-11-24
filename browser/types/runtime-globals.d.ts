@@ -301,6 +301,9 @@ interface DocumentEventMap {
     show(words: HeldWords | null): void;
     write(box: HTMLTextAreaElement): void;
   }>;
+  /** The leave prompt's question whether the bootstrap keeps words no write carries
+   * (`drafts.js`, `bootstrap.js`). */
+  "lf-held-writing": CustomEvent<{ held: boolean }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<

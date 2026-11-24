@@ -671,6 +671,11 @@
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
+    // Leaving asks first while the tab keeps words of the user's that no write carries
+    // yet, a run of writing or words let go for their box (drafts.js, `beforeunload`).
+    document.addEventListener("lf-held-writing", ({ detail }) => {
+      detail.held ||= (writing && held.length > 0) || keptWords().length > 0;
+    });
     if (held.length) beat = setTimeout(show, 150);
   }
 

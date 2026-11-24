@@ -1795,6 +1795,34 @@ def test_words_typed_through_a_reload_reach_the_reply_when_the_page_opens_anew(
     expect(resumed).to_have_js_property("value", "Hold more now")
 
 
+def test_leaving_with_words_typed_through_a_reload_still_held_asks_first(
+    browser, serve
+):
+    """Words the user types on as a reload Leaf asked for comes wait for the reply it
+    puts back, and no write carries them yet, so leaving the page asks first, as it
+    does over a draft no write carries (drafts.js, `beforeunload`). A reload the user
+    then asks for keeps them in the tab and puts the user back in the reply, where
+    they land."""
+    page, reply = writing_a_reply(browser, serve)
+    reload_with_its_answers_held(page, serve)
+    page.keyboard.type(" more")
+    expect(page.locator(".lf-held-key").first).to_be_visible()
+    left = []
+
+    def leaving(dialog):
+        left.append(dialog.type)
+        dialog.accept()
+
+    page.on("dialog", leaving)
+    page.reload(wait_until="commit")
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    assert left == ["beforeunload"]
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hold more")
+
+
 def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
     browser, serve
 ):

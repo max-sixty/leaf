@@ -113,12 +113,13 @@ const unpaintedFiles = (scope) =>
       !element.querySelector(":scope > [data-lf-prepaint]"),
   );
 
-// A declaration whose data body is Markdown words (`text-format`).
+// A declaration whose data body is Markdown words (`content: markdown`).
 /** @param {import("../types/contract.js").WidgetDeclaration} entry */
-const wordsAreMarkdown = (entry) => entry["text-format"] === "markdown";
+const wordsAreMarkdown = (entry) => entry.content === "markdown";
 
-// Registry text formatting belongs to the layer, so a package declaration cannot
-// make file-side passages read words the browser leaves as raw Markdown.
+// A Markdown body (`content: markdown`) is the layer's to render, so a package
+// declaration cannot make file-side passages read words the browser leaves as raw
+// Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (
@@ -134,7 +135,7 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Each element declaring `text-format` shows its data body's rendering in place
+// Each element declaring `content: markdown` shows its data body's rendering in place
 // of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
 // for typed state, revision patching and provenance; arrivals call this after capture,
 // before connection. Their import preparation has already made the parser ready, so

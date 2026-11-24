@@ -55,9 +55,9 @@ export { registerRootHeader } from "./root-headers.js";
 export { holdPlace, readingAt } from "./user-place.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; their current location and whether it is in a scope; running something once
-// they move off an element, or once a press lands away from it (`onPressAway`); and a
-// group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the
+// list; hearing each move of their current location with its cause; running something
+// once they move off an element, or once a press lands away from it (`onPressAway`); and
+// a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the
 // user to write Markdown in.
 export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
@@ -116,7 +116,6 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export { atScrollEnd } from "./scrolling.js";
 export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

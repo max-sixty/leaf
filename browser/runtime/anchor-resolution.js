@@ -386,9 +386,7 @@ function addressableAt(node) {
 // addressable element.
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring((entry) => entry["text-format"] === "markdown").join(
-    ",",
-  );
+  const formatted = tagsDeclaring((entry) => entry.content === "markdown").join(",");
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );

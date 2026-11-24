@@ -29,11 +29,11 @@ def test_an_age_is_quoted_by_the_time_its_author_wrote(engine, request, serve):
     """The reader sees how long ago, and the page's reading keeps the time the file
     holds: a double-click on the age's figure quotes that time, and the file resolves
     the quote, so a comment on an age keeps its passage when the age ticks. Firefox
-    selects the figure because a word joiner leads the drawn words (age.js): with
+    selects the figure because a zero-width space leads the drawn words (age.js): with
     them flush against their host's start it selects nothing there."""
     page = open_page(request.getfixturevalue(engine), serve(AGES))
     age = page.locator("#ran lf-age")
-    drawn = age.evaluate("age => age.shadowRoot.textContent")
+    drawn = age.evaluate("age => age.shadowRoot.textContent.trim()")
     assert drawn.endswith("d ago"), drawn
     box = age.bounding_box()
     # Its first word, the figure.

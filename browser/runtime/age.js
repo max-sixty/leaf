@@ -27,14 +27,17 @@
    - It follows the clock with one effect of its own and writes one text node. A
      `LeafElement` would make each age a stage Leaf dresses and watches
      (shadow-stage.js), which a list of ages pays once for each.
-   - It stays inline, and never breaks across two lines. A word joiner leads the
-     words it draws: Firefox selects nothing on a double-click of the first word of
-     a shadow tree that stands flush against its host's start, and a comment made
-     from that has no passage. A zero-width space cures that too, but Chromium then
-     drops the space a line break in the source leaves before the tag. So does an
-     inline block, but it takes no underline or strike from a link or an `<s>` round
-     it, parts from an opening bracket before it, lets a comma after it start the
-     next line, and is undone by a page that restyles the element. */
+   - It stays inline, and never breaks across two lines. A zero-width no-break
+     space (U+FEFF) leads the words it draws: Firefox selects nothing on a
+     double-click of the first word of a shadow tree that stands flush against its
+     host's start, and a comment made from that has no passage. JavaScript counts
+     that character as white space, so a reading of the age's text that trims it,
+     as a test's text match does, reads the words alone. Three other cures fail:
+     a word joiner (U+2060) stays in every such reading; after a zero-width space
+     (U+200B) Chromium drops the space a line break in the source leaves before the
+     tag; and an inline block takes no underline or strike from a link or an `<s>`
+     round it, parts from an opening bracket before it, lets a comma after it start
+     the next line, and is undone by a page that restyles the element. */
 import { effect, signal } from "/runtime/framework.js";
 import { agePreview, ago } from "./presence.js";
 
@@ -57,7 +60,7 @@ customElements.define(
       super();
       const root = this.attachShadow({ mode: "open" });
       root.adoptedStyleSheets = [unbroken];
-      root.append("\u2060", this.#words);
+      root.append("\ufeff", this.#words);
     }
 
     /** @param {string} _name @param {string | null} _was @param {string | null} moment */

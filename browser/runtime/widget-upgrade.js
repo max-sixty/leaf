@@ -58,7 +58,9 @@ export const HOLD = "lf-hold";
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while
 // rearranging descendants, so the widget states that geometry change explicitly, with a
 // bubbling, composed event on the element whose parts moved, and geometry readers
-// listen for it instead of watching every DOM mutation.
+// listen for it instead of watching every DOM mutation. A thread pass, which asks a
+// widget that seats threads for its outlets again, follows the event and no resize
+// (anchor-controls.js), so such a widget says it after any change in the data it shows.
 export const LAYOUT = "lf-layout";
 // How many times an element in the page has said its layout changed, which a reader of
 // what widgets draw that the page's reading doesn't hear reads (kept.js, `version`).

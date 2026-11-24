@@ -1537,8 +1537,8 @@ export function watchDraft(
   };
 }
 // A package's draft: the functions above bound to one context, which the package API
-// exports in their place (widget-api.js). It leaves out what only Leaf's own boxes
-// pass: a reply the draft holds (`held`), and a mirror's options.
+// exports in their place (widget-api.js). Its types offer none of what only Leaf's own
+// boxes pass: a reply the draft holds (`held`), and a mirror's options.
 /** @param {string} ctx */
 export const draft = (ctx) => ({
   read: () => loadDraft(ctx),
@@ -1549,8 +1549,8 @@ export const draft = (ctx) => ({
    * @param {{input?: DraftField | (() => DraftField | null), resume?: () => EditorDestination | null, box?: () => Element | null}} [options] */
   watch: (callback, options) => watchDraft(ctx, callback, options),
   /** @template T @param {() => boolean} owns
-   * @param {(attempt: string, payload: DraftPayload | undefined) => T | PromiseLike<T>} send */
-  send: (owns, send) => sendDraft(ctx, owns, send),
+   * @param {(attempt: string, payload: DraftPayload | undefined) => T | PromiseLike<T>} deliver */
+  send: (owns, deliver) => sendDraft(ctx, owns, deliver),
 });
 // News of every draft whose context starts with `prefix`, for a reader of a whole kind
 // of draft rather than one box's.

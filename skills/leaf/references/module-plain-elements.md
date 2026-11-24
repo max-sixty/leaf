@@ -103,8 +103,8 @@ this.dispatchEvent(hold);
 - **`lf-action`.** The element, or a node inside it, records a gesture by dispatching
   a `CustomEvent`. Its `detail` holds the `verb`, `detail`, `says`
   and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller");
-  `attempt` is the id a draft's `send` hands the function it calls (`module-input.md`,
-  "Text entry and drafts"), so a refusal returns the words to their draft. Leaf has
+  `attempt` is the id a draft's `send` hands its `deliver` (`module-input.md`, "Text
+  entry and drafts"), so a refusal returns the words to their draft. Leaf has
   set the resulting `state` by the time `dispatchEvent` returns. On an event it sends,
   Leaf sets the event's `delivery` property, a promise of the event the server
   admitted, or of `null` where the server refuses it and Leaf sets the server's state

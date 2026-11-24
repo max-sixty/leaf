@@ -429,10 +429,10 @@ the draft kept under `ctx`, a string unique on the page such as `option:` and it
   changes other than by typing in this box: another tab or device, a send emptying it,
   or a refusal returning the words. Put them in the box with `sync.load(text ?? "")`,
   and register the watch in `whileConnected`.
-- `send(owns, send)`, called from `wireInput`'s `send`, calls the `send(attempt, payload)`
-  it is given if the box still shows the stored draft and `owns()` is true, and resolves
-  to the delivery's result. One `attempt` stands for one version of the words, so a
-  resend after a reload reuses it.
+- `send(owns, deliver)`, called from `wireInput`'s `send`, calls
+  `deliver(attempt, payload)` if the box still shows the stored draft and `owns()` is
+  true, and resolves to what `deliver` returns. One `attempt` stands for one version of
+  the words, so a resend after a reload reuses it.
 - `clear()` drops the draft, as Discard does.
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.

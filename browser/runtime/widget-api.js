@@ -21,8 +21,6 @@ import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
-// The rank a position record carries for a unit dropped at an index in a container.
-export { rankAt } from "./projection/model.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.

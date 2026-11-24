@@ -818,6 +818,7 @@ block names what a package answers with the browser's own call instead.
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                           |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `lib/words.js` `labelWords`, `counted`, `capitalized`                                  |
 | The word for an element's kind, a widget's own word for it included                                   | `lib/element-word.js` `addressableWord`, `widgetWord`                                  |
+| The order a position container lists its units in, and the rank that puts a unit at an index          | `lib/rank.js` `byRank`, `rankAt`, `authoredRank`                                       |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                            |
 | What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                             |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                        |

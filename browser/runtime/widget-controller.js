@@ -333,10 +333,10 @@ const undoCandidates = (action) => {
 
 // A widget's reading as the immutable `state` property Leaf sets on an element it
 // drives from outside (element-integration.js): each declared verb's folded state, with
-// whether the user may act on it now (`available`) and whether `lf-undo` would take
-// back the action in force (`undoable`), which a verb holding a state for each unit
-// says on each unit. A verb the agent writes reads as one the user may neither act on
-// nor take back.
+// whether the user may act on it now (`available`), the reason they may not where Leaf
+// has one to give (`unavailable`), and whether `lf-undo` would take back the action in
+// force (`undoable`), which a verb holding a state for each unit says on each unit. A
+// verb the agent writes reads as one the user may neither act on nor take back.
 /** @param {WidgetReading} reading */
 export const widgetState = ({ state, actions }) =>
   immutable(
@@ -358,6 +358,7 @@ export const widgetState = ({ state, actions }) =>
                 }
               : { undoable: undoable.size > 0 }),
             available: actions[verb]?.available ?? false,
+            unavailable: actions[verb]?.unavailable ?? null,
           },
         ];
       }),

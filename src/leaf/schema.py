@@ -365,7 +365,6 @@ FACTS: dict[str, dict] = {
             },
         ]
     },
-    "word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
     "views": {
         "type": "object",
         "properties": {

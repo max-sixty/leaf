@@ -30,7 +30,7 @@
  * and withdrawn once a script handed over its own would move the page as it loads.
  */
 import { offeredAction, generatedElement } from "/runtime/widget-api.js";
-import { keepsText } from "/runtime/lib/keeps.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 import { html, nothing, render } from "/vendor/lit.js";
 
@@ -325,8 +325,16 @@ export function createPlayground(host) {
     presets.map((preset) => [preset, [...preset.childNodes]]),
   );
   // Each preset retains its node and has one Lit template, on delivery and live
-  // updates; the controls and outputs keep theirs and take their values in place.
-  for (const preset of presets) preset.replaceChildren();
+  // updates; the controls and outputs keep theirs and take their values in place. A
+  // preset is a group of its words and its press, named by its label, and a screen
+  // reader and Leaf's chrome both call it a preset unless its author named its kind.
+  for (const preset of presets) {
+    preset.replaceChildren();
+    keeps(preset, "role", "group");
+    keeps(preset, "aria-label", preset.getAttribute("label"));
+    if (!preset.hasAttribute("aria-roledescription"))
+      preset.setAttribute("aria-roledescription", "preset");
+  }
   host.replaceChildren();
   const resetOffer = offeredAction("symbol", "lf-playground-reset", undefined, {
     action: "reset",

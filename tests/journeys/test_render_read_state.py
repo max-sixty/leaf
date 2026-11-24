@@ -242,7 +242,9 @@ def _read_by_the_sample(page, child):
     """The control: the child sends the message read, and its server holds it read."""
     _expect_news(child, False)
     round_trip(child)
-    state = page.request.get(f"{child.url}api/state").json()
+    state = page.request.get(
+        child.evaluate("new URL('api/state', document.baseURI).href")
+    ).json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
     assert thread["unread"] == {}

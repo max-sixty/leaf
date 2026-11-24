@@ -138,9 +138,9 @@ another widget moves, as `lf-code` keeps the line a film runs, passes the first 
 the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
-control's ring shows. `fitsWhole(target)` says whether the target and those margins
-fit, so a widget can bring in a heading or label with an item where there is room, and
-the item alone where there is not.
+control's ring shows. To bring in a heading or label with an item where there is room,
+and the item alone where there is not, pass a Range or element holding both as
+`including`, which lands in the target's place where it and its margins fit.
 
 To set a box's scroll position, call the browser's own
 `box.scrollTo({top, left, behavior: "instant"})`. Leaf hears that write as it is made,

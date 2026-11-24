@@ -100,6 +100,25 @@ On Me and admits the ids its buttons mark:
 - **`lf-undo`.** The same kind of event, with `detail` `{verb}`, or `{verb, unit}`
   for a verb with a per-part unit, takes back the action in force there while
   `undoable` says it may.
+- **`record.property`.** A component written without Leaf, such as a library's form
+  control, records with no `lf-action`. Its verb's `record` names the property that
+  holds the component's value, as
+  `{ "kind": "value", "attr": "value", "property": "value" }` does, and the `event`
+  the component dispatches when the user changes the value, where that event is not
+  `change`. Leaf sets the property to the recorded value, which is a string, or to
+  the empty string while there is none, so the property must take both. When the
+  component dispatches the event, Leaf records the property's value, as a string, as
+  the verb's action, with `detail` `{value}`. An event the component dispatches from
+  inside Leaf's set, or while the property holds the recorded value, records
+  nothing, so a component may announce Leaf's set as it announces the user's change.
+  Where the action can't be recorded, as on a quoted widget, or the server refuses
+  it, Leaf sets the property back to the recorded value. `attr` names the attribute
+  in which a page's markup writes the starting value, as for any value record. Leaf
+  sets `state` on the component too, as on any widget, so this form doesn't suit a
+  component with a `state` property of its own. The module only defines the tag:
+  `customElements.define("lf-picker", class extends Picker {})` for a library's
+  `Picker` class. Undo names the action in Leaf's own words (`module-state.md`, "The
+  widget controller").
 - **Drawing.** The page counts the widget as drawn once its setters return. A setter
   whose drawing finishes later dispatches a bubbling, composed `pending-task` event
   whose `complete` property is a promise of that drawing. A setter that throws is the
@@ -120,12 +139,22 @@ On Me and admits the ids its buttons mark:
   draws nothing until `state` is set. On such an element whose tag declares no verbs,
   `state` is empty and says its inputs are set. Leaf also gives the open shadow root of
   an element that says `lf-connect` the page's styles and comment support.
-- **`lf-hold`.** A gesture in which the element itself rewrites its nodes, such as a
-  drag that moves them, dispatches a bubbling, composed `lf-hold` event as it starts.
-  The event's `complete` property is a promise that settles as the gesture ends. A
-  set Leaf makes meanwhile counts as drawn only once it has, so the element may leave
-  that set undrawn until then, and Leaf reads the page again as the gesture ends,
-  since the nodes changed outside any drawing it waited for.
+- **`lf-hold`.** An element in which the user holds something, as through a drag, a
+  keyboard grab or a scrub, dispatches a bubbling, composed `lf-hold` event as the
+  hold starts. The event's `complete` property is a promise the element settles as
+  the hold ends, is cancelled, or the element leaves the page. Until the promise
+  settles, Leaf applies no revision and takes nothing back with Undo, so nothing
+  replaces the nodes under the user's hand. A promise the element never settles
+  keeps both waiting until the page is loaded again. Leaf goes on setting `state`
+  meanwhile, and reads the element's keys again as the hold starts and as it ends.
+- **`lf-defer`.** An element may rewrite its own nodes for a while and leave what
+  Leaf sets undrawn until it is done, as a drag that moves the nodes does, or an
+  editor that stands in place of the element's words. It dispatches a bubbling,
+  composed `lf-defer` event as it starts, whose `complete` property is a promise it
+  settles as it finishes. Leaf counts a `state` it set meanwhile as drawn only once
+  the promise has settled. It reads the page again then, since the nodes changed
+  outside any drawing it waited for. `lf-defer` keeps no revision or undo waiting;
+  a gesture that needs that says `lf-hold` too.
 - **`lf-commands`.** An element's keys are its `lfCommands` property
   (`module-input.md`, "Commands and keyboard routes"). Leaf reads the property each
   time the element dispatches a bubbling, composed `lf-commands` event on itself, so

@@ -22,7 +22,7 @@ from .projection import (
     markup_value,
     record_members,
 )
-from .registry.contract import state_specs, upgraded
+from .registry.contract import recorded, state_specs, upgraded
 from .structure import SourceDocument
 
 
@@ -179,7 +179,7 @@ def constructed_content(
             "detail": event["detail"],
             "origin": authority,
         }
-        if record := spec.get("record"):
+        if record := recorded(spec):
             reading["construction"] = record
         owner.setdefault("state", []).append(reading)
         if not record:

@@ -15,8 +15,8 @@
    other reaches the preparation region of the nearest widget the event passed
    through, or, where it passed through none, a region of the dispatching element's.
    Either way it holds full rendering readiness until it is in. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
-   And it says a gesture holds its nodes with `lf-hold` (`HoldEvent`), at whose end the
-   document-wide renderers read the page again. */
+   And it says it holds its own drawing with `lf-defer` (`DeferEvent`), at whose end
+   the document-wide renderers read the page again. */
 import { untracked } from "/runtime/framework.js";
 import {
   applicationState,
@@ -25,7 +25,7 @@ import {
 } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { HOLD, PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
+import { DEFER, PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
@@ -206,7 +206,7 @@ const widgetOn = (event, holds = () => true) =>
     });
 
 // The drawing each element has announced on itself and not finished, and the holds
-// gestures have on its nodes. A claim on the element's own region waits for all the
+// it has on its own drawing. A claim on the element's own region waits for all the
 // drawing under way when it settles, so a later claim never lets go of an earlier
 // drawing, and for the holds standing when it was made, since the element draws
 // nothing under one: a hold that begins in the draw a claim is for does not keep that
@@ -301,11 +301,11 @@ function ownRegion(origin) {
   return region.handle.present((reason) => failSoftUnreported(origin, reason));
 }
 
-// A hold an element has on its nodes through a gesture that rewrites them
-// (`HoldEvent`). A claim on the element's region made while it stands waits for the
-// gesture to end, since the element draws nothing until then, and as it ends the
+// A hold an element has on its own drawing while it rewrites its nodes
+// (`DeferEvent`). A claim on the element's region made while it stands waits for the
+// hold to end, since the element draws nothing until then, and as it ends the
 // document-wide renderers read the page again.
-document.addEventListener(HOLD, (event) => {
+document.addEventListener(DEFER, (event) => {
   const [origin] = event.composedPath();
   let holds = origin instanceof Element ? holding.get(origin) : null;
   if (!holds && origin instanceof Element) holding.set(origin, (holds = new Set()));

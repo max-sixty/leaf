@@ -458,7 +458,9 @@ export const contributionHost = elementDirective(
 // A control's receipts are seat state, not entry semantics: the seat that shows a
 // control paints what its projection chose, on every pass, so a control keeps no
 // receipt from the seat or the projection it last stood in. Retained controls call
-// it directly; templates bind `${contributionReceipts(receipt, awaitsUser)}`.
+// it directly, or pass `receipt` and `awaitsUser` to `presentContributionEntry` where
+// they draw the entry in the same pass; templates bind
+// `${contributionReceipts(receipt, awaitsUser)}`.
 /** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
 export function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
@@ -471,13 +473,20 @@ export const contributionReceipts = elementDirective(
 
 // An entry's badges stand in one row on its top edge (`.lf-badges`, controls.css): the
 // unread dot, for agent content the user has not taken in (the same Thread `unread`
-// the panel paints), and its count where it stands for more than one.
+// the panel paints), and its count where it stands for more than one. Like `selected`,
+// each receipt (`presentContributionReceipts`), `receipt` and `awaitsUser`, is painted
+// where the options carry it, and otherwise left as the seat last painted it.
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
- * @param {HostOptions & {preview?: import("./preview.js").Read | null, unread?: boolean}} [options] */
+ * @param {HostOptions & {preview?: import("./preview.js").Read | null, unread?: boolean,
+ * receipt?: import("./framework/application.js").Workflow | null, awaitsUser?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
+  if (Object.hasOwn(options, "receipt"))
+    syncContributionAgentWorkflow(control, options.receipt);
+  if (Object.hasOwn(options, "awaitsUser"))
+    syncContributionTurn(control, Boolean(options.awaitsUser));
   // Its label is its preview, which a resting pointer, the keyboard and a finger
   // holding it read (`entryPreview`), unless its projection says what it opens more
   // fully, as a thread's entry previews its threads.

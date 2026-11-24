@@ -267,6 +267,62 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     assert found(findings, "record-type", "<lf-test-worker>", attr="state")
 
 
+@pytest.mark.parametrize(
+    "binding",
+    [{"property": "value"}, {"property": "currentValue", "event": "sl-change"}],
+)
+def test_a_value_record_may_name_the_property_and_event_the_element_holds_it_by(
+    page_dir, binding
+):
+    """The names bind the element in the browser alone: an action admitted under
+    them records the operation of the record without them, so naming another property
+    or event later keeps every decision made before."""
+    registry = vocabulary(page_dir)
+    declaration = _stateful_page_declaration(page_dir)
+    unbound = registry_contract.state_definition(
+        "lf-local", declaration, declaration["verbs"]["first"]
+    )
+    declaration["verbs"]["first"]["record"].update(binding)
+    with_modules(registry, "lf-local")["lf-local"] = declaration
+    registry_validation.validate_registry(registry, "test registry")
+    page = ModelPage('<lf-local id="local">Local</lf-local>', registry=registry)
+    admitted = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "local",
+            "action": "first",
+            "detail": {"value": "next"},
+        },
+    )
+    assert admitted["meaning"]["state"] == unbound
+    assert unbound["record"] == {"kind": "value", "attr": "value"}
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        # An event with no property to read on it.
+        {"kind": "value", "attr": "value", "event": "change"},
+        # A property is a script's name for it, never an attribute's.
+        {"kind": "value", "attr": "value", "property": "aria-valuenow"},
+        # Only a value record is one scalar an element's property can hold.
+        {"kind": "body", "property": "value"},
+    ],
+)
+def test_only_a_value_record_names_a_property_and_an_event_needs_one(page_dir, record):
+    registry = vocabulary(page_dir)
+    declaration = _stateful_page_declaration(page_dir)
+    declaration["verbs"]["first"]["record"] = record
+    with_modules(registry, "lf-local")["lf-local"] = declaration
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_validation.validate_registry(registry, "test registry")
+    assert refused.value.findings[0].code == "invalid-declaration"
+
+
 def test_report_text_is_required_only_when_declared(page_dir):
     """`text: true` requires non-empty text; reports without it carry just their value."""
     registry = vocabulary(page_dir)

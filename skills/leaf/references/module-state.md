@@ -80,8 +80,10 @@ a drag that moves them, calls `const resume = this.defer()` before its first cha
 the DOM, so no redraw puts the nodes back under the user. `render()` doesn't run while
 the hold stands, so a widget that shows a gesture's progress through `render()`, as a
 slider previewing its value does, leaves `defer()` alone. Call `resume()` once `record`
-has returned, or after cancelling has put the DOM back; it draws the newest state. A dragged widget (`dragging`, `module-input.md`, "Pointer
-presses") defers for the whole drag.
+has returned, or after cancelling has put the DOM back; it draws the newest state. The
+hold is on the widget's own drawing (`lf-defer`, `module-plain-elements.md`). A
+widget the user drags, grabs or scrubs also says `lf-hold` for the whole gesture
+(`module-plain-elements.md`, "`lf-hold`").
 
 Say asynchronous preparation the page should wait for, such as a renderer loading,
 with `this.dispatchEvent(new PendingTaskEvent(promise))` (`module-authoring.md`, "A
@@ -255,10 +257,14 @@ beside it; keep no clock of your own. Return the answer rather than the time, as
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `label` is the file's path below the deepest folder holding every
 file the page binds, or `null` until the page's state names it. `read()` returns
-`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws a `RequestError` whose `current` holds the newer file.
-`RequestError` also carries the HTTP `status` and response `body`; distinguish it
-with `instanceof` when handling a server refusal. `watch(callback)` calls
+`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})`
+writes only if the file is still at `revision`, and resolves the saved
+`{label, text, revision}`. Where the server refuses the save, which then wrote nothing,
+it resolves `{refused, current}` instead: `refused` is the server's reason, and
+`current` the newer file where the file was no longer at `revision`, else `null`. It
+rejects where the page isn't `writable`, and where no reason from the server came, as
+when the request went unanswered or a proxy answered in the server's place; then the
+save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`

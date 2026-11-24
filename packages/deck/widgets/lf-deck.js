@@ -65,7 +65,6 @@ import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
   answerWords,
-  dragging,
   focusDestination,
   keepView,
   LeafElement,
@@ -142,7 +141,7 @@ customElements.define(
     // Ends the motion in flight at once, landing every element where it belongs.
     /** @type {((upcoming?: HTMLElement | null) => void) | null} */
     #landing = null;
-    /** @type {{id: number, x: number, y: number, dx: number, moving: boolean} | null} */
+    /** @type {{id: number, x: number, y: number, dx: number, moving: boolean, held?: PromiseWithResolvers<void>} | null} */
     #drag = null;
     // Whether the deck opened on its first card only because this tab kept no card
     // and the address named none, so the first reading may open the first that waits.
@@ -551,6 +550,9 @@ customElements.define(
         )
       )
         return;
+      // A second finger leaves a swipe under way to the first, whose hold it would
+      // otherwise take with it unsettled.
+      if (this.#drag?.moving) return;
       this.#drag = {
         id: event.pointerId,
         x: event.clientX,
@@ -573,7 +575,14 @@ customElements.define(
         if (Math.abs(drag.dx) < 8) return;
         drag.moving = true;
         card.setPointerCapture(event.pointerId);
-        dragging(this, true);
+        // The user holds the card until the swipe settles, so no revision or undo
+        // replaces it under the finger.
+        drag.held = Promise.withResolvers();
+        this.dispatchEvent(
+          Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+            complete: drag.held.promise,
+          }),
+        );
       }
       card.style.translate = `${drag.dx}px`;
       card.style.rotate = `${drag.dx / 30}deg`;
@@ -595,7 +604,7 @@ customElements.define(
 
     #settle() {
       const card = this.#open.value;
-      if (this.#drag?.moving) dragging(this, false);
+      this.#drag?.held?.resolve();
       this.#drag = null;
       if (!card?.style.translate) return;
       card.style.removeProperty("translate");

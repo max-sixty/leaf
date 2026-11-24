@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from leaf.files import read_json
-from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
+from leaf.schema import (
+    DATA_CONTRACT_NAME,
+    DATA_SOURCE_NAME,
+    ELEMENT_ID,
+    RECORD_BINDING,
+    WIDGET_NAME,
+)
 
 from ..findings import Finding, Rejected, element_at
 from .kernel import kernel_marks, verb_writers
@@ -466,6 +472,19 @@ def state_specs(entry: dict, *, writer: str | None = None):
             yield verb, spec
 
 
+def recorded(spec: dict) -> dict | None:
+    """Where a verb's state reads in markup: its `record` without the members that
+    bind it to the element in the browser (`schema.RECORD_BINDING`), or None for a
+    verb with no record. An admitted event stores this, so a declaration that names
+    another property or event keeps every decision recorded before it, and a state
+    in `leaf page state` shows it as its construction. The browser's `sameRecord`
+    (`runtime/registry.js`) compares two records the same way."""
+    record = spec.get("record")
+    return record and {
+        key: value for key, value in record.items() if key not in RECORD_BINDING
+    }
+
+
 def _semantic_schema(schema):
     """Strip JSON Schema annotations without changing literal values or names."""
     if not isinstance(schema, dict):
@@ -544,7 +563,7 @@ def state_definition(
         {
             "origin": origin,
             "unit": spec["unit"],
-            "record": spec.get("record"),
+            "record": recorded(spec),
             "creates": spec.get("creates"),
             "decides": decides(spec),
             "detail": _semantic_schema(

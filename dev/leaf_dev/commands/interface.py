@@ -13,9 +13,9 @@ Each part is read from the list that defines it, as the check that guards it rea
   other keys there are selector idioms, whose classes are styling names. An element's
   form is the facts its declaration states.
 - The widget protocol: what Leaf sets on an element, hears from it and reads off it.
-  Code keeps only its events: those Leaf's runtime listens for or makes (the first
-  argument of an `EVENT_CALLS` call) that the library exports by name, as
-  `lib/widget-events.js` does. The rest is read from the protocol's index,
+  Code keeps only its events: those Leaf's runtime listens for or makes (`events`)
+  that the library exports by name, as `lib/widget-events.js` does. The rest is read
+  from the protocol's index,
   `module-plain-elements.md`, "The widget protocol": each entry's lead name, and each
   name the section gives in code of a member of the element or its class (`lf` then
   a capital, `static name`, or `name()` where no function has that name), a mark
@@ -40,7 +40,8 @@ Each part is read from the list that defines it, as the check that guards it rea
   style query or a helper handed its name: `root-headers.js` hands
   `--lf-root-headers` to `setRuntimeRootStyle`, so nothing reads as setting it. A
   class is read where a `.` leads it and set, as by a `class` attribute, elsewhere,
-  and a string a script makes, hears or exports as an event is no class.
+  but a whole string naming an event the script makes, hears or exports is the
+  event, as `"lf-preview"` is in `new CustomEvent("lf-preview")`.
 
 A name's users are counted in three groups: the bundled packages (`packages/*`), the
 library's modules (`browser/runtime/lib/`), and the example pages (`examples/`, a page
@@ -49,15 +50,17 @@ being its HTML file, its `.page` directory and its earlier versions). A use is:
 - for a key, an element declaration in a registry that carries it;
 - for an element, its start tag;
 - for a function, its import from `widget-api.js` or `portable-api.js`;
-- for a protocol member, a script's property of its name; for an event, a script's
-  string of its name or name of the library constant holding it, or, where the event
-  shares its name with a class, as `lf-error` does, an event call; for a mark, its
-  name, or its `dataset` property, in a file's code less its comments;
+- for a protocol member, a script's property of its name; for an event, a call in a
+  script that listens for or makes it (`Tree.events`); for a mark, its name, or its
+  `dataset` property, in a file's code less its comments;
 - for a styling name, its name in a file's code less its comments.
 
-A script also uses each name that a library module it imports uses, as a `LeafElement`
-subclass dispatches `lf-action` through `record()`; its use names the module. Each part
-lists the names with the fewest users first.
+An event named by a common word, as `change` is, counts every listener for it, a
+media query's included. A script that imports a library module using a name reaches
+the name through it, as a `LeafElement` subclass reaches `lf-action` through
+`record()`. Importing a module is no use of each name in it, so such users print as a
+second count after a `+`, and each part lists the names with the fewest direct users
+first.
 
 `--base [REF]` prints instead the names this tree adds and removes against REF, the
 merge base with `main` without one, part by part, for a pull request to carry.
@@ -115,21 +118,30 @@ CODE = {".css", ".py", *SCRIPTS}
 API = ("/runtime/widget-api.js", "/runtime/portable-api.js")
 LIBRARY = "browser/runtime/lib/"
 THEME = "browser/styles/tokens.css"
-# The calls whose first argument names an event: listening for one, or making one.
-EVENT_CALLS = {"addEventListener", "Event", "CustomEvent", "ErrorEvent"}
+# The calls whose first argument names an event: listening for one, or making one, as
+# an `Event` subclass's constructor does through `super`.
+EVENT_CALLS = {"addEventListener", "Event", "CustomEvent", "ErrorEvent", "super"}
+# The functions whose first parameter a call's first argument stands in for.
+FUNCTIONS = {
+    "method_definition",
+    "function_declaration",
+    "function_expression",
+    "arrow_function",
+}
 LANGUAGE = Language(tree_sitter_javascript.language())
-# What the readings take from a script: each event call's first argument, a string
-# or a name; each exported string constant; and every string, name and property.
-EVENTS = Query(
+# Each call's first argument, a string or a name, and the function it calls.
+CALLS = Query(
     LANGUAGE,
     """
     (call_expression
-      function: [(identifier) @callee
-                 (member_expression property: (property_identifier) @callee)]
-      arguments: (arguments . [(string (string_fragment) @event) (identifier) @named]))
+      function: [(identifier) (super)
+                 (member_expression
+                   property: [(property_identifier) (private_property_identifier)])]
+        @callee
+      arguments: (arguments . [(string (string_fragment) @string) (identifier) @named]))
     (new_expression
       constructor: (identifier) @callee
-      arguments: (arguments . [(string (string_fragment) @event) (identifier) @named]))
+      arguments: (arguments . [(string (string_fragment) @string) (identifier) @named]))
     """,
 )
 CONSTANTS = Query(
@@ -141,13 +153,8 @@ CONSTANTS = Query(
           name: (identifier) @name value: (string (string_fragment) @value))))
     """,
 )
-WORDS = Query(
-    LANGUAGE,
-    """
-    (string_fragment) @string
-    (identifier) @name
-    [(property_identifier) (shorthand_property_identifier)] @property
-    """,
+PROPERTIES = Query(
+    LANGUAGE, "[(property_identifier) (shorthand_property_identifier)] @property"
 )
 
 
@@ -171,15 +178,47 @@ def scripts(file: Path) -> tuple[Node, ...]:
 
 
 @cache
-def words(file: Path) -> dict[str, frozenset[str]]:
-    """Every string, name and property a file's scripts hold."""
-    found = defaultdict(set)
-    for script in scripts(file):
-        for capture, nodes in QueryCursor(WORDS).captures(script).items():
-            found[capture] |= {said(node) for node in nodes}
-    return {
-        capture: frozenset(found[capture]) for capture in ("string", "name", "property")
-    }
+def properties(file: Path) -> frozenset[str]:
+    """Every property a file's scripts name, defined or read."""
+    return frozenset(
+        said(node)
+        for script in scripts(file)
+        for nodes in QueryCursor(PROPERTIES).captures(script).values()
+        for node in nodes
+    )
+
+
+def called(callee: Node) -> str:
+    """The name of the function a call calls: `send` for `this.#send(…)`."""
+    name = callee.child_by_field_name("property") or callee
+    return said(name).lstrip("#")
+
+
+def enclosing(node: Node) -> Node | None:
+    """The function a node stands in."""
+    around = node.parent
+    while around is not None and around.type not in FUNCTIONS:
+        around = around.parent
+    return around
+
+
+def first(function: Node) -> str:
+    """A function's first parameter's name, or `""`."""
+    parameters = function.child_by_field_name("parameters")
+    head = parameters.named_children[:1] if parameters else []
+    return said(head[0]) if head and head[0].type == "identifier" else ""
+
+
+def defined(function: Node) -> str:
+    """The name a function is defined under, or `""` for an unnamed one."""
+    name = function.child_by_field_name("name")
+    if (
+        name is None
+        and function.parent
+        and function.parent.type == "variable_declarator"
+    ):
+        name = function.parent.child_by_field_name("name")
+    return said(name).lstrip("#") if name else ""
 
 
 cached_code = cache(code)
@@ -208,10 +247,14 @@ def imports(script: Node) -> Iterator[tuple[str, Node]]:
 @dataclass
 class Name:
     """One name of the interface: its form, and by group the files of each of its
-    users. A styling name also says which sides set and read it."""
+    users, and of each user that only imports a library module using it. A styling
+    name also says which sides set and read it."""
 
     form: str = ""
     users: dict[str, defaultdict[str, list[str]]] = field(
+        default_factory=lambda: {group: defaultdict(list) for group in GROUPS}
+    )
+    through: dict[str, defaultdict[str, list[str]]] = field(
         default_factory=lambda: {group: defaultdict(list) for group in GROUPS}
     )
     sets: set[str] = field(default_factory=set)
@@ -224,6 +267,10 @@ class Name:
 
     def count(self, group: str) -> int:
         return len(self.users[group])
+
+    def reached(self, group: str) -> int:
+        """The users in `group` that reach the name only through the library."""
+        return len(self.through[group].keys() - self.users[group].keys())
 
 
 class Tree:
@@ -256,8 +303,8 @@ class Tree:
     def scripts(self, path: str) -> tuple[Node, ...]:
         return scripts(self.root / path)
 
-    def words(self, path: str) -> dict[str, frozenset[str]]:
-        return words(self.root / path)
+    def properties(self, path: str) -> frozenset[str]:
+        return properties(self.root / path) if path.endswith(SCRIPTS) else frozenset()
 
     def exported(self, path: str) -> dict[str, str]:
         """The string constants a file's scripts export, by name."""
@@ -279,15 +326,32 @@ class Tree:
         }
 
     def events(self, path: str) -> set[str]:
-        """The events a file's scripts listen for or make, by name or by the library
-        constant that names them."""
-        return {
-            match["event"] if "event" in match else self.constants[match["named"]]
-            for script in self.scripts(path)
-            for match in matches(EVENTS, script)
-            if match["callee"] in EVENT_CALLS
-            and ("event" in match or match["named"] in self.constants)
-        }
+        """The events a file's scripts listen for or make: each event call's first
+        argument, a string or the library constant naming one, and each string handed
+        to a function of the script's own that hands its first parameter to an event
+        call, as `LeafElement.record` hands `"lf-action"` to `#send`."""
+        if not path.endswith(SCRIPTS):
+            return set()
+        found = set()
+        for script in self.scripts(path):
+            wrappers, handed = set(), []
+            for _, match in QueryCursor(CALLS).matches(script):
+                callee = called(match["callee"][0])
+                if "string" in match:
+                    handed.append((callee, said(match["string"][0])))
+                elif callee in EVENT_CALLS:
+                    named = said(match["named"][0])
+                    if named in self.constants:
+                        found.add(self.constants[named])
+                    elif (function := enclosing(match["named"][0])) and named == first(
+                        function
+                    ):
+                        wrappers.add(defined(function))
+            wrappers.discard("")
+            found |= {
+                each for callee, each in handed if callee in EVENT_CALLS | wrappers
+            }
+        return found
 
     @cached_property
     def heard(self) -> set[str]:
@@ -366,7 +430,7 @@ def elements(tree: Tree) -> dict[str, Name]:
     return rows
 
 
-def protocol(tree: Tree, functions: dict, classes: set[str]) -> dict[str, Name]:
+def protocol(tree: Tree, functions: dict[str, Name]) -> dict[str, Name]:
     text = tree.text(f"{REFERENCES}/module-plain-elements.md")
     prose = re.sub(r"^```.*?^```", "", text.split("\n## ", 1)[0], flags=re.M | re.S)
     leads = set(re.findall(r"^- \*\*`([^`]+)`", prose, re.M))
@@ -391,25 +455,19 @@ def protocol(tree: Tree, functions: dict, classes: set[str]) -> dict[str, Name]:
     marks = {}
     for name, row in rows.items():
         if row.form == "mark":
-            first, *rest = name.removeprefix("data-").split("-")
-            dataset = f"dataset\\.{first}{''.join(map(str.title, rest))}"
+            head, *rest = name.removeprefix("data-").split("-")
+            dataset = f"dataset\\.{head}{''.join(map(str.title, rest))}"
             marks[name] = re.compile(
                 rf"(?<![\w$-])(?:{re.escape(name)}|{dataset})(?![\w$-])"
             )
     for path, user in tree.code_users():
-        held = tree.words(path) if path.endswith(SCRIPTS) else {}
+        events, held = tree.events(path), tree.properties(path)
         for name, row in rows.items():
-            if row.form == "mark":
-                used = bool(marks[name].search(tree.code(path)))
-            elif row.form == "event" and name in classes:
-                used = bool(held) and name in tree.events(path)
-            elif row.form == "event":
-                used = name in held.get("string", ()) or any(
-                    tree.constants.get(each) == name for each in held.get("name", ())
-                )
-            else:
-                used = name in held.get("property", ())
-            if used:
+            if (
+                marks[name].search(tree.code(path))
+                if row.form == "mark"
+                else name in (events if row.form == "event" else held)
+            ):
                 row.used(user, path)
     return rows
 
@@ -494,12 +552,9 @@ def styling(tree: Tree) -> dict[str, Name]:
             side = "Leaf"
         else:
             continue
-        # A string a script makes, hears or exports as an event names no class there.
-        events = (
-            tree.events(path) | (set(tree.exported(path).values()) & tree.heard)
-            if path.endswith(SCRIPTS)
-            else set()
-        )
+        # A whole string naming an event the script makes, hears or exports is the
+        # event, not a class.
+        events = tree.events(path) | (set(tree.exported(path).values()) & tree.heard)
         text = tree.code(path)
         for pattern in (NAME, CLASS):
             for found in pattern.finditer(text):
@@ -515,7 +570,11 @@ def styling(tree: Tree) -> dict[str, Name]:
                             and not re.search(r"style\(\s*$", before)
                         )
                     )
-                elif name in events:
+                elif (
+                    name in events
+                    and before[-1:] in {'"', "'", "`"}
+                    and after[:1] == before[-1:]
+                ):
                     continue
                 else:
                     sets = not before.endswith(".")
@@ -540,13 +599,12 @@ def styling(tree: Tree) -> dict[str, Name]:
 
 
 def census(tree: Tree) -> dict[str, dict[str, Name]]:
-    """Every part's names, each with its form and users, fewest users first. A script
-    that imports a library module uses the names that module uses."""
+    """Every part's names, each with its form and users, fewest direct users first. A
+    script that imports a library module using a name reaches the name through it."""
     read = {"keys": keys(tree), "elements": elements(tree)}
     read["functions"] = functions(tree)
+    read["protocol"] = protocol(tree, read["functions"])
     read["styling"] = styling(tree)
-    classes = {name for name in read["styling"] if not name.startswith("--")}
-    read["protocol"] = protocol(tree, read["functions"], classes)
     imported = {
         path: (user, tree.imported_modules(path))
         for path, user in tree.code_users()
@@ -554,9 +612,9 @@ def census(tree: Tree) -> dict[str, dict[str, Name]]:
     }
     for rows in read.values():
         for row in rows.values():
-            for path, (user, modules) in imported.items():
+            for path, ((group, who), modules) in imported.items():
                 if via := modules & row.users["library"].keys():
-                    row.used(user, f"{path} through {', '.join(sorted(via))}")
+                    row.through[group][who].append(f"{path}: {', '.join(sorted(via))}")
     return {
         part: dict(
             sorted(
@@ -580,6 +638,11 @@ def document(parts: dict[str, dict[str, Name]]) -> dict:
                     else {}
                 ),
                 "users": {group: dict(row.users[group]) for group in GROUPS},
+                "through_library": {
+                    group: dict(row.through[group])
+                    for group in GROUPS
+                    if row.through[group]
+                },
             }
             for name, row in rows.items()
         ]
@@ -591,17 +654,30 @@ def printed(parts: dict[str, dict[str, Name]]) -> str:
     lines = []
     for part, rows in parts.items():
         width = max(map(len, rows), default=0)
-        lines += [f"{PARTS[part]}: {len(rows)}", f"  {'':{width}}  pkgs  lib  ex  form"]
+        lines += [
+            f"{PARTS[part]}: {len(rows)}",
+            f"  {'':{width}}   pkgs   lib     ex  form",
+        ]
         for name, row in rows.items():
-            packages, library, examples = map(row.count, GROUPS)
+            # A count, and after a `+` the users that reach the name only through
+            # the library.
+            packages, library, examples = (
+                f"{row.count(group)}"
+                + (f"+{extra}" if (extra := row.reached(group)) else "")
+                for group in GROUPS
+            )
             # The packages that use a name, where there are few.
-            few = f"[{', '.join(sorted(row.users['packages']))}]" if packages else ""
-            form = " ".join(filter(None, [row.form, few if packages <= 2 else ""]))
+            few = sorted(row.users["packages"])
+            form = " ".join(
+                filter(
+                    None, [row.form, f"[{', '.join(few)}]" if 0 < len(few) <= 2 else ""]
+                )
+            )
             if part == "styling":
                 form += f" (sets: {', '.join(sorted(row.sets)) or '-'};"
                 form += f" reads: {', '.join(sorted(row.reads)) or '-'})"
             lines.append(
-                f"  {name:{width}}  {packages:4}  {library:3}  {examples:2}  {form}"
+                f"  {name:{width}}  {packages:>5}  {library:>4}  {examples:>5}  {form}"
             )
         lines.append("")
     return "\n".join(lines)

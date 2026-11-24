@@ -19,6 +19,7 @@ interface DocumentInputs {
   holdKeys(
     hold: {
       holds(event: KeyboardEvent): boolean;
+      /** `stepped`: the input is the user's own step Back or Forward. */
       counted(stepped: boolean): void;
     } | null,
   ): void;

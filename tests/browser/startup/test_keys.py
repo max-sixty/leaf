@@ -873,6 +873,34 @@ def test_held_keys_still_to_run_go_when_the_user_steps_back(browser, serve):
     expect(page.locator(".lf-held-key")).to_have_count(0)
 
 
+def test_held_words_outlast_a_step_the_page_takes_itself(browser, serve):
+    """Keys the user typed while the page started stay held through a step Back the
+    page's own script takes, which the user didn't ask for, and land once Leaf starts:
+    `c` opens the comment box and the rest are its words."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.goto(url)
+    wait_until_ready(page)
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#said'")
+    page.wait_for_url(re.compile("#said$"))
+    page.wait_for_function("navigation.transition === null")
+    held, release = _hold_startup(page, "module")
+    with page.expect_navigation(wait_until="commit"):
+        page.evaluate("setTimeout(() => location.reload())")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
+    for key in ["c", "h", "i"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i"])
+    page.evaluate("history.back()")
+    page.wait_for_function("location.hash === ''")
+    expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i"])
+    release()
+    expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi")
+
+
 @pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
 def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     """A held run is printed keys. Enter or a chord acts where focus stands, which a

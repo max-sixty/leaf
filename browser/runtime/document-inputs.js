@@ -30,9 +30,10 @@
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
   // waits for is not superseded by it. The hold hears of every other input the clock
-  // counts (`counted`), and whether it is a step Back or Forward, which leaves the
-  // entry the held keys were typed at, but not of leaving the window, after which the
-  // keys still land where they were typed for (bootstrap.js, `holdEarlyKeys`).
+  // counts (`counted`), and whether it is the user's own step Back or Forward, which
+  // leaves the entry the held keys were typed at, but not of leaving the window, after
+  // which the keys still land where they were typed for (bootstrap.js,
+  // `holdEarlyKeys`).
   /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
   let hold = null;
   /** @type {Set<(event: Event) => void>} */
@@ -185,18 +186,22 @@
   // the page no input. Where the Navigation API runs, the step counts as it begins,
   // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has
   // no such handler, and the `popstate` that follows the step counts. An opaque frame,
-  // as a live sample is, has the API with no entries and fires only `popstate`.
-  const step = () => {
+  // as a live sample is, has the API with no entries and fires only `popstate`. The
+  // Navigation API says whether the browser's own controls took the step
+  // (`userInitiated`), rather than the page's script; `popstate` can't, so its step is
+  // taken as the user's. Firefox says no for every step it was measured on.
+  /** @param {boolean} user */
+  const step = (user) => {
     inputs++;
     away++;
     entered = inputs - away;
-    hold?.counted(true);
+    hold?.counted(user);
   };
   if (window.navigation?.currentEntry)
     window.navigation.addEventListener("navigate", (event) => {
-      if (event.navigationType === "traverse") step();
+      if (event.navigationType === "traverse") step(event.userInitiated);
     });
-  else window.addEventListener("popstate", step);
+  else window.addEventListener("popstate", () => step(true));
 
   Reflect.set(window, key, state);
 })();

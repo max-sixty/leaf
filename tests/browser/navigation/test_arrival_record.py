@@ -689,8 +689,9 @@ def test_keys_held_at_an_entry_go_when_back_leaves_it_before_leaf_starts(
     browser, serve
 ):
     """A key the user presses while a page loads with nothing handed to it waits for
-    Leaf to start, at the entry they pressed it at. Back to another entry before Leaf
-    starts lets it go, so it neither runs there nor keeps that entry from its record."""
+    Leaf to start, at the entry they pressed it at. The user's Back to another entry
+    before Leaf starts lets it go, so it neither runs there nor keeps that entry from
+    its record."""
     page, first, _, card = two_thread_entries(browser, serve)
     module = []
     page.route("**/leaf.js", lambda route: module.append(route))
@@ -701,7 +702,7 @@ def test_keys_held_at_an_entry_go_when_back_leaves_it_before_leaf_starts(
         page.wait_for_function("document.readyState !== 'loading'")
         page.keyboard.press("T")
         expect(page.locator(".lf-held-key")).to_have_text("T")
-        page.evaluate("history.back()")
+        page.go_back(wait_until="commit")
         page.wait_for_function(
             f"new URL(location.href).searchParams.get('thread') === '{first}'"
         )
@@ -727,7 +728,7 @@ def test_a_key_pressed_before_forward_to_the_reload_s_entry_goes_with_the_step(
     module = []
     try:
         leaf_reloads_with_its_module_held(page, serve, module)
-        page.evaluate("history.back()")
+        page.go_back(wait_until="commit")
         page.wait_for_function(
             f"new URL(location.href).searchParams.get('thread') === '{first}'"
         )
@@ -736,7 +737,7 @@ def test_a_key_pressed_before_forward_to_the_reload_s_entry_goes_with_the_step(
         page.wait_for_function("document.readyState !== 'loading'")
         page.keyboard.press("t")
         expect(page.locator(".lf-held-key")).to_have_text("t")
-        page.evaluate("history.forward()")
+        page.go_forward(wait_until="commit")
         page.wait_for_function(
             f"new URL(location.href).searchParams.get('thread') === '{second}'"
         )

@@ -731,8 +731,9 @@ export const openLayersRule = {
 // `scroll-behavior` decides, which a page is free to set to smooth on the box it
 // scrolls, and a writer that reads the page just after its write, as a tab set
 // putting a view back at its place does, would read it before the glide moved it. The
-// rule reads the options a `scrollTo`, `scroll` or `scrollBy` call writes out; options
-// it is handed are their writer's.
+// rule reads a `scrollTo`, `scroll` or `scrollBy` call, on a box or bare, that writes
+// its options out without one, or gives two offsets, which can't name one; options a
+// call is handed are their writer's.
 export const scrollWritesRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -752,26 +753,33 @@ export const scrollWritesRule = {
           context.report({
             node: left,
             message:
-              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or set an offset outright with scrollTo({top, left, behavior}), rather than assigning a scroll offset; the runtime's own moves go through scrollToEnd or moveScrollerBy (runtime/scrolling.js).",
+              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or set an offset outright, a package with scrollTo({top, left, behavior}) and the runtime with setScroll (runtime/arrivals.js), scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
           });
       },
-      CallExpression({ callee, arguments: [options] }) {
-        if (
-          callee.type === "MemberExpression" &&
-          !callee.computed &&
-          ["scrollTo", "scroll", "scrollBy"].includes(callee.property.name) &&
-          options?.type === "ObjectExpression" &&
-          !options.properties.some(
-            (property) =>
-              property.type === "SpreadElement" ||
-              (!property.computed &&
-                (property.key.name ?? property.key.value) === "behavior"),
-          )
-        )
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        const called =
+          callee.type === "Identifier"
+            ? callee.name
+            : callee.type === "MemberExpression" && !callee.computed
+              ? callee.property.name
+              : null;
+        if (!["scrollTo", "scroll", "scrollBy"].includes(called)) return;
+        const [options] = args;
+        const unsaid =
+          args.length === 2 ||
+          (options?.type === "ObjectExpression" &&
+            !options.properties.some(
+              (property) =>
+                property.type === "SpreadElement" ||
+                (!property.computed &&
+                  (property.key.name ?? property.key.value) === "behavior"),
+            ));
+        if (unsaid)
           context.report({
-            node: options,
+            node,
             message:
-              'Say how the write moves the box, as behavior: "instant" does: left out, the box\'s own scroll-behavior decides, which a page may set to smooth.',
+              'Say how the write moves the box, as scrollTo({top, left, behavior: "instant"}) does: left out, the box\'s own scroll-behavior decides, which a page may set to smooth.',
           });
       },
     };

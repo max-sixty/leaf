@@ -29,6 +29,10 @@ test("a scroll call that writes out its options says how it moves the box", () =
     "box.scrollTo({ top: 40 });",
     "box.scrollBy({ left: by });",
     "window.scroll({ [axis]: to });",
+    "scrollTo({ top: 40 });",
+    // Two offsets can't say it.
+    "box.scrollTo(0, 40);",
+    "scrollBy(0, by);",
   ]) {
     assert.equal(reports(code), 1, code);
     assert.equal(reports(code, restorer), 1, code);

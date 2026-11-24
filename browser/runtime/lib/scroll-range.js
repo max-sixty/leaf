@@ -1,10 +1,12 @@
 /* The positions a box's scroll can take, and whether a write would move it.
 
-   A scroll write that leaves its box where it stands still does something: it stops a
-   scroll the browser drives there, and in Firefox it cancels the rubber band of a
-   flick into an edge. So a writer that may name the position its box already holds,
-   as one that restores an offset or follows another box does, asks `scrollMoves`
-   first and writes only where it answers yes:
+   A scroll write that leaves its box where it stands still does something, which
+   nobody asked for: it stops a scroll the browser drives there, and in Firefox it
+   cancels the rubber band of a flick into an edge, which runs after the box's scroll
+   has ended, so a writer putting a box back at its end at every scroll's end would
+   flatten each flick's band. So a writer that may name the position its box already
+   holds, as one that restores an offset or follows another box does, asks
+   `scrollMoves` first and writes only where it answers yes:
 
        if (scrollMoves(box, at)) box.scrollTo({ ...at, behavior: "instant" });
 
@@ -76,7 +78,9 @@ function flowsBack(style, flex) {
   return vertical ? { top: inline, left: block } : { top: block, left: inline };
 }
 // Whether a write to `top` and `left` takes the box a pixel or more from where it
-// stands, once the browser clamps it to the box's range.
+// stands, once the browser clamps it to the box's range. Where the box stands is read to
+// the pixel: its scroll size is a whole number of pixels, so an end read from it stands
+// up to a pixel short of the browser's own.
 /** @param {Element} box @param {{top?: number, left?: number}} to */
 export const scrollMoves = (box, { top, left }) => {
   const range = scrollRange(box);

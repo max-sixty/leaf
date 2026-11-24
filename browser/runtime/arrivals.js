@@ -49,20 +49,25 @@
    writes include the reading of the page with boxes scrolled elsewhere and put back in
    one task (`readScrolled`).
 
-   A script's scroll write is heard as it is made, whoever makes it: this module wraps
-   the browser's own entry points, `scrollTo`, `scroll` and `scrollBy` on an element and
-   on the window, and the `scrollTop` and `scrollLeft` setters (`heardWrite`). The
-   platform tells a page of a write only by a `scroll` event at the next rendering
-   update, once the frame the write was made in has painted, and the event says a box
-   moved, never that a script moved it. Heard only there, a write was nobody's until
-   that event and the browser's own motion from it to its `scrollend`
+   A script's write of a box's scroll offset is heard as it is made, whichever script
+   makes it: this module wraps the browser's own entry points for one, `scrollTo`,
+   `scroll` and `scrollBy` on an element and on the window, and the `scrollTop` and
+   `scrollLeft` setters (`heardWrite`). The platform tells a page of a write only by a
+   `scroll` event at the next rendering update, which for a write made in a frame
+   callback or a resize delivery comes after that frame has painted, and the event says
+   a box moved, never that a script moved it. Heard only there, a write is nobody's
+   until that event and the browser's own motion from it to its `scrollend`
    (`browserScrolls`): a strip a script scrolled in a frame callback painted that frame
    without the mark on the edge its content had passed (reach.js), no scroll was under
    way and none was waiting to be drawn (`scrolling`, `scrollDrawn`), in Chromium 159
    and Firefox 159. A function of Leaf's own for the write (`setScroll`) closes that
    only for the code that imports it, which a page's script and another vendor's
    component never do. The wrap changes nothing a call does; it records the move the
-   call made (`wrote`).
+   call made (`wrote`). Every other scroll is still heard by its events alone: a smooth
+   write, which moves the box later, and a reveal the browser makes, as for
+   `scrollIntoView` or a focus. So in a shadow tree nobody enrolled, whose events this
+   module doesn't hear, a write's scroll ends after the quiet spell and a smooth one
+   goes unheard.
 
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
@@ -359,55 +364,56 @@ function announceScroll(box) {
   }
   for (const listener of scrollListeners) listener(box);
 }
-// Complete a scroll write and publish the position that will paint. Native scroll
-// events arrive too late for writes in an animation frame or resize delivery.
+// Put a box at an offset at once, the runtime's own write, and publish the position that
+// will paint. Native scroll events arrive too late for writes in an animation frame or
+// resize delivery.
 //
-// An instant write that would leave the box where it stands writes nothing, so a writer
-// may restate a position as often as it likes, as `keeps` lets one restate a DOM value.
-// The write's only effect would be one nobody asked for: it stops the scroll the browser
-// drives, and in Firefox it cancels the rubber band of a flick into an edge, which runs
-// after the box's scroll has ended (a margin card putting its transcript back at its
-// end at every scroll's end would flatten each flick's band). Stopping a scroll is a write
-// of its own (`stopWhereItStands`). Where the box stands is read to the pixel: its
-// scroll size is a whole number of pixels, so an end read from it stands up to a pixel
-// short of the browser's own.
-/** @param {Element} box @param {ScrollToOptions} options */
-export function setScroll(box, options) {
+// A write that would leave the box where it stands writes nothing
+// (lib/scroll-range.js, `scrollMoves`, says what such a write would do), so a writer may
+// restate a position as often as it likes, as `keeps` lets one restate a DOM value.
+// Stopping a scroll is a write of its own (`stopWhereItStands`).
+/** @param {Element} box @param {{top?: number, left?: number, behavior?: "instant"}} to */
+export function setScroll(box, to) {
   const { scrollTop, scrollLeft } = box;
-  const { behavior = "instant" } = options;
-  if (behavior === "instant" && !scrollMoves(box, options)) return;
-  unheardWrite(box, { ...options, behavior });
-  if (behavior !== "instant") return;
+  if (!scrollMoves(box, to)) return;
+  unheardWrite(box, { ...to, behavior: "instant" });
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
   wrote(box, scrollTop, scrollLeft);
 }
 // Record a write that took `box` from `top` and `left` at once: the box is where a
-// script put it (`placed`), the position is announced before it paints, and readers of
-// the whole scene wait for it to be drawn (`scrollDrawn`). A write that left the box
-// where it stood records nothing: the browser moves the box later, as for a smooth
-// write, or not at all.
-/** @param {Element} box @param {number} top @param {number} left */
-function wrote(box, top, left) {
+// script put it (`placed`), unless the write `places` nothing, the position is announced
+// before it paints, and readers of the whole scene wait for it to be drawn
+// (`scrollDrawn`). A write that left the box where it stood records nothing: the
+// browser moves the box later, as for a smooth write, or not at all.
+/** @param {Element} box @param {number} top @param {number} left @param {boolean} [places] */
+function wrote(box, top, left, places = true) {
   if (box.scrollTop === top && box.scrollLeft === left) return;
-  placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
+  if (places) placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
   drawLater();
   announceScroll(box);
 }
 // The browser's own scroll writes, heard (the header says why): each call is made as
 // written, and a move it made at once is recorded as `setScroll` records its own. So a
 // package or a page's script writes `box.scrollTo(…)`, and a component Leaf never saw
-// is heard too. A smooth write moves the box later, so the browser's events tell of it,
-// as they do for `setScroll`'s. The hearing changes nothing a call does, so it makes a
-// write that leaves the box where it stands, which `setScroll` drops: dropping it takes
-// predicting where each call's arguments put the box, and a wrong prediction would lose
-// a script's write. A writer that may name the position its box holds asks first
-// (lib/scroll-range.js, `scrollMoves`). The runtime's own writers record their own
-// writes, each its own way, so theirs go unheard (`unheardWrite`), and a write made
-// inside another, as a DOM written in script makes (`scrollTo` there sets `scrollTop`),
-// is part of that one. A call on something that is no element is the browser's to
-// refuse. Each document has entry points of its own: a live sample's page loads this
-// module and hears its own, and an element made in another document keeps that
-// document's.
+// is heard too.
+//
+// - The hearing changes nothing a call does. It makes a write that leaves the box where
+//   it stands, which `setScroll` drops: dropping one takes predicting where each call's
+//   arguments put the box, and a wrong prediction would lose a script's write. A writer
+//   that may name the position its box holds asks first (lib/scroll-range.js,
+//   `scrollMoves`). Nor does a failure in what hears the write reach the caller, whose
+//   call the browser would not have failed: it is reported once the call has returned.
+// - A write into a scroll the browser drives leaves the box the browser's
+//   (`browserScrolls`), as it was while such a write went unheard. CodeMirror's measure
+//   corrects its scroller's offset as the reader scrolls it; read as the script's, that
+//   box would be one a hold on the reader's place could move back under their wheel
+//   (user-place.js, `holdUserPlace`).
+// - The runtime's own writers record their own writes, each its own way, so theirs go
+//   unheard (`unheardWrite`), and a write made inside another, as a DOM written in
+//   script makes (`scrollTo` there sets `scrollTop`), is part of that one.
+// - A call on something that is no element is the browser's to refuse.
+// - Each document has entry points of its own: a live sample's page loads this module
+//   and hears its own, and an element made in another document keeps that document's.
 let writing = false;
 /** @param {(this: any, ...args: any[]) => void} native
  * @param {boolean} [page] Whether the call scrolls the page, as the window's do. */
@@ -417,13 +423,20 @@ function hearsWrite(native, page = false) {
     const box = page ? document.scrollingElement : this;
     if (writing || !isElement(box)) return native.apply(this, args);
     const { scrollTop, scrollLeft } = box;
+    const browser = browserScrolls(box);
     writing = true;
     try {
       native.apply(this, args);
     } finally {
       writing = false;
     }
-    wrote(box, scrollTop, scrollLeft);
+    try {
+      wrote(box, scrollTop, scrollLeft, !browser);
+    } catch (error) {
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
   };
 }
 for (const method of /** @type {const} */ (["scrollTo", "scroll", "scrollBy"])) {

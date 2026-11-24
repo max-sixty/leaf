@@ -143,14 +143,14 @@ fit, so a widget can bring in a heading or label with an item where there is roo
 the item alone where there is not.
 
 To set a box's scroll position, call the browser's own
-`box.scrollTo({top, left, behavior: "instant"})`. Leaf hears a script's scroll write
-however it is made, and updates its scroll readers before that position paints,
-including a write during resize delivery. Say the `behavior`: left out, the box's
-`scroll-behavior` decides, which a page may set to smooth, and a smooth scroll reports
-its positions only through the browser's scroll events. A write of the position a box
-already holds stops a scroll the browser is driving there, so a module that may write
-one, as it restores an offset or keeps one box beside another, first asks whether the
-write would move the box (`/runtime/lib/scroll-range.js`).
+`box.scrollTo({top, left, behavior: "instant"})`. Leaf hears that write as it is made,
+and updates its scroll readers before the position paints, including a write during
+resize delivery. Say the `behavior`: left out, the box's `scroll-behavior` decides,
+which a page may set to smooth, and a smooth scroll reports its positions only through
+the browser's scroll events. A write of the position a box already holds stops a scroll
+the browser is driving there, so a module that may write one, as it restores an offset
+or keeps one box beside another, first asks whether the write would move the box
+(`/runtime/lib/scroll-range.js`).
 
 `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its

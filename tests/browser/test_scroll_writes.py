@@ -6,6 +6,8 @@ makes it, the runtime hears it as it is made (`runtime/arrivals.js`)."""
 import pytest
 from render_harness import consume_browser_errors, leaf_page, open_page
 
+from leaf.render_checks import SERVED_TIMEOUT_MS
+
 # Each style that decides which side of zero a box scrolls on, alone and in the
 # combinations where two of them cancel. Chromium and Firefox agree on every one.
 ORIGINS = {
@@ -136,7 +138,7 @@ FOREIGN = f"""() => {{
 # event the write sends (`browser`). Each write starts from a box standing still at
 # its start: the write that puts it back there is a scroll of its own, which ends
 # first.
-HEARD = """async ([selector, write, moves]) => {
+HEARD = """async ([selector, write, moves, deadline]) => {
   const {browserScrolls, scrolling, watchScrollEnds} = await window.__lfCheckApi();
   const box = selector.reduce(
     (root, step) => (root.shadowRoot ?? root).querySelector(step), document);
@@ -146,7 +148,7 @@ HEARD = """async ([selector, write, moves]) => {
     wait,
     new Promise((_, reject) => setTimeout(
       () => reject(new Error(`no ${what} after ${write} in ${selector.join(' ')}`)),
-      30000)),
+      deadline)),
   ]);
   if (box.scrollTop || box.scrollLeft)
     box.scrollTo({top: 0, left: 0, behavior: 'instant'});
@@ -193,7 +195,9 @@ def test_a_script_s_scroll_write_is_heard_as_it_is_made(request, serve, engine):
     )
     page.evaluate(FOREIGN)
     read = {
-        (name, how): page.evaluate(HEARD, [selector, write, moves != "unmoved"])
+        (name, how): page.evaluate(
+            HEARD, [selector, write, moves != "unmoved", SERVED_TIMEOUT_MS]
+        )
         for name, selector in BOXES.items()
         for how, (write, moves) in WRITES.items()
         if name == "page" or not how.startswith("window.")

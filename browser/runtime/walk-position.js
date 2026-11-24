@@ -22,15 +22,18 @@
    A package widget's walk says each step's place with an `lf-walk` event (`WALK`,
    lib/widget-events.js) on the stop the step landed on, so a widget calls nothing of
    Leaf's and a page without Leaf hears nothing. The event carries a place and no
-   reader, so nothing says when a list that changed, or a reading the widget moved
-   without a step, has made the place wrong. The place therefore stands for its step's
-   moment alone (notifications.js, `answerStep`), which is as long as the page's field
-   says any step, and ends sooner when its stop leaves the page, as when a redraw
-   replaces it, or the user steps again. So a widget's place before an open thread's
-   Reply goes with the moment, where a walk of Leaf's own stands. Rejected: the place
-   standing while focus stays on the stop, which a chart, whose points take no focus,
-   would have to end by a second event each time its pointer or a redraw moved its
-   reading. */
+   reader, so Leaf can't tell when a list that changed has made the place wrong. The
+   place therefore stands for its step's moment alone (notifications.js, `answerStep`),
+   which is as long as the page's field says any step. So a widget's place before an
+   open thread's Reply goes with the moment, where a walk of Leaf's own stands. The
+   place ends sooner when its stop leaves the page, as when a redraw replaces it, and
+   when the user steps again. It also ends when the widget says the user has left the
+   stop without stepping, with an `lf-walk` on the same stop that carries no place. A
+   chart's points take no focus, so only the chart knows that its pointer has taken the
+   reader to another point. Rejected: the place standing while focus stays on the stop.
+   A chart keeps focus while its reading moves, so its place would stand until the
+   chart ended it, and one the chart failed to end would stand wrong for as long as the
+   chart kept focus. The moment bounds such a place. */
 import { effect, untracked } from "/runtime/framework.js";
 import { capitalized } from "./lib/words.js";
 import { watchOwner } from "./arrivals.js";
@@ -157,12 +160,18 @@ export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
 }
 
 // A widget's step says where it landed (the header), on the stop it landed on. The
-// place has no reader to retire it, so three events end it: the moment its step began
-// ending, its stop leaving the page, since a redraw that replaces the stop may have
-// changed the list, and the next step of any walk (`stepTo`).
+// place has no reader to retire it, so it ends at the moment its step began ending;
+// when its stop leaves the page, since a redraw that replaces the stop may have changed
+// the list; at the next step of any walk (`stepTo`); and when the widget says, on the
+// same stop and with no place, that the user has left it. A widget that says so on any
+// other stop ends nothing, since the place it speaks of has already gone.
 addEventListener(WALK, (event) => {
   const [stop] = event.composedPath();
   if (!(stop instanceof Element)) return;
+  if (!event.detail) {
+    if (said?.walk.target === stop) endSaid();
+    return;
+  }
   const { noun, position, total, list } = event.detail;
   const place = { target: stop, position, total, qualifier: "" };
   const walk = { key: "said", noun, read: () => place, about: null, target: stop };

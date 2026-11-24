@@ -91,5 +91,8 @@ export const ANNOUNCE = "lf-announce";
 // Where a step of a widget's own walk landed, as a diff's step to its next hunk: a
 // bubbling, composed CustomEvent the widget dispatches on the stop the step landed on,
 // whose `detail` is the place, `{noun, position, total, list}`. Leaf's panel says it
-// for the step's moment where the list runs out of view (walk-position.js).
+// for the step's moment where the list runs out of view (walk-position.js). The same
+// event with no `detail`, on the same stop, says the user has left the stop without
+// stepping, as a chart's pointer takes its reader to another point, and Leaf's panel
+// stops saying the place.
 export const WALK = "lf-walk";

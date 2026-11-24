@@ -10,6 +10,8 @@ content inputs in their callers.
 
 import functools
 import json
+import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -26,7 +28,7 @@ from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.registry.storage import layer_packages
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
-from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import HTML_NAME, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
@@ -116,10 +118,23 @@ def source_manifest(source: Path) -> Path | None:
     )
 
 
-def source_packages(source: Path) -> list[str]:
-    # A page directory's `index.html` takes the selection its layer record keeps.
-    if (packages := layer_packages(source.parent)) is not None:
-        return packages
+def source_packages(source: Path, base: Path = ROOT) -> list[str]:
+    """The packages `source` selects, as `page init` takes them when it runs in `base`:
+    this checkout's root for `arms.run_leaf`, the selected runtime for `preview.leaf`.
+    A manifest's path names a directory every checkout holds, so it stays as written.
+    """
+    # A page directory's `index.html` takes the selection its layer record keeps. The
+    # record names each package copy the page holds by its path from the page
+    # directory. The copy is one directory wherever `page init` runs, so that path is
+    # restated from `base`.
+    page = source.parent
+    if (packages := layer_packages(page)) is not None:
+        return [
+            value
+            if re.fullmatch(HTML_NAME, value)
+            else os.path.relpath(page / value, base)
+            for value in packages
+        ]
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 
@@ -181,13 +196,21 @@ def refresh_composition(source: Path) -> None:
 
 
 def read_fixture(
-    source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+    source: Path,
+    *,
+    runtime: Path = ROOT,
+    env: dict[str, str] | None = None,
+    base: Path = ROOT,
 ) -> PageFixture:
     """Read authored companions using the runtime that will consume produced data.
 
     Source and runtime are independent: a paired preview can share one authored input
     while each arm supplies its own package producer and matching data contract, and
     admits and acknowledges the seed with its own Leaf (`admit_events`).
+
+    `base` is the directory the fixture's builder runs `page init` in
+    (`source_packages`), which is not always the runtime: `arms.run_leaf` runs an
+    arm's launcher from this checkout's root.
     """
     seed = seed_log(source)
     files = page_files(source)
@@ -197,7 +220,7 @@ def read_fixture(
         page_files=files if files.is_dir() else None,
         bound_files=bound if bound.is_dir() else None,
         bindings=file_bindings(source),
-        packages=tuple(source_packages(source)),
+        packages=tuple(source_packages(source, base)),
         media=media_source(source),
         data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),

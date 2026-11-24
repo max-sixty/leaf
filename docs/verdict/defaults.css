@@ -1,0 +1,5 @@
+lf-verdict {
+  display: flex;
+  gap: var(--lf-sp-2);
+  min-block-size: var(--lf-line);
+}

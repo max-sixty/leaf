@@ -23,6 +23,52 @@ const wireInput = () =>
     cancelDictation() {},
   });
 
+// A thread of one comment about the element `section` names, as the publisher reads it.
+const threadAbout = (id, section) =>
+  readThreadRecords(
+    [
+      servedThread(
+        [
+          {
+            id,
+            kind: "comment",
+            author: "user",
+            text: "Seat me",
+            seq: 1,
+            ts: "2026-03-01T12:00:00Z",
+          },
+        ],
+        { anchor: { section } },
+      ),
+    ],
+    { registry: {}, descriptors: new Map(), messageBodies: new Map() },
+    new Map(),
+    [],
+  )[0];
+
+// What a surface asks of the page: a composer standing in no outlet, but for what
+// `composition` says of it.
+const surfaceCommands = (composition = {}) => ({
+  composition: {
+    active: () => null,
+    outlet: () => null,
+    node: () => null,
+    seat: () => false,
+    restore() {},
+    ...composition,
+  },
+  read: {
+    observeMessage: () => () => {},
+    observeFeedback: () => () => {},
+    observeSummary: () => () => {},
+  },
+  reply: { wireInput },
+  reaction: {},
+  placedAt: () => null,
+  invalidate() {},
+  reveal() {},
+});
+
 test("a surface widget whose constructor threw is not waited for", async () => {
   // A failed upgrade leaves the element undefined while its definition stands, so a
   // watch that waited for the definition would re-offer the element on every
@@ -68,20 +114,7 @@ test("a surface releases the composer from its own outlet under the node named",
   // while it is still in the document. The handle answers for the outlets its own
   // surface seated: the composer standing elsewhere, or under a node the widget is
   // not removing, stays where it is.
-  const root = {
-    id: "released",
-    kind: "comment",
-    author: "user",
-    text: "Seat me",
-    seq: 1,
-    ts: "2026-03-01T12:00:00Z",
-  };
-  const [thread] = readThreadRecords(
-    [servedThread([root], { anchor: { section: "release-target" } })],
-    { registry: {}, descriptors: new Map(), messageBodies: new Map() },
-    new Map(),
-    [],
-  );
+  const thread = threadAbout("released", "release-target");
   const owner = document.createElement("section");
   const target = document.createElement("p");
   target.id = "release-target";
@@ -95,25 +128,10 @@ test("a surface releases the composer from its own outlet under the node named",
   /** @type {Element | null} */
   let seated = null;
   let restores = 0;
-  const commands = {
-    composition: {
-      active: () => null,
-      outlet: () => seated,
-      node: () => null,
-      seat: () => false,
-      restore: () => void restores++,
-    },
-    read: {
-      observeMessage: () => () => {},
-      observeFeedback: () => () => {},
-      observeSummary: () => () => {},
-    },
-    reply: { wireInput },
-    reaction: {},
-    placedAt: () => null,
-    invalidate() {},
-    reveal() {},
-  };
+  const commands = surfaceCommands({
+    outlet: () => seated,
+    restore: () => void restores++,
+  });
   const handle = threadSurface(owner);
   handle.release(owner);
   assert.equal(restores, 0, "a widget with no surface has nothing to release");
@@ -158,20 +176,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
   // reads `claimed`. Nothing else tells it a commit seated or released a thread: the
   // thread pass paints no region but its own, and the margin's presenter repaints
   // when a reading its paint followed moves.
-  const root = {
-    id: "seated",
-    kind: "comment",
-    author: "user",
-    text: "Seat me",
-    seq: 1,
-    ts: "2026-03-01T12:00:00Z",
-  };
-  const [thread] = readThreadRecords(
-    [servedThread([root], { anchor: { section: "target" } })],
-    { registry: {}, descriptors: new Map(), messageBodies: new Map() },
-    new Map(),
-    [],
-  );
+  const thread = threadAbout("seated", "target");
   const owner = document.createElement("section");
   owner.id = "rail";
   const target = document.createElement("p");
@@ -179,27 +184,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
   const outlet = document.createElement("div");
   owner.append(outlet);
   document.body.append(target, owner);
-  const composition = {
-    active: () => null,
-    outlet: () => null,
-    node: () => null,
-    seat: () => false,
-    restore() {},
-  };
-  const read = {
-    observeMessage: () => () => {},
-    observeFeedback: () => () => {},
-    observeSummary: () => () => {},
-  };
-  const commands = {
-    composition,
-    read,
-    reply: { wireInput },
-    reaction: {},
-    placedAt: () => null,
-    invalidate() {},
-    reveal() {},
-  };
+  const commands = surfaceCommands();
   const portable = threadSurface(owner);
   const openers = [];
   const stopOpeners = effect(() => openers.push(portable.open));

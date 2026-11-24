@@ -497,7 +497,7 @@ DRAWING_CONTROL_LAYER = {
 }
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
-import { offer } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { once } from '/runtime/lib/once.js';
 customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {

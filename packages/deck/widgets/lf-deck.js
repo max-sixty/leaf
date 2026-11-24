@@ -65,7 +65,6 @@ import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
   answerWords,
-  nameAction,
   focusDestination,
   keepView,
   LeafElement,
@@ -73,8 +72,6 @@ import {
   obligationActions,
   obligationsByRegion,
   obligationsIn,
-  offer,
-  offerAction,
   placeOf,
   openingView,
   viewMembers,
@@ -85,6 +82,7 @@ import {
   signal,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";

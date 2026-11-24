@@ -83,8 +83,6 @@ import {
   focusDestination,
   LeafElement,
   PendingTaskEvent,
-  offered,
-  offeredAction,
   onCurrentLocation,
   rove,
   rowWalk,
@@ -92,6 +90,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";

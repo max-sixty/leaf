@@ -8,11 +8,12 @@ import { iconTemplate } from "./lib/icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
 import { agentName, readPart } from "./semantic-state.js";
-import { elementDirective, offerActionElement } from "./widget-elements.js";
+import { elementDirective, offerActionElement } from "./lib/controls.js";
 import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
-import { agentArrivalDuration, reducedMotion } from "./motion.js";
+import { reducedMotion } from "./motion.js";
+import { motionTime } from "./lib/motion-timing.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,
@@ -253,7 +254,7 @@ function syncAgentArrival(control, receipt) {
   const elapsed = performance.now() - began;
   if (controlArrivals.get(control) === claim) return;
   controlArrivals.set(control, claim);
-  if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
+  if (elapsed >= motionTime("--lf-motion-agent-arrival") || reducedMotion()) return;
   inlineStyle(control).setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(

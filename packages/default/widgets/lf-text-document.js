@@ -39,11 +39,10 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  offer,
-  offerAction,
   afterPresentation,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
 import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
 import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";

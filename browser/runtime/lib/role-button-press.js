@@ -1,6 +1,6 @@
 /* A button's keys for an element Leaf offers as a button without being one: a span
  * with `role="button"` and `data-lf-offer="button"`, such as a selectable offer
- * (element-markers.js), whose words must stay selectable, or a margin reading entry
+ * (controls.js), whose words must stay selectable, or a margin reading entry
  * (annotation-overlay/margin-projection.js), which turns between a press and a status
  * in place.
  *

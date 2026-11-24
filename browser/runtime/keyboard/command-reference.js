@@ -88,7 +88,8 @@ import {
   currentLocationIn,
   blurFocused,
 } from "../focus.js";
-import { closeControl, offeredAction, searchField } from "../widget-elements.js";
+import { closeControl, searchField } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import { keeps } from "../lib/keeps.js";
 import { renderedOrder } from "../lib/shadow-tree.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";

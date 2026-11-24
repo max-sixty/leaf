@@ -360,7 +360,8 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
   or a staged reveal. `runtime/motion.js` owns the shared motion gate, easing and
   reduced-motion check, and `--lf-motion-*` properties set durations and curves: the
   theme's for the document, and a runtime surface's own sheet for that surface, as
-  `floating-panel.css` does for the panel.
+  `floating-panel.css` does for the panel. A script reads one with
+  `runtime/lib/motion-timing.js`.
 - **Animations are restrained and finite, and acknowledge state changes.** The one continuous animation
   is the sheen (`@keyframes lf-sheen` in `styles/components/surfaces.css`), which marks
   agent work in progress. It stops when the work ends and is static under reduced
@@ -590,11 +591,11 @@ holds the measurement.
   `test_layout_style_and_widgets_never_read_each_other`.
 - **A control wears its role's face.** Code builds a control by its role, with
   `offerAction` or `offeredAction`, and never names a face's classes, so two controls
-  of one kind can't look different (`runtime/control-faces.js`, `ACTION_FACES`, lists the
-  roles). Only the role's rules in `controls.css` draw a press's ink, ground, frame and
-  lift; a difference between two presses of a role is a variant the role declares, an
-  attribute on the press, and a surface sets only its type and density. A new role
-  needs a difference in the user's task, not only in a widget's taste. Checks:
+  of one kind can't look different (`runtime/lib/control-faces.js`, `ACTION_FACES`,
+  lists the roles). Only the role's rules in `controls.css` draw a press's ink, ground,
+  frame and lift; a difference between two presses of a role is a variant the role
+  declares, an attribute on the press, and a surface sets only its type and density. A
+  new role needs a difference in the user's task, not only in a widget's taste. Checks:
   `test_controls_are_built_by_role_and_never_by_face`,
   `test_every_press_is_built_by_role`, `test_a_press_wears_its_role_s_face_alone`.
 - **Leaf's elements wear only Leaf's names.** A class or data attribute the runtime

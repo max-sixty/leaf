@@ -32,7 +32,7 @@ would settle them.
 ## Parts
 
 - `views.py` draws each view and numbers its controls. Today's one view is every
-  icon an action shows, drawn alone through the runtime's `offerAction`; an icon
+  icon an action shows, drawn alone through the library's `offerAction`; an icon
   several actions share stands for all of them.
 - `actions.json` says what pressing each action does, the truth the judge reads. It
   names exactly the actions `ACTIONS` in `browser/runtime/lib/icon-paths.js` holds, and

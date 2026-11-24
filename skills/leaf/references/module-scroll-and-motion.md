@@ -275,9 +275,11 @@ of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
 
-A widget removing an item asks `foldDuration()` each time rather than choosing a
-number, and a retained frame returning from an editor to its reading uses the shorter
-`returnDuration()`.
+A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
+than choosing a number, and a retained frame returning from an editor to its reading
+takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
+library (`module-authoring.md`, "Shared web code") reads a token's time in
+milliseconds.
 
 `backgroundFlash(element)` gives an element a brief yellow tint that fades to its
 own background, and tints each box inside it that paints a background of its own too.

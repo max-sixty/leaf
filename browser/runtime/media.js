@@ -39,7 +39,8 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { closeControl, offerAction, offered } from "./widget-elements.js";
+import { closeControl } from "./widget-elements.js";
+import { offerAction, offered } from "./lib/controls.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import {
   nativeLayers,
@@ -47,7 +48,8 @@ import {
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./lib/keeps.js";
-import { reducedMotion, foldDuration } from "./motion.js";
+import { reducedMotion } from "./motion.js";
+import { motionTime } from "./lib/motion-timing.js";
 import { says } from "./passages.js";
 import { plainPress } from "./pointer.js";
 import { holdRendering } from "./rendering.js";
@@ -327,7 +329,7 @@ const open = async (source, alt, from) => {
         escKey: false,
         // The native dialog owns its opening and closing. Zoom alone animates.
         showHideAnimationType: "none",
-        zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
+        zoomAnimationDuration: reducedMotion() ? 0 : motionTime("--lf-motion-fold"),
         clickToCloseNonZoomable: false,
         bgClickAction: "close",
         tapAction: "zoom",

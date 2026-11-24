@@ -81,8 +81,6 @@ import {
   elementById,
   LeafElement,
   move,
-  offer,
-  offerAction,
   labelOf,
   saying,
   motion,
@@ -95,6 +93,7 @@ import {
   authoredScope,
   widgetController,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

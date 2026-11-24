@@ -194,8 +194,7 @@
   // can't say who took a step, so it lets nothing go, and nor does Firefox, which
   // reports no step as the user's, the browser's own Back included (Gecko bug
   // 1903552): there a held run outlives the user's step and its keys run at the entry
-  // the step reached, words typed through Leaf's reload only into a box there
-  // (keyboard/controller.js, `takeHeldKeys`).
+  // the step reached, unless they are the user's writing (bootstrap.js, `letGo`).
   /** @param {boolean} user */
   const step = (user) => {
     inputs++;

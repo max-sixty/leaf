@@ -112,6 +112,7 @@ import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
+import { readAttachedMedia, writeAttachedMedia } from "./media.js";
 import { nameIn, namedIn } from "./carry.js";
 import { renderedUnder } from "./lib/shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -360,6 +361,7 @@ function hearReading({ store, version, drafts }) {
     }
     adopt(ctx, recordOf(incoming), store, incoming?.version ?? version);
   }
+  takeHeldWords();
   writeWaiting();
 }
 // What a look at the server heard of the drafts: their store and its version, which
@@ -1605,40 +1607,54 @@ export function mirrorDraft(
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
-// Words the user typed for their box while a reload Leaf asked for brought it back,
-// which the early key hold let go before they could go in through the box, as when the
-// user scrolled first (bootstrap.js, `letGo`), wait in the tab until a document of the
-// page takes them, each with the box the reload's handoff named
-// (`captureDraftEditing`). They go into that box's draft: where its caret was, if the
-// draft still holds the words it held then, else after its words, as more of what the
-// user was writing. A box with no draft, such as a field of the page's own, leaves
-// them nowhere else to stand, so they join the page's draft, as words whose box is
-// gone do (`moveToPage`). The words vanish from where the keys stood, so the panel
-// says the draft is kept, with Resume writing, which goes to their end.
+// Words the user typed through a reload Leaf asked for, which the early key hold let
+// go before they could go into their box (bootstrap.js, `letGo`), each batch with the
+// box it was typed for (`captureDraftEditing`). They go into that box's draft, among its
+// words and before any pictures it holds (media.js, `readAttachedMedia`): where the
+// caret was, while the draft is still the generation the box was read at
+// (`draftEditingStands`), and after its words otherwise. The reload's own record of the
+// box moves with them, so a reload that still puts the user back in the box puts the
+// caret after them (version.js, `restoreEditingContinuity`). The words leave the panel's
+// field, where the keys stood, so the panel says the draft is kept, with Resume writing,
+// which goes to their end. A document served without the drafts takes them once its
+// first reading has told it what the draft holds (`hearReading`).
 const HELD_WORDS = "lf-held-words";
 function takeHeldWords() {
+  if (heard.store === null && !offlineInteractive) return;
   const left = tabStore.get(HELD_WORDS);
   if (!left) return;
   tabStore.set(HELD_WORDS, null);
-  /** @type {{box: DraftEditing | null, words: string}[]} */
+  /** @type {{box: DraftEditing, words: string}[]} */
   let kept;
   try {
     kept = JSON.parse(left);
   } catch {
     return;
   }
-  for (const { box, words: typed } of kept) {
-    const context = box?.context ?? PAGE_DRAFT;
-    const current = activeDraftRecord(context);
-    const text = current?.text ?? "";
+  const handed = /** @type {DraftEditing | undefined} */ (
+    window.lfStorage?.handoff?.draftEditing
+  );
+  for (const { box: written, words: typed } of kept) {
+    const box = handed?.context === written.context ? handed : written;
+    const current = activeDraftRecord(box.context);
+    const { text, paths } = readAttachedMedia(current?.text ?? "");
     const [start, end] =
-      box?.selection && text === box.words ? box.selection : [text.length, text.length];
-    const lead = !box && text ? "\n\n" : "";
-    const words = text.slice(0, start) + lead + typed + text.slice(end);
-    saveDraft(context, words, current?.payload);
-    tellDraft(context, words, current?.payload);
-    const at = start + lead.length + typed.length;
-    keepWritingPlace({ context, selection: [at, at], generation: randomId() });
+      draftEditingStands(box) && box.selection
+        ? box.selection
+        : [text.length, text.length];
+    const words = text.slice(0, start) + typed + text.slice(end);
+    const value = writeAttachedMedia(words, paths);
+    saveDraft(box.context, value, current?.payload);
+    tellDraft(box.context, value, current?.payload);
+    /** @type {Caret} */
+    const selection = [start + typed.length, start + typed.length];
+    keepWritingPlace({ context: box.context, selection, generation: randomId() });
+    if (box === handed)
+      Object.assign(handed, {
+        words,
+        selection,
+        attempt: activeDraftRecord(box.context)?.attempt,
+      });
   }
   noticeDraftKept();
 }

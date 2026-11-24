@@ -71,9 +71,9 @@
  * wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back,
  * as text in the reply box they were writing in. Waiting keys are no input
  * (document-inputs.js, `holdKeys`), so they don't end the return; any other input does,
- * which puts the keys into the reply's draft instead (drafts.js, `takeHeldWords`). The
- * keys not yet pressed when the document goes carry to the next reload Leaf asks for of
- * the address (bootstrap.js, `holdEarlyKeys`). An in-place
+ * and the hold lets them go (bootstrap.js, `letGo`). The keys not yet pressed when the
+ * document goes carry to the next reload Leaf asks for of the address (bootstrap.js,
+ * `holdEarlyKeys`). An in-place
  * patch is no navigation, so it restores the page's place, the margin's and the panel's
  * thread location, focus, and the selected obligation by id itself; it gives an unnamed
  * replaced control no guessed focus. Explicit historical travel carries reading
@@ -3266,8 +3266,7 @@ export function createVersionController({
     // (history.js, `settled`), the entry's record's return and the handoff's restore
     // (`landArrival`) among its work. Then they run where it put the user, as text in
     // the box they were writing in. An input of theirs meanwhile ended the arrival, and
-    // the hold let their keys go with it, into that box's draft where they are words
-    // for it (bootstrap.js, `letGo`).
+    // the hold let their keys go with it (bootstrap.js, `letGo`).
     if (placed) {
       handingBackPlace(true);
       void arrival.settled.then(() => {

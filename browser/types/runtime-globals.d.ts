@@ -134,6 +134,15 @@ interface Window {
     readonly handoff: {
       readonly typing?: unknown;
       readonly draftEditing?: unknown;
+      /** Each carried control's state (carry.js, `CarryRecord`), which the key hold
+       * types the user's words into while the reload hands back their field. */
+      readonly carry?: {
+        id: string;
+        focus?: boolean;
+        part?: string;
+        value?: string;
+        caret?: [number, number, ...unknown[]];
+      }[];
     } | null;
     /** Whether the handoff puts the user back where they were, here (prepaint.js). */
     placesUser(): boolean;
@@ -283,13 +292,12 @@ interface DocumentEventMap {
         }
       | {
           keys: readonly KeyboardEvent[];
-          /** The run is words typed through Leaf's reload, for the box it hands back. */
+          /** The run is the user's writing (`bootstrap.js`, `letGo`). */
           writing: boolean;
           /** The first key leaves the run as the controller presses it. */
           pressed(): void;
           pause(): void;
-          /** Ends the take, letting go of any key the run still holds, and putting
-           * words into their box's draft. */
+          /** Ends the take, letting go of any key the run still holds. */
           release(): void;
         }
     )

@@ -42,16 +42,15 @@ import { readLeavingKeys } from "../field-keys.js";
 import { authoredScope } from "../passages.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
 // a server serving another layer, ends bootstrap's hold: nothing in it will run what
-// was held, so those keys are dropped, words typed through a reload waiting for the
-// document that replaces it (bootstrap.js, `letGo`), and later keys reach the page as
-// they come. Pausing a take that keeps nothing ends the hold.
+// was held, so those keys are let go (bootstrap.js, `letGo`) and later ones reach the
+// page as they come.
 export function letHeldKeysGo() {
   /** @type {DocumentEventMap["lf-held-keys"]} */
   const taking = new CustomEvent("lf-held-keys", {
     detail: { ready: () => false, keep: () => false },
   });
   document.dispatchEvent(taking);
-  taking.detail.pause?.();
+  taking.detail.release?.();
 }
 
 /** @param {{goToSequenceActive: () => boolean, setGoToSequence: (on: boolean) => void, reactArmed: () => boolean, setReact: (on: boolean) => void}} options */
@@ -212,9 +211,9 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      // The words a user typed through a reload only ever type into a box, the one it
-      // hands back, and so does any held key with single-key commands off. The release
-      // lets go of the rest, and puts words into their box's draft.
+      // The user's writing only ever types into a box, as does any held key with
+      // single-key commands off; the release lets go of the rest (bootstrap.js,
+      // `letGo`).
       const [key] = keys;
       if (!key || ((writing || !quickShortcuts()) && !typesText(focused()))) {
         release();

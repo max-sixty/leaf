@@ -71,6 +71,21 @@ export function keepsOnOne(name) {
   };
 }
 
+// An attribute a set of elements wears, as a mark stands on each box an element shows
+// through: the returned call gives it to each element `next` names, with the value it
+// names, and takes it off every other element an earlier call gave it to, writing only
+// what changes.
+/** @param {string} name */
+export function keepsOnEach(name) {
+  /** @type {ReadonlyMap<Element, unknown>} */
+  let on = new Map();
+  return (/** @type {ReadonlyMap<Element, unknown>} */ next) => {
+    for (const element of on.keys()) if (!next.has(element)) keeps(element, name, null);
+    for (const [element, value] of next) keeps(element, name, value);
+    on = next;
+  };
+}
+
 // `length` rounded to layout's 1/64px, for a measure written where a unit can't go,
 // such as a scale.
 /** @param {number} length */

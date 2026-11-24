@@ -8,7 +8,7 @@
  */
 
 import { ringBox, visibleFocus } from "./focus.js";
-import { lined, shownParts } from "./geometry.js";
+import { lined } from "./geometry.js";
 import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import {
   readingOrder,
@@ -35,6 +35,7 @@ import {
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { locationRingOn } from "./target-paint.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
@@ -265,16 +266,12 @@ export function createAnchorPaint({
     // to an element after its draft (and thus its last annotation) has disappeared.
     const active = visibleFocus();
     // Page controls need the same cue whether or not an author gave them an id.
-    // Private controls and a face wearing another control's ring keep that paint. An
-    // obligation the user arrived at needs none: its location ring (target-paint.js) is
-    // its focus cue.
+    // Private controls and a face wearing another control's ring keep that paint. A box
+    // the location ring stands on needs none: the ring is its focus cue.
     // Read that owner's current location too: its reflected attribute may still
     // describe the previous location until the mechanical repaint.
-    const obligation = currentLocationObligation();
     const obligationRing =
-      active &&
-      obligation &&
-      (active === obligation || shownParts(obligation).includes(active));
+      active && locationRingOn(active, currentLocationObligation());
     const ownsRing = active && ringBox(active) === active && !obligationRing;
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);

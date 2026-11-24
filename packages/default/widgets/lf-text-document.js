@@ -39,15 +39,15 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  loadMarkdown,
-  renderMarkdown,
   reportFailure,
   sizeObserver,
   nextFrame,
-  MAX_EDIT_LENGTH,
   afterPresentation,
+  pageLinks,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
+import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
+import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import {
   codeLanguage,
@@ -1108,7 +1108,7 @@ class TextDocument extends LeafElement {
       const previewNode = view.preview;
       if (previewNode instanceof HTMLDivElement) {
         const template = document.createElement("template");
-        template.innerHTML = renderMarkdown(source, false);
+        template.innerHTML = renderMarkdown(source, pageLinks, false);
         setRenderedChildren(previewNode, template.content.childNodes);
       } else if (
         previewNode instanceof HTMLIFrameElement &&

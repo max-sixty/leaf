@@ -814,6 +814,7 @@ block names what a package answers with the browser's own call instead.
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                    |
+| The attributes that bind a widget's input, which `data.js` asks to tell whether markup sets one       | `registry.js` `bindingAttributes`                                                      |
 | Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                             |
 | Paint on the next frame, or watch a size                                                              | `lib/frame-pass.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                 |
 | Write a DOM value only when it changed; a style property needs no guard (`lib/keeps.js` header)       | `lib/keeps.js` `keeps`                                                                 |

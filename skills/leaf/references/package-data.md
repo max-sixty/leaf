@@ -6,7 +6,7 @@ Read with [packages.md](packages.md), which holds the package contract and a wid
 
 A widget shares what it has the way its element would in plain HTML, so two widgets
 whose authors never met work together on a Leaf page and on a page without Leaf. One
-names the other by id in an attribute it declares under `refers`, `for` by
+names the other by id in an attribute its declaration says names an element, `for` by
 convention ("References between widgets"), and then:
 
 | To                                               | Use                                                                                                                                                   | `page check` holds                                                |
@@ -283,8 +283,9 @@ and its schema.
 ## References between widgets
 
 When an attribute names another element, declare it in `refers`, mapping the
-attribute to `{}`, which accepts any element id. `page check` refuses an id that names
-no element.
+attribute to `{}`, which accepts any element id. The attribute an input names as its
+`reference` ("Widget outputs") needs no entry, as the registry's `$keys.inputs`
+defines. `page check` refuses an id that names no element.
 
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
@@ -364,11 +365,12 @@ timezone-aware instant, `uri` an absolute URL, and `package check` lists the res
 
 A widget declares the inputs it can show under `inputs`, each naming its contract,
 the attribute that carries the page's source id, and the element `property` Leaf sets to
-the value. Make that attribute required when the widget can't work without the input. A
-widget with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text
-is: where the markup binds the input whose `property` is `value` to nothing, Leaf sets
-`value` to the `<pre>`'s text, a string, so the widget reads one property either way,
-as `lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
+the value. Naming the attribute there declares it, as the registry's `$keys.inputs`
+defines; list it in `required` when the widget can't work without the input. A widget
+with `content: data` takes its `<pre>` as its `value`, as a `<textarea>`'s text is:
+where the markup binds the input whose `property` is `value` to nothing, Leaf sets
+`value` to the `<pre>`'s text, a string, so the widget reads one property either way, as
+`lf-text-document` and `lf-diff` do. Give that input a contract that admits a string;
 `page check` refuses a `<pre>` on an element binding it. Its other inputs leave the
 `<pre>` alone, as `lf-code`'s `playhead` does. Leaf leaves the property of any other
 unbound input to the widget. Tell page authors how to bind it in `instructions`, and
@@ -378,10 +380,8 @@ contract").
 ```json
 {
   "lf-builds": {
+    "description": "The current build result of each branch.",
     "attributes": {
-      "properties": {
-        "source": { "type": "string" }
-      },
       "required": ["id", "source"]
     },
     "content": "empty",
@@ -429,18 +429,15 @@ of input, declaring `source`, `reference` or both:
     "reference": "for",
     "property": "value"
   }
-},
-"refers": { "for": {} }
+}
 ```
 
-The input's `reference` names its ordinary element relation, and the consumer
-declares each attribute the input names in `attributes`. A page binds either
-`source="project-files"` or `for="review"`, where `review` is a widget holding a
-`file-list`. The input binds by contract: it reads the one output of its contract the
-named widget declares, whatever that widget calls it, so a consumer never names a
-producer's tag or its output and works beside any producer of the contract. `page
-check` refuses a `for` naming a widget with no output of the contract, or with more
-than one.
+A page binds either `source="project-files"` or `for="review"`, where `review` is a
+widget holding a `file-list`. The input binds by contract: it reads the one output of
+its contract the named widget declares, whatever that widget calls it, so a consumer
+never names a producer's tag or its output and works beside any producer of the
+contract. `page check` refuses a `for` naming a widget with no output of the contract,
+or with more than one.
 
 Leaf reads the property when the consumer first draws, again each time the producer
 says `change`, and from the new element when a revision replaces the producer, so a

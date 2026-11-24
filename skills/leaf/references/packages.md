@@ -324,19 +324,21 @@ both out of each. An attribute schema may write `"additionalProperties": true` t
 attributes it doesn't name, as a widget that passes them to an inner element does. A
 `detail` schema that writes any other value for either keyword is refused. A
 declaration with nothing to say about its element's attributes leaves `attributes` out,
-and the element then takes only an optional `id`. The attributes any element takes
-(`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand
-outside the schema unless it names one.
+and the element then takes only the attributes composition writes for it, such as an
+optional `id`. The attributes any element takes (`class`, `style`, `title`, `lang`,
+`dir`, `aria-*` and the page's own `data-*`) stand outside the schema unless it names
+one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element
-requires one, by listing `id` in `required`.
+requires one, by listing `id` in `required`. Composition writes the attributes an input
+binds by into `properties` too, as the registry's `$keys.inputs` defines.
 
 Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
-attribute (`inputs`) and a verb's `contract` attribute. Declare each of the last two as
-`{"type": "string"}`; composition writes each one's `pattern` into the merged registry,
-replacing any the declaration gives. A `refers` attribute needs no pattern either, since
-`page check` requires its value to name an element the page holds.
+attribute (`inputs`) and a verb's `contract` attribute. Declare a verb's `contract`
+attribute as `{"type": "string"}`; composition writes each name's `pattern` into the
+merged registry, replacing any the declaration gives. A `refers` attribute needs no
+pattern either, since `page check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

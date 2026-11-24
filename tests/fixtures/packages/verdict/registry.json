@@ -14,8 +14,7 @@
     "description": "A ship-or-hold decision on a release, each choice a comment target. Put it in an `lf-group` whose label asks the question.",
     "attributes": {
       "properties": {
-        "verdict": { "type": "string", "enum": ["ship", "hold"] },
-        "source": { "type": "string" }
+        "verdict": { "type": "string", "enum": ["ship", "hold"] }
       },
       "required": ["id"]
     },

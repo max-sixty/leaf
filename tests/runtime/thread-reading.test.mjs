@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const { foldThreads, lastMovedAt, moved, readThreadRecords } =
+const { foldThreads, moved, readThreadRecords } =
   await import("/runtime/thread/model.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
+const { threadName, prepareAuthoredMessage, messageReading } =
   await import("/runtime/thread/messages.js");
 const { loadMarkdown } = await import("/runtime/lib/markdown.js");
 const { createThreadDestinations } = await import("/runtime/thread/destination.js");
@@ -210,7 +210,7 @@ test("a gesture copies only the thread it stands in", () => {
   );
 });
 
-test("a message moves when it is edited, and a thread when any turn moves", () => {
+test("a message moves when it is edited", () => {
   const plain = agent("plain", { seq: 3, ts: "2026-03-01T09:00:00Z" });
   const edited = agent("edited", {
     seq: 1,
@@ -219,14 +219,6 @@ test("a message moves when it is edited, and a thread when any turn moves", () =
   });
   assert.deepEqual(moved(plain), { seq: 3, ts: "2026-03-01T09:00:00Z" });
   assert.deepEqual(moved(edited), { seq: 7, ts: "2026-03-02T09:00:00Z" });
-  const thread = {
-    root: { ...edited, body: { text: "Topic" } },
-    msgs: [
-      { ...edited, body: { text: "Topic" } },
-      agent("later", { seq: 4, ts: "2026-02-25T09:00:00Z" }),
-    ],
-  };
-  assert.equal(lastMovedAt(thread), "2026-03-02T09:00:00Z");
 });
 
 test("an untitled thread goes by the words its opening renders, everywhere it is named", async () => {
@@ -240,7 +232,6 @@ test("an untitled thread goes by the words its opening renders, everywhere it is
     agent("opening", { kind: "comment", author: "user", ...extra });
   const prose = named(user({ text: "Is **this** the\n\n`retry` path?" }));
   assert.equal(threadName(prose), "Is this the retry path?");
-  assert.equal(threadSummary(prose).topic, threadName(prose));
   // A drawing with no words still has a name to stand under.
   assert.equal(
     threadName(named(user({ text: "", drawing: { strokes: [] } }))),

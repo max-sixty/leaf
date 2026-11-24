@@ -121,6 +121,9 @@ import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
+// Defined before any widget's module loads, so a template that draws an age needs no
+// import.
+import "./runtime/age.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { mountPreviews } from "./runtime/preview.js";

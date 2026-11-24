@@ -38,7 +38,6 @@ import { createActivity } from "./activity-view.js";
 import {
   HeldReading,
   tabStore,
-  ago,
   anchorLabel,
   elementById,
   layerFact,
@@ -175,7 +174,6 @@ customElements.define(
       return this.#drawing.render(reading, {
         printing: this.#printing,
         names: elementById,
-        age: ago,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
           if (thread) void threadActions.open(thread.key, { part: "thread" });

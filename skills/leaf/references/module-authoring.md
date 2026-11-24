@@ -54,7 +54,7 @@ In [module-state.md](module-state.md):
   module's own or another's.
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
   `viewMembers`, `openingView` and `keepView` keep which member a holder shows.
-- "Time readings": `ago`, `agePreview` and `clockValue` read the server's time.
+- "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.

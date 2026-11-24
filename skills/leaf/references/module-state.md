@@ -202,17 +202,17 @@ mean nothing.
 
 ### Time readings
 
-`ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
-ago", "2h ago", "2d ago". `ago` and `clockValue` are page readings (`module-reading.md`,
-"Page readings"). Draw an age
-in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
-(`module-previews.md`), so pointing at it says when, in the reader's zone and
-as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 PM PT".
+To say how long ago a server timestamp was, a template draws Leaf's `lf-age` element,
+as a page's markup does: `<lf-age datetime=${ts}></lf-age>`. It needs no import, in a
+shadow tree too. It words the age as the page does everywhere, "just now", then "2m
+ago", "2h ago", "2d ago", and keeps it current. Pointing at it says when, in the
+reader's zone and as their browser writes a date: "Sat, Aug 15, 2026, 2:02 PM PT".
 
 `clockValue((now) => …)` states any other condition on the time, such as whether a
-timestamp is older than a limit or which day a date falls in. `now` is the server's
-time in milliseconds, the clock `ago` reads, so the answer never disagrees with an age
-beside it; keep no clock of your own. Return the answer rather than the time, as in
+timestamp is older than a limit or which day a date falls in. It is a page reading
+(`module-reading.md`, "Page readings"). `now` is the server's time in milliseconds,
+the clock an age reads, so the answer never disagrees with an age beside it; keep no
+clock of your own. Return the answer rather than the time, as in
 `clockValue((now) => now - Date.parse(collected) > STALE_MS)`: the render that read it
 runs again only when that answer changes.
 

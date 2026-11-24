@@ -209,8 +209,7 @@ DRAFT_BLOCKS = """# Workshop
 
 The morning starts at nine. Read the [setup guide](https://example.com/setup) first.
 
-
-Two blank lines stand before these words.
+Two paragraphs stand a gap apart.
 
 - one **bold** item
 - a second with `inline`
@@ -225,7 +224,6 @@ leaf page init ./workshop
 >
 > Practice beats theory.
 >
-
 ## Heading two
 
 ![Room layout](/media/051bee487bfb5d13.png)
@@ -402,11 +400,78 @@ delta span` too.
 > charlie marker hidden with the break before it."""
 
 
+def test_a_draft_shows_each_blank_line_and_saves_one_per_gap(browser, serve):
+    """Return between two paragraphs drew nothing until a word was typed, so the user
+    pressed it again and wrote blank lines the prose dropped, and the draft then opened
+    with its words moved. Each Return shows a line, a word typed after one stands where it
+    will stand, and saving writes each run of blank lines between two blocks as the one
+    gap the prose draws, so the draft reopens where it read; a code block keeps its
+    blank lines. A draft written with a run, opened and saved untouched, records no
+    edit."""
+    url = serve(
+        leaf_page(
+            "Blank lines",
+            '<h1>Blank lines</h1><lf-draft id="typed"><pre>Alpha.\n\nBravo.</pre></lf-draft>'
+            '<lf-draft id="written"><pre>Alpha.\n\n\n\nBravo.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url, init_script=MARGIN_EDITOR_ROOTS)
+    draft = page.locator("#typed")
+    editor = draft.locator("leaf-text")
+    words = ["Alpha", "Bravo", "Charlie", "two"]
+    draft_control(page, "edit", "typed").click()
+    expect(editor).to_be_focused()
+    rendered(page)
+    opened = draft.evaluate(DRAFT_AS_DRAWN, words)
+    editor.evaluate("field => field.setSelectionRange(6, 6)")
+    editor.press("Enter")
+    rendered(page)
+    returned = draft.evaluate(DRAFT_AS_DRAWN, words)
+    assert returned["Bravo"][1] > opened["Bravo"][1] + opened["Alpha"][3] / 2, (
+        opened,
+        returned,
+    )
+    page.keyboard.insert_text("Charlie.")
+    rendered(page)
+    typed = draft.evaluate(DRAFT_AS_DRAWN, words)
+    assert typed["Bravo"][1] == pytest.approx(returned["Bravo"][1], abs=1), (
+        returned,
+        typed,
+    )
+    expect(editor).to_have_js_property("value", "Alpha.\n\nCharlie.\n\nBravo.")
+    source = "Alpha.\n\n\n\nBravo.\n\n```\none\n\n\ntwo\n```"
+    write(editor, source)
+    press_draft_control(page, "save", "typed")
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    shown = draft.evaluate(DRAFT_AS_DRAWN, words)
+    draft_control(page, "edit", "typed").click()
+    expect(editor).to_be_focused()
+    rendered(page)
+    expect(editor).to_have_js_property(
+        "value", "Alpha.\n\nBravo.\n\n```\none\n\n\ntwo\n```"
+    )
+    reopened = draft.evaluate(DRAFT_AS_DRAWN, words)
+    for word in ["Alpha", "Bravo", "two"]:
+        assert reopened[word] == pytest.approx(shown[word], abs=1), (shown, reopened)
+    page.keyboard.press("Escape")
+    draft_control(page, "edit", "written").click()
+    expect(page.locator("#written leaf-text")).to_be_focused()
+    press_draft_control(page, "save", "written")
+    expect(page.locator("#written leaf-text")).to_have_count(0)
+    edits = [
+        event["detail"]["value"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
+    assert edits == ["Alpha.\n\nBravo.\n\n```\none\n\n\ntwo\n```"]
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_arrow_keys_visit_every_blank_line_of_a_draft(engine, request, serve):
-    """Up from a draft's last line visits every line on the way to its first. Blank
-    lines that share the gap the prose leaves between two blocks each stand shorter
-    than CodeMirror's vertical motion aims past, so the arrows skipped them."""
+    """Up from a draft's last line visits every line on the way to its first. A blank
+    line standing as the gap the prose leaves between two blocks can stand shorter
+    than CodeMirror's vertical motion aims past, so the arrows skipped it."""
     source = "Alpha\n\nBravo\n\n\nCharlie\n\n\n\nDelta"
     url = serve(
         leaf_page(
@@ -1000,6 +1065,37 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
     ]
     assert [e["detail"]["value"] for e in edits] == [exact]
+
+
+def test_return_beside_a_paragraph_leaves_the_caret_where_words_stand_alone(
+    browser, serve
+):
+    """Words on a line touching a paragraph join it, and Return there then writes hard
+    breaks, so Return on a blank line or before a paragraph's first words leaves the
+    caret with a blank line on each side."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return beside a paragraph",
+                "<h1>Return beside a paragraph</h1>"
+                '<lf-draft id="source"><pre>Alpha.</pre></lf-draft>',
+            )
+        ),
+    )
+    draft_control(page, "edit", "source").click()
+    editor = page.locator("#source leaf-text")
+    write(editor, "Alpha.\n\nBravo.")
+    # On the one blank line between two paragraphs.
+    editor.evaluate("field => field.setSelectionRange(7, 7)")
+    editor.press("Enter")
+    page.keyboard.insert_text("x")
+    expect(editor).to_have_js_property("value", "Alpha.\n\nx\n\nBravo.")
+    # Before a paragraph's first words.
+    editor.evaluate("field => field.setSelectionRange(11, 11)")
+    editor.press("Enter")
+    page.keyboard.insert_text("y")
+    expect(editor).to_have_js_property("value", "Alpha.\n\nx\n\ny\n\nBravo.")
 
 
 def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(

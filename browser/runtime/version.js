@@ -156,6 +156,7 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import {
+  bindingAttributes,
   bodyIsData,
   registry,
   sameRecord,
@@ -850,13 +851,9 @@ function diffBlocks(root) {
     const entry = registry[w.localName] ?? {};
     // A data binding is authored semantics even though the body it fills is
     // opaque to comparison.
-    /** @type {Set<string>} */
-    const bindingAttrs = new Set();
-    for (const input of Object.values(entry.inputs ?? {})) {
-      if (input.source) bindingAttrs.add(input.source);
-      if (input.reference) bindingAttrs.add(input.reference);
-    }
-    const binding = [...bindingAttrs]
+    const binding = [
+      ...new Set(Object.values(entry.inputs ?? {}).flatMap(bindingAttributes)),
+    ]
       .sort()
       .map((attr) => [attr, w.getAttribute(attr)]);
     pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);

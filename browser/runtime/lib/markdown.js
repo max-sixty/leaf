@@ -227,11 +227,16 @@ export function placedMarkdownTokens(source, message = true) {
   let inlineAt = 0;
   /** @type {NativeToken | undefined} */
   let previous;
+  /** @type {[number, number] | null} */
+  let row = null;
   for (const token of tokens) {
     const before = previous;
     previous = token;
-    const from = token.map ? parserItem(starts, token.map[0]) : 0;
-    const to = token.map ? parserItem(starts, token.map[1]) : source.length;
+    if (token.type === "tr_open") row = token.map;
+    // A table cell's words name no lines of their own; they stand on their row's.
+    const map = token.map ?? (isPositionedInline(token) ? row : null);
+    const from = map ? parserItem(starts, map[0]) : 0;
+    const to = map ? parserItem(starts, map[1]) : source.length;
     if (!isPositionedInline(token)) {
       if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
         /** @type {PlacedToken} */
@@ -253,11 +258,12 @@ export function placedMarkdownTokens(source, message = true) {
     let wordsAt = Math.max(from, inlineAt);
     for (const block of found)
       if (
-        isBlockPlacement(block, "blockquote_open") ||
-        isBlockPlacement(block, "list_item_open")
+        map &&
+        (isBlockPlacement(block, "blockquote_open") ||
+          isBlockPlacement(block, "list_item_open"))
       )
         for (const [a, b] of block.markers)
-          if (a >= wordsAt && a < parserItem(starts, token.map[0] + 1) && b > wordsAt)
+          if (a >= wordsAt && a < parserItem(starts, map[0] + 1) && b > wordsAt)
             wordsAt = b;
     const positions = inlineSourcePositions(
       source,
@@ -692,22 +698,25 @@ export function makeMarkdown(module, message, html = false) {
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });
-  // Each block says how many blank lines stand before it in the source, a quote's `>`
-  // aside, so a message can space its blocks as the draft it was typed in showed them
-  // (reading.css, `data-lf-gap`). Three stand for any more.
-  markdown.core.ruler.after("block", "blank_lines", (state) => {
-    const lines = state.src.split("\n");
-    for (const token of state.tokens) {
-      if (!token.map || !(token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
-        continue;
-      let gap = 0;
-      for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
-        if (parserItem(lines, at).replace(/^[\s>]*/, "")) break;
-        gap++;
+  // Each block of a message says how many blank lines stand before it in the source,
+  // a quote's `>` aside, so the message spaces its blocks as the draft it was typed in
+  // showed them (reading.css, `data-lf-gap`). Three stand for any more. A file draws
+  // each run of blank lines as one gap, so its blocks say nothing, and a message's
+  // spacing doesn't reach a file shown inside it, such as a draft's body.
+  if (message)
+    markdown.core.ruler.after("block", "blank_lines", (state) => {
+      const lines = state.src.split("\n");
+      for (const token of state.tokens) {
+        if (!token.map || !(token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
+          continue;
+        let gap = 0;
+        for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
+          if (parserItem(lines, at).replace(/^[\s>]*/, "")) break;
+          gap++;
+        }
+        token.attrSet("data-lf-gap", String(gap));
       }
-      token.attrSet("data-lf-gap", String(gap));
-    }
-  });
+    });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.
   markdown.renderer.rules.softbreak = (_tokens, _at, options) =>

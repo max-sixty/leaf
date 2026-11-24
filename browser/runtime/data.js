@@ -39,10 +39,10 @@ import { runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { bindingAttributes, registry, tagsDeclaring } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
 import { watchArrivals } from "./arrivals.js";
-import { referencedProjection, requireReference } from "./references.js";
+import { referencedProjection } from "./references.js";
 import { reportPageError } from "./layer-client.js";
 import { tick } from "./version-signal.js";
 
@@ -157,13 +157,11 @@ export function heldMoved(element) {
   if (said) tick(said);
 }
 
-/** @typedef {{contract: string, source?: string, reference?: string}} DataInput */
-
 // The reading of one source, which moves only as state application delivers: the
 // accepted one claims the element's region inside the publication that accepts it, and
 // the delivered one draws, so a reading accepted for a revision still being activated
 // never draws into the document it replaces. The first read takes the accepted reading.
-/** @param {string} source @param {DataInput} declaration @param {string} input @param {() => void} accepted */
+/** @param {string} source @param {import("./registry.js").InputDeclaration} declaration @param {string} input @param {() => void} accepted */
 function deliveredSource(source, declaration, input, accepted) {
   const selected = applicationState.select(
     /** @returns {DataSnapshot | null} */ (root) => {
@@ -267,12 +265,9 @@ const supplied = new WeakMap();
 export const suppliedSnapshot = (value) => supplied.get(value);
 
 // Whether the markup binds a declared input, to a source or to a widget's output.
-/** @param {Element} element @param {{source?: string, reference?: string}} declaration */
-export const bindsInput = (element, { source, reference }) =>
-  Boolean(
-    (source && element.getAttribute(source)) ||
-    (reference && element.getAttribute(reference)),
-  );
+/** @param {Element} element @param {import("./registry.js").InputDeclaration} declaration */
+export const bindsInput = (element, declaration) =>
+  bindingAttributes(declaration).some((attribute) => element.getAttribute(attribute));
 
 // Whether `element` binds a page data source while the page has read no data yet.
 // Until the first state answer is accepted, a source has no reading because none has
@@ -310,7 +305,6 @@ export function dataReader(element, input, accepted) {
     throw new Error(
       `<${element.localName}> input binds both an external source and widget output`,
     );
-  if (declaration.reference) requireReference("data", element, declaration.reference);
   const bound = source
     ? deliveredSource(source, declaration, input, accepted)
     : widget && declaration.reference

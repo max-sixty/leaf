@@ -366,8 +366,16 @@ export function createThreadDestinations({
       // A route that travels brings the passage into view after the reader's view
       // (below); the widget starts drawing its part in the gesture's own task, as on
       // the page (`onPage`), so a search that hid it gives way to this gesture rather
-      // than to a wait after it.
-      if (result !== false && navigationStep && partUndrawn())
+      // than to a wait after it. A thread the primary holds as the last resort goes
+      // back to the page once the page draws it (`returnToPage`), so its part is
+      // drawn only after the user lands in the reader's view, which hands that
+      // return the reply they are writing.
+      if (
+        result !== false &&
+        navigationStep &&
+        !lastResort.has(thread.key) &&
+        partUndrawn()
+      )
         void revealThread(id, intent);
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.

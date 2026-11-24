@@ -40,6 +40,7 @@ export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+export { alreadyShown } from "./landing-scroll.js";
 // Holding what the reader reads across one change the browser's scroll anchoring
 // can't keep still, such as one hiding what it anchors.
 export { holdPlace } from "./user-place.js";

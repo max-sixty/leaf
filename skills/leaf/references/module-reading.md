@@ -82,8 +82,6 @@ under its tag, each fact under its own name, as `layerFact(element.localName)?.a
 reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
 `$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
 guidance, so read the fact you need rather than whether an entry exists.
-`matchesWhen(element, when)` says whether the element's attributes satisfy
-a `when`, such as an `awaits`'s.
 
 ### Following a reference
 

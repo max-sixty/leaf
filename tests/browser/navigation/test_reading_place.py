@@ -2870,13 +2870,15 @@ def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
             '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
         ).replace(
             "</head>",
-            "<script type=\"module\">import {deferredArrival} from '/runtime/widget-api.js';"
-            "deferredArrival(new Promise((done) => (window.__arrived = done)));</script></head>",
+            "<script type=\"module\">import {afterPresentation} from '/runtime/widget-api.js';"
+            "afterPresentation(() => new Promise((done) => (window.__arrived = done)));"
+            "</script></head>",
         )
     )
     page = request.getfixturevalue(engine).new_page()
     page.goto(f"{url}#target")
     wait_until_ready(page, through="presented")
+    page.wait_for_function("typeof window.__arrived === 'function'")
     page.evaluate(
         f"() => {{ history.{how}State(null, '', location.pathname + location.search);"
         " scrollTo({top: 0, behavior: 'instant'}); window.__arrived(); }"

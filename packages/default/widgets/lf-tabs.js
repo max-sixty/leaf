@@ -97,7 +97,6 @@ import {
   capturePlace,
   comparisonChanges,
   claimTraversals,
-  compoundReadingRegionId,
   keepView,
   listWalkPosition,
   whileConnected,
@@ -105,7 +104,6 @@ import {
   viewMembers,
   preserveReadingRegions,
   pushEntry,
-  registerReadingRegion,
   replaceEntry,
   restorePlace,
   tabStore,
@@ -188,8 +186,6 @@ export class TabSet extends LeafElement {
   #pageFlow = false;
   /** @type {(ReturnType<typeof backgroundFlash>) | null} */
   #revealMotion = null;
-  /** @type {(() => void) | null} */
-  #stopList = null;
 
   createRenderRoot() {
     return this.#strip ?? this;
@@ -235,7 +231,9 @@ export class TabSet extends LeafElement {
         this.#runs.push(run);
       }
       run.panels.push(panel);
-      panel.toggleAttribute("data-lf-scroll", true);
+      // Every panel is a scroll surface, and a side list's is a reading region too
+      // (`#syncListRegion`).
+      keeps(panel, "data-lf-scroll", side ? "panel" : "");
       panel.setAttribute("role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
@@ -351,20 +349,8 @@ export class TabSet extends LeafElement {
       this.#listenForHistory(signal);
       const stripSize = this.#watchStrip();
       strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
-      const stopPanels = this.#side
-        ? [...this.#buttons.keys()].map((panel) =>
-            registerReadingRegion({
-              id: compoundReadingRegionId(this, `panel-${panel.id}`),
-              host: panel,
-              body: panel,
-            }),
-          )
-        : [];
-      this.#syncRegions();
+      this.#syncListRegion();
       return () => {
-        for (const stop of stopPanels) stop();
-        this.#stopList?.();
-        this.#stopList = null;
         this.#revealMotion?.cancel();
         this.#revealMotion = null;
         this.#stopSelectionMotion();
@@ -375,29 +361,21 @@ export class TabSet extends LeafElement {
     });
   }
 
-  // A side list's panels are reading regions whatever their posture, as panes are, so
-  // the user's place in an item survives the workspace flowing and filling the window
-  // again. Its list is one only while it scrolls on its own, which the theme declares
-  // on it (`--lf-holds-height`): a column, sticking beside the item or filling the
-  // height a full-height workspace gives it, or that workspace's stacked row. A row
-  // over the item elsewhere keeps its open tab in view itself (`#showTab`), and
-  // observed as a region there, its own scrolling as it turned into a row ended the
-  // size observers' pass with notifications undelivered. Which it is follows the
-  // window, so the strip's size observer asks again.
-  #syncRegions() {
+  // A side list's panels are reading regions whatever their posture, as panes are
+  // (`setup` marks them), so the user's place in an item survives the workspace flowing
+  // and filling the window again. Its list is one only while it scrolls on its own,
+  // which the theme declares on it (`--lf-holds-height`): a column, sticking beside the
+  // item or filling the height a full-height workspace gives it, or that workspace's
+  // stacked row. A row over the item elsewhere keeps its open tab in view itself
+  // (`#showTab`), and observed as a region there, its own scrolling as it turned into a
+  // row ended the size observers' pass with notifications undelivered. Which it is
+  // follows the window, so the strip's size observer asks again.
+  #syncListRegion() {
     if (!this.#side || !this.isConnected) return;
     const holds =
       getComputedStyle(this.#strip).getPropertyValue("--lf-holds-height").trim() ===
       "1";
-    if (holds === Boolean(this.#stopList)) return;
-    this.#stopList?.();
-    this.#stopList = holds
-      ? registerReadingRegion({
-          id: compoundReadingRegionId(this, "list"),
-          host: this.#strip,
-          body: this.#strip,
-        })
-      : null;
+    keeps(this.#strip, "data-lf-scroll", holds ? "list" : "");
   }
 
   // What each panel holds, said with its summary as the tab's description: the
@@ -787,7 +765,7 @@ export class TabSet extends LeafElement {
       getComputedStyle(this.#strip).flexDirection === "column" ? "vertical" : null,
     );
     this.#stopSelectionMotion();
-    this.#syncRegions();
+    this.#syncListRegion();
     this.#declareHeader();
     this.#showTab(this.#currentButton());
   };

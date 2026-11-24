@@ -139,7 +139,6 @@ import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
-import { letHeldKeysGo } from "./keyboard/controller.js";
 import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
@@ -3264,14 +3263,14 @@ export function createVersionController({
     // (history.js, `settled`), the entry's record's return and the handoff's restore
     // (`landArrival`) among its work. Then they run where it put the user, as text in
     // the box they were writing in. An input of theirs meanwhile ended the arrival, and
-    // their keys, meant for a place they never got back to, go with it.
+    // the hold let their keys, meant for a place they never got back to, go with it
+    // (bootstrap.js, `holdEarlyKeys`).
     if (handoff) {
       handingBackPlace(true);
       void arrival.settled.then(() => {
         window.lfStorage.handOff(null);
         handingBackPlace(false);
-        if (inputCount() === 0) paintKeys();
-        else letHeldKeysGo();
+        paintKeys();
       });
     }
     // Unreadable saved JSON means no saved view; it must not prevent page startup.

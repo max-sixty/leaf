@@ -591,10 +591,21 @@
     };
     // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
     // replays, so it doesn't stop the hand-back it waits for, and neither is a bare
-    // modifier, which acts on nothing, as the Shift before a capital the hold keeps. On
-    // any other load a held key still counts, so a key typed while the page starts
-    // still stops arrival work, such as reopening a comment box, as it always did.
-    if (handedBack) holdKeys((event) => HALF_PRESSES.has(event.key) || holds(event));
+    // modifier, which acts on nothing, as the Shift before a capital the hold keeps.
+    // Any other input the document's clock counts, a scroll or a step Back or Forward as
+    // much as a press, ends that hand-back, so the keys held for the place it would put
+    // back go at once (`counted`), and a document that goes then leaves none of them.
+    // The run's own presses, once the place is back, are the clock's inputs too, and
+    // let go of nothing (`taken`). On any other load a held key still counts, so a key
+    // typed while the page starts still stops arrival work, such as reopening a comment
+    // box, as it always did.
+    if (handedBack)
+      holdKeys({
+        holds: (event) => HALF_PRESSES.has(event.key) || holds(event),
+        counted: () => {
+          if (!taken) letGo();
+        },
+      });
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through

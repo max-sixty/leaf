@@ -15,9 +15,11 @@
   let steps = 0;
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
-  // waits for is not superseded by it (bootstrap.js, `holdEarlyKeys`).
-  /** @type {((event: KeyboardEvent) => boolean) | null} */
-  let holdsKey = null;
+  // waits for is not superseded by it. The hold hears of every input the clock does
+  // count, a step Back or Forward included (`counted`), each of which ends the
+  // hand-back the held keys were typed for (bootstrap.js, `holdEarlyKeys`).
+  /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
+  let hold = null;
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
   // Early key holding and the runtime ask the same question of a key's origin.
@@ -61,8 +63,8 @@
     get steps() {
       return steps;
     },
-    holdKeys(holds) {
-      holdsKey = holds;
+    holdKeys(next) {
+      hold = next;
     },
     observe(read) {
       inputReaders.add(read);
@@ -79,8 +81,9 @@
     // input through that child. Only leaving the document supersedes its gesture.
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
-    if (event instanceof KeyboardEvent && holdsKey?.(event)) return;
+    if (event instanceof KeyboardEvent && hold?.holds(event)) return;
     inputs++;
+    hold?.counted();
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
@@ -93,6 +96,7 @@
   const step = () => {
     inputs++;
     steps++;
+    hold?.counted();
   };
   if (window.navigation?.currentEntry)
     window.navigation.addEventListener("navigate", (event) => {

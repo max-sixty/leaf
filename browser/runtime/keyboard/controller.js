@@ -191,13 +191,17 @@ export function mountKeyboard({
   // Upgrade opens commands about the shown document. A command needing private
   // history keeps its key and every printed key behind it in the same queue until
   // the saved reading. New ready keys otherwise pass straight through bootstrap.
+  // Until a reload's place is handed back, the run waits wherever focus is, even in a
+  // box the page opened before the hand-back put the user back in theirs, and the hold
+  // lets it go at any other input (bootstrap.js, `holdEarlyKeys`); the hand-back begins
+  // before the page upgrades (version.js, `installArrival`).
   const takeHeldKeys = () => {
-    if (!pageUpgraded() || pressingHeld) return;
+    if (!pageUpgraded() || pressingHeld || !placeHandedBack()) return;
     /** @type {DocumentEventMap["lf-held-keys"]} */
     const taking = new CustomEvent("lf-held-keys", {
       detail: {
         ready: keyReady,
-        keep: () => runtime.statePhase === "waiting" || !placeHandedBack(),
+        keep: () => runtime.statePhase === "waiting",
       },
     });
     document.dispatchEvent(taking);
@@ -206,13 +210,6 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      // Until a reload's place is handed back, the run waits wherever focus is, even
-      // in a box the page opened before the hand-back put the user back in theirs.
-      if (!placeHandedBack()) {
-        pause();
-        pressingHeld = false;
-        return;
-      }
       // With single-key commands off, a held key only ever types into a box, as the
       // words a user typed through a reload do into the box it hands back; the release
       // lets go of the rest.

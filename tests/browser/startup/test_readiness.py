@@ -861,6 +861,45 @@ def test_keys_still_held_as_another_reload_comes_follow_the_first_into_the_reply
     expect(reply).to_have_js_property("value", "Holdxyz")
 
 
+def test_a_key_held_through_a_reload_goes_with_a_scroll_across_another(browser, serve):
+    """A key typed while a reload's arrival waits is meant for the place it puts back.
+    Scrolling the page then ends that arrival, and lets the key go with it, though a
+    second reload Leaf asks for comes before the document's anchoring is ready, and so
+    before it has put anything back: the next document holds the key no more."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    reply = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
+        ".lf-thread-reply leaf-text"
+    )
+    write(reply, "Hold")
+
+    def type_then_scroll():
+        page.keyboard.type("x")
+        page.mouse.move(400, 300)
+        page.mouse.wheel(0, 200)
+
+    reload_in_a_row(page, serve, [type_then_scroll], slow={1})
+    expect(reply).to_have_js_property("value", "Hold")
+
+
 def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
     browser, serve
 ):

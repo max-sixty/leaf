@@ -572,10 +572,18 @@ def test_back_during_a_revisions_arrival_ends_it(request, serve, engine, when):
     if when == "before Leaf starts":
         page.route("**/leaf.js", lambda route: module.append(route))
     held = hold_the_next_documents_reading(page)
+    born = page.evaluate("performance.timeOrigin")
     try:
         stamp_page(serve.page_dir, executable_revision(LONG_PAGE, "back"), "Revise")
         if when == "before Leaf starts":
             holding(page, module, 1, "the arriving document's entry module")
+            # Firefox can ask for the arriving document's module before that document
+            # commits, so Back waits until the arriving document stands, parsed.
+            page.wait_for_function(
+                "(born) => performance.timeOrigin !== born"
+                " && document.readyState !== 'loading'",
+                arg=born,
+            )
         else:
             holding(page, held, 1, "the arriving document's first reading")
             wait_until_ready(page, through="upgraded")

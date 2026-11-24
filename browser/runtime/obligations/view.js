@@ -41,7 +41,7 @@ import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { scrollersOf } from "../scroll-containers.js";
 import { whereGlidesLand } from "../scrolling.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
 import { obligationEntry, readObligations } from "./model.js";

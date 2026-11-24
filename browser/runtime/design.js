@@ -2,7 +2,7 @@
  * target reading shared by its direct presses, pointer promise, and keyboard picker. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shownBox } from "./geometry.js";
-import { layoutPx } from "./keeps.js";
+import { layoutPx } from "./lib/keeps.js";
 import { paintSet } from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
 import { tabStore } from "./tab-store.js";

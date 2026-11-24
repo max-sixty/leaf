@@ -102,7 +102,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   keepView,
-  keeps,
   layoutChanged,
   listWalkPosition,
   whileConnected,
@@ -130,6 +129,7 @@ import {
   commandsChanged,
 } from "/runtime/widget-api.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
 
 const PLACE_KEY = "lf-tabs-place:";
@@ -753,7 +753,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      run.style.setProperty("--lf-tab-group-size", `${Math.round(size * 64) / 64}px`);
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
       scrollIntoView(btn, { block: "nearest", within });
       return;
     }

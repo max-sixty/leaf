@@ -10,6 +10,7 @@
       "/runtime/lib/exception.js",
       "/runtime/lib/icon-paths.js",
       "/runtime/lib/icons.js",
+      "/runtime/lib/keeps.js",
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/syntax-languages.js",
       "/runtime/lib/syntax-tokens.js",

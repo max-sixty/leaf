@@ -137,7 +137,7 @@
 import { counted } from "../words.js";
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { offerAction } from "../widget-elements.js";
-import { keeps, keepsText } from "../keeps.js";
+import { keeps, keepsText } from "../lib/keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";

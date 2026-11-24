@@ -9,7 +9,7 @@ import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { elementDirective, offerActionElement } from "./widget-elements.js";
-import { keeps, inlineStyle } from "./keeps.js";
+import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";

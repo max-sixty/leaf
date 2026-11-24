@@ -19,7 +19,7 @@ import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./contribution-model.js";
 import { offerAction } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps, keepsText } from "./lib/keeps.js";
 
 /** @typedef {readonly [string, ...string[]]} CommentThreads */
 /** @param {{openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"],

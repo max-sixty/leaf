@@ -74,12 +74,6 @@ export const hostIn = (node, root) => {
   while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
 };
-/** Native inline style belongs to HTML, SVG and MathML elements, in any window.
- * @param {Element} node @returns {node is HTMLElement | SVGElement | MathMLElement} */
-export const isStyledElement = (node) =>
-  node.namespaceURI === "http://www.w3.org/1999/xhtml" ||
-  node.namespaceURI === "http://www.w3.org/2000/svg" ||
-  node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
 // closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
 // reach the section that holds it or the chrome marker above it — both out in the
 // document. Same climb as upFrom, asked with a selector at each tree it passes through.

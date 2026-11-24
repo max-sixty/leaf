@@ -1,9 +1,5 @@
-import {
-  generatedElement,
-  keeps,
-  titledElement,
-  viewDocument,
-} from "/runtime/widget-api.js";
+import { generatedElement, titledElement, viewDocument } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
  * section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`

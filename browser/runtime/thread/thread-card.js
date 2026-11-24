@@ -101,7 +101,7 @@ import {
 } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { contentsBox, measure } from "../shown-box.js";
-import { keeps, keepsHidden, layoutPx, roomPx } from "../keeps.js";
+import { keeps, keepsHidden, layoutPx, roomPx } from "../lib/keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {

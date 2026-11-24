@@ -70,8 +70,6 @@ import {
   dragging,
   focusDestination,
   keepView,
-  keeps,
-  keepsText,
   layoutChanged,
   LeafElement,
   motion,
@@ -93,6 +91,7 @@ import {
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes

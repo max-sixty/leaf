@@ -1,7 +1,8 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
 import { html } from "/vendor/lit.js";
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-tree",
   class extends LeafElement {

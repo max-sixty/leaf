@@ -4,7 +4,7 @@
    Native layer openings are observed in every stage, where toggle events stay local.
 
    Leaf installs its augmentation from stage-integration.js before widgets upgrade:
-   shared styles and marks, focus, disclosure and passage watches belong to the host,
+   shared styles and marks, and focus and passage watches belong to the host,
    not to a widget's staging lifecycle. Re-adoption restores shared adopted sheets
    without discarding a renderer's own. The host returns its retained style nodes so
    imperative staging keeps them alongside the rendering. */

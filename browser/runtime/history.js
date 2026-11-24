@@ -191,7 +191,7 @@ import { reloadDocument } from "./layer-client.js";
  * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
  * caret: import("./focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
  * thread: ThreadPlace | null}} WorkingPlace
- * @typedef {import("./thread/reply-landing.js").ThreadReading & {reader: "primary" | null}} ViewReading
+ * @typedef {import("./thread/reply-landing.js").ThreadReading & {reader: "primary" | "card"}} ViewReading
  * @typedef {(Omit<import("./carry.js").FocusKey, "thread"> & {thread?: string | null})
  * | NonNullable<ReturnType<typeof draftFocus>>} RecordFocus
  * @typedef {{anchor: import("./anchor-resolution.js").CapturedAnchor, ends: [number, number]}

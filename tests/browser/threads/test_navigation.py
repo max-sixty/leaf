@@ -199,6 +199,49 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("window", ["wide", "narrow"])
+def test_back_returns_to_the_card_a_later_open_in_panel_left(
+    request, serve, engine, window
+):
+    """Back to an entry whose thread the user read in its card opens the card again,
+    though a later Open in panel chose the panel for threads from then on: the entry's
+    record names the view they stood in, which the choice doesn't (thread/address.js),
+    as Back after Show on page returns to the panel's view. Where no card can stand by
+    then, as on a window too narrow for the rail, the thread opens in the panel, as Leaf
+    places it there whatever was chosen."""
+    url = serve(LONG_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    second = panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    cards = page.locator(".lf-margin-preview")
+    card = cards.locator(".lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", second)
+    cards.get_by_role("button", name="Open in panel", exact=True).click()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{second}"]')).to_be_visible()
+    expect(cards).to_be_hidden()
+    if window == "narrow":
+        resized(page, 700, 900)
+    page.wait_for_function("navigation.transition === null")
+
+    page.go_back()
+    if window == "wide":
+        expect(card).to_have_attribute("data-lf-thread", first)
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    else:
+        expect(
+            page.locator(f'{PANEL_THREAD}[data-lf-thread="{first}"]')
+        ).to_be_visible()
+        expect(cards).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_reopens_a_card_where_the_user_had_read_it_to(request, serve, engine):
     """Back to an entry whose card a trip put away opens the card again at the reply the
     user had read it to, standing where it stood in the card, rather than at the card's

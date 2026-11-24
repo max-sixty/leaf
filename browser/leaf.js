@@ -879,7 +879,7 @@ async function boot() {
     const panel = floatingPanel?.shownThread() ?? null;
     if (panel) return { id: panel, reader: "primary" };
     const card = app?.overlay?.threadPreview.shown() ?? null;
-    return card ? { id: card, reader: null } : null;
+    return card ? { id: card, reader: "card" } : null;
   }
   const threadAddress = createThreadAddress({
     shown: openThreadView,

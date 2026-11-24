@@ -46,7 +46,10 @@
    (`reader: "primary"`) returns the user to a thread they had there, as a live revision
    carrying the panel's view across does (floating-panel.js, `restoreCurrentLocation`):
    the primary is asked as the last resort is, and keeps the thread once the page could
-   draw it.
+   draw it. A route to a card (`reader: "card"`) returns the user to a thread they had
+   read beside its passage, as Back to such an entry does (thread/address.js): it opens
+   as a route under the cards choice does, whatever the choice now, the card standing
+   where it can and the placements Leaf forces taking the thread where it can't.
 
    A route that travels into the primary brings the thread's passage into view as well
    as the primary's view of it (`taken`): nearest, in the room the floating panel's view
@@ -251,7 +254,7 @@ export function createThreadDestinations({
   /** @typedef {{part?: "thread" | "reply" | "message" | null,
    * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
    * intent?: ReturnType<typeof retainUserIntent>, origin?: ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>,
-   * reader?: "page" | "primary" | null}} OpenThreadOptions */
+   * reader?: "page" | "primary" | "card" | null}} OpenThreadOptions */
   /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(
     id,
@@ -269,6 +272,7 @@ export function createThreadDestinations({
     if (!intent()) return null;
     part ??= openingPart();
     const page = reader === "page";
+    const card = reader === "card";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
     // The return place, read before any reader is asked (the header).
@@ -297,7 +301,7 @@ export function createThreadDestinations({
         ...addressedPart(thread, id, part),
         focus,
         last,
-        page,
+        page: page || card,
         signal: abort.signal,
         current: () =>
           !abort.signal.aborted &&
@@ -465,7 +469,7 @@ export function createThreadDestinations({
       const invocation = { opened: null };
       if (preview && (!place || placeDrawn(id)))
         intent.handoff(() => {
-          invocation.opened = preview.open(id, { origin });
+          invocation.opened = preview.open(id, { origin, card });
         });
       const opened = invocation.opened;
       if (opened) {

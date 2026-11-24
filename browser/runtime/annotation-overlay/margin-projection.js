@@ -32,7 +32,9 @@
    The card is a wide window's surface: it stands only on a window with room for the
    rail (content-layout.js, `windowHoldsRail`), whether or not this page's Layout stands
    one there, and only while the user hasn't chosen the floating panel for threads
-   (thread/threads-in-panel.js). Where it can't stand no card opens (`showPreview`) and
+   (thread/threads-in-panel.js), but for a route to the card itself, as Back to an entry
+   the user read a card in is (thread/destination.js, `reader: "card"`). Where it can't
+   stand no card opens (`showPreview`) and
    nothing accompanies a target, so under that choice an arrival opens no thread by
    itself, as on a phone; every route to a thread, a press on its marker included,
    opens it where a thread the page draws no view of opens (thread/destination.js): the
@@ -1620,15 +1622,18 @@ export function createMarginProjection({
       syncReadingRelation(button, button.lfChoice);
   }
 
-  /** @param {Entry} entry @param {ThreadChoice} choice @param {Element | null} control @param {string | null} [threadItem] @param {Pick<Parameters<ShowPreview>[0], "origin" | "accompanies" | "forced">} [options] */
+  // A route to the card itself (`card`, thread/destination.js) opens it under either
+  // choice of where threads open, as Back to the entry the user read it in does.
+  /** @param {Entry} entry @param {ThreadChoice} choice @param {Element | null} control @param {string | null} [threadItem] @param {Pick<Parameters<ShowPreview>[0], "origin" | "accompanies" | "forced"> & {card?: boolean}} [options] */
   function showPreview(
     entry,
     choice,
     control,
     threadItem = null,
-    { origin = null, accompanies = false, forced = false } = {},
+    { origin = null, accompanies = false, forced = false, card: asked = false } = {},
   ) {
-    if (designModeActive() || !windowHoldsRail() || threadsInPanel()) return null;
+    if (designModeActive() || !windowHoldsRail() || (threadsInPanel() && !asked))
+      return null;
     const previous = card.selection();
     const disclosed =
       (previous?.disclosed && previous.entry.key === entry.key) ||
@@ -1938,8 +1943,11 @@ export function createMarginProjection({
   /** @param {Entry} entry */
   const shownEntryControl = (entry) =>
     shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker);
-  /** @param {string} id @param {Pick<Parameters<ShowPreview>[0], "origin"> & {unfold?: boolean}} [options] */
-  function openInlineThread(id, { origin = null, unfold = true } = {}) {
+  /** @param {string} id @param {Pick<Parameters<ShowPreview>[0], "origin"> & {unfold?: boolean, card?: boolean}} [options] */
+  function openInlineThread(
+    id,
+    { origin = null, unfold = true, card: asked = false } = {},
+  ) {
     const itemId = marginThreadItem(threadNamed(id));
     const entry = threadEntry(id);
     if (!entry || designModeActive()) return null;
@@ -1952,6 +1960,7 @@ export function createMarginProjection({
       origin,
       accompanies: !unfold,
       forced: true,
+      card: asked,
     });
     const thread = card.thread();
     return thread && positioned && { thread, presented: positioned };

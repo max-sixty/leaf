@@ -1230,13 +1230,17 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
         page.get_by_role("heading", name="Release note").hover()
         rendered(page)
         controls = draft.locator("[data-lf-draft-action]:visible")
-        before = controls.evaluate_all(
-            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
-        )
         button = draft_control(page, action, "note")
         box = button.bounding_box()
         x = box["x"] + (2 if edge == "left" else box["width"] - 2)
         page.mouse.move(x, box["y"] + box["height"] / 2)
+        # Typing put the toolbar away, and it takes presses once the pointer has
+        # rested on it (draft.css).
+        expect(draft.locator(".lf-draft-tools")).to_have_css("pointer-events", "auto")
+        rendered(page)
+        before = controls.evaluate_all(
+            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+        )
         page.mouse.down()
         expect(button).to_be_focused()
         rendered(page)

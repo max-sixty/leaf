@@ -34,6 +34,19 @@
    back to the verb's value, and a refusal moves the reading, so the element shows
    no value the page does not hold.
 
+   Until that set the element shows the change the user made, because Leaf sets
+   nothing on it to stop the change. An element that should take none reads the
+   verb's `available` from its `state`, as any widget does, and what it shows then is
+   its package's to choose. Neither attribute Leaf could set from outside does what
+   Leaf's own widgets do there, which stay readable and stay comment targets:
+   - `inert` takes the element, and the value it shows, out of the accessibility tree
+     and out of the targets a comment can aim at, by pointer or by keyboard, and
+     leaves it looking live;
+   - `disabled`, on an element that has it, keeps the value in the accessibility tree
+     and the element a keyboard target, but an Alt+click anywhere on the control
+     starts no comment, the value takes the library's faded face, and the property
+     would be a second way of saying `available`.
+
    Leaf sets none of them until the reading holds every declared verb and the page has
    read the data a bound source names, so the element never draws a reading nobody has
    made yet. Each pass of sets runs in the stack that moved the reading, inside a claim
